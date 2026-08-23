@@ -31,9 +31,18 @@ const server = http.createServer((req, res) => {
   res.setHeader('x-request-id', requestId);
 
   if (req.method === 'GET' && url.pathname === '/health') {
+    return json(res, 200, {
+      status: 'ok',
+      service: 'alhijrah-caseflow-api',
+      version: '1.8.0',
+      requestId
+    });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/ready') {
     const missing = required.filter((key) => !process.env[key]);
     return json(res, missing.length ? 503 : 200, {
-      status: missing.length ? 'degraded' : 'ok',
+      status: missing.length ? 'not-ready' : 'ready',
       service: 'alhijrah-caseflow-api',
       version: '1.8.0',
       requestId,
@@ -51,6 +60,7 @@ const server = http.createServer((req, res) => {
       version: '1.8.0',
       status: 'runtime-ready',
       health: '/health',
+      readiness: '/ready',
       requestId
     });
   }
