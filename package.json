@@ -1,0 +1,11 @@
+{
+  "name": "alhijrah-caseflow",
+  "version": "1.8.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node src/server.js",
+    "health": "node scripts/healthcheck.js"
+  }
+}
