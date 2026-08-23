@@ -67,3 +67,5 @@ RLS is enabled and direct `anon` / `authenticated` access is revoked. The backen
 - No-store API responses
 - HSTS, CSP, frame, referrer, and MIME hardening headers
 - No production secrets or customer documents in Git
+
+<!-- railway-deploy-trigger: 2026-08-23 -->
