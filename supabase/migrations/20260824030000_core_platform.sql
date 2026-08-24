@@ -349,6 +349,7 @@ alter table public.documents add column if not exists expires_on date;
 alter table public.documents add column if not exists version integer not null default 1;
 alter table public.documents add column if not exists replaces_document_id uuid references public.documents(id) on delete set null;
 alter table public.documents add column if not exists archived_at timestamptz;
+alter table public.documents add column if not exists content_checksum text;
 
 alter table public.audit_events add column if not exists actor_roles text[] not null default '{}';
 alter table public.audit_events add column if not exists client_id uuid;
@@ -364,6 +365,7 @@ create index if not exists deadlines_case_date_idx on public.deadlines(case_id, 
 create index if not exists intake_case_idx on public.intake_submissions(case_id, status);
 create index if not exists document_requests_case_idx on public.document_requests(case_id, status);
 create index if not exists documents_client_idx on public.documents(client_id, created_at desc);
+create unique index if not exists documents_case_checksum_unique_idx on public.documents(case_id, content_checksum) where content_checksum is not null and archived_at is null;
 create index if not exists client_access_user_idx on public.client_access(auth_user_id, status);
 create index if not exists case_assignments_user_idx on public.case_assignments(auth_user_id, active);
 create index if not exists form_roles_case_idx on public.form_role_assignments(case_id, form_code);
@@ -372,6 +374,28 @@ create index if not exists case_messages_case_idx on public.case_messages(case_i
 create index if not exists appointments_client_idx on public.appointments(client_id, starts_at);
 create index if not exists invoices_client_idx on public.invoices(client_id, created_at desc);
 create index if not exists alerts_open_idx on public.alerts(status, due_at) where status = 'open';
+create unique index if not exists alerts_active_source_unique_idx on public.alerts(alert_type, source_type, source_id) where status in ('open','acknowledged') and source_id is not null;
+
+create table if not exists public.retention_policies (
+  record_type text primary key,
+  retention_days integer not null check (retention_days >= 0),
+  action text not null default 'review' check (action in ('review','archive','delete')),
+  updated_by uuid,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.legal_holds (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid references public.clients(id) on delete cascade,
+  case_id uuid references public.cases(id) on delete cascade,
+  reason text not null,
+  active boolean not null default true,
+  placed_by uuid,
+  released_by uuid,
+  placed_at timestamptz not null default now(),
+  released_at timestamptz,
+  check (client_id is not null or case_id is not null)
+);
 
 alter table public.app_users enable row level security;
 alter table public.roles enable row level security;
@@ -397,13 +421,31 @@ alter table public.appointments enable row level security;
 alter table public.invoices enable row level security;
 alter table public.payments enable row level security;
 alter table public.alerts enable row level security;
+alter table public.retention_policies enable row level security;
+alter table public.legal_holds enable row level security;
 
 revoke all on public.app_users, public.roles, public.permissions, public.role_permissions, public.user_roles,
   public.clients, public.people, public.client_people, public.service_catalog, public.case_people, public.case_assignments,
   public.form_role_assignments, public.client_access, public.tasks, public.deadlines,
   public.intake_definitions, public.intake_submissions, public.document_requests, public.case_notes,
-  public.case_messages, public.appointments, public.invoices, public.payments, public.alerts
+  public.case_messages, public.appointments, public.invoices, public.payments, public.alerts,
+  public.retention_policies, public.legal_holds
 from anon, authenticated;
+
+create or replace function public.prevent_audit_mutation() returns trigger
+language plpgsql as $$
+begin
+  raise exception 'audit records are append-only';
+end;
+$$;
+
+drop trigger if exists audit_events_append_only on public.audit_events;
+create trigger audit_events_append_only before update or delete on public.audit_events
+for each row execute function public.prevent_audit_mutation();
+
+drop trigger if exists case_events_append_only on public.case_events;
+create trigger case_events_append_only before update or delete on public.case_events
+for each row execute function public.prevent_audit_mutation();
 
 insert into public.roles (code, name) values
   ('owner','Owner'), ('admin','Admin'), ('supervisor','Supervisor'), ('case_manager','Case Manager'),

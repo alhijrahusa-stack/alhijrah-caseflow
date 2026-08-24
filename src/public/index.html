@@ -814,6 +814,10 @@
                   </div>
                 </div>
               </div>
+              <div class="panel" style="margin-top: 15px">
+                <div class="ph"><div><h2>Operational Alerts</h2><span>Deadlines, tasks, and expiring records</span></div><button class="btn" onclick="refreshAlerts()">Refresh</button></div>
+                <div id="alertList"><div class="empty">Loading alerts…</div></div>
+              </div>
             </div>
           </div>
         </section>
@@ -1356,6 +1360,15 @@
           $("live").textContent = "Service unavailable";
         }
       }
+      async function loadAlerts() {
+        try {
+          const result = await api("/api/v1/alerts");
+          $("alertList").innerHTML = (result.data || []).slice(0,8).map((item) => `<div class="row"><div><b>${esc(item.title)}</b><small>${esc(intakeOptionLabel(item.alert_type))} · ${date(item.due_at)}</small></div><span class="tag ${item.severity === "critical" || item.severity === "high" ? "urgent" : "normal"}">${esc(item.severity)}</span></div>`).join("") || '<div class="empty">No active alerts.</div>';
+        } catch { $("alertList").innerHTML = '<div class="empty">Alerts are not available for this role.</div>'; }
+      }
+      async function refreshAlerts() {
+        try { await api("/api/v1/alerts/refresh", { method: "POST", body: "{}" }); await loadAlerts(); } catch (error) { alert(error.message); }
+      }
       async function loadCases() {
         try {
           const j = await api("/api/v1/cases?limit=250");
@@ -1858,6 +1871,7 @@
         if (!caseId || !f)
           return ($("docErr").textContent = "Select a case and file.");
         try {
+          const checksum = await fileChecksum(f);
           const p = await api("/api/v1/documents/presign", {
             method: "POST",
             body: JSON.stringify({
@@ -1881,6 +1895,7 @@
               file_name: f.name,
               content_type: f.type,
               size_bytes: f.size,
+              content_checksum: checksum,
             }),
           });
           $("docFile").value = "";
@@ -1901,7 +1916,7 @@
         }
       }
       async function deleteDoc(id) {
-        if (!confirm("Delete this document permanently?")) return;
+        if (!confirm("Move this document to the protected archive?")) return;
         try {
           await api("/api/v1/documents/" + id, { method: "DELETE" });
           await loadDocuments();
@@ -2078,6 +2093,10 @@
         if (v < 1048576) return (v / 1024).toFixed(1) + " KB";
         return (v / 1048576).toFixed(1) + " MB";
       }
+      async function fileChecksum(file) {
+        const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+        return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      }
       async function loadPortal() {
         try {
           const result = await api("/api/v1/portal");
@@ -2131,10 +2150,11 @@
         const { caseId, requestId } = portalUploadTarget;
         $("portalErr").textContent = "Uploading securely…";
         try {
+          const checksum = await fileChecksum(file);
           const presigned = await api("/api/v1/portal/documents/presign", { method: "POST", body: JSON.stringify({ case_id: caseId, filename: file.name, content_type: file.type, size_bytes: file.size }) });
           const upload = await fetch(presigned.upload_url, { method: "PUT", headers: { "content-type": file.type }, body: file });
           if (!upload.ok) throw new Error("Upload failed");
-          await api("/api/v1/portal/documents/confirm", { method: "POST", body: JSON.stringify({ case_id: caseId, request_id: requestId, key: presigned.key, file_name: file.name, content_type: file.type, size_bytes: file.size }) });
+          await api("/api/v1/portal/documents/confirm", { method: "POST", body: JSON.stringify({ case_id: caseId, request_id: requestId, key: presigned.key, file_name: file.name, content_type: file.type, size_bytes: file.size, content_checksum: checksum }) });
           portalUploadTarget = null;
           await loadPortal();
         } catch (error) {
@@ -2145,6 +2165,7 @@
         renderRoles();
         configureNavigation();
         await testReady();
+        await loadAlerts();
         await loadServices();
         await loadCases();
         await loadClients();
