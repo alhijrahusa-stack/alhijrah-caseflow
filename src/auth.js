@@ -172,7 +172,14 @@ export async function getAuthProvisioningStatus() {
     const hasOwner = users.some(user => user.app_metadata?.roles?.includes('owner') || (ownerEmail && String(user.email || '').toLowerCase() === ownerEmail));
     return { configured: true, userCount: users.length, ownerProvisioned: hasOwner };
   } catch (error) {
-    return { configured: false, userCount: 0, ownerProvisioned: false, error: error.message };
+    const errorCode = error.status === 401 || error.status === 403
+      ? 'AUTH_ADMIN_KEY_REJECTED'
+      : error.status === 404
+        ? 'AUTH_ENDPOINT_NOT_FOUND'
+        : error.status >= 500
+          ? 'AUTH_PROVIDER_UNAVAILABLE'
+          : 'AUTH_PROVIDER_CHECK_FAILED';
+    return { configured: false, userCount: 0, ownerProvisioned: false, errorCode };
   }
 }
 
