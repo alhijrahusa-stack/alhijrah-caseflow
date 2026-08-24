@@ -6,7 +6,8 @@
   "engines": { "node": ">=22" },
   "scripts": {
     "start": "node src/server.js",
-    "health": "node scripts/healthcheck.js"
+    "health": "node scripts/healthcheck.js",
+    "test": "node --test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",
