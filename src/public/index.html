@@ -710,6 +710,9 @@
           ><button data-view="documents">Documents</button
           ><button data-view="services">Services</button
           ><button data-view="tasks">Tasks</button
+          ><button data-view="reviews">Review Queue</button
+          ><button data-view="billing">Billing</button
+          ><button data-view="reports">Reports</button
           ><button data-view="roles">Team & Roles</button
           ><button data-view="audit">Audit Trail</button
           ><button data-view="settings">Settings</button>
@@ -930,7 +933,11 @@
           <div class="panel">
             <div class="toolbar">
               <select id="taskFilter" onchange="loadTasks()">
-                <option value="">All open tasks</option>
+                <option value="">All Tasks</option>
+                <option value="my">My Tasks</option>
+                <option value="today">Due Today</option>
+                <option value="overdue">Overdue</option>
+                <option value="upcoming">Upcoming</option>
                 <option value="open">Open</option>
                 <option value="in_progress">In progress</option>
                 <option value="blocked">Blocked</option>
@@ -968,6 +975,17 @@
             <div class="table" style="margin-top:15px"><table><thead><tr><th>User</th><th>Roles</th><th>Status</th><th>Last sign-in</th></tr></thead><tbody id="teamTable"></tbody></table></div>
           </div>
           <div class="roles" id="roleGrid"></div>
+        </section>
+        <section class="view" id="view-reviews">
+          <div class="panel"><div class="ph"><div><h2>Case Review Queue</h2><span>Matters awaiting controlled review</span></div><button class="btn" onclick="loadReviewQueue()">Refresh</button></div><div class="table"><table><thead><tr><th>Case</th><th>Service</th><th>Workflow</th><th>Review State</th><th>Priority</th></tr></thead><tbody id="reviewCaseTable"></tbody></table></div></div>
+          <div class="panel" style="margin-top:16px"><div class="ph"><div><h2>Document Review Queue</h2><span>Received or returned documents</span></div></div><div class="table"><table><thead><tr><th>Document</th><th>Category</th><th>Status</th><th>Received</th><th></th></tr></thead><tbody id="reviewDocumentTable"></tbody></table></div><div class="err" id="reviewErr"></div></div>
+        </section>
+        <section class="view" id="view-billing">
+          <div class="panel"><div class="ph"><div><h2>Invoices</h2><span>Office, government, and other fees remain separated</span></div><button class="btn primary" onclick="openInvoice()">+ New Invoice</button></div><div class="table"><table><thead><tr><th>Invoice</th><th>Client</th><th>Office Fee</th><th>Government Fee</th><th>Total</th><th>Status</th></tr></thead><tbody id="invoiceTable"></tbody></table></div><div class="err" id="billingErr"></div></div>
+        </section>
+        <section class="view" id="view-reports">
+          <div class="metrics"><div class="metric"><div class="k">Open Cases</div><div class="v" id="reportCases">—</div></div><div class="metric"><div class="k">Overdue Tasks</div><div class="v" id="reportTasks">—</div></div><div class="metric"><div class="k">Open Deadlines</div><div class="v" id="reportDeadlines">—</div></div><div class="metric"><div class="k">Documents</div><div class="v" id="reportDocuments">—</div></div></div>
+          <div class="panel"><div class="ph"><div><h2>Operational Breakdown</h2><span>Current persistent records</span></div><button class="btn" onclick="loadReports()">Refresh</button></div><div id="reportDetails"></div><div class="err" id="reportErr"></div></div>
         </section>
         <section class="view" id="view-audit">
           <div class="panel">
@@ -1167,6 +1185,9 @@
         <div class="df"><button class="btn primary" onclick="sendPortalMessage()">Send Message</button></div>
       </div>
     </div>
+    <div class="modal" id="invoiceModal">
+      <div class="dialog"><div class="ph"><div><h2>Create Invoice</h2><span>Amounts are entered in U.S. dollars</span></div><button class="btn" onclick="closeInvoice()">Close</button></div><div class="form"><div class="field"><label>Client</label><select id="invoiceClient"></select></div><div class="field"><label>Case</label><select id="invoiceCase"></select></div><div class="field"><label>Office fee</label><input id="invoiceOfficeFee" type="number" min="0" step="0.01"></div><div class="field"><label>Government fee</label><input id="invoiceGovernmentFee" type="number" min="0" step="0.01"></div><div class="field"><label>Other fee</label><input id="invoiceOtherFee" type="number" min="0" step="0.01"></div><div class="field"><label>Due date</label><input id="invoiceDue" type="date"></div></div><div class="err" id="invoiceErr"></div><div class="df"><button class="btn" onclick="closeInvoice()">Cancel</button><button class="btn primary" onclick="saveInvoice()">Create Invoice</button></div></div>
+    </div>
     <script>
       const $ = (id) => document.getElementById(id);
       let currentUser = null,
@@ -1177,6 +1198,7 @@
         services = [],
         portalData = null,
         portalUploadTarget = null,
+        invoices = [],
         intakeState = null,
         intakeSaveTimer = null;
       const roles = [
@@ -1205,6 +1227,9 @@
           documents: ["Document Operations", "Document Center"],
           services: ["Service Catalog", "Immigration Services"],
           tasks: ["Workflow", "Tasks"],
+          reviews: ["Quality Control", "Review Queue"],
+          billing: ["Financial Operations", "Billing"],
+          reports: ["Operations Intelligence", "Reports"],
           roles: ["Access Control", "Team & Roles"],
           audit: ["Compliance", "Audit Trail"],
           settings: ["Configuration", "Settings"],
@@ -1225,6 +1250,9 @@
         if (v === "clients") loadClients();
         if (v === "documents") loadDocuments();
         if (v === "tasks") loadTasks();
+        if (v === "reviews") loadReviewQueue();
+        if (v === "billing") loadBilling();
+        if (v === "reports") loadReports();
         if (v === "roles") loadTeam();
         if (v === "audit") loadAudit();
       }
@@ -1520,22 +1548,24 @@
         }
       }
       async function loadTasks() {
-        const status = $("taskFilter")?.value || "";
+        const filter = $("taskFilter")?.value || "";
+        const statuses = new Set(["open","in_progress","blocked","completed"]);
         try {
-          const result = await api("/api/v1/tasks?limit=250" + (status ? "&status=" + encodeURIComponent(status) : ""));
+          const result = await api("/api/v1/tasks?limit=250" + (statuses.has(filter) ? "&status=" + encodeURIComponent(filter) : "") + (filter === "my" ? "&assigned_to=me" : ""));
           tasks = result.data || [];
-          renderTasks();
+          renderTasks(filter);
         } catch (error) {
           $("taskTable").innerHTML =
             '<tr><td colspan="6">Unable to load task records.</td></tr>';
         }
       }
-      function renderTasks() {
+      function renderTasks(filter = $("taskFilter")?.value || "") {
         const caseNames = Object.fromEntries(cases.map((item) => [item.id, item.client_name + " — " + item.case_type]));
         const clientNames = Object.fromEntries(clients.map((item) => [item.id, item.legal_name]));
         const today = new Date().toISOString().slice(0, 10);
+        const visible = tasks.filter((task) => !filter || filter === "my" || ["open","in_progress","blocked","completed"].includes(filter) || filter === "today" && task.due_date === today || filter === "overdue" && task.due_date && task.due_date < today && task.status !== "completed" || filter === "upcoming" && task.due_date && task.due_date > today && task.status !== "completed");
         $("taskTable").innerHTML =
-          tasks.map((task) => {
+          visible.map((task) => {
             const overdue = task.due_date && task.due_date < today && task.status !== "completed";
             return `<tr><td><b>${esc(task.title)}</b></td><td>${esc(caseNames[task.case_id] || clientNames[task.client_id] || "—")}</td><td>${esc(task.due_date || "—")}${overdue ? ' <span class="tag urgent">Overdue</span>' : ""}</td><td><span class="tag ${esc(task.priority)}">${esc(task.priority)}</span></td><td>${esc(task.status)}</td><td><button class="linkbtn" onclick="editTask('${task.id}')">Edit</button></td></tr>`;
           }).join("") || '<tr><td colspan="6">No tasks in this view.</td></tr>';
@@ -1902,6 +1932,51 @@
         $("inviteRole").innerHTML = roles
           .map((role) => `<option value="${esc(role[2])}">${esc(role[0])}</option>`)
           .join("");
+      }
+      async function loadReviewQueue() {
+        try {
+          const result = await api("/api/v1/review-queue");
+          $("reviewCaseTable").innerHTML = (result.data.cases || []).map((item) => `<tr><td><b>${esc(item.case_reference || item.id)}</b></td><td>${esc(item.service_code || item.case_type)}</td><td>${esc(intakeOptionLabel(item.workflow_stage))}</td><td>${esc(intakeOptionLabel(item.review_state))}</td><td><span class="tag ${esc(item.priority)}">${esc(item.priority)}</span></td></tr>`).join("") || '<tr><td colspan="5">No cases awaiting review.</td></tr>';
+          $("reviewDocumentTable").innerHTML = (result.data.documents || []).map((item) => `<tr><td><b>${esc(item.file_name)}</b></td><td>${esc(item.category || "—")}</td><td>${esc(intakeOptionLabel(item.review_status))}</td><td>${date(item.created_at)}</td><td><button class="linkbtn" onclick="reviewDocument('${item.id}','approved')">Approve</button> · <button class="linkbtn" onclick="reviewDocument('${item.id}','rejected')">Reject</button></td></tr>`).join("") || '<tr><td colspan="5">No documents awaiting review.</td></tr>';
+          $("reviewErr").textContent = "";
+        } catch (error) { $("reviewErr").textContent = error.message; }
+      }
+      async function reviewDocument(id, status) {
+        const notes = status === "rejected" ? prompt("Reason for rejection") : "";
+        if (status === "rejected" && notes === null) return;
+        try {
+          await api(`/api/v1/documents/${id}/review`, { method: "POST", body: JSON.stringify({ status, reviewer_notes: notes }) });
+          await loadReviewQueue();
+        } catch (error) { $("reviewErr").textContent = error.message; }
+      }
+      async function loadBilling() {
+        try {
+          const result = await api("/api/v1/billing/invoices"); invoices = result.data || [];
+          const clientNames = Object.fromEntries(clients.map((item) => [item.id, item.legal_name]));
+          $("invoiceTable").innerHTML = invoices.map((item) => { const total = Number(item.office_fee_cents) + Number(item.government_fee_cents) + Number(item.other_fee_cents); return `<tr><td><b>${esc(item.invoice_number)}</b></td><td>${esc(clientNames[item.client_id] || item.client_id)}</td><td>${money(item.office_fee_cents,item.currency)}</td><td>${money(item.government_fee_cents,item.currency)}</td><td><b>${money(total,item.currency)}</b></td><td>${esc(intakeOptionLabel(item.status))}</td></tr>`; }).join("") || '<tr><td colspan="6">No invoices created.</td></tr>';
+          $("billingErr").textContent = "";
+        } catch (error) { $("billingErr").textContent = error.message; }
+      }
+      function money(cents, currency = "USD") { return new Intl.NumberFormat(undefined,{style:"currency",currency}).format(Number(cents || 0) / 100); }
+      function openInvoice() {
+        $("invoiceClient").innerHTML = '<option value="">Select client</option>' + clients.map((item) => `<option value="${item.id}">${esc(item.legal_name)}</option>`).join("");
+        $("invoiceCase").innerHTML = '<option value="">No case</option>' + cases.map((item) => `<option value="${item.id}">${esc(item.client_name)} — ${esc(item.case_type)}</option>`).join("");
+        ["invoiceOfficeFee","invoiceGovernmentFee","invoiceOtherFee","invoiceDue"].forEach((id) => $(id).value = ""); $("invoiceErr").textContent = ""; $("invoiceModal").classList.add("show");
+      }
+      function closeInvoice() { $("invoiceModal").classList.remove("show"); }
+      async function saveInvoice() {
+        const toCents = (id) => Math.round(Number($(id).value || 0) * 100);
+        const body = { client_id: $("invoiceClient").value, case_id: $("invoiceCase").value || null, office_fee_cents: toCents("invoiceOfficeFee"), government_fee_cents: toCents("invoiceGovernmentFee"), other_fee_cents: toCents("invoiceOtherFee"), due_date: $("invoiceDue").value || null, currency: "USD" };
+        if (!body.client_id) return ($("invoiceErr").textContent = "Select a client.");
+        try { await api("/api/v1/billing/invoices", { method: "POST", body: JSON.stringify(body) }); closeInvoice(); await loadBilling(); } catch (error) { $("invoiceErr").textContent = error.message; }
+      }
+      async function loadReports() {
+        try {
+          const result = await api("/api/v1/reports/summary"), data = result.data;
+          $("reportCases").textContent = data.cases.total; $("reportTasks").textContent = data.tasks.overdue; $("reportDeadlines").textContent = data.deadlines.open; $("reportDocuments").textContent = data.documents.total;
+          const rows = (label, values) => `<div class="sysrow"><span>${esc(label)}</span><b>${Object.entries(values).map(([key,value]) => `${esc(intakeOptionLabel(key))}: ${value}`).join(" · ") || "None"}</b></div>`;
+          $("reportDetails").innerHTML = `<div class="sys">${rows("Cases by stage",data.cases.by_stage)}${rows("Cases by priority",data.cases.by_priority)}${rows("Tasks by status",data.tasks.by_status)}${rows("Documents by review",data.documents.by_review_status)}</div>`; $("reportErr").textContent = "";
+        } catch (error) { $("reportErr").textContent = error.message; }
       }
       async function loadTeam() {
         try {

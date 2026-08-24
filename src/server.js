@@ -37,7 +37,7 @@ import {
 import { intakeDefinition, validateIntakeAnswers } from './intake-definitions.js';
 
 const port = Number(process.env.PORT || 3000);
-const version = '2.5.0';
+const version = '2.6.0';
 const service = 'alhijrah-caseflow-api';
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -103,6 +103,11 @@ function requiredPermission(req,path){
   if(path==='/api/v1/users')return req.method==='GET'?'users.view':'users.manage';
   if(/^\/api\/v1\/users\/[0-9a-f-]{36}$/i.test(path))return 'users.manage';
   if(path==='/api/v1/audit')return 'audit.view';
+  if(path.startsWith('/api/v1/billing'))return req.method==='GET'?'billing.view':'billing.manage';
+  if(path.startsWith('/api/v1/reports'))return 'reports.view';
+  if(path.startsWith('/api/v1/review-queue'))return 'documents.review';
+  if(path.startsWith('/api/v1/alerts'))return req.method==='GET'?'dashboard.view':'tasks.manage';
+  if(path.startsWith('/api/v1/appointments'))return req.method==='GET'?'cases.view':'cases.manage';
   if(path.startsWith('/api/v1/clients'))return req.method==='GET'?'clients.view':'clients.manage';
   if(path.startsWith('/api/v1/tasks'))return req.method==='GET'?'tasks.view':'tasks.manage';
   if(path.startsWith('/api/v1/deadlines'))return req.method==='GET'?'tasks.view':'tasks.manage';
@@ -273,6 +278,89 @@ async function handle(req,res){
     return json(res,200,{download_url:downloadUrl,expires_in:300,requestId},ch);
   }
 
+  if(req.method==='GET'&&u.pathname==='/api/v1/review-queue'){
+    const [caseReviews,documentReviews]=await Promise.all([
+      db('cases',{query:'?archived_at=is.null&review_state=in.(ready_for_review,under_review,changes_requested,ready_for_client)&select=id,client_id,case_reference,case_type,service_code,review_state,workflow_stage,priority,updated_at&order=updated_at.asc'}),
+      db('documents',{query:'?archived_at=is.null&review_status=in.(received,under_review,rejected)&select=id,case_id,client_id,file_name,category,review_status,reviewer_notes,created_at&order=created_at.asc'}),
+    ]);
+    return json(res,200,{data:{cases:caseReviews,documents:documentReviews},requestId},ch);
+  }
+
+  if(req.method==='GET'&&u.pathname==='/api/v1/alerts'){
+    const status=u.searchParams.get('status')||'open';
+    if(!['open','acknowledged','resolved','dismissed'].includes(status))throw Object.assign(new Error('INVALID_ALERT_STATUS'),{status:400});
+    const data=await db('alerts',{query:`?status=eq.${status}&select=*&order=due_at.asc.nullslast,created_at.desc&limit=250`});
+    return json(res,200,{data,requestId},ch);
+  }
+  const alertMatch=u.pathname.match(/^\/api\/v1\/alerts\/([0-9a-f-]{36})$/i);
+  if(alertMatch&&req.method==='PATCH'){
+    const body=await readJson(req,8_192);
+    if(!['acknowledged','resolved','dismissed'].includes(body.status))throw Object.assign(new Error('INVALID_ALERT_STATUS'),{status:400});
+    const data=await db('alerts',{method:'PATCH',query:`?id=eq.${encodeURIComponent(alertMatch[1])}`,body:{status:body.status,updated_at:new Date().toISOString()}});
+    if(!data.length)return json(res,404,{error:'ALERT_NOT_FOUND',requestId},ch);
+    await audit(principal,'alert_updated','alert',alertMatch[1],{case_id:data[0].case_id,client_id:data[0].client_id,status:body.status},req);
+    return json(res,200,{data:data[0],requestId},ch);
+  }
+
+  if(req.method==='GET'&&u.pathname==='/api/v1/appointments'){
+    const caseId=u.searchParams.get('case_id');
+    if(caseId&&!uuid(caseId))throw Object.assign(new Error('INVALID_CASE_ID'),{status:400});
+    const data=await db('appointments',{query:`?select=*&order=starts_at.asc&limit=250${caseId?`&case_id=eq.${encodeURIComponent(caseId)}`:''}`});
+    return json(res,200,{data,requestId},ch);
+  }
+  if(req.method==='POST'&&u.pathname==='/api/v1/appointments'){
+    const body=await readJson(req,32_768);
+    if(!uuid(body.client_id)||body.case_id&&!uuid(body.case_id))throw Object.assign(new Error('INVALID_APPOINTMENT_REFERENCE'),{status:400});
+    const startsAt=new Date(body.starts_at);if(Number.isNaN(startsAt.getTime()))throw Object.assign(new Error('INVALID_APPOINTMENT_TIME'),{status:400});
+    const endsAt=body.ends_at?new Date(body.ends_at):null;if(endsAt&&(!Number.isFinite(endsAt.getTime())||endsAt<=startsAt))throw Object.assign(new Error('INVALID_APPOINTMENT_TIME'),{status:400});
+    const record={id:crypto.randomUUID(),case_id:body.case_id||null,client_id:body.client_id,title:cleanText(body.title,{required:true,max:200}),appointment_type:cleanText(body.appointment_type,{required:true,max:80}),starts_at:startsAt.toISOString(),ends_at:endsAt?.toISOString()||null,location:cleanText(body.location,{max:300}),status:'scheduled',client_visible:body.client_visible!==false,created_by:principal.id};
+    const data=await db('appointments',{method:'POST',body:record});
+    await audit(principal,'appointment_created','appointment',record.id,{case_id:record.case_id,client_id:record.client_id,starts_at:record.starts_at},req);
+    return json(res,201,{data:data[0]||data,requestId},ch);
+  }
+
+  if(req.method==='GET'&&u.pathname==='/api/v1/billing/invoices'){
+    const data=await db('invoices',{query:'?select=*&order=created_at.desc&limit=250'});
+    return json(res,200,{data,requestId},ch);
+  }
+  if(req.method==='POST'&&u.pathname==='/api/v1/billing/invoices'){
+    const body=await readJson(req,32_768);
+    if(!uuid(body.client_id)||body.case_id&&!uuid(body.case_id))throw Object.assign(new Error('INVALID_INVOICE_REFERENCE'),{status:400});
+    const cents=(value)=>{const number=Number(value||0);if(!Number.isSafeInteger(number)||number<0)throw Object.assign(new Error('INVALID_FEE_AMOUNT'),{status:400});return number;};
+    const record={id:crypto.randomUUID(),invoice_number:`INV-${new Date().getUTCFullYear()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,client_id:body.client_id,case_id:body.case_id||null,currency:String(body.currency||'USD').toUpperCase(),status:'draft',office_fee_cents:cents(body.office_fee_cents),government_fee_cents:cents(body.government_fee_cents),other_fee_cents:cents(body.other_fee_cents),due_date:cleanDate(body.due_date),created_by:principal.id};
+    if(!/^[A-Z]{3}$/.test(record.currency))throw Object.assign(new Error('INVALID_CURRENCY'),{status:400});
+    const data=await db('invoices',{method:'POST',body:record});
+    await audit(principal,'invoice_created','invoice',record.id,{case_id:record.case_id,client_id:record.client_id,amount_cents:record.office_fee_cents+record.government_fee_cents+record.other_fee_cents},req);
+    return json(res,201,{data:data[0]||data,requestId},ch);
+  }
+  const invoiceMatch=u.pathname.match(/^\/api\/v1\/billing\/invoices\/([0-9a-f-]{36})$/i);
+  if(invoiceMatch&&req.method==='PATCH'){
+    const body=await readJson(req,16_384);const allowed=new Set(['draft','issued','partially_paid','paid','void','overdue']);
+    if(!allowed.has(body.status))throw Object.assign(new Error('INVALID_INVOICE_STATUS'),{status:400});
+    const patch={status:body.status,updated_at:new Date().toISOString()};if(body.status==='issued')patch.issued_at=new Date().toISOString();
+    const data=await db('invoices',{method:'PATCH',query:`?id=eq.${encodeURIComponent(invoiceMatch[1])}`,body:patch});
+    if(!data.length)return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
+    await audit(principal,'invoice_status_changed','invoice',invoiceMatch[1],{case_id:data[0].case_id,client_id:data[0].client_id,status:body.status},req);
+    return json(res,200,{data:data[0],requestId},ch);
+  }
+  if(req.method==='POST'&&u.pathname==='/api/v1/billing/payments'){
+    const body=await readJson(req,16_384);if(!uuid(body.invoice_id))throw Object.assign(new Error('VALID_INVOICE_ID_REQUIRED'),{status:400});
+    const amount=Number(body.amount_cents);if(!Number.isSafeInteger(amount)||amount<1)throw Object.assign(new Error('INVALID_PAYMENT_AMOUNT'),{status:400});
+    const invoices=await db('invoices',{query:`?id=eq.${encodeURIComponent(body.invoice_id)}&select=*`});if(!invoices.length)return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
+    const receivedAt=body.received_at?new Date(body.received_at):new Date();if(Number.isNaN(receivedAt.getTime()))throw Object.assign(new Error('INVALID_PAYMENT_DATE'),{status:400});
+    const record={id:crypto.randomUUID(),invoice_id:body.invoice_id,amount_cents:amount,currency:invoices[0].currency,method:cleanText(body.method,{required:true,max:50}),external_reference:cleanText(body.external_reference,{max:120}),status:'recorded',received_at:receivedAt.toISOString(),created_by:principal.id};
+    const data=await db('payments',{method:'POST',body:record});
+    await audit(principal,'payment_recorded','payment',record.id,{case_id:invoices[0].case_id,client_id:invoices[0].client_id,invoice_id:record.invoice_id,amount_cents:amount},req);
+    return json(res,201,{data:data[0]||data,requestId},ch);
+  }
+
+  if(req.method==='GET'&&u.pathname==='/api/v1/reports/summary'){
+    const [caseRows,taskRows,deadlineRows,documentRows]=await Promise.all([db('cases',{query:'?archived_at=is.null&select=workflow_stage,priority'}),db('tasks',{query:'?archived_at=is.null&select=status,due_date,priority'}),db('deadlines',{query:'?status=eq.open&select=deadline_date'}),db('documents',{query:'?archived_at=is.null&select=review_status'})]);
+    const countBy=(rows,key)=>rows.reduce((result,row)=>({...result,[row[key]||'unknown']:(result[row[key]||'unknown']||0)+1}),{});
+    const today=new Date().toISOString().slice(0,10);
+    return json(res,200,{data:{cases:{total:caseRows.length,by_stage:countBy(caseRows,'workflow_stage'),by_priority:countBy(caseRows,'priority')},tasks:{total:taskRows.length,overdue:taskRows.filter(item=>item.status!=='completed'&&item.due_date&&item.due_date<today).length,by_status:countBy(taskRows,'status')},deadlines:{open:deadlineRows.length,overdue:deadlineRows.filter(item=>item.deadline_date<today).length},documents:{total:documentRows.length,by_review_status:countBy(documentRows,'review_status')}},requestId},ch);
+  }
+
   if(req.method==='GET'&&u.pathname==='/api/v1/users'){const data=await listAuthUsers();return json(res,200,{data,requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/users'){const body=await readJson(req,32_768);const data=await inviteAuthUser({email:body.email,displayName:body.display_name,roles:body.roles});await syncApplicationUser({...data,display_name:body.display_name,assigned_by:principal.id});await audit(principal,'user_invited','user',data.id,{roles:data.roles},req);return json(res,201,{data,requestId},ch)}
   const um=u.pathname.match(/^\/api\/v1\/users\/([0-9a-f-]{36})$/i);
@@ -410,10 +498,12 @@ async function handle(req,res){
     const status=u.searchParams.get('status');
     const caseId=u.searchParams.get('case_id');
     const clientId=u.searchParams.get('client_id');
+    const assignedTo=u.searchParams.get('assigned_to');
     let query=`?select=*&archived_at=is.null&order=due_date.asc.nullslast,created_at.desc&limit=${limit}`;
     if(status)query+=`&status=eq.${encodeURIComponent(cleanTaskStatus(status))}`;
     if(caseId){if(!uuid(caseId))throw Object.assign(new Error('INVALID_CASE_ID'),{status:400});query+=`&case_id=eq.${encodeURIComponent(caseId)}`;}
     if(clientId){if(!uuid(clientId))throw Object.assign(new Error('INVALID_CLIENT_ID'),{status:400});query+=`&client_id=eq.${encodeURIComponent(clientId)}`;}
+    if(assignedTo==='me'){if(!principal.id)throw Object.assign(new Error('USER_SESSION_REQUIRED'),{status:400});query+=`&assigned_user_id=eq.${encodeURIComponent(principal.id)}`;}
     const data=await db('tasks',{query});
     return json(res,200,{data,requestId},ch);
   }
@@ -512,6 +602,37 @@ async function handle(req,res){
     const data=await db('cases',{method:'PATCH',query:`?id=eq.${encodeURIComponent(cm[1])}`,body:patch});
     await event(cm[1],b.archived===true?'case_archived':b.archived===false?'case_restored':patch.workflow_stage?'workflow_changed':'case_updated',{...patch,case_id:cm[1]},principal,req);
     return json(res,200,{data,requestId},ch);
+  }
+
+  const caseWorkspaceMatch=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/workspace$/i);
+  if(caseWorkspaceMatch&&req.method==='GET'){
+    const caseId=caseWorkspaceMatch[1];
+    const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(caseId)}&select=*`});
+    if(!caseRows.length)return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
+    const [people,tasks,deadlines,documents,requests,notes,appointments,events]=await Promise.all([
+      db('case_people',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=case_role,created_at,people(*)&order=created_at`}),
+      db('tasks',{query:`?case_id=eq.${encodeURIComponent(caseId)}&archived_at=is.null&select=*&order=due_date.asc.nullslast`}),
+      db('deadlines',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=deadline_date.asc`}),
+      db('documents',{query:`?case_id=eq.${encodeURIComponent(caseId)}&archived_at=is.null&select=*&order=created_at.desc`}),
+      db('document_requests',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=created_at.desc`}),
+      db('case_notes',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=created_at.desc`}),
+      db('appointments',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=starts_at.asc`}),
+      db('case_events',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=created_at.desc&limit=250`}),
+    ]);
+    return json(res,200,{data:{case:caseRows[0],people,tasks,deadlines,documents,document_requests:requests,notes,appointments,timeline:events},requestId},ch);
+  }
+
+  const caseNotesMatch=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/notes$/i);
+  if(caseNotesMatch&&req.method==='GET'){
+    const data=await db('case_notes',{query:`?case_id=eq.${encodeURIComponent(caseNotesMatch[1])}&select=*&order=created_at.desc`});
+    return json(res,200,{data,requestId},ch);
+  }
+  if(caseNotesMatch&&req.method==='POST'){
+    const body=await readJson(req,32_768);const visibility=body.visibility||'internal';if(!['internal','client'].includes(visibility))throw Object.assign(new Error('INVALID_NOTE_VISIBILITY'),{status:400});
+    const record={id:crypto.randomUUID(),case_id:caseNotesMatch[1],body:cleanText(body.body,{required:true,max:10000}),visibility,created_by:principal.id};
+    const data=await db('case_notes',{method:'POST',body:record});
+    await audit(principal,'case_note_created','case_note',record.id,{case_id:record.case_id,visibility},req);
+    return json(res,201,{data:data[0]||data,requestId},ch);
   }
 
   if(req.method==='GET'&&u.pathname==='/api/v1/document-requests'){
