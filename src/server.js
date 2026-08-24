@@ -37,7 +37,7 @@ import {
 import { intakeDefinition, validateIntakeAnswers } from './intake-definitions.js';
 
 const port = Number(process.env.PORT || 3000);
-const version = '2.4.0';
+const version = '2.5.0';
 const service = 'alhijrah-caseflow-api';
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

@@ -536,6 +536,37 @@
       .mobile {
         display: none;
       }
+      .portal {
+        display: none;
+        min-height: 100vh;
+        padding: 28px;
+      }
+      .portal.active {
+        display: block;
+      }
+      .portal-shell {
+        max-width: 1120px;
+        margin: 0 auto;
+      }
+      .portal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .portal-grid {
+        display: grid;
+        grid-template-columns: 1.35fr 0.9fr;
+        gap: 16px;
+      }
+      .portal-card {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 16px;
+        padding: 18px;
+        margin-bottom: 12px;
+      }
       @media (max-width: 1080px) {
         .metrics {
           grid-template-columns: 1fr 1fr;
@@ -549,6 +580,8 @@
         }
       }
       @media (max-width: 760px) {
+        .portal { padding: 18px 13px 40px; }
+        .portal-grid { grid-template-columns: 1fr; }
         .app {
           grid-template-columns: 1fr;
         }
@@ -640,7 +673,29 @@
         </button>
       </div>
     </div>
-    <div class="app">
+    <div class="portal" id="clientPortal">
+      <div class="portal-shell">
+        <div class="portal-head">
+          <div class="brand" style="padding:0"><div class="logo">A</div><div><b>MY ALHIJRAH</b><small>Secure Client Portal</small></div></div>
+          <button class="btn" onclick="signOut()">Sign Out</button>
+        </div>
+        <div class="eyebrow">Your protected workspace</div>
+        <h1 class="title" style="margin-bottom:22px">Case status and next actions</h1>
+        <div class="err" id="portalErr"></div>
+        <div class="portal-grid">
+          <div>
+            <div class="panel"><div class="ph"><div><h2>Your Cases</h2><span>Current office workflow status</span></div><button class="btn" onclick="loadPortal()">Refresh</button></div><div id="portalCases"><div class="empty">Loading…</div></div></div>
+            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2>Requested Documents</h2><span>Upload directly to the correct request</span></div></div><div id="portalRequests"></div></div>
+          </div>
+          <div>
+            <div class="panel"><div class="ph"><div><h2>Appointments</h2><span>Upcoming scheduled events</span></div></div><div id="portalAppointments"></div></div>
+            <div class="notice" style="margin-top:16px">Documents are sent through secure storage. Do not send passwords for government accounts.</div>
+          </div>
+        </div>
+      </div>
+      <input id="portalFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.doc,.docx" hidden>
+    </div>
+    <div class="app" id="staffApp">
       <aside class="side">
         <div class="brand">
           <div class="logo">A</div>
@@ -1103,6 +1158,15 @@
         </div>
       </div>
     </div>
+    <div class="modal" id="portalCaseModal">
+      <div class="dialog">
+        <div class="ph"><div><div class="eyebrow">Case workspace</div><h2 id="portalCaseTitle">Case</h2></div><button class="btn" onclick="closePortalCase()">Close</button></div>
+        <div id="portalCaseDetail"></div>
+        <div class="field full" style="margin-top:16px"><label>Send a secure message</label><textarea id="portalMessage" maxlength="5000"></textarea></div>
+        <div class="err" id="portalMessageErr"></div>
+        <div class="df"><button class="btn primary" onclick="sendPortalMessage()">Send Message</button></div>
+      </div>
+    </div>
     <script>
       const $ = (id) => document.getElementById(id);
       let currentUser = null,
@@ -1111,6 +1175,8 @@
         clients = [],
         tasks = [],
         services = [],
+        portalData = null,
+        portalUploadTarget = null,
         intakeState = null,
         intakeSaveTimer = null;
       const roles = [
@@ -1196,7 +1262,12 @@
           currentUser = result.user;
           $("password").value = "";
           $("login").classList.add("hidden");
-          await boot();
+          const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
+          if (clientUser) {
+            $("staffApp").style.display = "none";
+            $("clientPortal").classList.add("active");
+            await loadPortal();
+          } else await boot();
         } catch (e) {
           $("loginErr").textContent =
             e.message === "INVALID_CREDENTIALS"
@@ -1593,9 +1664,10 @@
         renderIntake();
         scheduleIntakeSave();
       }
-      async function openIntake(caseId, serviceCode) {
+      async function openIntake(caseId, serviceCode, portal = false) {
         try {
-          const result = await api(`/api/v1/intakes/${caseId}/${encodeURIComponent(serviceCode)}`);
+          const endpoint = portal ? `/api/v1/portal/intakes/${caseId}/${encodeURIComponent(serviceCode)}` : `/api/v1/intakes/${caseId}/${encodeURIComponent(serviceCode)}`;
+          const result = await api(endpoint);
           intakeState = {
             caseId,
             serviceCode,
@@ -1603,6 +1675,8 @@
             answers: result.data?.answers || {},
             step: Math.min(result.data?.current_step || 0, result.definition.sections.length - 1),
             review: result.data?.status === "submitted",
+            portal,
+            endpoint,
           };
           $("intakeErr").textContent = "";
           $("intakeModal").classList.add("show");
@@ -1675,7 +1749,7 @@
       async function saveIntakeDraft(silent = false) {
         if (!intakeState) return;
         try {
-          await api(`/api/v1/intakes/${intakeState.caseId}/${encodeURIComponent(intakeState.serviceCode)}`, { method: "POST", body: JSON.stringify({ answers: intakeState.answers, current_step: intakeState.step, status: "draft" }) });
+          await api(intakeState.endpoint, { method: "POST", body: JSON.stringify({ answers: intakeState.answers, current_step: intakeState.step, status: "draft" }) });
           if (!silent) $("intakeErr").textContent = "Saved.";
         } catch (error) {
           $("intakeErr").textContent = `Save failed: ${error.message}`;
@@ -1683,18 +1757,21 @@
       }
       async function saveAndExitIntake() {
         clearTimeout(intakeSaveTimer);
+        const wasPortal = intakeState?.portal;
         await saveIntakeDraft();
         $("intakeModal").classList.remove("show");
         intakeState = null;
-        showView("cases");
+        if (wasPortal) await loadPortal();
+        else showView("cases");
       }
       async function submitIntake() {
         try {
-          await api(`/api/v1/intakes/${intakeState.caseId}/${encodeURIComponent(intakeState.serviceCode)}`, { method: "POST", body: JSON.stringify({ answers: intakeState.answers, current_step: intakeState.step, status: "submitted" }) });
+          const wasPortal = intakeState.portal;
+          await api(intakeState.endpoint, { method: "POST", body: JSON.stringify({ answers: intakeState.answers, current_step: intakeState.step, status: "submitted" }) });
           $("intakeModal").classList.remove("show");
           intakeState = null;
-          await loadCases();
-          showView("cases");
+          if (wasPortal) await loadPortal();
+          else { await loadCases(); showView("cases"); }
         } catch (error) {
           $("intakeErr").textContent = error.message === "INTAKE_REQUIRED_FIELDS_MISSING" ? "Required information is missing. Edit the affected section before submitting." : error.message;
         }
@@ -1883,6 +1960,69 @@
         if (v < 1048576) return (v / 1024).toFixed(1) + " KB";
         return (v / 1048576).toFixed(1) + " MB";
       }
+      async function loadPortal() {
+        try {
+          const result = await api("/api/v1/portal");
+          portalData = result.data;
+          $("portalErr").textContent = "";
+          renderPortal();
+        } catch (error) {
+          $("portalErr").textContent = error.message;
+        }
+      }
+      function renderPortal() {
+        $("portalCases").innerHTML = (portalData.cases || []).map((item) => `<div class="portal-card"><div class="eyebrow">${esc(item.case_reference || item.service_code || "Case")}</div><h3>${esc(item.case_type)}</h3><p><span class="tag active">${esc(intakeOptionLabel(item.workflow_stage))}</span>${item.receipt_number ? ` · Receipt ${esc(item.receipt_number)}` : ""}</p><div class="df" style="justify-content:flex-start"><button class="btn" onclick="openPortalCase('${item.id}')">View Case</button>${item.service_code ? `<button class="btn primary" onclick="openIntake('${item.id}','${esc(item.service_code)}',true)">Continue Intake</button>` : ""}</div></div>`).join("") || '<div class="empty">No active cases are linked to this account.</div>';
+        $("portalRequests").innerHTML = (portalData.document_requests || []).map((item) => `<div class="portal-card"><div><b>${esc(item.title)}</b><p class="muted">${esc(item.instructions || "Upload the requested document.")}</p><span class="tag ${item.status === "approved" ? "active" : item.status === "rejected" ? "urgent" : "normal"}">${esc(intakeOptionLabel(item.status))}</span></div>${['missing','rejected'].includes(item.status) ? `<button class="btn primary" style="margin-top:12px" onclick="choosePortalFile('${item.case_id}','${item.id}')">Upload Document</button>` : ""}</div>`).join("") || '<div class="empty">No documents are currently requested.</div>';
+        $("portalAppointments").innerHTML = (portalData.appointments || []).map((item) => `<div class="portal-card"><b>${esc(item.title)}</b><p>${date(item.starts_at)}</p><small>${esc(item.location || "Location will be provided")}</small></div>`).join("") || '<div class="empty">No upcoming appointments.</div>';
+      }
+      async function openPortalCase(caseId) {
+        try {
+          const result = await api(`/api/v1/portal/cases/${caseId}`);
+          const workspace = result.data;
+          $("portalCaseModal").dataset.caseId = caseId;
+          $("portalCaseTitle").textContent = workspace.case.case_type;
+          $("portalCaseDetail").innerHTML = `<div class="sys"><div class="sysrow"><span>Case reference</span><b>${esc(workspace.case.case_reference || "Pending")}</b></div><div class="sysrow"><span>Current status</span><b>${esc(intakeOptionLabel(workspace.case.workflow_stage))}</b></div><div class="sysrow"><span>Agency</span><b>${esc(workspace.case.agency || "Not assigned")}</b></div><div class="sysrow"><span>Receipt number</span><b>${esc(workspace.case.receipt_number || "Not received")}</b></div></div><h3 style="margin-top:18px">Updates</h3>${workspace.updates.map((item) => `<div class="portal-card"><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || '<div class="empty">No published updates.</div>'}<h3 style="margin-top:18px">Messages</h3>${workspace.messages.map((item) => `<div class="portal-card"><b>${esc(intakeOptionLabel(item.sender_type))}</b><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || '<div class="empty">No messages yet.</div>'}`;
+          $("portalMessage").value = "";
+          $("portalMessageErr").textContent = "";
+          $("portalCaseModal").classList.add("show");
+        } catch (error) {
+          $("portalErr").textContent = error.message;
+        }
+      }
+      function closePortalCase() {
+        $("portalCaseModal").classList.remove("show");
+      }
+      async function sendPortalMessage() {
+        const caseId = $("portalCaseModal").dataset.caseId;
+        const body = $("portalMessage").value.trim();
+        if (!body) return ($("portalMessageErr").textContent = "Enter a message.");
+        try {
+          await api(`/api/v1/portal/messages/${caseId}`, { method: "POST", body: JSON.stringify({ body }) });
+          await openPortalCase(caseId);
+        } catch (error) {
+          $("portalMessageErr").textContent = error.message;
+        }
+      }
+      function choosePortalFile(caseId, requestId) {
+        portalUploadTarget = { caseId, requestId };
+        $("portalFile").value = "";
+        $("portalFile").click();
+      }
+      async function uploadPortalFile(file) {
+        if (!portalUploadTarget || !file) return;
+        const { caseId, requestId } = portalUploadTarget;
+        $("portalErr").textContent = "Uploading securely…";
+        try {
+          const presigned = await api("/api/v1/portal/documents/presign", { method: "POST", body: JSON.stringify({ case_id: caseId, filename: file.name, content_type: file.type, size_bytes: file.size }) });
+          const upload = await fetch(presigned.upload_url, { method: "PUT", headers: { "content-type": file.type }, body: file });
+          if (!upload.ok) throw new Error("Upload failed");
+          await api("/api/v1/portal/documents/confirm", { method: "POST", body: JSON.stringify({ case_id: caseId, request_id: requestId, key: presigned.key, file_name: file.name, content_type: file.type, size_bytes: file.size }) });
+          portalUploadTarget = null;
+          await loadPortal();
+        } catch (error) {
+          $("portalErr").textContent = error.message;
+        }
+      }
       async function boot() {
         renderRoles();
         await testReady();
@@ -1898,7 +2038,12 @@
           const result = await api("/api/v1/auth/me");
           currentUser = result.user;
           $("login").classList.add("hidden");
-          await boot();
+          const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
+          if (clientUser) {
+            $("staffApp").style.display = "none";
+            $("clientPortal").classList.add("active");
+            await loadPortal();
+          } else await boot();
         } catch {
           $("login").classList.remove("hidden");
         }
@@ -1906,6 +2051,7 @@
       $("password").addEventListener("keydown", (event) => {
         if (event.key === "Enter") signIn();
       });
+      $("portalFile").addEventListener("change", (event) => uploadPortalFile(event.target.files[0]));
       restoreSession();
     </script>
   </body>
