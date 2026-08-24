@@ -1,17 +1,23 @@
 {
   "name": "alhijrah-caseflow",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node src/server.js",
     "health": "node scripts/healthcheck.js",
-    "test": "node --test",
-    "smoke:production": "node scripts/smoke-production.mjs"
+    "test": "node --test test/*.test.js",
+    "smoke:production": "node scripts/smoke-production.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",
     "@aws-sdk/s3-request-presigner": "^3.864.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
   }
 }

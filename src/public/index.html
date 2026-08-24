@@ -668,7 +668,7 @@
           autocomplete="current-password"
         />
         <div class="err" id="loginErr"></div>
-        <button class="btn primary" style="width: 100%" onclick="signIn()">
+        <button id="signInBtn" class="btn primary" style="width: 100%" onclick="signIn()">
           Sign In
         </button>
       </div>
@@ -677,7 +677,7 @@
       <div class="portal-shell">
         <div class="portal-head">
           <div class="brand" style="padding:0"><div class="logo">A</div><div><b>MY ALHIJRAH</b><small>Secure Client Portal</small></div></div>
-          <button class="btn" onclick="signOut()">Sign Out</button>
+          <button id="portalSignOutBtn" class="btn" onclick="signOut()">Sign Out</button>
         </div>
         <div class="eyebrow">Your protected workspace</div>
         <h1 class="title" style="margin-bottom:22px">Case status and next actions</h1>
@@ -715,6 +715,7 @@
           ><button data-view="reports">Reports</button
           ><button data-view="roles">Team & Roles</button
           ><button data-view="audit">Audit Trail</button
+          ><button data-view="access">Access Control</button
           ><button data-view="settings">Settings</button>
         </div>
         <div class="sidefoot">
@@ -733,6 +734,7 @@
               ><span id="live">Checking services</span>
             </div>
             <button class="btn primary" id="newCaseButton" onclick="openCase()">+ New Case</button>
+            <button class="btn" id="signOutBtn" onclick="signOut()">Sign Out</button>
           </div>
         </div>
         <section class="view active" id="view-dashboard">
@@ -1015,6 +1017,82 @@
             </div>
           </div>
         </section>
+        <section class="view" id="view-access">
+          <div class="panel">
+            <div class="ph">
+              <div>
+                <h2>Effective Access</h2>
+                <span>Staff default to firm-wide access. Nothing is narrowed until you record a decision here.</span>
+              </div>
+              <button class="btn" id="accessRefresh">Refresh</button>
+            </div>
+            <div class="form">
+              <div class="field">
+                <label>Subject type</label
+                ><select id="accessSubjectType">
+                  <option value="user">User</option>
+                  <option value="team">Team</option>
+                  <option value="role">Role</option>
+                </select>
+              </div>
+              <div class="field"><label>Subject</label><select id="accessSubject"></select></div>
+            </div>
+            <div class="form" id="accessScopes"></div>
+            <div class="form">
+              <div class="field full"><label>Granted permissions (beyond role defaults)</label><select id="accessGrants" multiple size="6"></select></div>
+              <div class="field full"><label>Restricted permissions</label><select id="accessRestrictions" multiple size="6"></select></div>
+            </div>
+            <div class="err" id="accessErr"></div>
+            <div class="df">
+              <button class="btn" id="accessClear">Reset to defaults</button
+              ><button class="btn primary" id="accessSave">Save policy</button>
+            </div>
+            <div class="table">
+              <table>
+                <thead><tr><th>Module</th><th>Effective scope</th></tr></thead>
+                <tbody id="accessEffective"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="ph">
+              <div>
+                <h2>Record Access</h2>
+                <span>Hand one case or one client to someone, or take one away, regardless of their scope.</span>
+              </div>
+            </div>
+            <div class="form">
+              <div class="field"><label>Effect</label><select id="grantEffect"><option value="grant">Grant</option><option value="restrict">Restrict</option></select></div>
+              <div class="field"><label>Subject</label><select id="grantSubject"></select></div>
+              <div class="field"><label>Resource type</label><select id="grantResourceType"><option value="case">Case</option><option value="client">Client</option></select></div>
+              <div class="field"><label>Resource</label><select id="grantResource"></select></div>
+            </div>
+            <div class="err" id="grantErr"></div>
+            <div class="df"><button class="btn primary" id="grantAdd">Apply</button></div>
+            <div class="table">
+              <table>
+                <thead><tr><th>Effect</th><th>Subject</th><th>Resource</th><th></th></tr></thead>
+                <tbody id="grantTable"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="ph">
+              <div>
+                <h2>Teams</h2>
+                <span>Teams back the team scope. Membership alone never narrows anyone.</span>
+              </div>
+            </div>
+            <div class="form">
+              <div class="field"><label>New team name</label><input id="teamName" /></div>
+              <div class="field"><label>&nbsp;</label><button class="btn" id="teamAdd">Create team</button></div>
+              <div class="field"><label>Add user to team</label><select id="teamMemberUser"></select></div>
+              <div class="field"><label>Team</label><select id="teamMemberTeam"></select></div>
+            </div>
+            <div class="err" id="teamErr"></div>
+            <div class="df"><button class="btn" id="teamMemberAdd">Add to team</button></div>
+          </div>
+        </section>
         <section class="view" id="view-settings">
           <div class="panel">
             <div class="ph">
@@ -1097,7 +1175,7 @@
         <div class="err" id="caseErr"></div>
         <div class="df">
           <button class="btn" onclick="closeCase()">Cancel</button
-          ><button class="btn primary" onclick="saveCase()">Save Case</button>
+          ><button id="saveCaseBtn" class="btn primary" onclick="saveCase()">Save Case</button>
         </div>
       </div>
     </div>
@@ -1241,6 +1319,7 @@
           reports: ["Operations Intelligence", "Reports"],
           roles: ["Access Control", "Team & Roles"],
           audit: ["Compliance", "Audit Trail"],
+          access: ["Authorization", "Access Control"],
           settings: ["Configuration", "Settings"],
         };
         $("sectionEyebrow").textContent = t[v][0];
@@ -1264,23 +1343,42 @@
         if (v === "reports") loadReports();
         if (v === "roles") loadTeam();
         if (v === "audit") loadAudit();
+        if (v === "access" && allowedTo("access.manage")) loadAccess();
+      }
+      // Views the signed-in principal has no permission for are removed from
+      // the navigation. The API denies them regardless; this stops the shell
+      // advertising a destination that answers 403, and keeps the visible menu
+      // in step with whatever the Owner has configured rather than with a
+      // second hardcoded role table.
+      const viewPermissions = {
+        dashboard: "dashboard.view",
+        cases: "cases.view",
+        clients: "clients.view",
+        documents: "documents.view",
+        services: "cases.view",
+        tasks: "tasks.view",
+        reviews: "documents.review",
+        billing: "billing.view",
+        reports: "reports.view",
+        roles: "users.view",
+        audit: "audit.view",
+        access: "access.manage",
+        settings: "settings.manage",
+      };
+      function allowedTo(permission) {
+        const held = currentUser?.permissions || [];
+        return held.includes("*") || held.includes(permission);
       }
       function configureNavigation() {
-        const roleViews = {
-          admin: ["dashboard","cases","clients","documents","services","tasks","reviews","billing","reports","roles","audit","settings"],
-          supervisor: ["dashboard","cases","clients","documents","services","tasks","reviews","reports","roles","audit"],
-          case_manager: ["dashboard","cases","clients","documents","services","tasks"],
-          form_preparer: ["dashboard","cases","clients","documents","services","tasks"],
-          document_reviewer: ["dashboard","cases","clients","documents","tasks","reviews"],
-          translator: ["dashboard","cases","clients","documents","tasks"],
-          attorney_accredited_representative: ["dashboard","cases","clients","documents","services","tasks","reviews","audit"],
-          billing: ["dashboard","cases","clients","billing"],
-          auditor: ["dashboard","cases","clients","documents","tasks","reports","audit"],
-        };
-        const allowed = currentUser.roles.includes("owner") ? null : new Set(currentUser.roles.flatMap((role) => roleViews[role] || []));
-        document.querySelectorAll("#nav button").forEach((button) => button.style.display = !allowed || allowed.has(button.dataset.view) ? "block" : "none");
-        const canManageCases = currentUser.roles.some((role) => ["owner","admin","supervisor","case_manager","attorney_accredited_representative"].includes(role));
-        $("newCaseButton").style.display = canManageCases ? "inline-block" : "none";
+        let firstVisible = null;
+        document.querySelectorAll("#nav button").forEach((button) => {
+          const ok = allowedTo(viewPermissions[button.dataset.view] || "dashboard.view");
+          button.style.display = ok ? "block" : "none";
+          if (ok && !firstVisible) firstVisible = button.dataset.view;
+        });
+        $("newCaseButton").style.display = allowedTo("cases.manage") ? "inline-block" : "none";
+        const active = document.querySelector("#nav button.active");
+        if (firstVisible && (!active || active.style.display === "none")) showView(firstVisible);
       }
       document
         .querySelectorAll("#nav button")
@@ -1297,7 +1395,9 @@
         const j = await r.json().catch(() => ({}));
         if (!r.ok) {
           if (r.status === 401) $("login").classList.remove("hidden");
-          throw new Error(j.error || "HTTP " + r.status);
+          const error = new Error(j.error || "HTTP " + r.status);
+          if (j.fields) error.detail = Object.values(j.fields).join(" ");
+          throw error;
         }
         return j;
       }
@@ -1924,6 +2024,155 @@
           alert(e.message);
         }
       }
+      // ---- Owner access control ------------------------------------------
+      let accessData = null;
+      let accessUsers = [];
+      let accessCases = [];
+
+      function titleCase(value) {
+        return String(value).split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+      }
+      function optionList(entries) {
+        return entries.map(([value, text]) => `<option value="${esc(value)}">${esc(text)}</option>`).join("");
+      }
+      function accessSubjectOptions(type) {
+        if (type === "role") return (accessData?.roles || []).filter((r) => r !== "owner").map((r) => [r, titleCase(r)]);
+        if (type === "team") return (accessData?.teams || []).map((t) => [t.id, t.name]);
+        return accessUsers.map((u) => [u.id, u.display_name || u.email]);
+      }
+      function currentAccessPolicy() {
+        const type = $("accessSubjectType").value;
+        const id = $("accessSubject").value;
+        return (accessData?.policies || []).find((p) => p.subject_type === type && String(p.subject_id) === String(id));
+      }
+      function renderAccessForm() {
+        const policy = currentAccessPolicy();
+        const scopes = policy?.scopes || {};
+        const isClientRole = ["client_owner", "client_collaborator"].includes($("accessSubject").value);
+        const fallback = isClientRole ? accessData.defaults.client : accessData.defaults.staff;
+        $("accessScopes").innerHTML = (accessData?.modules || [])
+          .filter((m) => m !== "dashboard")
+          .map((m) => `<div class="field"><label>${esc(titleCase(m))} scope</label><select data-scope="${esc(m)}">${optionList((accessData.scopes || []).map((sc) => [sc, titleCase(sc)]))}</select></div>`)
+          .join("");
+        for (const select of document.querySelectorAll("[data-scope]")) select.value = scopes[select.dataset.scope] || fallback;
+        for (const [id, selected] of [["accessGrants", policy?.grants || []], ["accessRestrictions", policy?.restrictions || []]]) {
+          $(id).innerHTML = optionList((accessData?.permissions || []).map((perm) => [perm, perm]));
+          for (const option of $(id).options) option.selected = selected.includes(option.value);
+        }
+        renderEffectiveAccess();
+      }
+      async function renderEffectiveAccess() {
+        const type = $("accessSubjectType").value;
+        const id = $("accessSubject").value;
+        $("accessEffective").innerHTML = '<tr><td colspan="2">Select a user to preview their effective access.</td></tr>';
+        if (type !== "user" || !id) return;
+        try {
+          const j = await api("/api/v1/access/effective/" + id);
+          $("accessEffective").innerHTML = Object.entries(j.data.scopes)
+            .map(([m, sc]) => `<tr><td>${esc(titleCase(m))}</td><td>${esc(titleCase(sc))}</td></tr>`)
+            .join("");
+        } catch (e) {
+          $("accessEffective").innerHTML = `<tr><td colspan="2">${esc(e.message)}</td></tr>`;
+        }
+      }
+      function selectedValues(id) {
+        return [...$(id).selectedOptions].map((o) => o.value);
+      }
+      function accessSubjectLabel(type, id) {
+        const match = accessSubjectOptions(type).find(([value]) => String(value) === String(id));
+        return match ? match[1] : id;
+      }
+      function accessResourceLabel(type, id) {
+        const list = type === "client" ? accessData?.clients || [] : accessCases;
+        const match = list.find((r) => String(r.id) === String(id));
+        if (!match) return id;
+        return type === "client" ? match.legal_name : `${match.client_name} — ${match.case_type}`;
+      }
+      function renderRecordGrants() {
+        $("grantTable").innerHTML =
+          (accessData?.recordGrants || [])
+            .map((g) => `<tr><td>${esc(titleCase(g.effect))}</td><td>${esc(accessSubjectLabel(g.subject_type, g.subject_id))}</td><td>${esc(accessResourceLabel(g.resource_type, g.resource_id))}</td><td><button class="linkbtn" data-revoke="${esc(g.id)}">Revoke</button></td></tr>`)
+            .join("") || '<tr><td colspan="4">No record-level overrides. Everyone follows their scope.</td></tr>';
+      }
+      function renderGrantForm() {
+        const type = $("grantResourceType").value;
+        $("grantResource").innerHTML = type === "client"
+          ? optionList((accessData?.clients || []).map((c) => [c.id, c.legal_name]))
+          : optionList(accessCases.map((c) => [c.id, `${c.client_name} — ${c.case_type}`]));
+      }
+      async function loadAccess() {
+        $("accessErr").textContent = "";
+        try {
+          const [catalogue, users, cases] = await Promise.all([
+            api("/api/v1/access"),
+            api("/api/v1/users").catch(() => ({ data: [] })),
+            api("/api/v1/cases?limit=250").catch(() => ({ data: [] })),
+          ]);
+          accessData = catalogue.data;
+          accessUsers = users.data || [];
+          accessCases = cases.data || [];
+          $("accessSubject").innerHTML = optionList(accessSubjectOptions($("accessSubjectType").value));
+          $("grantSubject").innerHTML = optionList([
+            ...accessUsers.map((u) => [`user:${u.id}`, u.display_name || u.email]),
+            ...(accessData.teams || []).map((t) => [`team:${t.id}`, `Team ${t.name}`]),
+          ]);
+          $("teamMemberUser").innerHTML = optionList(accessUsers.map((u) => [u.id, u.display_name || u.email]));
+          $("teamMemberTeam").innerHTML = optionList((accessData.teams || []).map((t) => [t.id, t.name]));
+          renderAccessForm();
+          renderGrantForm();
+          renderRecordGrants();
+        } catch (e) {
+          $("accessErr").textContent = e.detail || e.message;
+        }
+      }
+      async function saveAccessPolicy() {
+        $("accessErr").textContent = "";
+        const scopes = {};
+        for (const select of document.querySelectorAll("[data-scope]")) scopes[select.dataset.scope] = select.value;
+        try {
+          await api("/api/v1/access/policies", {
+            method: "PUT",
+            body: JSON.stringify({
+              subject_type: $("accessSubjectType").value,
+              subject_id: $("accessSubject").value,
+              grants: selectedValues("accessGrants"),
+              restrictions: selectedValues("accessRestrictions"),
+              scopes,
+            }),
+          });
+          await loadAccess();
+        } catch (e) {
+          $("accessErr").textContent = e.detail || e.message;
+        }
+      }
+      async function clearAccessPolicy() {
+        $("accessErr").textContent = "";
+        try {
+          await api(`/api/v1/access/policies/${$("accessSubjectType").value}/${encodeURIComponent($("accessSubject").value)}`, { method: "DELETE" });
+          await loadAccess();
+        } catch (e) {
+          $("accessErr").textContent = e.detail || e.message;
+        }
+      }
+      async function applyRecordGrant() {
+        $("grantErr").textContent = "";
+        const [subjectType, subjectId] = $("grantSubject").value.split(":");
+        try {
+          await api("/api/v1/access/record-grants", {
+            method: "POST",
+            body: JSON.stringify({
+              subject_type: subjectType,
+              subject_id: subjectId,
+              resource_type: $("grantResourceType").value,
+              resource_id: $("grantResource").value,
+              effect: $("grantEffect").value,
+            }),
+          });
+          await loadAccess();
+        } catch (e) {
+          $("grantErr").textContent = e.detail || e.message;
+        }
+      }
       async function loadAudit() {
         try {
           const j = await api("/api/v1/audit");
@@ -2193,6 +2442,45 @@
         if (event.key === "Enter") signIn();
       });
       $("portalFile").addEventListener("change", (event) => uploadPortalFile(event.target.files[0]));
+      $("accessSubjectType").addEventListener("change", () => {
+        $("accessSubject").innerHTML = optionList(accessSubjectOptions($("accessSubjectType").value));
+        renderAccessForm();
+      });
+      $("accessSubject").addEventListener("change", renderAccessForm);
+      $("accessRefresh").addEventListener("click", loadAccess);
+      $("accessSave").addEventListener("click", saveAccessPolicy);
+      $("accessClear").addEventListener("click", clearAccessPolicy);
+      $("grantResourceType").addEventListener("change", renderGrantForm);
+      $("grantAdd").addEventListener("click", applyRecordGrant);
+      $("grantTable").addEventListener("click", async (event) => {
+        const trigger = event.target.closest("[data-revoke]");
+        if (!trigger) return;
+        try {
+          await api("/api/v1/access/record-grants/" + trigger.dataset.revoke, { method: "DELETE" });
+          await loadAccess();
+        } catch (e) {
+          $("grantErr").textContent = e.detail || e.message;
+        }
+      });
+      $("teamAdd").addEventListener("click", async () => {
+        $("teamErr").textContent = "";
+        try {
+          await api("/api/v1/teams", { method: "POST", body: JSON.stringify({ name: $("teamName").value.trim() }) });
+          $("teamName").value = "";
+          await loadAccess();
+        } catch (e) {
+          $("teamErr").textContent = e.detail || e.message;
+        }
+      });
+      $("teamMemberAdd").addEventListener("click", async () => {
+        $("teamErr").textContent = "";
+        try {
+          await api(`/api/v1/teams/${$("teamMemberTeam").value}/members`, { method: "POST", body: JSON.stringify({ user_id: $("teamMemberUser").value }) });
+          await loadAccess();
+        } catch (e) {
+          $("teamErr").textContent = e.detail || e.message;
+        }
+      });
       restoreSession();
     </script>
   </body>

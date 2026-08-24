@@ -73,12 +73,52 @@ async function authRequest(path, { method = 'GET', body, token, admin = false } 
   return data;
 }
 
-export async function signInWithPassword(email, password) {
+// Per-process login throttle. Supabase applies project-wide limits, but they do
+// not stop a slow credential-stuffing run spread across many accounts, and they
+// give this service no way to lock a single account out. In-memory: behind more
+// than one instance the effective limit is maxLoginAttempts per instance.
+const loginAttempts = new Map();
+const maxLoginAttempts = 8;
+const loginWindowMs = 15 * 60 * 1000;
+const maxTrackedIdentities = 10_000;
+
+export function loginThrottleKey(email, req) {
+  const forwarded = String(req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
+  const ip = forwarded || req?.socket?.remoteAddress || 'unknown';
+  return `${ip}|${String(email || '').trim().toLowerCase()}`;
+}
+
+function consumeLoginAttempt(key, now = Date.now()) {
+  const entry = loginAttempts.get(key);
+  if (!entry || now - entry.first > loginWindowMs) {
+    loginAttempts.set(key, { count: 1, first: now });
+    // Bound memory against an attacker rotating identities.
+    if (loginAttempts.size > maxTrackedIdentities) loginAttempts.delete(loginAttempts.keys().next().value);
+    return;
+  }
+  entry.count += 1;
+  if (entry.count > maxLoginAttempts) throw authError('TOO_MANY_LOGIN_ATTEMPTS', 429);
+}
+
+export function clearLoginAttempts(key) {
+  loginAttempts.delete(key);
+}
+
+export function resetLoginThrottle() {
+  loginAttempts.clear();
+}
+
+export async function signInWithPassword(email, password, req) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
+  const throttleKey = loginThrottleKey(normalizedEmail, req);
+  // Count before validating, so malformed submissions are not a free probe.
+  consumeLoginAttempt(throttleKey);
   if (!normalizedEmail || !/^\S+@\S+\.\S+$/.test(normalizedEmail) || typeof password !== 'string' || password.length < 8 || password.length > 256) {
     throw authError('INVALID_CREDENTIALS', 400);
   }
-  return authRequest('/token?grant_type=password', { method: 'POST', body: { email: normalizedEmail, password } });
+  const session = await authRequest('/token?grant_type=password', { method: 'POST', body: { email: normalizedEmail, password } });
+  clearLoginAttempts(throttleKey);
+  return session;
 }
 
 export async function refreshSession(refreshToken) {
@@ -119,7 +159,11 @@ export function principalFromUser(user) {
   const metadata = user.app_metadata || {};
   const rawRoles = Array.isArray(metadata.roles) ? metadata.roles : [];
   const roles = rawRoles.filter(role => roleDefinitions[role]);
-  if (ownerEmail && String(user.email || '').toLowerCase() === ownerEmail && !roles.includes('owner')) roles.push('owner');
+  // Bootstrap owner by email, but only for a confirmed address. Without the
+  // confirmation check, anyone able to self-register OWNER_EMAIL on the
+  // Supabase project would be handed the '*' permission.
+  const emailConfirmed = Boolean(user.email_confirmed_at || user.confirmed_at);
+  if (ownerEmail && emailConfirmed && String(user.email || '').toLowerCase() === ownerEmail && !roles.includes('owner')) roles.push('owner');
   if (metadata.status === 'inactive') throw authError('USER_INACTIVE', 403);
   if (!roles.length) throw authError('NO_ASSIGNED_ROLE', 403);
   return {
@@ -151,21 +195,80 @@ export function sessionTokens(req) {
   return { accessToken: cookies[accessCookie], refreshToken: cookies[refreshCookie] };
 }
 
-export function assertSameOrigin(req) {
-  if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method || '')) return;
-  if (req.headers['x-api-key']) return;
-  const origin = req.headers.origin;
-  if (!origin) {
-    if (req.headers['sec-fetch-site'] && req.headers['sec-fetch-site'] !== 'same-origin') throw authError('CROSS_SITE_REQUEST_BLOCKED', 403);
-    return;
+function parseOrigin(value) {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
   }
-  const forwardedProtocol = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
-  const protocol = forwardedProtocol || (String(req.headers.host || '').startsWith('localhost') ? 'http' : 'https');
-  const expected = process.env.APP_BASE_URL ? new URL(process.env.APP_BASE_URL).origin : `${protocol}://${req.headers.host}`;
-  if (new URL(origin).origin !== expected) throw authError('CROSS_SITE_REQUEST_BLOCKED', 403);
 }
 
-export async function getAuthProvisioningStatus() {
+// Origins a state-changing browser request may legitimately carry: the app's
+// own origin plus any explicitly configured cross-origin client.
+export function trustedOrigins(req) {
+  const origins = new Set();
+  const configured = parseOrigin(process.env.APP_BASE_URL || '');
+  if (configured) origins.add(configured);
+  for (const entry of String(process.env.CORS_ORIGINS || '').split(',')) {
+    const origin = parseOrigin(entry.trim());
+    if (origin) origins.add(origin);
+  }
+  // Fall back to the request's own Host only when nothing is configured. Host
+  // is client-supplied, so deriving the expected origin from it makes the
+  // comparison a tautology; it exists solely so local development works.
+  if (!configured && req?.headers?.host) {
+    const forwardedProtocol = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+    const host = String(req.headers.host);
+    const protocol = forwardedProtocol || (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? 'http' : 'https');
+    const derived = parseOrigin(`${protocol}://${host}`);
+    if (derived) origins.add(derived);
+  }
+  return origins;
+}
+
+export function assertSameOrigin(req) {
+  if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method || '')) return;
+  // Internal machine-to-machine callers authenticate with a bearer secret a
+  // browser cannot attach cross-site, so CSRF does not apply to them.
+  if (req.headers['x-api-key']) return;
+
+  const fetchSite = req.headers['sec-fetch-site'];
+  const origin = req.headers.origin;
+
+  if (!origin) {
+    // Fail closed. A cookie-authenticated browser always sends at least one of
+    // Origin or Sec-Fetch-Site on a state-changing request; a caller sending
+    // neither is a non-browser client (which must use x-api-key) or a stripped
+    // cross-site request.
+    if (!fetchSite || fetchSite !== 'same-origin') throw authError('CROSS_SITE_REQUEST_BLOCKED', 403);
+    return;
+  }
+
+  // A malformed or opaque Origin (sandboxed iframes and cross-origin redirects
+  // both send the literal "null") is untrusted, not a server error.
+  const requestOrigin = parseOrigin(origin);
+  if (!requestOrigin || !trustedOrigins(req).has(requestOrigin)) throw authError('CROSS_SITE_REQUEST_BLOCKED', 403);
+}
+
+// /health, /ready and /api/v1/auth/status are unauthenticated and each used to
+// issue a fresh service-role admin listing, letting any anonymous caller drive
+// unbounded privileged traffic at the auth provider. Cache the probe so the
+// admin API is hit at most once per TTL regardless of request volume.
+let provisioningCache = null;
+const provisioningTtlMs = 30_000;
+
+export function resetAuthProvisioningCache() {
+  provisioningCache = null;
+}
+
+export async function getAuthProvisioningStatus({ now = Date.now() } = {}) {
+  if (provisioningCache && now - provisioningCache.at < provisioningTtlMs) return provisioningCache.value;
+  const value = await probeAuthProvisioning();
+  provisioningCache = { at: now, value };
+  return value;
+}
+
+async function probeAuthProvisioning() {
   try {
     const data = await authRequest('/admin/users?page=1&per_page=200', { admin: true });
     const users = Array.isArray(data?.users) ? data.users : [];
@@ -203,6 +306,17 @@ export async function inviteAuthUser({ email, displayName, roles }) {
   const invited = await authRequest('/invite', { method: 'POST', admin: true, body: { email: normalizedEmail, data: { full_name: String(displayName || '').trim().slice(0, 120) } } });
   await authRequest(`/admin/users/${encodeURIComponent(invited.id)}`, { method: 'PUT', admin: true, body: { app_metadata: { ...(invited.app_metadata || {}), roles: validatedRoles, status: 'invited' } } });
   return { id: invited.id, email: invited.email, roles: validatedRoles, status: 'invited' };
+}
+
+export async function getAuthUser(userId) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(userId || ''))) throw authError('INVALID_USER_ID', 400);
+  const user = await authRequest(`/admin/users/${encodeURIComponent(userId)}`, { admin: true });
+  return {
+    id: user.id,
+    email: user.email,
+    roles: (user.app_metadata?.roles || []).filter(role => roleDefinitions[role]),
+    status: user.app_metadata?.status || 'active',
+  };
 }
 
 export async function updateAuthUser(userId, { displayName, roles, status }) {

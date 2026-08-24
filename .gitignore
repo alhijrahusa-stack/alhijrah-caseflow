@@ -6,3 +6,7 @@ npm-debug.log*
 .DS_Store
 coverage/
 .tmp/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
