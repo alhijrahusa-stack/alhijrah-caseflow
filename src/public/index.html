@@ -791,20 +791,25 @@
         </section>
         <section class="view" id="view-clients">
           <div class="panel">
-            <div class="ph">
-              <div>
-                <h2>Clients</h2>
-                <span>Derived from active case records</span>
-              </div>
+            <div class="toolbar">
+              <input
+                class="search"
+                id="clientSearch"
+                placeholder="Search name, email, phone, A-Number or USCIS account"
+                oninput="renderClients()"
+              />
+              <button class="btn primary" onclick="openClient()">+ New Client</button>
             </div>
             <div class="table">
               <table>
                 <thead>
                   <tr>
                     <th>Client</th>
-                    <th>Cases</th>
-                    <th>Active Types</th>
-                    <th>Last Activity</th>
+                    <th>Contact</th>
+                    <th>A-Number</th>
+                    <th>Language</th>
+                    <th>Updated</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody id="clientTable"></tbody>
@@ -855,24 +860,58 @@
           </div>
         </section>
         <section class="view" id="view-services">
+          <div class="toolbar">
+            <select id="serviceCategory" onchange="renderServices()">
+              <option value="">All service categories</option>
+              <option value="family_uscis">Family / USCIS</option>
+              <option value="consular_dos">Consular / DOS</option>
+              <option value="humanitarian_complex">Humanitarian / Complex</option>
+              <option value="administrative">Administrative Services</option>
+            </select>
+          </div>
           <div class="services" id="serviceGrid"></div>
         </section>
         <section class="view" id="view-tasks">
           <div class="panel">
-            <div class="ph">
-              <div>
-                <h2>Tasks</h2>
-                <span>Operational queue framework</span>
-              </div>
+            <div class="toolbar">
+              <select id="taskFilter" onchange="loadTasks()">
+                <option value="">All open tasks</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In progress</option>
+                <option value="blocked">Blocked</option>
+                <option value="completed">Completed</option>
+              </select>
+              <button class="btn primary" onclick="openTask()">+ New Task</button>
             </div>
-            <div class="notice">
-              Task persistence will be enabled after the dedicated task table is
-              added to the production schema. Current case and document
-              operations are live.
+            <div class="table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Task</th>
+                    <th>Case / Client</th>
+                    <th>Due</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="taskTable"></tbody>
+              </table>
             </div>
           </div>
         </section>
         <section class="view" id="view-roles">
+          <div class="panel" style="margin-bottom: 15px">
+            <div class="ph"><div><h2>Team</h2><span>Authenticated users and assigned roles</span></div></div>
+            <div class="form">
+              <div class="field"><label>Name</label><input id="inviteName" /></div>
+              <div class="field"><label>Email</label><input id="inviteEmail" type="email" /></div>
+              <div class="field"><label>Role</label><select id="inviteRole"></select></div>
+              <div class="field" style="align-self:end"><button class="btn primary" onclick="inviteUser()">Invite User</button></div>
+            </div>
+            <div class="err" id="teamErr"></div>
+            <div class="table" style="margin-top:15px"><table><thead><tr><th>User</th><th>Roles</th><th>Status</th><th>Last sign-in</th></tr></thead><tbody id="teamTable"></tbody></table></div>
+          </div>
           <div class="roles" id="roleGrid"></div>
         </section>
         <section class="view" id="view-audit">
@@ -941,9 +980,13 @@
           <button class="btn" onclick="closeCase()">Close</button>
         </div>
         <input type="hidden" id="editCaseId" />
+        <input type="hidden" id="selectedServiceCode" />
         <div class="form">
           <div class="field">
-            <label>Client name</label><input id="clientName" />
+            <label>Existing client</label><select id="caseClientSelect"><option value="">Select client</option></select>
+          </div>
+          <div class="field">
+            <label>Client name if not yet registered</label><input id="clientName" />
           </div>
           <div class="field">
             <label>Case type</label
@@ -981,41 +1024,112 @@
         </div>
       </div>
     </div>
+    <div class="modal" id="clientModal">
+      <div class="dialog">
+        <div class="ph">
+          <div>
+            <h2 id="clientModalTitle">Create Client</h2>
+            <span>Protected client record</span>
+          </div>
+          <button class="btn" onclick="closeClient()">Close</button>
+        </div>
+        <input type="hidden" id="editClientId" />
+        <div class="form">
+          <div class="field full"><label>Legal name</label><input id="clientLegalName" autocomplete="off" /></div>
+          <div class="field"><label>Date of birth</label><input id="clientDob" type="date" /></div>
+          <div class="field"><label>Place of birth</label><input id="clientBirthPlace" /></div>
+          <div class="field"><label>Nationality</label><input id="clientNationality" /></div>
+          <div class="field"><label>Current country</label><input id="clientCountry" /></div>
+          <div class="field"><label>Email</label><input id="clientEmail" type="email" /></div>
+          <div class="field"><label>Phone</label><input id="clientPhone" type="tel" /></div>
+          <div class="field"><label>WhatsApp</label><input id="clientWhatsapp" type="tel" /></div>
+          <div class="field"><label>Preferred language</label><input id="clientLanguage" /></div>
+          <div class="field"><label>A-Number</label><input id="clientANumber" /></div>
+          <div class="field"><label>USCIS Online Account Number</label><input id="clientUscisNumber" /></div>
+          <div class="field"><label>Passport number</label><input id="clientPassport" /></div>
+          <div class="field"><label>Passport expiration</label><input id="clientPassportExpiration" type="date" /></div>
+          <div class="field full"><label>Physical address</label><input id="clientAddress" /></div>
+          <div class="field"><label>ZIP / Postal code</label><input id="clientPostal" /></div>
+          <div class="field"><label>Immigration status</label><input id="clientImmigrationStatus" /></div>
+          <div class="field full"><label>Operational notes</label><textarea id="clientNotes"></textarea></div>
+        </div>
+        <div class="err" id="clientErr"></div>
+        <div class="df">
+          <button class="btn" onclick="closeClient()">Cancel</button>
+          <button class="btn primary" onclick="saveClient()">Save Client</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal" id="taskModal">
+      <div class="dialog">
+        <div class="ph">
+          <div>
+            <h2 id="taskModalTitle">Create Task</h2>
+            <span>Operational assignment</span>
+          </div>
+          <button class="btn" onclick="closeTask()">Close</button>
+        </div>
+        <input type="hidden" id="editTaskId" />
+        <div class="form">
+          <div class="field full"><label>Task title</label><input id="taskTitle" /></div>
+          <div class="field"><label>Case</label><select id="taskCase"></select></div>
+          <div class="field"><label>Client</label><select id="taskClient"></select></div>
+          <div class="field"><label>Due date</label><input id="taskDue" type="date" /></div>
+          <div class="field"><label>Priority</label><select id="taskPriority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option><option value="low">Low</option></select></div>
+          <div class="field"><label>Status</label><select id="taskStatus"><option value="open">Open</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option><option value="completed">Completed</option></select></div>
+          <div class="field full"><label>Description</label><textarea id="taskDescription"></textarea></div>
+        </div>
+        <div class="err" id="taskErr"></div>
+        <div class="df">
+          <button class="btn" onclick="closeTask()">Cancel</button>
+          <button class="btn primary" onclick="saveTask()">Save Task</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal" id="intakeModal">
+      <div class="dialog">
+        <div class="ph">
+          <div>
+            <div class="eyebrow" id="intakeProgress">Intake</div>
+            <h2 id="intakeTitle">Service Intake</h2>
+          </div>
+          <button class="btn" onclick="saveAndExitIntake()">Save & Exit</button>
+        </div>
+        <div id="intakeFields"></div>
+        <div class="err" id="intakeErr"></div>
+        <div class="df">
+          <button class="btn" id="intakeBack" onclick="previousIntakeStep()">Back</button>
+          <button class="btn primary" id="intakeNext" onclick="nextIntakeStep()">Next</button>
+        </div>
+      </div>
+    </div>
     <script>
       const $ = (id) => document.getElementById(id);
       let currentUser = null,
         cases = [],
-        docs = [];
-      const services = [
-        "Family Immigration",
-        "Adjustment of Status",
-        "Consular Processing",
-        "Naturalization",
-        "Employment Authorization",
-        "Asylum / EOIR",
-        "I-601 / I-601A Waiver",
-        "VAWA / U / T / SIJS",
-        "I-751",
-        "Passport / Translation / Notary",
-        "Immigration Court / Removal",
-        "FOIA / Records",
-      ];
+        docs = [],
+        clients = [],
+        tasks = [],
+        services = [],
+        intakeState = null,
+        intakeSaveTimer = null;
       const roles = [
-        ["Owner", "Full platform authority and configuration control."],
-        ["Admin", "Operational administration and user management."],
-        ["Supervisor", "Oversight, assignments and review authority."],
-        ["Case Manager", "Case ownership, workflow and client coordination."],
-        ["Form Preparer", "Prepare forms and structured intake records."],
-        ["Document Reviewer", "Review evidence and document completeness."],
-        ["Translator", "Translation workflow access."],
+        ["Owner", "Full platform authority and configuration control.", "owner"],
+        ["Admin", "Operational administration and user management.", "admin"],
+        ["Supervisor", "Oversight, assignments and review authority.", "supervisor"],
+        ["Case Manager", "Case ownership, workflow and client coordination.", "case_manager"],
+        ["Form Preparer", "Prepare forms and structured intake records.", "form_preparer"],
+        ["Document Reviewer", "Review evidence and document completeness.", "document_reviewer"],
+        ["Translator", "Translation workflow access.", "translator"],
         [
           "Attorney / Accredited Representative",
           "Legal representation workspace.",
+          "attorney_accredited_representative",
         ],
-        ["Billing", "Payments, invoices and account records."],
-        ["Auditor", "Read-only compliance and audit access."],
-        ["Client Owner", "Primary client portal authority."],
-        ["Client Collaborator", "Limited shared case collaboration."],
+        ["Billing", "Payments, invoices and account records.", "billing"],
+        ["Auditor", "Read-only compliance and audit access.", "auditor"],
+        ["Client Owner", "Primary client portal authority.", "client_owner"],
+        ["Client Collaborator", "Limited shared case collaboration.", "client_collaborator"],
       ];
       function titles(v) {
         const t = {
@@ -1042,8 +1156,10 @@
           .forEach((x) => x.classList.toggle("active", x.dataset.view === v));
         titles(v);
         if (v === "cases") renderCaseTable();
-        if (v === "clients") renderClients();
+        if (v === "clients") loadClients();
         if (v === "documents") loadDocuments();
+        if (v === "tasks") loadTasks();
+        if (v === "roles") loadTeam();
         if (v === "audit") loadAudit();
       }
       document
@@ -1126,7 +1242,6 @@
           renderMetrics();
           renderRecent();
           renderCaseTable();
-          renderClients();
           fillCaseSelect();
         } catch (e) {
           $("recentCases").innerHTML =
@@ -1166,26 +1281,98 @@
             )
             .join("") || '<tr><td colspan="7">No matching cases.</td></tr>';
       }
-      function renderClients() {
-        const m = {};
-        for (const c of cases) {
-          m[c.client_name] ??= {
-            count: 0,
-            types: new Set(),
-            last: c.created_at,
-          };
-          m[c.client_name].count++;
-          m[c.client_name].types.add(c.case_type);
-          if (c.created_at > m[c.client_name].last)
-            m[c.client_name].last = c.created_at;
+      async function loadClients() {
+        try {
+          const result = await api("/api/v1/clients?limit=250");
+          clients = result.data || [];
+          renderClients();
+          fillClientSelects();
+        } catch (error) {
+          $("clientTable").innerHTML =
+            '<tr><td colspan="6">Unable to load client records.</td></tr>';
         }
+      }
+      function renderClients() {
+        const q = ($("clientSearch")?.value || "").toLowerCase();
+        const visible = clients.filter((client) =>
+          [client.legal_name, client.email, client.phone, client.a_number, client.uscis_account_number]
+            .some((value) => String(value || "").toLowerCase().includes(q)),
+        );
         $("clientTable").innerHTML =
-          Object.entries(m)
+          visible
             .map(
-              ([n, v]) =>
-                `<tr><td><b>${esc(n)}</b></td><td>${v.count}</td><td>${esc([...v.types].join(", "))}</td><td>${date(v.last)}</td></tr>`,
+              (client) =>
+                `<tr><td><b>${esc(client.legal_name)}</b><br><small>${esc(client.nationality || "—")}</small></td><td>${esc(client.email || client.phone || "—")}</td><td>${esc(client.a_number || "—")}</td><td>${esc(client.preferred_language || "—")}</td><td>${date(client.updated_at)}</td><td><button class="linkbtn" onclick="editClient('${client.id}')">Edit</button></td></tr>`,
             )
-            .join("") || '<tr><td colspan="4">No clients yet.</td></tr>';
+            .join("") || '<tr><td colspan="6">No matching clients.</td></tr>';
+      }
+      function fillClientSelects() {
+        const options = clients.map((client) => `<option value="${client.id}">${esc(client.legal_name)}</option>`).join("");
+        if ($("taskClient")) $("taskClient").innerHTML = '<option value="">Select client if no case</option>' + options;
+        if ($("caseClientSelect")) $("caseClientSelect").innerHTML = '<option value="">Select client</option>' + options;
+      }
+      function openClient() {
+        $("clientModalTitle").textContent = "Create Client";
+        $("editClientId").value = "";
+        for (const id of ["clientLegalName","clientDob","clientBirthPlace","clientNationality","clientCountry","clientEmail","clientPhone","clientWhatsapp","clientLanguage","clientANumber","clientUscisNumber","clientPassport","clientPassportExpiration","clientAddress","clientPostal","clientImmigrationStatus","clientNotes"]) $(id).value = "";
+        $("clientErr").textContent = "";
+        $("clientModal").classList.add("show");
+      }
+      function editClient(id) {
+        const client = clients.find((item) => item.id === id);
+        if (!client) return;
+        $("clientModalTitle").textContent = "Edit Client";
+        $("editClientId").value = id;
+        const values = {
+          clientLegalName: client.legal_name, clientDob: client.date_of_birth,
+          clientBirthPlace: client.place_of_birth, clientNationality: client.nationality,
+          clientCountry: client.current_country, clientEmail: client.email,
+          clientPhone: client.phone, clientWhatsapp: client.whatsapp,
+          clientLanguage: client.preferred_language, clientANumber: client.a_number,
+          clientUscisNumber: client.uscis_account_number, clientPassport: client.passport_number,
+          clientPassportExpiration: client.passport_expiration, clientAddress: client.physical_address,
+          clientPostal: client.postal_code, clientImmigrationStatus: client.immigration_status,
+          clientNotes: client.operational_notes,
+        };
+        for (const [field, value] of Object.entries(values)) $(field).value = value || "";
+        $("clientErr").textContent = "";
+        $("clientModal").classList.add("show");
+      }
+      function closeClient() {
+        $("clientModal").classList.remove("show");
+      }
+      async function saveClient() {
+        const id = $("editClientId").value;
+        const body = {
+          legal_name: $("clientLegalName").value.trim(),
+          date_of_birth: $("clientDob").value || null,
+          place_of_birth: $("clientBirthPlace").value.trim() || null,
+          nationality: $("clientNationality").value.trim() || null,
+          current_country: $("clientCountry").value.trim() || null,
+          email: $("clientEmail").value.trim() || null,
+          phone: $("clientPhone").value.trim() || null,
+          whatsapp: $("clientWhatsapp").value.trim() || null,
+          preferred_language: $("clientLanguage").value.trim() || "English",
+          a_number: $("clientANumber").value.trim() || null,
+          uscis_account_number: $("clientUscisNumber").value.trim() || null,
+          passport_number: $("clientPassport").value.trim() || null,
+          passport_expiration: $("clientPassportExpiration").value || null,
+          physical_address: $("clientAddress").value.trim() || null,
+          postal_code: $("clientPostal").value.trim() || null,
+          immigration_status: $("clientImmigrationStatus").value.trim() || null,
+          operational_notes: $("clientNotes").value.trim() || null,
+        };
+        if (!body.legal_name) return ($("clientErr").textContent = "Legal name is required.");
+        try {
+          await api(id ? "/api/v1/clients/" + id : "/api/v1/clients", {
+            method: id ? "PATCH" : "POST",
+            body: JSON.stringify(body),
+          });
+          closeClient();
+          await loadClients();
+        } catch (error) {
+          $("clientErr").textContent = error.message;
+        }
       }
       function fillCaseSelect() {
         $("docCase").innerHTML = cases
@@ -1194,12 +1381,19 @@
               `<option value="${c.id}">${esc(c.client_name)} — ${esc(c.case_type)}</option>`,
           )
           .join("");
+        if ($("taskCase")) {
+          $("taskCase").innerHTML =
+            '<option value="">Select case</option>' +
+            cases.map((c) => `<option value="${c.id}">${esc(c.client_name)} — ${esc(c.case_type)}</option>`).join("");
+        }
       }
-      function openCase(type = "") {
+      function openCase(type = "", serviceCode = "") {
         caseModalTitle.textContent = "Create New Case";
         $("editCaseId").value = "";
+        $("selectedServiceCode").value = serviceCode;
+        $("caseClientSelect").value = "";
         $("clientName").value = "";
-        $("caseType").value = type || services[0];
+        $("caseType").value = type || services[0]?.name || "";
         $("caseStatus").value = "intake";
         $("priority").value = "normal";
         $("assigned").value = "";
@@ -1212,6 +1406,8 @@
         if (!c) return;
         caseModalTitle.textContent = "Edit Case";
         $("editCaseId").value = id;
+        $("selectedServiceCode").value = c.service_code || "";
+        $("caseClientSelect").value = c.client_id || "";
         $("clientName").value = c.client_name;
         $("caseType").value = c.case_type;
         $("caseStatus").value = c.status;
@@ -1227,25 +1423,280 @@
       async function saveCase() {
         const id = $("editCaseId").value,
           b = {
+            client_id: $("caseClientSelect").value || null,
             client_name: $("clientName").value.trim(),
+            service_code: $("selectedServiceCode").value || null,
             case_type: $("caseType").value,
             status: $("caseStatus").value,
             priority: $("priority").value,
             assigned_to: $("assigned").value.trim() || null,
             notes: $("notes").value.trim() || null,
           };
-        if (!b.client_name)
-          return ($("caseErr").textContent = "Client name is required.");
+        if (!b.client_id && !b.client_name)
+          return ($("caseErr").textContent = "Select a client or enter the client name.");
         try {
-          await api(id ? "/api/v1/cases/" + id : "/api/v1/cases", {
+          const result = await api(id ? "/api/v1/cases/" + id : "/api/v1/cases", {
             method: id ? "PATCH" : "POST",
             body: JSON.stringify(b),
           });
+          const created = Array.isArray(result.data) ? result.data[0] : result.data;
           closeCase();
           await loadCases();
-          showView("cases");
+          if (!id && b.service_code && created?.id) await openIntake(created.id, b.service_code);
+          else showView("cases");
         } catch (e) {
           $("caseErr").textContent = e.message;
+        }
+      }
+      async function loadTasks() {
+        const status = $("taskFilter")?.value || "";
+        try {
+          const result = await api("/api/v1/tasks?limit=250" + (status ? "&status=" + encodeURIComponent(status) : ""));
+          tasks = result.data || [];
+          renderTasks();
+        } catch (error) {
+          $("taskTable").innerHTML =
+            '<tr><td colspan="6">Unable to load task records.</td></tr>';
+        }
+      }
+      function renderTasks() {
+        const caseNames = Object.fromEntries(cases.map((item) => [item.id, item.client_name + " — " + item.case_type]));
+        const clientNames = Object.fromEntries(clients.map((item) => [item.id, item.legal_name]));
+        const today = new Date().toISOString().slice(0, 10);
+        $("taskTable").innerHTML =
+          tasks.map((task) => {
+            const overdue = task.due_date && task.due_date < today && task.status !== "completed";
+            return `<tr><td><b>${esc(task.title)}</b></td><td>${esc(caseNames[task.case_id] || clientNames[task.client_id] || "—")}</td><td>${esc(task.due_date || "—")}${overdue ? ' <span class="tag urgent">Overdue</span>' : ""}</td><td><span class="tag ${esc(task.priority)}">${esc(task.priority)}</span></td><td>${esc(task.status)}</td><td><button class="linkbtn" onclick="editTask('${task.id}')">Edit</button></td></tr>`;
+          }).join("") || '<tr><td colspan="6">No tasks in this view.</td></tr>';
+      }
+      function openTask() {
+        $("taskModalTitle").textContent = "Create Task";
+        $("editTaskId").value = "";
+        $("taskTitle").value = "";
+        $("taskCase").value = "";
+        $("taskClient").value = "";
+        $("taskDue").value = "";
+        $("taskPriority").value = "normal";
+        $("taskStatus").value = "open";
+        $("taskDescription").value = "";
+        $("taskErr").textContent = "";
+        $("taskModal").classList.add("show");
+      }
+      function editTask(id) {
+        const task = tasks.find((item) => item.id === id);
+        if (!task) return;
+        $("taskModalTitle").textContent = "Edit Task";
+        $("editTaskId").value = id;
+        $("taskTitle").value = task.title || "";
+        $("taskCase").value = task.case_id || "";
+        $("taskClient").value = task.client_id || "";
+        $("taskDue").value = task.due_date || "";
+        $("taskPriority").value = task.priority;
+        $("taskStatus").value = task.status;
+        $("taskDescription").value = task.description || "";
+        $("taskErr").textContent = "";
+        $("taskModal").classList.add("show");
+      }
+      function closeTask() {
+        $("taskModal").classList.remove("show");
+      }
+      async function saveTask() {
+        const id = $("editTaskId").value;
+        const body = {
+          title: $("taskTitle").value.trim(),
+          case_id: $("taskCase").value || null,
+          client_id: $("taskClient").value || null,
+          due_date: $("taskDue").value || null,
+          priority: $("taskPriority").value,
+          status: $("taskStatus").value,
+          description: $("taskDescription").value.trim() || null,
+        };
+        if (!body.title) return ($("taskErr").textContent = "Task title is required.");
+        if (!body.case_id && !body.client_id) return ($("taskErr").textContent = "Select a case or client.");
+        try {
+          await api(id ? "/api/v1/tasks/" + id : "/api/v1/tasks", {
+            method: id ? "PATCH" : "POST",
+            body: JSON.stringify(body),
+          });
+          closeTask();
+          await loadTasks();
+        } catch (error) {
+          $("taskErr").textContent = error.message;
+        }
+      }
+      function intakeFieldVisible(field) {
+        if (!field.visibleWhen) return true;
+        return intakeState.answers[field.visibleWhen.field] === field.visibleWhen.equals;
+      }
+      function intakeOptionLabel(value) {
+        return String(value || "")
+          .replaceAll("_", " ")
+          .replace(/\b\w/g, (letter) => letter.toUpperCase());
+      }
+      function intakeInput(field) {
+        const value = intakeState.answers[field.id];
+        const required = field.required ? " required" : "";
+        const common = `id="intake_${esc(field.id)}" data-intake-field="${esc(field.id)}"${required}`;
+        if (field.type === "textarea")
+          return `<textarea ${common}>${esc(value || "")}</textarea>`;
+        if (field.type === "select")
+          return `<select ${common}><option value="">Select</option>${(field.options || []).map((option) => `<option value="${esc(option)}"${value === option ? " selected" : ""}>${esc(intakeOptionLabel(option))}</option>`).join("")}</select>`;
+        if (field.type === "yes_no")
+          return `<select ${common}><option value="">Select</option><option value="true"${value === true ? " selected" : ""}>Yes</option><option value="false"${value === false ? " selected" : ""}>No</option></select>`;
+        if (field.type === "multi_select")
+          return `<div class="intake-options">${(field.options || []).map((option) => `<label><input type="checkbox" data-intake-multi="${esc(field.id)}" value="${esc(option)}"${Array.isArray(value) && value.includes(option) ? " checked" : ""}> ${esc(intakeOptionLabel(option))}</label>`).join("")}</div>`;
+        if (field.type === "repeatable_people") return renderPeopleField(field);
+        const types = { email: "email", phone: "tel", date: "date", number: "number", currency: "number" };
+        const inputMode = field.type === "currency" ? ' step="0.01" min="0"' : field.type === "number" ? ' step="1"' : "";
+        return `<input ${common} type="${types[field.type] || "text"}" value="${esc(value ?? "")}"${inputMode} autocomplete="off">`;
+      }
+      function renderPeopleField(field) {
+        const people = Array.isArray(intakeState.answers[field.id]) ? intakeState.answers[field.id] : [];
+        return `<div class="people-list">${people.map((person, index) => `<div class="panel" style="margin:10px 0;padding:15px"><div class="ph"><b>Family member ${index + 1}</b><button class="linkbtn" type="button" onclick="removeIntakePerson('${esc(field.id)}',${index})">Remove</button></div><div class="form">${field.personFields.map((personField) => `<div class="field"><label>${esc(personField.label)}${personField.required ? " *" : ""}</label>${personField.type === "select" ? `<select data-person-group="${esc(field.id)}" data-person-index="${index}" data-person-field="${esc(personField.id)}"><option value="">Select</option>${personField.options.map((option) => `<option value="${esc(option)}"${person[personField.id] === option ? " selected" : ""}>${esc(intakeOptionLabel(option))}</option>`).join("")}</select>` : `<input type="${personField.type === "date" ? "date" : "text"}" data-person-group="${esc(field.id)}" data-person-index="${index}" data-person-field="${esc(personField.id)}" value="${esc(person[personField.id] || "")}" autocomplete="off">`}</div>`).join("")}</div></div>`).join("")}<button class="btn" type="button" onclick="addIntakePerson('${esc(field.id)}')">Add family member</button></div>`;
+      }
+      function bindIntakeFields() {
+        document.querySelectorAll("[data-intake-field]").forEach((input) =>
+          input.addEventListener("input", () => {
+            let value = input.value;
+            if (input.querySelector?.('option[value="true"]')) value = value === "" ? "" : value === "true";
+            intakeState.answers[input.dataset.intakeField] = value;
+            scheduleIntakeSave();
+            const section = intakeState.definition.sections[intakeState.step];
+            if (section?.fields.some((item) => item.visibleWhen?.field === input.dataset.intakeField)) renderIntake();
+          }),
+        );
+        document.querySelectorAll("[data-intake-multi]").forEach((input) =>
+          input.addEventListener("change", () => {
+            intakeState.answers[input.dataset.intakeMulti] = [...document.querySelectorAll(`[data-intake-multi="${CSS.escape(input.dataset.intakeMulti)}"]:checked`)].map((item) => item.value);
+            scheduleIntakeSave();
+          }),
+        );
+        document.querySelectorAll("[data-person-group]").forEach((input) =>
+          input.addEventListener("input", () => {
+            const people = intakeState.answers[input.dataset.personGroup] || [];
+            people[Number(input.dataset.personIndex)][input.dataset.personField] = input.value;
+            scheduleIntakeSave();
+          }),
+        );
+      }
+      function addIntakePerson(fieldId) {
+        const field = intakeState.definition.sections.flatMap((section) => section.fields).find((item) => item.id === fieldId);
+        const people = intakeState.answers[fieldId] || [];
+        if (people.length >= (field.maxItems || 20)) return;
+        people.push({});
+        intakeState.answers[fieldId] = people;
+        renderIntake();
+        scheduleIntakeSave();
+      }
+      function removeIntakePerson(fieldId, index) {
+        intakeState.answers[fieldId].splice(index, 1);
+        renderIntake();
+        scheduleIntakeSave();
+      }
+      async function openIntake(caseId, serviceCode) {
+        try {
+          const result = await api(`/api/v1/intakes/${caseId}/${encodeURIComponent(serviceCode)}`);
+          intakeState = {
+            caseId,
+            serviceCode,
+            definition: result.definition,
+            answers: result.data?.answers || {},
+            step: Math.min(result.data?.current_step || 0, result.definition.sections.length - 1),
+            review: result.data?.status === "submitted",
+          };
+          $("intakeErr").textContent = "";
+          $("intakeModal").classList.add("show");
+          renderIntake();
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+      function renderIntake() {
+        if (!intakeState) return;
+        const sections = intakeState.definition.sections;
+        $("intakeTitle").textContent = `${intakeState.serviceCode} Intake`;
+        if (intakeState.review) {
+          $("intakeProgress").textContent = "Review before submit";
+          $("intakeFields").innerHTML = `<div class="panel"><h3>Confirm the information</h3><p class="muted">Review every section. Use Edit to correct information before submitting.</p>${sections.map((section, index) => `<div class="sysrow"><div><b>${esc(section.title)}</b><small style="display:block;color:var(--muted);margin-top:5px">${section.fields.filter(intakeFieldVisible).map((field) => `${esc(field.label)}: ${esc(formatIntakeAnswer(intakeState.answers[field.id]))}`).join(" · ") || "No information entered"}</small></div><button class="linkbtn" onclick="editIntakeStep(${index})">Edit</button></div>`).join("")}</div>`;
+          $("intakeBack").style.display = "inline-block";
+          $("intakeNext").textContent = "Submit Intake";
+          bindIntakeFields();
+          return;
+        }
+        const section = sections[intakeState.step];
+        $("intakeProgress").textContent = `Step ${intakeState.step + 1} of ${sections.length}`;
+        $("intakeFields").innerHTML = `<h3>${esc(section.title)}</h3>${section.description ? `<p class="muted">${esc(section.description)}</p>` : ""}<div class="form">${section.fields.filter(intakeFieldVisible).map((field) => `<div class="field ${field.type === "textarea" || field.type === "multi_select" || field.type === "repeatable_people" ? "full" : ""}"><label>${esc(field.label)}${field.required ? " *" : ""}</label>${intakeInput(field)}</div>`).join("")}</div>`;
+        $("intakeBack").style.display = intakeState.step ? "inline-block" : "none";
+        $("intakeNext").textContent = intakeState.step === sections.length - 1 ? "Review" : "Next";
+        bindIntakeFields();
+      }
+      function formatIntakeAnswer(value) {
+        if (value === true) return "Yes";
+        if (value === false) return "No";
+        if (Array.isArray(value)) return value.length ? value.map((item) => typeof item === "object" ? item.legal_name || "Family member" : intakeOptionLabel(item)).join(", ") : "—";
+        return value ? intakeOptionLabel(value) : "—";
+      }
+      function validateIntakeStep() {
+        const section = intakeState.definition.sections[intakeState.step];
+        const missing = [];
+        for (const field of section.fields.filter(intakeFieldVisible)) {
+          const value = intakeState.answers[field.id];
+          if (field.required && (value === undefined || value === null || value === "")) missing.push(field.label);
+          if (field.type === "repeatable_people") {
+            for (const [index, person] of (value || []).entries()) for (const personField of field.personFields.filter((item) => item.required)) if (!person[personField.id]) missing.push(`Family member ${index + 1}: ${personField.label}`);
+          }
+        }
+        $("intakeErr").textContent = missing.length ? `Complete: ${missing.join(", ")}` : "";
+        return !missing.length;
+      }
+      function editIntakeStep(step) {
+        intakeState.review = false;
+        intakeState.step = step;
+        renderIntake();
+      }
+      async function nextIntakeStep() {
+        if (intakeState.review) return submitIntake();
+        if (!validateIntakeStep()) return;
+        if (intakeState.step < intakeState.definition.sections.length - 1) intakeState.step += 1;
+        else intakeState.review = true;
+        await saveIntakeDraft();
+        renderIntake();
+      }
+      function previousIntakeStep() {
+        $("intakeErr").textContent = "";
+        if (intakeState.review) intakeState.review = false;
+        else intakeState.step = Math.max(0, intakeState.step - 1);
+        renderIntake();
+      }
+      function scheduleIntakeSave() {
+        clearTimeout(intakeSaveTimer);
+        intakeSaveTimer = setTimeout(() => saveIntakeDraft(true), 700);
+      }
+      async function saveIntakeDraft(silent = false) {
+        if (!intakeState) return;
+        try {
+          await api(`/api/v1/intakes/${intakeState.caseId}/${encodeURIComponent(intakeState.serviceCode)}`, { method: "POST", body: JSON.stringify({ answers: intakeState.answers, current_step: intakeState.step, status: "draft" }) });
+          if (!silent) $("intakeErr").textContent = "Saved.";
+        } catch (error) {
+          $("intakeErr").textContent = `Save failed: ${error.message}`;
+        }
+      }
+      async function saveAndExitIntake() {
+        clearTimeout(intakeSaveTimer);
+        await saveIntakeDraft();
+        $("intakeModal").classList.remove("show");
+        intakeState = null;
+        showView("cases");
+      }
+      async function submitIntake() {
+        try {
+          await api(`/api/v1/intakes/${intakeState.caseId}/${encodeURIComponent(intakeState.serviceCode)}`, { method: "POST", body: JSON.stringify({ answers: intakeState.answers, current_step: intakeState.step, status: "submitted" }) });
+          $("intakeModal").classList.remove("show");
+          intakeState = null;
+          await loadCases();
+          showView("cases");
+        } catch (error) {
+          $("intakeErr").textContent = error.message === "INTAKE_REQUIRED_FIELDS_MISSING" ? "Required information is missing. Edit the affected section before submitting." : error.message;
         }
       }
       async function loadDocuments() {
@@ -1333,7 +1784,7 @@
             (j.data || [])
               .map(
                 (a) =>
-                  `<tr><td>${esc(a.event_type)}</td><td>${esc(a.case_id)}</td><td>${esc(a.actor || "—")}</td><td>${date(a.created_at)}</td></tr>`,
+                  `<tr><td>${esc(a.action || a.event_type)}</td><td>${esc(a.case_id || a.entity_id || "—")}</td><td>${esc(a.actor_label || a.actor || "—")}</td><td>${date(a.created_at)}</td></tr>`,
               )
               .join("") || '<tr><td colspan="4">No audit events yet.</td></tr>';
         } catch (e) {
@@ -1341,15 +1792,27 @@
             '<tr><td colspan="4">Unable to load audit trail.</td></tr>';
         }
       }
+      async function loadServices() {
+        try {
+          const result = await api("/api/v1/services");
+          services = result.data || [];
+          renderServices();
+        } catch {
+          $("serviceGrid").innerHTML =
+            '<div class="empty">Unable to load the service catalog.</div>';
+        }
+      }
       function renderServices() {
-        $("serviceGrid").innerHTML = services
+        const category = $("serviceCategory")?.value || "";
+        const visible = services.filter((service) => !category || service.category === category);
+        $("serviceGrid").innerHTML = visible
           .map(
-            (s) =>
-              `<div class="service"><h3>${esc(s)}</h3><p>Structured intake and case workflow for ${esc(s.toLowerCase())} matters.</p><button class="btn primary" onclick="openCase('${esc(s)}')">Start Matter</button></div>`,
+            (service) =>
+              `<div class="service"><div class="eyebrow">${esc(service.category.replaceAll("_", " "))}</div><h3>${esc(service.code)} — ${esc(service.name)}</h3><p>Versioned intake and controlled case workflow.</p><button class="btn primary" onclick="openCase('${esc(service.name)}','${esc(service.code)}')">Start Matter</button></div>`,
           )
-          .join("");
+          .join("") || '<div class="empty">No services in this category.</div>';
         $("caseType").innerHTML = services
-          .map((s) => `<option>${esc(s)}</option>`)
+          .map((service) => `<option value="${esc(service.name)}">${esc(service.code)} — ${esc(service.name)}</option>`)
           .join("");
       }
       function renderRoles() {
@@ -1359,6 +1822,44 @@
               `<div class="role"><b>${esc(r[0])}</b><small>${esc(r[1])}</small></div>`,
           )
           .join("");
+        $("inviteRole").innerHTML = roles
+          .map((role) => `<option value="${esc(role[2])}">${esc(role[0])}</option>`)
+          .join("");
+      }
+      async function loadTeam() {
+        try {
+          const result = await api("/api/v1/users");
+          $("teamTable").innerHTML =
+            (result.data || [])
+              .map(
+                (user) =>
+                  `<tr><td><b>${esc(user.display_name || user.email)}</b><br><small>${esc(user.email)}</small></td><td>${esc((user.roles || []).join(", "))}</td><td>${esc(user.status)}</td><td>${date(user.last_sign_in_at)}</td></tr>`,
+              )
+              .join("") || '<tr><td colspan="4">No users found.</td></tr>';
+        } catch (error) {
+          $("teamTable").innerHTML =
+            '<tr><td colspan="4">Unable to load authenticated users.</td></tr>';
+        }
+      }
+      async function inviteUser() {
+        const body = {
+          display_name: $("inviteName").value.trim(),
+          email: $("inviteEmail").value.trim(),
+          roles: [$("inviteRole").value],
+        };
+        $("teamErr").textContent = "";
+        if (!body.email) return ($("teamErr").textContent = "Email is required.");
+        try {
+          await api("/api/v1/users", {
+            method: "POST",
+            body: JSON.stringify(body),
+          });
+          $("inviteName").value = "";
+          $("inviteEmail").value = "";
+          await loadTeam();
+        } catch (error) {
+          $("teamErr").textContent = error.message;
+        }
       }
       function esc(v) {
         return String(v ?? "").replace(
@@ -1383,14 +1884,15 @@
         return (v / 1048576).toFixed(1) + " MB";
       }
       async function boot() {
-        renderServices();
         renderRoles();
         await testReady();
+        await loadServices();
         await loadCases();
+        await loadClients();
+        await loadTasks();
         await loadDocuments();
       }
       async function restoreSession() {
-        renderServices();
         renderRoles();
         try {
           const result = await api("/api/v1/auth/me");
