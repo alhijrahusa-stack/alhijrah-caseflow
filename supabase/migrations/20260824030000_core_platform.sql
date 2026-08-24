@@ -1,5 +1,7 @@
 begin;
 
+create extension if not exists pgcrypto;
+
 create table if not exists public.audit_events (
   id uuid primary key default gen_random_uuid(),
   actor_user_id uuid,
@@ -133,6 +135,17 @@ create table if not exists public.case_people (
   case_role text not null,
   created_at timestamptz not null default now(),
   primary key (case_id, person_id, case_role)
+);
+
+create table if not exists public.case_assignments (
+  case_id uuid not null references public.cases(id) on delete cascade,
+  auth_user_id uuid not null references public.app_users(auth_user_id) on delete restrict,
+  assignment_role text not null check (assignment_role in ('lead','collaborator','reviewer','preparer')),
+  active boolean not null default true,
+  assigned_by uuid,
+  assigned_at timestamptz not null default now(),
+  ended_at timestamptz,
+  primary key (case_id, auth_user_id, assignment_role)
 );
 
 -- Translators, preparers, interpreters and representatives are form roles, not case parties.
@@ -352,6 +365,7 @@ create index if not exists intake_case_idx on public.intake_submissions(case_id,
 create index if not exists document_requests_case_idx on public.document_requests(case_id, status);
 create index if not exists documents_client_idx on public.documents(client_id, created_at desc);
 create index if not exists client_access_user_idx on public.client_access(auth_user_id, status);
+create index if not exists case_assignments_user_idx on public.case_assignments(auth_user_id, active);
 create index if not exists form_roles_case_idx on public.form_role_assignments(case_id, form_code);
 create index if not exists case_notes_case_idx on public.case_notes(case_id, created_at desc);
 create index if not exists case_messages_case_idx on public.case_messages(case_id, created_at);
@@ -369,6 +383,7 @@ alter table public.people enable row level security;
 alter table public.client_people enable row level security;
 alter table public.service_catalog enable row level security;
 alter table public.case_people enable row level security;
+alter table public.case_assignments enable row level security;
 alter table public.form_role_assignments enable row level security;
 alter table public.client_access enable row level security;
 alter table public.tasks enable row level security;
@@ -384,7 +399,7 @@ alter table public.payments enable row level security;
 alter table public.alerts enable row level security;
 
 revoke all on public.app_users, public.roles, public.permissions, public.role_permissions, public.user_roles,
-  public.clients, public.people, public.client_people, public.service_catalog, public.case_people,
+  public.clients, public.people, public.client_people, public.service_catalog, public.case_people, public.case_assignments,
   public.form_role_assignments, public.client_access, public.tasks, public.deadlines,
   public.intake_definitions, public.intake_submissions, public.document_requests, public.case_notes,
   public.case_messages, public.appointments, public.invoices, public.payments, public.alerts

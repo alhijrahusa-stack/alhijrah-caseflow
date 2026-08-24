@@ -37,7 +37,7 @@ import {
 import { intakeDefinition, validateIntakeAnswers } from './intake-definitions.js';
 
 const port = Number(process.env.PORT || 3000);
-const version = '2.6.0';
+const version = '2.7.0';
 const service = 'alhijrah-caseflow-api';
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -364,7 +364,7 @@ async function handle(req,res){
   if(req.method==='GET'&&u.pathname==='/api/v1/users'){const data=await listAuthUsers();return json(res,200,{data,requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/users'){const body=await readJson(req,32_768);const data=await inviteAuthUser({email:body.email,displayName:body.display_name,roles:body.roles});await syncApplicationUser({...data,display_name:body.display_name,assigned_by:principal.id});await audit(principal,'user_invited','user',data.id,{roles:data.roles},req);return json(res,201,{data,requestId},ch)}
   const um=u.pathname.match(/^\/api\/v1\/users\/([0-9a-f-]{36})$/i);
-  if(um&&req.method==='PATCH'){const body=await readJson(req,32_768);const data=await updateAuthUser(um[1],{displayName:body.display_name,roles:body.roles,status:body.status});await syncApplicationUser({...data,assigned_by:principal.id});await audit(principal,'user_updated','user',data.id,{roles:data.roles,status:data.status},req);return json(res,200,{data,requestId},ch)}
+  if(um&&req.method==='PATCH'){const body=await readJson(req,32_768);if(um[1]===principal.id&&body.status==='inactive')throw Object.assign(new Error('CANNOT_DEACTIVATE_CURRENT_USER'),{status:409});if(Array.isArray(body.roles)&&!body.roles.includes('owner')&&applicationOwnerEmail){const target=(await listAuthUsers()).find(user=>user.id===um[1]);if(String(target?.email||'').toLowerCase()===applicationOwnerEmail)throw Object.assign(new Error('APPLICATION_OWNER_ROLE_REQUIRED'),{status:409});}const data=await updateAuthUser(um[1],{displayName:body.display_name,roles:body.roles,status:body.status});await syncApplicationUser({...data,assigned_by:principal.id});await audit(principal,'user_updated','user',data.id,{roles:data.roles,status:data.status},req);return json(res,200,{data,requestId},ch)}
 
   if(req.method==='GET'&&u.pathname==='/api/v1/services'){
     const category=u.searchParams.get('category');
@@ -609,8 +609,9 @@ async function handle(req,res){
     const caseId=caseWorkspaceMatch[1];
     const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(caseId)}&select=*`});
     if(!caseRows.length)return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
-    const [people,tasks,deadlines,documents,requests,notes,appointments,events]=await Promise.all([
+    const [people,assignments,tasks,deadlines,documents,requests,notes,appointments,events]=await Promise.all([
       db('case_people',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=case_role,created_at,people(*)&order=created_at`}),
+      db('case_assignments',{query:`?case_id=eq.${encodeURIComponent(caseId)}&active=eq.true&select=*&order=assigned_at`}),
       db('tasks',{query:`?case_id=eq.${encodeURIComponent(caseId)}&archived_at=is.null&select=*&order=due_date.asc.nullslast`}),
       db('deadlines',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=deadline_date.asc`}),
       db('documents',{query:`?case_id=eq.${encodeURIComponent(caseId)}&archived_at=is.null&select=*&order=created_at.desc`}),
@@ -619,7 +620,7 @@ async function handle(req,res){
       db('appointments',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=starts_at.asc`}),
       db('case_events',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=created_at.desc&limit=250`}),
     ]);
-    return json(res,200,{data:{case:caseRows[0],people,tasks,deadlines,documents,document_requests:requests,notes,appointments,timeline:events},requestId},ch);
+    return json(res,200,{data:{case:caseRows[0],people,assignments,tasks,deadlines,documents,document_requests:requests,notes,appointments,timeline:events},requestId},ch);
   }
 
   const caseNotesMatch=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/notes$/i);
@@ -633,6 +634,29 @@ async function handle(req,res){
     const data=await db('case_notes',{method:'POST',body:record});
     await audit(principal,'case_note_created','case_note',record.id,{case_id:record.case_id,visibility},req);
     return json(res,201,{data:data[0]||data,requestId},ch);
+  }
+
+  const caseAssignmentsMatch=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/assignments$/i);
+  if(caseAssignmentsMatch&&req.method==='GET'){
+    const data=await db('case_assignments',{query:`?case_id=eq.${encodeURIComponent(caseAssignmentsMatch[1])}&active=eq.true&select=*&order=assigned_at`});
+    return json(res,200,{data,requestId},ch);
+  }
+  if(caseAssignmentsMatch&&req.method==='POST'){
+    const body=await readJson(req,16_384);if(!uuid(body.auth_user_id))throw Object.assign(new Error('VALID_USER_ID_REQUIRED'),{status:400});
+    const assignmentRole=String(body.assignment_role||'collaborator');if(!['lead','collaborator','reviewer','preparer'].includes(assignmentRole))throw Object.assign(new Error('INVALID_ASSIGNMENT_ROLE'),{status:400});
+    const existing=await db('case_assignments',{query:`?case_id=eq.${encodeURIComponent(caseAssignmentsMatch[1])}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}&assignment_role=eq.${assignmentRole}&select=case_id`});
+    const values={active:true,assigned_by:principal.id,assigned_at:new Date().toISOString(),ended_at:null};
+    const data=existing.length?await db('case_assignments',{method:'PATCH',query:`?case_id=eq.${encodeURIComponent(caseAssignmentsMatch[1])}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}&assignment_role=eq.${assignmentRole}`,body:values}):await db('case_assignments',{method:'POST',body:{case_id:caseAssignmentsMatch[1],auth_user_id:body.auth_user_id,assignment_role:assignmentRole,...values}});
+    await audit(principal,'case_assigned','case',caseAssignmentsMatch[1],{case_id:caseAssignmentsMatch[1],auth_user_id:body.auth_user_id,assignment_role:assignmentRole},req);
+    return json(res,200,{data:data[0]||data,requestId},ch);
+  }
+
+  const caseAssignmentMatch=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/assignments\/([0-9a-f-]{36})\/([a-z_]+)$/i);
+  if(caseAssignmentMatch&&req.method==='DELETE'){
+    const data=await db('case_assignments',{method:'PATCH',query:`?case_id=eq.${encodeURIComponent(caseAssignmentMatch[1])}&auth_user_id=eq.${encodeURIComponent(caseAssignmentMatch[2])}&assignment_role=eq.${encodeURIComponent(caseAssignmentMatch[3])}`,body:{active:false,ended_at:new Date().toISOString()}});
+    if(!data.length)return json(res,404,{error:'CASE_ASSIGNMENT_NOT_FOUND',requestId},ch);
+    await audit(principal,'case_unassigned','case',caseAssignmentMatch[1],{case_id:caseAssignmentMatch[1],auth_user_id:caseAssignmentMatch[2],assignment_role:caseAssignmentMatch[3]},req);
+    return json(res,200,{data:data[0],requestId},ch);
   }
 
   if(req.method==='GET'&&u.pathname==='/api/v1/document-requests'){

@@ -732,7 +732,7 @@
               <span class="dot" id="dot"></span
               ><span id="live">Checking services</span>
             </div>
-            <button class="btn primary" onclick="openCase()">+ New Case</button>
+            <button class="btn primary" id="newCaseButton" onclick="openCase()">+ New Case</button>
           </div>
         </div>
         <section class="view active" id="view-dashboard">
@@ -972,7 +972,7 @@
               <div class="field" style="align-self:end"><button class="btn primary" onclick="inviteUser()">Invite User</button></div>
             </div>
             <div class="err" id="teamErr"></div>
-            <div class="table" style="margin-top:15px"><table><thead><tr><th>User</th><th>Roles</th><th>Status</th><th>Last sign-in</th></tr></thead><tbody id="teamTable"></tbody></table></div>
+            <div class="table" style="margin-top:15px"><table><thead><tr><th>User</th><th>Roles</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody id="teamTable"></tbody></table></div>
           </div>
           <div class="roles" id="roleGrid"></div>
         </section>
@@ -1147,6 +1147,7 @@
           <div class="field full"><label>Task title</label><input id="taskTitle" /></div>
           <div class="field"><label>Case</label><select id="taskCase"></select></div>
           <div class="field"><label>Client</label><select id="taskClient"></select></div>
+          <div class="field"><label>Assignee</label><select id="taskAssignee"></select></div>
           <div class="field"><label>Due date</label><input id="taskDue" type="date" /></div>
           <div class="field"><label>Priority</label><select id="taskPriority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option><option value="low">Low</option></select></div>
           <div class="field"><label>Status</label><select id="taskStatus"><option value="open">Open</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option><option value="completed">Completed</option></select></div>
@@ -1188,6 +1189,9 @@
     <div class="modal" id="invoiceModal">
       <div class="dialog"><div class="ph"><div><h2>Create Invoice</h2><span>Amounts are entered in U.S. dollars</span></div><button class="btn" onclick="closeInvoice()">Close</button></div><div class="form"><div class="field"><label>Client</label><select id="invoiceClient"></select></div><div class="field"><label>Case</label><select id="invoiceCase"></select></div><div class="field"><label>Office fee</label><input id="invoiceOfficeFee" type="number" min="0" step="0.01"></div><div class="field"><label>Government fee</label><input id="invoiceGovernmentFee" type="number" min="0" step="0.01"></div><div class="field"><label>Other fee</label><input id="invoiceOtherFee" type="number" min="0" step="0.01"></div><div class="field"><label>Due date</label><input id="invoiceDue" type="date"></div></div><div class="err" id="invoiceErr"></div><div class="df"><button class="btn" onclick="closeInvoice()">Cancel</button><button class="btn primary" onclick="saveInvoice()">Create Invoice</button></div></div>
     </div>
+    <div class="modal" id="userModal">
+      <div class="dialog"><div class="ph"><div><h2>Manage User</h2><span id="manageUserEmail"></span></div><button class="btn" onclick="closeManageUser()">Close</button></div><input id="manageUserId" type="hidden"><div class="field"><label>Status</label><select id="manageUserStatus"><option value="active">Active</option><option value="invited">Invited</option><option value="inactive">Inactive</option></select></div><div class="field full" style="margin-top:14px"><label>Roles</label><div class="intake-options" id="manageUserRoles"></div></div><div class="err" id="manageUserErr"></div><div class="df"><button class="btn" onclick="closeManageUser()">Cancel</button><button class="btn primary" onclick="saveManagedUser()">Save Access</button></div></div>
+    </div>
     <script>
       const $ = (id) => document.getElementById(id);
       let currentUser = null,
@@ -1199,6 +1203,7 @@
         portalData = null,
         portalUploadTarget = null,
         invoices = [],
+        teamUsers = [],
         intakeState = null,
         intakeSaveTimer = null;
       const roles = [
@@ -1255,6 +1260,23 @@
         if (v === "reports") loadReports();
         if (v === "roles") loadTeam();
         if (v === "audit") loadAudit();
+      }
+      function configureNavigation() {
+        const roleViews = {
+          admin: ["dashboard","cases","clients","documents","services","tasks","reviews","billing","reports","roles","audit","settings"],
+          supervisor: ["dashboard","cases","clients","documents","services","tasks","reviews","reports","roles","audit"],
+          case_manager: ["dashboard","cases","clients","documents","services","tasks"],
+          form_preparer: ["dashboard","cases","clients","documents","services","tasks"],
+          document_reviewer: ["dashboard","cases","clients","documents","tasks","reviews"],
+          translator: ["dashboard","cases","clients","documents","tasks"],
+          attorney_accredited_representative: ["dashboard","cases","clients","documents","services","tasks","reviews","audit"],
+          billing: ["dashboard","cases","clients","billing"],
+          auditor: ["dashboard","cases","clients","documents","tasks","reports","audit"],
+        };
+        const allowed = currentUser.roles.includes("owner") ? null : new Set(currentUser.roles.flatMap((role) => roleViews[role] || []));
+        document.querySelectorAll("#nav button").forEach((button) => button.style.display = !allowed || allowed.has(button.dataset.view) ? "block" : "none");
+        const canManageCases = currentUser.roles.some((role) => ["owner","admin","supervisor","case_manager","attorney_accredited_representative"].includes(role));
+        $("newCaseButton").style.display = canManageCases ? "inline-block" : "none";
       }
       document
         .querySelectorAll("#nav button")
@@ -1576,6 +1598,7 @@
         $("taskTitle").value = "";
         $("taskCase").value = "";
         $("taskClient").value = "";
+        $("taskAssignee").value = currentUser?.id || "";
         $("taskDue").value = "";
         $("taskPriority").value = "normal";
         $("taskStatus").value = "open";
@@ -1591,6 +1614,7 @@
         $("taskTitle").value = task.title || "";
         $("taskCase").value = task.case_id || "";
         $("taskClient").value = task.client_id || "";
+        $("taskAssignee").value = task.assigned_user_id || "";
         $("taskDue").value = task.due_date || "";
         $("taskPriority").value = task.priority;
         $("taskStatus").value = task.status;
@@ -1607,6 +1631,7 @@
           title: $("taskTitle").value.trim(),
           case_id: $("taskCase").value || null,
           client_id: $("taskClient").value || null,
+          assigned_user_id: $("taskAssignee").value || null,
           due_date: $("taskDue").value || null,
           priority: $("taskPriority").value,
           status: $("taskStatus").value,
@@ -1981,14 +2006,17 @@
       async function loadTeam() {
         try {
           const result = await api("/api/v1/users");
+          teamUsers = result.data || [];
+          $("taskAssignee").innerHTML = '<option value="">Unassigned</option>' + teamUsers.filter((user) => user.status !== "inactive").map((user) => `<option value="${user.id}">${esc(user.display_name || user.email)}</option>`).join("");
           $("teamTable").innerHTML =
-            (result.data || [])
+            teamUsers
               .map(
                 (user) =>
-                  `<tr><td><b>${esc(user.display_name || user.email)}</b><br><small>${esc(user.email)}</small></td><td>${esc((user.roles || []).join(", "))}</td><td>${esc(user.status)}</td><td>${date(user.last_sign_in_at)}</td></tr>`,
+                  `<tr><td><b>${esc(user.display_name || user.email)}</b><br><small>${esc(user.email)}</small></td><td>${esc((user.roles || []).map(intakeOptionLabel).join(", "))}</td><td>${esc(user.status)}</td><td>${date(user.last_sign_in_at)}</td><td><button class="linkbtn" onclick="openManageUser('${user.id}')">Manage</button></td></tr>`,
               )
               .join("") || '<tr><td colspan="4">No users found.</td></tr>';
         } catch (error) {
+          $("taskAssignee").innerHTML = currentUser ? `<option value="${currentUser.id}">${esc(currentUser.display_name || currentUser.email)}</option>` : '<option value="">Unassigned</option>';
           $("teamTable").innerHTML =
             '<tr><td colspan="4">Unable to load authenticated users.</td></tr>';
         }
@@ -2012,6 +2040,21 @@
         } catch (error) {
           $("teamErr").textContent = error.message;
         }
+      }
+      function openManageUser(id) {
+        const user = teamUsers.find((item) => item.id === id); if (!user) return;
+        $("manageUserId").value = id; $("manageUserEmail").textContent = user.email; $("manageUserStatus").value = user.status;
+        $("manageUserRoles").innerHTML = roles.map((role) => `<label><input type="checkbox" data-managed-role value="${esc(role[2])}"${user.roles.includes(role[2]) ? " checked" : ""}> ${esc(role[0])}</label>`).join("");
+        $("manageUserErr").textContent = ""; $("userModal").classList.add("show");
+      }
+      function closeManageUser() { $("userModal").classList.remove("show"); }
+      async function saveManagedUser() {
+        const selectedRoles = [...document.querySelectorAll("[data-managed-role]:checked")].map((input) => input.value);
+        if (!selectedRoles.length) return ($("manageUserErr").textContent = "Select at least one role.");
+        try {
+          await api(`/api/v1/users/${$("manageUserId").value}`, { method: "PATCH", body: JSON.stringify({ roles: selectedRoles, status: $("manageUserStatus").value }) });
+          closeManageUser(); await loadTeam();
+        } catch (error) { $("manageUserErr").textContent = error.message; }
       }
       function esc(v) {
         return String(v ?? "").replace(
@@ -2100,10 +2143,12 @@
       }
       async function boot() {
         renderRoles();
+        configureNavigation();
         await testReady();
         await loadServices();
         await loadCases();
         await loadClients();
+        await loadTeam();
         await loadTasks();
         await loadDocuments();
       }
