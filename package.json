@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "health": "node scripts/healthcheck.js",
-    "test": "node --test"
+    "test": "node --test",
+    "smoke:production": "node scripts/smoke-production.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",
