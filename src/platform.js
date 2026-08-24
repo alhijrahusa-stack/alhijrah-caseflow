@@ -9,6 +9,27 @@ export const reviewStates = Object.freeze([
   'approved', 'ready_for_client', 'client_approved', 'ready_to_file',
 ]);
 
+export const workflowTransitions = Object.freeze({
+  intake: ['awaiting_documents', 'closed'],
+  awaiting_documents: ['intake', 'documents_received', 'closed'],
+  documents_received: ['awaiting_documents', 'form_preparation', 'closed'],
+  form_preparation: ['documents_received', 'internal_review', 'closed'],
+  internal_review: ['form_preparation', 'client_review', 'closed'],
+  client_review: ['internal_review', 'ready_to_file', 'closed'],
+  ready_to_file: ['client_review', 'filed', 'closed'],
+  filed: ['receipt_received', 'rfe_notice', 'interview_scheduled', 'decision', 'closed'],
+  receipt_received: ['rfe_notice', 'interview_scheduled', 'decision', 'closed'],
+  rfe_notice: ['form_preparation', 'internal_review', 'filed', 'decision', 'closed'],
+  interview_scheduled: ['rfe_notice', 'decision', 'closed'],
+  decision: ['closed', 'rfe_notice'],
+  closed: [],
+});
+
+export function canTransitionWorkflow(from, to) {
+  if (from === to) return true;
+  return Boolean(workflowTransitions[from]?.includes(to));
+}
+
 export const serviceCatalog = Object.freeze([
   ['family_uscis', 'I-130', 'Petition for Alien Relative'],
   ['family_uscis', 'I-485', 'Adjustment of Status'],

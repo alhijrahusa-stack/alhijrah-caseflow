@@ -12,8 +12,10 @@ import {
   internalPrincipal,
   inviteAuthUser,
   listAuthUsers,
+  permissionsForRoles,
   principalFromUser,
   revokeSession,
+  roleDefinitions,
   safeAuditContext,
   sessionTokens,
   setSessionCookies,
@@ -21,6 +23,7 @@ import {
   updateAuthUser,
 } from './auth.js';
 import {
+  canTransitionWorkflow,
   cleanDate,
   cleanPriority,
   cleanReviewState,
@@ -34,11 +37,12 @@ import {
 import { intakeDefinition, validateIntakeAnswers } from './intake-definitions.js';
 
 const port = Number(process.env.PORT || 3000);
-const version = '2.3.0';
+const version = '2.4.0';
 const service = 'alhijrah-caseflow-api';
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const internalApiKey = process.env.INTERNAL_API_KEY;
+const applicationOwnerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
 const r2Bucket = process.env.R2_BUCKET;
 const r2Endpoint = process.env.R2_ENDPOINT || (process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : undefined);
 const r2 = r2Endpoint && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY ? new S3Client({
@@ -60,7 +64,42 @@ function documentInput(body){const caseId=String(body.case_id||'');if(!uuid(case
 async function audit(principal,action,entityType,entityId,payload={},req){try{await db('audit_events',{method:'POST',body:{id:crypto.randomUUID(),actor_user_id:principal?.id||null,actor_label:principal?.displayName||'System',actor_roles:principal?.roles||[],action,entity_type:entityType,entity_id:entityId||null,client_id:uuid(payload.client_id)?payload.client_id:null,case_id:uuid(payload.case_id)?payload.case_id:null,metadata:{...payload,...(req?safeAuditContext(req):{})}}})}catch(e){console.error('audit-write-failed',e.message)}}
 async function event(caseId,type,payload={},principal,req){try{await db('case_events',{method:'POST',body:{id:crypto.randomUUID(),case_id:caseId,event_type:type,actor:principal?.displayName||'Caseflow Workspace',payload}})}catch(e){console.error('event-write-failed',e.message)}await audit(principal,type,'case',caseId,payload,req)}
 
+async function syncApplicationUser(user){
+  const existing=await db('app_users',{query:`?auth_user_id=eq.${encodeURIComponent(user.id)}&select=auth_user_id`});
+  const record={display_name:user.display_name||user.email,email:String(user.email||'').toLowerCase(),status:user.status||'active',updated_at:new Date().toISOString()};
+  if(existing.length)await db('app_users',{method:'PATCH',query:`?auth_user_id=eq.${encodeURIComponent(user.id)}`,body:record});
+  else await db('app_users',{method:'POST',body:{auth_user_id:user.id,...record}});
+  if(Array.isArray(user.roles)){
+    await db('user_roles',{method:'DELETE',query:`?auth_user_id=eq.${encodeURIComponent(user.id)}`});
+    for(const role of user.roles)await db('user_roles',{method:'POST',body:{auth_user_id:user.id,role_code:role,assigned_by:user.assigned_by||null}});
+  }
+}
+
+async function resolveApplicationPrincipal(principal){
+  try{
+    let users=await db('app_users',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&select=*`});
+    const isConfiguredOwner=applicationOwnerEmail&&String(principal.email||'').toLowerCase()===applicationOwnerEmail;
+    if(!users.length&&isConfiguredOwner){
+      await syncApplicationUser({id:principal.id,email:principal.email,display_name:principal.displayName,status:'active',roles:['owner']});
+      users=await db('app_users',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&select=*`});
+    }
+    if(!users.length)return principal;
+    if(users[0].status==='inactive')throw Object.assign(new Error('USER_INACTIVE'),{status:403});
+    const assignments=await db('user_roles',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&select=role_code`});
+    const roles=assignments.map(item=>item.role_code).filter(role=>role in roleDefinitions);
+    if(!roles.length)throw Object.assign(new Error('NO_ASSIGNED_ROLE'),{status:403});
+    return {...principal,displayName:users[0].display_name||principal.displayName,roles,permissions:permissionsForRoles(roles)};
+  }catch(error){
+    if(error.message==='USER_INACTIVE'||error.message==='NO_ASSIGNED_ROLE')throw error;
+    return principal;
+  }
+}
+
 function requiredPermission(req,path){
+  if(path.startsWith('/api/v1/portal/documents'))return 'portal.documents';
+  if(path.startsWith('/api/v1/portal/intakes'))return 'portal.intake';
+  if(path.startsWith('/api/v1/portal/messages'))return 'portal.messages';
+  if(path.startsWith('/api/v1/portal'))return 'portal.view';
   if(path==='/api/v1/users')return req.method==='GET'?'users.view':'users.manage';
   if(/^\/api\/v1\/users\/[0-9a-f-]{36}$/i.test(path))return 'users.manage';
   if(path==='/api/v1/audit')return 'audit.view';
@@ -78,9 +117,24 @@ function requiredPermission(req,path){
 async function authorize(req,res,permission){
   let principal;
   if(req.headers['x-api-key'])principal=internalAuth(req);
-  else{assertSameOrigin(req);principal=await authenticateSession(req,res)}
+  else{assertSameOrigin(req);principal=await resolveApplicationPrincipal(await authenticateSession(req,res))}
   if(!hasPermission(principal,permission))throw Object.assign(new Error('FORBIDDEN'),{status:403});
   return principal;
+}
+
+async function portalCase(principal,caseId){
+  if(!uuid(caseId))throw Object.assign(new Error('INVALID_CASE_ID'),{status:400});
+  if(principal.permissions.has('*')){
+    const cases=await db('cases',{query:`?id=eq.${encodeURIComponent(caseId)}&archived_at=is.null&select=*`});
+    if(!cases.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
+    return cases[0];
+  }
+  const access=await db('client_access',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&status=eq.active&select=client_id,access_role`});
+  if(!access.length)throw Object.assign(new Error('PORTAL_ACCESS_NOT_FOUND'),{status:403});
+  const clientIds=access.map(item=>item.client_id);
+  const cases=await db('cases',{query:`?id=eq.${encodeURIComponent(caseId)}&client_id=in.(${clientIds.map(encodeURIComponent).join(',')})&archived_at=is.null&select=*`});
+  if(!cases.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
+  return cases[0];
 }
 
 async function handle(req,res){
@@ -100,17 +154,129 @@ async function handle(req,res){
   }
 
   if(req.method==='GET'&&u.pathname==='/api/v1/auth/status'){const status=await getAuthProvisioningStatus();return json(res,200,{configured:status.configured,ownerProvisioned:status.ownerProvisioned,userCount:status.userCount,errorCode:status.errorCode||null,requestId},ch)}
-  if(req.method==='POST'&&u.pathname==='/api/v1/auth/login'){assertSameOrigin(req);const body=await readJson(req,16_384);const session=await signInWithPassword(body.email,body.password);const principal=principalFromUser(session.user);setSessionCookies(res,session);await audit(principal,'login','session',principal.id,{},req);return json(res,200,{user:{id:principal.id,email:principal.email,display_name:principal.displayName,roles:principal.roles},requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/auth/login'){assertSameOrigin(req);const body=await readJson(req,16_384);const session=await signInWithPassword(body.email,body.password);const principal=await resolveApplicationPrincipal(principalFromUser(session.user));setSessionCookies(res,session);await audit(principal,'login','session',principal.id,{},req);return json(res,200,{user:{id:principal.id,email:principal.email,display_name:principal.displayName,roles:principal.roles},requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/auth/logout'){assertSameOrigin(req);let principal=null;try{principal=await authenticateSession(req,res)}catch{}const {accessToken}=sessionTokens(req);await revokeSession(accessToken);clearSessionCookies(res);await audit(principal,'logout','session',principal?.id||null,{},req);return json(res,200,{signedOut:true,requestId},ch)}
-  if(req.method==='GET'&&u.pathname==='/api/v1/auth/me'){const principal=await authenticateSession(req,res);return json(res,200,{user:{id:principal.id,email:principal.email,display_name:principal.displayName,roles:principal.roles},requestId},ch)}
+  if(req.method==='GET'&&u.pathname==='/api/v1/auth/me'){const principal=await resolveApplicationPrincipal(await authenticateSession(req,res));return json(res,200,{user:{id:principal.id,email:principal.email,display_name:principal.displayName,roles:principal.roles},requestId},ch)}
 
   let principal=null;
   if(u.pathname.startsWith('/api/'))principal=await authorize(req,res,requiredPermission(req,u.pathname));
 
+  if(req.method==='GET'&&u.pathname==='/api/v1/portal'){
+    const access=principal.permissions.has('*')?[]:await db('client_access',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&status=eq.active&select=client_id,access_role`});
+    const clientIds=access.map(item=>item.client_id);
+    if(!principal.permissions.has('*')&&!clientIds.length)return json(res,200,{data:{clients:[],cases:[],document_requests:[],appointments:[]},requestId},ch);
+    const clientFilter=principal.permissions.has('*')?'':`&id=in.(${clientIds.map(encodeURIComponent).join(',')})`;
+    const caseFilter=principal.permissions.has('*')?'':`&client_id=in.(${clientIds.map(encodeURIComponent).join(',')})`;
+    const clients=await db('clients',{query:`?select=id,legal_name,preferred_language,email,phone&archived_at=is.null${clientFilter}`});
+    const caseRows=await db('cases',{query:`?select=id,client_id,case_reference,case_type,service_code,workflow_stage,agency,receipt_number,updated_at&archived_at=is.null${caseFilter}&order=updated_at.desc`});
+    const caseIds=caseRows.map(item=>item.id);
+    const documentRequests=caseIds.length?await db('document_requests',{query:`?case_id=in.(${caseIds.map(encodeURIComponent).join(',')})&select=id,case_id,person_id,category,title,instructions,required,due_date,status,reviewer_notes,updated_at&order=created_at.desc`}):[];
+    const appointments=clientIds.length?await db('appointments',{query:`?client_id=in.(${clientIds.map(encodeURIComponent).join(',')})&client_visible=eq.true&select=id,case_id,client_id,title,appointment_type,starts_at,ends_at,location,status&order=starts_at.asc`}):[];
+    return json(res,200,{data:{clients,cases:caseRows,document_requests:documentRequests,appointments},requestId},ch);
+  }
+
+  const portalCaseMatch=u.pathname.match(/^\/api\/v1\/portal\/cases\/([0-9a-f-]{36})$/i);
+  if(portalCaseMatch&&req.method==='GET'){
+    const currentCase=await portalCase(principal,portalCaseMatch[1]);
+    const [requests,appointments,messages,updates]=await Promise.all([
+      db('document_requests',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&select=id,person_id,category,title,instructions,required,due_date,status,reviewer_notes,updated_at&order=created_at.desc`}),
+      db('appointments',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&client_visible=eq.true&select=id,title,appointment_type,starts_at,ends_at,location,status&order=starts_at.asc`}),
+      db('case_messages',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&select=id,sender_type,body,created_at,edited_at&order=created_at.asc`}),
+      db('case_notes',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&visibility=eq.client&select=id,body,created_at,updated_at&order=created_at.desc`}),
+    ]);
+    const safeCase={id:currentCase.id,client_id:currentCase.client_id,case_reference:currentCase.case_reference,case_type:currentCase.case_type,service_code:currentCase.service_code,workflow_stage:currentCase.workflow_stage,agency:currentCase.agency,receipt_number:currentCase.receipt_number,updated_at:currentCase.updated_at};
+    return json(res,200,{data:{case:safeCase,document_requests:requests,appointments,messages,updates},requestId},ch);
+  }
+
+  const portalMessagesMatch=u.pathname.match(/^\/api\/v1\/portal\/messages\/([0-9a-f-]{36})$/i);
+  if(portalMessagesMatch&&req.method==='POST'){
+    const currentCase=await portalCase(principal,portalMessagesMatch[1]);
+    const body=await readJson(req,32_768);
+    const record={id:crypto.randomUUID(),case_id:currentCase.id,sender_user_id:principal.id,sender_type:principal.roles.some(role=>role.startsWith('client_'))?'client':'staff',body:cleanText(body.body,{required:true,max:5000})};
+    const data=await db('case_messages',{method:'POST',body:record});
+    await audit(principal,'portal_message_sent','case_message',record.id,{case_id:currentCase.id,client_id:currentCase.client_id},req);
+    return json(res,201,{data:data[0]||data,requestId},ch);
+  }
+
+  const portalIntakeMatch=u.pathname.match(/^\/api\/v1\/portal\/intakes\/([0-9a-f-]{36})\/([A-Za-z0-9-]+)$/i);
+  if(portalIntakeMatch&&req.method==='GET'){
+    const currentCase=await portalCase(principal,portalIntakeMatch[1]);
+    const serviceCode=portalIntakeMatch[2].toUpperCase();
+    if(currentCase.service_code!==serviceCode)throw Object.assign(new Error('CASE_SERVICE_MISMATCH'),{status:409});
+    const definition=intakeDefinition(serviceCode);
+    if(!definition)return json(res,404,{error:'INTAKE_DEFINITION_NOT_FOUND',requestId},ch);
+    const definitionId=stableUuid('intake:'+serviceCode+':'+definition.version);
+    const rows=await db('intake_submissions',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&definition_id=eq.${definitionId}&select=id,answers,current_step,status,submitted_at,updated_at`});
+    return json(res,200,{data:rows[0]||null,definition,requestId},ch);
+  }
+  if(portalIntakeMatch&&req.method==='POST'){
+    const currentCase=await portalCase(principal,portalIntakeMatch[1]);
+    const serviceCode=portalIntakeMatch[2].toUpperCase();
+    if(currentCase.service_code!==serviceCode)throw Object.assign(new Error('CASE_SERVICE_MISMATCH'),{status:409});
+    const definition=intakeDefinition(serviceCode);
+    if(!definition)return json(res,404,{error:'INTAKE_DEFINITION_NOT_FOUND',requestId},ch);
+    const body=await readJson(req,600_000);
+    const status=body.status==='submitted'?'submitted':'draft';
+    const answers=validateIntakeAnswers(definition,body.answers,{final:status==='submitted'});
+    const currentStep=Math.max(0,Math.min(Number(body.current_step||0),definition.sections.length-1));
+    const definitionId=stableUuid('intake:'+serviceCode+':'+definition.version);
+    const definitions=await db('intake_definitions',{query:`?id=eq.${definitionId}&select=id`});
+    if(!definitions.length)await db('intake_definitions',{method:'POST',body:{id:definitionId,service_code:serviceCode,version:definition.version,definition,active:true,published_at:new Date().toISOString(),created_by:principal.id}});
+    const existing=await db('intake_submissions',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&definition_id=eq.${definitionId}&select=id`});
+    const mutation={answers,current_step:currentStep,status,submitted_at:status==='submitted'?new Date().toISOString():null,last_saved_by:principal.id,updated_at:new Date().toISOString()};
+    const data=existing.length?await db('intake_submissions',{method:'PATCH',query:`?id=eq.${existing[0].id}`,body:mutation}):await db('intake_submissions',{method:'POST',body:{id:crypto.randomUUID(),case_id:currentCase.id,definition_id:definitionId,...mutation}});
+    await audit(principal,status==='submitted'?'portal_intake_submitted':'portal_intake_saved','intake',data[0]?.id||existing[0]?.id,{case_id:currentCase.id,client_id:currentCase.client_id},req);
+    return json(res,200,{data:data[0]||data,definition,requestId},ch);
+  }
+
+  if(req.method==='POST'&&u.pathname==='/api/v1/portal/documents/presign'){
+    if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
+    const body=await readJson(req,32_768);
+    const input=documentInput(body);
+    await portalCase(principal,input.caseId);
+    const key=`cases/${input.caseId}/${crypto.randomUUID()}-${safeKey(input.fileName)}`;
+    const uploadUrl=await getSignedUrl(r2,new PutObjectCommand({Bucket:r2Bucket,Key:key,ContentType:input.contentType,ContentLength:input.sizeBytes}),{expiresIn:900});
+    await audit(principal,'portal_document_upload_started','document',null,{case_id:input.caseId,file_name:input.fileName,size_bytes:input.sizeBytes},req);
+    return json(res,200,{upload_url:uploadUrl,key,expires_in:900,requestId},ch);
+  }
+  if(req.method==='POST'&&u.pathname==='/api/v1/portal/documents/confirm'){
+    if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
+    const body=await readJson(req,32_768);
+    const input=documentInput(body);
+    const currentCase=await portalCase(principal,input.caseId);
+    const key=safeKey(body.key);
+    if(!key.startsWith(`cases/${input.caseId}/`))throw Object.assign(new Error('DOCUMENT_CASE_MISMATCH'),{status:403});
+    if(body.request_id){
+      if(!uuid(body.request_id))throw Object.assign(new Error('INVALID_DOCUMENT_REQUEST'),{status:400});
+      const requestRows=await db('document_requests',{query:`?id=eq.${encodeURIComponent(body.request_id)}&case_id=eq.${encodeURIComponent(input.caseId)}&select=id,person_id,category`});
+      if(!requestRows.length)throw Object.assign(new Error('DOCUMENT_REQUEST_NOT_FOUND'),{status:404});
+      body.person_id=requestRows[0].person_id;
+      body.category=requestRows[0].category;
+    }
+    const object=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));
+    if(Number(object.ContentLength)!==input.sizeBytes||String(object.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});
+    const record={id:crypto.randomUUID(),case_id:input.caseId,client_id:currentCase.client_id,person_id:body.person_id||null,request_id:body.request_id||null,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,status:'uploaded',category:cleanText(body.category,{max:100}),review_status:'received'};
+    const data=await db('documents',{method:'POST',body:record});
+    if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}`,body:{status:'received',updated_at:new Date().toISOString()}});
+    await audit(principal,'portal_document_uploaded','document',record.id,{case_id:record.case_id,client_id:record.client_id,request_id:record.request_id},req);
+    return json(res,201,{data:data[0]||data,requestId},ch);
+  }
+  if(req.method==='POST'&&u.pathname==='/api/v1/portal/documents/download-url'){
+    if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
+    const body=await readJson(req,8_192);
+    if(!uuid(body.document_id))throw Object.assign(new Error('VALID_DOCUMENT_ID_REQUIRED'),{status:400});
+    const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(body.document_id)}&archived_at=is.null&select=id,case_id,object_key,file_name,content_type`});
+    if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
+    await portalCase(principal,rows[0].case_id);
+    const downloadUrl=await getSignedUrl(r2,new GetObjectCommand({Bucket:r2Bucket,Key:rows[0].object_key,ResponseContentDisposition:`attachment; filename*=UTF-8''${encodeURIComponent(rows[0].file_name)}`,ResponseContentType:rows[0].content_type}),{expiresIn:300});
+    await audit(principal,'portal_document_downloaded','document',rows[0].id,{case_id:rows[0].case_id},req);
+    return json(res,200,{download_url:downloadUrl,expires_in:300,requestId},ch);
+  }
+
   if(req.method==='GET'&&u.pathname==='/api/v1/users'){const data=await listAuthUsers();return json(res,200,{data,requestId},ch)}
-  if(req.method==='POST'&&u.pathname==='/api/v1/users'){const body=await readJson(req,32_768);const data=await inviteAuthUser({email:body.email,displayName:body.display_name,roles:body.roles});await audit(principal,'user_invited','user',data.id,{roles:data.roles},req);return json(res,201,{data,requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/users'){const body=await readJson(req,32_768);const data=await inviteAuthUser({email:body.email,displayName:body.display_name,roles:body.roles});await syncApplicationUser({...data,display_name:body.display_name,assigned_by:principal.id});await audit(principal,'user_invited','user',data.id,{roles:data.roles},req);return json(res,201,{data,requestId},ch)}
   const um=u.pathname.match(/^\/api\/v1\/users\/([0-9a-f-]{36})$/i);
-  if(um&&req.method==='PATCH'){const body=await readJson(req,32_768);const data=await updateAuthUser(um[1],{displayName:body.display_name,roles:body.roles,status:body.status});await audit(principal,'user_updated','user',data.id,{roles:data.roles,status:data.status},req);return json(res,200,{data,requestId},ch)}
+  if(um&&req.method==='PATCH'){const body=await readJson(req,32_768);const data=await updateAuthUser(um[1],{displayName:body.display_name,roles:body.roles,status:body.status});await syncApplicationUser({...data,assigned_by:principal.id});await audit(principal,'user_updated','user',data.id,{roles:data.roles,status:data.status},req);return json(res,200,{data,requestId},ch)}
 
   if(req.method==='GET'&&u.pathname==='/api/v1/services'){
     const category=u.searchParams.get('category');
@@ -214,6 +380,31 @@ async function handle(req,res){
     return json(res,201,{data:{...person,relationship,is_primary:link.is_primary},requestId},ch);
   }
 
+  const clientAccessMatch=u.pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})\/access$/i);
+  if(clientAccessMatch&&req.method==='GET'){
+    const data=await db('client_access',{query:`?client_id=eq.${encodeURIComponent(clientAccessMatch[1])}&select=*&order=granted_at`});
+    return json(res,200,{data,requestId},ch);
+  }
+  if(clientAccessMatch&&req.method==='POST'){
+    const body=await readJson(req,16_384);
+    if(!uuid(body.auth_user_id))throw Object.assign(new Error('VALID_USER_ID_REQUIRED'),{status:400});
+    const accessRole=String(body.access_role||'collaborator');
+    if(!['owner','collaborator'].includes(accessRole))throw Object.assign(new Error('INVALID_CLIENT_ACCESS_ROLE'),{status:400});
+    const existing=await db('client_access',{query:`?client_id=eq.${encodeURIComponent(clientAccessMatch[1])}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}&select=client_id`});
+    const record={access_role:accessRole,status:'active',granted_by:principal.id,granted_at:new Date().toISOString(),revoked_at:null};
+    const data=existing.length?await db('client_access',{method:'PATCH',query:`?client_id=eq.${encodeURIComponent(clientAccessMatch[1])}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}`,body:record}):await db('client_access',{method:'POST',body:{client_id:clientAccessMatch[1],auth_user_id:body.auth_user_id,...record}});
+    await audit(principal,'client_portal_access_granted','client',clientAccessMatch[1],{client_id:clientAccessMatch[1],auth_user_id:body.auth_user_id,access_role:accessRole},req);
+    return json(res,200,{data:data[0]||data,requestId},ch);
+  }
+
+  const clientAccessUserMatch=u.pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})\/access\/([0-9a-f-]{36})$/i);
+  if(clientAccessUserMatch&&req.method==='DELETE'){
+    const data=await db('client_access',{method:'PATCH',query:`?client_id=eq.${encodeURIComponent(clientAccessUserMatch[1])}&auth_user_id=eq.${encodeURIComponent(clientAccessUserMatch[2])}`,body:{status:'revoked',revoked_at:new Date().toISOString()}});
+    if(!data.length)return json(res,404,{error:'CLIENT_ACCESS_NOT_FOUND',requestId},ch);
+    await audit(principal,'client_portal_access_revoked','client',clientAccessUserMatch[1],{client_id:clientAccessUserMatch[1],auth_user_id:clientAccessUserMatch[2]},req);
+    return json(res,200,{data:data[0],requestId},ch);
+  }
+
   if(req.method==='GET'&&u.pathname==='/api/v1/tasks'){
     const limit=Math.min(Math.max(Number(u.searchParams.get('limit')||100),1),250);
     const status=u.searchParams.get('status');
@@ -264,6 +455,19 @@ async function handle(req,res){
     return json(res,201,{data,requestId},ch);
   }
 
+  const deadlineMatch=u.pathname.match(/^\/api\/v1\/deadlines\/([0-9a-f-]{36})$/i);
+  if(deadlineMatch&&req.method==='PATCH'){
+    const rows=await db('deadlines',{query:`?id=eq.${encodeURIComponent(deadlineMatch[1])}&select=*`});
+    if(!rows.length)return json(res,404,{error:'DEADLINE_NOT_FOUND',requestId},ch);
+    const body=await readJson(req);
+    const status=body.status===undefined?rows[0].status:String(body.status);
+    if(!['open','completed','cancelled'].includes(status))throw Object.assign(new Error('INVALID_DEADLINE_STATUS'),{status:400});
+    const patch={title:body.title===undefined?rows[0].title:cleanText(body.title,{required:true,max:200}),deadline_date:body.deadline_date===undefined?rows[0].deadline_date:cleanDate(body.deadline_date,{required:true}),deadline_type:body.deadline_type===undefined?rows[0].deadline_type:cleanText(body.deadline_type,{required:true,max:80}),source:body.source===undefined?rows[0].source:cleanText(body.source,{max:200}),notes:body.notes===undefined?rows[0].notes:cleanText(body.notes,{max:5000}),status,completed_at:status==='completed'?(rows[0].completed_at||new Date().toISOString()):null,updated_by:principal.id,updated_at:new Date().toISOString()};
+    const data=await db('deadlines',{method:'PATCH',query:`?id=eq.${encodeURIComponent(deadlineMatch[1])}`,body:patch});
+    await audit(principal,status==='completed'?'deadline_completed':'deadline_updated','deadline',deadlineMatch[1],{case_id:rows[0].case_id,deadline_date:patch.deadline_date,status},req);
+    return json(res,200,{data,requestId},ch);
+  }
+
   if(req.method==='GET'&&u.pathname==='/api/v1/cases'){const limit=Math.min(Math.max(Number(u.searchParams.get('limit')||100),1),250);const data=await db('cases',{query:`?select=*&order=created_at.desc&limit=${limit}`});return json(res,200,{data,requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/cases'){
     const b=await readJson(req);
@@ -287,6 +491,11 @@ async function handle(req,res){
   if(cm&&req.method==='GET'){const data=await db('cases',{query:`?id=eq.${encodeURIComponent(cm[1])}&select=*`});if(!Array.isArray(data)||!data.length)return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);return json(res,200,{data:data[0],requestId},ch)}
   if(cm&&req.method==='PATCH'){
     const b=await readJson(req);
+    if(b.workflow_stage){
+      const rows=await db('cases',{query:`?id=eq.${encodeURIComponent(cm[1])}&select=id,workflow_stage`});
+      if(!rows.length)return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
+      if(!canTransitionWorkflow(rows[0].workflow_stage,b.workflow_stage))throw Object.assign(new Error('WORKFLOW_TRANSITION_NOT_ALLOWED'),{status:409,details:{from:rows[0].workflow_stage,to:b.workflow_stage}});
+    }
     const enhanced=['client_id','service_code','workflow_stage','review_state','agency','filing_type','jurisdiction','receipt_number'].some(field=>field in b)||b.archived!==undefined;
     const allowed=['client_id','client_name','service_code','case_type','status','priority','assigned_to','notes','workflow_stage','review_state','agency','filing_type','jurisdiction','receipt_number'];
     const patch=Object.fromEntries(Object.entries(b).filter(([key])=>allowed.includes(key)));

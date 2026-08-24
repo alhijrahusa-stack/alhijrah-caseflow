@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  cleanDate, cleanReviewState, cleanWorkflowStage, normalizeClientInput,
+  canTransitionWorkflow, cleanDate, cleanReviewState, cleanWorkflowStage, normalizeClientInput,
   normalizeTaskInput, serviceCatalog,
 } from '../src/platform.js';
 
@@ -32,4 +32,11 @@ test('tasks require a title and constrained status', () => {
   assert.throws(() => normalizeTaskInput({}), /REQUIRED_FIELD_MISSING/);
   assert.throws(() => normalizeTaskInput({ title: 'Review packet', status: 'done-ish' }), /INVALID_TASK_STATUS/);
   assert.equal(normalizeTaskInput({ title: ' Review packet ' }).title, 'Review packet');
+});
+
+test('workflow permits operational transitions and blocks silent stage skipping', () => {
+  assert.equal(canTransitionWorkflow('intake', 'awaiting_documents'), true);
+  assert.equal(canTransitionWorkflow('intake', 'filed'), false);
+  assert.equal(canTransitionWorkflow('filed', 'rfe_notice'), true);
+  assert.equal(canTransitionWorkflow('closed', 'intake'), false);
 });

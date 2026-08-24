@@ -93,8 +93,7 @@ create table if not exists public.client_people (
   person_id uuid not null references public.people(id) on delete cascade,
   relationship text not null check (relationship in (
     'petitioner','beneficiary','principal_applicant','spouse','child','parent',
-    'sibling','derivative_beneficiary','joint_sponsor','household_member',
-    'interpreter','preparer','authorized_collaborator'
+    'sibling','derivative_beneficiary','joint_sponsor','household_member'
   )),
   is_primary boolean not null default false,
   created_at timestamptz not null default now(),
@@ -134,6 +133,30 @@ create table if not exists public.case_people (
   case_role text not null,
   created_at timestamptz not null default now(),
   primary key (case_id, person_id, case_role)
+);
+
+-- Translators, preparers, interpreters and representatives are form roles, not case parties.
+create table if not exists public.form_role_assignments (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid not null references public.cases(id) on delete cascade,
+  form_code text not null,
+  role_code text not null check (role_code in ('interpreter','preparer','translator','attorney','accredited_representative')),
+  staff_user_id uuid,
+  external_name text,
+  organization text,
+  created_at timestamptz not null default now(),
+  check (staff_user_id is not null or external_name is not null)
+);
+
+create table if not exists public.client_access (
+  client_id uuid not null references public.clients(id) on delete cascade,
+  auth_user_id uuid not null,
+  access_role text not null check (access_role in ('owner','collaborator')),
+  status text not null default 'active' check (status in ('invited','active','revoked')),
+  granted_by uuid,
+  granted_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  primary key (client_id, auth_user_id)
 );
 
 create table if not exists public.tasks (
@@ -217,6 +240,90 @@ create table if not exists public.document_requests (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.case_notes (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid not null references public.cases(id) on delete cascade,
+  body text not null,
+  visibility text not null default 'internal' check (visibility in ('internal','client')),
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.case_messages (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid not null references public.cases(id) on delete cascade,
+  sender_user_id uuid,
+  sender_type text not null check (sender_type in ('staff','client','system')),
+  body text not null,
+  created_at timestamptz not null default now(),
+  edited_at timestamptz
+);
+
+create table if not exists public.appointments (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid references public.cases(id) on delete cascade,
+  client_id uuid not null references public.clients(id) on delete cascade,
+  title text not null,
+  appointment_type text not null,
+  starts_at timestamptz not null,
+  ends_at timestamptz,
+  location text,
+  status text not null default 'scheduled' check (status in ('scheduled','completed','cancelled','no_show')),
+  client_visible boolean not null default true,
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (ends_at is null or ends_at > starts_at)
+);
+
+create table if not exists public.invoices (
+  id uuid primary key default gen_random_uuid(),
+  invoice_number text not null unique,
+  client_id uuid not null references public.clients(id) on delete restrict,
+  case_id uuid references public.cases(id) on delete set null,
+  currency char(3) not null default 'USD',
+  status text not null default 'draft' check (status in ('draft','issued','partially_paid','paid','void','overdue')),
+  office_fee_cents bigint not null default 0 check (office_fee_cents >= 0),
+  government_fee_cents bigint not null default 0 check (government_fee_cents >= 0),
+  other_fee_cents bigint not null default 0 check (other_fee_cents >= 0),
+  due_date date,
+  issued_at timestamptz,
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.payments (
+  id uuid primary key default gen_random_uuid(),
+  invoice_id uuid not null references public.invoices(id) on delete restrict,
+  amount_cents bigint not null check (amount_cents > 0),
+  currency char(3) not null default 'USD',
+  method text not null,
+  external_reference text,
+  status text not null default 'recorded' check (status in ('pending','recorded','failed','refunded')),
+  received_at timestamptz,
+  created_by uuid,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.alerts (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid references public.clients(id) on delete cascade,
+  case_id uuid references public.cases(id) on delete cascade,
+  alert_type text not null,
+  severity text not null default 'normal' check (severity in ('normal','high','critical')),
+  title text not null,
+  due_at timestamptz,
+  status text not null default 'open' check (status in ('open','acknowledged','resolved','dismissed')),
+  source_type text,
+  source_id uuid,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (client_id is not null or case_id is not null)
+);
+
 alter table public.documents add column if not exists client_id uuid references public.clients(id) on delete cascade;
 alter table public.documents add column if not exists person_id uuid references public.people(id) on delete set null;
 alter table public.documents add column if not exists request_id uuid references public.document_requests(id) on delete set null;
@@ -244,6 +351,13 @@ create index if not exists deadlines_case_date_idx on public.deadlines(case_id, 
 create index if not exists intake_case_idx on public.intake_submissions(case_id, status);
 create index if not exists document_requests_case_idx on public.document_requests(case_id, status);
 create index if not exists documents_client_idx on public.documents(client_id, created_at desc);
+create index if not exists client_access_user_idx on public.client_access(auth_user_id, status);
+create index if not exists form_roles_case_idx on public.form_role_assignments(case_id, form_code);
+create index if not exists case_notes_case_idx on public.case_notes(case_id, created_at desc);
+create index if not exists case_messages_case_idx on public.case_messages(case_id, created_at);
+create index if not exists appointments_client_idx on public.appointments(client_id, starts_at);
+create index if not exists invoices_client_idx on public.invoices(client_id, created_at desc);
+create index if not exists alerts_open_idx on public.alerts(status, due_at) where status = 'open';
 
 alter table public.app_users enable row level security;
 alter table public.roles enable row level security;
@@ -255,15 +369,25 @@ alter table public.people enable row level security;
 alter table public.client_people enable row level security;
 alter table public.service_catalog enable row level security;
 alter table public.case_people enable row level security;
+alter table public.form_role_assignments enable row level security;
+alter table public.client_access enable row level security;
 alter table public.tasks enable row level security;
 alter table public.deadlines enable row level security;
 alter table public.intake_definitions enable row level security;
 alter table public.intake_submissions enable row level security;
 alter table public.document_requests enable row level security;
+alter table public.case_notes enable row level security;
+alter table public.case_messages enable row level security;
+alter table public.appointments enable row level security;
+alter table public.invoices enable row level security;
+alter table public.payments enable row level security;
+alter table public.alerts enable row level security;
 
 revoke all on public.app_users, public.roles, public.permissions, public.role_permissions, public.user_roles,
   public.clients, public.people, public.client_people, public.service_catalog, public.case_people,
-  public.tasks, public.deadlines, public.intake_definitions, public.intake_submissions, public.document_requests
+  public.form_role_assignments, public.client_access, public.tasks, public.deadlines,
+  public.intake_definitions, public.intake_submissions, public.document_requests, public.case_notes,
+  public.case_messages, public.appointments, public.invoices, public.payments, public.alerts
 from anon, authenticated;
 
 insert into public.roles (code, name) values
