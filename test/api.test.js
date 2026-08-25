@@ -489,6 +489,43 @@ test('every response carries the security header set', async () => {
   assert.match(response.headers['content-security-policy'], /object-src 'none'/);
 });
 
+test('the policy refuses inline script outright', async () => {
+  const response = await request({ path: '/health' });
+  const csp = response.headers['content-security-policy'];
+  const scriptSrc = csp.split(';').map(part => part.trim()).find(part => part.startsWith('script-src'));
+  assert.equal(scriptSrc, "script-src 'self'", 'script-src must not allow inline or eval');
+  assert.equal(csp.includes('unsafe-eval'), false);
+});
+
+test('the workspace script is served as an external asset', async () => {
+  const response = await request({ path: '/app.js' });
+  assert.equal(response.status, 200);
+  assert.match(String(response.headers['content-type']), /text\/javascript/);
+  assert.equal(response.headers['x-content-type-options'], 'nosniff');
+  assert.ok(response.raw.includes('uiActions'), 'the dispatch table ships with it');
+});
+
+test('the served page carries no inline script or inline event handlers', async () => {
+  const page = await request({ path: '/' });
+  assert.equal(page.status, 200);
+  // An inline <script> or an on*= attribute would each need the very CSP
+  // relaxation this change removes, so the page must contain neither.
+  assert.equal(/<script(?![^>]*\bsrc=)/.test(page.raw), false, 'no inline <script> block');
+  assert.equal(/\son(click|input|change|load|error|submit)\s*=/i.test(page.raw), false, 'no inline event handlers');
+  assert.ok(page.raw.includes('src="/app.js"'));
+});
+
+test('an unknown UI action name resolves to nothing', async () => {
+  const script = (await request({ path: '/app.js' })).raw;
+  // The dispatcher must look the name up in a frozen table, never on window
+  // and never through eval, so an attacker-supplied data-act does nothing.
+  assert.ok(script.includes('const uiActions = Object.freeze({'));
+  assert.ok(script.includes('const handler = uiActions[element.dataset.act];'));
+  assert.ok(script.includes('if (!handler) return;'));
+  assert.equal(/\beval\s*\(/.test(script), false, 'no eval in the workspace script');
+  assert.equal(/new Function\s*\(/.test(script), false, 'no Function constructor');
+});
+
 test('CORS reflects only allowlisted origins and never a wildcard', async () => {
   const allowed = await request({ path: '/health', headers: { origin: APP_ORIGIN } });
   assert.equal(allowed.headers['access-control-allow-origin'], APP_ORIGIN);

@@ -210,3 +210,58 @@ test('the Owner can narrow a user and widen them again from the UI', async ({ pa
   await page.click('#nav button[data-view="cases"]');
   await expect(page.locator('#caseTable')).toContainText(clientName);
 });
+
+// ---------------------------------------------------------------------------
+// Content-Security-Policy
+// ---------------------------------------------------------------------------
+
+test('the workspace runs without tripping the Content-Security-Policy', async ({ page }) => {
+  // A CSP violation only logs; it does not fail a request. So collect them
+  // directly from the browser and require the count to be zero after a real
+  // interaction, otherwise "no inline script" would be an untested claim.
+  await page.addInitScript(() => {
+    window.__cspViolations = [];
+    document.addEventListener('securitypolicyviolation', (event) => {
+      window.__cspViolations.push(`${event.violatedDirective} :: ${event.blockedURI}`);
+    });
+  });
+  // Only genuine script faults. Non-2xx responses are ordinary application
+  // behaviour here (401 before sign-in, 404 for the favicon, 503 from /ready
+  // with no object storage configured) and say nothing about the policy.
+  const scriptErrors = [];
+  page.on('pageerror', (error) => scriptErrors.push(String(error.message)));
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) {
+      scriptErrors.push(message.text());
+    }
+  });
+
+  await signIn(page);
+  await expect(page.locator('#login')).toBeHidden();
+  await page.click('#nav button[data-view="cases"]');
+  await page.click('#newCaseButton');
+  await expect(page.locator('#caseModal')).toHaveClass(/show/);
+  // Close it through a converted handler, then navigate: an open modal would
+  // intercept the next click.
+  await page.click('#caseModal [data-act="closeCase"]');
+  await expect(page.locator('#caseModal')).not.toHaveClass(/show/);
+  await page.click('#nav button[data-view="documents"]');
+
+  expect(await page.evaluate(() => window.__cspViolations), 'CSP must not be violated').toEqual([]);
+  expect(scriptErrors, 'no script errors while driving the UI').toEqual([]);
+});
+
+test('the delivered page is free of inline script and inline handlers', async ({ page, request }) => {
+  const response = await request.get('/');
+  const html = await response.text();
+  expect(/<script(?![^>]*\bsrc=)/.test(html), 'no inline <script> block').toBe(false);
+  expect(/\son(click|input|change|submit|load|error)\s*=/i.test(html), 'no inline handlers').toBe(false);
+
+  const csp = response.headers()['content-security-policy'];
+  expect(csp.split(';').map((p) => p.trim()).find((p) => p.startsWith('script-src'))).toBe("script-src 'self'");
+
+  // And the buttons still work, because intent now travels as data-act.
+  await signIn(page);
+  await expect(page.locator('#login')).toBeHidden();
+  expect(await page.locator('[data-act]').count()).toBeGreaterThan(0);
+});

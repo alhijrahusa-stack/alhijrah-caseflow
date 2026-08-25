@@ -103,6 +103,12 @@ npm test          # unit + API integration, no network or live backend
 npm run test:e2e  # Playwright, drives the real server against a stub backend
 ```
 
+## Front end
+
+The workspace ships as `src/public/index.html` plus `src/public/app.js`, served at `/app.js`. The page contains no inline `<script>` and no inline event handlers, which is what lets the policy set `script-src 'self'` outright rather than relaxing it to `'unsafe-inline'`.
+
+Markup declares intent as data attributes — `data-act="openCase" data-a1="..."` — and a single frozen dispatch table in `app.js` is the only thing that turns a name into a call. An unknown or attacker-supplied `data-act` matches nothing and does nothing; there is no `eval`, no `new Function`, and no lookup by string on `window`. Adding a new control means adding its handler to that table.
+
 ## Security baseline
 
 - Server-only Supabase service-role and R2 credentials
@@ -113,6 +119,7 @@ npm run test:e2e  # Playwright, drives the real server against a stub backend
 - Request size limits, input validation and output escaping
 - HSTS, CSP, frame, referrer and MIME hardening headers
 - Append-only operational audit events
+- `script-src 'self'` — no inline script and no inline event handlers
 - Deny-by-default route authorization: an unmapped `/api` path is refused
 - CSRF gate that fails closed and pins the expected origin to `APP_BASE_URL`
 - Per-identity login throttling
@@ -121,7 +128,7 @@ npm run test:e2e  # Playwright, drives the real server against a stub backend
 
 ### Known residual risks
 
-- `script-src` still allows `'unsafe-inline'`. The workspace is a single inline script with inline handlers on its static shell; removing the directive means extracting them behind a nonce. Interpolated values are escaped, so this is defence in depth rather than a known-exploitable hole.
+- `style-src` still allows `'unsafe-inline'`, because the markup carries `style` attributes that a nonce cannot cover. `script-src` is `'self'` with no inline allowance.
 - Login throttling is per process. Behind more than one instance the effective limit multiplies; a shared store is needed to scale it horizontally.
 - Broad staff access remains the default, by design. It is now the Owner's decision rather than a hard-coded property, but an untouched deployment still has every staff member seeing every case.
 - Listings apply the row filter after the query limit, so a narrowed principal paging a very large table may see fewer than `limit` rows per page.
