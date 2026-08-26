@@ -53,6 +53,8 @@ const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const internalApiKey = process.env.INTERNAL_API_KEY;
 const applicationOwnerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
+const productionSha = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_VERSION || null;
+const railwayRuntime = Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID || process.env.RAILWAY_GIT_COMMIT_SHA);
 const r2Bucket = process.env.R2_BUCKET;
 const r2Endpoint = process.env.R2_ENDPOINT || (process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : undefined);
 const r2 = r2Endpoint && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY ? new S3Client({
@@ -129,6 +131,61 @@ function identityExtraction(token,principal){
 function stableUuid(value){const hex=crypto.createHash('sha256').update(value).digest('hex').slice(0,32);return hex.slice(0,8)+'-'+hex.slice(8,12)+'-5'+hex.slice(13,16)+'-a'+hex.slice(17,20)+'-'+hex.slice(20,32)}
 function documentInput(body){const caseId=String(body.case_id||'');if(!uuid(caseId))throw Object.assign(new Error('VALID_CASE_ID_REQUIRED'),{status:400});const fileName=String(body.filename||body.file_name||'').trim().slice(0,180);if(!fileName||/[\x00-\x1f]/.test(fileName))throw Object.assign(new Error('VALID_FILENAME_REQUIRED'),{status:400});const contentType=String(body.content_type||'').toLowerCase();if(!allowedDocumentTypes.has(contentType))throw Object.assign(new Error('UNSUPPORTED_DOCUMENT_TYPE'),{status:415});const sizeBytes=Number(body.size_bytes);if(!Number.isSafeInteger(sizeBytes)||sizeBytes<1||sizeBytes>25*1024*1024)throw Object.assign(new Error('DOCUMENT_SIZE_NOT_ALLOWED'),{status:413});return{caseId,fileName,contentType,sizeBytes}}
 function documentChecksum(value){if(value===undefined||value===null||value==='')return null;const checksum=String(value).toLowerCase();if(!/^[a-f0-9]{64}$/.test(checksum))throw Object.assign(new Error('INVALID_DOCUMENT_CHECKSUM'),{status:400});return checksum}
+
+const productionVerification={enabled:railwayRuntime,status:railwayRuntime?'pending':'disabled',documentUpload:false,identityOcr:false,clientAutofill:false,errors:{},completedAt:null,sha:productionSha};
+
+async function productionIdentityImage(){
+  const sharp=(await import('sharp')).default;
+  const line1='P<USAERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<';
+  const line2='L898902C36USA7408122F1204159<<<<<<<<<<<<<<<8';
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="800"><rect width="1800" height="800" fill="white"/><text x="60" y="120" font-family="DejaVu Sans Mono" font-size="56" fill="black">PASSPORT</text><text x="60" y="220" font-family="DejaVu Sans Mono" font-size="38" fill="black">UNITED STATES OF AMERICA</text><text x="60" y="650" font-family="DejaVu Sans Mono" font-size="47" letter-spacing="1" fill="black">${line1.replaceAll('<','&lt;')}</text><text x="60" y="730" font-family="DejaVu Sans Mono" font-size="47" letter-spacing="1" fill="black">${line2.replaceAll('<','&lt;')}</text></svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+export async function runProductionVerification(force=false){
+  if(force)Object.assign(productionVerification,{status:'pending',documentUpload:false,identityOcr:false,clientAutofill:false,errors:{},completedAt:null});
+  if((!productionVerification.enabled&&!force)||productionVerification.status==='running'||productionVerification.status==='complete')return {...productionVerification};
+  productionVerification.status='running';
+  let objectKey=null,documentId=null,verificationClientId=null;
+  try{
+    const caseRows=await db('cases',{query:'?archived_at=is.null&select=id,client_id&limit=1'});
+    if(!caseRows.length)throw new Error('NO_CASE_AVAILABLE');
+    const payload=Buffer.from(`%PDF-1.7\nCaseflow production verification ${crypto.randomUUID()}\n%%EOF`);
+    const checksum=crypto.createHash('sha256').update(payload).digest('hex');
+    objectKey=`verification/${crypto.randomUUID()}.pdf`;
+    documentId=crypto.randomUUID();
+    await r2.send(new PutObjectCommand({Bucket:r2Bucket,Key:objectKey,Body:payload,ContentType:'application/pdf',ContentLength:payload.length,Metadata:{verification:'true'}}));
+    const head=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:objectKey}));
+    if(Number(head.ContentLength)!==payload.length||String(head.ContentType).toLowerCase()!=='application/pdf')throw new Error('R2_OBJECT_MISMATCH');
+    await db('documents',{method:'POST',body:{id:documentId,case_id:caseRows[0].id,client_id:caseRows[0].client_id||null,object_key:objectKey,file_name:'caseflow-production-verification.pdf',content_type:'application/pdf',size_bytes:payload.length,content_checksum:checksum,status:'uploaded',category:'verification',review_status:'received'}});
+    const rows=await db('documents',{query:`?id=eq.${documentId}&select=id,case_id,client_id,object_key,size_bytes,content_checksum`});
+    if(rows.length!==1||rows[0].case_id!==caseRows[0].id||rows[0].client_id!==(caseRows[0].client_id||null)||rows[0].content_checksum!==checksum)throw new Error('DOCUMENT_METADATA_MISMATCH');
+    const downloaded=await r2.send(new GetObjectCommand({Bucket:r2Bucket,Key:objectKey}));
+    const bytes=Buffer.from(await downloaded.Body.transformToByteArray());
+    if(!bytes.equals(payload))throw new Error('DOCUMENT_DOWNLOAD_MISMATCH');
+    await getSignedUrl(r2,new GetObjectCommand({Bucket:r2Bucket,Key:objectKey,ResponseContentDisposition:'inline; filename="caseflow-production-verification.pdf"',ResponseContentType:'application/pdf'}),{expiresIn:60});
+    productionVerification.documentUpload=true;
+  }catch(error){productionVerification.errors.documentUpload=error.message}
+  finally{
+    if(documentId)await db('documents',{method:'DELETE',query:`?id=eq.${documentId}`}).catch(()=>{});
+    if(objectKey)await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:objectKey})).catch(()=>{});
+  }
+  try{
+    const result=await extractIdentityDocument(await productionIdentityImage());
+    if(result.engine!=='tesseract.js'||!result.mrz.detected||!result.mrz.valid||result.fields.passport_number!=='L898902C3')throw new Error('IDENTITY_EXTRACTION_MISMATCH');
+    productionVerification.identityOcr=true;
+    verificationClientId=crypto.randomUUID();
+    const record={id:verificationClientId,...normalizeClientInput({...result.fields,preferred_language:'English'}),created_by:null,updated_by:null};
+    await db('clients',{method:'POST',body:record});
+    const rows=await db('clients',{query:`?id=eq.${verificationClientId}&select=id,legal_name,date_of_birth,nationality,passport_number,passport_country,passport_expiration`});
+    if(rows.length!==1||rows[0].passport_number!=='L898902C3'||rows[0].legal_name!==result.fields.legal_name)throw new Error('CLIENT_AUTOFILL_MISMATCH');
+    productionVerification.clientAutofill=true;
+  }catch(error){productionVerification.errors[productionVerification.identityOcr?'clientAutofill':'identityOcr']=error.message}
+  finally{if(verificationClientId)await db('clients',{method:'DELETE',query:`?id=eq.${verificationClientId}`}).catch(()=>{})}
+  productionVerification.completedAt=new Date().toISOString();
+  productionVerification.status='complete';
+  return {...productionVerification};
+}
 async function audit(principal,action,entityType,entityId,payload={},req){try{await db('audit_events',{method:'POST',body:{id:crypto.randomUUID(),actor_user_id:principal?.id||null,actor_label:principal?.displayName||'System',actor_roles:principal?.roles||[],action,entity_type:entityType,entity_id:entityId||null,client_id:uuid(payload.client_id)?payload.client_id:null,case_id:uuid(payload.case_id)?payload.case_id:null,metadata:{...payload,...(req?safeAuditContext(req):{})}}})}catch(e){console.error('audit-write-failed',e.message)}}
 async function event(caseId,type,payload={},principal,req){try{await db('case_events',{method:'POST',body:{id:crypto.randomUUID(),case_id:caseId,event_type:type,actor:principal?.displayName||'Caseflow Workspace',actor_user_id:principal?.id||null,payload}})}catch(e){console.error('event-write-failed',e.message)}await audit(principal,type,'case',caseId,payload,req)}
 
@@ -410,8 +467,9 @@ async function handle(req,res){
       r2&&r2Bucket?r2.send(new HeadBucketCommand({Bucket:r2Bucket})).then(()=>true).catch(()=>false):Promise.resolve(false),
     ]);
     const checks={supabase:databaseState.connected,coreSchema:databaseState.coreSchema,authorizationSchema:databaseState.authorizationSchema,r2:r2State,internalAuth:Boolean(internalApiKey),userAuth:authStatus.configured,ownerAccount:authStatus.ownerProvisioned};
+    if(productionVerification.enabled)Object.assign(checks,{documentUpload:productionVerification.documentUpload,identityOcr:productionVerification.identityOcr,clientAutofill:productionVerification.clientAutofill});
     const ready=Object.values(checks).every(Boolean);
-    return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,authorizationTables:databaseState.authorizationTables,authorizationTableErrors:databaseState.authorizationTableErrors,requestId},ch);
+    return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,authorizationTables:databaseState.authorizationTables,authorizationTableErrors:databaseState.authorizationTableErrors,verification:productionVerification,requestId},ch);
   }
 
   // Unauthenticated. Reports only whether sign-in is usable; the tenant user
@@ -1224,6 +1282,7 @@ export function createServer(){
     .catch(error=>console.error('owner-invitation-failed',error.message));
   const server=http.createServer((req,res)=>handle(req,res).catch(err=>respondToError(req,res,err)));
   server.requestTimeout=30_000;server.headersTimeout=35_000;server.keepAliveTimeout=5_000;
+  if(productionVerification.enabled)setTimeout(()=>runProductionVerification().catch(error=>{productionVerification.status='failed';productionVerification.errors.unexpected=error.message}),250).unref();
   return server;
 }
 

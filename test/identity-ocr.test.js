@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import sharp from 'sharp';
 
 import { addUser, backend, browserHeaders, cookieHeader, driver, resetBackend } from './helpers/harness.js';
-import { handle, respondToError } from '../src/server.js';
+import { handle, respondToError, runProductionVerification } from '../src/server.js';
 import { resetAuthProvisioningCache, resetLoginThrottle } from '../src/auth.js';
 import { parseMrzFromText, shutdownIdentityOcr } from '../src/identity-ocr.js';
 
@@ -79,4 +79,23 @@ test('real OCR requires review before it autofills and saves a client', async ()
   assert.equal(confirmed.body.data.passport_number, 'L898902C3');
   assert.equal(backend.tables.clients.length, 1);
   assert.ok(backend.tables.audit_events.some(event => event.action === 'identity_autofill_confirmed'));
+});
+
+test('production verification exercises R2, metadata linkage, OCR, and client autofill without residue', async () => {
+  backend.tables.cases.push({
+    id: '10000000-0000-4000-a000-000000000001',
+    client_id: '20000000-0000-4000-a000-000000000002',
+    archived_at: null,
+  });
+
+  const result = await runProductionVerification(true);
+
+  assert.equal(result.status, 'complete');
+  assert.equal(result.documentUpload, true, JSON.stringify(result.errors));
+  assert.equal(result.identityOcr, true, JSON.stringify(result.errors));
+  assert.equal(result.clientAutofill, true, JSON.stringify(result.errors));
+  assert.deepEqual(result.errors, {});
+  assert.equal(backend.objects.size, 0);
+  assert.equal(backend.tables.documents.length, 0);
+  assert.equal(backend.tables.clients.length, 0);
 });

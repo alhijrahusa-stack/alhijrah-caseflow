@@ -324,15 +324,29 @@ S3Client.prototype.send = async function stubbedSend(command) {
     backend.objects.delete(Key);
     return {};
   }
+  if (name === 'GetObjectCommand') {
+    const object = backend.objects.get(Key);
+    if (!object) {
+      throw Object.assign(new Error('NotFound'), { name: 'NoSuchKey', $metadata: { httpStatusCode: 404 } });
+    }
+    return {
+      Body: {
+        async transformToByteArray() {
+          return new Uint8Array(object.body || Buffer.alloc(object.size));
+        },
+      },
+    };
+  }
   if (name === 'PutObjectCommand') {
-    backend.objects.set(Key, { size: command.input.ContentLength, contentType: command.input.ContentType });
+    const body = command.input.Body === undefined ? Buffer.alloc(command.input.ContentLength || 0) : Buffer.from(command.input.Body);
+    backend.objects.set(Key, { size: body.length, contentType: command.input.ContentType, body });
     return {};
   }
   throw new Error(`unexpected S3 command ${name}`);
 };
 
 export function putObject(key, { size, contentType }) {
-  backend.objects.set(key, { size, contentType });
+  backend.objects.set(key, { size, contentType, body: Buffer.alloc(size) });
 }
 
 // ---------------------------------------------------------------------------
