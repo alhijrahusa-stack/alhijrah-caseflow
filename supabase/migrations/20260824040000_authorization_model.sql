@@ -138,43 +138,31 @@ alter table public.documents add column if not exists deleted_by uuid;
 create index if not exists documents_live_idx on public.documents(case_id) where deleted_at is null;
 
 -- ---------------------------------------------------------------------------
--- Stop cascade deletes from erasing the audit trail.
+-- Stop hard deletes from erasing the audit trail.
 --
 -- core_platform makes audit_events and case_events append-only against UPDATE
--- and DELETE, but case_events still referenced cases with ON DELETE CASCADE:
--- a single `delete from cases` would take the history with it, through the
--- foreign key rather than through a blocked DELETE. For a matter file that has
--- to survive audit, the history outranks cascading cleanup.
+-- and DELETE. Cases are archived, never hard-deleted. Enforce that invariant
+-- without dropping or rewriting the existing foreign keys.
 -- ---------------------------------------------------------------------------
-do $$
-declare
-  fk text;
+create or replace function public.prevent_case_hard_delete() returns trigger
+language plpgsql as $$
 begin
-  select conname into fk from pg_constraint
-  where conrelid = 'public.case_events'::regclass and contype = 'f'
-    and confrelid = 'public.cases'::regclass
-  limit 1;
-  if fk is not null then execute format('alter table public.case_events drop constraint %I', fk); end if;
-  alter table public.case_events
-    add constraint case_events_case_id_fkey
-    foreign key (case_id) references public.cases(id) on delete restrict;
-exception when duplicate_object then null;
-end $$;
+  raise exception 'cases are archive-only and cannot be hard-deleted';
+end;
+$$;
 
 do $$
-declare
-  fk text;
 begin
-  select conname into fk from pg_constraint
-  where conrelid = 'public.documents'::regclass and contype = 'f'
-    and confrelid = 'public.cases'::regclass
-  limit 1;
-  if fk is not null then execute format('alter table public.documents drop constraint %I', fk); end if;
-  alter table public.documents
-    add constraint documents_case_id_fkey
-    foreign key (case_id) references public.cases(id) on delete restrict;
-exception when duplicate_object then null;
-end $$;
+  if not exists (
+    select 1 from pg_trigger
+    where tgrelid = 'public.cases'::regclass
+      and tgname = 'cases_prevent_hard_delete'
+      and not tgisinternal
+  ) then
+    execute 'create trigger cases_prevent_hard_delete before delete on public.cases for each row execute function public.prevent_case_hard_delete()';
+  end if;
+end;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- Filing deadline is a calendar date, not an instant.
@@ -198,6 +186,32 @@ alter table public.record_access_grants enable row level security;
 
 revoke all on public.teams, public.team_members, public.access_policies, public.record_access_grants
 from anon, authenticated;
+
+-- Direct browser access stays closed. The server uses service_role, which
+-- retains its grants and bypasses RLS.
+do $$
+declare
+  protected_table text;
+begin
+  foreach protected_table in array array[
+    'teams', 'team_members', 'access_policies', 'record_access_grants'
+  ]
+  loop
+    if not exists (
+      select 1
+      from pg_policies
+      where schemaname = 'public'
+        and tablename = protected_table
+        and policyname = 'server_only_no_direct_access'
+    ) then
+      execute format(
+        'create policy server_only_no_direct_access on public.%I as restrictive for all to anon, authenticated using (false) with check (false)',
+        protected_table
+      );
+    end if;
+  end loop;
+end;
+$$;
 
 -- Objects created later must not be readable by anon/authenticated by default.
 alter default privileges in schema public revoke all on tables from anon, authenticated;
