@@ -88,7 +88,8 @@ create table if not exists public.record_access_grants (
   subject_type text not null,
   subject_id uuid not null,
   resource_type text not null,
-  resource_id uuid not null,
+  resource_id uuid,
+  resource_key text,
   effect text not null,
   permissions text[] not null default '{}',
   note text,
@@ -108,7 +109,18 @@ do $$
 begin
   alter table public.record_access_grants
     add constraint record_access_grants_resource_type_check
-    check (resource_type in ('case', 'client'));
+    check (resource_type in ('case', 'client', 'category', 'service'));
+exception when duplicate_object then null; when check_violation then null;
+end $$;
+
+do $$
+begin
+  alter table public.record_access_grants
+    add constraint record_access_grants_target_check
+    check (
+      (resource_type in ('case', 'client') and resource_id is not null and resource_key is null)
+      or (resource_type in ('category', 'service') and resource_id is null and resource_key is not null and btrim(resource_key) <> '')
+    );
 exception when duplicate_object then null; when check_violation then null;
 end $$;
 
@@ -121,7 +133,13 @@ exception when duplicate_object then null; when check_violation then null;
 end $$;
 
 create unique index if not exists record_access_grants_unique
-  on public.record_access_grants(subject_type, subject_id, resource_type, resource_id, effect);
+  on public.record_access_grants(
+    subject_type,
+    subject_id,
+    resource_type,
+    coalesce(resource_id::text, resource_key),
+    effect
+  );
 
 create index if not exists record_access_grants_subject_idx
   on public.record_access_grants(subject_type, subject_id);
