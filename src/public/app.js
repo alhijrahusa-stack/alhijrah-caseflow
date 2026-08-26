@@ -12,6 +12,9 @@
         intakeState = null,
         intakeSaveTimer = null,
         inviteAccessToken = null;
+      const viewLoadedAt = new Map(),
+        viewLoads = new Map(),
+        viewCacheMs = 30_000;
       const roles = [
         ["Owner", "Full platform authority and configuration control.", "owner"],
         ["Admin", "Operational administration and user management.", "admin"],
@@ -58,16 +61,32 @@
           .querySelectorAll("#nav button")
           .forEach((x) => x.classList.toggle("active", x.dataset.view === v));
         titles(v);
-        if (v === "cases") renderCaseTable();
-        if (v === "clients") loadClients();
-        if (v === "documents") loadDocuments();
-        if (v === "tasks") loadTasks();
-        if (v === "reviews") loadReviewQueue();
-        if (v === "billing") loadBilling();
-        if (v === "reports") loadReports();
-        if (v === "roles") loadTeam();
-        if (v === "audit") loadAudit();
-        if (v === "access" && allowedTo("access.manage")) loadAccess();
+        if (v === "cases" && viewLoadedAt.has("cases")) renderCaseTable();
+        loadViewData(v);
+      }
+      const viewLoaders = {
+        cases: loadCases,
+        clients: loadClients,
+        documents: loadDocuments,
+        services: loadServices,
+        tasks: loadTasks,
+        reviews: loadReviewQueue,
+        billing: loadBilling,
+        reports: loadReports,
+        roles: loadTeam,
+        audit: loadAudit,
+        access: () => allowedTo("access.manage") ? loadAccess() : Promise.resolve(),
+      };
+      function loadViewData(view, force = false) {
+        const loader = viewLoaders[view];
+        if (!loader) return Promise.resolve();
+        if (!force && Date.now() - (viewLoadedAt.get(view) || 0) < viewCacheMs) return Promise.resolve();
+        if (viewLoads.has(view)) return viewLoads.get(view);
+        const pending = Promise.resolve(loader())
+          .then(() => viewLoadedAt.set(view, Date.now()))
+          .finally(() => viewLoads.delete(view));
+        viewLoads.set(view, pending);
+        return pending;
       }
       // Views the signed-in principal has no permission for are removed from
       // the navigation. The API denies them regardless; this stops the shell
@@ -94,6 +113,13 @@
         return held.includes("*") || held.includes(permission);
       }
       function configureNavigation() {
+        if (currentUser) {
+          const profile = $("ownerProfile");
+          if (profile) {
+            profile.querySelector("b").textContent = currentUser.displayName || currentUser.email;
+            profile.querySelector("small").textContent = (currentUser.roles || []).map(intakeOptionLabel).join(" · ");
+          }
+        }
         let firstVisible = null;
         document.querySelectorAll("#nav button").forEach((button) => {
           const ok = allowedTo(viewPermissions[button.dataset.view] || "dashboard.view");
@@ -385,7 +411,8 @@
             cases.map((c) => `<option value="${c.id}">${esc(c.client_name)} — ${esc(c.case_type)}</option>`).join("");
         }
       }
-      function openCase(type = "", serviceCode = "") {
+      async function openCase(type = "", serviceCode = "") {
+        await Promise.all([loadViewData("services"), loadViewData("clients")]);
         caseModalTitle.textContent = "Create New Case";
         $("editCaseId").value = "";
         $("selectedServiceCode").value = serviceCode;
@@ -979,7 +1006,7 @@
         $("serviceGrid").innerHTML = visible
           .map(
             (service) =>
-              `<div class="service"><div class="eyebrow">${esc(service.category.replaceAll("_", " "))}</div><h3>${esc(service.code)} — ${esc(service.name)}</h3><p>Versioned intake and controlled case workflow.</p><button class="btn primary" data-act="openCase" data-a1="${esc(service.name)}" data-a2="${esc(service.code)}">Start Matter</button></div>`,
+              `<article class="service" tabindex="0" role="button" aria-label="Start ${esc(service.name)} matter" data-act="openCase" data-a1="${esc(service.name)}" data-a2="${esc(service.code)}"><div class="eyebrow">${esc(service.category.replaceAll("_", " "))}</div><h3>${esc(service.code)} — ${esc(service.name)}</h3><p>Versioned intake and controlled case workflow.</p><span class="service-action">Open intake →</span></article>`,
           )
           .join("") || '<div class="empty">No services in this category.</div>';
         $("caseType").innerHTML = services
@@ -1188,14 +1215,14 @@
       async function boot() {
         renderRoles();
         configureNavigation();
-        await testReady();
-        await loadAlerts();
-        await loadServices();
-        await loadCases();
-        await loadClients();
-        await loadTeam();
-        await loadTasks();
-        await loadDocuments();
+        await Promise.all([testReady(), loadAlerts(), loadViewData("cases", true)]);
+        const warmSecondaryData = () => Promise.allSettled([
+          loadViewData("services"),
+          loadViewData("clients"),
+          loadViewData("documents"),
+        ]);
+        if ("requestIdleCallback" in window) requestIdleCallback(warmSecondaryData, { timeout: 1800 });
+        else setTimeout(warmSecondaryData, 250);
       }
       async function restoreSession() {
         renderRoles();
@@ -1332,10 +1359,22 @@
         if (!element || (element.dataset.on && element.dataset.on !== "click")) return;
         runUiAction(element);
       });
+      document.addEventListener("keydown", (event) => {
+        if (!["Enter", " "].includes(event.key)) return;
+        const element = event.target.closest('[role="button"][data-act]');
+        if (!element) return;
+        event.preventDefault();
+        runUiAction(element);
+      });
+      let inputActionTimer = null;
       for (const type of ["change", "input"]) {
         document.addEventListener(type, (event) => {
           const element = event.target.closest(`[data-act][data-on="${type}"]`);
-          if (element) runUiAction(element);
+          if (!element) return;
+          if (type === "input") {
+            clearTimeout(inputActionTimer);
+            inputActionTimer = setTimeout(() => runUiAction(element), 140);
+          } else runUiAction(element);
         });
       }
 

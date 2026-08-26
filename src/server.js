@@ -1,6 +1,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
@@ -57,6 +58,44 @@ const r2 = r2Endpoint && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_A
   region: 'auto', endpoint: r2Endpoint,
   credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY }
 }) : null;
+
+function publicAsset(path, contentType) {
+  const body = fs.readFileSync(new URL(path, import.meta.url));
+  return Object.freeze({
+    body,
+    brotli: zlib.brotliCompressSync(body),
+    gzip: zlib.gzipSync(body, { level: 9 }),
+    contentType,
+    etag: `"${crypto.createHash('sha256').update(body).digest('hex')}"`,
+  });
+}
+
+const publicAssets = Object.freeze({
+  '/': publicAsset('./public/index.html', 'text/html; charset=utf-8'),
+  '/app.js': publicAsset('./public/app.js', 'text/javascript; charset=utf-8'),
+});
+
+function sendPublicAsset(req, res, asset) {
+  const common = {
+    ...securityHeaders(),
+    'cache-control': 'public, max-age=0, must-revalidate',
+    'content-type': asset.contentType,
+    etag: asset.etag,
+    vary: 'Accept-Encoding',
+  };
+  if (req.headers['if-none-match'] === asset.etag) {
+    res.writeHead(304, common);
+    return res.end();
+  }
+  const accepted = String(req.headers['accept-encoding'] || '');
+  const [body, encoding] = accepted.includes('br')
+    ? [asset.brotli, 'br']
+    : accepted.includes('gzip')
+      ? [asset.gzip, 'gzip']
+      : [asset.body, null];
+  res.writeHead(200, { ...common, ...(encoding ? { 'content-encoding': encoding } : {}), 'content-length': body.length });
+  return res.end(body);
+}
 
 function securityHeaders(){return {'cache-control':'no-store','content-security-policy':"default-src 'self'; connect-src 'self' https:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",'permissions-policy':'camera=(), microphone=(), geolocation=()','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','strict-transport-security':'max-age=31536000; includeSubDomains'}}
 function json(res,status,body,extra={}){res.writeHead(status,{'content-type':'application/json; charset=utf-8',...securityHeaders(),...extra});res.end(JSON.stringify(body))}
@@ -319,8 +358,7 @@ function validateRecordGrant(body){
 async function handle(req,res){
   const requestId=req.headers['x-request-id']||crypto.randomUUID();res.setHeader('x-request-id',requestId);const u=new URL(req.url,`http://${req.headers.host||'localhost'}`);const ch=cors(req);
   if(req.method==='OPTIONS'){res.writeHead(204,{...securityHeaders(),...ch});return res.end()}
-  if(req.method==='GET'&&u.pathname==='/'){const html=fs.readFileSync(new URL('./public/index.html',import.meta.url));res.writeHead(200,{'content-type':'text/html; charset=utf-8',...securityHeaders(),'cache-control':'no-cache'});return res.end(html)}
-  if(req.method==='GET'&&u.pathname==='/app.js'){const js=fs.readFileSync(new URL('./public/app.js',import.meta.url));res.writeHead(200,{'content-type':'text/javascript; charset=utf-8',...securityHeaders(),'cache-control':'no-cache'});return res.end(js)}
+  if(req.method==='GET'&&publicAssets[u.pathname])return sendPublicAsset(req,res,publicAssets[u.pathname])
   if(req.method==='GET'&&u.pathname==='/health')return json(res,200,{status:'ok',service,version,requestId},ch);
   if(req.method==='GET'&&u.pathname==='/ready'){
     const [authStatus,databaseState,r2State]=await Promise.all([

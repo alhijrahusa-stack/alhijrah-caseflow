@@ -585,6 +585,17 @@ test('the workspace script is served as an external asset', async () => {
   assert.ok(response.raw.includes('uiActions'), 'the dispatch table ships with it');
 });
 
+test('public assets are precompressed and support conditional revalidation', async () => {
+  const compressed = await request({ path: '/app.js', headers: { 'accept-encoding': 'br, gzip' } });
+  assert.equal(compressed.status, 200);
+  assert.equal(compressed.headers['content-encoding'], 'br');
+  assert.ok(compressed.headers.etag);
+  assert.match(compressed.headers['cache-control'], /must-revalidate/);
+  const cached = await request({ path: '/app.js', headers: { 'if-none-match': compressed.headers.etag } });
+  assert.equal(cached.status, 304);
+  assert.equal(cached.raw, '');
+});
+
 test('the served page carries no inline script or inline event handlers', async () => {
   const page = await request({ path: '/' });
   assert.equal(page.status, 200);
