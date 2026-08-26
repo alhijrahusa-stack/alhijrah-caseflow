@@ -54,4 +54,6 @@ create unique index if not exists record_access_grants_unique
     effect
   );
 
+notify pgrst, 'reload schema';
+
 commit;

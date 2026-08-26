@@ -587,4 +587,6 @@ insert into public.service_catalog (category, code, name) values
   ('administrative','FLIGHT','Flight Booking')
 on conflict (code) do update set category = excluded.category, name = excluded.name;
 
+notify pgrst, 'reload schema';
+
 commit;

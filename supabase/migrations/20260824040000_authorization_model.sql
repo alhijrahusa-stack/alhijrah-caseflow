@@ -243,4 +243,6 @@ create index if not exists audit_events_access_idx
   on public.audit_events(entity_type, created_at desc)
   where entity_type in ('access_policy', 'record_access_grant', 'team', 'team_member', 'client_access');
 
+notify pgrst, 'reload schema';
+
 commit;
