@@ -17,6 +17,15 @@
 // The Owner is outside the system: no restriction applies to the owner role.
 
 import { roleDefinitions } from './auth.js';
+import { serviceCatalog } from './platform.js';
+
+// service_code -> category, so a grant made against a whole practice area
+// resolves for a case that only stores its service code.
+const serviceCategory = new Map(serviceCatalog.map(service => [service.code, service.category]));
+export function categoryOfCase(caseRecord) {
+  const code = caseRecord?.service_code;
+  return code ? serviceCategory.get(String(code)) || null : null;
+}
 
 // Modules the Owner can scope and permission independently.
 export const accessModules = Object.freeze([
@@ -44,15 +53,17 @@ export const accessScopes = Object.freeze([
   'team',
   'assigned',
   'explicit_client',
+  'explicit_category',
   'explicit_case',
   'client_self',
 ]);
 
 const scopeRank = Object.freeze({
-  global: 5,
-  team: 4,
-  assigned: 3,
-  explicit_client: 2,
+  global: 6,
+  team: 5,
+  assigned: 4,
+  explicit_client: 3,
+  explicit_category: 2,
   explicit_case: 1,
   client_self: 0,
 });
@@ -188,18 +199,23 @@ export function resolveAccess({ principal, policies = [], recordGrants = [], tea
   }
 
   // Record-level grants and restrictions addressed to this user or their teams.
-  const granted = { case: new Set(), client: new Set() };
-  const restricted = { case: new Set(), client: new Set() };
+  const granted = { case: new Set(), client: new Set(), category: new Set(), service: new Set() };
+  const restricted = { case: new Set(), client: new Set(), category: new Set(), service: new Set() };
   const grantPermissions = new Map();
   for (const grant of recordGrants) {
     const matchesUser = grant.subject_type === 'user' && String(grant.subject_id) === String(principal?.id);
     const matchesTeam = grant.subject_type === 'team' && teamSet.has(String(grant.subject_id));
     if (!matchesUser && !matchesTeam) continue;
-    if (!['case', 'client'].includes(grant.resource_type)) continue;
+    if (!['case', 'client', 'category', 'service'].includes(grant.resource_type)) continue;
+    // case/client are addressed by uuid; category/service by their text key.
+    const target = ['category', 'service'].includes(grant.resource_type)
+      ? String(grant.resource_key ?? '')
+      : String(grant.resource_id ?? '');
+    if (!target) continue;
     const bucket = grant.effect === 'restrict' ? restricted : granted;
-    bucket[grant.resource_type].add(String(grant.resource_id));
+    bucket[grant.resource_type].add(target);
     if (grant.effect === 'grant') {
-      const key = `${grant.resource_type}:${grant.resource_id}`;
+      const key = `${grant.resource_type}:${target}`;
       const permissions = normalisePermissions(grant.permissions);
       // An empty permission list means "everything this person could otherwise
       // do", which is the common case for handing someone one case.
@@ -226,8 +242,12 @@ export function resolveAccess({ principal, policies = [], recordGrants = [], tea
     assignedCaseIds: new Set(assignedCaseIds.map(String)),
     grantedCaseIds: granted.case,
     grantedClientIds: granted.client,
+    grantedCategories: granted.category,
+    grantedServiceCodes: granted.service,
     restrictedCaseIds: restricted.case,
     restrictedClientIds: restricted.client,
+    restrictedCategories: restricted.category,
+    restrictedServiceCodes: restricted.service,
     grantPermissions,
   };
 }
@@ -266,13 +286,21 @@ export function canAccessCase(access, caseRecord, permission) {
 
   // An explicit restriction is absolute for a non-owner: it is how the Owner
   // takes one case or one client away from someone who otherwise qualifies.
+  const category = categoryOfCase(caseRecord);
+  const serviceCode = caseRecord.service_code ? String(caseRecord.service_code) : null;
+
   if (access.restrictedCaseIds.has(caseId)) return false;
   if (clientId && access.restrictedClientIds.has(clientId)) return false;
+  if (category && access.restrictedCategories.has(category)) return false;
+  if (serviceCode && access.restrictedServiceCodes.has(serviceCode)) return false;
 
   // An explicit grant carries its own permission, so the Owner can hand
-  // someone a single case without giving them the module generally.
+  // someone a single case, one client, or a whole practice area without
+  // giving them the module generally.
   if (recordGrantAllows(access, 'case', caseId, permission)) return true;
   if (clientId && recordGrantAllows(access, 'client', clientId, permission)) return true;
+  if (category && recordGrantAllows(access, 'category', category, permission)) return true;
+  if (serviceCode && recordGrantAllows(access, 'service', serviceCode, permission)) return true;
 
   if (!hasEffectivePermission(access, permission)) return false;
 
@@ -287,6 +315,7 @@ export function canAccessCase(access, caseRecord, permission) {
       return Boolean(clientId) && access.clientIds.has(clientId);
     case 'explicit_case':
     case 'explicit_client':
+    case 'explicit_category':
       // Reachable only through an explicit grant, already handled above.
       return false;
     default:
@@ -343,6 +372,15 @@ export function caseListFilter(access, permission = 'cases.view') {
   const grantedClients = [...access.grantedClientIds].filter(id => recordGrantAllows(access, 'client', id, permission));
   if (grantedCases.length) clauses.push(`id.in.(${grantedCases.join(',')})`);
   if (grantedClients.length) clauses.push(`client_id.in.(${grantedClients.join(',')})`);
+
+  // A category grant covers every service code in that practice area, so it
+  // expands into the codes the catalogue lists for it.
+  const grantedCodes = new Set([...access.grantedServiceCodes].filter(code => recordGrantAllows(access, 'service', code, permission)));
+  for (const category of access.grantedCategories) {
+    if (!recordGrantAllows(access, 'category', category, permission)) continue;
+    for (const [code, name] of serviceCategory) if (name === category) grantedCodes.add(code);
+  }
+  if (grantedCodes.size) clauses.push(`service_code.in.(${[...grantedCodes].join(',')})`);
 
   // No clause at all means nothing is reachable. Encode that as a filter that
   // matches no row rather than returning null, which would mean "everything".

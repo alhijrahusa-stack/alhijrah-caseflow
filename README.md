@@ -37,10 +37,15 @@ Each module (`cases`, `documents`, `tasks`, `deadlines`, `billing`, `audit`, `re
 | `team` | records belonging to a team the user is on |
 | `assigned` | records assigned to the user via `case_assignments` (legacy `assigned_to` labels still match) |
 | `explicit_client` | only clients granted explicitly |
+| `explicit_category` | only case categories (practice areas) granted explicitly |
 | `explicit_case` | only cases granted explicitly |
 | `client_self` | only the user's own client — the default for portal roles |
 
-Explicit record grants widen beyond the configured scope; explicit record restrictions remove a case or client however wide the scope is. A grant may carry its own permission list, so one case can be handed over for viewing without opening the module.
+Record grants and restrictions are addressed to a **case**, a **client**, a **case category** (practice area) or a single **service code**. Grants widen beyond the configured scope; restrictions remove the target however wide the scope is. A grant may carry its own permission list, so one case can be handed over for viewing without opening the module. Any combination is valid: a user may be scoped to `assigned` and additionally granted one client and one practice area.
+
+### Database layer
+
+Every table has RLS enabled with **no permissive policy**, and `anon`/`authenticated` hold **no grants**, so a leaked publishable key reads nothing — verified in CI-style checks against PostgreSQL 16. The API reaches the database solely through the server-side `service_role` connection, which bypasses RLS by design; the API is therefore the authorization boundary and every route resolves the effective model before touching data. `audit_events` and `case_events` remain append-only against `UPDATE`/`DELETE` via trigger, and `ON DELETE RESTRICT` stops a case deletion from taking its own history with it.
 
 The model is enforced on case listing and direct UUID reads, case writes, document listing, presigning, upload confirmation, signed download URLs, document review and deletion, and the audit trail. Listings narrow in the query where the scope allows and are filtered again per row, so a bug in the query filter cannot widen access. An unreachable record reports 404 rather than 403, so a response does not confirm that an id exists.
 
@@ -86,6 +91,7 @@ For an existing installation, apply SQL files in filename order:
 1. `supabase/schema.sql` is the preserved baseline.
 2. `supabase/migrations/20260824030000_core_platform.sql` is the non-destructive production expansion.
 3. `supabase/migrations/20260824040000_authorization_model.sql` adds teams, access policies and record grants, plus the integrity gaps the expansion left open.
+4. `supabase/migrations/20260824050000_category_access_grants.sql` lets a record grant target a case category or service code. Non-destructive: adds one nullable column, relaxes `resource_id` to nullable, and replaces the uniqueness index so both target shapes share one key. No row is written, altered or deleted.
 
 The migrations retain existing case/document data, add operational entities and seed data, enable RLS on server-owned tables, and revoke direct `anon` and `authenticated` access. Translators, preparers, interpreters and representatives are form assignments—not case parties.
 
@@ -128,7 +134,7 @@ Markup declares intent as data attributes — `data-act="openCase" data-a1="..."
 
 ### Known residual risks
 
-- `style-src` still allows `'unsafe-inline'`, because the markup carries `style` attributes that a nonce cannot cover. `script-src` is `'self'` with no inline allowance.
+- **Security hardening debt, tracked for final production lockdown:** `style-src` still allows `'unsafe-inline'`, because the markup carries 21 `style` attributes that a nonce cannot cover. Closing it means moving them into the stylesheet. `script-src` is already `'self'` with no inline allowance, so there is no script-execution surface behind this item.
 - Login throttling is per process. Behind more than one instance the effective limit multiplies; a shared store is needed to scale it horizontally.
 - Broad staff access remains the default, by design. It is now the Owner's decision rather than a hard-coded property, but an untouched deployment still has every staff member seeing every case.
 - Listings apply the row filter after the query limit, so a narrowed principal paging a very large table may see fewer than `limit` rows per page.

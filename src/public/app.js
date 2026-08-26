@@ -805,23 +805,30 @@
         const match = accessSubjectOptions(type).find(([value]) => String(value) === String(id));
         return match ? match[1] : id;
       }
-      function accessResourceLabel(type, id) {
-        const list = type === "client" ? accessData?.clients || [] : accessCases;
-        const match = list.find((r) => String(r.id) === String(id));
-        if (!match) return id;
-        return type === "client" ? match.legal_name : `${match.client_name} — ${match.case_type}`;
+      function accessResourceLabel(grant) {
+        if (grant.resource_type === "category") return titleCase(grant.resource_key);
+        if (grant.resource_type === "service") return String(grant.resource_key);
+        const list = grant.resource_type === "client" ? accessData?.clients || [] : accessCases;
+        const match = list.find((r) => String(r.id) === String(grant.resource_id));
+        if (!match) return grant.resource_id;
+        return grant.resource_type === "client" ? match.legal_name : `${match.client_name} — ${match.case_type}`;
       }
       function renderRecordGrants() {
         $("grantTable").innerHTML =
           (accessData?.recordGrants || [])
-            .map((g) => `<tr><td>${esc(titleCase(g.effect))}</td><td>${esc(accessSubjectLabel(g.subject_type, g.subject_id))}</td><td>${esc(accessResourceLabel(g.resource_type, g.resource_id))}</td><td><button class="linkbtn" data-revoke="${esc(g.id)}">Revoke</button></td></tr>`)
+            .map((g) => `<tr><td>${esc(titleCase(g.effect))}</td><td>${esc(accessSubjectLabel(g.subject_type, g.subject_id))}</td><td>${esc(titleCase(g.resource_type))}: ${esc(accessResourceLabel(g))}</td><td><button class="linkbtn" data-revoke="${esc(g.id)}">Revoke</button></td></tr>`)
             .join("") || '<tr><td colspan="4">No record-level overrides. Everyone follows their scope.</td></tr>';
       }
       function renderGrantForm() {
         const type = $("grantResourceType").value;
-        $("grantResource").innerHTML = type === "client"
-          ? optionList((accessData?.clients || []).map((c) => [c.id, c.legal_name]))
-          : optionList(accessCases.map((c) => [c.id, `${c.client_name} — ${c.case_type}`]));
+        if (type === "client")
+          $("grantResource").innerHTML = optionList((accessData?.clients || []).map((c) => [c.id, c.legal_name]));
+        else if (type === "category")
+          $("grantResource").innerHTML = optionList((accessData?.categories || []).map((c) => [c, titleCase(c)]));
+        else if (type === "service")
+          $("grantResource").innerHTML = optionList((accessData?.services || []).map((s) => [s.code, `${s.code} — ${s.name}`]));
+        else
+          $("grantResource").innerHTML = optionList(accessCases.map((c) => [c.id, `${c.client_name} — ${c.case_type}`]));
       }
       async function loadAccess() {
         $("accessErr").textContent = "";
@@ -881,13 +888,17 @@
         $("grantErr").textContent = "";
         const [subjectType, subjectId] = $("grantSubject").value.split(":");
         try {
+          const resourceType = $("grantResourceType").value;
+          const keyed = resourceType === "category" || resourceType === "service";
           await api("/api/v1/access/record-grants", {
             method: "POST",
             body: JSON.stringify({
               subject_type: subjectType,
               subject_id: subjectId,
-              resource_type: $("grantResourceType").value,
-              resource_id: $("grantResource").value,
+              resource_type: resourceType,
+              ...(keyed
+                ? { resource_key: $("grantResource").value }
+                : { resource_id: $("grantResource").value }),
               effect: $("grantEffect").value,
             }),
           });

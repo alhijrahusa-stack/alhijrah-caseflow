@@ -160,7 +160,7 @@ async function casesById(access,ids){
   if(access?.isOwner)return index;
   const unique=[...new Set(ids.filter(id=>uuid(id)).map(String))];
   if(!unique.length)return index;
-  const rows=await db('cases',{query:`?id=in.(${unique.join(',')})&select=id,client_id,team_id,assigned_user_id,assigned_to`});
+  const rows=await db('cases',{query:`?id=in.(${unique.join(',')})&select=id,client_id,team_id,assigned_user_id,assigned_to,service_code`});
   for(const row of rows||[])index.set(String(row.id),row);
   return index;
 }
@@ -285,18 +285,31 @@ function validateAccessPolicy(body){
   return {subject_type:subjectType,subject_id:subjectId,grants,restrictions,scopes,note:String(body.note||'').trim().slice(0,400)||null};
 }
 
+const serviceCodes=new Set(serviceCatalog.map(service=>service.code));
+const serviceCategories=new Set(serviceCatalog.map(service=>service.category));
+
 function validateRecordGrant(body){
   const errors={};
   if(!['user','team'].includes(body.subject_type))errors.subject_type='Must be user or team';
   if(!uuid(body.subject_id))errors.subject_id='Must be a UUID';
-  if(!['case','client'].includes(body.resource_type))errors.resource_type='Must be case or client';
-  if(!uuid(body.resource_id))errors.resource_id='Must be a UUID';
+  if(!['case','client','category','service'].includes(body.resource_type))errors.resource_type='Must be case, client, category or service';
+  // case/client are addressed by uuid; category/service by a catalogue key,
+  // validated against the catalogue so a typo cannot create a dead grant.
+  const keyed=['category','service'].includes(body.resource_type);
+  if(!keyed&&!uuid(body.resource_id))errors.resource_id='Must be a UUID';
+  if(keyed){
+    const key=String(body.resource_key||'').trim();
+    const known=body.resource_type==='category'?serviceCategories:serviceCodes;
+    if(!key||!known.has(key))errors.resource_key=`Unknown ${body.resource_type}`;
+  }
   if(!['grant','restrict'].includes(body.effect))errors.effect='Must be grant or restrict';
   const catalogue=new Set(permissionCatalogue());
   const permissions=Array.isArray(body.permissions)?body.permissions.map(v=>String(v).trim()).filter(Boolean):[];
   for(const permission of permissions)if(!catalogue.has(permission))errors.permissions=`Unknown permission: ${permission}`;
   if(Object.keys(errors).length)throw validationError(errors);
-  return {subject_type:body.subject_type,subject_id:body.subject_id,resource_type:body.resource_type,resource_id:body.resource_id,
+  const keyedTarget=['category','service'].includes(body.resource_type);
+  return {subject_type:body.subject_type,subject_id:body.subject_id,resource_type:body.resource_type,
+    resource_id:keyedTarget?null:body.resource_id,resource_key:keyedTarget?String(body.resource_key).trim():null,
     effect:body.effect,permissions,note:String(body.note||'').trim().slice(0,400)||null};
 }
 
@@ -946,7 +959,11 @@ async function handle(req,res){
       db('client_access',{query:'?select=*'}),
     ]);
     return json(res,200,{data:{modules:accessModules,scopes:accessScopes,permissions:permissionCatalogue(),roles:Object.keys(roleDefinitions),
-      defaults:{staff:'global',client:'client_self'},policies:policies||[],recordGrants:recordGrants||[],teams:teams||[],
+      defaults:{staff:'global',client:'client_self'},
+      recordTargets:['case','client','category','service'],
+      categories:[...new Set(serviceCatalog.map(service=>service.category))].sort(),
+      services:serviceCatalog.map(service=>({code:service.code,name:service.name,category:service.category})),
+      policies:policies||[],recordGrants:recordGrants||[],teams:teams||[],
       teamMembers:teamMembers||[],clients:clients||[],clientAccess:clientAccess||[]},requestId},ch);
   }
   if(req.method==='PUT'&&u.pathname==='/api/v1/access/policies'){
