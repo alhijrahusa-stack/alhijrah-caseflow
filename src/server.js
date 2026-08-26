@@ -323,25 +323,27 @@ async function handle(req,res){
     const [authStatus,databaseState,r2State]=await Promise.all([
       getAuthProvisioningStatus(),
       (async()=>{
-        const state={connected:false,coreSchema:false,authorizationSchema:false};
+        const state={connected:false,coreSchema:false,authorizationSchema:false,authorizationTables:{teams:false,teamMembers:false,accessPolicies:false,recordAccessGrants:false}};
         try{await db('cases',{query:'?select=id&limit=1'});state.connected=true}catch{return state}
         try{await db('clients',{query:'?select=id&limit=1'});state.coreSchema=true}catch{return state}
-        try{
-          await Promise.all([
-            db('teams',{query:'?select=id&limit=1'}),
-            db('team_members',{query:'?select=team_id&limit=1'}),
-            db('access_policies',{query:'?select=id&limit=1'}),
-            db('record_access_grants',{query:'?select=id&limit=1'}),
-          ]);
-          state.authorizationSchema=true;
-        }catch{}
+        const tableChecks=await Promise.all([
+          ['teams','teams','id'],
+          ['teamMembers','team_members','team_id'],
+          ['accessPolicies','access_policies','id'],
+          ['recordAccessGrants','record_access_grants','id'],
+        ].map(async([check,table,column])=>{
+          try{await db(table,{query:`?select=${column}&limit=1`});return [check,true]}
+          catch{return [check,false]}
+        }));
+        state.authorizationTables=Object.fromEntries(tableChecks);
+        state.authorizationSchema=Object.values(state.authorizationTables).every(Boolean);
         return state;
       })(),
       r2&&r2Bucket?r2.send(new HeadBucketCommand({Bucket:r2Bucket})).then(()=>true).catch(()=>false):Promise.resolve(false),
     ]);
     const checks={supabase:databaseState.connected,coreSchema:databaseState.coreSchema,authorizationSchema:databaseState.authorizationSchema,r2:r2State,internalAuth:Boolean(internalApiKey),userAuth:authStatus.configured,ownerAccount:authStatus.ownerProvisioned};
     const ready=Object.values(checks).every(Boolean);
-    return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,requestId},ch);
+    return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,authorizationTables:databaseState.authorizationTables,requestId},ch);
   }
 
   // Unauthenticated. Reports only whether sign-in is usable; the tenant user
