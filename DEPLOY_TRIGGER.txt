@@ -1,2 +1,2 @@
-Railway redeploy trigger: 2026-08-24T01:46:45Z
-GitHub App write verification completed for the existing production repository.
+Railway redeploy trigger: 2026-08-26T14:00:00Z
+Supabase production redirect verified; reissue the existing Owner activation.
