@@ -286,7 +286,7 @@ async function probeAuthProvisioning() {
     const users = Array.isArray(data?.users) ? data.users : [];
     const hasOwner = users.some(user => {
       const confirmed = Boolean(user.email_confirmed_at || user.confirmed_at);
-      const active = user.app_metadata?.status !== 'inactive';
+      const active = user.app_metadata?.status === 'active';
       const assigned = user.app_metadata?.roles?.includes('owner')
         || (ownerEmail && String(user.email || '').toLowerCase() === ownerEmail);
       return confirmed && active && assigned;

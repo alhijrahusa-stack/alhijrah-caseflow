@@ -145,6 +145,11 @@ test('owner-by-email bootstrap requires a confirmed address', async () => {
   assert.deepEqual(confirmed.body.user.roles, ['owner']);
 });
 
+test('readiness requires an active Owner, not a merely confirmed invitation', async () => {
+  addUser({ email: 'owner@caseflow.test', roles: ['owner'], confirmed: true, status: 'invited' });
+  assert.equal((await getAuthProvisioningStatus()).ownerProvisioned, false);
+});
+
 test('configured Owner receives a one-time invitation and readiness waits for acceptance', async () => {
   const invitation = await ensureConfiguredOwnerInvitation();
   assert.equal(invitation.invited, true);
