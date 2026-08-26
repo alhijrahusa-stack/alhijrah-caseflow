@@ -15,6 +15,44 @@ Browser users authenticate through `POST /api/v1/auth/login`. Access and refresh
 
 Production roles are Owner, Admin, Supervisor, Case Manager, Form Preparer, Document Reviewer, Translator, Attorney / Accredited Representative, Billing, Auditor, Client Owner, and Client Collaborator. Owner has all permissions.
 
+Roles are the starting point, not the whole model. Access is resolved per request from Owner-recorded policy — see **Effective authorization** below. Only an existing Owner may grant or remove the Owner role, or alter an Owner's account.
+
+## Effective authorization
+
+**Nothing narrows by default.** With no policy stored, every staff member's scope is `global`, which is exactly the access they had before this model existed. `20260824040000_authorization_model.sql` creates the policy tables empty, so applying it changes nobody's visibility. Narrowing anyone is an Owner action taken in the Access Control view.
+
+Effective access is resolved in layers, each able to add or remove, later winning:
+
+```
+role defaults  ->  role policy  ->  team policies  ->  user policy
+```
+
+So a user-level grant overrides a team-level restriction, and a user-level restriction overrides a role default. Record-level grants and restrictions apply on top. The Owner is outside the system: no restriction applies to the Owner role, and a policy claiming to limit it is refused at the API.
+
+Each module (`cases`, `documents`, `tasks`, `deadlines`, `billing`, `audit`, `reports`, `portal`, …) is scoped independently:
+
+| Scope | Reaches |
+| --- | --- |
+| `global` | every record — the default for staff |
+| `team` | records belonging to a team the user is on |
+| `assigned` | records assigned to the user via `case_assignments` (legacy `assigned_to` labels still match) |
+| `explicit_client` | only clients granted explicitly |
+| `explicit_category` | only case categories (practice areas) granted explicitly |
+| `explicit_case` | only cases granted explicitly |
+| `client_self` | only the user's own client — the default for portal roles |
+
+Record grants and restrictions are addressed to a **case**, a **client**, a **case category** (practice area) or a single **service code**. Grants widen beyond the configured scope; restrictions remove the target however wide the scope is. A grant may carry its own permission list, so one case can be handed over for viewing without opening the module. Any combination is valid: a user may be scoped to `assigned` and additionally granted one client and one practice area.
+
+### Database layer
+
+Every table has RLS enabled with **no permissive policy**, and `anon`/`authenticated` hold **no grants**, so a leaked publishable key reads nothing — verified in CI-style checks against PostgreSQL 16. The API reaches the database solely through the server-side `service_role` connection, which bypasses RLS by design; the API is therefore the authorization boundary and every route resolves the effective model before touching data. `audit_events` and `case_events` remain append-only against `UPDATE`/`DELETE` via trigger, and `ON DELETE RESTRICT` stops a case deletion from taking its own history with it.
+
+The model is enforced on case listing and direct UUID reads, case writes, document listing, presigning, upload confirmation, signed download URLs, document review and deletion, and the audit trail. Listings narrow in the query where the scope allows and are filtered again per row, so a bug in the query filter cannot widen access. An unreachable record reports 404 rather than 403, so a response does not confirm that an id exists.
+
+Portal principals default to `client_self` and reach a case only through an active `client_access` row. Granting a portal user `cases.view` widens their permission, not their scope.
+
+Operational notes: policy is cached in-process for 10 seconds and invalidated on write, so behind more than one instance a change can take that long to propagate everywhere. If the authorization tables are absent (migration not yet applied), the resolver falls back to role defaults with global scope — the pre-migration state — rather than locking the firm out; any other failure fails closed.
+
 ## Core capabilities
 
 - Clients, family members, and relationships
@@ -52,8 +90,12 @@ For an existing installation, apply SQL files in filename order:
 
 1. `supabase/schema.sql` is the preserved baseline.
 2. `supabase/migrations/20260824030000_core_platform.sql` is the non-destructive production expansion.
+3. `supabase/migrations/20260824040000_authorization_model.sql` adds teams, access policies and record grants, plus the integrity gaps the expansion left open.
+4. `supabase/migrations/20260824050000_category_access_grants.sql` lets a record grant target a case category or service code. Non-destructive: adds one nullable column, relaxes `resource_id` to nullable, and replaces the uniqueness index so both target shapes share one key. No row is written, altered or deleted.
 
-The migration retains existing case/document data, adds operational entities and seed data, enables RLS on server-owned tables, and revokes direct `anon` and `authenticated` access. Translators, preparers, interpreters and representatives are form assignments—not case parties.
+The migrations retain existing case/document data, add operational entities and seed data, enable RLS on server-owned tables, and revoke direct `anon` and `authenticated` access. Translators, preparers, interpreters and representatives are form assignments—not case parties.
+
+The authorization migration is additive only: the policy tables are created empty and every added column is nullable, so no existing user loses visibility. It also closes three integrity gaps: `case_events` and `documents` referenced `cases` with `ON DELETE CASCADE`, so deleting a case took its own history with it through the foreign key rather than through a blocked `DELETE`; documents gain soft-delete columns; and `filing_deadline` is a `date`, not a `timestamptz` — a deadline is a wall-clock day in a filing jurisdiction, and a timestamp renders as the previous day west of the server. The same rule applies to money: `numeric(12,2)` or integer minor units, never `float`/`real`.
 
 ## Local verification
 
@@ -62,8 +104,16 @@ node --check src/server.js
 node --check src/auth.js
 node --check src/platform.js
 node --check src/intake-definitions.js
-node --test
+node --check src/access.js
+npm test          # unit + API integration, no network or live backend
+npm run test:e2e  # Playwright, drives the real server against a stub backend
 ```
+
+## Front end
+
+The workspace ships as `src/public/index.html` plus `src/public/app.js`, served at `/app.js`. The page contains no inline `<script>` and no inline event handlers, which is what lets the policy set `script-src 'self'` outright rather than relaxing it to `'unsafe-inline'`.
+
+Markup declares intent as data attributes — `data-act="openCase" data-a1="..."` — and a single frozen dispatch table in `app.js` is the only thing that turns a name into a call. An unknown or attacker-supplied `data-act` matches nothing and does nothing; there is no `eval`, no `new Function`, and no lookup by string on `window`. Adding a new control means adding its handler to that table.
 
 ## Security baseline
 
@@ -75,4 +125,16 @@ node --test
 - Request size limits, input validation and output escaping
 - HSTS, CSP, frame, referrer and MIME hardening headers
 - Append-only operational audit events
+- `script-src 'self'` — no inline script and no inline event handlers
+- Deny-by-default route authorization: an unmapped `/api` path is refused
+- CSRF gate that fails closed and pins the expected origin to `APP_BASE_URL`
+- Per-identity login throttling
+- Upstream database and storage error payloads never returned to clients
 - No secrets or customer documents in Git
+
+### Known residual risks
+
+- **Security hardening debt, tracked for final production lockdown:** `style-src` still allows `'unsafe-inline'`, because the markup carries 21 `style` attributes that a nonce cannot cover. Closing it means moving them into the stylesheet. `script-src` is already `'self'` with no inline allowance, so there is no script-execution surface behind this item.
+- Login throttling is per process. Behind more than one instance the effective limit multiplies; a shared store is needed to scale it horizontally.
+- Broad staff access remains the default, by design. It is now the Owner's decision rather than a hard-coded property, but an untouched deployment still has every staff member seeing every case.
+- Listings apply the row filter after the query limit, so a narrowed principal paging a very large table may see fewer than `limit` rows per page.

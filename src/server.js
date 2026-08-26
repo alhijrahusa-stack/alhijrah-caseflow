@@ -8,7 +8,7 @@ import {
   authenticateSession,
   clearSessionCookies,
   getAuthProvisioningStatus,
-  hasPermission,
+  getAuthUser,
   internalPrincipal,
   inviteAuthUser,
   listAuthUsers,
@@ -20,8 +20,13 @@ import {
   sessionTokens,
   setSessionCookies,
   signInWithPassword,
+  trustedOrigins,
   updateAuthUser,
 } from './auth.js';
+import {
+  accessModules,accessScopes,canAccessCase,canAccessDocument,caseListFilter,filterAccessibleCases,
+  hasEffectivePermission,isValidScope,permissionCatalogue,resolveAccess,scopeFor,
+} from './access.js';
 import {
   canTransitionWorkflow,
   cleanDate,
@@ -37,7 +42,7 @@ import {
 import { intakeDefinition, validateIntakeAnswers } from './intake-definitions.js';
 
 const port = Number(process.env.PORT || 3000);
-const version = '2.8.0';
+const version = '2.9.0';
 const service = 'alhijrah-caseflow-api';
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -50,12 +55,12 @@ const r2 = r2Endpoint && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_A
   credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY }
 }) : null;
 
-function securityHeaders(){return {'cache-control':'no-store','content-security-policy':"default-src 'self'; connect-src 'self' https:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",'permissions-policy':'camera=(), microphone=(), geolocation=()','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','strict-transport-security':'max-age=31536000; includeSubDomains'}}
+function securityHeaders(){return {'cache-control':'no-store','content-security-policy':"default-src 'self'; connect-src 'self' https:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",'permissions-policy':'camera=(), microphone=(), geolocation=()','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','strict-transport-security':'max-age=31536000; includeSubDomains'}}
 function json(res,status,body,extra={}){res.writeHead(status,{'content-type':'application/json; charset=utf-8',...securityHeaders(),...extra});res.end(JSON.stringify(body))}
-function cors(req){const origin=req.headers.origin;const allowed=(process.env.CORS_ORIGINS||'').split(',').map(v=>v.trim()).filter(Boolean);if(!origin||!allowed.includes(origin))return {};return {'access-control-allow-origin':origin,'access-control-allow-methods':'GET,POST,PUT,PATCH,DELETE,OPTIONS','access-control-allow-headers':'content-type,x-api-key,x-request-id','access-control-max-age':'86400',vary:'Origin'}}
+function cors(req){const origin=req.headers.origin;if(!origin||!trustedOrigins(req).has(origin))return {};return {'access-control-allow-origin':origin,'access-control-allow-credentials':'true','access-control-allow-methods':'GET,POST,PUT,PATCH,DELETE,OPTIONS','access-control-allow-headers':'content-type,x-api-key,x-request-id','access-control-max-age':'86400',vary:'Origin'}}
 async function readJson(req,max=1_000_000){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>max)throw Object.assign(new Error('PAYLOAD_TOO_LARGE'),{status:413});chunks.push(c)}try{return JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}')}catch{throw Object.assign(new Error('INVALID_JSON'),{status:400})}}
 function internalAuth(req){if(!internalApiKey)throw Object.assign(new Error('API_NOT_CONFIGURED'),{status:503});const supplied=req.headers['x-api-key'];if(typeof supplied!=='string')throw Object.assign(new Error('UNAUTHORIZED'),{status:401});const a=Buffer.from(supplied),b=Buffer.from(internalApiKey);if(a.length!==b.length||!crypto.timingSafeEqual(a,b))throw Object.assign(new Error('UNAUTHORIZED'),{status:401});return internalPrincipal()}
-async function db(path,{method='GET',body,query=''}={}){if(!supabaseUrl||!supabaseServiceKey)throw Object.assign(new Error('SUPABASE_NOT_CONFIGURED'),{status:503});const r=await fetch(`${supabaseUrl}/rest/v1/${path}${query}`,{method,headers:{apikey:supabaseServiceKey,authorization:`Bearer ${supabaseServiceKey}`,'content-type':'application/json',prefer:method==='POST'||method==='PATCH'?'return=representation':''},body:body===undefined?undefined:JSON.stringify(body)});const text=await r.text();let data=null;try{data=text?JSON.parse(text):null}catch{data=text}if(!r.ok){const e=new Error('DATABASE_REQUEST_FAILED');e.status=r.status>=500?502:r.status;e.details=data;throw e}return data}
+async function db(path,{method='GET',body,query=''}={}){if(!supabaseUrl||!supabaseServiceKey)throw Object.assign(new Error('SUPABASE_NOT_CONFIGURED'),{status:503});const r=await fetch(`${supabaseUrl}/rest/v1/${path}${query}`,{method,headers:{apikey:supabaseServiceKey,authorization:`Bearer ${supabaseServiceKey}`,'content-type':'application/json',prefer:method==='POST'||method==='PATCH'?'return=representation':''},body:body===undefined?undefined:JSON.stringify(body)});const text=await r.text();let data=null;try{data=text?JSON.parse(text):null}catch{data=text}if(!r.ok){const e=new Error('DATABASE_REQUEST_FAILED');e.status=r.status>=500?502:r.status;e.internalDetails=data;throw e}return data}
 function safeKey(x){const c=String(x||'').replace(/[^a-zA-Z0-9._/-]/g,'_').replace(/\.\./g,'_');if(!c||c.startsWith('/'))throw Object.assign(new Error('INVALID_OBJECT_KEY'),{status:400});return c}
 function uuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||''))}
 const allowedDocumentTypes=new Set(['application/pdf','image/jpeg','image/png','image/webp','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
@@ -63,7 +68,7 @@ function stableUuid(value){const hex=crypto.createHash('sha256').update(value).d
 function documentInput(body){const caseId=String(body.case_id||'');if(!uuid(caseId))throw Object.assign(new Error('VALID_CASE_ID_REQUIRED'),{status:400});const fileName=String(body.filename||body.file_name||'').trim().slice(0,180);if(!fileName||/[\x00-\x1f]/.test(fileName))throw Object.assign(new Error('VALID_FILENAME_REQUIRED'),{status:400});const contentType=String(body.content_type||'').toLowerCase();if(!allowedDocumentTypes.has(contentType))throw Object.assign(new Error('UNSUPPORTED_DOCUMENT_TYPE'),{status:415});const sizeBytes=Number(body.size_bytes);if(!Number.isSafeInteger(sizeBytes)||sizeBytes<1||sizeBytes>25*1024*1024)throw Object.assign(new Error('DOCUMENT_SIZE_NOT_ALLOWED'),{status:413});return{caseId,fileName,contentType,sizeBytes}}
 function documentChecksum(value){if(value===undefined||value===null||value==='')return null;const checksum=String(value).toLowerCase();if(!/^[a-f0-9]{64}$/.test(checksum))throw Object.assign(new Error('INVALID_DOCUMENT_CHECKSUM'),{status:400});return checksum}
 async function audit(principal,action,entityType,entityId,payload={},req){try{await db('audit_events',{method:'POST',body:{id:crypto.randomUUID(),actor_user_id:principal?.id||null,actor_label:principal?.displayName||'System',actor_roles:principal?.roles||[],action,entity_type:entityType,entity_id:entityId||null,client_id:uuid(payload.client_id)?payload.client_id:null,case_id:uuid(payload.case_id)?payload.case_id:null,metadata:{...payload,...(req?safeAuditContext(req):{})}}})}catch(e){console.error('audit-write-failed',e.message)}}
-async function event(caseId,type,payload={},principal,req){try{await db('case_events',{method:'POST',body:{id:crypto.randomUUID(),case_id:caseId,event_type:type,actor:principal?.displayName||'Caseflow Workspace',payload}})}catch(e){console.error('event-write-failed',e.message)}await audit(principal,type,'case',caseId,payload,req)}
+async function event(caseId,type,payload={},principal,req){try{await db('case_events',{method:'POST',body:{id:crypto.randomUUID(),case_id:caseId,event_type:type,actor:principal?.displayName||'Caseflow Workspace',actor_user_id:principal?.id||null,payload}})}catch(e){console.error('event-write-failed',e.message)}await audit(principal,type,'case',caseId,payload,req)}
 
 async function syncApplicationUser(user){
   const existing=await db('app_users',{query:`?auth_user_id=eq.${encodeURIComponent(user.id)}&select=auth_user_id`});
@@ -96,6 +101,70 @@ async function resolveApplicationPrincipal(principal){
   }
 }
 
+// The Owner's decisions live in a few small tables, read together and cached
+// briefly so a request costs no extra round trips in the common case.
+const accessCacheTtlMs=10_000;
+let accessCache=null;
+export function invalidateAccessCache(){accessCache=null}
+
+// A missing table means the authorization migration has not been applied yet.
+// That is the pre-migration state, in which no Owner decision exists and
+// everyone keeps the access they already had, so it resolves to an empty
+// policy set rather than locking the firm out. Every other failure fails
+// closed, because silently dropping restrictions would hand out more access
+// than the Owner granted.
+function isMissingRelation(error){const d=error?.internalDetails;const m=typeof d==='string'?d:`${d?.message||''} ${d?.code||''}`;return error?.status===404||/does not exist|PGRST205|42P01/i.test(m)}
+
+async function loadAccessTables(){
+  if(accessCache&&Date.now()-accessCache.at<accessCacheTtlMs)return accessCache;
+  const tables={at:Date.now(),policies:[],recordGrants:[],teamMembers:[],clientAccess:[],assignments:[],degraded:false};
+  try{
+    const [policies,recordGrants,teamMembers,clientAccess,assignments]=await Promise.all([
+      db('access_policies',{query:'?select=*'}),
+      db('record_access_grants',{query:'?select=*'}),
+      db('team_members',{query:'?select=team_id,user_id'}),
+      db('client_access',{query:'?select=client_id,auth_user_id,access_role,status'}),
+      db('case_assignments',{query:'?select=case_id,auth_user_id,active'}),
+    ]);
+    Object.assign(tables,{policies:policies||[],recordGrants:recordGrants||[],teamMembers:teamMembers||[],clientAccess:clientAccess||[],assignments:assignments||[]});
+  }catch(error){
+    if(!isMissingRelation(error))throw error;
+    console.warn('access-tables-unavailable: falling back to role defaults (authorization migration not applied?)');
+    tables.degraded=true;
+  }
+  accessCache=tables;
+  return accessCache;
+}
+
+async function accessFor(principal){
+  // Internal API-key callers and the owner are unrestricted, so they need no
+  // policy lookup at all.
+  if(principal?.authType==='internal'||principal?.permissions?.has?.('*'))return resolveAccess({principal});
+  const t=await loadAccessTables();
+  const me=String(principal?.id||'');
+  return resolveAccess({
+    principal,
+    policies:t.policies,
+    recordGrants:t.recordGrants,
+    teamIds:t.teamMembers.filter(r=>String(r.user_id)===me).map(r=>r.team_id),
+    clientIds:t.clientAccess.filter(r=>String(r.auth_user_id)===me&&r.status==='active').map(r=>r.client_id),
+    assignedCaseIds:t.assignments.filter(r=>String(r.auth_user_id)===me&&r.active!==false).map(r=>r.case_id),
+  });
+}
+
+// Fetch the case rows a set of documents or events depends on, so the record
+// decision has the fields the configured scope needs. Skipped for an
+// unrestricted principal.
+async function casesById(access,ids){
+  const index=new Map();
+  if(access?.isOwner)return index;
+  const unique=[...new Set(ids.filter(id=>uuid(id)).map(String))];
+  if(!unique.length)return index;
+  const rows=await db('cases',{query:`?id=in.(${unique.join(',')})&select=id,client_id,team_id,assigned_user_id,assigned_to,service_code`});
+  for(const row of rows||[])index.set(String(row.id),row);
+  return index;
+}
+
 function requiredPermission(req,path){
   if(path.startsWith('/api/v1/portal/documents'))return 'portal.documents';
   if(path.startsWith('/api/v1/portal/intakes'))return 'portal.intake';
@@ -118,15 +187,25 @@ function requiredPermission(req,path){
   if(path.startsWith('/api/v1/document-requests'))return req.method==='GET'?'documents.view':'documents.manage';
   if(path.startsWith('/api/v1/documents'))return path.endsWith('/review')?'documents.review':req.method==='GET'||path.endsWith('/download-url')?'documents.view':'documents.manage';
   if(path.startsWith('/api/v1/cases'))return req.method==='GET'?'cases.view':'cases.manage';
-  return 'dashboard.view';
+  // Owner access management. No role holds access.manage by default, so these
+  // are owner-only until the Owner delegates the permission.
+  if(path.startsWith('/api/v1/access'))return 'access.manage';
+  if(path==='/api/v1/teams'||path.startsWith('/api/v1/teams/'))return 'access.manage';
+  // Deny by default. Falling through to dashboard.view meant any route added
+  // later silently inherited the weakest permission in the system.
+  return null;
 }
 
 async function authorize(req,res,permission){
   let principal;
   if(req.headers['x-api-key'])principal=internalAuth(req);
   else{assertSameOrigin(req);principal=await resolveApplicationPrincipal(await authenticateSession(req,res))}
-  if(!hasPermission(principal,permission))throw Object.assign(new Error('FORBIDDEN'),{status:403});
-  return principal;
+  const access=await accessFor(principal);
+  // A null permission means no rule matched the route: deny. The module-level
+  // check happens here; record-level checks happen in the route, where the
+  // record is available.
+  if(!permission||!hasEffectivePermission(access,permission))throw Object.assign(new Error('FORBIDDEN'),{status:403});
+  return {principal,access};
 }
 
 async function portalCase(principal,caseId){
@@ -144,10 +223,101 @@ async function portalCase(principal,caseId){
   return cases[0];
 }
 
+// The owner role is the root of this system's authority: it is unrestricted by
+// design, so being able to hand it out is equivalent to being able to take
+// over. Only an existing owner may grant or remove it, and only an owner may
+// alter an owner's account at all. Without this, any holder of users.manage
+// (every admin) could promote themselves and escape every Owner decision.
+function assertOwnerRoleChangeAllowed(access,principal,target,requestedRoles,requestedStatus){
+  if(access?.isOwner)return;
+  const targetIsOwner=(target?.roles||[]).includes('owner');
+  if(targetIsOwner)throw Object.assign(new Error('OWNER_ACCOUNT_IS_OWNER_CONTROLLED'),{status:403});
+  if(Array.isArray(requestedRoles)&&requestedRoles.includes('owner'))throw Object.assign(new Error('OWNER_ROLE_IS_OWNER_CONTROLLED'),{status:403});
+  // Changing your own roles is how a self-escalation chain starts.
+  if(target?.id&&String(target.id)===String(principal?.id)&&requestedRoles!==undefined)throw Object.assign(new Error('SELF_ROLE_CHANGE_NOT_PERMITTED'),{status:403});
+  if(requestedStatus!==undefined&&targetIsOwner)throw Object.assign(new Error('OWNER_ACCOUNT_IS_OWNER_CONTROLLED'),{status:403});
+}
+
+// A serialisable view of a resolved principal, used by /auth/me, login, and the
+// Owner's effective-access preview.
+function describeAccess(a){
+  const scopes={};
+  for(const m of accessModules)scopes[m]=scopeFor(a,m);
+  return {is_owner:a.isOwner,permissions:a.isOwner?['*']:[...a.permissions].sort(),restrictions:[...a.restrictions].sort(),scopes,
+    team_ids:[...a.teamIds],client_ids:[...a.clientIds],granted_case_ids:[...a.grantedCaseIds],granted_client_ids:[...a.grantedClientIds],
+    restricted_case_ids:[...a.restrictedCaseIds],restricted_client_ids:[...a.restrictedClientIds]};
+}
+
+async function publicUser(principal){
+  const a=await accessFor(principal);
+  // Permissions and scopes are published so the workspace can hide controls the
+  // caller cannot use. Presentation only -- every route enforces the model
+  // server-side, per record.
+  return {id:principal.id,email:principal.email,display_name:principal.displayName,roles:principal.roles,
+    permissions:a.isOwner?['*']:[...a.permissions],access:describeAccess(a)};
+}
+
+function validationError(fields){return Object.assign(new Error('VALIDATION_FAILED'),{status:400,fields})}
+
+function validateAccessPolicy(body){
+  const errors={};
+  const subjectType=String(body.subject_type||'');
+  if(!['role','team','user'].includes(subjectType))errors.subject_type='Must be role, team or user';
+  const subjectId=String(body.subject_id||'').trim();
+  if(!subjectId)errors.subject_id='A subject is required';
+  if(subjectType==='role'&&!roleDefinitions[subjectId])errors.subject_id='Unknown role';
+  if((subjectType==='team'||subjectType==='user')&&!uuid(subjectId))errors.subject_id='Must be a UUID';
+  // The Owner is unrestricted by definition; a policy pretending to limit the
+  // owner role would be a lie the engine ignores, so it is refused here.
+  if(subjectType==='role'&&subjectId==='owner')errors.subject_id='The owner role cannot be restricted';
+  const catalogue=new Set(permissionCatalogue());
+  const grants=Array.isArray(body.grants)?body.grants.map(v=>String(v).trim()).filter(Boolean):[];
+  const restrictions=Array.isArray(body.restrictions)?body.restrictions.map(v=>String(v).trim()).filter(Boolean):[];
+  for(const permission of [...grants,...restrictions])if(permission!=='*'&&!catalogue.has(permission))errors.permissions=`Unknown permission: ${permission}`;
+  const scopes={};
+  const supplied=body.scopes&&typeof body.scopes==='object'&&!Array.isArray(body.scopes)?body.scopes:{};
+  for(const [module,scope] of Object.entries(supplied)){
+    if(!accessModules.includes(module))errors.scopes=`Unknown module: ${module}`;
+    else if(!isValidScope(scope))errors.scopes=`Unknown scope: ${scope}`;
+    else scopes[module]=scope;
+  }
+  if(Object.keys(errors).length)throw validationError(errors);
+  return {subject_type:subjectType,subject_id:subjectId,grants,restrictions,scopes,note:String(body.note||'').trim().slice(0,400)||null};
+}
+
+const serviceCodes=new Set(serviceCatalog.map(service=>service.code));
+const serviceCategories=new Set(serviceCatalog.map(service=>service.category));
+
+function validateRecordGrant(body){
+  const errors={};
+  if(!['user','team'].includes(body.subject_type))errors.subject_type='Must be user or team';
+  if(!uuid(body.subject_id))errors.subject_id='Must be a UUID';
+  if(!['case','client','category','service'].includes(body.resource_type))errors.resource_type='Must be case, client, category or service';
+  // case/client are addressed by uuid; category/service by a catalogue key,
+  // validated against the catalogue so a typo cannot create a dead grant.
+  const keyed=['category','service'].includes(body.resource_type);
+  if(!keyed&&!uuid(body.resource_id))errors.resource_id='Must be a UUID';
+  if(keyed){
+    const key=String(body.resource_key||'').trim();
+    const known=body.resource_type==='category'?serviceCategories:serviceCodes;
+    if(!key||!known.has(key))errors.resource_key=`Unknown ${body.resource_type}`;
+  }
+  if(!['grant','restrict'].includes(body.effect))errors.effect='Must be grant or restrict';
+  const catalogue=new Set(permissionCatalogue());
+  const permissions=Array.isArray(body.permissions)?body.permissions.map(v=>String(v).trim()).filter(Boolean):[];
+  for(const permission of permissions)if(!catalogue.has(permission))errors.permissions=`Unknown permission: ${permission}`;
+  if(Object.keys(errors).length)throw validationError(errors);
+  const keyedTarget=['category','service'].includes(body.resource_type);
+  return {subject_type:body.subject_type,subject_id:body.subject_id,resource_type:body.resource_type,
+    resource_id:keyedTarget?null:body.resource_id,resource_key:keyedTarget?String(body.resource_key).trim():null,
+    effect:body.effect,permissions,note:String(body.note||'').trim().slice(0,400)||null};
+}
+
 async function handle(req,res){
   const requestId=req.headers['x-request-id']||crypto.randomUUID();res.setHeader('x-request-id',requestId);const u=new URL(req.url,`http://${req.headers.host||'localhost'}`);const ch=cors(req);
   if(req.method==='OPTIONS'){res.writeHead(204,{...securityHeaders(),...ch});return res.end()}
   if(req.method==='GET'&&u.pathname==='/'){const html=fs.readFileSync(new URL('./public/index.html',import.meta.url));res.writeHead(200,{'content-type':'text/html; charset=utf-8',...securityHeaders(),'cache-control':'no-cache'});return res.end(html)}
+  if(req.method==='GET'&&u.pathname==='/app.js'){const js=fs.readFileSync(new URL('./public/app.js',import.meta.url));res.writeHead(200,{'content-type':'text/javascript; charset=utf-8',...securityHeaders(),'cache-control':'no-cache'});return res.end(js)}
   if(req.method==='GET'&&u.pathname==='/health')return json(res,200,{status:'ok',service,version,requestId},ch);
   if(req.method==='GET'&&u.pathname==='/ready'){
     const [authStatus,databaseState,r2State]=await Promise.all([
@@ -160,13 +330,16 @@ async function handle(req,res){
     return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,requestId},ch);
   }
 
-  if(req.method==='GET'&&u.pathname==='/api/v1/auth/status'){const status=await getAuthProvisioningStatus();return json(res,200,{configured:status.configured,ownerProvisioned:status.ownerProvisioned,userCount:status.userCount,errorCode:status.errorCode||null,requestId},ch)}
-  if(req.method==='POST'&&u.pathname==='/api/v1/auth/login'){assertSameOrigin(req);const body=await readJson(req,16_384);const session=await signInWithPassword(body.email,body.password);const principal=await resolveApplicationPrincipal(principalFromUser(session.user));setSessionCookies(res,session);await audit(principal,'login','session',principal.id,{},req);return json(res,200,{user:{id:principal.id,email:principal.email,display_name:principal.displayName,roles:principal.roles},requestId},ch)}
+  // Unauthenticated. Reports only whether sign-in is usable; the tenant user
+  // count is operational data and stays behind authentication.
+  if(req.method==='GET'&&u.pathname==='/api/v1/auth/status'){const status=await getAuthProvisioningStatus();return json(res,200,{configured:status.configured,ownerProvisioned:status.ownerProvisioned,errorCode:status.errorCode||null,requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/auth/login'){assertSameOrigin(req);const body=await readJson(req,16_384);const session=await signInWithPassword(body.email,body.password,req);const principal=await resolveApplicationPrincipal(principalFromUser(session.user));setSessionCookies(res,session);await audit(principal,'login','session',principal.id,{},req);return json(res,200,{user:await publicUser(principal),requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/auth/logout'){assertSameOrigin(req);let principal=null;try{principal=await authenticateSession(req,res)}catch{}const {accessToken}=sessionTokens(req);await revokeSession(accessToken);clearSessionCookies(res);await audit(principal,'logout','session',principal?.id||null,{},req);return json(res,200,{signedOut:true,requestId},ch)}
-  if(req.method==='GET'&&u.pathname==='/api/v1/auth/me'){const principal=await resolveApplicationPrincipal(await authenticateSession(req,res));return json(res,200,{user:{id:principal.id,email:principal.email,display_name:principal.displayName,roles:principal.roles},requestId},ch)}
+  if(req.method==='GET'&&u.pathname==='/api/v1/auth/me'){const principal=await resolveApplicationPrincipal(await authenticateSession(req,res));return json(res,200,{user:await publicUser(principal),requestId},ch)}
 
   let principal=null;
-  if(u.pathname.startsWith('/api/'))principal=await authorize(req,res,requiredPermission(req,u.pathname));
+  let access=null;
+  if(u.pathname.startsWith('/api/'))({principal,access}=await authorize(req,res,requiredPermission(req,u.pathname)));
 
   if(req.method==='GET'&&u.pathname==='/api/v1/portal'){
     const access=principal.permissions.has('*')?[]:await db('client_access',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&status=eq.active&select=client_id,access_role`});
@@ -390,9 +563,9 @@ async function handle(req,res){
   if(holdMatch&&req.method==='POST'){const data=await db('legal_holds',{method:'PATCH',query:`?id=eq.${encodeURIComponent(holdMatch[1])}&active=eq.true`,body:{active:false,released_by:principal.id,released_at:new Date().toISOString()}});if(!data.length)return json(res,404,{error:'ACTIVE_LEGAL_HOLD_NOT_FOUND',requestId},ch);await audit(principal,'legal_hold_released','legal_hold',holdMatch[1],{case_id:data[0].case_id,client_id:data[0].client_id},req);return json(res,200,{data:data[0],requestId},ch);}
 
   if(req.method==='GET'&&u.pathname==='/api/v1/users'){const data=await listAuthUsers();return json(res,200,{data,requestId},ch)}
-  if(req.method==='POST'&&u.pathname==='/api/v1/users'){const body=await readJson(req,32_768);const data=await inviteAuthUser({email:body.email,displayName:body.display_name,roles:body.roles});await syncApplicationUser({...data,display_name:body.display_name,assigned_by:principal.id});await audit(principal,'user_invited','user',data.id,{roles:data.roles},req);return json(res,201,{data,requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/users'){const body=await readJson(req,32_768);assertOwnerRoleChangeAllowed(access,principal,null,body.roles,undefined);const data=await inviteAuthUser({email:body.email,displayName:body.display_name,roles:body.roles});await syncApplicationUser({...data,display_name:body.display_name,assigned_by:principal.id});await audit(principal,'user_invited','user',data.id,{roles:data.roles},req);return json(res,201,{data,requestId},ch)}
   const um=u.pathname.match(/^\/api\/v1\/users\/([0-9a-f-]{36})$/i);
-  if(um&&req.method==='PATCH'){const body=await readJson(req,32_768);if(um[1]===principal.id&&body.status==='inactive')throw Object.assign(new Error('CANNOT_DEACTIVATE_CURRENT_USER'),{status:409});if(Array.isArray(body.roles)&&!body.roles.includes('owner')&&applicationOwnerEmail){const target=(await listAuthUsers()).find(user=>user.id===um[1]);if(String(target?.email||'').toLowerCase()===applicationOwnerEmail)throw Object.assign(new Error('APPLICATION_OWNER_ROLE_REQUIRED'),{status:409});}const data=await updateAuthUser(um[1],{displayName:body.display_name,roles:body.roles,status:body.status});await syncApplicationUser({...data,assigned_by:principal.id});await audit(principal,'user_updated','user',data.id,{roles:data.roles,status:data.status},req);return json(res,200,{data,requestId},ch)}
+  if(um&&req.method==='PATCH'){const body=await readJson(req,32_768);assertOwnerRoleChangeAllowed(access,principal,await getAuthUser(um[1]),body.roles,body.status);if(um[1]===principal.id&&body.status==='inactive')throw Object.assign(new Error('CANNOT_DEACTIVATE_CURRENT_USER'),{status:409});if(Array.isArray(body.roles)&&!body.roles.includes('owner')&&applicationOwnerEmail){const target=(await listAuthUsers()).find(user=>user.id===um[1]);if(String(target?.email||'').toLowerCase()===applicationOwnerEmail)throw Object.assign(new Error('APPLICATION_OWNER_ROLE_REQUIRED'),{status:409});}const data=await updateAuthUser(um[1],{displayName:body.display_name,roles:body.roles,status:body.status});await syncApplicationUser({...data,assigned_by:principal.id});await audit(principal,'user_updated','user',data.id,{roles:data.roles,status:data.status},req);return json(res,200,{data,requestId},ch)}
 
   if(req.method==='GET'&&u.pathname==='/api/v1/services'){
     const category=u.searchParams.get('category');
@@ -509,7 +682,7 @@ async function handle(req,res){
     const existing=await db('client_access',{query:`?client_id=eq.${encodeURIComponent(clientAccessMatch[1])}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}&select=client_id`});
     const record={access_role:accessRole,status:'active',granted_by:principal.id,granted_at:new Date().toISOString(),revoked_at:null};
     const data=existing.length?await db('client_access',{method:'PATCH',query:`?client_id=eq.${encodeURIComponent(clientAccessMatch[1])}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}`,body:record}):await db('client_access',{method:'POST',body:{client_id:clientAccessMatch[1],auth_user_id:body.auth_user_id,...record}});
-    await audit(principal,'client_portal_access_granted','client',clientAccessMatch[1],{client_id:clientAccessMatch[1],auth_user_id:body.auth_user_id,access_role:accessRole},req);
+    invalidateAccessCache();await audit(principal,'client_portal_access_granted','client',clientAccessMatch[1],{client_id:clientAccessMatch[1],auth_user_id:body.auth_user_id,access_role:accessRole},req);
     return json(res,200,{data:data[0]||data,requestId},ch);
   }
 
@@ -517,7 +690,7 @@ async function handle(req,res){
   if(clientAccessUserMatch&&req.method==='DELETE'){
     const data=await db('client_access',{method:'PATCH',query:`?client_id=eq.${encodeURIComponent(clientAccessUserMatch[1])}&auth_user_id=eq.${encodeURIComponent(clientAccessUserMatch[2])}`,body:{status:'revoked',revoked_at:new Date().toISOString()}});
     if(!data.length)return json(res,404,{error:'CLIENT_ACCESS_NOT_FOUND',requestId},ch);
-    await audit(principal,'client_portal_access_revoked','client',clientAccessUserMatch[1],{client_id:clientAccessUserMatch[1],auth_user_id:clientAccessUserMatch[2]},req);
+    invalidateAccessCache();await audit(principal,'client_portal_access_revoked','client',clientAccessUserMatch[1],{client_id:clientAccessUserMatch[1],auth_user_id:clientAccessUserMatch[2]},req);
     return json(res,200,{data:data[0],requestId},ch);
   }
 
@@ -586,7 +759,10 @@ async function handle(req,res){
     return json(res,200,{data,requestId},ch);
   }
 
-  if(req.method==='GET'&&u.pathname==='/api/v1/cases'){const limit=Math.min(Math.max(Number(u.searchParams.get('limit')||100),1),250);const data=await db('cases',{query:`?select=*&order=created_at.desc&limit=${limit}`});return json(res,200,{data,requestId},ch)}
+  if(req.method==='GET'&&u.pathname==='/api/v1/cases'){const limit=Math.min(Math.max(Number(u.searchParams.get('limit')||100),1),250);const filter=caseListFilter(access,'cases.view');if(filter?.matchesNothing)return json(res,200,{data:[],requestId},ch);const rows=await db('cases',{query:`?select=*&order=created_at.desc&limit=${limit}${filter?filter.query:''}`});
+    // The scope narrows the query; explicit restrictions are subtracted after,
+    // since a positive union and a negative set are not one PostgREST filter.
+    return json(res,200,{data:filterAccessibleCases(access,rows||[],'cases.view'),requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/cases'){
     const b=await readJson(req);
     let clientName=cleanText(b.client_name,{max:180});
@@ -606,9 +782,14 @@ async function handle(req,res){
     return json(res,201,{data,requestId},ch);
   }
   const cm=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})$/i);
-  if(cm&&req.method==='GET'){const data=await db('cases',{query:`?id=eq.${encodeURIComponent(cm[1])}&select=*`});if(!Array.isArray(data)||!data.length)return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);return json(res,200,{data:data[0],requestId},ch)}
+  // Addressing a record by UUID goes through the same decision as listing it.
+  // A record the caller may not see reports 404, not 403, so the response does
+  // not confirm that the id exists.
+  if(cm&&req.method==='GET'){const data=await db('cases',{query:`?id=eq.${encodeURIComponent(cm[1])}&select=*`});if(!Array.isArray(data)||!data.length||!canAccessCase(access,data[0],'cases.view'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);return json(res,200,{data:data[0],requestId},ch)}
   if(cm&&req.method==='PATCH'){
     const b=await readJson(req);
+    const target=await db('cases',{query:`?id=eq.${encodeURIComponent(cm[1])}&select=*`});
+    if(!target.length||!canAccessCase(access,target[0],'cases.manage'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
     if(b.workflow_stage){
       const rows=await db('cases',{query:`?id=eq.${encodeURIComponent(cm[1])}&select=id,workflow_stage`});
       if(!rows.length)return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
@@ -675,7 +856,7 @@ async function handle(req,res){
     const existing=await db('case_assignments',{query:`?case_id=eq.${encodeURIComponent(caseAssignmentsMatch[1])}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}&assignment_role=eq.${assignmentRole}&select=case_id`});
     const values={active:true,assigned_by:principal.id,assigned_at:new Date().toISOString(),ended_at:null};
     const data=existing.length?await db('case_assignments',{method:'PATCH',query:`?case_id=eq.${encodeURIComponent(caseAssignmentsMatch[1])}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}&assignment_role=eq.${assignmentRole}`,body:values}):await db('case_assignments',{method:'POST',body:{case_id:caseAssignmentsMatch[1],auth_user_id:body.auth_user_id,assignment_role:assignmentRole,...values}});
-    await audit(principal,'case_assigned','case',caseAssignmentsMatch[1],{case_id:caseAssignmentsMatch[1],auth_user_id:body.auth_user_id,assignment_role:assignmentRole},req);
+    invalidateAccessCache();await audit(principal,'case_assigned','case',caseAssignmentsMatch[1],{case_id:caseAssignmentsMatch[1],auth_user_id:body.auth_user_id,assignment_role:assignmentRole},req);
     return json(res,200,{data:data[0]||data,requestId},ch);
   }
 
@@ -683,7 +864,7 @@ async function handle(req,res){
   if(caseAssignmentMatch&&req.method==='DELETE'){
     const data=await db('case_assignments',{method:'PATCH',query:`?case_id=eq.${encodeURIComponent(caseAssignmentMatch[1])}&auth_user_id=eq.${encodeURIComponent(caseAssignmentMatch[2])}&assignment_role=eq.${encodeURIComponent(caseAssignmentMatch[3])}`,body:{active:false,ended_at:new Date().toISOString()}});
     if(!data.length)return json(res,404,{error:'CASE_ASSIGNMENT_NOT_FOUND',requestId},ch);
-    await audit(principal,'case_unassigned','case',caseAssignmentMatch[1],{case_id:caseAssignmentMatch[1],auth_user_id:caseAssignmentMatch[2],assignment_role:caseAssignmentMatch[3]},req);
+    invalidateAccessCache();await audit(principal,'case_unassigned','case',caseAssignmentMatch[1],{case_id:caseAssignmentMatch[1],auth_user_id:caseAssignmentMatch[2],assignment_role:caseAssignmentMatch[3]},req);
     return json(res,200,{data:data[0],requestId},ch);
   }
 
@@ -717,10 +898,22 @@ async function handle(req,res){
     return json(res,200,{data,requestId},ch);
   }
 
-  if(req.method==='GET'&&u.pathname==='/api/v1/documents'){const cid=u.searchParams.get('case_id');const query=cid?`?case_id=eq.${encodeURIComponent(cid)}&select=*&archived_at=is.null&order=created_at.desc`:'?select=*&archived_at=is.null&order=created_at.desc&limit=250';let data;try{data=await db('documents',{query})}catch(error){if(error.status!==400)throw error;const legacyQuery=cid?`?case_id=eq.${encodeURIComponent(cid)}&select=*&order=created_at.desc`:'?select=*&order=created_at.desc&limit=250';data=await db('documents',{query:legacyQuery})}return json(res,200,{data,requestId},ch)}
-  if(req.method==='POST'&&u.pathname==='/api/v1/documents/presign'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=id`});if(!Array.isArray(caseRows)||!caseRows.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const filename=safeKey(input.fileName).split('/').pop();const key=safeKey(`cases/${input.caseId}/${crypto.randomUUID()}-${filename}`);const uploadUrl=await getSignedUrl(r2,new PutObjectCommand({Bucket:r2Bucket,Key:key,ContentType:input.contentType,ContentLength:input.sizeBytes,Metadata:{case_id:input.caseId}}),{expiresIn:900});return json(res,200,{key,upload_url:uploadUrl,expires_in:900,required_headers:{'content-type':input.contentType},requestId},ch)}
-  if(req.method==='POST'&&u.pathname==='/api/v1/documents/confirm'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const key=safeKey(b.key);if(!key.startsWith(`cases/${input.caseId}/`))throw Object.assign(new Error('DOCUMENT_CASE_MISMATCH'),{status:403});const object=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));if(Number(object.ContentLength)!==input.sizeBytes||String(object.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});const checksum=documentChecksum(b.content_checksum);if(checksum){const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409,details:{document_id:duplicates[0].id}});}}const record={id:crypto.randomUUID(),case_id:input.caseId,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:checksum,status:'uploaded'};if(b.client_id||b.person_id||b.request_id||b.category||b.replaces_document_id){if(b.client_id&&!uuid(b.client_id)||b.person_id&&!uuid(b.person_id)||b.request_id&&!uuid(b.request_id)||b.replaces_document_id&&!uuid(b.replaces_document_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});Object.assign(record,{client_id:b.client_id||null,person_id:b.person_id||null,request_id:b.request_id||null,category:cleanText(b.category,{max:100}),review_status:'received',replaces_document_id:b.replaces_document_id||null});if(b.replaces_document_id){const previous=await db('documents',{query:`?id=eq.${encodeURIComponent(b.replaces_document_id)}&select=id,version`});if(!previous.length)throw Object.assign(new Error('REPLACED_DOCUMENT_NOT_FOUND'),{status:404});record.version=Number(previous[0].version||1)+1;await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(b.replaces_document_id)}`,body:{archived_at:new Date().toISOString()}})}}const data=await db('documents',{method:'POST',body:record});if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}`,body:{status:'received',updated_at:new Date().toISOString()}});await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id},principal,req);return json(res,201,{data,requestId},ch)}
-  if(req.method==='POST'&&u.pathname==='/api/v1/documents/download-url'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,16_384);let rows=[];if(uuid(b.document_id))rows=await db('documents',{query:`?id=eq.${encodeURIComponent(b.document_id)}&select=*`});else if(principal?.authType==='internal'&&b.key)rows=await db('documents',{query:`?object_key=eq.${encodeURIComponent(safeKey(b.key))}&select=*`});else throw Object.assign(new Error('VALID_DOCUMENT_ID_REQUIRED'),{status:400});if(!Array.isArray(rows)||!rows.length)throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});const doc=rows[0];const downloadUrl=await getSignedUrl(r2,new GetObjectCommand({Bucket:r2Bucket,Key:doc.object_key,ResponseContentDisposition:`attachment; filename*=UTF-8''${encodeURIComponent(doc.file_name)}`}),{expiresIn:300});await event(doc.case_id,'document_downloaded',{document_id:doc.id},principal,req);return json(res,200,{download_url:downloadUrl,expires_in:300,requestId},ch)}
+  if(req.method==='GET'&&u.pathname==='/api/v1/documents'){const cid=u.searchParams.get('case_id');if(cid!==null&&!uuid(cid))throw Object.assign(new Error('VALID_CASE_ID_REQUIRED'),{status:400});const query=cid?`?case_id=eq.${encodeURIComponent(cid)}&select=*&archived_at=is.null&order=created_at.desc`:'?select=*&archived_at=is.null&order=created_at.desc&limit=250';let data;try{data=await db('documents',{query})}catch(error){if(error.status!==400)throw error;const legacyQuery=cid?`?case_id=eq.${encodeURIComponent(cid)}&select=*&order=created_at.desc`:'?select=*&order=created_at.desc&limit=250';data=await db('documents',{query:legacyQuery})}
+    // Documents carry their own module scope, evaluated against the case each
+    // one belongs to, so document access can be widened or narrowed on its own.
+    const docCases=await casesById(access,(data||[]).map(row=>row.case_id));
+    const visible=(data||[]).filter(row=>!row.archived_at&&row.status!=='deleted'&&canAccessDocument(access,row,docCases.get(String(row.case_id)),'documents.view'));
+    return json(res,200,{data:visible,requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/documents/presign'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});if(!Array.isArray(caseRows)||!caseRows.length||!canAccessCase(access,caseRows[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const filename=safeKey(input.fileName).split('/').pop();const key=safeKey(`cases/${input.caseId}/${crypto.randomUUID()}-${filename}`);const uploadUrl=await getSignedUrl(r2,new PutObjectCommand({Bucket:r2Bucket,Key:key,ContentType:input.contentType,ContentLength:input.sizeBytes,Metadata:{case_id:input.caseId}}),{expiresIn:900});return json(res,200,{key,upload_url:uploadUrl,expires_in:900,required_headers:{'content-type':input.contentType},requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/documents/confirm'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const key=safeKey(b.key);if(!key.startsWith(`cases/${input.caseId}/`))throw Object.assign(new Error('DOCUMENT_CASE_MISMATCH'),{status:403});const confirmCase=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});if(!confirmCase.length||!canAccessCase(access,confirmCase[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const object=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));if(Number(object.ContentLength)!==input.sizeBytes||String(object.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});const checksum=documentChecksum(b.content_checksum);if(checksum){const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409,details:{document_id:duplicates[0].id}});}}const record={id:crypto.randomUUID(),case_id:input.caseId,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:checksum,status:'uploaded'};if(b.client_id||b.person_id||b.request_id||b.category||b.replaces_document_id){if(b.client_id&&!uuid(b.client_id)||b.person_id&&!uuid(b.person_id)||b.request_id&&!uuid(b.request_id)||b.replaces_document_id&&!uuid(b.replaces_document_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});Object.assign(record,{client_id:b.client_id||null,person_id:b.person_id||null,request_id:b.request_id||null,category:cleanText(b.category,{max:100}),review_status:'received',replaces_document_id:b.replaces_document_id||null});if(b.replaces_document_id){const previous=await db('documents',{query:`?id=eq.${encodeURIComponent(b.replaces_document_id)}&select=id,version`});if(!previous.length)throw Object.assign(new Error('REPLACED_DOCUMENT_NOT_FOUND'),{status:404});record.version=Number(previous[0].version||1)+1;await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(b.replaces_document_id)}`,body:{archived_at:new Date().toISOString()}})}}const data=await db('documents',{method:'POST',body:record});if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}`,body:{status:'received',updated_at:new Date().toISOString()}});await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id},principal,req);return json(res,201,{data,requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/documents/download-url'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,16_384);let rows=[];if(uuid(b.document_id))rows=await db('documents',{query:`?id=eq.${encodeURIComponent(b.document_id)}&select=*`});else if(principal?.authType==='internal'&&b.key)rows=await db('documents',{query:`?object_key=eq.${encodeURIComponent(safeKey(b.key))}&select=*`});else throw Object.assign(new Error('VALID_DOCUMENT_ID_REQUIRED'),{status:400});if(!Array.isArray(rows)||!rows.length)throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});const doc=rows[0];
+    // A signed URL is a bearer capability that outlives this request, so the
+    // effective model is enforced before one is minted. A soft-deleted record
+    // keeps its row for the audit trail but its object is gone from R2.
+    if(doc.status==='deleted'||doc.archived_at)throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});
+    const dlCases=await casesById(access,[doc.case_id]);
+    if(!canAccessDocument(access,doc,dlCases.get(String(doc.case_id)),'documents.view'))throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});
+    const downloadUrl=await getSignedUrl(r2,new GetObjectCommand({Bucket:r2Bucket,Key:doc.object_key,ResponseContentDisposition:`attachment; filename*=UTF-8''${encodeURIComponent(doc.file_name)}`}),{expiresIn:300});await event(doc.case_id,'document_downloaded',{document_id:doc.id},principal,req);return json(res,200,{download_url:downloadUrl,expires_in:300,requestId},ch)}
   const reviewMatch=u.pathname.match(/^\/api\/v1\/documents\/([0-9a-f-]{36})\/review$/i);
   if(reviewMatch&&req.method==='POST'){
     const body=await readJson(req,32_768);
@@ -741,16 +934,149 @@ async function handle(req,res){
     if(body.archived===true)patch.archived_at=new Date().toISOString();
     if(body.archived===false)patch.archived_at=null;
     if(!Object.keys(patch).length)throw Object.assign(new Error('NO_VALID_FIELDS'),{status:400});
+    const existingDoc=await db('documents',{query:`?id=eq.${encodeURIComponent(dm[1])}&select=*`});
+    if(!existingDoc.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
+    const patchCases=await casesById(access,[existingDoc[0].case_id]);
+    if(!canAccessDocument(access,existingDoc[0],patchCases.get(String(existingDoc[0].case_id)),'documents.manage'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
     const data=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(dm[1])}`,body:patch});
     if(!data.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
     await event(data[0].case_id,'document_updated',{document_id:dm[1],case_id:data[0].case_id,client_id:data[0].client_id},principal,req);
     return json(res,200,{data,requestId},ch);
   }
-  if(dm&&req.method==='DELETE'){const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(dm[1])}&select=*`});if(!Array.isArray(rows)||!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const doc=rows[0];const holds=await db('legal_holds',{query:`?active=eq.true&or=(case_id.eq.${encodeURIComponent(doc.case_id)},client_id.eq.${encodeURIComponent(doc.client_id||'00000000-0000-0000-0000-000000000000')})&select=id`});if(holds.length)throw Object.assign(new Error('DOCUMENT_UNDER_LEGAL_HOLD'),{status:409});await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(dm[1])}`,body:{archived_at:new Date().toISOString()}});await event(doc.case_id,'document_archived',{document_id:doc.id,file_name:doc.file_name,case_id:doc.case_id,client_id:doc.client_id},principal,req);return json(res,200,{deleted:true,recoverable:true,requestId},ch)}
+  if(dm&&req.method==='DELETE'){const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(dm[1])}&select=*`});if(!Array.isArray(rows)||!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const doc=rows[0];const delCases=await casesById(access,[doc.case_id]);if(!canAccessDocument(access,doc,delCases.get(String(doc.case_id)),'documents.manage'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const holds=await db('legal_holds',{query:`?active=eq.true&or=(case_id.eq.${encodeURIComponent(doc.case_id)},client_id.eq.${encodeURIComponent(doc.client_id||'00000000-0000-0000-0000-000000000000')})&select=id`});if(holds.length)throw Object.assign(new Error('DOCUMENT_UNDER_LEGAL_HOLD'),{status:409});await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(dm[1])}`,body:{archived_at:new Date().toISOString()}});await event(doc.case_id,'document_archived',{document_id:doc.id,file_name:doc.file_name,case_id:doc.case_id,client_id:doc.client_id},principal,req);return json(res,200,{deleted:true,recoverable:true,requestId},ch)}
 
-  if(req.method==='GET'&&u.pathname==='/api/v1/audit'){let data;try{data=await db('audit_events',{query:'?select=*&order=created_at.desc&limit=250'})}catch(error){if(error.status!==404)throw error;data=(await db('case_events',{query:'?select=*&order=created_at.desc&limit=150'})).map(item=>({...item,action:item.event_type,entity_id:item.case_id,actor_label:item.actor}))}return json(res,200,{data,requestId},ch)}
+  // ---- Owner access management ---------------------------------------------
+  // Everything the model reads is editable here, so the Owner can grant,
+  // revoke, restrict, expand or override access from the UI without a code
+  // change or a schema change.
+  if(req.method==='GET'&&u.pathname==='/api/v1/access'){
+    const [policies,recordGrants,teams,teamMembers,clients,clientAccess]=await Promise.all([
+      db('access_policies',{query:'?select=*&order=subject_type.asc'}),
+      db('record_access_grants',{query:'?select=*&order=created_at.desc&limit=500'}),
+      db('teams',{query:'?select=*&order=name.asc'}),
+      db('team_members',{query:'?select=*'}),
+      db('clients',{query:'?select=id,legal_name&order=legal_name.asc&limit=500'}),
+      db('client_access',{query:'?select=*'}),
+    ]);
+    return json(res,200,{data:{modules:accessModules,scopes:accessScopes,permissions:permissionCatalogue(),roles:Object.keys(roleDefinitions),
+      defaults:{staff:'global',client:'client_self'},
+      recordTargets:['case','client','category','service'],
+      categories:[...new Set(serviceCatalog.map(service=>service.category))].sort(),
+      services:serviceCatalog.map(service=>({code:service.code,name:service.name,category:service.category})),
+      policies:policies||[],recordGrants:recordGrants||[],teams:teams||[],
+      teamMembers:teamMembers||[],clients:clients||[],clientAccess:clientAccess||[]},requestId},ch);
+  }
+  if(req.method==='PUT'&&u.pathname==='/api/v1/access/policies'){
+    const policy=validateAccessPolicy(await readJson(req,65_536));
+    const existing=await db('access_policies',{query:`?subject_type=eq.${encodeURIComponent(policy.subject_type)}&subject_id=eq.${encodeURIComponent(policy.subject_id)}&select=id`});
+    const payload={...policy,updated_by:principal?.id||null,updated_at:new Date().toISOString()};
+    const data=existing.length
+      ?await db('access_policies',{method:'PATCH',query:`?id=eq.${encodeURIComponent(existing[0].id)}`,body:payload})
+      :await db('access_policies',{method:'POST',body:{id:crypto.randomUUID(),...payload}});
+    invalidateAccessCache();
+    await audit(principal,'access_policy_set','access_policy',Array.isArray(data)&&data.length?data[0].id:null,policy,req);
+    return json(res,200,{data:Array.isArray(data)?data[0]:data,requestId},ch);
+  }
+  const policyMatch=u.pathname.match(/^\/api\/v1\/access\/policies\/(role|team|user)\/([^/]+)$/);
+  if(policyMatch&&req.method==='DELETE'){
+    const subjectId=decodeURIComponent(policyMatch[2]);
+    await db('access_policies',{method:'DELETE',query:`?subject_type=eq.${encodeURIComponent(policyMatch[1])}&subject_id=eq.${encodeURIComponent(subjectId)}`});
+    invalidateAccessCache();
+    await audit(principal,'access_policy_cleared','access_policy',null,{subject_type:policyMatch[1],subject_id:subjectId},req);
+    // Clearing a policy returns the subject to defaults, which for staff is
+    // global scope with their role's permissions.
+    return json(res,200,{cleared:true,requestId},ch);
+  }
+  if(req.method==='POST'&&u.pathname==='/api/v1/access/record-grants'){
+    const grant=validateRecordGrant(await readJson(req,32_768));
+    const data=await db('record_access_grants',{method:'POST',body:{id:crypto.randomUUID(),...grant,created_by:principal?.id||null}});
+    invalidateAccessCache();
+    await audit(principal,`record_access_${grant.effect}ed`,'record_access_grant',Array.isArray(data)&&data.length?data[0].id:null,grant,req);
+    return json(res,201,{data:Array.isArray(data)?data[0]:data,requestId},ch);
+  }
+  const grantMatch=u.pathname.match(/^\/api\/v1\/access\/record-grants\/([0-9a-f-]{36})$/i);
+  if(grantMatch&&req.method==='DELETE'){
+    if(!uuid(grantMatch[1]))throw Object.assign(new Error('INVALID_GRANT_ID'),{status:400});
+    const rows=await db('record_access_grants',{query:`?id=eq.${encodeURIComponent(grantMatch[1])}&select=*`});
+    if(!rows.length)return json(res,404,{error:'GRANT_NOT_FOUND',requestId},ch);
+    await db('record_access_grants',{method:'DELETE',query:`?id=eq.${encodeURIComponent(grantMatch[1])}`});
+    invalidateAccessCache();
+    await audit(principal,'record_access_revoked','record_access_grant',grantMatch[1],rows[0],req);
+    return json(res,200,{revoked:true,requestId},ch);
+  }
+  // Preview what a given user may actually do, resolved through the same
+  // engine the request path uses, so the Owner can confirm a change landed.
+  const effectiveMatch=u.pathname.match(/^\/api\/v1\/access\/effective\/([0-9a-f-]{36})$/i);
+  if(effectiveMatch&&req.method==='GET'){
+    if(!uuid(effectiveMatch[1]))throw Object.assign(new Error('INVALID_USER_ID'),{status:400});
+    const target=(await listAuthUsers()).find(entry=>entry.id===effectiveMatch[1]);
+    if(!target)return json(res,404,{error:'USER_NOT_FOUND',requestId},ch);
+    const resolved=await accessFor({id:target.id,email:target.email,displayName:target.display_name,roles:target.roles,permissions:new Set(),authType:'session'});
+    return json(res,200,{data:describeAccess(resolved),requestId},ch);
+  }
+  if(req.method==='POST'&&u.pathname==='/api/v1/teams'){
+    const body=await readJson(req,16_384);
+    const name=cleanText(body.name,{required:true,max:120});
+    const data=await db('teams',{method:'POST',body:{id:crypto.randomUUID(),name,description:cleanText(body.description,{max:400})}});
+    invalidateAccessCache();
+    await audit(principal,'team_created','team',Array.isArray(data)&&data.length?data[0].id:null,{name},req);
+    return json(res,201,{data:Array.isArray(data)?data[0]:data,requestId},ch);
+  }
+  const teamMembersMatch=u.pathname.match(/^\/api\/v1\/teams\/([0-9a-f-]{36})\/members$/i);
+  if(teamMembersMatch&&req.method==='POST'){
+    if(!uuid(teamMembersMatch[1]))throw Object.assign(new Error('INVALID_TEAM_ID'),{status:400});
+    const body=await readJson(req,16_384);
+    if(!uuid(body.user_id))throw Object.assign(new Error('INVALID_USER_ID'),{status:400});
+    const data=await db('team_members',{method:'POST',body:{team_id:teamMembersMatch[1],user_id:body.user_id}});
+    invalidateAccessCache();
+    await audit(principal,'team_member_added','team_member',teamMembersMatch[1],{user_id:body.user_id},req);
+    return json(res,201,{data:Array.isArray(data)?data[0]:data,requestId},ch);
+  }
+  const teamMemberMatch=u.pathname.match(/^\/api\/v1\/teams\/([0-9a-f-]{36})\/members\/([0-9a-f-]{36})$/i);
+  if(teamMemberMatch&&req.method==='DELETE'){
+    if(!uuid(teamMemberMatch[1])||!uuid(teamMemberMatch[2]))throw Object.assign(new Error('INVALID_TEAM_ID'),{status:400});
+    await db('team_members',{method:'DELETE',query:`?team_id=eq.${encodeURIComponent(teamMemberMatch[1])}&user_id=eq.${encodeURIComponent(teamMemberMatch[2])}`});
+    invalidateAccessCache();
+    await audit(principal,'team_member_removed','team_member',teamMemberMatch[1],{user_id:teamMemberMatch[2]},req);
+    return json(res,200,{removed:true,requestId},ch);
+  }
+
+  if(req.method==='GET'&&u.pathname==='/api/v1/audit'){let data;try{data=await db('audit_events',{query:'?select=*&order=created_at.desc&limit=250'})}catch(error){if(error.status!==404)throw error;data=(await db('case_events',{query:'?select=*&order=created_at.desc&limit=150'})).map(item=>({...item,action:item.event_type,entity_id:item.case_id,actor_label:item.actor}))}
+    // The audit trail is scoped by its own module, so an auditor can be given
+    // firm-wide history while a case manager sees only their own cases'.
+    if(!access.isOwner&&scopeFor(access,'audit')!=='global'){
+      const auditCases=await casesById(access,(data||[]).map(row=>row.case_id));
+      // A narrowed audit scope also withholds firm-level rows that belong to no
+      // case (sign-ins, user administration): those are not this caller's to
+      // read either once the Owner has scoped them down.
+      data=(data||[]).filter(row=>row.case_id&&canAccessCase(access,auditCases.get(String(row.case_id))||{id:row.case_id},'audit.view'));
+    }
+    return json(res,200,{data,requestId},ch)}
   return json(res,404,{error:'NOT_FOUND',requestId},ch);
 }
 
-const server=http.createServer((req,res)=>handle(req,res).catch(err=>{const status=Number(err.status||500);if(status>=500)console.error(err.message,err.details||'');json(res,status,{error:err.message||'INTERNAL_ERROR',...(status<500&&err.details?{details:err.details}:{}),requestId:res.getHeader('x-request-id')||crypto.randomUUID()},cors(req))}));
-server.requestTimeout=30_000;server.headersTimeout=35_000;server.keepAliveTimeout=5_000;server.listen(port,'0.0.0.0',()=>console.log(`Alhijrah Caseflow ${version} listening on ${port}`));
+export function respondToError(req,res,err){
+  const status=Number(err.status||500);
+  if(status>=500)console.error(err.message,err.internalDetails||err.stack||'');
+  else if(err.internalDetails)console.warn(err.message,err.internalDetails);
+  const body={error:status>=500?'INTERNAL_ERROR':(err.message||'INTERNAL_ERROR'),requestId:res.getHeader('x-request-id')||crypto.randomUUID()};
+  // Only detail this service produced is echoed back. Upstream database and
+  // storage payloads name tables, columns and constraints, and stay in logs.
+  if(err.fields)body.fields=err.fields;
+  if(status<500&&err.details)body.details=err.details;
+  try{json(res,status,body,cors(req))}catch{res.destroy()}
+}
+
+export function createServer(){
+  const server=http.createServer((req,res)=>handle(req,res).catch(err=>respondToError(req,res,err)));
+  server.requestTimeout=30_000;server.headersTimeout=35_000;server.keepAliveTimeout=5_000;
+  return server;
+}
+
+export {handle,requiredPermission};
+
+// Only bind a port when started as a program, so tests can drive the handler
+// without a listening socket or a process-wide side effect.
+if(process.argv[1]&&import.meta.url===new URL(`file://${process.argv[1]}`).href){
+  createServer().listen(port,'0.0.0.0',()=>console.log(`Alhijrah Caseflow ${version} listening on ${port}`));
+}

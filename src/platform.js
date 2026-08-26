@@ -85,10 +85,16 @@ export function cleanEmail(value) {
 
 export function cleanDate(value, { required = false } = {}) {
   if (!value && !required) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value)) || Number.isNaN(Date.parse(String(value) + 'T00:00:00Z'))) {
+  const text = String(value);
+  // Date.parse accepts rollover dates: "2026-02-31" parses fine and silently
+  // means 2026-03-03. Round-tripping the parsed value back to YYYY-MM-DD
+  // rejects any day that is not the day that was written -- which for a filing
+  // deadline is the difference between a date and a missed date.
+  const parsed = new Date(`${text}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== text) {
     throw Object.assign(new Error('INVALID_DATE'), { status: 400 });
   }
-  return String(value);
+  return text;
 }
 
 export function cleanPriority(value = 'normal') {

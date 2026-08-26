@@ -668,7 +668,7 @@
           autocomplete="current-password"
         />
         <div class="err" id="loginErr"></div>
-        <button class="btn primary" style="width: 100%" onclick="signIn()">
+        <button id="signInBtn" class="btn primary" style="width: 100%" data-act="signIn">
           Sign In
         </button>
       </div>
@@ -677,14 +677,14 @@
       <div class="portal-shell">
         <div class="portal-head">
           <div class="brand" style="padding:0"><div class="logo">A</div><div><b>MY ALHIJRAH</b><small>Secure Client Portal</small></div></div>
-          <button class="btn" onclick="signOut()">Sign Out</button>
+          <button id="portalSignOutBtn" class="btn" data-act="signOut">Sign Out</button>
         </div>
         <div class="eyebrow">Your protected workspace</div>
         <h1 class="title" style="margin-bottom:22px">Case status and next actions</h1>
         <div class="err" id="portalErr"></div>
         <div class="portal-grid">
           <div>
-            <div class="panel"><div class="ph"><div><h2>Your Cases</h2><span>Current office workflow status</span></div><button class="btn" onclick="loadPortal()">Refresh</button></div><div id="portalCases"><div class="empty">Loading…</div></div></div>
+            <div class="panel"><div class="ph"><div><h2>Your Cases</h2><span>Current office workflow status</span></div><button class="btn" data-act="loadPortal">Refresh</button></div><div id="portalCases"><div class="empty">Loading…</div></div></div>
             <div class="panel" style="margin-top:16px"><div class="ph"><div><h2>Requested Documents</h2><span>Upload directly to the correct request</span></div></div><div id="portalRequests"></div></div>
           </div>
           <div>
@@ -715,6 +715,7 @@
           ><button data-view="reports">Reports</button
           ><button data-view="roles">Team & Roles</button
           ><button data-view="audit">Audit Trail</button
+          ><button data-view="access">Access Control</button
           ><button data-view="settings">Settings</button>
         </div>
         <div class="sidefoot">
@@ -732,7 +733,8 @@
               <span class="dot" id="dot"></span
               ><span id="live">Checking services</span>
             </div>
-            <button class="btn primary" id="newCaseButton" onclick="openCase()">+ New Case</button>
+            <button class="btn primary" id="newCaseButton" data-act="openCase">+ New Case</button>
+            <button class="btn" id="signOutBtn" data-act="signOut">Sign Out</button>
           </div>
         </div>
         <section class="view active" id="view-dashboard">
@@ -765,7 +767,7 @@
                   <h2>Recent Cases</h2>
                   <span>Latest production records</span>
                 </div>
-                <button class="btn" onclick="loadCases()">Refresh</button>
+                <button class="btn" data-act="loadCases">Refresh</button>
               </div>
               <div class="list" id="recentCases">
                 <div class="empty">Loading cases…</div>
@@ -780,16 +782,16 @@
                   </div>
                 </div>
                 <div class="quick">
-                  <button onclick="openCase()">
+                  <button data-act="openCase">
                     <b>Create case</b
                     ><span>Start a new client matter.</span></button
-                  ><button onclick="showView('documents')">
+                  ><button data-act="showView" data-a1="documents">
                     <b>Upload document</b
                     ><span>Store evidence in R2.</span></button
-                  ><button onclick="testReady()">
+                  ><button data-act="testReady">
                     <b>System check</b
                     ><span>Verify all production services.</span></button
-                  ><button onclick="signOut()">
+                  ><button data-act="signOut">
                     <b>Secure sign out</b
                     ><span>Clear this browser session.</span>
                   </button>
@@ -815,7 +817,7 @@
                 </div>
               </div>
               <div class="panel" style="margin-top: 15px">
-                <div class="ph"><div><h2>Operational Alerts</h2><span>Deadlines, tasks, and expiring records</span></div><button class="btn" onclick="refreshAlerts()">Refresh</button></div>
+                <div class="ph"><div><h2>Operational Alerts</h2><span>Deadlines, tasks, and expiring records</span></div><button class="btn" data-act="refreshAlerts">Refresh</button></div>
                 <div id="alertList"><div class="empty">Loading alerts…</div></div>
               </div>
             </div>
@@ -828,8 +830,8 @@
                 class="search"
                 id="caseSearch"
                 placeholder="Search client, case type, status or assignee"
-                oninput="renderCaseTable()"
-              /><button class="btn primary" onclick="openCase()">
+                data-act="renderCaseTable" data-on="input"
+              /><button class="btn primary" data-act="openCase">
                 + New Case
               </button>
             </div>
@@ -858,9 +860,9 @@
                 class="search"
                 id="clientSearch"
                 placeholder="Search name, email, phone, A-Number or USCIS account"
-                oninput="renderClients()"
+                data-act="renderClients" data-on="input"
               />
-              <button class="btn primary" onclick="openClient()">+ New Client</button>
+              <button class="btn primary" data-act="openClient">+ New Client</button>
             </div>
             <div class="table">
               <table>
@@ -899,9 +901,9 @@
               </div>
             </div>
             <div class="df" style="justify-content: flex-start">
-              <button class="btn primary" onclick="uploadDocument()">
+              <button class="btn primary" data-act="uploadDocument">
                 Upload Document</button
-              ><button class="btn" onclick="loadDocuments()">Refresh</button>
+              ><button class="btn" data-act="loadDocuments">Refresh</button>
             </div>
             <div class="err" id="docErr"></div>
             <div class="table" style="margin-top: 15px">
@@ -923,7 +925,7 @@
         </section>
         <section class="view" id="view-services">
           <div class="toolbar">
-            <select id="serviceCategory" onchange="renderServices()">
+            <select id="serviceCategory" data-act="renderServices" data-on="change">
               <option value="">All service categories</option>
               <option value="family_uscis">Family / USCIS</option>
               <option value="consular_dos">Consular / DOS</option>
@@ -936,7 +938,7 @@
         <section class="view" id="view-tasks">
           <div class="panel">
             <div class="toolbar">
-              <select id="taskFilter" onchange="loadTasks()">
+              <select id="taskFilter" data-act="loadTasks" data-on="change">
                 <option value="">All Tasks</option>
                 <option value="my">My Tasks</option>
                 <option value="today">Due Today</option>
@@ -947,7 +949,7 @@
                 <option value="blocked">Blocked</option>
                 <option value="completed">Completed</option>
               </select>
-              <button class="btn primary" onclick="openTask()">+ New Task</button>
+              <button class="btn primary" data-act="openTask">+ New Task</button>
             </div>
             <div class="table">
               <table>
@@ -973,7 +975,7 @@
               <div class="field"><label>Name</label><input id="inviteName" /></div>
               <div class="field"><label>Email</label><input id="inviteEmail" type="email" /></div>
               <div class="field"><label>Role</label><select id="inviteRole"></select></div>
-              <div class="field" style="align-self:end"><button class="btn primary" onclick="inviteUser()">Invite User</button></div>
+              <div class="field" style="align-self:end"><button class="btn primary" data-act="inviteUser">Invite User</button></div>
             </div>
             <div class="err" id="teamErr"></div>
             <div class="table" style="margin-top:15px"><table><thead><tr><th>User</th><th>Roles</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody id="teamTable"></tbody></table></div>
@@ -981,15 +983,15 @@
           <div class="roles" id="roleGrid"></div>
         </section>
         <section class="view" id="view-reviews">
-          <div class="panel"><div class="ph"><div><h2>Case Review Queue</h2><span>Matters awaiting controlled review</span></div><button class="btn" onclick="loadReviewQueue()">Refresh</button></div><div class="table"><table><thead><tr><th>Case</th><th>Service</th><th>Workflow</th><th>Review State</th><th>Priority</th></tr></thead><tbody id="reviewCaseTable"></tbody></table></div></div>
+          <div class="panel"><div class="ph"><div><h2>Case Review Queue</h2><span>Matters awaiting controlled review</span></div><button class="btn" data-act="loadReviewQueue">Refresh</button></div><div class="table"><table><thead><tr><th>Case</th><th>Service</th><th>Workflow</th><th>Review State</th><th>Priority</th></tr></thead><tbody id="reviewCaseTable"></tbody></table></div></div>
           <div class="panel" style="margin-top:16px"><div class="ph"><div><h2>Document Review Queue</h2><span>Received or returned documents</span></div></div><div class="table"><table><thead><tr><th>Document</th><th>Category</th><th>Status</th><th>Received</th><th></th></tr></thead><tbody id="reviewDocumentTable"></tbody></table></div><div class="err" id="reviewErr"></div></div>
         </section>
         <section class="view" id="view-billing">
-          <div class="panel"><div class="ph"><div><h2>Invoices</h2><span>Office, government, and other fees remain separated</span></div><button class="btn primary" onclick="openInvoice()">+ New Invoice</button></div><div class="table"><table><thead><tr><th>Invoice</th><th>Client</th><th>Office Fee</th><th>Government Fee</th><th>Total</th><th>Status</th></tr></thead><tbody id="invoiceTable"></tbody></table></div><div class="err" id="billingErr"></div></div>
+          <div class="panel"><div class="ph"><div><h2>Invoices</h2><span>Office, government, and other fees remain separated</span></div><button class="btn primary" data-act="openInvoice">+ New Invoice</button></div><div class="table"><table><thead><tr><th>Invoice</th><th>Client</th><th>Office Fee</th><th>Government Fee</th><th>Total</th><th>Status</th></tr></thead><tbody id="invoiceTable"></tbody></table></div><div class="err" id="billingErr"></div></div>
         </section>
         <section class="view" id="view-reports">
           <div class="metrics"><div class="metric"><div class="k">Open Cases</div><div class="v" id="reportCases">—</div></div><div class="metric"><div class="k">Overdue Tasks</div><div class="v" id="reportTasks">—</div></div><div class="metric"><div class="k">Open Deadlines</div><div class="v" id="reportDeadlines">—</div></div><div class="metric"><div class="k">Documents</div><div class="v" id="reportDocuments">—</div></div></div>
-          <div class="panel"><div class="ph"><div><h2>Operational Breakdown</h2><span>Current persistent records</span></div><button class="btn" onclick="loadReports()">Refresh</button></div><div id="reportDetails"></div><div class="err" id="reportErr"></div></div>
+          <div class="panel"><div class="ph"><div><h2>Operational Breakdown</h2><span>Current persistent records</span></div><button class="btn" data-act="loadReports">Refresh</button></div><div id="reportDetails"></div><div class="err" id="reportErr"></div></div>
         </section>
         <section class="view" id="view-audit">
           <div class="panel">
@@ -998,7 +1000,7 @@
                 <h2>Audit Trail</h2>
                 <span>Case and document events</span>
               </div>
-              <button class="btn" onclick="loadAudit()">Refresh</button>
+              <button class="btn" data-act="loadAudit">Refresh</button>
             </div>
             <div class="table">
               <table>
@@ -1013,6 +1015,82 @@
                 <tbody id="auditTable"></tbody>
               </table>
             </div>
+          </div>
+        </section>
+        <section class="view" id="view-access">
+          <div class="panel">
+            <div class="ph">
+              <div>
+                <h2>Effective Access</h2>
+                <span>Staff default to firm-wide access. Nothing is narrowed until you record a decision here.</span>
+              </div>
+              <button class="btn" id="accessRefresh">Refresh</button>
+            </div>
+            <div class="form">
+              <div class="field">
+                <label>Subject type</label
+                ><select id="accessSubjectType">
+                  <option value="user">User</option>
+                  <option value="team">Team</option>
+                  <option value="role">Role</option>
+                </select>
+              </div>
+              <div class="field"><label>Subject</label><select id="accessSubject"></select></div>
+            </div>
+            <div class="form" id="accessScopes"></div>
+            <div class="form">
+              <div class="field full"><label>Granted permissions (beyond role defaults)</label><select id="accessGrants" multiple size="6"></select></div>
+              <div class="field full"><label>Restricted permissions</label><select id="accessRestrictions" multiple size="6"></select></div>
+            </div>
+            <div class="err" id="accessErr"></div>
+            <div class="df">
+              <button class="btn" id="accessClear">Reset to defaults</button
+              ><button class="btn primary" id="accessSave">Save policy</button>
+            </div>
+            <div class="table">
+              <table>
+                <thead><tr><th>Module</th><th>Effective scope</th></tr></thead>
+                <tbody id="accessEffective"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="ph">
+              <div>
+                <h2>Record Access</h2>
+                <span>Hand one case or one client to someone, or take one away, regardless of their scope.</span>
+              </div>
+            </div>
+            <div class="form">
+              <div class="field"><label>Effect</label><select id="grantEffect"><option value="grant">Grant</option><option value="restrict">Restrict</option></select></div>
+              <div class="field"><label>Subject</label><select id="grantSubject"></select></div>
+              <div class="field"><label>Resource type</label><select id="grantResourceType"><option value="case">Case</option><option value="client">Client</option><option value="category">Case category</option><option value="service">Service code</option></select></div>
+              <div class="field"><label>Resource</label><select id="grantResource"></select></div>
+            </div>
+            <div class="err" id="grantErr"></div>
+            <div class="df"><button class="btn primary" id="grantAdd">Apply</button></div>
+            <div class="table">
+              <table>
+                <thead><tr><th>Effect</th><th>Subject</th><th>Resource</th><th></th></tr></thead>
+                <tbody id="grantTable"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="ph">
+              <div>
+                <h2>Teams</h2>
+                <span>Teams back the team scope. Membership alone never narrows anyone.</span>
+              </div>
+            </div>
+            <div class="form">
+              <div class="field"><label>New team name</label><input id="teamName" /></div>
+              <div class="field"><label>&nbsp;</label><button class="btn" id="teamAdd">Create team</button></div>
+              <div class="field"><label>Add user to team</label><select id="teamMemberUser"></select></div>
+              <div class="field"><label>Team</label><select id="teamMemberTeam"></select></div>
+            </div>
+            <div class="err" id="teamErr"></div>
+            <div class="df"><button class="btn" id="teamMemberAdd">Add to team</button></div>
           </div>
         </section>
         <section class="view" id="view-settings">
@@ -1042,10 +1120,10 @@
       </main>
     </div>
     <div class="mobile">
-      <button class="active" onclick="showView('dashboard')">Dashboard</button
-      ><button onclick="showView('cases')">Cases</button
-      ><button onclick="showView('documents')">Docs</button
-      ><button onclick="signOut()">Sign Out</button>
+      <button class="active" data-act="showView" data-a1="dashboard">Dashboard</button
+      ><button data-act="showView" data-a1="cases">Cases</button
+      ><button data-act="showView" data-a1="documents">Docs</button
+      ><button data-act="signOut">Sign Out</button>
     </div>
     <div class="modal" id="caseModal">
       <div class="dialog">
@@ -1054,7 +1132,7 @@
             <h2 id="caseModalTitle">Create New Case</h2>
             <span>Production record</span>
           </div>
-          <button class="btn" onclick="closeCase()">Close</button>
+          <button class="btn" data-act="closeCase">Close</button>
         </div>
         <input type="hidden" id="editCaseId" />
         <input type="hidden" id="selectedServiceCode" />
@@ -1096,8 +1174,8 @@
         </div>
         <div class="err" id="caseErr"></div>
         <div class="df">
-          <button class="btn" onclick="closeCase()">Cancel</button
-          ><button class="btn primary" onclick="saveCase()">Save Case</button>
+          <button class="btn" data-act="closeCase">Cancel</button
+          ><button id="saveCaseBtn" class="btn primary" data-act="saveCase">Save Case</button>
         </div>
       </div>
     </div>
@@ -1108,7 +1186,7 @@
             <h2 id="clientModalTitle">Create Client</h2>
             <span>Protected client record</span>
           </div>
-          <button class="btn" onclick="closeClient()">Close</button>
+          <button class="btn" data-act="closeClient">Close</button>
         </div>
         <input type="hidden" id="editClientId" />
         <div class="form">
@@ -1132,8 +1210,8 @@
         </div>
         <div class="err" id="clientErr"></div>
         <div class="df">
-          <button class="btn" onclick="closeClient()">Cancel</button>
-          <button class="btn primary" onclick="saveClient()">Save Client</button>
+          <button class="btn" data-act="closeClient">Cancel</button>
+          <button class="btn primary" data-act="saveClient">Save Client</button>
         </div>
       </div>
     </div>
@@ -1144,7 +1222,7 @@
             <h2 id="taskModalTitle">Create Task</h2>
             <span>Operational assignment</span>
           </div>
-          <button class="btn" onclick="closeTask()">Close</button>
+          <button class="btn" data-act="closeTask">Close</button>
         </div>
         <input type="hidden" id="editTaskId" />
         <div class="form">
@@ -1159,8 +1237,8 @@
         </div>
         <div class="err" id="taskErr"></div>
         <div class="df">
-          <button class="btn" onclick="closeTask()">Cancel</button>
-          <button class="btn primary" onclick="saveTask()">Save Task</button>
+          <button class="btn" data-act="closeTask">Cancel</button>
+          <button class="btn primary" data-act="saveTask">Save Task</button>
         </div>
       </div>
     </div>
@@ -1171,1029 +1249,31 @@
             <div class="eyebrow" id="intakeProgress">Intake</div>
             <h2 id="intakeTitle">Service Intake</h2>
           </div>
-          <button class="btn" onclick="saveAndExitIntake()">Save & Exit</button>
+          <button class="btn" data-act="saveAndExitIntake">Save & Exit</button>
         </div>
         <div id="intakeFields"></div>
         <div class="err" id="intakeErr"></div>
         <div class="df">
-          <button class="btn" id="intakeBack" onclick="previousIntakeStep()">Back</button>
-          <button class="btn primary" id="intakeNext" onclick="nextIntakeStep()">Next</button>
+          <button class="btn" id="intakeBack" data-act="previousIntakeStep">Back</button>
+          <button class="btn primary" id="intakeNext" data-act="nextIntakeStep">Next</button>
         </div>
       </div>
     </div>
     <div class="modal" id="portalCaseModal">
       <div class="dialog">
-        <div class="ph"><div><div class="eyebrow">Case workspace</div><h2 id="portalCaseTitle">Case</h2></div><button class="btn" onclick="closePortalCase()">Close</button></div>
+        <div class="ph"><div><div class="eyebrow">Case workspace</div><h2 id="portalCaseTitle">Case</h2></div><button class="btn" data-act="closePortalCase">Close</button></div>
         <div id="portalCaseDetail"></div>
         <div class="field full" style="margin-top:16px"><label>Send a secure message</label><textarea id="portalMessage" maxlength="5000"></textarea></div>
         <div class="err" id="portalMessageErr"></div>
-        <div class="df"><button class="btn primary" onclick="sendPortalMessage()">Send Message</button></div>
+        <div class="df"><button class="btn primary" data-act="sendPortalMessage">Send Message</button></div>
       </div>
     </div>
     <div class="modal" id="invoiceModal">
-      <div class="dialog"><div class="ph"><div><h2>Create Invoice</h2><span>Amounts are entered in U.S. dollars</span></div><button class="btn" onclick="closeInvoice()">Close</button></div><div class="form"><div class="field"><label>Client</label><select id="invoiceClient"></select></div><div class="field"><label>Case</label><select id="invoiceCase"></select></div><div class="field"><label>Office fee</label><input id="invoiceOfficeFee" type="number" min="0" step="0.01"></div><div class="field"><label>Government fee</label><input id="invoiceGovernmentFee" type="number" min="0" step="0.01"></div><div class="field"><label>Other fee</label><input id="invoiceOtherFee" type="number" min="0" step="0.01"></div><div class="field"><label>Due date</label><input id="invoiceDue" type="date"></div></div><div class="err" id="invoiceErr"></div><div class="df"><button class="btn" onclick="closeInvoice()">Cancel</button><button class="btn primary" onclick="saveInvoice()">Create Invoice</button></div></div>
+      <div class="dialog"><div class="ph"><div><h2>Create Invoice</h2><span>Amounts are entered in U.S. dollars</span></div><button class="btn" data-act="closeInvoice">Close</button></div><div class="form"><div class="field"><label>Client</label><select id="invoiceClient"></select></div><div class="field"><label>Case</label><select id="invoiceCase"></select></div><div class="field"><label>Office fee</label><input id="invoiceOfficeFee" type="number" min="0" step="0.01"></div><div class="field"><label>Government fee</label><input id="invoiceGovernmentFee" type="number" min="0" step="0.01"></div><div class="field"><label>Other fee</label><input id="invoiceOtherFee" type="number" min="0" step="0.01"></div><div class="field"><label>Due date</label><input id="invoiceDue" type="date"></div></div><div class="err" id="invoiceErr"></div><div class="df"><button class="btn" data-act="closeInvoice">Cancel</button><button class="btn primary" data-act="saveInvoice">Create Invoice</button></div></div>
     </div>
     <div class="modal" id="userModal">
-      <div class="dialog"><div class="ph"><div><h2>Manage User</h2><span id="manageUserEmail"></span></div><button class="btn" onclick="closeManageUser()">Close</button></div><input id="manageUserId" type="hidden"><div class="field"><label>Status</label><select id="manageUserStatus"><option value="active">Active</option><option value="invited">Invited</option><option value="inactive">Inactive</option></select></div><div class="field full" style="margin-top:14px"><label>Roles</label><div class="intake-options" id="manageUserRoles"></div></div><div class="err" id="manageUserErr"></div><div class="df"><button class="btn" onclick="closeManageUser()">Cancel</button><button class="btn primary" onclick="saveManagedUser()">Save Access</button></div></div>
+      <div class="dialog"><div class="ph"><div><h2>Manage User</h2><span id="manageUserEmail"></span></div><button class="btn" data-act="closeManageUser">Close</button></div><input id="manageUserId" type="hidden"><div class="field"><label>Status</label><select id="manageUserStatus"><option value="active">Active</option><option value="invited">Invited</option><option value="inactive">Inactive</option></select></div><div class="field full" style="margin-top:14px"><label>Roles</label><div class="intake-options" id="manageUserRoles"></div></div><div class="err" id="manageUserErr"></div><div class="df"><button class="btn" data-act="closeManageUser">Cancel</button><button class="btn primary" data-act="saveManagedUser">Save Access</button></div></div>
     </div>
-    <script>
-      const $ = (id) => document.getElementById(id);
-      let currentUser = null,
-        cases = [],
-        docs = [],
-        clients = [],
-        tasks = [],
-        services = [],
-        portalData = null,
-        portalUploadTarget = null,
-        invoices = [],
-        teamUsers = [],
-        intakeState = null,
-        intakeSaveTimer = null;
-      const roles = [
-        ["Owner", "Full platform authority and configuration control.", "owner"],
-        ["Admin", "Operational administration and user management.", "admin"],
-        ["Supervisor", "Oversight, assignments and review authority.", "supervisor"],
-        ["Case Manager", "Case ownership, workflow and client coordination.", "case_manager"],
-        ["Form Preparer", "Prepare forms and structured intake records.", "form_preparer"],
-        ["Document Reviewer", "Review evidence and document completeness.", "document_reviewer"],
-        ["Translator", "Translation workflow access.", "translator"],
-        [
-          "Attorney / Accredited Representative",
-          "Legal representation workspace.",
-          "attorney_accredited_representative",
-        ],
-        ["Billing", "Payments, invoices and account records.", "billing"],
-        ["Auditor", "Read-only compliance and audit access.", "auditor"],
-        ["Client Owner", "Primary client portal authority.", "client_owner"],
-        ["Client Collaborator", "Limited shared case collaboration.", "client_collaborator"],
-      ];
-      function titles(v) {
-        const t = {
-          dashboard: ["Operations Console", "Case Management Dashboard"],
-          cases: ["Case Operations", "Cases"],
-          clients: ["Client Records", "Clients"],
-          documents: ["Document Operations", "Document Center"],
-          services: ["Service Catalog", "Immigration Services"],
-          tasks: ["Workflow", "Tasks"],
-          reviews: ["Quality Control", "Review Queue"],
-          billing: ["Financial Operations", "Billing"],
-          reports: ["Operations Intelligence", "Reports"],
-          roles: ["Access Control", "Team & Roles"],
-          audit: ["Compliance", "Audit Trail"],
-          settings: ["Configuration", "Settings"],
-        };
-        $("sectionEyebrow").textContent = t[v][0];
-        $("sectionTitle").textContent = t[v][1];
-      }
-      function showView(v) {
-        document
-          .querySelectorAll(".view")
-          .forEach((x) => x.classList.remove("active"));
-        $("view-" + v).classList.add("active");
-        document
-          .querySelectorAll("#nav button")
-          .forEach((x) => x.classList.toggle("active", x.dataset.view === v));
-        titles(v);
-        if (v === "cases") renderCaseTable();
-        if (v === "clients") loadClients();
-        if (v === "documents") loadDocuments();
-        if (v === "tasks") loadTasks();
-        if (v === "reviews") loadReviewQueue();
-        if (v === "billing") loadBilling();
-        if (v === "reports") loadReports();
-        if (v === "roles") loadTeam();
-        if (v === "audit") loadAudit();
-      }
-      function configureNavigation() {
-        const roleViews = {
-          admin: ["dashboard","cases","clients","documents","services","tasks","reviews","billing","reports","roles","audit","settings"],
-          supervisor: ["dashboard","cases","clients","documents","services","tasks","reviews","reports","roles","audit"],
-          case_manager: ["dashboard","cases","clients","documents","services","tasks"],
-          form_preparer: ["dashboard","cases","clients","documents","services","tasks"],
-          document_reviewer: ["dashboard","cases","clients","documents","tasks","reviews"],
-          translator: ["dashboard","cases","clients","documents","tasks"],
-          attorney_accredited_representative: ["dashboard","cases","clients","documents","services","tasks","reviews","audit"],
-          billing: ["dashboard","cases","clients","billing"],
-          auditor: ["dashboard","cases","clients","documents","tasks","reports","audit"],
-        };
-        const allowed = currentUser.roles.includes("owner") ? null : new Set(currentUser.roles.flatMap((role) => roleViews[role] || []));
-        document.querySelectorAll("#nav button").forEach((button) => button.style.display = !allowed || allowed.has(button.dataset.view) ? "block" : "none");
-        const canManageCases = currentUser.roles.some((role) => ["owner","admin","supervisor","case_manager","attorney_accredited_representative"].includes(role));
-        $("newCaseButton").style.display = canManageCases ? "inline-block" : "none";
-      }
-      document
-        .querySelectorAll("#nav button")
-        .forEach((b) => (b.onclick = () => showView(b.dataset.view)));
-      async function api(path, opt = {}) {
-        const r = await fetch(path, {
-          ...opt,
-          credentials: "same-origin",
-          headers: {
-            "content-type": "application/json",
-            ...(opt.headers || {}),
-          },
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) {
-          if (r.status === 401) $("login").classList.remove("hidden");
-          throw new Error(j.error || "HTTP " + r.status);
-        }
-        return j;
-      }
-      async function signIn() {
-        const email = $("email").value.trim();
-        const password = $("password").value;
-        $("loginErr").textContent = "";
-        if (!email || !password)
-          return ($("loginErr").textContent =
-            "Email and password are required.");
-        try {
-          const result = await api("/api/v1/auth/login", {
-            method: "POST",
-            body: JSON.stringify({ email, password }),
-          });
-          currentUser = result.user;
-          $("password").value = "";
-          $("login").classList.add("hidden");
-          const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
-          if (clientUser) {
-            $("staffApp").style.display = "none";
-            $("clientPortal").classList.add("active");
-            await loadPortal();
-          } else await boot();
-        } catch (e) {
-          $("loginErr").textContent =
-            e.message === "INVALID_CREDENTIALS"
-              ? "Email or password is incorrect."
-              : e.message;
-        }
-      }
-      async function signOut() {
-        try {
-          await api("/api/v1/auth/logout", { method: "POST", body: "{}" });
-        } catch {}
-        location.reload();
-      }
-      async function testReady() {
-        try {
-          const r = await fetch("/ready"),
-            j = await r.json();
-          $("version").textContent = "Version " + j.version;
-          $("dot").className = "dot " + (j.status === "ready" ? "on" : "");
-          $("live").textContent =
-            j.status === "ready"
-              ? "All systems operational"
-              : "Attention required";
-          $("supabase").textContent = j.checks.supabase
-            ? "Operational"
-            : "Offline";
-          $("r2").textContent = j.checks.r2 ? "Operational" : "Offline";
-          $("auth").textContent = j.checks.userAuth
-            ? "Protected"
-            : "Offline";
-          $("setDb").textContent = j.checks.supabase ? "Connected" : "Offline";
-          $("setR2").textContent = j.checks.r2 ? "Connected" : "Offline";
-          for (const id of ["supabase", "r2", "auth", "setDb", "setR2"])
-            $(id).className = $(id).textContent === "Offline" ? "" : "ok";
-        } catch {
-          $("live").textContent = "Service unavailable";
-        }
-      }
-      async function loadAlerts() {
-        try {
-          const result = await api("/api/v1/alerts");
-          $("alertList").innerHTML = (result.data || []).slice(0,8).map((item) => `<div class="row"><div><b>${esc(item.title)}</b><small>${esc(intakeOptionLabel(item.alert_type))} · ${date(item.due_at)}</small></div><span class="tag ${item.severity === "critical" || item.severity === "high" ? "urgent" : "normal"}">${esc(item.severity)}</span></div>`).join("") || '<div class="empty">No active alerts.</div>';
-        } catch { $("alertList").innerHTML = '<div class="empty">Alerts are not available for this role.</div>'; }
-      }
-      async function refreshAlerts() {
-        try { await api("/api/v1/alerts/refresh", { method: "POST", body: "{}" }); await loadAlerts(); } catch (error) { alert(error.message); }
-      }
-      async function loadCases() {
-        try {
-          const j = await api("/api/v1/cases?limit=250");
-          cases = j.data || [];
-          renderMetrics();
-          renderRecent();
-          renderCaseTable();
-          fillCaseSelect();
-        } catch (e) {
-          $("recentCases").innerHTML =
-            '<div class="empty">Unable to load cases.</div>';
-        }
-      }
-      function renderMetrics() {
-        $("totalCases").textContent = cases.length;
-        $("intakeCases").textContent = cases.filter(
-          (x) => x.status === "intake",
-        ).length;
-        $("highCases").textContent = cases.filter((x) =>
-          ["high", "urgent"].includes(x.priority),
-        ).length;
-      }
-      function renderRecent() {
-        const a = cases.slice(0, 7);
-        $("recentCases").innerHTML = a.length
-          ? a
-              .map(
-                (x) =>
-                  `<div class="row"><div><strong>${esc(x.client_name)}</strong><small>${esc(x.case_type)}</small></div><div class="hide-sm"><span class="tag">${esc(x.status)}</span></div><div class="hide-sm"><span class="tag ${esc(x.priority)}">${esc(x.priority)}</span></div><button class="linkbtn" onclick="editCase('${x.id}')">Open</button></div>`,
-              )
-              .join("")
-          : '<div class="empty">No cases yet. Create the first case.</div>';
-      }
-      function renderCaseTable() {
-        const q = ($("caseSearch")?.value || "").toLowerCase();
-        const a = cases.filter((x) =>
-          JSON.stringify(x).toLowerCase().includes(q),
-        );
-        $("caseTable").innerHTML =
-          a
-            .map(
-              (x) =>
-                `<tr><td><b>${esc(x.client_name)}</b></td><td>${esc(x.case_type)}</td><td>${esc(x.status)}</td><td>${esc(x.priority)}</td><td>${esc(x.assigned_to || "—")}</td><td>${date(x.created_at)}</td><td><button class="linkbtn" onclick="editCase('${x.id}')">Edit</button></td></tr>`,
-            )
-            .join("") || '<tr><td colspan="7">No matching cases.</td></tr>';
-      }
-      async function loadClients() {
-        try {
-          const result = await api("/api/v1/clients?limit=250");
-          clients = result.data || [];
-          renderClients();
-          fillClientSelects();
-        } catch (error) {
-          $("clientTable").innerHTML =
-            '<tr><td colspan="6">Unable to load client records.</td></tr>';
-        }
-      }
-      function renderClients() {
-        const q = ($("clientSearch")?.value || "").toLowerCase();
-        const visible = clients.filter((client) =>
-          [client.legal_name, client.email, client.phone, client.a_number, client.uscis_account_number]
-            .some((value) => String(value || "").toLowerCase().includes(q)),
-        );
-        $("clientTable").innerHTML =
-          visible
-            .map(
-              (client) =>
-                `<tr><td><b>${esc(client.legal_name)}</b><br><small>${esc(client.nationality || "—")}</small></td><td>${esc(client.email || client.phone || "—")}</td><td>${esc(client.a_number || "—")}</td><td>${esc(client.preferred_language || "—")}</td><td>${date(client.updated_at)}</td><td><button class="linkbtn" onclick="editClient('${client.id}')">Edit</button></td></tr>`,
-            )
-            .join("") || '<tr><td colspan="6">No matching clients.</td></tr>';
-      }
-      function fillClientSelects() {
-        const options = clients.map((client) => `<option value="${client.id}">${esc(client.legal_name)}</option>`).join("");
-        if ($("taskClient")) $("taskClient").innerHTML = '<option value="">Select client if no case</option>' + options;
-        if ($("caseClientSelect")) $("caseClientSelect").innerHTML = '<option value="">Select client</option>' + options;
-      }
-      function openClient() {
-        $("clientModalTitle").textContent = "Create Client";
-        $("editClientId").value = "";
-        for (const id of ["clientLegalName","clientDob","clientBirthPlace","clientNationality","clientCountry","clientEmail","clientPhone","clientWhatsapp","clientLanguage","clientANumber","clientUscisNumber","clientPassport","clientPassportExpiration","clientAddress","clientPostal","clientImmigrationStatus","clientNotes"]) $(id).value = "";
-        $("clientErr").textContent = "";
-        $("clientModal").classList.add("show");
-      }
-      function editClient(id) {
-        const client = clients.find((item) => item.id === id);
-        if (!client) return;
-        $("clientModalTitle").textContent = "Edit Client";
-        $("editClientId").value = id;
-        const values = {
-          clientLegalName: client.legal_name, clientDob: client.date_of_birth,
-          clientBirthPlace: client.place_of_birth, clientNationality: client.nationality,
-          clientCountry: client.current_country, clientEmail: client.email,
-          clientPhone: client.phone, clientWhatsapp: client.whatsapp,
-          clientLanguage: client.preferred_language, clientANumber: client.a_number,
-          clientUscisNumber: client.uscis_account_number, clientPassport: client.passport_number,
-          clientPassportExpiration: client.passport_expiration, clientAddress: client.physical_address,
-          clientPostal: client.postal_code, clientImmigrationStatus: client.immigration_status,
-          clientNotes: client.operational_notes,
-        };
-        for (const [field, value] of Object.entries(values)) $(field).value = value || "";
-        $("clientErr").textContent = "";
-        $("clientModal").classList.add("show");
-      }
-      function closeClient() {
-        $("clientModal").classList.remove("show");
-      }
-      async function saveClient() {
-        const id = $("editClientId").value;
-        const body = {
-          legal_name: $("clientLegalName").value.trim(),
-          date_of_birth: $("clientDob").value || null,
-          place_of_birth: $("clientBirthPlace").value.trim() || null,
-          nationality: $("clientNationality").value.trim() || null,
-          current_country: $("clientCountry").value.trim() || null,
-          email: $("clientEmail").value.trim() || null,
-          phone: $("clientPhone").value.trim() || null,
-          whatsapp: $("clientWhatsapp").value.trim() || null,
-          preferred_language: $("clientLanguage").value.trim() || "English",
-          a_number: $("clientANumber").value.trim() || null,
-          uscis_account_number: $("clientUscisNumber").value.trim() || null,
-          passport_number: $("clientPassport").value.trim() || null,
-          passport_expiration: $("clientPassportExpiration").value || null,
-          physical_address: $("clientAddress").value.trim() || null,
-          postal_code: $("clientPostal").value.trim() || null,
-          immigration_status: $("clientImmigrationStatus").value.trim() || null,
-          operational_notes: $("clientNotes").value.trim() || null,
-        };
-        if (!body.legal_name) return ($("clientErr").textContent = "Legal name is required.");
-        try {
-          await api(id ? "/api/v1/clients/" + id : "/api/v1/clients", {
-            method: id ? "PATCH" : "POST",
-            body: JSON.stringify(body),
-          });
-          closeClient();
-          await loadClients();
-        } catch (error) {
-          $("clientErr").textContent = error.message;
-        }
-      }
-      function fillCaseSelect() {
-        $("docCase").innerHTML = cases
-          .map(
-            (c) =>
-              `<option value="${c.id}">${esc(c.client_name)} — ${esc(c.case_type)}</option>`,
-          )
-          .join("");
-        if ($("taskCase")) {
-          $("taskCase").innerHTML =
-            '<option value="">Select case</option>' +
-            cases.map((c) => `<option value="${c.id}">${esc(c.client_name)} — ${esc(c.case_type)}</option>`).join("");
-        }
-      }
-      function openCase(type = "", serviceCode = "") {
-        caseModalTitle.textContent = "Create New Case";
-        $("editCaseId").value = "";
-        $("selectedServiceCode").value = serviceCode;
-        $("caseClientSelect").value = "";
-        $("clientName").value = "";
-        $("caseType").value = type || services[0]?.name || "";
-        $("caseStatus").value = "intake";
-        $("priority").value = "normal";
-        $("assigned").value = "";
-        $("notes").value = "";
-        $("caseErr").textContent = "";
-        $("caseModal").classList.add("show");
-      }
-      function editCase(id) {
-        const c = cases.find((x) => x.id === id);
-        if (!c) return;
-        caseModalTitle.textContent = "Edit Case";
-        $("editCaseId").value = id;
-        $("selectedServiceCode").value = c.service_code || "";
-        $("caseClientSelect").value = c.client_id || "";
-        $("clientName").value = c.client_name;
-        $("caseType").value = c.case_type;
-        $("caseStatus").value = c.status;
-        $("priority").value = c.priority;
-        $("assigned").value = c.assigned_to || "";
-        $("notes").value = c.notes || "";
-        $("caseErr").textContent = "";
-        $("caseModal").classList.add("show");
-      }
-      function closeCase() {
-        $("caseModal").classList.remove("show");
-      }
-      async function saveCase() {
-        const id = $("editCaseId").value,
-          b = {
-            client_id: $("caseClientSelect").value || null,
-            client_name: $("clientName").value.trim(),
-            service_code: $("selectedServiceCode").value || null,
-            case_type: $("caseType").value,
-            status: $("caseStatus").value,
-            priority: $("priority").value,
-            assigned_to: $("assigned").value.trim() || null,
-            notes: $("notes").value.trim() || null,
-          };
-        if (!b.client_id && !b.client_name)
-          return ($("caseErr").textContent = "Select a client or enter the client name.");
-        try {
-          const result = await api(id ? "/api/v1/cases/" + id : "/api/v1/cases", {
-            method: id ? "PATCH" : "POST",
-            body: JSON.stringify(b),
-          });
-          const created = Array.isArray(result.data) ? result.data[0] : result.data;
-          closeCase();
-          await loadCases();
-          if (!id && b.service_code && created?.id) await openIntake(created.id, b.service_code);
-          else showView("cases");
-        } catch (e) {
-          $("caseErr").textContent = e.message;
-        }
-      }
-      async function loadTasks() {
-        const filter = $("taskFilter")?.value || "";
-        const statuses = new Set(["open","in_progress","blocked","completed"]);
-        try {
-          const result = await api("/api/v1/tasks?limit=250" + (statuses.has(filter) ? "&status=" + encodeURIComponent(filter) : "") + (filter === "my" ? "&assigned_to=me" : ""));
-          tasks = result.data || [];
-          renderTasks(filter);
-        } catch (error) {
-          $("taskTable").innerHTML =
-            '<tr><td colspan="6">Unable to load task records.</td></tr>';
-        }
-      }
-      function renderTasks(filter = $("taskFilter")?.value || "") {
-        const caseNames = Object.fromEntries(cases.map((item) => [item.id, item.client_name + " — " + item.case_type]));
-        const clientNames = Object.fromEntries(clients.map((item) => [item.id, item.legal_name]));
-        const today = new Date().toISOString().slice(0, 10);
-        const visible = tasks.filter((task) => !filter || filter === "my" || ["open","in_progress","blocked","completed"].includes(filter) || filter === "today" && task.due_date === today || filter === "overdue" && task.due_date && task.due_date < today && task.status !== "completed" || filter === "upcoming" && task.due_date && task.due_date > today && task.status !== "completed");
-        $("taskTable").innerHTML =
-          visible.map((task) => {
-            const overdue = task.due_date && task.due_date < today && task.status !== "completed";
-            return `<tr><td><b>${esc(task.title)}</b></td><td>${esc(caseNames[task.case_id] || clientNames[task.client_id] || "—")}</td><td>${esc(task.due_date || "—")}${overdue ? ' <span class="tag urgent">Overdue</span>' : ""}</td><td><span class="tag ${esc(task.priority)}">${esc(task.priority)}</span></td><td>${esc(task.status)}</td><td><button class="linkbtn" onclick="editTask('${task.id}')">Edit</button></td></tr>`;
-          }).join("") || '<tr><td colspan="6">No tasks in this view.</td></tr>';
-      }
-      function openTask() {
-        $("taskModalTitle").textContent = "Create Task";
-        $("editTaskId").value = "";
-        $("taskTitle").value = "";
-        $("taskCase").value = "";
-        $("taskClient").value = "";
-        $("taskAssignee").value = currentUser?.id || "";
-        $("taskDue").value = "";
-        $("taskPriority").value = "normal";
-        $("taskStatus").value = "open";
-        $("taskDescription").value = "";
-        $("taskErr").textContent = "";
-        $("taskModal").classList.add("show");
-      }
-      function editTask(id) {
-        const task = tasks.find((item) => item.id === id);
-        if (!task) return;
-        $("taskModalTitle").textContent = "Edit Task";
-        $("editTaskId").value = id;
-        $("taskTitle").value = task.title || "";
-        $("taskCase").value = task.case_id || "";
-        $("taskClient").value = task.client_id || "";
-        $("taskAssignee").value = task.assigned_user_id || "";
-        $("taskDue").value = task.due_date || "";
-        $("taskPriority").value = task.priority;
-        $("taskStatus").value = task.status;
-        $("taskDescription").value = task.description || "";
-        $("taskErr").textContent = "";
-        $("taskModal").classList.add("show");
-      }
-      function closeTask() {
-        $("taskModal").classList.remove("show");
-      }
-      async function saveTask() {
-        const id = $("editTaskId").value;
-        const body = {
-          title: $("taskTitle").value.trim(),
-          case_id: $("taskCase").value || null,
-          client_id: $("taskClient").value || null,
-          assigned_user_id: $("taskAssignee").value || null,
-          due_date: $("taskDue").value || null,
-          priority: $("taskPriority").value,
-          status: $("taskStatus").value,
-          description: $("taskDescription").value.trim() || null,
-        };
-        if (!body.title) return ($("taskErr").textContent = "Task title is required.");
-        if (!body.case_id && !body.client_id) return ($("taskErr").textContent = "Select a case or client.");
-        try {
-          await api(id ? "/api/v1/tasks/" + id : "/api/v1/tasks", {
-            method: id ? "PATCH" : "POST",
-            body: JSON.stringify(body),
-          });
-          closeTask();
-          await loadTasks();
-        } catch (error) {
-          $("taskErr").textContent = error.message;
-        }
-      }
-      function intakeFieldVisible(field) {
-        if (!field.visibleWhen) return true;
-        return intakeState.answers[field.visibleWhen.field] === field.visibleWhen.equals;
-      }
-      function intakeOptionLabel(value) {
-        return String(value || "")
-          .replaceAll("_", " ")
-          .replace(/\b\w/g, (letter) => letter.toUpperCase());
-      }
-      function intakeInput(field) {
-        const value = intakeState.answers[field.id];
-        const required = field.required ? " required" : "";
-        const common = `id="intake_${esc(field.id)}" data-intake-field="${esc(field.id)}"${required}`;
-        if (field.type === "textarea")
-          return `<textarea ${common}>${esc(value || "")}</textarea>`;
-        if (field.type === "select")
-          return `<select ${common}><option value="">Select</option>${(field.options || []).map((option) => `<option value="${esc(option)}"${value === option ? " selected" : ""}>${esc(intakeOptionLabel(option))}</option>`).join("")}</select>`;
-        if (field.type === "yes_no")
-          return `<select ${common}><option value="">Select</option><option value="true"${value === true ? " selected" : ""}>Yes</option><option value="false"${value === false ? " selected" : ""}>No</option></select>`;
-        if (field.type === "multi_select")
-          return `<div class="intake-options">${(field.options || []).map((option) => `<label><input type="checkbox" data-intake-multi="${esc(field.id)}" value="${esc(option)}"${Array.isArray(value) && value.includes(option) ? " checked" : ""}> ${esc(intakeOptionLabel(option))}</label>`).join("")}</div>`;
-        if (field.type === "repeatable_people") return renderPeopleField(field);
-        const types = { email: "email", phone: "tel", date: "date", number: "number", currency: "number" };
-        const inputMode = field.type === "currency" ? ' step="0.01" min="0"' : field.type === "number" ? ' step="1"' : "";
-        return `<input ${common} type="${types[field.type] || "text"}" value="${esc(value ?? "")}"${inputMode} autocomplete="off">`;
-      }
-      function renderPeopleField(field) {
-        const people = Array.isArray(intakeState.answers[field.id]) ? intakeState.answers[field.id] : [];
-        return `<div class="people-list">${people.map((person, index) => `<div class="panel" style="margin:10px 0;padding:15px"><div class="ph"><b>Family member ${index + 1}</b><button class="linkbtn" type="button" onclick="removeIntakePerson('${esc(field.id)}',${index})">Remove</button></div><div class="form">${field.personFields.map((personField) => `<div class="field"><label>${esc(personField.label)}${personField.required ? " *" : ""}</label>${personField.type === "select" ? `<select data-person-group="${esc(field.id)}" data-person-index="${index}" data-person-field="${esc(personField.id)}"><option value="">Select</option>${personField.options.map((option) => `<option value="${esc(option)}"${person[personField.id] === option ? " selected" : ""}>${esc(intakeOptionLabel(option))}</option>`).join("")}</select>` : `<input type="${personField.type === "date" ? "date" : "text"}" data-person-group="${esc(field.id)}" data-person-index="${index}" data-person-field="${esc(personField.id)}" value="${esc(person[personField.id] || "")}" autocomplete="off">`}</div>`).join("")}</div></div>`).join("")}<button class="btn" type="button" onclick="addIntakePerson('${esc(field.id)}')">Add family member</button></div>`;
-      }
-      function bindIntakeFields() {
-        document.querySelectorAll("[data-intake-field]").forEach((input) =>
-          input.addEventListener("input", () => {
-            let value = input.value;
-            if (input.querySelector?.('option[value="true"]')) value = value === "" ? "" : value === "true";
-            intakeState.answers[input.dataset.intakeField] = value;
-            scheduleIntakeSave();
-            const section = intakeState.definition.sections[intakeState.step];
-            if (section?.fields.some((item) => item.visibleWhen?.field === input.dataset.intakeField)) renderIntake();
-          }),
-        );
-        document.querySelectorAll("[data-intake-multi]").forEach((input) =>
-          input.addEventListener("change", () => {
-            intakeState.answers[input.dataset.intakeMulti] = [...document.querySelectorAll(`[data-intake-multi="${CSS.escape(input.dataset.intakeMulti)}"]:checked`)].map((item) => item.value);
-            scheduleIntakeSave();
-          }),
-        );
-        document.querySelectorAll("[data-person-group]").forEach((input) =>
-          input.addEventListener("input", () => {
-            const people = intakeState.answers[input.dataset.personGroup] || [];
-            people[Number(input.dataset.personIndex)][input.dataset.personField] = input.value;
-            scheduleIntakeSave();
-          }),
-        );
-      }
-      function addIntakePerson(fieldId) {
-        const field = intakeState.definition.sections.flatMap((section) => section.fields).find((item) => item.id === fieldId);
-        const people = intakeState.answers[fieldId] || [];
-        if (people.length >= (field.maxItems || 20)) return;
-        people.push({});
-        intakeState.answers[fieldId] = people;
-        renderIntake();
-        scheduleIntakeSave();
-      }
-      function removeIntakePerson(fieldId, index) {
-        intakeState.answers[fieldId].splice(index, 1);
-        renderIntake();
-        scheduleIntakeSave();
-      }
-      async function openIntake(caseId, serviceCode, portal = false) {
-        try {
-          const endpoint = portal ? `/api/v1/portal/intakes/${caseId}/${encodeURIComponent(serviceCode)}` : `/api/v1/intakes/${caseId}/${encodeURIComponent(serviceCode)}`;
-          const result = await api(endpoint);
-          intakeState = {
-            caseId,
-            serviceCode,
-            definition: result.definition,
-            answers: result.data?.answers || {},
-            step: Math.min(result.data?.current_step || 0, result.definition.sections.length - 1),
-            review: result.data?.status === "submitted",
-            portal,
-            endpoint,
-          };
-          $("intakeErr").textContent = "";
-          $("intakeModal").classList.add("show");
-          renderIntake();
-        } catch (error) {
-          alert(error.message);
-        }
-      }
-      function renderIntake() {
-        if (!intakeState) return;
-        const sections = intakeState.definition.sections;
-        $("intakeTitle").textContent = `${intakeState.serviceCode} Intake`;
-        if (intakeState.review) {
-          $("intakeProgress").textContent = "Review before submit";
-          $("intakeFields").innerHTML = `<div class="panel"><h3>Confirm the information</h3><p class="muted">Review every section. Use Edit to correct information before submitting.</p>${sections.map((section, index) => `<div class="sysrow"><div><b>${esc(section.title)}</b><small style="display:block;color:var(--muted);margin-top:5px">${section.fields.filter(intakeFieldVisible).map((field) => `${esc(field.label)}: ${esc(formatIntakeAnswer(intakeState.answers[field.id]))}`).join(" · ") || "No information entered"}</small></div><button class="linkbtn" onclick="editIntakeStep(${index})">Edit</button></div>`).join("")}</div>`;
-          $("intakeBack").style.display = "inline-block";
-          $("intakeNext").textContent = "Submit Intake";
-          bindIntakeFields();
-          return;
-        }
-        const section = sections[intakeState.step];
-        $("intakeProgress").textContent = `Step ${intakeState.step + 1} of ${sections.length}`;
-        $("intakeFields").innerHTML = `<h3>${esc(section.title)}</h3>${section.description ? `<p class="muted">${esc(section.description)}</p>` : ""}<div class="form">${section.fields.filter(intakeFieldVisible).map((field) => `<div class="field ${field.type === "textarea" || field.type === "multi_select" || field.type === "repeatable_people" ? "full" : ""}"><label>${esc(field.label)}${field.required ? " *" : ""}</label>${intakeInput(field)}</div>`).join("")}</div>`;
-        $("intakeBack").style.display = intakeState.step ? "inline-block" : "none";
-        $("intakeNext").textContent = intakeState.step === sections.length - 1 ? "Review" : "Next";
-        bindIntakeFields();
-      }
-      function formatIntakeAnswer(value) {
-        if (value === true) return "Yes";
-        if (value === false) return "No";
-        if (Array.isArray(value)) return value.length ? value.map((item) => typeof item === "object" ? item.legal_name || "Family member" : intakeOptionLabel(item)).join(", ") : "—";
-        return value ? intakeOptionLabel(value) : "—";
-      }
-      function validateIntakeStep() {
-        const section = intakeState.definition.sections[intakeState.step];
-        const missing = [];
-        for (const field of section.fields.filter(intakeFieldVisible)) {
-          const value = intakeState.answers[field.id];
-          if (field.required && (value === undefined || value === null || value === "")) missing.push(field.label);
-          if (field.type === "repeatable_people") {
-            for (const [index, person] of (value || []).entries()) for (const personField of field.personFields.filter((item) => item.required)) if (!person[personField.id]) missing.push(`Family member ${index + 1}: ${personField.label}`);
-          }
-        }
-        $("intakeErr").textContent = missing.length ? `Complete: ${missing.join(", ")}` : "";
-        return !missing.length;
-      }
-      function editIntakeStep(step) {
-        intakeState.review = false;
-        intakeState.step = step;
-        renderIntake();
-      }
-      async function nextIntakeStep() {
-        if (intakeState.review) return submitIntake();
-        if (!validateIntakeStep()) return;
-        if (intakeState.step < intakeState.definition.sections.length - 1) intakeState.step += 1;
-        else intakeState.review = true;
-        await saveIntakeDraft();
-        renderIntake();
-      }
-      function previousIntakeStep() {
-        $("intakeErr").textContent = "";
-        if (intakeState.review) intakeState.review = false;
-        else intakeState.step = Math.max(0, intakeState.step - 1);
-        renderIntake();
-      }
-      function scheduleIntakeSave() {
-        clearTimeout(intakeSaveTimer);
-        intakeSaveTimer = setTimeout(() => saveIntakeDraft(true), 700);
-      }
-      async function saveIntakeDraft(silent = false) {
-        if (!intakeState) return;
-        try {
-          await api(intakeState.endpoint, { method: "POST", body: JSON.stringify({ answers: intakeState.answers, current_step: intakeState.step, status: "draft" }) });
-          if (!silent) $("intakeErr").textContent = "Saved.";
-        } catch (error) {
-          $("intakeErr").textContent = `Save failed: ${error.message}`;
-        }
-      }
-      async function saveAndExitIntake() {
-        clearTimeout(intakeSaveTimer);
-        const wasPortal = intakeState?.portal;
-        await saveIntakeDraft();
-        $("intakeModal").classList.remove("show");
-        intakeState = null;
-        if (wasPortal) await loadPortal();
-        else showView("cases");
-      }
-      async function submitIntake() {
-        try {
-          const wasPortal = intakeState.portal;
-          await api(intakeState.endpoint, { method: "POST", body: JSON.stringify({ answers: intakeState.answers, current_step: intakeState.step, status: "submitted" }) });
-          $("intakeModal").classList.remove("show");
-          intakeState = null;
-          if (wasPortal) await loadPortal();
-          else { await loadCases(); showView("cases"); }
-        } catch (error) {
-          $("intakeErr").textContent = error.message === "INTAKE_REQUIRED_FIELDS_MISSING" ? "Required information is missing. Edit the affected section before submitting." : error.message;
-        }
-      }
-      async function loadDocuments() {
-        try {
-          const j = await api("/api/v1/documents");
-          docs = j.data || [];
-          $("docCount").textContent = docs.length;
-          const names = Object.fromEntries(
-            cases.map((c) => [c.id, c.client_name]),
-          );
-          $("docTable").innerHTML =
-            docs
-              .map(
-                (d) =>
-                  `<tr><td><b>${esc(d.file_name)}</b></td><td>${esc(names[d.case_id] || "Unknown")}</td><td>${esc(d.content_type || "—")}</td><td>${formatSize(d.size_bytes)}</td><td>${date(d.created_at)}</td><td><button class="linkbtn" onclick="downloadDoc('${d.id}')">Download</button> · <button class="linkbtn" onclick="deleteDoc('${d.id}')">Delete</button></td></tr>`,
-              )
-              .join("") ||
-            '<tr><td colspan="6">No documents uploaded.</td></tr>';
-        } catch (e) {
-          $("docErr").textContent = e.message;
-        }
-      }
-      async function uploadDocument() {
-        const f = $("docFile").files[0],
-          caseId = $("docCase").value;
-        $("docErr").textContent = "";
-        if (!caseId || !f)
-          return ($("docErr").textContent = "Select a case and file.");
-        try {
-          const checksum = await fileChecksum(f);
-          const p = await api("/api/v1/documents/presign", {
-            method: "POST",
-            body: JSON.stringify({
-              case_id: caseId,
-              filename: f.name,
-              content_type: f.type || "application/octet-stream",
-              size_bytes: f.size,
-            }),
-          });
-          const up = await fetch(p.upload_url, {
-            method: "PUT",
-            headers: { "content-type": f.type || "application/octet-stream" },
-            body: f,
-          });
-          if (!up.ok) throw new Error("Upload failed");
-          await api("/api/v1/documents/confirm", {
-            method: "POST",
-            body: JSON.stringify({
-              case_id: caseId,
-              key: p.key,
-              file_name: f.name,
-              content_type: f.type,
-              size_bytes: f.size,
-              content_checksum: checksum,
-            }),
-          });
-          $("docFile").value = "";
-          await loadDocuments();
-        } catch (e) {
-          $("docErr").textContent = e.message;
-        }
-      }
-      async function downloadDoc(documentId) {
-        try {
-          const j = await api("/api/v1/documents/download-url", {
-            method: "POST",
-            body: JSON.stringify({ document_id: documentId }),
-          });
-          window.open(j.download_url, "_blank");
-        } catch (e) {
-          alert(e.message);
-        }
-      }
-      async function deleteDoc(id) {
-        if (!confirm("Move this document to the protected archive?")) return;
-        try {
-          await api("/api/v1/documents/" + id, { method: "DELETE" });
-          await loadDocuments();
-        } catch (e) {
-          alert(e.message);
-        }
-      }
-      async function loadAudit() {
-        try {
-          const j = await api("/api/v1/audit");
-          $("auditTable").innerHTML =
-            (j.data || [])
-              .map(
-                (a) =>
-                  `<tr><td>${esc(a.action || a.event_type)}</td><td>${esc(a.case_id || a.entity_id || "—")}</td><td>${esc(a.actor_label || a.actor || "—")}</td><td>${date(a.created_at)}</td></tr>`,
-              )
-              .join("") || '<tr><td colspan="4">No audit events yet.</td></tr>';
-        } catch (e) {
-          $("auditTable").innerHTML =
-            '<tr><td colspan="4">Unable to load audit trail.</td></tr>';
-        }
-      }
-      async function loadServices() {
-        try {
-          const result = await api("/api/v1/services");
-          services = result.data || [];
-          renderServices();
-        } catch {
-          $("serviceGrid").innerHTML =
-            '<div class="empty">Unable to load the service catalog.</div>';
-        }
-      }
-      function renderServices() {
-        const category = $("serviceCategory")?.value || "";
-        const visible = services.filter((service) => !category || service.category === category);
-        $("serviceGrid").innerHTML = visible
-          .map(
-            (service) =>
-              `<div class="service"><div class="eyebrow">${esc(service.category.replaceAll("_", " "))}</div><h3>${esc(service.code)} — ${esc(service.name)}</h3><p>Versioned intake and controlled case workflow.</p><button class="btn primary" onclick="openCase('${esc(service.name)}','${esc(service.code)}')">Start Matter</button></div>`,
-          )
-          .join("") || '<div class="empty">No services in this category.</div>';
-        $("caseType").innerHTML = services
-          .map((service) => `<option value="${esc(service.name)}">${esc(service.code)} — ${esc(service.name)}</option>`)
-          .join("");
-      }
-      function renderRoles() {
-        $("roleGrid").innerHTML = roles
-          .map(
-            (r) =>
-              `<div class="role"><b>${esc(r[0])}</b><small>${esc(r[1])}</small></div>`,
-          )
-          .join("");
-        $("inviteRole").innerHTML = roles
-          .map((role) => `<option value="${esc(role[2])}">${esc(role[0])}</option>`)
-          .join("");
-      }
-      async function loadReviewQueue() {
-        try {
-          const result = await api("/api/v1/review-queue");
-          $("reviewCaseTable").innerHTML = (result.data.cases || []).map((item) => `<tr><td><b>${esc(item.case_reference || item.id)}</b></td><td>${esc(item.service_code || item.case_type)}</td><td>${esc(intakeOptionLabel(item.workflow_stage))}</td><td>${esc(intakeOptionLabel(item.review_state))}</td><td><span class="tag ${esc(item.priority)}">${esc(item.priority)}</span></td></tr>`).join("") || '<tr><td colspan="5">No cases awaiting review.</td></tr>';
-          $("reviewDocumentTable").innerHTML = (result.data.documents || []).map((item) => `<tr><td><b>${esc(item.file_name)}</b></td><td>${esc(item.category || "—")}</td><td>${esc(intakeOptionLabel(item.review_status))}</td><td>${date(item.created_at)}</td><td><button class="linkbtn" onclick="reviewDocument('${item.id}','approved')">Approve</button> · <button class="linkbtn" onclick="reviewDocument('${item.id}','rejected')">Reject</button></td></tr>`).join("") || '<tr><td colspan="5">No documents awaiting review.</td></tr>';
-          $("reviewErr").textContent = "";
-        } catch (error) { $("reviewErr").textContent = error.message; }
-      }
-      async function reviewDocument(id, status) {
-        const notes = status === "rejected" ? prompt("Reason for rejection") : "";
-        if (status === "rejected" && notes === null) return;
-        try {
-          await api(`/api/v1/documents/${id}/review`, { method: "POST", body: JSON.stringify({ status, reviewer_notes: notes }) });
-          await loadReviewQueue();
-        } catch (error) { $("reviewErr").textContent = error.message; }
-      }
-      async function loadBilling() {
-        try {
-          const result = await api("/api/v1/billing/invoices"); invoices = result.data || [];
-          const clientNames = Object.fromEntries(clients.map((item) => [item.id, item.legal_name]));
-          $("invoiceTable").innerHTML = invoices.map((item) => { const total = Number(item.office_fee_cents) + Number(item.government_fee_cents) + Number(item.other_fee_cents); return `<tr><td><b>${esc(item.invoice_number)}</b></td><td>${esc(clientNames[item.client_id] || item.client_id)}</td><td>${money(item.office_fee_cents,item.currency)}</td><td>${money(item.government_fee_cents,item.currency)}</td><td><b>${money(total,item.currency)}</b></td><td>${esc(intakeOptionLabel(item.status))}</td></tr>`; }).join("") || '<tr><td colspan="6">No invoices created.</td></tr>';
-          $("billingErr").textContent = "";
-        } catch (error) { $("billingErr").textContent = error.message; }
-      }
-      function money(cents, currency = "USD") { return new Intl.NumberFormat(undefined,{style:"currency",currency}).format(Number(cents || 0) / 100); }
-      function openInvoice() {
-        $("invoiceClient").innerHTML = '<option value="">Select client</option>' + clients.map((item) => `<option value="${item.id}">${esc(item.legal_name)}</option>`).join("");
-        $("invoiceCase").innerHTML = '<option value="">No case</option>' + cases.map((item) => `<option value="${item.id}">${esc(item.client_name)} — ${esc(item.case_type)}</option>`).join("");
-        ["invoiceOfficeFee","invoiceGovernmentFee","invoiceOtherFee","invoiceDue"].forEach((id) => $(id).value = ""); $("invoiceErr").textContent = ""; $("invoiceModal").classList.add("show");
-      }
-      function closeInvoice() { $("invoiceModal").classList.remove("show"); }
-      async function saveInvoice() {
-        const toCents = (id) => Math.round(Number($(id).value || 0) * 100);
-        const body = { client_id: $("invoiceClient").value, case_id: $("invoiceCase").value || null, office_fee_cents: toCents("invoiceOfficeFee"), government_fee_cents: toCents("invoiceGovernmentFee"), other_fee_cents: toCents("invoiceOtherFee"), due_date: $("invoiceDue").value || null, currency: "USD" };
-        if (!body.client_id) return ($("invoiceErr").textContent = "Select a client.");
-        try { await api("/api/v1/billing/invoices", { method: "POST", body: JSON.stringify(body) }); closeInvoice(); await loadBilling(); } catch (error) { $("invoiceErr").textContent = error.message; }
-      }
-      async function loadReports() {
-        try {
-          const result = await api("/api/v1/reports/summary"), data = result.data;
-          $("reportCases").textContent = data.cases.total; $("reportTasks").textContent = data.tasks.overdue; $("reportDeadlines").textContent = data.deadlines.open; $("reportDocuments").textContent = data.documents.total;
-          const rows = (label, values) => `<div class="sysrow"><span>${esc(label)}</span><b>${Object.entries(values).map(([key,value]) => `${esc(intakeOptionLabel(key))}: ${value}`).join(" · ") || "None"}</b></div>`;
-          $("reportDetails").innerHTML = `<div class="sys">${rows("Cases by stage",data.cases.by_stage)}${rows("Cases by priority",data.cases.by_priority)}${rows("Tasks by status",data.tasks.by_status)}${rows("Documents by review",data.documents.by_review_status)}</div>`; $("reportErr").textContent = "";
-        } catch (error) { $("reportErr").textContent = error.message; }
-      }
-      async function loadTeam() {
-        try {
-          const result = await api("/api/v1/users");
-          teamUsers = result.data || [];
-          $("taskAssignee").innerHTML = '<option value="">Unassigned</option>' + teamUsers.filter((user) => user.status !== "inactive").map((user) => `<option value="${user.id}">${esc(user.display_name || user.email)}</option>`).join("");
-          $("teamTable").innerHTML =
-            teamUsers
-              .map(
-                (user) =>
-                  `<tr><td><b>${esc(user.display_name || user.email)}</b><br><small>${esc(user.email)}</small></td><td>${esc((user.roles || []).map(intakeOptionLabel).join(", "))}</td><td>${esc(user.status)}</td><td>${date(user.last_sign_in_at)}</td><td><button class="linkbtn" onclick="openManageUser('${user.id}')">Manage</button></td></tr>`,
-              )
-              .join("") || '<tr><td colspan="4">No users found.</td></tr>';
-        } catch (error) {
-          $("taskAssignee").innerHTML = currentUser ? `<option value="${currentUser.id}">${esc(currentUser.display_name || currentUser.email)}</option>` : '<option value="">Unassigned</option>';
-          $("teamTable").innerHTML =
-            '<tr><td colspan="4">Unable to load authenticated users.</td></tr>';
-        }
-      }
-      async function inviteUser() {
-        const body = {
-          display_name: $("inviteName").value.trim(),
-          email: $("inviteEmail").value.trim(),
-          roles: [$("inviteRole").value],
-        };
-        $("teamErr").textContent = "";
-        if (!body.email) return ($("teamErr").textContent = "Email is required.");
-        try {
-          await api("/api/v1/users", {
-            method: "POST",
-            body: JSON.stringify(body),
-          });
-          $("inviteName").value = "";
-          $("inviteEmail").value = "";
-          await loadTeam();
-        } catch (error) {
-          $("teamErr").textContent = error.message;
-        }
-      }
-      function openManageUser(id) {
-        const user = teamUsers.find((item) => item.id === id); if (!user) return;
-        $("manageUserId").value = id; $("manageUserEmail").textContent = user.email; $("manageUserStatus").value = user.status;
-        $("manageUserRoles").innerHTML = roles.map((role) => `<label><input type="checkbox" data-managed-role value="${esc(role[2])}"${user.roles.includes(role[2]) ? " checked" : ""}> ${esc(role[0])}</label>`).join("");
-        $("manageUserErr").textContent = ""; $("userModal").classList.add("show");
-      }
-      function closeManageUser() { $("userModal").classList.remove("show"); }
-      async function saveManagedUser() {
-        const selectedRoles = [...document.querySelectorAll("[data-managed-role]:checked")].map((input) => input.value);
-        if (!selectedRoles.length) return ($("manageUserErr").textContent = "Select at least one role.");
-        try {
-          await api(`/api/v1/users/${$("manageUserId").value}`, { method: "PATCH", body: JSON.stringify({ roles: selectedRoles, status: $("manageUserStatus").value }) });
-          closeManageUser(); await loadTeam();
-        } catch (error) { $("manageUserErr").textContent = error.message; }
-      }
-      function esc(v) {
-        return String(v ?? "").replace(
-          /[&<>"']/g,
-          (m) =>
-            ({
-              "&": "&amp;",
-              "<": "&lt;",
-              ">": "&gt;",
-              '"': "&quot;",
-              "'": "&#39;",
-            })[m],
-        );
-      }
-      function date(v) {
-        return v ? new Date(v).toLocaleString() : "—";
-      }
-      function formatSize(v) {
-        v = Number(v || 0);
-        if (v < 1024) return v + " B";
-        if (v < 1048576) return (v / 1024).toFixed(1) + " KB";
-        return (v / 1048576).toFixed(1) + " MB";
-      }
-      async function fileChecksum(file) {
-        const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-        return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-      }
-      async function loadPortal() {
-        try {
-          const result = await api("/api/v1/portal");
-          portalData = result.data;
-          $("portalErr").textContent = "";
-          renderPortal();
-        } catch (error) {
-          $("portalErr").textContent = error.message;
-        }
-      }
-      function renderPortal() {
-        $("portalCases").innerHTML = (portalData.cases || []).map((item) => `<div class="portal-card"><div class="eyebrow">${esc(item.case_reference || item.service_code || "Case")}</div><h3>${esc(item.case_type)}</h3><p><span class="tag active">${esc(intakeOptionLabel(item.workflow_stage))}</span>${item.receipt_number ? ` · Receipt ${esc(item.receipt_number)}` : ""}</p><div class="df" style="justify-content:flex-start"><button class="btn" onclick="openPortalCase('${item.id}')">View Case</button>${item.service_code ? `<button class="btn primary" onclick="openIntake('${item.id}','${esc(item.service_code)}',true)">Continue Intake</button>` : ""}</div></div>`).join("") || '<div class="empty">No active cases are linked to this account.</div>';
-        $("portalRequests").innerHTML = (portalData.document_requests || []).map((item) => `<div class="portal-card"><div><b>${esc(item.title)}</b><p class="muted">${esc(item.instructions || "Upload the requested document.")}</p><span class="tag ${item.status === "approved" ? "active" : item.status === "rejected" ? "urgent" : "normal"}">${esc(intakeOptionLabel(item.status))}</span></div>${['missing','rejected'].includes(item.status) ? `<button class="btn primary" style="margin-top:12px" onclick="choosePortalFile('${item.case_id}','${item.id}')">Upload Document</button>` : ""}</div>`).join("") || '<div class="empty">No documents are currently requested.</div>';
-        $("portalAppointments").innerHTML = (portalData.appointments || []).map((item) => `<div class="portal-card"><b>${esc(item.title)}</b><p>${date(item.starts_at)}</p><small>${esc(item.location || "Location will be provided")}</small></div>`).join("") || '<div class="empty">No upcoming appointments.</div>';
-      }
-      async function openPortalCase(caseId) {
-        try {
-          const result = await api(`/api/v1/portal/cases/${caseId}`);
-          const workspace = result.data;
-          $("portalCaseModal").dataset.caseId = caseId;
-          $("portalCaseTitle").textContent = workspace.case.case_type;
-          $("portalCaseDetail").innerHTML = `<div class="sys"><div class="sysrow"><span>Case reference</span><b>${esc(workspace.case.case_reference || "Pending")}</b></div><div class="sysrow"><span>Current status</span><b>${esc(intakeOptionLabel(workspace.case.workflow_stage))}</b></div><div class="sysrow"><span>Agency</span><b>${esc(workspace.case.agency || "Not assigned")}</b></div><div class="sysrow"><span>Receipt number</span><b>${esc(workspace.case.receipt_number || "Not received")}</b></div></div><h3 style="margin-top:18px">Updates</h3>${workspace.updates.map((item) => `<div class="portal-card"><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || '<div class="empty">No published updates.</div>'}<h3 style="margin-top:18px">Messages</h3>${workspace.messages.map((item) => `<div class="portal-card"><b>${esc(intakeOptionLabel(item.sender_type))}</b><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || '<div class="empty">No messages yet.</div>'}`;
-          $("portalMessage").value = "";
-          $("portalMessageErr").textContent = "";
-          $("portalCaseModal").classList.add("show");
-        } catch (error) {
-          $("portalErr").textContent = error.message;
-        }
-      }
-      function closePortalCase() {
-        $("portalCaseModal").classList.remove("show");
-      }
-      async function sendPortalMessage() {
-        const caseId = $("portalCaseModal").dataset.caseId;
-        const body = $("portalMessage").value.trim();
-        if (!body) return ($("portalMessageErr").textContent = "Enter a message.");
-        try {
-          await api(`/api/v1/portal/messages/${caseId}`, { method: "POST", body: JSON.stringify({ body }) });
-          await openPortalCase(caseId);
-        } catch (error) {
-          $("portalMessageErr").textContent = error.message;
-        }
-      }
-      function choosePortalFile(caseId, requestId) {
-        portalUploadTarget = { caseId, requestId };
-        $("portalFile").value = "";
-        $("portalFile").click();
-      }
-      async function uploadPortalFile(file) {
-        if (!portalUploadTarget || !file) return;
-        const { caseId, requestId } = portalUploadTarget;
-        $("portalErr").textContent = "Uploading securely…";
-        try {
-          const checksum = await fileChecksum(file);
-          const presigned = await api("/api/v1/portal/documents/presign", { method: "POST", body: JSON.stringify({ case_id: caseId, filename: file.name, content_type: file.type, size_bytes: file.size }) });
-          const upload = await fetch(presigned.upload_url, { method: "PUT", headers: { "content-type": file.type }, body: file });
-          if (!upload.ok) throw new Error("Upload failed");
-          await api("/api/v1/portal/documents/confirm", { method: "POST", body: JSON.stringify({ case_id: caseId, request_id: requestId, key: presigned.key, file_name: file.name, content_type: file.type, size_bytes: file.size, content_checksum: checksum }) });
-          portalUploadTarget = null;
-          await loadPortal();
-        } catch (error) {
-          $("portalErr").textContent = error.message;
-        }
-      }
-      async function boot() {
-        renderRoles();
-        configureNavigation();
-        await testReady();
-        await loadAlerts();
-        await loadServices();
-        await loadCases();
-        await loadClients();
-        await loadTeam();
-        await loadTasks();
-        await loadDocuments();
-      }
-      async function restoreSession() {
-        renderRoles();
-        try {
-          const result = await api("/api/v1/auth/me");
-          currentUser = result.user;
-          $("login").classList.add("hidden");
-          const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
-          if (clientUser) {
-            $("staffApp").style.display = "none";
-            $("clientPortal").classList.add("active");
-            await loadPortal();
-          } else await boot();
-        } catch {
-          $("login").classList.remove("hidden");
-        }
-      }
-      $("password").addEventListener("keydown", (event) => {
-        if (event.key === "Enter") signIn();
-      });
-      $("portalFile").addEventListener("change", (event) => uploadPortalFile(event.target.files[0]));
-      restoreSession();
-    </script>
+    <script src="/app.js" defer></script>
   </body>
 </html>
