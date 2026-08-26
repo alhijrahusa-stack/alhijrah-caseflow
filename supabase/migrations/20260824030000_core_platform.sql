@@ -13,6 +13,8 @@ create table if not exists public.audit_events (
   created_at timestamptz not null default now()
 );
 
+alter table public.audit_events enable row level security;
+
 create table if not exists public.app_users (
   auth_user_id uuid primary key,
   display_name text,
@@ -398,6 +400,9 @@ create table if not exists public.legal_holds (
 );
 
 alter table public.app_users enable row level security;
+alter table public.cases enable row level security;
+alter table public.documents enable row level security;
+alter table public.case_events enable row level security;
 alter table public.roles enable row level security;
 alter table public.permissions enable row level security;
 alter table public.role_permissions enable row level security;
@@ -424,13 +429,47 @@ alter table public.alerts enable row level security;
 alter table public.retention_policies enable row level security;
 alter table public.legal_holds enable row level security;
 
-revoke all on public.app_users, public.roles, public.permissions, public.role_permissions, public.user_roles,
+revoke all on public.cases, public.documents, public.case_events, public.audit_events,
+  public.app_users, public.roles, public.permissions, public.role_permissions, public.user_roles,
   public.clients, public.people, public.client_people, public.service_catalog, public.case_people, public.case_assignments,
   public.form_role_assignments, public.client_access, public.tasks, public.deadlines,
   public.intake_definitions, public.intake_submissions, public.document_requests, public.case_notes,
   public.case_messages, public.appointments, public.invoices, public.payments, public.alerts,
   public.retention_policies, public.legal_holds
 from anon, authenticated;
+
+-- Browser roles have no direct table access. The API uses Supabase service_role,
+-- which retains its privileges and bypasses RLS. Explicit restrictive policies
+-- keep these tables closed even if browser grants are added accidentally later.
+do $$
+declare
+  protected_table text;
+begin
+  foreach protected_table in array array[
+    'cases', 'documents', 'case_events', 'audit_events',
+    'app_users', 'roles', 'permissions', 'role_permissions', 'user_roles',
+    'clients', 'people', 'client_people', 'service_catalog', 'case_people',
+    'case_assignments', 'form_role_assignments', 'client_access', 'tasks',
+    'deadlines', 'intake_definitions', 'intake_submissions', 'document_requests',
+    'case_notes', 'case_messages', 'appointments', 'invoices', 'payments',
+    'alerts', 'retention_policies', 'legal_holds'
+  ]
+  loop
+    if not exists (
+      select 1
+      from pg_policies
+      where schemaname = 'public'
+        and tablename = protected_table
+        and policyname = 'server_only_no_direct_access'
+    ) then
+      execute format(
+        'create policy server_only_no_direct_access on public.%I as restrictive for all to anon, authenticated using (false) with check (false)',
+        protected_table
+      );
+    end if;
+  end loop;
+end;
+$$;
 
 create or replace function public.prevent_audit_mutation() returns trigger
 language plpgsql as $$
@@ -439,13 +478,27 @@ begin
 end;
 $$;
 
-drop trigger if exists audit_events_append_only on public.audit_events;
-create trigger audit_events_append_only before update or delete on public.audit_events
-for each row execute function public.prevent_audit_mutation();
+do $$
+begin
+  if not exists (
+    select 1 from pg_trigger
+    where tgrelid = 'public.audit_events'::regclass
+      and tgname = 'audit_events_append_only'
+      and not tgisinternal
+  ) then
+    execute 'create trigger audit_events_append_only before update or delete on public.audit_events for each row execute function public.prevent_audit_mutation()';
+  end if;
 
-drop trigger if exists case_events_append_only on public.case_events;
-create trigger case_events_append_only before update or delete on public.case_events
-for each row execute function public.prevent_audit_mutation();
+  if not exists (
+    select 1 from pg_trigger
+    where tgrelid = 'public.case_events'::regclass
+      and tgname = 'case_events_append_only'
+      and not tgisinternal
+  ) then
+    execute 'create trigger case_events_append_only before update or delete on public.case_events for each row execute function public.prevent_audit_mutation()';
+  end if;
+end;
+$$;
 
 insert into public.roles (code, name) values
   ('owner','Owner'), ('admin','Admin'), ('supervisor','Supervisor'), ('case_manager','Case Manager'),
