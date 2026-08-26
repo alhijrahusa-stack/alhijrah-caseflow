@@ -21,6 +21,7 @@ const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const anonKey = process.env.SUPABASE_ANON_KEY || serviceRoleKey;
 const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
+const appBaseUrl = process.env.APP_BASE_URL?.replace(/\/$/, '');
 
 function authError(message, status = 401) {
   return Object.assign(new Error(message), { status });
@@ -270,9 +271,15 @@ export async function getAuthProvisioningStatus({ now = Date.now() } = {}) {
 
 async function probeAuthProvisioning() {
   try {
-    const data = await authRequest('/admin/users?page=1&per_page=200', { admin: true });
+    const data = await authRequest('/admin/users?page=1&per_page=1000', { admin: true });
     const users = Array.isArray(data?.users) ? data.users : [];
-    const hasOwner = users.some(user => user.app_metadata?.roles?.includes('owner') || (ownerEmail && String(user.email || '').toLowerCase() === ownerEmail));
+    const hasOwner = users.some(user => {
+      const confirmed = Boolean(user.email_confirmed_at || user.confirmed_at);
+      const active = user.app_metadata?.status !== 'inactive';
+      const assigned = user.app_metadata?.roles?.includes('owner')
+        || (ownerEmail && String(user.email || '').toLowerCase() === ownerEmail);
+      return confirmed && active && assigned;
+    });
     return { configured: true, userCount: users.length, ownerProvisioned: hasOwner };
   } catch (error) {
     const errorCode = error.status === 401 || error.status === 403
@@ -299,13 +306,44 @@ export async function listAuthUsers() {
   }));
 }
 
-export async function inviteAuthUser({ email, displayName, roles }) {
+export async function inviteAuthUser({ email, displayName, roles, redirectTo = appBaseUrl }) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) throw authError('VALID_EMAIL_REQUIRED', 400);
   const validatedRoles = validateRoles(roles);
-  const invited = await authRequest('/invite', { method: 'POST', admin: true, body: { email: normalizedEmail, data: { full_name: String(displayName || '').trim().slice(0, 120) } } });
+  const redirect = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : '';
+  const invited = await authRequest(`/invite${redirect}`, { method: 'POST', admin: true, body: { email: normalizedEmail, data: { full_name: String(displayName || '').trim().slice(0, 120) } } });
   await authRequest(`/admin/users/${encodeURIComponent(invited.id)}`, { method: 'PUT', admin: true, body: { app_metadata: { ...(invited.app_metadata || {}), roles: validatedRoles, status: 'invited' } } });
+  resetAuthProvisioningCache();
   return { id: invited.id, email: invited.email, roles: validatedRoles, status: 'invited' };
+}
+
+export async function ensureConfiguredOwnerInvitation() {
+  if (!ownerEmail) return { invited: false, reason: 'OWNER_EMAIL_NOT_CONFIGURED' };
+  const data = await authRequest('/admin/users?page=1&per_page=1000', { admin: true });
+  const existing = (data?.users || []).find(user => String(user.email || '').toLowerCase() === ownerEmail);
+  if (existing) return { invited: false, reason: 'OWNER_ACCOUNT_EXISTS' };
+  const invited = await inviteAuthUser({ email: ownerEmail, displayName: 'Owner', roles: ['owner'] });
+  return { invited: true, userId: invited.id };
+}
+
+export async function acceptInvitedUser({ accessToken, password }, req) {
+  if (typeof accessToken !== 'string' || accessToken.length < 20 || accessToken.length > 8192) {
+    throw authError('INVALID_INVITATION', 400);
+  }
+  if (typeof password !== 'string' || password.length < 12 || password.length > 256) {
+    throw authError('PASSWORD_REQUIREMENTS_NOT_MET', 400);
+  }
+  const user = await getUser(accessToken);
+  const roles = (user.app_metadata?.roles || []).filter(role => roleDefinitions[role]);
+  if (!roles.length || user.app_metadata?.status !== 'invited') throw authError('INVALID_INVITATION', 403);
+  await authRequest('/user', { method: 'PUT', token: accessToken, body: { password } });
+  await authRequest(`/admin/users/${encodeURIComponent(user.id)}`, {
+    method: 'PUT',
+    admin: true,
+    body: { app_metadata: { ...(user.app_metadata || {}), roles, status: 'active' } },
+  });
+  resetAuthProvisioningCache();
+  return signInWithPassword(user.email, password, req);
 }
 
 export async function getAuthUser(userId) {

@@ -245,7 +245,12 @@ async function handleAuth(url, init) {
   if (url.pathname === '/auth/v1/user') {
     const email = backend.sessions.get(bearer);
     if (!email) return jsonResponse(401, { message: 'invalid token' });
-    return jsonResponse(200, publicShape(backend.users.get(email)));
+    const user = backend.users.get(email);
+    if (method === 'PUT') {
+      if (typeof body?.password === 'string') user.password = body.password;
+      if (body?.data) user.user_metadata = { ...user.user_metadata, ...body.data };
+    }
+    return jsonResponse(200, publicShape(user));
   }
 
   if (url.pathname === '/auth/v1/logout') {

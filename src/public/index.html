@@ -647,7 +647,7 @@
   </head>
   <body>
     <div class="login" id="login">
-      <div class="loginbox">
+      <div class="loginbox" id="loginBox">
         <div class="logo">A</div>
         <div class="eyebrow">Secure production workspace</div>
         <h2>Alhijrah Caseflow</h2>
@@ -671,6 +671,16 @@
         <button id="signInBtn" class="btn primary" style="width: 100%" data-act="signIn">
           Sign In
         </button>
+      </div>
+      <div class="loginbox" id="inviteSetup" style="display:none">
+        <div class="logo">A</div>
+        <div class="eyebrow">Secure account activation</div>
+        <h2>Create your password</h2>
+        <p>Complete the invitation using a unique password of at least 12 characters.</p>
+        <input id="invitePassword" type="password" placeholder="New password" autocomplete="new-password" />
+        <input id="invitePasswordConfirm" type="password" placeholder="Confirm password" autocomplete="new-password" />
+        <div class="err" id="inviteSetupErr"></div>
+        <button id="acceptInviteBtn" class="btn primary" style="width:100%" data-act="acceptInvite">Activate Account</button>
       </div>
     </div>
     <div class="portal" id="clientPortal">

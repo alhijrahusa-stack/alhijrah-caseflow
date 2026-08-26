@@ -10,7 +10,8 @@
         invoices = [],
         teamUsers = [],
         intakeState = null,
-        intakeSaveTimer = null;
+        intakeSaveTimer = null,
+        inviteAccessToken = null;
       const roles = [
         ["Owner", "Full platform authority and configuration control.", "owner"],
         ["Admin", "Operational administration and user management.", "admin"],
@@ -150,6 +151,46 @@
             e.message === "INVALID_CREDENTIALS"
               ? "Email or password is incorrect."
               : e.message;
+        }
+      }
+      function prepareInvitation() {
+        const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
+        if (fragment.get("type") !== "invite" || !fragment.get("access_token")) return false;
+        inviteAccessToken = fragment.get("access_token");
+        history.replaceState(null, "", location.pathname + location.search);
+        $("loginBox").style.display = "none";
+        $("inviteSetup").style.display = "block";
+        $("login").classList.remove("hidden");
+        return true;
+      }
+      async function acceptInvite() {
+        const password = $("invitePassword").value;
+        const confirmation = $("invitePasswordConfirm").value;
+        $("inviteSetupErr").textContent = "";
+        if (!inviteAccessToken) return ($("inviteSetupErr").textContent = "This invitation is invalid or expired.");
+        if (password.length < 12) return ($("inviteSetupErr").textContent = "Use at least 12 characters.");
+        if (password !== confirmation) return ($("inviteSetupErr").textContent = "Passwords do not match.");
+        try {
+          const result = await api("/api/v1/auth/accept-invite", {
+            method: "POST",
+            body: JSON.stringify({ access_token: inviteAccessToken, password }),
+          });
+          inviteAccessToken = null;
+          $("invitePassword").value = "";
+          $("invitePasswordConfirm").value = "";
+          currentUser = result.user;
+          $("inviteSetup").style.display = "none";
+          $("login").classList.add("hidden");
+          const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
+          if (clientUser) {
+            $("staffApp").style.display = "none";
+            $("clientPortal").classList.add("active");
+            await loadPortal();
+          } else await boot();
+        } catch (error) {
+          $("inviteSetupErr").textContent = error.message === "INVALID_INVITATION"
+            ? "This invitation is invalid or expired."
+            : error.message;
         }
       }
       async function signOut() {
@@ -1175,6 +1216,9 @@
       $("password").addEventListener("keydown", (event) => {
         if (event.key === "Enter") signIn();
       });
+      $("invitePasswordConfirm").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") acceptInvite();
+      });
       $("portalFile").addEventListener("change", (event) => uploadPortalFile(event.target.files[0]));
       $("accessSubjectType").addEventListener("change", () => {
         $("accessSubject").innerHTML = optionList(accessSubjectOptions($("accessSubjectType").value));
@@ -1224,6 +1268,7 @@
       // turns that name into a call: an unknown or attacker-supplied name matches
       // nothing and does nothing. No eval, no lookup by string on window.
       const uiActions = Object.freeze({
+        acceptInvite,
         addIntakePerson,
         choosePortalFile,
         closeCase,
@@ -1294,4 +1339,4 @@
         });
       }
 
-      restoreSession();
+      if (!prepareInvitation()) restoreSession();

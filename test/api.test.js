@@ -5,9 +5,9 @@ import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 
-import { APP_ORIGIN, INTERNAL_KEY, addUser, backend, browserHeaders, cookieHeader, driver, putObject, resetBackend } from './helpers/harness.js';
+import { APP_ORIGIN, INTERNAL_KEY, addUser, backend, browserHeaders, cookieHeader, driver, issueSession, putObject, resetBackend } from './helpers/harness.js';
 import { handle, requiredPermission, respondToError } from '../src/server.js';
-import { resetAuthProvisioningCache, resetLoginThrottle } from '../src/auth.js';
+import { ensureConfiguredOwnerInvitation, getAuthProvisioningStatus, resetAuthProvisioningCache, resetLoginThrottle } from '../src/auth.js';
 
 const request = driver(handle, respondToError);
 
@@ -143,6 +143,42 @@ test('owner-by-email bootstrap requires a confirmed address', async () => {
   });
   assert.equal(confirmed.status, 200);
   assert.deepEqual(confirmed.body.user.roles, ['owner']);
+});
+
+test('configured Owner receives a one-time invitation and readiness waits for acceptance', async () => {
+  const invitation = await ensureConfiguredOwnerInvitation();
+  assert.equal(invitation.invited, true);
+  const owner = backend.users.get('owner@caseflow.test');
+  assert.ok(owner);
+  assert.deepEqual(owner.app_metadata.roles, ['owner']);
+  assert.equal(owner.app_metadata.status, 'invited');
+  assert.equal((await getAuthProvisioningStatus()).ownerProvisioned, false, 'an unconfirmed invitation is not production readiness');
+
+  owner.email_confirmed_at = new Date().toISOString();
+  owner.confirmed_at = owner.email_confirmed_at;
+  const inviteSession = issueSession(owner);
+  const accepted = await request({
+    method: 'POST',
+    path: '/api/v1/auth/accept-invite',
+    headers: browserHeaders(),
+    body: { access_token: inviteSession.access_token, password: 'a-new-owner-password' },
+  });
+  assert.equal(accepted.status, 200, accepted.raw);
+  assert.deepEqual(accepted.body.user.roles, ['owner']);
+  assert.equal(backend.users.get('owner@caseflow.test').app_metadata.status, 'active');
+  assert.ok(backend.tables.app_users.some(row => row.auth_user_id === owner.id && row.status === 'active'));
+  assert.ok(backend.tables.user_roles.some(row => row.auth_user_id === owner.id && row.role_code === 'owner'));
+  assert.ok(backend.tables.audit_events.some(row => row.action === 'invitation_accepted' && row.actor_user_id === owner.id));
+  assert.equal((await getAuthProvisioningStatus()).ownerProvisioned, true);
+
+  const replay = await request({
+    method: 'POST',
+    path: '/api/v1/auth/accept-invite',
+    headers: browserHeaders(),
+    body: { access_token: inviteSession.access_token, password: 'another-owner-password' },
+  });
+  assert.equal(replay.status, 403);
+  assert.equal(replay.body.error, 'INVALID_INVITATION');
 });
 
 test('repeated failed logins are throttled before reaching the auth provider', async () => {

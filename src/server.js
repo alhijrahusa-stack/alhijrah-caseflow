@@ -4,9 +4,11 @@ import fs from 'node:fs';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
+  acceptInvitedUser,
   assertSameOrigin,
   authenticateSession,
   clearSessionCookies,
+  ensureConfiguredOwnerInvitation,
   getAuthProvisioningStatus,
   getAuthUser,
   internalPrincipal,
@@ -355,6 +357,7 @@ async function handle(req,res){
   // Unauthenticated. Reports only whether sign-in is usable; the tenant user
   // count is operational data and stays behind authentication.
   if(req.method==='GET'&&u.pathname==='/api/v1/auth/status'){const status=await getAuthProvisioningStatus();return json(res,200,{configured:status.configured,ownerProvisioned:status.ownerProvisioned,errorCode:status.errorCode||null,requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/auth/accept-invite'){assertSameOrigin(req);const body=await readJson(req,24_576);const session=await acceptInvitedUser({accessToken:body.access_token,password:body.password},req);const principal=await resolveApplicationPrincipal(principalFromUser(session.user));await syncApplicationUser({id:principal.id,email:principal.email,display_name:principal.displayName,status:'active',roles:principal.roles});setSessionCookies(res,session);await audit(principal,'invitation_accepted','session',principal.id,{},req);return json(res,200,{user:await publicUser(principal),requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/auth/login'){assertSameOrigin(req);const body=await readJson(req,16_384);const session=await signInWithPassword(body.email,body.password,req);const principal=await resolveApplicationPrincipal(principalFromUser(session.user));setSessionCookies(res,session);await audit(principal,'login','session',principal.id,{},req);return json(res,200,{user:await publicUser(principal),requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/auth/logout'){assertSameOrigin(req);let principal=null;try{principal=await authenticateSession(req,res)}catch{}const {accessToken}=sessionTokens(req);await revokeSession(accessToken);clearSessionCookies(res);await audit(principal,'logout','session',principal?.id||null,{},req);return json(res,200,{signedOut:true,requestId},ch)}
   if(req.method==='GET'&&u.pathname==='/api/v1/auth/me'){const principal=await resolveApplicationPrincipal(await authenticateSession(req,res));return json(res,200,{user:await publicUser(principal),requestId},ch)}
@@ -1090,6 +1093,9 @@ export function respondToError(req,res,err){
 }
 
 export function createServer(){
+  ensureConfiguredOwnerInvitation()
+    .then(result=>{if(result.invited)console.log('Configured Owner invitation sent')})
+    .catch(error=>console.error('owner-invitation-failed',error.message));
   const server=http.createServer((req,res)=>handle(req,res).catch(err=>respondToError(req,res,err)));
   server.requestTimeout=30_000;server.headersTimeout=35_000;server.keepAliveTimeout=5_000;
   return server;
