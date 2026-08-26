@@ -55,6 +55,7 @@ test('readiness verifies the authorization schema independently of owner provisi
   assert.equal(response.body.checks.coreSchema, true);
   assert.equal(response.body.checks.authorizationSchema, true);
   assert.deepEqual(response.body.authorizationTables, { teams: true, teamMembers: true, accessPolicies: true, recordAccessGrants: true });
+  assert.deepEqual(response.body.authorizationTableErrors, {});
   assert.equal(response.body.checks.ownerAccount, false);
 });
 

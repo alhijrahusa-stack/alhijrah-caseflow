@@ -323,7 +323,7 @@ async function handle(req,res){
     const [authStatus,databaseState,r2State]=await Promise.all([
       getAuthProvisioningStatus(),
       (async()=>{
-        const state={connected:false,coreSchema:false,authorizationSchema:false,authorizationTables:{teams:false,teamMembers:false,accessPolicies:false,recordAccessGrants:false}};
+        const state={connected:false,coreSchema:false,authorizationSchema:false,authorizationTables:{teams:false,teamMembers:false,accessPolicies:false,recordAccessGrants:false},authorizationTableErrors:{}};
         try{await db('cases',{query:'?select=id&limit=1'});state.connected=true}catch{return state}
         try{await db('clients',{query:'?select=id&limit=1'});state.coreSchema=true}catch{return state}
         const tableChecks=await Promise.all([
@@ -332,10 +332,16 @@ async function handle(req,res){
           ['accessPolicies','access_policies','id'],
           ['recordAccessGrants','record_access_grants','id'],
         ].map(async([check,table,column])=>{
-          try{await db(table,{query:`?select=${column}&limit=1`});return [check,true]}
-          catch{return [check,false]}
+          try{await db(table,{query:`?select=${column}&limit=1`});return [check,true,null]}
+          catch(error){
+            const detail=error?.internalDetails;
+            const code=typeof detail==='object'?String(detail?.code||''):'';
+            const category=isMissingRelation(error)?'schema_or_cache_missing':code==='42501'||error?.status===401||error?.status===403?'permission_denied':'unavailable';
+            return [check,false,category];
+          }
         }));
-        state.authorizationTables=Object.fromEntries(tableChecks);
+        state.authorizationTables=Object.fromEntries(tableChecks.map(([check,ok])=>[check,ok]));
+        state.authorizationTableErrors=Object.fromEntries(tableChecks.filter(([,ok])=>!ok).map(([check,,category])=>[check,category]));
         state.authorizationSchema=Object.values(state.authorizationTables).every(Boolean);
         return state;
       })(),
@@ -343,7 +349,7 @@ async function handle(req,res){
     ]);
     const checks={supabase:databaseState.connected,coreSchema:databaseState.coreSchema,authorizationSchema:databaseState.authorizationSchema,r2:r2State,internalAuth:Boolean(internalApiKey),userAuth:authStatus.configured,ownerAccount:authStatus.ownerProvisioned};
     const ready=Object.values(checks).every(Boolean);
-    return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,authorizationTables:databaseState.authorizationTables,requestId},ch);
+    return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,authorizationTables:databaseState.authorizationTables,authorizationTableErrors:databaseState.authorizationTableErrors,requestId},ch);
   }
 
   // Unauthenticated. Reports only whether sign-in is usable; the tenant user
