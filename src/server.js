@@ -44,9 +44,10 @@ import {
   serviceCatalog,
 } from './platform.js';
 import { intakeDefinition, validateIntakeAnswers } from './intake-definitions.js';
+import { extractIdentityDocument } from './identity-ocr.js';
 
 const port = Number(process.env.PORT || 3000);
-const version = '2.9.0';
+const version = '2.10.0';
 const service = 'alhijrah-caseflow-api';
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -101,11 +102,30 @@ function securityHeaders(){return {'cache-control':'no-store','content-security-
 function json(res,status,body,extra={}){res.writeHead(status,{'content-type':'application/json; charset=utf-8',...securityHeaders(),...extra});res.end(JSON.stringify(body))}
 function cors(req){const origin=req.headers.origin;if(!origin||!trustedOrigins(req).has(origin))return {};return {'access-control-allow-origin':origin,'access-control-allow-credentials':'true','access-control-allow-methods':'GET,POST,PUT,PATCH,DELETE,OPTIONS','access-control-allow-headers':'content-type,x-api-key,x-request-id','access-control-max-age':'86400',vary:'Origin'}}
 async function readJson(req,max=1_000_000){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>max)throw Object.assign(new Error('PAYLOAD_TOO_LARGE'),{status:413});chunks.push(c)}try{return JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}')}catch{throw Object.assign(new Error('INVALID_JSON'),{status:400})}}
+async function readBuffer(req,max){const declared=Number(req.headers['content-length']||0);if(declared>max)throw Object.assign(new Error('PAYLOAD_TOO_LARGE'),{status:413});const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>max)throw Object.assign(new Error('PAYLOAD_TOO_LARGE'),{status:413});chunks.push(chunk)}return Buffer.concat(chunks,size)}
 function internalAuth(req){if(!internalApiKey)throw Object.assign(new Error('API_NOT_CONFIGURED'),{status:503});const supplied=req.headers['x-api-key'];if(typeof supplied!=='string')throw Object.assign(new Error('UNAUTHORIZED'),{status:401});const a=Buffer.from(supplied),b=Buffer.from(internalApiKey);if(a.length!==b.length||!crypto.timingSafeEqual(a,b))throw Object.assign(new Error('UNAUTHORIZED'),{status:401});return internalPrincipal()}
 async function db(path,{method='GET',body,query=''}={}){if(!supabaseUrl||!supabaseServiceKey)throw Object.assign(new Error('SUPABASE_NOT_CONFIGURED'),{status:503});const r=await fetch(`${supabaseUrl}/rest/v1/${path}${query}`,{method,headers:{apikey:supabaseServiceKey,authorization:`Bearer ${supabaseServiceKey}`,'content-type':'application/json',prefer:method==='POST'||method==='PATCH'?'return=representation':''},body:body===undefined?undefined:JSON.stringify(body)});const text=await r.text();let data=null;try{data=text?JSON.parse(text):null}catch{data=text}if(!r.ok){const e=new Error('DATABASE_REQUEST_FAILED');e.status=r.status>=500?502:r.status;e.internalDetails=data;throw e}return data}
 function safeKey(x){const c=String(x||'').replace(/[^a-zA-Z0-9._/-]/g,'_').replace(/\.\./g,'_');if(!c||c.startsWith('/'))throw Object.assign(new Error('INVALID_OBJECT_KEY'),{status:400});return c}
 function uuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||''))}
 const allowedDocumentTypes=new Set(['application/pdf','image/jpeg','image/png','image/webp','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+const allowedIdentityTypes=new Set(['image/jpeg','image/png','image/webp']);
+const identityExtractions=new Map();
+
+function storeIdentityExtraction(principal,result){
+  const now=Date.now();
+  for(const [token,entry] of identityExtractions)if(entry.expiresAt<=now)identityExtractions.delete(token);
+  while(identityExtractions.size>=100)identityExtractions.delete(identityExtractions.keys().next().value);
+  const token=crypto.randomBytes(32).toString('base64url');
+  identityExtractions.set(token,{principalId:principal.id,result,expiresAt:now+15*60_000,used:false});
+  return token;
+}
+
+function identityExtraction(token,principal){
+  const entry=identityExtractions.get(String(token||''));
+  if(!entry||entry.expiresAt<=Date.now()||entry.principalId!==principal.id||entry.used)throw Object.assign(new Error('IDENTITY_EXTRACTION_EXPIRED'),{status:410});
+  entry.used=true;
+  return entry;
+}
 function stableUuid(value){const hex=crypto.createHash('sha256').update(value).digest('hex').slice(0,32);return hex.slice(0,8)+'-'+hex.slice(8,12)+'-5'+hex.slice(13,16)+'-a'+hex.slice(17,20)+'-'+hex.slice(20,32)}
 function documentInput(body){const caseId=String(body.case_id||'');if(!uuid(caseId))throw Object.assign(new Error('VALID_CASE_ID_REQUIRED'),{status:400});const fileName=String(body.filename||body.file_name||'').trim().slice(0,180);if(!fileName||/[\x00-\x1f]/.test(fileName))throw Object.assign(new Error('VALID_FILENAME_REQUIRED'),{status:400});const contentType=String(body.content_type||'').toLowerCase();if(!allowedDocumentTypes.has(contentType))throw Object.assign(new Error('UNSUPPORTED_DOCUMENT_TYPE'),{status:415});const sizeBytes=Number(body.size_bytes);if(!Number.isSafeInteger(sizeBytes)||sizeBytes<1||sizeBytes>25*1024*1024)throw Object.assign(new Error('DOCUMENT_SIZE_NOT_ALLOWED'),{status:413});return{caseId,fileName,contentType,sizeBytes}}
 function documentChecksum(value){if(value===undefined||value===null||value==='')return null;const checksum=String(value).toLowerCase();if(!/^[a-f0-9]{64}$/.test(checksum))throw Object.assign(new Error('INVALID_DOCUMENT_CHECKSUM'),{status:400});return checksum}
@@ -228,6 +248,7 @@ function requiredPermission(req,path){
   if(path.startsWith('/api/v1/services'))return 'dashboard.view';
   if(path.startsWith('/api/v1/document-requests'))return req.method==='GET'?'documents.view':'documents.manage';
   if(path.startsWith('/api/v1/documents'))return path.endsWith('/review')?'documents.review':req.method==='GET'||path.endsWith('/download-url')?'documents.view':'documents.manage';
+  if(path.startsWith('/api/v1/identity'))return 'clients.manage';
   if(path.startsWith('/api/v1/cases'))return req.method==='GET'?'cases.view':'cases.manage';
   // Owner access management. No role holds access.manage by default, so these
   // are owner-only until the Owner delegates the permission.
@@ -683,6 +704,48 @@ async function handle(req,res){
     return json(res,200,{data:data[0]||data,definition,requestId},ch);
   }
 
+  if(req.method==='POST'&&u.pathname==='/api/v1/identity/ocr'){
+    const contentType=String(req.headers['content-type']||'').split(';')[0].toLowerCase();
+    if(!allowedIdentityTypes.has(contentType))throw Object.assign(new Error('IDENTITY_IMAGE_REQUIRED'),{status:415});
+    const declared=Number(u.searchParams.get('size_bytes')||req.headers['content-length']||0);
+    if(!Number.isSafeInteger(declared)||declared<1||declared>10*1024*1024)throw Object.assign(new Error('IDENTITY_IMAGE_SIZE_NOT_ALLOWED'),{status:413});
+    const image=await readBuffer(req,10*1024*1024);
+    if(image.length!==declared)throw Object.assign(new Error('IDENTITY_IMAGE_SIZE_MISMATCH'),{status:409});
+    let result;
+    try{result=await extractIdentityDocument(image)}catch(error){console.error('identity-ocr-failed',error.message);throw Object.assign(new Error('IDENTITY_OCR_FAILED'),{status:422})}
+    if(!result.mrz.detected&&!Object.keys(result.fields).length)throw Object.assign(new Error('IDENTITY_NOT_RECOGNIZED'),{status:422});
+    const extractionToken=storeIdentityExtraction(principal,result);
+    await audit(principal,'identity_ocr_completed','identity_extraction',null,{engine:result.engine,mrz_detected:result.mrz.detected,mrz_valid:result.mrz.valid,confidence:result.confidence},req);
+    return json(res,200,{extraction_token:extractionToken,expires_in:900,result,requestId},ch);
+  }
+  if(req.method==='POST'&&u.pathname==='/api/v1/identity/confirm'){
+    const body=await readJson(req,32_768);
+    if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});
+    const extraction=identityExtraction(body.extraction_token,principal);
+    const reviewed=body.fields&&typeof body.fields==='object'&&!Array.isArray(body.fields)?body.fields:{};
+    const allowed=['legal_name','date_of_birth','place_of_birth','nationality','current_country','passport_number','passport_country','passport_expiration'];
+    const accepted=Object.fromEntries(allowed.filter(field=>reviewed[field]!==undefined).map(field=>[field,reviewed[field]]));
+    let record;
+    let data;
+    try{
+      if(body.client_id){
+        if(!uuid(body.client_id))throw Object.assign(new Error('VALID_CLIENT_ID_REQUIRED'),{status:400});
+        const rows=await db('clients',{query:`?id=eq.${encodeURIComponent(body.client_id)}&select=*`});
+        if(!rows.length)throw Object.assign(new Error('CLIENT_NOT_FOUND'),{status:404});
+        record={...normalizeClientInput({...rows[0],...accepted}),updated_by:principal.id,updated_at:new Date().toISOString()};
+        data=await db('clients',{method:'PATCH',query:`?id=eq.${encodeURIComponent(body.client_id)}`,body:record});
+      }else{
+        const id=crypto.randomUUID();
+        record={id,...normalizeClientInput({...accepted,preferred_language:'English'}),created_by:principal.id,updated_by:principal.id};
+        data=await db('clients',{method:'POST',body:record});
+      }
+    }catch(error){extraction.used=false;throw error}
+    identityExtractions.delete(String(body.extraction_token));
+    const client=Array.isArray(data)?data[0]:data;
+    await audit(principal,'identity_autofill_confirmed','client',client.id,{client_id:client.id,engine:extraction.result.engine,mrz_valid:extraction.result.mrz.valid,human_confirmed:true},req);
+    return json(res,200,{data:client,autofill:{saved:true,human_confirmed:true,engine:extraction.result.engine,mrz_valid:extraction.result.mrz.valid},requestId},ch);
+  }
+
   if(req.method==='GET'&&u.pathname==='/api/v1/clients'){
     const limit=Math.min(Math.max(Number(u.searchParams.get('limit')||100),1),250);
     const includeArchived=u.searchParams.get('archived')==='true';
@@ -969,6 +1032,29 @@ async function handle(req,res){
     const docCases=await casesById(access,(data||[]).map(row=>row.case_id));
     const visible=(data||[]).filter(row=>!row.archived_at&&row.status!=='deleted'&&canAccessDocument(access,row,docCases.get(String(row.case_id)),'documents.view'));
     return json(res,200,{data:visible,requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/documents/upload'){
+    if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
+    const contentType=String(req.headers['content-type']||'').split(';')[0].toLowerCase();
+    const input=documentInput({case_id:u.searchParams.get('case_id'),filename:u.searchParams.get('filename'),content_type:contentType,size_bytes:Number(u.searchParams.get('size_bytes')||req.headers['content-length']||0)});
+    const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});
+    if(!caseRows.length||!canAccessCase(access,caseRows[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
+    const file=await readBuffer(req,25*1024*1024);
+    if(file.length!==input.sizeBytes)throw Object.assign(new Error('DOCUMENT_SIZE_MISMATCH'),{status:409});
+    const checksum=crypto.createHash('sha256').update(file).digest('hex');
+    const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${checksum}&archived_at=is.null&select=id`});
+    if(duplicates.length)throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409,details:{document_id:duplicates[0].id}});
+    const filename=safeKey(input.fileName).split('/').pop();
+    const key=safeKey(`cases/${input.caseId}/${crypto.randomUUID()}-${filename}`);
+    await r2.send(new PutObjectCommand({Bucket:r2Bucket,Key:key,Body:file,ContentType:input.contentType,ContentLength:file.length,Metadata:{case_id:input.caseId}}));
+    try{
+      const stored=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));
+      if(Number(stored.ContentLength)!==file.length||String(stored.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});
+      const record={id:crypto.randomUUID(),case_id:input.caseId,client_id:caseRows[0].client_id||null,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:file.length,content_checksum:checksum,status:'uploaded',category:cleanText(u.searchParams.get('category'),{max:100}),review_status:'received'};
+      const data=await db('documents',{method:'POST',body:record});
+      await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id,storage:'r2'},principal,req);
+      return json(res,201,{data,storage:'r2',linked:{case_id:record.case_id,client_id:record.client_id},preview_available:['application/pdf','image/jpeg','image/png','image/webp'].includes(record.content_type),requestId},ch);
+    }catch(error){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key})).catch(()=>{});throw error}
+  }
   if(req.method==='POST'&&u.pathname==='/api/v1/documents/presign'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});if(!Array.isArray(caseRows)||!caseRows.length||!canAccessCase(access,caseRows[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const filename=safeKey(input.fileName).split('/').pop();const key=safeKey(`cases/${input.caseId}/${crypto.randomUUID()}-${filename}`);const uploadUrl=await getSignedUrl(r2,new PutObjectCommand({Bucket:r2Bucket,Key:key,ContentType:input.contentType,ContentLength:input.sizeBytes,Metadata:{case_id:input.caseId}}),{expiresIn:900});return json(res,200,{key,upload_url:uploadUrl,expires_in:900,required_headers:{'content-type':input.contentType},requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/documents/confirm'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const key=safeKey(b.key);if(!key.startsWith(`cases/${input.caseId}/`))throw Object.assign(new Error('DOCUMENT_CASE_MISMATCH'),{status:403});const confirmCase=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});if(!confirmCase.length||!canAccessCase(access,confirmCase[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const object=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));if(Number(object.ContentLength)!==input.sizeBytes||String(object.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});const checksum=documentChecksum(b.content_checksum);if(checksum){const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409,details:{document_id:duplicates[0].id}});}}const record={id:crypto.randomUUID(),case_id:input.caseId,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:checksum,status:'uploaded'};if(b.client_id||b.person_id||b.request_id||b.category||b.replaces_document_id){if(b.client_id&&!uuid(b.client_id)||b.person_id&&!uuid(b.person_id)||b.request_id&&!uuid(b.request_id)||b.replaces_document_id&&!uuid(b.replaces_document_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});Object.assign(record,{client_id:b.client_id||null,person_id:b.person_id||null,request_id:b.request_id||null,category:cleanText(b.category,{max:100}),review_status:'received',replaces_document_id:b.replaces_document_id||null});if(b.replaces_document_id){const previous=await db('documents',{query:`?id=eq.${encodeURIComponent(b.replaces_document_id)}&select=id,version`});if(!previous.length)throw Object.assign(new Error('REPLACED_DOCUMENT_NOT_FOUND'),{status:404});record.version=Number(previous[0].version||1)+1;await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(b.replaces_document_id)}`,body:{archived_at:new Date().toISOString()}})}}const data=await db('documents',{method:'POST',body:record});if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}`,body:{status:'received',updated_at:new Date().toISOString()}});await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id},principal,req);return json(res,201,{data,requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/documents/download-url'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,16_384);let rows=[];if(uuid(b.document_id))rows=await db('documents',{query:`?id=eq.${encodeURIComponent(b.document_id)}&select=*`});else if(principal?.authType==='internal'&&b.key)rows=await db('documents',{query:`?object_key=eq.${encodeURIComponent(safeKey(b.key))}&select=*`});else throw Object.assign(new Error('VALID_DOCUMENT_ID_REQUIRED'),{status:400});if(!Array.isArray(rows)||!rows.length)throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});const doc=rows[0];
@@ -978,7 +1064,7 @@ async function handle(req,res){
     if(doc.status==='deleted'||doc.archived_at)throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});
     const dlCases=await casesById(access,[doc.case_id]);
     if(!canAccessDocument(access,doc,dlCases.get(String(doc.case_id)),'documents.view'))throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});
-    const downloadUrl=await getSignedUrl(r2,new GetObjectCommand({Bucket:r2Bucket,Key:doc.object_key,ResponseContentDisposition:`attachment; filename*=UTF-8''${encodeURIComponent(doc.file_name)}`}),{expiresIn:300});await event(doc.case_id,'document_downloaded',{document_id:doc.id},principal,req);return json(res,200,{download_url:downloadUrl,expires_in:300,requestId},ch)}
+    const inline=b.disposition==='inline'&&['application/pdf','image/jpeg','image/png','image/webp'].includes(doc.content_type);const disposition=inline?'inline':'attachment';const downloadUrl=await getSignedUrl(r2,new GetObjectCommand({Bucket:r2Bucket,Key:doc.object_key,ResponseContentDisposition:`${disposition}; filename*=UTF-8''${encodeURIComponent(doc.file_name)}`,ResponseContentType:doc.content_type}),{expiresIn:300});await event(doc.case_id,inline?'document_previewed':'document_downloaded',{document_id:doc.id},principal,req);return json(res,200,{download_url:downloadUrl,preview_url:inline?downloadUrl:null,disposition,expires_in:300,requestId},ch)}
   const reviewMatch=u.pathname.match(/^\/api\/v1\/documents\/([0-9a-f-]{36})\/review$/i);
   if(reviewMatch&&req.method==='POST'){
     const body=await readJson(req,32_768);

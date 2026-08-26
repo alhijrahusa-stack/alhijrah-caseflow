@@ -435,6 +435,38 @@ test('presign refuses unsupported types, oversized files and unknown cases', asy
   assert.ok(ok.body.expires_in <= 900);
 });
 
+test('same-origin upload persists bytes in R2, metadata in Supabase and case/client links', async () => {
+  const cookie = await signIn();
+  const clientId = crypto.randomUUID();
+  seedCase({ client_id: clientId });
+  const file = Buffer.from('%PDF-1.7\nproduction upload\n%%EOF');
+  const path = `/api/v1/documents/upload?case_id=${CASE_ID}&filename=identity.pdf&size_bytes=${file.length}&category=identity`;
+  const uploaded = await request({
+    method: 'POST', path,
+    headers: browserHeaders({ cookie, 'content-type': 'application/pdf', 'content-length': String(file.length) }),
+    body: file,
+  });
+  assert.equal(uploaded.status, 201, uploaded.raw);
+  assert.equal(uploaded.body.storage, 'r2');
+  assert.deepEqual(uploaded.body.linked, { case_id: CASE_ID, client_id: clientId });
+  assert.equal(uploaded.body.preview_available, true);
+  const row = uploaded.body.data[0];
+  assert.equal(row.case_id, CASE_ID);
+  assert.equal(row.client_id, clientId);
+  assert.equal(row.category, 'identity');
+  assert.ok(backend.objects.has(row.object_key), 'R2 contains the uploaded object');
+  assert.ok(backend.tables.documents.some(document => document.id === row.id), 'Supabase metadata was created');
+
+  const preview = await request({
+    method: 'POST', path: '/api/v1/documents/download-url', headers: browserHeaders({ cookie }),
+    body: { document_id: row.id, disposition: 'inline' },
+  });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.body.disposition, 'inline');
+  assert.equal(preview.body.preview_url, preview.body.download_url);
+  assert.match(preview.body.preview_url, /response-content-disposition=inline/);
+});
+
 test('a presigned key cannot be redirected onto another case', async () => {
   const cookie = await signIn();
   seedCase();

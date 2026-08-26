@@ -340,8 +340,8 @@ export function putObject(key, { size, contentType }) {
 // ---------------------------------------------------------------------------
 
 function makeRequest({ method = 'GET', path = '/', headers = {}, body }) {
-  const payload = body === undefined ? '' : typeof body === 'string' ? body : JSON.stringify(body);
-  const req = Readable.from(payload ? [Buffer.from(payload)] : []);
+  const payload = body === undefined ? Buffer.alloc(0) : Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
+  const req = Readable.from(payload.length ? [payload] : []);
   req.method = method;
   req.url = path;
   req.headers = { host: 'caseflow.test', ...headers };

@@ -1327,6 +1327,29 @@
           <button class="btn" data-act="closeClient">Close</button>
         </div>
         <input type="hidden" id="editClientId" />
+        <div class="sys" style="margin-bottom:16px">
+          <div class="ph" style="margin-bottom:10px">
+            <div><div class="eyebrow">Smart identity intake</div><b>Passport or government ID</b></div>
+            <button class="btn" data-act="chooseIdentityFile">Upload identity</button>
+          </div>
+          <input id="identityFile" type="file" accept="image/jpeg,image/png,image/webp" hidden />
+          <p class="muted" style="margin:0">The image is processed by OCR and MRZ validation. Nothing is saved until a person reviews and confirms the extracted fields.</p>
+          <div class="upload-progress" style="margin-top:10px"><span id="identityProgress"></span></div>
+          <div id="identityStatus" class="muted" style="margin-top:8px"></div>
+          <div id="identityReview" style="display:none;margin-top:14px">
+            <div class="form">
+              <div class="field full"><label>Reviewed legal name</label><input id="identityLegalName" /></div>
+              <div class="field"><label>Reviewed date of birth</label><input id="identityDob" type="date" /></div>
+              <div class="field"><label>Reviewed place of birth</label><input id="identityBirthPlace" /></div>
+              <div class="field"><label>Reviewed nationality</label><input id="identityNationality" /></div>
+              <div class="field"><label>Reviewed passport / ID number</label><input id="identityNumber" /></div>
+              <div class="field"><label>Reviewed issuing country</label><input id="identityCountry" /></div>
+              <div class="field"><label>Reviewed expiration date</label><input id="identityExpiration" type="date" /></div>
+            </div>
+            <label style="display:flex;gap:9px;align-items:flex-start;margin-top:12px"><input id="identityConfirmed" type="checkbox" /> <span>I reviewed the image and confirm these fields are accurate.</span></label>
+            <div class="df" style="justify-content:flex-start;margin-top:12px"><button class="btn primary" data-act="confirmIdentityAutofill">Confirm, autofill and save</button></div>
+          </div>
+        </div>
         <div class="form">
           <div class="field full"><label>Legal name</label><input id="clientLegalName" autocomplete="off" /></div>
           <div class="field"><label>Date of birth</label><input id="clientDob" type="date" /></div>

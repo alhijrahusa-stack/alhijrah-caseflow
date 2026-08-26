@@ -13,7 +13,8 @@
         teamUsers = [],
         intakeState = null,
         intakeSaveTimer = null,
-        inviteAccessToken = null;
+        inviteAccessToken = null,
+        identityExtractionToken = null;
       const viewLoadedAt = new Map(),
         viewLoads = new Map(),
         viewCacheMs = 30_000;
@@ -370,6 +371,7 @@
         $("editClientId").value = "";
         for (const id of ["clientLegalName","clientDob","clientBirthPlace","clientNationality","clientCountry","clientEmail","clientPhone","clientWhatsapp","clientLanguage","clientANumber","clientUscisNumber","clientPassport","clientPassportExpiration","clientAddress","clientPostal","clientImmigrationStatus","clientNotes"]) $(id).value = "";
         $("clientErr").textContent = "";
+        resetIdentityIntake();
         $("clientModal").classList.add("show");
       }
       function editClient(id) {
@@ -390,10 +392,78 @@
         };
         for (const [field, value] of Object.entries(values)) $(field).value = value || "";
         $("clientErr").textContent = "";
+        resetIdentityIntake();
         $("clientModal").classList.add("show");
       }
       function closeClient() {
         $("clientModal").classList.remove("show");
+      }
+      function resetIdentityIntake() {
+        identityExtractionToken = null;
+        if ($("identityFile")) $("identityFile").value = "";
+        if ($("identityProgress")) $("identityProgress").style.width = "0";
+        if ($("identityStatus")) $("identityStatus").textContent = "";
+        if ($("identityReview")) $("identityReview").style.display = "none";
+        if ($("identityConfirmed")) $("identityConfirmed").checked = false;
+      }
+      function chooseIdentityFile() { $("identityFile").click(); }
+      async function runIdentityOcr(file) {
+        if (!file) return;
+        $("clientErr").textContent = "";
+        if (!["image/jpeg","image/png","image/webp"].includes(file.type)) return ($("clientErr").textContent = "Use a JPG, PNG or WebP identity image.");
+        try {
+          $("identityStatus").textContent = "Reading identity document…";
+          const query = new URLSearchParams({ filename: file.name, size_bytes: String(file.size) });
+          const response = await uploadWithProgress(`/api/v1/identity/ocr?${query}`, file, (percent) => $("identityProgress").style.width = `${percent}%`);
+          identityExtractionToken = response.extraction_token;
+          const result = response.result, fields = result.fields || {};
+          const values = {
+            identityLegalName: fields.legal_name,
+            identityDob: fields.date_of_birth,
+            identityBirthPlace: fields.place_of_birth,
+            identityNationality: fields.nationality,
+            identityNumber: fields.passport_number,
+            identityCountry: fields.passport_country,
+            identityExpiration: fields.passport_expiration,
+          };
+          for (const [id, value] of Object.entries(values)) $(id).value = value || "";
+          $("identityConfirmed").checked = false;
+          $("identityReview").style.display = "block";
+          $("identityStatus").textContent = `${result.engine} · OCR confidence ${result.confidence}% · ${result.mrz.detected ? `${result.mrz.format || "MRZ"} ${result.mrz.valid ? "validated" : "requires review"}` : "MRZ not detected — review required"}`;
+        } catch (error) {
+          identityExtractionToken = null;
+          $("identityReview").style.display = "none";
+          $("clientErr").textContent = error.message;
+          $("identityStatus").textContent = "Identity extraction failed.";
+        }
+      }
+      async function confirmIdentityAutofill() {
+        $("clientErr").textContent = "";
+        if (!identityExtractionToken) return ($("clientErr").textContent = "Upload and extract an identity document first.");
+        if (!$("identityConfirmed").checked) return ($("clientErr").textContent = "Human review confirmation is required.");
+        const fields = {
+          legal_name: $("identityLegalName").value.trim(),
+          date_of_birth: $("identityDob").value || null,
+          place_of_birth: $("identityBirthPlace").value.trim() || null,
+          nationality: $("identityNationality").value.trim() || null,
+          passport_number: $("identityNumber").value.trim() || null,
+          passport_country: $("identityCountry").value.trim() || null,
+          passport_expiration: $("identityExpiration").value || null,
+        };
+        if (!fields.legal_name) return ($("clientErr").textContent = "Reviewed legal name is required.");
+        for (const [id, value] of Object.entries({
+          clientLegalName: fields.legal_name, clientDob: fields.date_of_birth,
+          clientBirthPlace: fields.place_of_birth, clientNationality: fields.nationality,
+          clientPassport: fields.passport_number, clientPassportExpiration: fields.passport_expiration,
+        })) $(id).value = value || "";
+        try {
+          await api("/api/v1/identity/confirm", {
+            method: "POST",
+            body: JSON.stringify({ extraction_token: identityExtractionToken, client_id: $("editClientId").value || null, fields, confirmed: true }),
+          });
+          closeClient();
+          await loadClients();
+        } catch (error) { $("clientErr").textContent = error.message; }
       }
       async function saveClient() {
         const id = $("editClientId").value;
@@ -779,7 +849,7 @@
             docs
               .map(
                 (d) =>
-                  `<tr><td><b>${esc(d.file_name)}</b></td><td>${esc(names[d.case_id] || "Unknown")}</td><td>${esc(d.content_type || "—")}</td><td>${formatSize(d.size_bytes)}</td><td>${date(d.created_at)}</td><td><button class="linkbtn" data-act="downloadDoc" data-a1="${d.id}">Download</button> · <button class="linkbtn" data-act="deleteDoc" data-a1="${d.id}">Delete</button></td></tr>`,
+                  `<tr><td><b>${esc(d.file_name)}</b></td><td>${esc(names[d.case_id] || "Unknown")}</td><td>${esc(d.content_type || "—")}</td><td>${formatSize(d.size_bytes)}</td><td>${date(d.created_at)}</td><td>${["application/pdf","image/jpeg","image/png","image/webp"].includes(d.content_type) ? `<button class="linkbtn" data-act="previewDoc" data-a1="${d.id}">Preview</button> · ` : ""}<button class="linkbtn" data-act="downloadDoc" data-a1="${d.id}">Download</button> · <button class="linkbtn" data-act="deleteDoc" data-a1="${d.id}">Delete</button></td></tr>`,
               )
               .join("") ||
             '<tr><td colspan="6">No documents uploaded.</td></tr>';
@@ -794,32 +864,12 @@
         if (!caseId || !f)
           return ($("docErr").textContent = "Select a case and file.");
         try {
-          const checksum = await fileChecksum(f);
-          const p = await api("/api/v1/documents/presign", {
-            method: "POST",
-            body: JSON.stringify({
-              case_id: caseId,
-              filename: f.name,
-              content_type: f.type || "application/octet-stream",
-              size_bytes: f.size,
-            }),
-          });
           const uploadButton = $("documentUploadButton");
           uploadButton.disabled = true;
           uploadButton.textContent = "Uploading…";
-          await uploadWithProgress(p.upload_url, f, (percent) => $("docProgress").style.width = `${percent}%`);
-          await api("/api/v1/documents/confirm", {
-            method: "POST",
-            body: JSON.stringify({
-              case_id: caseId,
-              key: p.key,
-              file_name: f.name,
-              content_type: f.type,
-              size_bytes: f.size,
-              content_checksum: checksum,
-              category: $("docCategory").value || null,
-            }),
-          });
+          const query = new URLSearchParams({ case_id: caseId, filename: f.name, size_bytes: String(f.size) });
+          if ($("docCategory").value) query.set("category", $("docCategory").value);
+          await uploadWithProgress(`/api/v1/documents/upload?${query}`, f, (percent) => $("docProgress").style.width = `${percent}%`, fileContentType(f));
           clearDocumentFile();
           await loadDocuments();
         } catch (e) {
@@ -829,15 +879,19 @@
           $("documentUploadButton").textContent = "Upload Document";
         }
       }
-      function uploadWithProgress(url, file, onProgress) {
+      function uploadWithProgress(url, file, onProgress, contentType = file.type || "application/octet-stream") {
         return new Promise((resolve, reject) => {
           const request = new XMLHttpRequest();
-          request.open("PUT", url);
-          request.setRequestHeader("content-type", file.type);
+          request.open("POST", url);
+          request.setRequestHeader("content-type", contentType);
           request.upload.addEventListener("progress", (event) => {
             if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100));
           });
-          request.addEventListener("load", () => request.status >= 200 && request.status < 300 ? resolve() : reject(new Error("Upload failed")));
+          request.addEventListener("load", () => {
+            let result = null;
+            try { result = JSON.parse(request.responseText || "null"); } catch {}
+            request.status >= 200 && request.status < 300 ? resolve(result) : reject(new Error(result?.error || "Upload failed"));
+          });
           request.addEventListener("error", () => reject(new Error("Upload failed")));
           request.send(file);
         });
@@ -864,6 +918,17 @@
             body: JSON.stringify({ document_id: documentId }),
           });
           window.open(j.download_url, "_blank");
+        } catch (e) {
+          alert(e.message);
+        }
+      }
+      async function previewDoc(documentId) {
+        try {
+          const j = await api("/api/v1/documents/download-url", {
+            method: "POST",
+            body: JSON.stringify({ document_id: documentId, disposition: "inline" }),
+          });
+          window.open(j.preview_url || j.download_url, "_blank", "noopener,noreferrer");
         } catch (e) {
           alert(e.message);
         }
@@ -1206,6 +1271,11 @@
         if (v < 1048576) return (v / 1024).toFixed(1) + " KB";
         return (v / 1048576).toFixed(1) + " MB";
       }
+      function fileContentType(file) {
+        if (file.type) return file.type;
+        const extension = String(file.name || "").split(".").pop().toLowerCase();
+        return ({ pdf:"application/pdf", jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", webp:"image/webp", doc:"application/msword", docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document" })[extension] || "application/octet-stream";
+      }
       async function fileChecksum(file) {
         const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
         return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -1264,10 +1334,11 @@
         $("portalErr").textContent = "Uploading securely…";
         try {
           const checksum = await fileChecksum(file);
-          const presigned = await api("/api/v1/portal/documents/presign", { method: "POST", body: JSON.stringify({ case_id: caseId, filename: file.name, content_type: file.type, size_bytes: file.size }) });
-          const upload = await fetch(presigned.upload_url, { method: "PUT", headers: { "content-type": file.type }, body: file });
+          const contentType = fileContentType(file);
+          const presigned = await api("/api/v1/portal/documents/presign", { method: "POST", body: JSON.stringify({ case_id: caseId, filename: file.name, content_type: contentType, size_bytes: file.size }) });
+          const upload = await fetch(presigned.upload_url, { method: "PUT", headers: { "content-type": contentType }, body: file });
           if (!upload.ok) throw new Error("Upload failed");
-          await api("/api/v1/portal/documents/confirm", { method: "POST", body: JSON.stringify({ case_id: caseId, request_id: requestId, key: presigned.key, file_name: file.name, content_type: file.type, size_bytes: file.size, content_checksum: checksum }) });
+          await api("/api/v1/portal/documents/confirm", { method: "POST", body: JSON.stringify({ case_id: caseId, request_id: requestId, key: presigned.key, file_name: file.name, content_type: contentType, size_bytes: file.size, content_checksum: checksum }) });
           portalUploadTarget = null;
           await loadPortal();
         } catch (error) {
@@ -1360,6 +1431,7 @@
       const uiActions = Object.freeze({
         acceptInvite,
         addIntakePerson,
+        chooseIdentityFile,
         choosePortalFile,
         chooseDocumentFile,
         clearDocumentFile,
@@ -1369,6 +1441,7 @@
         closeManageUser,
         closePortalCase,
         closeTask,
+        confirmIdentityAutofill,
         deleteDoc,
         downloadDoc,
         editCase,
@@ -1391,6 +1464,7 @@
         openManageUser,
         openPortalCase,
         openTask,
+        previewDoc,
         previousIntakeStep,
         refreshAlerts,
         removeIntakePerson: (a, b) => removeIntakePerson(a, Number(b)),
@@ -1432,6 +1506,7 @@
         runUiAction(element);
       });
       $("docFile").addEventListener("change", (event) => setDocumentFile(event.target.files[0]));
+      $("identityFile").addEventListener("change", (event) => runIdentityOcr(event.target.files[0]));
       for (const type of ["dragenter", "dragover"]) $("docDropzone").addEventListener(type, (event) => { event.preventDefault(); $("docDropzone").classList.add("dragging"); });
       for (const type of ["dragleave", "drop"]) $("docDropzone").addEventListener(type, (event) => { event.preventDefault(); $("docDropzone").classList.remove("dragging"); });
       $("docDropzone").addEventListener("drop", (event) => setDocumentFile(event.dataTransfer.files[0]));

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 
 const preinstalledChromium = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
-const chromiumPath = fs.existsSync(preinstalledChromium) ? preinstalledChromium : undefined;
+const chromiumPath = [process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, preinstalledChromium].find(candidate => candidate && fs.existsSync(candidate));
 
 const port = Number(process.env.PORT || 3100);
 const baseURL = `http://localhost:${port}`;
