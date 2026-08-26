@@ -608,6 +608,23 @@
         font-size: 11px;
         line-height: 1.5;
       }
+      .dropzone {
+        margin-top: 14px;
+        border: 1px dashed #385777;
+        background: rgba(7, 19, 31, 0.72);
+        border-radius: 16px;
+        padding: 24px;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color 170ms ease, background 170ms ease, transform 170ms var(--ease);
+      }
+      .dropzone:hover, .dropzone.dragging { border-color: var(--gold); background: rgba(25, 42, 59, .82); transform: translateY(-1px); }
+      .dropzone b { display: block; font-size: 14px; }
+      .dropzone span { display: block; color: var(--muted); font-size: 11px; margin-top: 6px; }
+      .upload-preview { display: none; grid-template-columns: 1fr auto; gap: 14px; align-items: center; margin-top: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: #081522; }
+      .upload-preview.show { display: grid; }
+      .upload-progress { height: 5px; overflow: hidden; background: #12263a; border-radius: 999px; margin-top: 10px; }
+      .upload-progress > span { display: block; width: 0; height: 100%; background: var(--gold); transition: width 150ms ease; }
       .mobile {
         display: none;
       }
@@ -1012,11 +1029,17 @@
                 ><select id="docCase"></select>
               </div>
               <div class="field">
-                <label>File</label><input id="docFile" type="file" />
+                <label>Category</label><select id="docCategory"><option value="">Unclassified</option><option value="identity">Identity</option><option value="civil_document">Civil document</option><option value="relationship_evidence">Relationship evidence</option><option value="financial_evidence">Financial evidence</option><option value="agency_notice">Agency notice</option><option value="translation">Translation</option><option value="other">Other</option></select>
               </div>
             </div>
+            <div class="dropzone" id="docDropzone" role="button" tabindex="0" data-act="chooseDocumentFile">
+              <b>Drop a document here or choose a file</b>
+              <span>PDF, JPG, PNG, WebP, DOC or DOCX · Maximum 25MB</span>
+            </div>
+            <input id="docFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.doc,.docx" hidden />
+            <div class="upload-preview" id="docPreview"><div><b id="docPreviewName"></b><small id="docPreviewMeta" style="display:block;color:var(--muted);margin-top:4px"></small><div class="upload-progress"><span id="docProgress"></span></div></div><button class="btn" data-act="clearDocumentFile">Remove</button></div>
             <div class="df" style="justify-content: flex-start">
-              <button class="btn primary" data-act="uploadDocument">
+              <button class="btn primary" id="documentUploadButton" data-act="uploadDocument">
                 Upload Document</button
               ><button class="btn" data-act="loadDocuments">Refresh</button>
             </div>

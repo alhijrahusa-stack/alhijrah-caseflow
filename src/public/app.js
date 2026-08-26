@@ -8,6 +8,7 @@
         services = [],
         portalData = null,
         portalUploadTarget = null,
+        selectedDocumentFile = null,
         invoices = [],
         teamUsers = [],
         intakeState = null,
@@ -787,7 +788,7 @@
         }
       }
       async function uploadDocument() {
-        const f = $("docFile").files[0],
+        const f = selectedDocumentFile || $("docFile").files[0],
           caseId = $("docCase").value;
         $("docErr").textContent = "";
         if (!caseId || !f)
@@ -803,12 +804,10 @@
               size_bytes: f.size,
             }),
           });
-          const up = await fetch(p.upload_url, {
-            method: "PUT",
-            headers: { "content-type": f.type || "application/octet-stream" },
-            body: f,
-          });
-          if (!up.ok) throw new Error("Upload failed");
+          const uploadButton = $("documentUploadButton");
+          uploadButton.disabled = true;
+          uploadButton.textContent = "Uploading…";
+          await uploadWithProgress(p.upload_url, f, (percent) => $("docProgress").style.width = `${percent}%`);
           await api("/api/v1/documents/confirm", {
             method: "POST",
             body: JSON.stringify({
@@ -818,13 +817,45 @@
               content_type: f.type,
               size_bytes: f.size,
               content_checksum: checksum,
+              category: $("docCategory").value || null,
             }),
           });
-          $("docFile").value = "";
+          clearDocumentFile();
           await loadDocuments();
         } catch (e) {
           $("docErr").textContent = e.message;
+        } finally {
+          $("documentUploadButton").disabled = false;
+          $("documentUploadButton").textContent = "Upload Document";
         }
+      }
+      function uploadWithProgress(url, file, onProgress) {
+        return new Promise((resolve, reject) => {
+          const request = new XMLHttpRequest();
+          request.open("PUT", url);
+          request.setRequestHeader("content-type", file.type);
+          request.upload.addEventListener("progress", (event) => {
+            if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100));
+          });
+          request.addEventListener("load", () => request.status >= 200 && request.status < 300 ? resolve() : reject(new Error("Upload failed")));
+          request.addEventListener("error", () => reject(new Error("Upload failed")));
+          request.send(file);
+        });
+      }
+      function chooseDocumentFile() { $("docFile").click(); }
+      function setDocumentFile(file) {
+        if (!file) return;
+        selectedDocumentFile = file;
+        $("docPreviewName").textContent = file.name;
+        $("docPreviewMeta").textContent = `${formatSize(file.size)} · ${file.type || "Unknown type"}`;
+        $("docProgress").style.width = "0";
+        $("docPreview").classList.add("show");
+      }
+      function clearDocumentFile() {
+        selectedDocumentFile = null;
+        $("docFile").value = "";
+        $("docPreview").classList.remove("show");
+        $("docProgress").style.width = "0";
       }
       async function downloadDoc(documentId) {
         try {
@@ -1330,6 +1361,8 @@
         acceptInvite,
         addIntakePerson,
         choosePortalFile,
+        chooseDocumentFile,
+        clearDocumentFile,
         closeCase,
         closeClient,
         closeInvoice,
@@ -1398,6 +1431,10 @@
         event.preventDefault();
         runUiAction(element);
       });
+      $("docFile").addEventListener("change", (event) => setDocumentFile(event.target.files[0]));
+      for (const type of ["dragenter", "dragover"]) $("docDropzone").addEventListener(type, (event) => { event.preventDefault(); $("docDropzone").classList.add("dragging"); });
+      for (const type of ["dragleave", "drop"]) $("docDropzone").addEventListener(type, (event) => { event.preventDefault(); $("docDropzone").classList.remove("dragging"); });
+      $("docDropzone").addEventListener("drop", (event) => setDocumentFile(event.dataTransfer.files[0]));
       let inputActionTimer = null;
       for (const type of ["change", "input"]) {
         document.addEventListener(type, (event) => {
