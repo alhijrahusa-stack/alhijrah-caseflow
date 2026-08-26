@@ -199,6 +199,16 @@ test('Owner activation is reissued to the production application without duplica
   assert.ok(backend.tables.audit_events.some(row => row.action === 'owner_activation_resent'));
 });
 
+test('startup reissues activation for the existing invited Owner without creating a duplicate', async () => {
+  const owner = addUser({ email: 'owner@caseflow.test', roles: ['owner'], confirmed: true, status: 'invited' });
+  const before = backend.users.size;
+  const result = await ensureConfiguredOwnerInvitation();
+  assert.equal(result.resent, true);
+  assert.equal(result.userId, owner.id);
+  assert.equal(backend.users.size, before);
+  assert.deepEqual(backend.lastRecovery, { email: 'owner@caseflow.test', redirectTo: activationRedirectUrl() });
+});
+
 test('repeated failed logins are throttled before reaching the auth provider', async () => {
   let lastStatus = 0;
   for (let attempt = 0; attempt < 12; attempt += 1) {

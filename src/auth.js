@@ -332,7 +332,13 @@ export async function ensureConfiguredOwnerInvitation() {
   if (!ownerEmail) return { invited: false, reason: 'OWNER_EMAIL_NOT_CONFIGURED' };
   const data = await authRequest('/admin/users?page=1&per_page=1000', { admin: true });
   const existing = (data?.users || []).find(user => String(user.email || '').toLowerCase() === ownerEmail);
-  if (existing) return { invited: false, reason: 'OWNER_ACCOUNT_EXISTS' };
+  if (existing) {
+    if (existing.app_metadata?.status === 'invited') {
+      const resent = await resendConfiguredOwnerActivation();
+      return { invited: false, resent: true, userId: resent.userId, redirectTo: resent.redirectTo };
+    }
+    return { invited: false, reason: 'OWNER_ACCOUNT_EXISTS' };
+  }
   const invited = await inviteAuthUser({ email: ownerEmail, displayName: 'Owner', roles: ['owner'] });
   return { invited: true, userId: invited.id };
 }

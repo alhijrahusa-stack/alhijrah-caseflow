@@ -1096,7 +1096,7 @@ export function respondToError(req,res,err){
 
 export function createServer(){
   ensureConfiguredOwnerInvitation()
-    .then(result=>{if(result.invited)console.log('Configured Owner invitation sent')})
+    .then(result=>{if(result.invited||result.resent)console.log('Configured Owner activation sent')})
     .catch(error=>console.error('owner-invitation-failed',error.message));
   const server=http.createServer((req,res)=>handle(req,res).catch(err=>respondToError(req,res,err)));
   server.requestTimeout=30_000;server.headersTimeout=35_000;server.keepAliveTimeout=5_000;
