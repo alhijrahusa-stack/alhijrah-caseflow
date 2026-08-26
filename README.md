@@ -66,7 +66,7 @@ Operational notes: policy is cached in-process for 10 seconds and invalidated on
 ## Runtime checks
 
 - `GET /health` is the liveness probe.
-- `GET /ready` probes PostgreSQL, core schema, R2, internal authentication, Supabase Auth and the application Owner account.
+- `GET /ready` probes PostgreSQL, the core and authorization schemas, R2, internal authentication, Supabase Auth and the application Owner account.
 - `GET /api/v1/auth/status` returns safe authentication readiness diagnostics without credentials.
 
 ## Required Railway variables

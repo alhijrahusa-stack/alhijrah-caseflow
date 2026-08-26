@@ -48,6 +48,15 @@ beforeEach(() => {
   addUser({ email: 'client@caseflow.test', roles: ['client_owner'], fullName: 'Client' });
 });
 
+test('readiness verifies the authorization schema independently of owner provisioning', async () => {
+  const response = await request({ path: '/ready' });
+  assert.equal(response.status, 503, 'the test tenant has no Owner account');
+  assert.equal(response.body.checks.supabase, true);
+  assert.equal(response.body.checks.coreSchema, true);
+  assert.equal(response.body.checks.authorizationSchema, true);
+  assert.equal(response.body.checks.ownerAccount, false);
+});
+
 // ---------------------------------------------------------------------------
 // Authentication and session handling
 // ---------------------------------------------------------------------------

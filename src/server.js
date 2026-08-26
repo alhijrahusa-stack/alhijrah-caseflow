@@ -322,10 +322,24 @@ async function handle(req,res){
   if(req.method==='GET'&&u.pathname==='/ready'){
     const [authStatus,databaseState,r2State]=await Promise.all([
       getAuthProvisioningStatus(),
-      db('cases',{query:'?select=id&limit=1'}).then(()=>db('clients',{query:'?select=id&limit=1'})).then(()=>({connected:true,coreSchema:true})).catch(async()=>({connected:await db('cases',{query:'?select=id&limit=1'}).then(()=>true).catch(()=>false),coreSchema:false})),
+      (async()=>{
+        const state={connected:false,coreSchema:false,authorizationSchema:false};
+        try{await db('cases',{query:'?select=id&limit=1'});state.connected=true}catch{return state}
+        try{await db('clients',{query:'?select=id&limit=1'});state.coreSchema=true}catch{return state}
+        try{
+          await Promise.all([
+            db('teams',{query:'?select=id&limit=1'}),
+            db('team_members',{query:'?select=team_id&limit=1'}),
+            db('access_policies',{query:'?select=id&limit=1'}),
+            db('record_access_grants',{query:'?select=id,resource_key&limit=1'}),
+          ]);
+          state.authorizationSchema=true;
+        }catch{}
+        return state;
+      })(),
       r2&&r2Bucket?r2.send(new HeadBucketCommand({Bucket:r2Bucket})).then(()=>true).catch(()=>false):Promise.resolve(false),
     ]);
-    const checks={supabase:databaseState.connected,coreSchema:databaseState.coreSchema,r2:r2State,internalAuth:Boolean(internalApiKey),userAuth:authStatus.configured,ownerAccount:authStatus.ownerProvisioned};
+    const checks={supabase:databaseState.connected,coreSchema:databaseState.coreSchema,authorizationSchema:databaseState.authorizationSchema,r2:r2State,internalAuth:Boolean(internalApiKey),userAuth:authStatus.configured,ownerAccount:authStatus.ownerProvisioned};
     const ready=Object.values(checks).every(Boolean);
     return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,requestId},ch);
   }

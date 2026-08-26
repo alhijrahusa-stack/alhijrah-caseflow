@@ -32,6 +32,7 @@ for (const path of ['/api/v1/clients', '/api/v1/portal', '/api/v1/billing/invoic
 const ready = await request('/ready');
 assert.ok([200, 503].includes(ready.response.status));
 assert.equal(typeof ready.data.checks, 'object');
+assert.equal(ready.data.checks.authorizationSchema, true, 'authorization migrations must be reachable');
 if (strictReady) {
   assert.equal(ready.response.status, 200);
   assert.equal(ready.data.status, 'ready');
