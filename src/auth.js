@@ -22,6 +22,17 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const anonKey = process.env.SUPABASE_ANON_KEY || serviceRoleKey;
 const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
 const appBaseUrl = process.env.APP_BASE_URL?.replace(/\/$/, '');
+const productionAppUrl = 'https://alhijrah-caseflow-production-716b.up.railway.app';
+
+export function activationRedirectUrl() {
+  try {
+    const configured = new URL(appBaseUrl || '');
+    if (configured.protocol === 'https:' && !['localhost', '127.0.0.1', '::1'].includes(configured.hostname)) {
+      return configured.origin;
+    }
+  } catch {}
+  return productionAppUrl;
+}
 
 function authError(message, status = 401) {
   return Object.assign(new Error(message), { status });
@@ -306,7 +317,7 @@ export async function listAuthUsers() {
   }));
 }
 
-export async function inviteAuthUser({ email, displayName, roles, redirectTo = appBaseUrl }) {
+export async function inviteAuthUser({ email, displayName, roles, redirectTo = activationRedirectUrl() }) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) throw authError('VALID_EMAIL_REQUIRED', 400);
   const validatedRoles = validateRoles(roles);
@@ -324,6 +335,26 @@ export async function ensureConfiguredOwnerInvitation() {
   if (existing) return { invited: false, reason: 'OWNER_ACCOUNT_EXISTS' };
   const invited = await inviteAuthUser({ email: ownerEmail, displayName: 'Owner', roles: ['owner'] });
   return { invited: true, userId: invited.id };
+}
+
+export async function resendConfiguredOwnerActivation() {
+  if (!ownerEmail) throw authError('OWNER_EMAIL_NOT_CONFIGURED', 503);
+  const data = await authRequest('/admin/users?page=1&per_page=1000', { admin: true });
+  const existing = (data?.users || []).find(user => String(user.email || '').toLowerCase() === ownerEmail);
+  if (!existing) throw authError('OWNER_ACCOUNT_NOT_FOUND', 404);
+  const roles = [...new Set([...(existing.app_metadata?.roles || []).filter(role => roleDefinitions[role]), 'owner'])];
+  await authRequest(`/admin/users/${encodeURIComponent(existing.id)}`, {
+    method: 'PUT',
+    admin: true,
+    body: { app_metadata: { ...(existing.app_metadata || {}), roles, status: 'invited' } },
+  });
+  const redirectTo = activationRedirectUrl();
+  await authRequest(`/recover?redirect_to=${encodeURIComponent(redirectTo)}`, {
+    method: 'POST',
+    body: { email: ownerEmail },
+  });
+  resetAuthProvisioningCache();
+  return { sent: true, userId: existing.id, redirectTo };
 }
 
 export async function acceptInvitedUser({ accessToken, password }, req) {

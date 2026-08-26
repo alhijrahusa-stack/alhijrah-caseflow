@@ -279,6 +279,14 @@ async function handleAuth(url, init) {
     return jsonResponse(200, publicShape(user));
   }
 
+  if (url.pathname === '/auth/v1/recover') {
+    const email = String(body?.email || '').toLowerCase();
+    const user = backend.users.get(email);
+    if (!user) return jsonResponse(200, {});
+    backend.lastRecovery = { email, redirectTo: url.searchParams.get('redirect_to') };
+    return jsonResponse(200, {});
+  }
+
   const adminUser = url.pathname.match(/^\/auth\/v1\/admin\/users\/([^/]+)$/);
   if (adminUser) {
     const user = [...backend.users.values()].find(entry => entry.id === decodeURIComponent(adminUser[1]));

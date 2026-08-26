@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 
 import { APP_ORIGIN, INTERNAL_KEY, addUser, backend, browserHeaders, cookieHeader, driver, issueSession, putObject, resetBackend } from './helpers/harness.js';
 import { handle, requiredPermission, respondToError } from '../src/server.js';
-import { ensureConfiguredOwnerInvitation, getAuthProvisioningStatus, resetAuthProvisioningCache, resetLoginThrottle } from '../src/auth.js';
+import { activationRedirectUrl, ensureConfiguredOwnerInvitation, getAuthProvisioningStatus, resetAuthProvisioningCache, resetLoginThrottle } from '../src/auth.js';
 
 const request = driver(handle, respondToError);
 
@@ -179,6 +179,24 @@ test('configured Owner receives a one-time invitation and readiness waits for ac
   });
   assert.equal(replay.status, 403);
   assert.equal(replay.body.error, 'INVALID_INVITATION');
+});
+
+test('Owner activation is reissued to the production application without duplicating the user', async () => {
+  const owner = addUser({ email: 'owner@caseflow.test', roles: ['owner'], confirmed: false, status: 'invited' });
+  const before = backend.users.size;
+  const response = await request({
+    method: 'POST',
+    path: '/api/v1/auth/resend-owner-activation',
+    headers: { ...browserHeaders(), 'x-api-key': INTERNAL_KEY },
+    body: {},
+  });
+  assert.equal(response.status, 200, response.raw);
+  assert.equal(response.body.sent, true);
+  assert.equal(response.body.redirectTo, activationRedirectUrl());
+  assert.equal(backend.users.size, before);
+  assert.equal(backend.users.get('owner@caseflow.test').id, owner.id);
+  assert.deepEqual(backend.lastRecovery, { email: 'owner@caseflow.test', redirectTo: activationRedirectUrl() });
+  assert.ok(backend.tables.audit_events.some(row => row.action === 'owner_activation_resent'));
 });
 
 test('repeated failed logins are throttled before reaching the auth provider', async () => {

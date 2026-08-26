@@ -155,7 +155,7 @@
       }
       function prepareInvitation() {
         const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
-        if (fragment.get("type") !== "invite" || !fragment.get("access_token")) return false;
+        if (!["invite", "recovery"].includes(fragment.get("type")) || !fragment.get("access_token")) return false;
         inviteAccessToken = fragment.get("access_token");
         history.replaceState(null, "", location.pathname + location.search);
         $("loginBox").style.display = "none";

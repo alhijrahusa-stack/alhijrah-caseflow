@@ -16,6 +16,7 @@ import {
   listAuthUsers,
   permissionsForRoles,
   principalFromUser,
+  resendConfiguredOwnerActivation,
   revokeSession,
   roleDefinitions,
   safeAuditContext,
@@ -358,6 +359,7 @@ async function handle(req,res){
   // count is operational data and stays behind authentication.
   if(req.method==='GET'&&u.pathname==='/api/v1/auth/status'){const status=await getAuthProvisioningStatus();return json(res,200,{configured:status.configured,ownerProvisioned:status.ownerProvisioned,errorCode:status.errorCode||null,requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/auth/accept-invite'){assertSameOrigin(req);const body=await readJson(req,24_576);const session=await acceptInvitedUser({accessToken:body.access_token,password:body.password},req);const principal=await resolveApplicationPrincipal(principalFromUser(session.user));await syncApplicationUser({id:principal.id,email:principal.email,display_name:principal.displayName,status:'active',roles:principal.roles});setSessionCookies(res,session);await audit(principal,'invitation_accepted','session',principal.id,{},req);return json(res,200,{user:await publicUser(principal),requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/auth/resend-owner-activation'){const principal=internalAuth(req);const result=await resendConfiguredOwnerActivation();await audit(principal,'owner_activation_resent','user',result.userId,{redirect_to:result.redirectTo},req);return json(res,200,{sent:true,redirectTo:result.redirectTo,requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/auth/login'){assertSameOrigin(req);const body=await readJson(req,16_384);const session=await signInWithPassword(body.email,body.password,req);const principal=await resolveApplicationPrincipal(principalFromUser(session.user));setSessionCookies(res,session);await audit(principal,'login','session',principal.id,{},req);return json(res,200,{user:await publicUser(principal),requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/auth/logout'){assertSameOrigin(req);let principal=null;try{principal=await authenticateSession(req,res)}catch{}const {accessToken}=sessionTokens(req);await revokeSession(accessToken);clearSessionCookies(res);await audit(principal,'logout','session',principal?.id||null,{},req);return json(res,200,{signedOut:true,requestId},ch)}
   if(req.method==='GET'&&u.pathname==='/api/v1/auth/me'){const principal=await resolveApplicationPrincipal(await authenticateSession(req,res));return json(res,200,{user:await publicUser(principal),requestId},ch)}
