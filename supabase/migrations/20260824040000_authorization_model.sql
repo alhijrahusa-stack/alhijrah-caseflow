@@ -205,6 +205,16 @@ alter table public.record_access_grants enable row level security;
 revoke all on public.teams, public.team_members, public.access_policies, public.record_access_grants
 from anon, authenticated;
 
+-- Supabase projects created with automatic Data API exposure disabled do not
+-- grant newly-created tables to service_role. The application server reaches
+-- Postgres exclusively through the Data API with service_role, so make that
+-- server-only exposure explicit. Browser roles remain revoked above and RLS
+-- remains enabled; no client credential receives access.
+grant usage on schema public to service_role;
+grant select, insert, update, delete
+  on public.teams, public.team_members, public.access_policies, public.record_access_grants
+  to service_role;
+
 -- Direct browser access stays closed. The server uses service_role, which
 -- retains its grants and bypasses RLS.
 do $$
