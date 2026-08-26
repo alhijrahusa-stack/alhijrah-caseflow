@@ -331,7 +331,7 @@ async function handle(req,res){
             db('teams',{query:'?select=id&limit=1'}),
             db('team_members',{query:'?select=team_id&limit=1'}),
             db('access_policies',{query:'?select=id&limit=1'}),
-            db('record_access_grants',{query:'?select=id,resource_key&limit=1'}),
+            db('record_access_grants',{query:'?select=id&limit=1'}),
           ]);
           state.authorizationSchema=true;
         }catch{}
