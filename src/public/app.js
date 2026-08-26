@@ -4,6 +4,7 @@
         docs = [],
         clients = [],
         tasks = [],
+        alerts = [],
         services = [],
         portalData = null,
         portalUploadTarget = null,
@@ -253,7 +254,9 @@
       async function loadAlerts() {
         try {
           const result = await api("/api/v1/alerts");
-          $("alertList").innerHTML = (result.data || []).slice(0,8).map((item) => `<div class="row"><div><b>${esc(item.title)}</b><small>${esc(intakeOptionLabel(item.alert_type))} · ${date(item.due_at)}</small></div><span class="tag ${item.severity === "critical" || item.severity === "high" ? "urgent" : "normal"}">${esc(item.severity)}</span></div>`).join("") || '<div class="empty">No active alerts.</div>';
+          alerts = result.data || [];
+          $("alertList").innerHTML = alerts.slice(0,8).map((item) => `<div class="row"><div><b>${esc(item.title)}</b><small>${esc(intakeOptionLabel(item.alert_type))} · ${date(item.due_at)}</small></div><span class="tag ${item.severity === "critical" || item.severity === "high" ? "urgent" : "normal"}">${esc(item.severity)}</span></div>`).join("") || '<div class="empty">No active alerts.</div>';
+          renderOperationsDashboard();
         } catch { $("alertList").innerHTML = '<div class="empty">Alerts are not available for this role.</div>'; }
       }
       async function refreshAlerts() {
@@ -273,13 +276,39 @@
         }
       }
       function renderMetrics() {
-        $("totalCases").textContent = cases.length;
-        $("intakeCases").textContent = cases.filter(
-          (x) => x.status === "intake",
-        ).length;
+        const stage = (item) => item.workflow_stage || item.status || "intake";
+        const today = new Date().toISOString().slice(0, 10);
+        $("totalCases").textContent = cases.filter((x) => !["closed", "archived"].includes(stage(x))).length;
+        $("intakeCases").textContent = cases.filter((x) => stage(x) === "intake").length;
         $("highCases").textContent = cases.filter((x) =>
           ["high", "urgent"].includes(x.priority),
         ).length;
+        if ($("awaitingDocs")) $("awaitingDocs").textContent = cases.filter((x) => stage(x) === "awaiting_documents").length;
+        if ($("readyToFile")) $("readyToFile").textContent = cases.filter((x) => stage(x) === "ready_to_file").length;
+        if ($("filedCases")) $("filedCases").textContent = cases.filter((x) => ["filed", "receipt_received"].includes(stage(x))).length;
+        if ($("overdueTasks")) $("overdueTasks").textContent = tasks.filter((x) => x.due_date && x.due_date < today && x.status !== "completed").length;
+        if ($("urgentAlerts")) $("urgentAlerts").textContent = alerts.filter((x) => ["critical", "high"].includes(x.severity)).length;
+        renderOperationsDashboard();
+      }
+      function renderOperationsDashboard() {
+        if (!$("operationsAttention")) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const stage = (item) => item.workflow_stage || item.status || "intake";
+        const attention = [
+          ...tasks.filter((item) => item.due_date && item.due_date < today && item.status !== "completed").map((item) => ({ title: item.title, detail: `Overdue task · ${item.due_date}`, kind: "urgent", view: "tasks" })),
+          ...docs.filter((item) => item.review_status === "rejected").map((item) => ({ title: item.file_name, detail: "Rejected document requires replacement", kind: "urgent", view: "documents" })),
+          ...cases.filter((item) => ["high", "urgent"].includes(item.priority)).map((item) => ({ title: item.client_name || item.case_reference || "Case", detail: `${item.case_type} · ${intakeOptionLabel(stage(item))}`, kind: item.priority, view: "cases" })),
+        ].slice(0, 8);
+        $("operationsAttention").innerHTML = attention.map((item) => `<button class="ops-item" data-act="showView" data-a1="${item.view}"><span><b>${esc(item.title)}</b><small>${esc(item.detail)}</small></span><span class="tag ${esc(item.kind)}">Open</span></button>`).join("") || '<div class="empty">No urgent operational exceptions.</div>';
+        const distribution = Object.entries(cases.reduce((result, item) => { const key = stage(item); result[key] = (result[key] || 0) + 1; return result; }, {})).sort((a, b) => b[1] - a[1]);
+        $("workflowDistribution").innerHTML = distribution.map(([key, count]) => `<button class="distribution-row" data-act="showView" data-a1="cases"><span>${esc(intakeOptionLabel(key))}</span><b>${count}</b></button>`).join("") || '<div class="empty">No active case workflow data.</div>';
+        const health = {
+          approved: docs.filter((item) => item.review_status === "approved").length,
+          pending_review: docs.filter((item) => ["received", "under_review", "pending_review"].includes(item.review_status)).length,
+          rejected: docs.filter((item) => item.review_status === "rejected").length,
+          unclassified: docs.filter((item) => !item.category).length,
+        };
+        $("documentHealth").innerHTML = Object.entries(health).map(([key, count]) => `<button class="distribution-row" data-act="showView" data-a1="documents"><span>${esc(intakeOptionLabel(key))}</span><b>${count}</b></button>`).join("");
       }
       function renderRecent() {
         const a = cases.slice(0, 7);
@@ -480,6 +509,7 @@
           const result = await api("/api/v1/tasks?limit=250" + (statuses.has(filter) ? "&status=" + encodeURIComponent(filter) : "") + (filter === "my" ? "&assigned_to=me" : ""));
           tasks = result.data || [];
           renderTasks(filter);
+          renderMetrics();
         } catch (error) {
           $("taskTable").innerHTML =
             '<tr><td colspan="6">Unable to load task records.</td></tr>';
@@ -740,6 +770,7 @@
           const j = await api("/api/v1/documents");
           docs = j.data || [];
           $("docCount").textContent = docs.length;
+          renderMetrics();
           const names = Object.fromEntries(
             cases.map((c) => [c.id, c.client_name]),
           );
@@ -1220,6 +1251,7 @@
           loadViewData("services"),
           loadViewData("clients"),
           loadViewData("documents"),
+          loadViewData("tasks"),
         ]);
         if ("requestIdleCallback" in window) requestIdleCallback(warmSecondaryData, { timeout: 1800 });
         else setTimeout(warmSecondaryData, 250);
