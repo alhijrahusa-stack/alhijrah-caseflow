@@ -28,7 +28,7 @@ import {
   updateAuthUser,
 } from './auth.js';
 import {
-  accessModules,accessScopes,canAccessCase,canAccessDocument,caseListFilter,filterAccessibleCases,
+  accessModules,accessScopes,canAccessCase,canAccessClient,canAccessDocument,caseListFilter,filterAccessibleCases,
   hasEffectivePermission,isValidScope,permissionCatalogue,resolveAccess,scopeFor,
 } from './access.js';
 import {
@@ -277,6 +277,27 @@ async function casesById(access,ids){
   const rows=await db('cases',{query:`?id=in.(${unique.join(',')})&select=id,client_id,team_id,assigned_user_id,assigned_to,service_code`});
   for(const row of rows||[])index.set(String(row.id),row);
   return index;
+}
+
+// Which clients this principal may reach. null means no narrowing (owner, or
+// the default global scope), so the common path costs no extra query.
+// For the case-shaped scopes a client is reachable when a case the caller can
+// already reach belongs to it.
+async function accessibleClientIds(access,permission='clients.view'){
+  if(access?.isOwner)return null;
+  const scope=scopeFor(access,'clients');
+  if(scope==='global'&&hasEffectivePermission(access,permission))return null;
+  const reachable=new Set([...access.grantedClientIds].map(String));
+  if(scope==='client_self')for(const id of access.clientIds)reachable.add(String(id));
+  if(!['global','client_self','explicit_client'].includes(scope)){
+    const filter=caseListFilter(access,'cases.view');
+    if(!filter?.matchesNothing){
+      const rows=await db('cases',{query:`?select=id,client_id,team_id,assigned_user_id,assigned_to,service_code&limit=1000${filter?filter.query:''}`});
+      for(const row of filterAccessibleCases(access,rows||[],'cases.view'))if(row.client_id)reachable.add(String(row.client_id));
+    }
+  }
+  for(const id of access.restrictedClientIds)reachable.delete(String(id));
+  return reachable;
 }
 
 function requiredPermission(req,path){
@@ -784,7 +805,9 @@ async function handle(req,res){
       if(body.client_id){
         if(!uuid(body.client_id))throw Object.assign(new Error('VALID_CLIENT_ID_REQUIRED'),{status:400});
         const rows=await db('clients',{query:`?id=eq.${encodeURIComponent(body.client_id)}&select=*`});
-        if(!rows.length)throw Object.assign(new Error('CLIENT_NOT_FOUND'),{status:404});
+        // Autofill writes identity fields, so it obeys the same client boundary
+        // as an ordinary client edit.
+        if(!rows.length||!canAccessClient(access,rows[0],'clients.manage',{reachableClientIds:await accessibleClientIds(access,'clients.manage')}))throw Object.assign(new Error('CLIENT_NOT_FOUND'),{status:404});
         record={...normalizeClientInput({...rows[0],...accepted}),updated_by:principal.id,updated_at:new Date().toISOString()};
         data=await db('clients',{method:'PATCH',query:`?id=eq.${encodeURIComponent(body.client_id)}`,body:record});
       }else{
@@ -806,6 +829,8 @@ async function handle(req,res){
     let data=await db('clients',{query:`?select=*&order=updated_at.desc&limit=${limit}${archived}`});
     const q=String(u.searchParams.get('q')||'').trim().toLowerCase();
     if(q)data=data.filter(client=>[client.legal_name,client.email,client.phone,client.a_number,client.uscis_account_number].some(value=>String(value||'').toLowerCase().includes(q)));
+    const reachableClientIds=await accessibleClientIds(access,'clients.view');
+    if(reachableClientIds)data=(data||[]).filter(client=>canAccessClient(access,client,'clients.view',{reachableClientIds}));
     return json(res,200,{data,requestId},ch);
   }
   if(req.method==='POST'&&u.pathname==='/api/v1/clients'){
@@ -818,12 +843,15 @@ async function handle(req,res){
   const clientMatch=u.pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})$/i);
   if(clientMatch&&req.method==='GET'){
     const rows=await db('clients',{query:`?id=eq.${encodeURIComponent(clientMatch[1])}&select=*`});
-    if(!Array.isArray(rows)||!rows.length)return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
+    // Addressing a client by id goes through the same decision as listing it.
+    // An unreachable client reports 404, so the response does not confirm the
+    // id exists.
+    if(!Array.isArray(rows)||!rows.length||!canAccessClient(access,rows[0],'clients.view',{reachableClientIds:await accessibleClientIds(access,'clients.view')}))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     return json(res,200,{data:rows[0],requestId},ch);
   }
   if(clientMatch&&req.method==='PATCH'){
     const rows=await db('clients',{query:`?id=eq.${encodeURIComponent(clientMatch[1])}&select=*`});
-    if(!Array.isArray(rows)||!rows.length)return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
+    if(!Array.isArray(rows)||!rows.length||!canAccessClient(access,rows[0],'clients.manage',{reachableClientIds:await accessibleClientIds(access,'clients.manage')}))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     const body=await readJson(req);
     const merged={...rows[0],...body};
     const patch={...normalizeClientInput(merged),updated_by:principal.id,updated_at:new Date().toISOString()};

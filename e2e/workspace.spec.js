@@ -265,3 +265,19 @@ test('the delivered page is free of inline script and inline handlers', async ({
   await expect(page.locator('#login')).toBeHidden();
   expect(await page.locator('[data-act]').count()).toBeGreaterThan(0);
 });
+
+test('every navigation destination the Owner is offered is actually clickable', async ({ page }) => {
+  // The sidebar footer was absolutely positioned over the end of a nav that had
+  // since grown, so the last destinations rendered but swallowed their clicks.
+  // Rendering is not reachability: drive each one.
+  await signIn(page, OWNER);
+  await expect(page.locator('#login')).toBeHidden();
+
+  const views = await page.locator('#nav button:visible').evaluateAll((nodes) => nodes.map((n) => n.dataset.view));
+  expect(views.length).toBeGreaterThan(8);
+
+  for (const view of views) {
+    await page.click(`#nav button[data-view="${view}"]`, { timeout: 5000 });
+    await expect(page.locator(`#view-${view}`), `${view} must open when its nav item is clicked`).toHaveClass(/active/);
+  }
+});

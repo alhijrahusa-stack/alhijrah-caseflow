@@ -57,6 +57,8 @@
         position: sticky;
         top: 0;
         height: 100vh;
+        display: flex;
+        flex-direction: column;
       }
       .brand {
         display: flex;
@@ -87,6 +89,10 @@
       .nav {
         display: grid;
         gap: 5px;
+        align-content: start;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
       }
       .nav button {
         all: unset;
@@ -109,10 +115,8 @@
         box-shadow: inset 3px 0 0 var(--gold), 0 8px 24px rgba(0, 0, 0, 0.2);
       }
       .sidefoot {
-        position: absolute;
-        left: 18px;
-        right: 18px;
-        bottom: 18px;
+        flex-shrink: 0;
+        margin-top: 14px;
         padding-top: 14px;
         border-top: 1px solid var(--line);
         color: #7890a8;

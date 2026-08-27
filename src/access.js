@@ -333,6 +333,37 @@ function isAssignedTo(access, caseRecord) {
   return label === String(access.email || '').toLowerCase() || label === String(access.displayName || '').toLowerCase();
 }
 
+/**
+ * Decide access to one client record.
+ *
+ * Mirrors canAccessCase: owner bypasses, an explicit restriction is absolute,
+ * an explicit grant carries its own permission, and only then does the
+ * configured scope apply. `global` -- the default for staff -- returns true, so
+ * a deployment with no Owner policy is unchanged.
+ *
+ * The case-shaped scopes (team, assigned, explicit_case, explicit_category)
+ * have no direct meaning for a client row, so they resolve through the clients
+ * that own a case the caller can already reach; the caller supplies that set.
+ */
+export function canAccessClient(access, clientRecord, permission = 'clients.view', { reachableClientIds } = {}) {
+  if (access.isOwner) return true;
+  if (!clientRecord) return false;
+
+  const clientId = String(clientRecord.id ?? '');
+  if (access.restrictedClientIds.has(clientId)) return false;
+  if (recordGrantAllows(access, 'client', clientId, permission)) return true;
+  if (!hasEffectivePermission(access, permission)) return false;
+
+  switch (scopeFor(access, 'clients')) {
+    case 'global':
+      return true;
+    case 'client_self':
+      return access.clientIds.has(clientId);
+    default:
+      return Boolean(reachableClientIds && reachableClientIds.has(clientId));
+  }
+}
+
 // Documents are scoped independently of cases, but always in terms of the case
 // the document belongs to: a document is reachable when the documents-module
 // scope admits its case.
