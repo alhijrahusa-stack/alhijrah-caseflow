@@ -1,5 +1,6 @@
       const $ = (id) => document.getElementById(id);
       let currentUser = null,
+        currentLanguage = "English",
         cases = [],
         docs = [],
         clients = [],
@@ -15,6 +16,30 @@
         intakeSaveTimer = null,
         inviteAccessToken = null,
         identityExtractionToken = null;
+      const translations = Object.freeze({
+        ar: {
+          dashboard:"لوحة العمليات",cases:"الملفات",clients:"العملاء",documents:"المستندات",services:"الخدمات",tasks:"المهام",reviewQueue:"قائمة المراجعة",billing:"الفوترة",reports:"التقارير",teamRoles:"الفريق والصلاحيات",auditTrail:"سجل التدقيق",accessControl:"إدارة الوصول",settings:"الإعدادات",newCase:"ملف جديد",signOut:"تسجيل الخروج",english:"English",arabic:"العربية",operationsConsole:"مركز العمليات",caseManagementDashboard:"لوحة إدارة الملفات",totalCases:"إجمالي الملفات",intakeQueue:"قائمة الاستقبال",awaitingDocuments:"بانتظار المستندات",readyToFile:"جاهز للتقديم",filedReceipted:"مُقدَّم / تم استلام الإشعار",overdueTasks:"مهام متأخرة",highPriority:"أولوية عالية",recentCases:"أحدث الملفات",quickActions:"إجراءات سريعة",refresh:"تحديث",searchCases:"ابحث برقم الملف أو اسم العميل أو رقم الإيصال",searchClients:"ابحث برقم العميل أو الاسم أو الجواز أو A-Number أو الهاتف أو البريد",client:"العميل",clientNumber:"رقم العميل",caseNumber:"رقم الملف",caseType:"نوع الخدمة",status:"الحالة",priority:"الأولوية",assigned:"الموظف المسؤول",created:"تاريخ الإنشاء",open:"فتح",caseWorkspace:"مساحة عمل الملف",overview:"نظرة عامة",caseJourney:"مسار الملف",clientProfile:"ملف العميل",intake:"بيانات الاستقبال",requiredActions:"الإجراءات المطلوبة",deadlines:"المواعيد النهائية",appointments:"المواعيد",communications:"المراسلات",internalNotes:"الملاحظات الداخلية",teamHub:"فريق الملف",activityAudit:"النشاط والتدقيق",latestActivity:"آخر نشاط",nextDeadline:"أقرب موعد نهائي",outstandingBalance:"الرصيد المستحق",service:"الخدمة",workflowStage:"مرحلة سير العمل",noRecords:"لا توجد سجلات.",workspaceSettings:"إعدادات مساحة العمل",officeBrand:"هوية المكتب",officeName:"اسم المكتب",officeEmail:"البريد الإلكتروني",officePhone:"الهاتف",officeWhatsapp:"واتساب",officeAddress:"العنوان",defaultLanguage:"اللغة الافتراضية",emailFooterEnglish:"تذييل البريد بالإنجليزية",emailFooterArabic:"تذييل البريد بالعربية",saveSettings:"حفظ الإعدادات",staffProfile:"الملف الشخصي للموظف",displayName:"الاسم الظاهر",preferredLanguage:"اللغة المفضلة",saveProfile:"حفظ الملف الشخصي",officeLogo:"شعار المكتب",uploadLogo:"رفع الشعار",securePortal:"بوابة العميل الآمنة",yourCases:"ملفاتكم",requestedDocuments:"المستندات المطلوبة",currentStatus:"الحالة الحالية",sendMessage:"إرسال رسالة",close:"إغلاق",loading:"جارٍ التحميل…",save:"حفظ",cancel:"إلغاء",edit:"تعديل"
+        }
+      });
+      const tr = (key) => currentLanguage === "Arabic" ? (translations.ar[key] || key) : ({
+        reviewQueue:"Review Queue",teamRoles:"Team & Roles",auditTrail:"Audit Trail",accessControl:"Access Control",newCase:"New Case",signOut:"Sign Out",operationsConsole:"Operations Console",caseManagementDashboard:"Case Management Dashboard",totalCases:"Total Cases",intakeQueue:"Intake Queue",awaitingDocuments:"Awaiting Documents",readyToFile:"Ready to File",filedReceipted:"Filed / Receipted",overdueTasks:"Overdue Tasks",highPriority:"High Priority",recentCases:"Recent Cases",quickActions:"Quick Actions",searchCases:"Search Case Number, client, receipt or service",searchClients:"Search Client Number, name, passport, A-Number, phone or email",clientNumber:"Client Number",caseNumber:"Case Number",caseType:"Case Type",caseWorkspace:"Case Workspace",caseJourney:"Case Journey",clientProfile:"Client Profile",requiredActions:"Required Actions",internalNotes:"Internal Notes",teamHub:"Team Hub",activityAudit:"Activity / Audit",latestActivity:"Latest Activity",nextDeadline:"Next Deadline",outstandingBalance:"Outstanding Balance",workflowStage:"Workflow Stage",noRecords:"No records.",workspaceSettings:"Workspace Settings",officeBrand:"Office Brand",officeName:"Office Name",officeEmail:"Office Email",officePhone:"Office Phone",officeWhatsapp:"WhatsApp",officeAddress:"Office Address",defaultLanguage:"Default Language",emailFooterEnglish:"English Email Footer",emailFooterArabic:"Arabic Email Footer",saveSettings:"Save Settings",staffProfile:"Staff Profile",displayName:"Display Name",preferredLanguage:"Preferred Language",saveProfile:"Save Profile",officeLogo:"Office Logo",uploadLogo:"Upload Logo",securePortal:"Secure Client Portal",yourCases:"Your Cases",requestedDocuments:"Requested Documents",currentStatus:"Current Status",sendMessage:"Send Message"
+      }[key] || key.charAt(0).toUpperCase()+key.slice(1));
+      function applyTranslations(){
+        document.documentElement.lang=currentLanguage==="Arabic"?"ar":"en";
+        document.documentElement.dir=currentLanguage==="Arabic"?"rtl":"ltr";
+        document.body.classList.toggle("rtl",currentLanguage==="Arabic");
+        document.querySelectorAll("[data-i18n]").forEach(element=>element.textContent=tr(element.dataset.i18n));
+        document.querySelectorAll("[data-i18n-placeholder]").forEach(element=>element.placeholder=tr(element.dataset.i18nPlaceholder));
+        document.querySelectorAll('[data-act="switchLanguage"]').forEach(switcher=>switcher.value=currentLanguage);
+        const activeView=document.querySelector("#nav button.active")?.dataset.view;if(activeView)titles(activeView);
+      }
+      function setLanguage(language){currentLanguage=/^(Arabic|ar|العربية)$/i.test(String(language||""))?"Arabic":"English";applyTranslations();}
+      async function switchLanguage(language){
+        setLanguage(language);
+        if(!currentUser)return;
+        const portalUser=(currentUser.roles||[]).some(role=>role.startsWith("client_"));
+        try{await api(portalUser?"/api/v1/portal/language":"/api/v1/profile/preferences",{method:"PATCH",body:JSON.stringify({preferred_language:currentLanguage})});currentUser.preferred_language=currentLanguage;}catch(error){alert(error.message)}
+      }
       const viewLoadedAt = new Map(),
         viewLoads = new Map(),
         viewCacheMs = 30_000;
@@ -38,22 +63,22 @@
       ];
       function titles(v) {
         const t = {
-          dashboard: ["Operations Console", "Case Management Dashboard"],
-          cases: ["Case Operations", "Cases"],
-          clients: ["Client Records", "Clients"],
-          documents: ["Document Operations", "Document Center"],
-          services: ["Service Catalog", "Immigration Services"],
-          tasks: ["Workflow", "Tasks"],
-          reviews: ["Quality Control", "Review Queue"],
-          billing: ["Financial Operations", "Billing"],
-          reports: ["Operations Intelligence", "Reports"],
-          roles: ["Access Control", "Team & Roles"],
-          audit: ["Compliance", "Audit Trail"],
-          access: ["Authorization", "Access Control"],
-          settings: ["Configuration", "Settings"],
+          dashboard: ["operationsConsole", "caseManagementDashboard"],
+          cases: ["operationsConsole", "cases"],
+          clients: ["clientProfile", "clients"],
+          documents: ["operationsConsole", "documents"],
+          services: ["operationsConsole", "services"],
+          tasks: ["workflowStage", "tasks"],
+          reviews: ["requiredActions", "reviewQueue"],
+          billing: ["operationsConsole", "billing"],
+          reports: ["operationsConsole", "reports"],
+          roles: ["accessControl", "teamRoles"],
+          audit: ["activityAudit", "auditTrail"],
+          access: ["accessControl", "accessControl"],
+          settings: ["workspaceSettings", "settings"],
         };
-        $("sectionEyebrow").textContent = t[v][0];
-        $("sectionTitle").textContent = t[v][1];
+        $("sectionEyebrow").textContent = tr(t[v][0]);
+        $("sectionTitle").textContent = tr(t[v][1]);
       }
       function showView(v) {
         document
@@ -79,6 +104,7 @@
         roles: loadTeam,
         audit: loadAudit,
         access: () => allowedTo("access.manage") ? loadAccess() : Promise.resolve(),
+        settings: loadSettings,
       };
       function loadViewData(view, force = false) {
         const loader = viewLoaders[view];
@@ -119,7 +145,7 @@
         if (currentUser) {
           const profile = $("ownerProfile");
           if (profile) {
-            profile.querySelector("b").textContent = currentUser.displayName || currentUser.email;
+            profile.querySelector("b").textContent = currentUser.display_name || currentUser.email;
             profile.querySelector("small").textContent = (currentUser.roles || []).map(intakeOptionLabel).join(" · ");
           }
         }
@@ -167,6 +193,7 @@
             body: JSON.stringify({ email, password }),
           });
           currentUser = result.user;
+          setLanguage(currentUser.preferred_language);
           $("password").value = "";
           $("login").classList.add("hidden");
           const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
@@ -208,6 +235,7 @@
           $("invitePassword").value = "";
           $("invitePasswordConfirm").value = "";
           currentUser = result.user;
+          setLanguage(currentUser.preferred_language);
           $("inviteSetup").style.display = "none";
           $("login").classList.add("hidden");
           const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
@@ -253,6 +281,37 @@
           $("live").textContent = "Service unavailable";
         }
       }
+      async function loadSettings(){
+        try{
+          const [office,profile]=await Promise.all([api("/api/v1/settings/office"),api("/api/v1/profile/preferences")]);
+          const values={officeName:office.data.office_name,officeEmail:office.data.office_email,officePhone:office.data.office_phone,officeWhatsapp:office.data.office_whatsapp,officeAddress:office.data.office_address,officeDefaultLanguage:office.data.default_language,officeFooterEn:office.data.email_footer_en,officeFooterAr:office.data.email_footer_ar,profileDisplayName:profile.data.display_name,profileLanguage:profile.data.preferred_language};
+          for(const [id,value] of Object.entries(values))if($(id))$(id).value=value||"";
+          $("officeLogoPreview").innerHTML=office.data.logo_url?`<img src="${esc(office.data.logo_url)}?v=${Date.now()}" alt="Office logo">`:'<span>A</span>';
+          $("emailProviderStatus").textContent=office.data.email_provider_configured?"Operational":"Configuration required";
+          $("settingsErr").textContent="";
+        }catch(error){$("settingsErr").textContent=error.message}
+      }
+      async function saveOfficeSettings(){
+        try{
+          await api("/api/v1/settings/office",{method:"PATCH",body:JSON.stringify({office_name:$("officeName").value,office_email:$("officeEmail").value,office_phone:$("officePhone").value,office_whatsapp:$("officeWhatsapp").value,office_address:$("officeAddress").value,default_language:$("officeDefaultLanguage").value,email_footer_en:$("officeFooterEn").value,email_footer_ar:$("officeFooterAr").value})});
+          $("settingsErr").textContent="Saved";await loadSettings();
+        }catch(error){$("settingsErr").textContent=error.message}
+      }
+      async function saveProfileSettings(){
+        try{
+          const language=$("profileLanguage").value;
+          await api("/api/v1/profile/preferences",{method:"PATCH",body:JSON.stringify({display_name:$("profileDisplayName").value,preferred_language:language})});
+          currentUser.display_name=$("profileDisplayName").value;currentUser.preferred_language=language;setLanguage(language);configureNavigation();$("settingsErr").textContent="Saved";
+        }catch(error){$("settingsErr").textContent=error.message}
+      }
+      function chooseOfficeLogo(){$("officeLogoFile").value="";$("officeLogoFile").click()}
+      async function uploadOfficeLogo(file){
+        if(!file)return;if(!["image/png","image/jpeg","image/webp","image/svg+xml"].includes(file.type))return $("settingsErr").textContent="Use PNG, JPG, WebP or SVG.";
+        try{
+          const response=await fetch("/api/v1/settings/logo",{method:"POST",credentials:"same-origin",headers:{"content-type":file.type},body:file});
+          const result=await response.json();if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);await loadSettings();
+        }catch(error){$("settingsErr").textContent=error.message}
+      }
       async function loadAlerts() {
         try {
           const result = await api("/api/v1/alerts");
@@ -276,6 +335,21 @@
           $("recentCases").innerHTML =
             '<div class="empty">Unable to load cases.</div>';
         }
+      }
+      async function unifiedSearch(){
+        const input=$("globalSearch"),results=$("globalSearchResults"),q=input?.value.trim()||"";
+        if(q.length<2){results?.classList.remove("show");if(results)results.innerHTML="";return}
+        try{
+          const response=await api(`/api/v1/search?q=${encodeURIComponent(q)}`),data=response.data||{};
+          const caseItems=(data.cases||[]).map(item=>`<button data-act="editCase" data-a1="${item.id}"><b>${esc(item.case_number||item.case_reference)}</b><span>${esc(item.client_name)} · ${esc(item.case_type)}</span></button>`);
+          const clientItems=(data.clients||[]).map(item=>`<button data-act="openSearchClient" data-a1="${item.id}"><b>${esc(item.client_number)}</b><span>${esc(currentLanguage==="Arabic"&&item.legal_name_ar?item.legal_name_ar:item.legal_name)} · ${esc(item.email||item.phone||"")}</span></button>`);
+          results.innerHTML=[...caseItems,...clientItems].join("")||`<div class="empty">${esc(tr("noRecords"))}</div>`;results.classList.add("show");
+        }catch(error){results.innerHTML=`<div class="empty">${esc(error.message)}</div>`;results.classList.add("show")}
+      }
+      async function openSearchClient(id){
+        let client=clients.find(item=>item.id===id);
+        if(!client){const response=await api(`/api/v1/clients/${id}`);client=response.data;clients.unshift(client)}
+        $("globalSearchResults").classList.remove("show");editClient(id);
       }
       function renderMetrics() {
         const stage = (item) => item.workflow_stage || item.status || "intake";
@@ -332,7 +406,7 @@
           a
             .map(
               (x) =>
-                `<tr><td><b>${esc(x.client_name)}</b></td><td>${esc(x.case_type)}</td><td>${esc(x.status)}</td><td>${esc(x.priority)}</td><td>${esc(x.assigned_to || "—")}</td><td>${date(x.created_at)}</td><td><button class="linkbtn" data-act="editCase" data-a1="${x.id}">Edit</button></td></tr>`,
+                `<tr><td><b>${esc(x.case_number||x.case_reference||"—")}</b></td><td><b>${esc(x.client_name)}</b></td><td>${esc(x.case_type)}</td><td>${esc(x.workflow_stage||x.status)}</td><td>${esc(x.priority)}</td><td>${esc(x.assigned_to || "—")}</td><td><button class="linkbtn" data-act="editCase" data-a1="${x.id}">${esc(tr("open"))}</button></td></tr>`,
             )
             .join("") || '<tr><td colspan="7">No matching cases.</td></tr>';
       }
@@ -350,14 +424,14 @@
       function renderClients() {
         const q = ($("clientSearch")?.value || "").toLowerCase();
         const visible = clients.filter((client) =>
-          [client.legal_name, client.email, client.phone, client.a_number, client.uscis_account_number]
+          [client.client_number,client.legal_name,client.legal_name_ar,client.email,client.phone,client.whatsapp,client.a_number,client.uscis_account_number,client.passport_number]
             .some((value) => String(value || "").toLowerCase().includes(q)),
         );
         $("clientTable").innerHTML =
           visible
             .map(
               (client) =>
-                `<tr><td><b>${esc(client.legal_name)}</b><br><small>${esc(client.nationality || "—")}</small></td><td>${esc(client.email || client.phone || "—")}</td><td>${esc(client.a_number || "—")}</td><td>${esc(client.preferred_language || "—")}</td><td>${date(client.updated_at)}</td><td><button class="linkbtn" data-act="editClient" data-a1="${client.id}">Edit</button></td></tr>`,
+                `<tr><td><b>${esc(client.client_number||"—")}</b></td><td><b>${esc(currentLanguage==="Arabic"&&client.legal_name_ar?client.legal_name_ar:client.legal_name)}</b><br><small>${esc(client.nationality || "—")}</small></td><td>${esc(client.email || client.phone || "—")}</td><td>${esc(client.a_number || "—")}</td><td>${esc(client.preferred_language || "—")}</td><td><button class="linkbtn" data-act="editClient" data-a1="${client.id}">${esc(tr("edit"))}</button></td></tr>`,
             )
             .join("") || '<tr><td colspan="6">No matching clients.</td></tr>';
       }
@@ -369,7 +443,7 @@
       function openClient() {
         $("clientModalTitle").textContent = "Create Client";
         $("editClientId").value = "";
-        for (const id of ["clientLegalName","clientDob","clientBirthPlace","clientNationality","clientCountry","clientEmail","clientPhone","clientWhatsapp","clientLanguage","clientANumber","clientUscisNumber","clientPassport","clientPassportExpiration","clientAddress","clientPostal","clientImmigrationStatus","clientNotes"]) $(id).value = "";
+        for (const id of ["clientLegalName","clientLegalNameAr","clientDob","clientBirthPlace","clientNationality","clientCountry","clientEmail","clientPhone","clientWhatsapp","clientLanguage","clientANumber","clientUscisNumber","clientPassport","clientPassportExpiration","clientAddress","clientPostal","clientImmigrationStatus","clientNotes"]) $(id).value = "";
         $("clientErr").textContent = "";
         resetIdentityIntake();
         $("clientModal").classList.add("show");
@@ -380,7 +454,7 @@
         $("clientModalTitle").textContent = "Edit Client";
         $("editClientId").value = id;
         const values = {
-          clientLegalName: client.legal_name, clientDob: client.date_of_birth,
+          clientLegalName: client.legal_name,clientLegalNameAr:client.legal_name_ar, clientDob: client.date_of_birth,
           clientBirthPlace: client.place_of_birth, clientNationality: client.nationality,
           clientCountry: client.current_country, clientEmail: client.email,
           clientPhone: client.phone, clientWhatsapp: client.whatsapp,
@@ -469,6 +543,7 @@
         const id = $("editClientId").value;
         const body = {
           legal_name: $("clientLegalName").value.trim(),
+          legal_name_ar: $("clientLegalNameAr").value.trim() || null,
           date_of_birth: $("clientDob").value || null,
           place_of_birth: $("clientBirthPlace").value.trim() || null,
           nationality: $("clientNationality").value.trim() || null,
@@ -526,7 +601,7 @@
         $("caseErr").textContent = "";
         $("caseModal").classList.add("show");
       }
-      function editCase(id) {
+      function openCaseEditor(id) {
         const c = cases.find((x) => x.id === id);
         if (!c) return;
         caseModalTitle.textContent = "Edit Case";
@@ -542,6 +617,47 @@
         $("caseErr").textContent = "";
         $("caseModal").classList.add("show");
       }
+      const workspaceRows=(items,renderItem,empty=tr("noRecords"))=>(items||[]).map(renderItem).join("")||`<div class="empty">${esc(empty)}</div>`;
+      async function editCase(id){
+        try{
+          const result=await api(`/api/v1/cases/${id}/workspace`),workspace=result.data,c=workspace.case,client=workspace.client||{};
+          const initials=String(client.legal_name||c.client_name||"A").split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase();
+          $("workspaceAvatar").innerHTML=client.profile_photo_url?`<img src="${esc(client.profile_photo_url)}" alt="">`:esc(initials);
+          $("workspaceClientName").textContent=currentLanguage==="Arabic"&&client.legal_name_ar?client.legal_name_ar:(client.legal_name||c.client_name||"—");
+          $("workspaceClientNumber").textContent=client.client_number||"—";
+          $("workspaceCaseNumber").textContent=c.case_number||c.case_reference||"—";
+          $("workspaceService").textContent=c.case_type||c.service_code||"—";
+          $("workspaceStatus").textContent=intakeOptionLabel(c.workflow_stage||c.status);
+          $("workspacePriority").textContent=intakeOptionLabel(c.priority);
+          $("workspaceStage").textContent=intakeOptionLabel(c.workflow_stage||"intake");
+          $("workspaceAssigned").textContent=c.assigned_to||workspace.assignments?.[0]?.auth_user_id||"—";
+          $("workspaceLatest").textContent=workspace.latest_activity?`${intakeOptionLabel(workspace.latest_activity.event_type)} · ${date(workspace.latest_activity.created_at)}`:"—";
+          $("workspaceDeadline").textContent=workspace.deadlines?.find(item=>item.status==="open")?.deadline_date||"—";
+          $("workspaceBalance").textContent=workspace.financial_summary?money(workspace.financial_summary.balance_cents):"—";
+          $("workspaceEditButton").dataset.a1=id;
+          const summary=(label,value)=>`<div class="workspace-stat"><span>${esc(label)}</span><b>${esc(value||"—")}</b></div>`;
+          $("workspace-overview").innerHTML=`<div class="workspace-summary">${summary(tr("caseNumber"),c.case_number||c.case_reference)}${summary(tr("clientNumber"),client.client_number)}${summary(tr("service"),c.case_type)}${summary(tr("currentStatus"),intakeOptionLabel(c.workflow_stage||c.status))}${summary(tr("latestActivity"),workspace.latest_activity?intakeOptionLabel(workspace.latest_activity.event_type):"—")}${summary(tr("outstandingBalance"),workspace.financial_summary?money(workspace.financial_summary.balance_cents):"—")}</div><div class="workspace-note">${esc(c.notes||tr("noRecords"))}</div>`;
+          $("workspace-journey").innerHTML=workspaceRows(workspace.timeline,item=>`<div class="timeline-item"><span></span><div><b>${esc(intakeOptionLabel(item.event_type))}</b><p>${esc(item.actor||"System")} · ${date(item.created_at)}</p></div></div>`);
+          $("workspace-profile").innerHTML=`<div class="workspace-summary">${summary(tr("clientNumber"),client.client_number)}${summary(tr("displayName"),client.legal_name)}${summary("الاسم بالعربية / Arabic name",client.legal_name_ar)}${summary("A-Number",client.a_number)}${summary("Passport",client.passport_number)}${summary("USCIS Account",client.uscis_account_number)}${summary("Email",client.email)}${summary("Phone",client.phone)}${summary(tr("preferredLanguage"),client.preferred_language)}</div>`;
+          $("workspace-intake").innerHTML=workspaceRows(workspace.intakes,item=>`<div class="workspace-card"><b>${esc(item.status)}</b><span>${date(item.updated_at)}</span><small>${Object.keys(item.answers||{}).length} fields</small></div>`);
+          $("workspace-documents").innerHTML=workspaceRows(workspace.documents,item=>`<div class="workspace-card"><b>${esc(item.file_name)}</b><span>${esc(item.category||"Unclassified")} · ${esc(item.review_status)}</span><small>${date(item.created_at)}</small></div>`);
+          $("workspace-actions").innerHTML=workspaceRows(workspace.document_requests,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(item.status)}${item.due_date?` · ${esc(item.due_date)}`:""}</span><small>${esc(item.instructions||"")}</small></div>`);
+          $("workspace-tasks").innerHTML=workspaceRows(workspace.tasks,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(item.status)} · ${esc(item.priority)}</span><small>${esc(item.due_date||"—")}</small></div>`);
+          $("workspace-deadlines").innerHTML=workspaceRows(workspace.deadlines,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(item.deadline_date)} · ${esc(item.status)}</span><small>${esc(item.deadline_type||"")}</small></div>`);
+          $("workspace-appointments").innerHTML=workspaceRows(workspace.appointments,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${date(item.starts_at)}</span><small>${esc(item.location||"")}</small></div>`);
+          $("workspace-communications").innerHTML=workspaceRows([...(workspace.communications||[]),...(workspace.messages||[])],item=>`<div class="workspace-card"><b>${esc(item.subject||intakeOptionLabel(item.sender_type||item.template_key||"Message"))}</b><span>${esc(item.status||"")} · ${date(item.created_at||item.queued_at)}</span><small>${esc(item.recipient||item.body||"")}</small></div>`);
+          $("workspace-billing").innerHTML=workspace.financial_summary?`<div class="workspace-summary">${summary("Total fee",money(workspace.financial_summary.total_fee_cents))}${summary("Paid",money(workspace.financial_summary.paid_cents))}${summary(tr("outstandingBalance"),money(workspace.financial_summary.balance_cents))}</div>${workspaceRows(workspace.invoices,item=>`<div class="workspace-card"><b>${esc(item.invoice_number)}</b><span>${esc(item.status)}</span><small>${esc(item.due_date||"—")}</small></div>`)}`:`<div class="empty">${esc(tr("noRecords"))}</div>`;
+          $("workspace-notes").innerHTML=workspaceRows(workspace.notes,item=>`<div class="workspace-card"><b>${esc(intakeOptionLabel(item.visibility))}</b><span>${date(item.created_at)}</span><small>${esc(item.body)}</small></div>`);
+          $("workspace-team").innerHTML=`<h3>${esc(tr("assigned"))}</h3>${workspaceRows(workspace.assignments,item=>`<div class="workspace-card"><b>${esc(item.assignment_role)}</b><span>${esc(item.auth_user_id)}</span></div>`)}<h3>${esc(tr("communications"))}</h3>${workspaceRows(workspace.messages,item=>`<div class="workspace-card"><b>${esc(item.sender_type)}</b><span>${date(item.created_at)}</span><small>${esc(item.body)}</small></div>`)}`;
+          $("workspace-audit").innerHTML=workspaceRows(workspace.audit?.length?workspace.audit:workspace.timeline,item=>`<div class="workspace-card"><b>${esc(intakeOptionLabel(item.action||item.event_type))}</b><span>${esc(item.actor_label||item.actor||"System")} · ${date(item.created_at)}</span></div>`);
+          switchWorkspaceTab("overview");applyTranslations();$("caseWorkspaceModal").classList.add("show");
+        }catch(error){alert(error.message)}
+      }
+      function switchWorkspaceTab(tab){
+        document.querySelectorAll(".workspace-tab").forEach(button=>button.classList.toggle("active",button.dataset.a1===tab));
+        document.querySelectorAll(".workspace-panel").forEach(panel=>panel.classList.toggle("active",panel.id===`workspace-${tab}`));
+      }
+      function closeCaseWorkspace(){$("caseWorkspaceModal").classList.remove("show")}
       function closeCase() {
         $("caseModal").classList.remove("show");
       }
@@ -660,6 +776,15 @@
         return intakeState.answers[field.visibleWhen.field] === field.visibleWhen.equals;
       }
       function intakeOptionLabel(value) {
+        const arabicLabels = {
+          active: "نشط", archived: "مؤرشف", assigned: "مُسند", cancelled: "ملغي",
+          completed: "مكتمل", draft: "مسودة", due: "مستحق", failed: "فشل",
+          in_progress: "قيد التنفيذ", invited: "مدعو", needs_review: "يحتاج مراجعة",
+          not_applicable: "غير منطبق", open: "مفتوح", overdue: "متأخر", paid: "مدفوع",
+          pending: "قيد الانتظار", queued: "في قائمة الانتظار", rejected: "مرفوض",
+          requested: "مطلوب", reviewed: "تمت المراجعة", sent: "مُرسل", verified: "موثّق",
+        };
+        if (currentLanguage === "ar" && arabicLabels[value]) return arabicLabels[value];
         return String(value || "")
           .replaceAll("_", " ")
           .replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -1284,6 +1409,7 @@
         try {
           const result = await api("/api/v1/portal");
           portalData = result.data;
+          if(portalData.clients?.[0]?.preferred_language)setLanguage(portalData.clients[0].preferred_language);
           $("portalErr").textContent = "";
           renderPortal();
         } catch (error) {
@@ -1291,7 +1417,8 @@
         }
       }
       function renderPortal() {
-        $("portalCases").innerHTML = (portalData.cases || []).map((item) => `<div class="portal-card"><div class="eyebrow">${esc(item.case_reference || item.service_code || "Case")}</div><h3>${esc(item.case_type)}</h3><p><span class="tag active">${esc(intakeOptionLabel(item.workflow_stage))}</span>${item.receipt_number ? ` · Receipt ${esc(item.receipt_number)}` : ""}</p><div class="df" style="justify-content:flex-start"><button class="btn" data-act="openPortalCase" data-a1="${item.id}">View Case</button>${item.service_code ? `<button class="btn primary" data-act="openIntake" data-a1="${item.id}" data-a2="${esc(item.service_code)}" data-a3="true">Continue Intake</button>` : ""}</div></div>`).join("") || '<div class="empty">No active cases are linked to this account.</div>';
+        const clientNumber=portalData.clients?.[0]?.client_number||"—";
+        $("portalCases").innerHTML = (portalData.cases || []).map((item) => `<div class="portal-card"><div class="eyebrow">${esc(item.case_number || item.case_reference || item.service_code || "Case")}</div><h3>${esc(item.case_type)}</h3><p>${esc(tr("clientNumber"))}: <b>${esc(clientNumber)}</b> · <span class="tag active">${esc(intakeOptionLabel(item.workflow_stage))}</span>${item.receipt_number ? ` · Receipt ${esc(item.receipt_number)}` : ""}</p><div class="df" style="justify-content:flex-start"><button class="btn" data-act="openPortalCase" data-a1="${item.id}">${esc(tr("open"))}</button>${item.service_code ? `<button class="btn primary" data-act="openIntake" data-a1="${item.id}" data-a2="${esc(item.service_code)}" data-a3="true">${esc(tr("intake"))}</button>` : ""}</div></div>`).join("") || `<div class="empty">${esc(tr("noRecords"))}</div>`;
         $("portalRequests").innerHTML = (portalData.document_requests || []).map((item) => `<div class="portal-card"><div><b>${esc(item.title)}</b><p class="muted">${esc(item.instructions || "Upload the requested document.")}</p><span class="tag ${item.status === "approved" ? "active" : item.status === "rejected" ? "urgent" : "normal"}">${esc(intakeOptionLabel(item.status))}</span></div>${['missing','rejected'].includes(item.status) ? `<button class="btn primary" style="margin-top:12px" data-act="choosePortalFile" data-a1="${item.case_id}" data-a2="${item.id}">Upload Document</button>` : ""}</div>`).join("") || '<div class="empty">No documents are currently requested.</div>';
         $("portalAppointments").innerHTML = (portalData.appointments || []).map((item) => `<div class="portal-card"><b>${esc(item.title)}</b><p>${date(item.starts_at)}</p><small>${esc(item.location || "Location will be provided")}</small></div>`).join("") || '<div class="empty">No upcoming appointments.</div>';
       }
@@ -1301,7 +1428,7 @@
           const workspace = result.data;
           $("portalCaseModal").dataset.caseId = caseId;
           $("portalCaseTitle").textContent = workspace.case.case_type;
-          $("portalCaseDetail").innerHTML = `<div class="sys"><div class="sysrow"><span>Case reference</span><b>${esc(workspace.case.case_reference || "Pending")}</b></div><div class="sysrow"><span>Current status</span><b>${esc(intakeOptionLabel(workspace.case.workflow_stage))}</b></div><div class="sysrow"><span>Agency</span><b>${esc(workspace.case.agency || "Not assigned")}</b></div><div class="sysrow"><span>Receipt number</span><b>${esc(workspace.case.receipt_number || "Not received")}</b></div></div><h3 style="margin-top:18px">Updates</h3>${workspace.updates.map((item) => `<div class="portal-card"><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || '<div class="empty">No published updates.</div>'}<h3 style="margin-top:18px">Messages</h3>${workspace.messages.map((item) => `<div class="portal-card"><b>${esc(intakeOptionLabel(item.sender_type))}</b><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || '<div class="empty">No messages yet.</div>'}`;
+          $("portalCaseDetail").innerHTML = `<div class="sys"><div class="sysrow"><span>${esc(tr("caseNumber"))}</span><b>${esc(workspace.case.case_number || workspace.case.case_reference || "Pending")}</b></div><div class="sysrow"><span>${esc(tr("currentStatus"))}</span><b>${esc(intakeOptionLabel(workspace.case.workflow_stage))}</b></div><div class="sysrow"><span>Agency</span><b>${esc(workspace.case.agency || "Not assigned")}</b></div><div class="sysrow"><span>Receipt number</span><b>${esc(workspace.case.receipt_number || "Not received")}</b></div></div><h3 style="margin-top:18px">Updates</h3>${workspace.updates.map((item) => `<div class="portal-card"><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || `<div class="empty">${esc(tr("noRecords"))}</div>`}<h3 style="margin-top:18px">${esc(tr("communications"))}</h3>${workspace.messages.map((item) => `<div class="portal-card"><b>${esc(intakeOptionLabel(item.sender_type))}</b><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || `<div class="empty">${esc(tr("noRecords"))}</div>`}`;
           $("portalMessage").value = "";
           $("portalMessageErr").textContent = "";
           $("portalCaseModal").classList.add("show");
@@ -1363,6 +1490,7 @@
         try {
           const result = await api("/api/v1/auth/me");
           currentUser = result.user;
+          setLanguage(currentUser.preferred_language);
           $("login").classList.add("hidden");
           const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
           if (clientUser) {
@@ -1432,10 +1560,12 @@
         acceptInvite,
         addIntakePerson,
         chooseIdentityFile,
+        chooseOfficeLogo,
         choosePortalFile,
         chooseDocumentFile,
         clearDocumentFile,
         closeCase,
+        closeCaseWorkspace,
         closeClient,
         closeInvoice,
         closeManageUser,
@@ -1455,14 +1585,17 @@
         loadPortal,
         loadReports,
         loadReviewQueue,
+        loadSettings,
         loadTasks,
         nextIntakeStep,
         openCase,
+        openCaseEditor,
         openClient,
         openIntake: (a, b, c) => openIntake(a, b, c === "true"),
         openInvoice,
         openManageUser,
         openPortalCase,
+        openSearchClient,
         openTask,
         previewDoc,
         previousIntakeStep,
@@ -1477,19 +1610,24 @@
         saveClient,
         saveInvoice,
         saveManagedUser,
+        saveOfficeSettings,
+        saveProfileSettings,
         saveTask,
         sendPortalMessage,
         showView,
         signIn,
         signOut,
+        switchLanguage: (a,b,c,element) => switchLanguage(element.value),
+        switchWorkspaceTab,
         testReady,
         uploadDocument,
+        unifiedSearch,
       });
 
       function runUiAction(element) {
         const handler = uiActions[element.dataset.act];
         if (!handler) return;
-        handler(element.dataset.a1, element.dataset.a2, element.dataset.a3);
+        handler(element.dataset.a1, element.dataset.a2, element.dataset.a3, element);
       }
 
       document.addEventListener("click", (event) => {
@@ -1507,6 +1645,7 @@
       });
       $("docFile").addEventListener("change", (event) => setDocumentFile(event.target.files[0]));
       $("identityFile").addEventListener("change", (event) => runIdentityOcr(event.target.files[0]));
+      $("officeLogoFile").addEventListener("change", (event) => uploadOfficeLogo(event.target.files[0]));
       for (const type of ["dragenter", "dragover"]) $("docDropzone").addEventListener(type, (event) => { event.preventDefault(); $("docDropzone").classList.add("dragging"); });
       for (const type of ["dragleave", "drop"]) $("docDropzone").addEventListener(type, (event) => { event.preventDefault(); $("docDropzone").classList.remove("dragging"); });
       $("docDropzone").addEventListener("drop", (event) => setDocumentFile(event.dataTransfer.files[0]));

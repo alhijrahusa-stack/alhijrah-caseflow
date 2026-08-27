@@ -76,6 +76,42 @@ test('a case created through the UI round-trips, and its event is visible to an 
   await expect(page.locator('#auditTable')).toContainText('case_created');
 });
 
+test('Phase 1 client numbers, case numbers, bilingual preference, and full workspace round-trip in the UI', async ({ page }) => {
+  await signIn(page);
+  await expect(page.locator('#login')).toBeHidden();
+
+  await page.click('#nav button[data-view="clients"]');
+  await page.click('[data-act="openClient"]');
+  const clientName = `Phase One Client ${Date.now()}`;
+  await page.fill('#clientLegalName', clientName);
+  await page.fill('#clientLegalNameAr', 'عميل المرحلة الأولى');
+  await page.selectOption('#clientLanguage', 'Arabic');
+  await page.click('[data-act="saveClient"]');
+  await expect(page.locator('#clientTable')).toContainText(/AHC-2026-\d{6}/);
+
+  await page.click('#nav button[data-view="cases"]');
+  await page.click('#newCaseButton');
+  await page.selectOption('#caseClientSelect', { label: clientName });
+  await page.selectOption('#caseType', { index: 0 });
+  await page.click('#saveCaseBtn');
+  await expect(page.locator('#caseTable')).toContainText(/AH-2026-\d{6}/);
+  await page.locator('#caseTable [data-act="editCase"]').first().click();
+  await expect(page.locator('#caseWorkspaceModal')).toHaveClass(/show/);
+  await expect(page.locator('#workspaceClientNumber')).toContainText(/AHC-2026-\d{6}/);
+  await expect(page.locator('#workspaceCaseNumber')).toContainText(/AH-2026-\d{6}/);
+  await expect(page.locator('.workspace-tab')).toHaveCount(14);
+  await page.click('.workspace-tab[data-a1="profile"]');
+  await expect(page.locator('#workspace-profile')).toContainText(clientName);
+  await page.click('[data-act="closeCaseWorkspace"]');
+
+  await page.selectOption('#languageSwitcher', 'Arabic');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.locator('#nav button[data-view="cases"]')).toHaveText('الملفات');
+  await page.reload();
+  await expect(page.locator('#login')).toBeHidden();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+});
+
 test('navigation only offers destinations the role can actually reach', async ({ page }) => {
   await signIn(page);
   await expect(page.locator('#login')).toBeHidden();

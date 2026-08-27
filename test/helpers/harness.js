@@ -24,6 +24,8 @@ process.env.R2_ENDPOINT = 'https://r2.test';
 process.env.R2_ACCESS_KEY_ID = 'r2-access-key';
 process.env.R2_SECRET_ACCESS_KEY = 'r2-secret-key';
 process.env.R2_BUCKET = 'caseflow-test';
+process.env.RESEND_API_KEY = 'resend-test-key';
+process.env.RESEND_FROM_EMAIL = 'ALHIJRAH SERVICES <caseflow@caseflow.test>';
 
 // ---------------------------------------------------------------------------
 // In-memory backend
@@ -61,6 +63,9 @@ const emptyTables = () => ({
   client_people: [],
   case_people: [],
   form_role_assignments: [],
+  office_settings: [{ singleton: true, office_name: 'ALHIJRAH SERVICES', default_language: 'English' }],
+  communication_templates: [{ id: crypto.randomUUID(), template_key: 'case_opened', version: 1, subject_en: 'Your case is now open — {Case_Number}', subject_ar: 'تم فتح ملفكم — {Case_Number}', body_en: 'Your case has been opened successfully.', body_ar: 'تم فتح ملفكم بنجاح.', active: true }],
+  outbound_communications: [],
 });
 
 export const backend = {
@@ -70,6 +75,9 @@ export const backend = {
   objects: new Map(),
   authFailures: 0,
   adminProbes: 0,
+  emails: [],
+  clientNumber: 0,
+  caseNumber: 0,
 };
 
 export function resetBackend() {
@@ -79,6 +87,9 @@ export function resetBackend() {
   backend.objects = new Map();
   backend.authFailures = 0;
   backend.adminProbes = 0;
+  backend.emails = [];
+  backend.clientNumber = 0;
+  backend.caseNumber = 0;
 }
 
 export function addUser({ id = crypto.randomUUID(), email, password = 'correct-horse-battery', roles = [], status, confirmed = true, fullName } = {}) {
@@ -95,7 +106,7 @@ export function addUser({ id = crypto.randomUUID(), email, password = 'correct-h
   // main resolves the effective principal from app_users + user_roles, so a
   // test user has to exist there too.
   if (roles.length) {
-    backend.tables.app_users.push({ auth_user_id: id, display_name: fullName || email, email, status: status === 'inactive' ? 'inactive' : 'active' });
+    backend.tables.app_users.push({ auth_user_id: id, display_name: fullName || email, email, status: status === 'inactive' ? 'inactive' : 'active', preferred_language: 'English' });
     for (const role of roles) backend.tables.user_roles.push({ auth_user_id: id, role_code: role });
   }
   return user;
@@ -167,6 +178,7 @@ function applyOr(rows, expression) {
     const [column, operator, ...rest] = clause.split('.');
     const value = rest.join('.');
     if (operator === 'eq') return String(row[column] ?? '') === value;
+    if (operator === 'ilike') return String(row[column] ?? '').toLowerCase().includes(decodeURIComponent(value).replaceAll('*', '').toLowerCase());
     if (operator === 'in') {
       const members = new Set(value.replace(/^\(|\)$/g, '').split(',').filter(Boolean));
       return members.has(String(row[column] ?? ''));
@@ -198,7 +210,13 @@ async function handleRest(url, init) {
 
   if (method === 'POST') {
     const record = { created_at: new Date().toISOString(), ...body };
-    if (table === 'cases') record.updated_at = record.updated_at || record.created_at;
+    if (table === 'cases') {
+      record.updated_at = record.updated_at || record.created_at;
+      record.case_number ||= `AH-2026-${String(++backend.caseNumber).padStart(6, '0')}`;
+      record.case_reference ||= record.case_number;
+      record.opened_on ||= '2026-08-27';
+    }
+    if (table === 'clients') record.client_number ||= `AHC-2026-${String(++backend.clientNumber).padStart(6, '0')}`;
     if (table === 'documents' && rows.some(row => row.object_key === record.object_key)) {
       return jsonResponse(409, { code: '23505', message: 'duplicate key value violates unique constraint "documents_object_key_key"' });
     }
@@ -305,6 +323,11 @@ globalThis.fetch = async (input, init = {}) => {
   const url = new URL(typeof input === 'string' ? input : input.url);
   if (url.pathname.startsWith('/rest/v1/')) return handleRest(url, init);
   if (url.pathname.startsWith('/auth/v1/')) return handleAuth(url, init);
+  if (url.origin === 'https://api.resend.com' && url.pathname === '/emails') {
+    const message = JSON.parse(init.body || '{}');
+    backend.emails.push(message);
+    return jsonResponse(200, { id: `email-${backend.emails.length}` });
+  }
   throw new Error(`unexpected fetch to ${url.href}`);
 };
 

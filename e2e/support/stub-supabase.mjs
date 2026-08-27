@@ -13,7 +13,12 @@ const tables = Object.fromEntries([
   'legal_holds','document_requests','case_notes','case_messages','appointments','invoices','payments',
   'alerts','retention_policies','intake_definitions','intake_submissions','service_catalog','people',
   'client_people','case_people','form_role_assignments',
+  'office_settings','communication_templates','outbound_communications',
 ].map(name => [name, []]));
+tables.office_settings.push({ singleton:true, office_name:'ALHIJRAH SERVICES', default_language:'English' });
+tables.communication_templates.push({ id:crypto.randomUUID(),template_key:'case_opened',version:1,subject_en:'Your case is now open — {Case_Number}',subject_ar:'تم فتح ملفكم — {Case_Number}',body_en:'Your case has been opened successfully.',body_ar:'تم فتح ملفكم بنجاح.',active:true });
+let clientNumber = 0;
+let caseNumber = 0;
 
 // The service catalogue is seeded by the core_platform migration in a real
 // deployment, so the stub seeds it too and the workspace renders as it would.
@@ -23,7 +28,7 @@ for (const service of serviceCatalog) tables.service_catalog.push({ ...service, 
 function seed(email, roles, fullName) {
   const id = crypto.randomUUID();
   // main resolves the effective principal from app_users + user_roles.
-  tables.app_users.push({ auth_user_id: id, display_name: fullName, email, status: 'active' });
+  tables.app_users.push({ auth_user_id: id, display_name: fullName, email, status: 'active', preferred_language:'English' });
   for (const role of roles) tables.user_roles.push({ auth_user_id: id, role_code: role });
   users.set(email, {
     id,
@@ -96,6 +101,7 @@ function applyOr(rows, expression) {
     const [column, operator, ...rest] = clause.split('.');
     const value = rest.join('.');
     if (operator === 'eq') return String(row[column] ?? '') === value;
+    if (operator === 'ilike') return String(row[column] ?? '').toLowerCase().includes(decodeURIComponent(value).replaceAll('*','').toLowerCase());
     if (operator === 'in') {
       const members = new Set(value.replace(/^\(|\)$/g, '').split(',').filter(Boolean));
       return members.has(String(row[column] ?? ''));
@@ -161,7 +167,13 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST') {
       const record = { created_at: new Date().toISOString(), ...body };
-      if (table === 'cases') record.updated_at = record.updated_at || record.created_at;
+      if (table === 'cases') {
+        record.updated_at = record.updated_at || record.created_at;
+        record.case_number ||= `AH-2026-${String(++caseNumber).padStart(6,'0')}`;
+        record.case_reference ||= record.case_number;
+        record.opened_on ||= '2026-08-27';
+      }
+      if (table === 'clients') record.client_number ||= `AHC-2026-${String(++clientNumber).padStart(6,'0')}`;
       rows.push(record);
       return send(res, 201, [record]);
     }

@@ -99,7 +99,7 @@ test('login response never echoes the access token into the body', async () => {
   });
   assert.equal(response.raw.includes('access-'), false, 'token must stay in the HttpOnly cookie');
   assert.equal(response.raw.includes('refresh-'), false);
-  assert.deepEqual(Object.keys(response.body.user).sort(), ['access', 'display_name', 'email', 'id', 'permissions', 'roles']);
+  assert.deepEqual(Object.keys(response.body.user).sort(), ['access', 'display_name', 'email', 'id', 'permissions', 'preferred_language', 'profile_object_key', 'roles']);
   // Staff default to global scope, so publishing the resolved access does not
   // imply anything has been narrowed.
   assert.equal(response.body.user.access.scopes.cases, 'global');

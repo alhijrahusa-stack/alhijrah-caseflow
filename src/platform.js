@@ -124,6 +124,7 @@ export function cleanReviewState(value = 'prepared') {
 export function normalizeClientInput(body) {
   return {
     legal_name: cleanText(body.legal_name, { required: true, max: 180 }),
+    legal_name_ar: cleanText(body.legal_name_ar, { max: 180 }),
     alternate_names: Array.isArray(body.alternate_names) ? body.alternate_names.map(v => cleanText(v, { max: 180 })).filter(Boolean).slice(0, 20) : [],
     date_of_birth: cleanDate(body.date_of_birth),
     place_of_birth: cleanText(body.place_of_birth, { max: 180 }),
@@ -141,7 +142,7 @@ export function normalizeClientInput(body) {
     passport_number: cleanText(body.passport_number, { max: 40 }),
     passport_country: cleanText(body.passport_country, { max: 100 }),
     passport_expiration: cleanDate(body.passport_expiration),
-    preferred_language: cleanText(body.preferred_language, { max: 50 }) || 'English',
+    preferred_language: /^(arabic|ar|العربية)$/i.test(String(body.preferred_language || '')) ? 'Arabic' : 'English',
     operational_notes: cleanText(body.operational_notes, { max: 5000 }),
   };
 }

@@ -743,6 +743,49 @@
           color: var(--gold);
         }
       }
+      html[dir="rtl"] body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; }
+      html[dir="rtl"] .side { right: 0; left: auto; border-right: 0; border-left: 1px solid #1f3147; }
+      html[dir="rtl"] .main { margin-left: 0; margin-right: 250px; }
+      html[dir="rtl"] .nav button, html[dir="rtl"] .field, html[dir="rtl"] .workspace-card, html[dir="rtl"] .workspace-stat { text-align: right; }
+      .language-switcher { background:#0d2238;color:#f3f5f7;border:1px solid #29405a;border-radius:9px;padding:9px 11px;min-width:105px; }
+      .global-search-wrap { position:relative; min-width:min(360px,32vw); }
+      .global-search-wrap .search { width:100%; background:#fff; }
+      .global-search-results { display:none; position:absolute; inset:calc(100% + 7px) 0 auto; max-height:390px; overflow:auto; background:#fff;border:1px solid #d7dee7;border-radius:11px;box-shadow:0 18px 45px rgba(6,21,38,.17);z-index:40;padding:7px; }
+      .global-search-results.show { display:grid; }
+      .global-search-results button { border:0;background:transparent;padding:11px;text-align:left;border-radius:8px;display:grid;gap:3px;cursor:pointer;color:#102033; }
+      .global-search-results button:hover,.global-search-results button:focus-visible { background:#f1f4f7;outline:2px solid #b99345; }
+      .global-search-results span { color:#66778a;font-size:12px; }
+      .workspace-dialog { width:min(1320px,96vw);max-height:94vh;padding:0;overflow:hidden; }
+      .workspace-head { background:linear-gradient(130deg,#071a2f,#102d4a);color:#fff;padding:25px 28px;border-bottom:3px solid #b99345; }
+      .workspace-identity { display:flex;align-items:center;gap:16px; }
+      .workspace-avatar { width:68px;height:68px;border-radius:15px;background:#b99345;color:#071a2f;display:grid;place-items:center;font-size:22px;font-weight:800;overflow:hidden;flex:0 0 auto; }
+      .workspace-avatar img { width:100%;height:100%;object-fit:cover; }
+      .workspace-numbers { display:flex;gap:9px;flex-wrap:wrap;margin-top:7px;color:#cfdae5;font-size:12px; }
+      .workspace-numbers b { color:#efd492; }
+      .workspace-header-actions { display:flex;gap:8px;align-items:center; }
+      .workspace-facts { display:grid;grid-template-columns:repeat(4,minmax(125px,1fr));gap:1px;background:#dbe2e9;border-bottom:1px solid #dbe2e9; }
+      .workspace-fact { padding:12px 14px;background:#fff;min-height:63px; }
+      .workspace-fact span,.workspace-stat span { display:block;color:#6b7b8c;font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px; }
+      .workspace-tabs { display:flex;gap:4px;overflow-x:auto;padding:12px 16px;border-bottom:1px solid #dfe5eb;background:#f7f9fb;scrollbar-width:thin; }
+      .workspace-tab { white-space:nowrap;border:1px solid transparent;background:transparent;border-radius:8px;padding:9px 12px;color:#536578;cursor:pointer;font-weight:650; }
+      .workspace-tab.active { background:#071a2f;color:#fff;border-color:#071a2f; }
+      .workspace-body { padding:22px;overflow:auto;max-height:calc(94vh - 300px);background:#f3f6f9; }
+      .workspace-panel { display:none; }
+      .workspace-panel.active { display:block; }
+      .workspace-summary { display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px; }
+      .workspace-stat,.workspace-card,.workspace-note { background:#fff;border:1px solid #dfe5eb;border-radius:10px;padding:14px;box-shadow:0 4px 14px rgba(14,38,61,.04); }
+      .workspace-card { display:grid;gap:4px;margin-bottom:9px; }
+      .workspace-card span,.workspace-card small { color:#657588; }
+      .workspace-note { margin-top:12px;line-height:1.7; }
+      .timeline-item { display:grid;grid-template-columns:14px 1fr;gap:12px;position:relative;padding-bottom:15px; }
+      .timeline-item>span { width:10px;height:10px;border:2px solid #b99345;border-radius:50%;margin-top:4px;background:#fff; }
+      .timeline-item p { margin:3px 0;color:#6b7b8c;font-size:12px; }
+      .settings-grid { display:grid;grid-template-columns:1.4fr .8fr;gap:16px; }
+      .logo-settings { display:flex;align-items:center;gap:15px;margin-bottom:18px; }
+      .office-logo-preview { width:84px;height:84px;border-radius:15px;border:1px solid #dce3ea;background:#071a2f;color:#d7b76b;display:grid;place-items:center;font-size:32px;font-weight:800;overflow:hidden; }
+      .office-logo-preview img { width:100%;height:100%;object-fit:contain;background:#fff; }
+      @media (max-width:1000px){.workspace-facts{grid-template-columns:repeat(3,1fr)}.settings-grid{grid-template-columns:1fr}.global-search-wrap{min-width:220px}}
+      @media (max-width:700px){html[dir="rtl"] .main{margin-right:0}.global-search-wrap{order:3;width:100%;min-width:0}.workspace-facts{grid-template-columns:repeat(2,1fr)}.workspace-head{padding:18px}.workspace-body{padding:13px;max-height:calc(94vh - 340px)}}
     </style>
   </head>
   <body>
@@ -787,7 +830,7 @@
       <div class="portal-shell">
         <div class="portal-head">
           <div class="brand" style="padding:0"><div class="logo">A</div><div><b>MY ALHIJRAH</b><small>Secure Client Portal</small></div></div>
-          <button id="portalSignOutBtn" class="btn" data-act="signOut">Sign Out</button>
+          <div style="display:flex;gap:8px"><select class="language-switcher" data-act="switchLanguage" data-on="change" aria-label="Language"><option value="English">English</option><option value="Arabic">العربية</option></select><button id="portalSignOutBtn" class="btn" data-act="signOut" data-i18n="signOut">Sign Out</button></div>
         </div>
         <div class="eyebrow">Your protected workspace</div>
         <h1 class="title" style="margin-bottom:22px">Case status and next actions</h1>
@@ -814,19 +857,19 @@
           </div>
         </div>
         <div class="nav" id="nav">
-          <button class="active" data-view="dashboard">Dashboard</button
-          ><button data-view="cases">Cases</button
-          ><button data-view="clients">Clients</button
-          ><button data-view="documents">Documents</button
-          ><button data-view="services">Services</button
-          ><button data-view="tasks">Tasks</button
-          ><button data-view="reviews">Review Queue</button
-          ><button data-view="billing">Billing</button
-          ><button data-view="reports">Reports</button
-          ><button data-view="roles">Team & Roles</button
-          ><button data-view="audit">Audit Trail</button
-          ><button data-view="access">Access Control</button
-          ><button data-view="settings">Settings</button>
+          <button class="active" data-view="dashboard" data-i18n="dashboard">Dashboard</button
+          ><button data-view="cases" data-i18n="cases">Cases</button
+          ><button data-view="clients" data-i18n="clients">Clients</button
+          ><button data-view="documents" data-i18n="documents">Documents</button
+          ><button data-view="services" data-i18n="services">Services</button
+          ><button data-view="tasks" data-i18n="tasks">Tasks</button
+          ><button data-view="reviews" data-i18n="reviewQueue">Review Queue</button
+          ><button data-view="billing" data-i18n="billing">Billing</button
+          ><button data-view="reports" data-i18n="reports">Reports</button
+          ><button data-view="roles" data-i18n="teamRoles">Team & Roles</button
+          ><button data-view="audit" data-i18n="auditTrail">Audit Trail</button
+          ><button data-view="access" data-i18n="accessControl">Access Control</button
+          ><button data-view="settings" data-i18n="settings">Settings</button>
         </div>
         <div class="sidefoot">
           <div id="ownerProfile" style="display:grid;gap:3px;margin-bottom:12px"><b>Authenticated user</b><small style="color:var(--muted)">Loading access…</small></div>
@@ -840,12 +883,14 @@
             <h1 class="title" id="sectionTitle">Case Management Dashboard</h1>
           </div>
           <div class="topright">
+            <div class="global-search-wrap"><input id="globalSearch" class="search" data-act="unifiedSearch" data-on="input" data-i18n-placeholder="searchCases" placeholder="Search Case Number, client, receipt or service"><div id="globalSearchResults" class="global-search-results"></div></div>
+            <select id="languageSwitcher" class="language-switcher" data-act="switchLanguage" data-on="change" aria-label="Language"><option value="English">English</option><option value="Arabic">العربية</option></select>
             <div class="pill">
               <span class="dot" id="dot"></span
               ><span id="live">Checking services</span>
             </div>
-            <button class="btn primary" id="newCaseButton" data-act="openCase">+ New Case</button>
-            <button class="btn" id="signOutBtn" data-act="signOut">Sign Out</button>
+            <button class="btn primary" id="newCaseButton" data-act="openCase"><span data-i18n="newCase">New Case</span></button>
+            <button class="btn" id="signOutBtn" data-act="signOut" data-i18n="signOut">Sign Out</button>
           </div>
         </div>
         <section class="view active" id="view-dashboard">
@@ -965,7 +1010,8 @@
               <input
                 class="search"
                 id="caseSearch"
-                placeholder="Search client, case type, status or assignee"
+                placeholder="Search Case Number, client, receipt or service"
+                data-i18n-placeholder="searchCases"
                 data-act="renderCaseTable" data-on="input"
               /><button class="btn primary" data-act="openCase">
                 + New Case
@@ -975,12 +1021,12 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Client</th>
-                    <th>Case Type</th>
-                    <th>Status</th>
-                    <th>Priority</th>
-                    <th>Assigned</th>
-                    <th>Created</th>
+                    <th data-i18n="caseNumber">Case Number</th>
+                    <th data-i18n="client">Client</th>
+                    <th data-i18n="caseType">Case Type</th>
+                    <th data-i18n="status">Status</th>
+                    <th data-i18n="priority">Priority</th>
+                    <th data-i18n="assigned">Assigned</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -995,7 +1041,8 @@
               <input
                 class="search"
                 id="clientSearch"
-                placeholder="Search name, email, phone, A-Number or USCIS account"
+                placeholder="Search Client Number, name, passport, A-Number, phone or email"
+                data-i18n-placeholder="searchClients"
                 data-act="renderClients" data-on="input"
               />
               <button class="btn primary" data-act="openClient">+ New Client</button>
@@ -1004,11 +1051,11 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Client</th>
+                    <th data-i18n="clientNumber">Client Number</th>
+                    <th data-i18n="client">Client</th>
                     <th>Contact</th>
                     <th>A-Number</th>
                     <th>Language</th>
-                    <th>Updated</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -1236,28 +1283,24 @@
           </div>
         </section>
         <section class="view" id="view-settings">
-          <div class="panel">
-            <div class="ph">
-              <div>
-                <h2>Workspace Settings</h2>
-                <span>Production configuration status</span>
-              </div>
+          <div class="settings-grid">
+            <div class="panel"><div class="ph"><div><h2 data-i18n="officeBrand">Office Brand</h2><span>Client communication and portal identity</span></div></div>
+              <div class="logo-settings"><div class="office-logo-preview" id="officeLogoPreview"><span>A</span></div><div><b data-i18n="officeLogo">Office Logo</b><p class="muted">PNG, JPG, WebP or SVG · 2 MB maximum</p><button class="btn" data-act="chooseOfficeLogo" data-i18n="uploadLogo">Upload Logo</button><input id="officeLogoFile" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden></div></div>
+              <div class="form">
+                <div class="field full"><label data-i18n="officeName">Office Name</label><input id="officeName"></div>
+                <div class="field"><label data-i18n="officeEmail">Office Email</label><input id="officeEmail" type="email"></div>
+                <div class="field"><label data-i18n="officePhone">Office Phone</label><input id="officePhone" type="tel"></div>
+                <div class="field"><label data-i18n="officeWhatsapp">WhatsApp</label><input id="officeWhatsapp" type="tel"></div>
+                <div class="field"><label data-i18n="defaultLanguage">Default Language</label><select id="officeDefaultLanguage"><option value="English">English</option><option value="Arabic">العربية</option></select></div>
+                <div class="field full"><label data-i18n="officeAddress">Office Address</label><input id="officeAddress"></div>
+                <div class="field full"><label data-i18n="emailFooterEnglish">English Email Footer</label><textarea id="officeFooterEn"></textarea></div>
+                <div class="field full"><label data-i18n="emailFooterArabic">Arabic Email Footer</label><textarea id="officeFooterAr" dir="rtl"></textarea></div>
+              </div><div class="df"><button class="btn primary" data-act="saveOfficeSettings" data-i18n="saveSettings">Save Settings</button></div>
             </div>
-            <div class="sys">
-              <div class="sysrow">
-                <span>Environment</span><b class="ok">Production</b>
-              </div>
-              <div class="sysrow">
-                <span>API Security</span><b class="ok">Protected</b>
-              </div>
-              <div class="sysrow">
-                <span>Database</span><b id="setDb">Checking</b>
-              </div>
-              <div class="sysrow">
-                <span>Object Storage</span><b id="setR2">Checking</b>
-              </div>
+            <div><div class="panel"><div class="ph"><div><h2 data-i18n="staffProfile">Staff Profile</h2><span>Personal display and interface language</span></div></div><div class="form"><div class="field full"><label data-i18n="displayName">Display Name</label><input id="profileDisplayName"></div><div class="field full"><label data-i18n="preferredLanguage">Preferred Language</label><select id="profileLanguage"><option value="English">English</option><option value="Arabic">العربية</option></select></div></div><div class="df"><button class="btn primary" data-act="saveProfileSettings" data-i18n="saveProfile">Save Profile</button></div></div>
+              <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="workspaceSettings">Workspace Settings</h2><span>Production configuration status</span></div></div><div class="sys"><div class="sysrow"><span>Environment</span><b class="ok">Production</b></div><div class="sysrow"><span>Database</span><b id="setDb">Checking</b></div><div class="sysrow"><span>Object Storage</span><b id="setR2">Checking</b></div><div class="sysrow"><span>Email Delivery</span><b id="emailProviderStatus">Checking</b></div></div></div>
             </div>
-          </div>
+          </div><div class="err" id="settingsErr"></div>
         </section>
       </main>
     </div>
@@ -1266,6 +1309,18 @@
       ><button data-act="showView" data-a1="cases">Cases</button
       ><button data-act="showView" data-a1="documents">Docs</button
       ><button data-act="signOut">Sign Out</button>
+    </div>
+    <div class="modal" id="caseWorkspaceModal">
+      <div class="dialog workspace-dialog">
+        <div class="workspace-head"><div class="ph" style="margin:0"><div class="workspace-identity"><div class="workspace-avatar" id="workspaceAvatar">A</div><div><div class="eyebrow" style="color:#d7b76b" data-i18n="caseWorkspace">Case Workspace</div><h2 id="workspaceClientName" style="margin:3px 0">Client</h2><div class="workspace-numbers"><span><span data-i18n="clientNumber">Client Number</span>: <b id="workspaceClientNumber">—</b></span><span><span data-i18n="caseNumber">Case Number</span>: <b id="workspaceCaseNumber">—</b></span></div></div></div><div class="workspace-header-actions"><button class="btn" id="workspaceEditButton" data-act="openCaseEditor" data-i18n="edit">Edit</button><button class="btn" data-act="closeCaseWorkspace" data-i18n="close">Close</button></div></div></div>
+        <div class="workspace-facts">
+          <div class="workspace-fact"><span data-i18n="service">Service</span><b id="workspaceService">—</b></div><div class="workspace-fact"><span data-i18n="status">Status</span><b id="workspaceStatus">—</b></div><div class="workspace-fact"><span data-i18n="priority">Priority</span><b id="workspacePriority">—</b></div><div class="workspace-fact"><span data-i18n="assigned">Assigned</span><b id="workspaceAssigned">—</b></div><div class="workspace-fact"><span data-i18n="workflowStage">Workflow Stage</span><b id="workspaceStage">—</b></div><div class="workspace-fact"><span data-i18n="latestActivity">Latest Activity</span><b id="workspaceLatest">—</b></div><div class="workspace-fact"><span data-i18n="nextDeadline">Next Deadline</span><b id="workspaceDeadline">—</b></div><div class="workspace-fact"><span data-i18n="outstandingBalance">Outstanding Balance</span><b id="workspaceBalance">—</b></div>
+        </div>
+        <div class="workspace-tabs">
+          <button class="workspace-tab active" data-act="switchWorkspaceTab" data-a1="overview" data-i18n="overview">Overview</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="journey" data-i18n="caseJourney">Case Journey</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="profile" data-i18n="clientProfile">Client Profile</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="intake" data-i18n="intake">Intake</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="documents" data-i18n="documents">Documents</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="actions" data-i18n="requiredActions">Required Actions</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="tasks" data-i18n="tasks">Tasks</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="deadlines" data-i18n="deadlines">Deadlines</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="appointments" data-i18n="appointments">Appointments</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="communications" data-i18n="communications">Communications</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="billing" data-i18n="billing">Billing</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="notes" data-i18n="internalNotes">Internal Notes</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="team" data-i18n="teamHub">Team Hub</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="audit" data-i18n="activityAudit">Activity / Audit</button>
+        </div>
+        <div class="workspace-body"><section class="workspace-panel active" id="workspace-overview"></section><section class="workspace-panel" id="workspace-journey"></section><section class="workspace-panel" id="workspace-profile"></section><section class="workspace-panel" id="workspace-intake"></section><section class="workspace-panel" id="workspace-documents"></section><section class="workspace-panel" id="workspace-actions"></section><section class="workspace-panel" id="workspace-tasks"></section><section class="workspace-panel" id="workspace-deadlines"></section><section class="workspace-panel" id="workspace-appointments"></section><section class="workspace-panel" id="workspace-communications"></section><section class="workspace-panel" id="workspace-billing"></section><section class="workspace-panel" id="workspace-notes"></section><section class="workspace-panel" id="workspace-team"></section><section class="workspace-panel" id="workspace-audit"></section></div>
+      </div>
     </div>
     <div class="modal" id="caseModal">
       <div class="dialog">
@@ -1355,7 +1410,8 @@
           </div>
         </div>
         <div class="form">
-          <div class="field full"><label>Legal name</label><input id="clientLegalName" autocomplete="off" /></div>
+          <div class="field"><label>Legal name</label><input id="clientLegalName" autocomplete="off" /></div>
+          <div class="field"><label>الاسم بالعربية / Arabic name</label><input id="clientLegalNameAr" dir="rtl" autocomplete="off" /></div>
           <div class="field"><label>Date of birth</label><input id="clientDob" type="date" /></div>
           <div class="field"><label>Place of birth</label><input id="clientBirthPlace" /></div>
           <div class="field"><label>Nationality</label><input id="clientNationality" /></div>
@@ -1363,7 +1419,7 @@
           <div class="field"><label>Email</label><input id="clientEmail" type="email" /></div>
           <div class="field"><label>Phone</label><input id="clientPhone" type="tel" /></div>
           <div class="field"><label>WhatsApp</label><input id="clientWhatsapp" type="tel" /></div>
-          <div class="field"><label>Preferred language</label><input id="clientLanguage" /></div>
+          <div class="field"><label data-i18n="preferredLanguage">Preferred language</label><select id="clientLanguage"><option value="English">English</option><option value="Arabic">العربية</option></select></div>
           <div class="field"><label>A-Number</label><input id="clientANumber" /></div>
           <div class="field"><label>USCIS Online Account Number</label><input id="clientUscisNumber" /></div>
           <div class="field"><label>Passport number</label><input id="clientPassport" /></div>
