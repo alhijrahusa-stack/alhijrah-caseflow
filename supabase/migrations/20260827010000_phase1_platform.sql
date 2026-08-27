@@ -92,13 +92,31 @@ returns trigger
 language plpgsql
 set search_path = public, pg_temp
 as $$
+declare
+  number_column text;
+  previous_number text;
+  proposed_number text;
 begin
-  if tg_table_name = 'clients' and old.client_number is not null and new.client_number is distinct from old.client_number then
-    raise exception 'client number is immutable';
+  if tg_table_schema <> 'public' then
+    raise exception 'unsupported platform number trigger table %.%', tg_table_schema, tg_table_name;
   end if;
-  if tg_table_name = 'cases' and old.case_number is not null and new.case_number is distinct from old.case_number then
-    raise exception 'case number is immutable';
+
+  case tg_table_name
+    when 'clients' then number_column := 'client_number';
+    when 'cases' then number_column := 'case_number';
+    else raise exception 'unsupported platform number trigger table %.%', tg_table_schema, tg_table_name;
+  end case;
+
+  -- OLD and NEW are polymorphic trigger records. Convert them before selecting
+  -- the table-specific key so this function never dereferences a field that is
+  -- absent from the triggering table's row type.
+  previous_number := to_jsonb(old) ->> number_column;
+  proposed_number := to_jsonb(new) ->> number_column;
+
+  if previous_number is not null and proposed_number is distinct from previous_number then
+    raise exception '% is immutable', replace(number_column, '_', ' ');
   end if;
+
   return new;
 end;
 $$;
