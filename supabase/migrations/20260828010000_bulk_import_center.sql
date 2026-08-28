@@ -75,16 +75,46 @@ alter table public.import_rows force row level security;
 
 revoke all on table public.import_batches from public, anon, authenticated;
 revoke all on table public.import_rows from public, anon, authenticated;
+grant usage on schema public to service_role;
 grant select, insert, update on table public.import_batches to service_role;
 grant select, insert, update on table public.import_rows to service_role;
 
 do $$
 begin
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='import_batches' and policyname='import_batches_server_only') then
-    execute 'create restrictive policy import_batches_server_only on public.import_batches for all to anon, authenticated using (false) with check (false)';
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'import_batches'
+      and policyname = 'import_batches_server_only'
+  ) then
+    execute $policy$
+      create policy import_batches_server_only
+      on public.import_batches
+      as restrictive
+      for all
+      to anon, authenticated
+      using (false)
+      with check (false)
+    $policy$;
   end if;
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='import_rows' and policyname='import_rows_server_only') then
-    execute 'create restrictive policy import_rows_server_only on public.import_rows for all to anon, authenticated using (false) with check (false)';
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'import_rows'
+      and policyname = 'import_rows_server_only'
+  ) then
+    execute $policy$
+      create policy import_rows_server_only
+      on public.import_rows
+      as restrictive
+      for all
+      to anon, authenticated
+      using (false)
+      with check (false)
+    $policy$;
   end if;
 end;
 $$;
