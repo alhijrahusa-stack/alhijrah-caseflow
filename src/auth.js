@@ -2,8 +2,8 @@ import crypto from 'node:crypto';
 
 export const roleDefinitions = Object.freeze({
   owner: ['*'],
-  admin: ['dashboard.view', 'users.view', 'users.manage', 'clients.view', 'clients.manage', 'cases.view', 'cases.manage', 'documents.view', 'documents.manage', 'documents.review', 'tasks.view', 'tasks.manage', 'workflows.manage', 'billing.view', 'billing.manage', 'audit.view', 'reports.view', 'settings.manage'],
-  supervisor: ['dashboard.view', 'users.view', 'clients.view', 'clients.manage', 'cases.view', 'cases.manage', 'documents.view', 'documents.manage', 'documents.review', 'tasks.view', 'tasks.manage', 'workflows.manage', 'audit.view', 'reports.view'],
+  admin: ['dashboard.view', 'users.view', 'users.manage', 'clients.view', 'clients.manage', 'cases.view', 'cases.manage', 'documents.view', 'documents.manage', 'documents.review', 'tasks.view', 'tasks.manage', 'workflows.manage', 'billing.view', 'billing.manage', 'audit.view', 'reports.view', 'imports.manage', 'settings.manage'],
+  supervisor: ['dashboard.view', 'users.view', 'clients.view', 'clients.manage', 'cases.view', 'cases.manage', 'documents.view', 'documents.manage', 'documents.review', 'tasks.view', 'tasks.manage', 'workflows.manage', 'audit.view', 'reports.view', 'imports.manage'],
   case_manager: ['dashboard.view', 'clients.view', 'clients.manage', 'cases.view', 'cases.manage', 'documents.view', 'documents.manage', 'tasks.view', 'tasks.manage', 'workflows.manage'],
   form_preparer: ['dashboard.view', 'clients.view', 'cases.view', 'cases.prepare', 'documents.view', 'documents.manage', 'tasks.view', 'tasks.manage'],
   document_reviewer: ['dashboard.view', 'clients.view', 'cases.view', 'documents.view', 'documents.review', 'tasks.view', 'tasks.manage'],

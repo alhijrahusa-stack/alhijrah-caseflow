@@ -66,6 +66,8 @@ const emptyTables = () => ({
   office_settings: [{ singleton: true, office_name: 'ALHIJRAH SERVICES', default_language: 'English' }],
   communication_templates: [{ id: crypto.randomUUID(), template_key: 'case_opened', version: 1, subject_en: 'Your case is now open — {Case_Number}', subject_ar: 'تم فتح ملفكم — {Case_Number}', body_en: 'Your case has been opened successfully.', body_ar: 'تم فتح ملفكم بنجاح.', active: true }],
   outbound_communications: [],
+  import_batches: [],
+  import_rows: [],
 });
 
 export const backend = {
@@ -209,7 +211,10 @@ async function handleRest(url, init) {
   }
 
   if (method === 'POST') {
-    const record = { created_at: new Date().toISOString(), ...body };
+    const inputs = Array.isArray(body) ? body : [body];
+    const created = [];
+    for (const input of inputs) {
+    const record = { created_at: new Date().toISOString(), ...input };
     if (table === 'cases') {
       record.updated_at = record.updated_at || record.created_at;
       record.case_number ||= `AH-2026-${String(++backend.caseNumber).padStart(6, '0')}`;
@@ -221,7 +226,9 @@ async function handleRest(url, init) {
       return jsonResponse(409, { code: '23505', message: 'duplicate key value violates unique constraint "documents_object_key_key"' });
     }
     rows.push(record);
-    return jsonResponse(201, [record]);
+    created.push(record);
+    }
+    return jsonResponse(201, created);
   }
 
   if (method === 'PATCH') {

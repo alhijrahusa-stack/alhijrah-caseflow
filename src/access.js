@@ -37,6 +37,7 @@ export const accessModules = Object.freeze([
   'billing',
   'audit',
   'reports',
+  'imports',
   'portal',
   'users',
   'workflows',

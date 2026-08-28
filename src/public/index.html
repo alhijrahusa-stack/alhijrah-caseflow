@@ -1,6 +1,11 @@
 <!doctype html>
 <html lang="en">
-  <head>
+<head>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#07152b" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#08111d" />
@@ -866,6 +871,7 @@
           ><button data-view="reviews" data-i18n="reviewQueue">Review Queue</button
           ><button data-view="billing" data-i18n="billing">Billing</button
           ><button data-view="reports" data-i18n="reports">Reports</button
+          ><button data-view="imports" data-i18n="importCenter">Import Center</button
           ><button data-view="roles" data-i18n="teamRoles">Team & Roles</button
           ><button data-view="audit" data-i18n="auditTrail">Audit Trail</button
           ><button data-view="access" data-i18n="accessControl">Access Control</button
@@ -1281,6 +1287,12 @@
             <div class="err" id="teamErr"></div>
             <div class="df"><button class="btn" id="teamMemberAdd">Add to team</button></div>
           </div>
+        </section>
+        <section class="view" id="view-imports">
+          <div class="panel"><div class="ph"><div><div class="eyebrow" data-i18n="bulkImport">Bulk Client &amp; Case Import</div><h2 data-i18n="importCenter">Import Center</h2><span data-i18n="importSafety">Files remain in protected staging until a human approves the dry run.</span></div><button class="btn" data-act="loadImports" data-i18n="refresh">Refresh</button></div><div class="doc-dropzone" id="importDropzone" data-act="chooseImportFile" role="button" tabindex="0"><b data-i18n="dropSpreadsheet">Drop XLSX or UTF-8 CSV here</b><span data-i18n="browseSpreadsheet">or choose a spreadsheet · 25 MB maximum · 10,000 rows</span></div><input id="importFile" type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><div class="upload-progress" style="margin-top:12px"><span id="importProgress"></span></div><div class="err" id="importErr"></div></div>
+          <div class="metrics" id="importMetrics" style="margin-top:16px"></div>
+          <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="stagedImports">Staged Imports</h2><span data-i18n="importWorkflow">Map, validate, review, approve, then process in the background.</span></div></div><div class="table"><table><thead><tr><th data-i18n="filename">Filename</th><th data-i18n="status">Status</th><th data-i18n="rows">Rows</th><th data-i18n="progress">Progress</th><th></th></tr></thead><tbody id="importBatchTable"></tbody></table></div></div>
+          <div class="panel" id="importReviewPanel" style="display:none;margin-top:16px"><div class="ph"><div><h2 id="importReviewTitle" data-i18n="humanReview">Human Review</h2><span id="importReviewSummary"></span></div><div class="df"><button class="btn" data-act="saveImportMapping" data-i18n="saveMapping">Save Mapping</button><button class="btn" data-act="runImportDryRun" data-i18n="dryRun">Dry Run</button><button class="btn" data-act="downloadImportReport" data-a1="csv" data-i18n="csvReport">CSV Report</button><button class="btn" data-act="downloadImportReport" data-a1="xlsx" data-i18n="xlsxReport">XLSX Report</button><button class="btn primary" data-act="approveImport" data-i18n="approveImport">Approve Import</button><button class="btn primary" data-act="processImport" data-i18n="startImport">Start Import</button></div></div><div class="form" id="importMapping" style="margin-bottom:16px"></div><div class="table"><table><thead><tr><th data-i18n="sourceRow">Source Row</th><th data-i18n="client">Client</th><th data-i18n="service">Service</th><th data-i18n="duplicateDecision">Duplicate Decision</th><th data-i18n="validation">Validation</th><th></th></tr></thead><tbody id="importRowTable"></tbody></table></div></div>
         </section>
         <section class="view" id="view-settings">
           <div class="settings-grid">

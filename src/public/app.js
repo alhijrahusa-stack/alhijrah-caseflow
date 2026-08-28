@@ -15,12 +15,16 @@
         intakeState = null,
         intakeSaveTimer = null,
         inviteAccessToken = null,
-        identityExtractionToken = null;
+        identityExtractionToken = null,
+        selectedImportId = null,
+        importPollTimer = null;
+      if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
       const translations = Object.freeze({
         ar: {
           dashboard:"لوحة العمليات",cases:"الملفات",clients:"العملاء",documents:"المستندات",services:"الخدمات",tasks:"المهام",reviewQueue:"قائمة المراجعة",billing:"الفوترة",reports:"التقارير",teamRoles:"الفريق والصلاحيات",auditTrail:"سجل التدقيق",accessControl:"إدارة الوصول",settings:"الإعدادات",newCase:"ملف جديد",signOut:"تسجيل الخروج",english:"English",arabic:"العربية",operationsConsole:"مركز العمليات",caseManagementDashboard:"لوحة إدارة الملفات",totalCases:"إجمالي الملفات",intakeQueue:"قائمة الاستقبال",awaitingDocuments:"بانتظار المستندات",readyToFile:"جاهز للتقديم",filedReceipted:"مُقدَّم / تم استلام الإشعار",overdueTasks:"مهام متأخرة",highPriority:"أولوية عالية",recentCases:"أحدث الملفات",quickActions:"إجراءات سريعة",refresh:"تحديث",searchCases:"ابحث برقم الملف أو اسم العميل أو رقم الإيصال",searchClients:"ابحث برقم العميل أو الاسم أو الجواز أو A-Number أو الهاتف أو البريد",client:"العميل",clientNumber:"رقم العميل",caseNumber:"رقم الملف",caseType:"نوع الخدمة",status:"الحالة",priority:"الأولوية",assigned:"الموظف المسؤول",created:"تاريخ الإنشاء",open:"فتح",caseWorkspace:"مساحة عمل الملف",overview:"نظرة عامة",caseJourney:"مسار الملف",clientProfile:"ملف العميل",intake:"بيانات الاستقبال",requiredActions:"الإجراءات المطلوبة",deadlines:"المواعيد النهائية",appointments:"المواعيد",communications:"المراسلات",internalNotes:"الملاحظات الداخلية",teamHub:"فريق الملف",activityAudit:"النشاط والتدقيق",latestActivity:"آخر نشاط",nextDeadline:"أقرب موعد نهائي",outstandingBalance:"الرصيد المستحق",service:"الخدمة",workflowStage:"مرحلة سير العمل",noRecords:"لا توجد سجلات.",workspaceSettings:"إعدادات مساحة العمل",officeBrand:"هوية المكتب",officeName:"اسم المكتب",officeEmail:"البريد الإلكتروني",officePhone:"الهاتف",officeWhatsapp:"واتساب",officeAddress:"العنوان",defaultLanguage:"اللغة الافتراضية",emailFooterEnglish:"تذييل البريد بالإنجليزية",emailFooterArabic:"تذييل البريد بالعربية",saveSettings:"حفظ الإعدادات",staffProfile:"الملف الشخصي للموظف",displayName:"الاسم الظاهر",preferredLanguage:"اللغة المفضلة",saveProfile:"حفظ الملف الشخصي",officeLogo:"شعار المكتب",uploadLogo:"رفع الشعار",securePortal:"بوابة العميل الآمنة",yourCases:"ملفاتكم",requestedDocuments:"المستندات المطلوبة",currentStatus:"الحالة الحالية",sendMessage:"إرسال رسالة",close:"إغلاق",loading:"جارٍ التحميل…",save:"حفظ",cancel:"إلغاء",edit:"تعديل"
         }
       });
+      Object.assign(translations.ar,{importCenter:"مركز الاستيراد",bulkImport:"استيراد العملاء والملفات بالجملة",importSafety:"تبقى الملفات في منطقة تجهيز محمية إلى أن يعتمد شخص نتيجة التشغيل التجريبي.",dropSpreadsheet:"أفلت ملف XLSX أو CSV بترميز UTF-8 هنا",browseSpreadsheet:"أو اختر جدولًا · 25 ميغابايت كحد أقصى · 10,000 صف",stagedImports:"عمليات الاستيراد المجهزة",importWorkflow:"اربط الحقول وتحقق وراجع واعتمد، ثم نفّذ في الخلفية.",filename:"اسم الملف",rows:"الصفوف",progress:"التقدم",humanReview:"المراجعة البشرية",dryRun:"تشغيل تجريبي",approveImport:"اعتماد الاستيراد",startImport:"بدء الاستيراد",sourceRow:"صف المصدر",duplicateDecision:"قرار التكرار",validation:"التحقق",approve:"اعتماد",skip:"تخطي",correct:"تصحيح",assignStaff:"تعيين موظف",mapService:"ربط الخدمة",merge:"دمج",csvReport:"تقرير CSV",xlsxReport:"تقرير XLSX",saveMapping:"حفظ الربط",valid:"صالح",invalid:"بحاجة للمراجعة",possible:"تكرار محتمل",new:"جديد",existing:"قائم",total:"الإجمالي"});
       const tr = (key) => currentLanguage === "Arabic" ? (translations.ar[key] || key) : ({
         reviewQueue:"Review Queue",teamRoles:"Team & Roles",auditTrail:"Audit Trail",accessControl:"Access Control",newCase:"New Case",signOut:"Sign Out",operationsConsole:"Operations Console",caseManagementDashboard:"Case Management Dashboard",totalCases:"Total Cases",intakeQueue:"Intake Queue",awaitingDocuments:"Awaiting Documents",readyToFile:"Ready to File",filedReceipted:"Filed / Receipted",overdueTasks:"Overdue Tasks",highPriority:"High Priority",recentCases:"Recent Cases",quickActions:"Quick Actions",searchCases:"Search Case Number, client, receipt or service",searchClients:"Search Client Number, name, passport, A-Number, phone or email",clientNumber:"Client Number",caseNumber:"Case Number",caseType:"Case Type",caseWorkspace:"Case Workspace",caseJourney:"Case Journey",clientProfile:"Client Profile",requiredActions:"Required Actions",internalNotes:"Internal Notes",teamHub:"Team Hub",activityAudit:"Activity / Audit",latestActivity:"Latest Activity",nextDeadline:"Next Deadline",outstandingBalance:"Outstanding Balance",workflowStage:"Workflow Stage",noRecords:"No records.",workspaceSettings:"Workspace Settings",officeBrand:"Office Brand",officeName:"Office Name",officeEmail:"Office Email",officePhone:"Office Phone",officeWhatsapp:"WhatsApp",officeAddress:"Office Address",defaultLanguage:"Default Language",emailFooterEnglish:"English Email Footer",emailFooterArabic:"Arabic Email Footer",saveSettings:"Save Settings",staffProfile:"Staff Profile",displayName:"Display Name",preferredLanguage:"Preferred Language",saveProfile:"Save Profile",officeLogo:"Office Logo",uploadLogo:"Upload Logo",securePortal:"Secure Client Portal",yourCases:"Your Cases",requestedDocuments:"Requested Documents",currentStatus:"Current Status",sendMessage:"Send Message"
       }[key] || key.charAt(0).toUpperCase()+key.slice(1));
@@ -72,6 +76,7 @@
           reviews: ["requiredActions", "reviewQueue"],
           billing: ["operationsConsole", "billing"],
           reports: ["operationsConsole", "reports"],
+          imports: ["bulkImport", "importCenter"],
           roles: ["accessControl", "teamRoles"],
           audit: ["activityAudit", "auditTrail"],
           access: ["accessControl", "accessControl"],
@@ -101,6 +106,7 @@
         reviews: loadReviewQueue,
         billing: loadBilling,
         reports: loadReports,
+        imports: loadImports,
         roles: loadTeam,
         audit: loadAudit,
         access: () => allowedTo("access.manage") ? loadAccess() : Promise.resolve(),
@@ -132,6 +138,7 @@
         reviews: "documents.review",
         billing: "billing.view",
         reports: "reports.view",
+        imports: "imports.manage",
         roles: "users.view",
         audit: "audit.view",
         access: "access.manage",
@@ -287,7 +294,7 @@
           const values={officeName:office.data.office_name,officeEmail:office.data.office_email,officePhone:office.data.office_phone,officeWhatsapp:office.data.office_whatsapp,officeAddress:office.data.office_address,officeDefaultLanguage:office.data.default_language,officeFooterEn:office.data.email_footer_en,officeFooterAr:office.data.email_footer_ar,profileDisplayName:profile.data.display_name,profileLanguage:profile.data.preferred_language};
           for(const [id,value] of Object.entries(values))if($(id))$(id).value=value||"";
           $("officeLogoPreview").innerHTML=office.data.logo_url?`<img src="${esc(office.data.logo_url)}?v=${Date.now()}" alt="Office logo">`:'<span>A</span>';
-          $("emailProviderStatus").textContent=office.data.email_provider_configured?"Operational":"Configuration required";
+          $("emailProviderStatus").textContent=office.data.email_provider_status||"PROVIDER_NOT_CONFIGURED";
           $("settingsErr").textContent="";
         }catch(error){$("settingsErr").textContent=error.message}
       }
@@ -784,7 +791,7 @@
           pending: "قيد الانتظار", queued: "في قائمة الانتظار", rejected: "مرفوض",
           requested: "مطلوب", reviewed: "تمت المراجعة", sent: "مُرسل", verified: "موثّق",
         };
-        if (currentLanguage === "ar" && arabicLabels[value]) return arabicLabels[value];
+        if (currentLanguage === "Arabic" && arabicLabels[value]) return arabicLabels[value];
         return String(value || "")
           .replaceAll("_", " ")
           .replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -1472,6 +1479,17 @@
           $("portalErr").textContent = error.message;
         }
       }
+      function chooseImportFile(){ $("importFile").value="";$("importFile").click(); }
+      async function uploadImportFile(file){if(!file)return;$("importErr").textContent="";$("importProgress").style.width="20%";try{const response=await fetch(`/api/v1/imports/upload?filename=${encodeURIComponent(file.name)}&size_bytes=${file.size}`,{method:"POST",credentials:"same-origin",headers:{"content-type":"application/octet-stream"},body:file});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);$("importProgress").style.width="100%";selectedImportId=result.data.id;await loadImports();await openImport(result.data.id);}catch(error){$("importErr").textContent=error.message;$("importProgress").style.width="0";}}
+      async function loadImports(){try{const result=await api("/api/v1/imports");$("importBatchTable").innerHTML=(result.data||[]).map(batch=>`<tr><td><b>${esc(batch.filename)}</b><small>${date(batch.created_at)}</small></td><td><span class="tag ${batch.status==='completed'?'active':batch.status==='failed'?'urgent':'normal'}">${esc(intakeOptionLabel(batch.status))}</span></td><td>${Number(batch.total_rows||0)}</td><td>${Number(batch.processed_rows||0)} / ${Number(batch.total_rows||0)}</td><td><button class="linkbtn" data-act="openImport" data-a1="${batch.id}">${esc(tr("open"))}</button></td></tr>`).join("")||`<tr><td colspan="5">${esc(tr("noRecords"))}</td></tr>`;$("importErr").textContent="";}catch(error){$("importErr").textContent=error.message;}}
+      function renderImportReview(data){const {batch,rows}=data;selectedImportId=batch.id;$("importReviewPanel").style.display="block";$("importReviewTitle").textContent=`${tr("humanReview")} · ${batch.filename}`;const fields=["first_name","middle_name","last_name","legal_name","legal_name_ar","date_of_birth","gender","nationality","place_of_birth","passport_number","a_number","uscis_account_number","receipt_number","email","phone","whatsapp","physical_address","preferred_language","service_code","workflow_stage","assigned_user_id","priority","operational_notes"];$("importMapping").innerHTML=fields.map(field=>`<div class="field"><label>${esc(intakeOptionLabel(field))}</label><select data-import-map="${field}"><option value="">—</option>${(batch.headers||[]).map(header=>`<option value="${esc(header)}"${batch.field_mapping?.[field]===header?' selected':''}>${esc(header)}</option>`).join("")}</select></div>`).join("");const summary=batch.summary||{};$("importReviewSummary").textContent=`${summary.total||batch.total_rows||0} ${tr("rows")} · ${summary.valid||0} ${tr("valid")} · ${summary.invalid||0} ${tr("invalid")} · ${summary.new_clients||0} ${tr("new")} · ${summary.existing_clients||0} ${tr("existing")}`;$("importMetrics").innerHTML=[["total",summary.total||batch.total_rows],["valid",summary.valid],["invalid",summary.invalid],["possible",summary.possible_duplicates]].map(([label,value])=>`<div class="metric"><div class="k">${esc(tr(label))}</div><div class="v">${Number(value||0)}</div></div>`).join("");$("importRowTable").innerHTML=(rows||[]).slice(0,500).map(row=>{const n=row.normalized_row||{};const errors=row.validation_errors||[];return `<tr><td>${row.source_row_number}</td><td><b>${esc(n.legal_name||n.legal_name_ar||"—")}</b><small>${esc(n.email||n.phone||"")}</small></td><td>${esc(n.service_code||n.unmapped_service||"Client only")}</td><td><span class="tag ${row.duplicate_classification==='new'?'active':row.duplicate_classification==='possible'?'urgent':'normal'}">${esc(intakeOptionLabel(row.duplicate_classification))}</span></td><td>${errors.length?`<span class="err">${esc(errors.join(", "))}</span>`:`<span class="tag active">${esc(intakeOptionLabel(row.row_status))}</span>`}</td><td><button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="approve">${esc(tr("approve"))}</button> · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="skip">${esc(tr("skip"))}</button> · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="correct">${esc(tr("correct"))}</button> · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="staff">${esc(tr("assignStaff"))}</button>${n.unmapped_service?` · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="service">${esc(tr("mapService"))}</button>`:""}${row.duplicate_classification==='possible'?` · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="merge">${esc(tr("merge"))}</button>`:""}</td></tr>`;}).join("");if(batch.status==='processing'){clearTimeout(importPollTimer);importPollTimer=setTimeout(()=>openImport(batch.id),1500);}else clearTimeout(importPollTimer);}
+      async function openImport(id){try{const result=await api(`/api/v1/imports/${id}`);renderImportReview(result.data);}catch(error){$("importErr").textContent=error.message;}}
+      async function saveImportMapping(){if(!selectedImportId)return;const mapping=Object.fromEntries([...document.querySelectorAll('[data-import-map]')].filter(element=>element.value).map(element=>[element.dataset.importMap,element.value]));try{await api(`/api/v1/imports/${selectedImportId}/mapping`,{method:"PATCH",body:JSON.stringify({mapping})});await openImport(selectedImportId);}catch(error){$("importErr").textContent=error.message;}}
+      async function runImportDryRun(){if(!selectedImportId)return;try{const result=await api(`/api/v1/imports/${selectedImportId}/dry-run`,{method:"POST",body:"{}"});if(result.data.canonical_writes!==0)throw new Error("DRY_RUN_WRITE_GUARD_FAILED");await openImport(selectedImportId);}catch(error){$("importErr").textContent=error.message;}}
+      async function reviewImportRow(rowId,action){if(!selectedImportId)return;const body={action:['service','correct','staff'].includes(action)?'approve':action};if(action==='merge'){const clientId=prompt("Existing Client UUID");if(!clientId)return;body.merge_client_id=clientId;}if(action==='service'){const serviceCode=prompt("Existing service code (for example N-400)");if(!serviceCode)return;body.service_code=serviceCode;}if(action==='correct'){const header=prompt("Source column heading to correct");if(!header)return;const value=prompt("Corrected value");if(value===null)return;body.corrections={[header]:value};}if(action==='staff'){const userId=prompt("Assigned staff user UUID (leave blank to clear)");if(userId===null)return;body.assigned_user_id=userId;}try{await api(`/api/v1/imports/${selectedImportId}/rows/${rowId}`,{method:"PATCH",body:JSON.stringify(body)});await openImport(selectedImportId);}catch(error){$("importErr").textContent=error.message;}}
+      async function approveImport(){if(!selectedImportId)return;try{await api(`/api/v1/imports/${selectedImportId}/approve`,{method:"POST",body:"{}"});await openImport(selectedImportId);}catch(error){$("importErr").textContent=error.message;}}
+      async function processImport(){if(!selectedImportId)return;try{await api(`/api/v1/imports/${selectedImportId}/process`,{method:"POST",body:"{}"});await openImport(selectedImportId);}catch(error){$("importErr").textContent=error.message;}}
+      function downloadImportReport(format='csv'){if(selectedImportId)window.location.assign(`/api/v1/imports/${selectedImportId}/report.${format==='xlsx'?'xlsx':'csv'}`);}
       async function boot() {
         renderRoles();
         configureNavigation();
@@ -1583,6 +1601,7 @@
         loadCases,
         loadDocuments,
         loadPortal,
+        loadImports,
         loadReports,
         loadReviewQueue,
         loadSettings,
@@ -1593,6 +1612,7 @@
         openClient,
         openIntake: (a, b, c) => openIntake(a, b, c === "true"),
         openInvoice,
+        openImport,
         openManageUser,
         openPortalCase,
         openSearchClient,
@@ -1605,10 +1625,17 @@
         renderClients,
         renderServices,
         reviewDocument,
+        reviewImportRow,
+        runImportDryRun,
+        approveImport,
+        processImport,
+        downloadImportReport,
+        chooseImportFile,
         saveAndExitIntake,
         saveCase,
         saveClient,
         saveInvoice,
+        saveImportMapping,
         saveManagedUser,
         saveOfficeSettings,
         saveProfileSettings,
@@ -1646,9 +1673,13 @@
       $("docFile").addEventListener("change", (event) => setDocumentFile(event.target.files[0]));
       $("identityFile").addEventListener("change", (event) => runIdentityOcr(event.target.files[0]));
       $("officeLogoFile").addEventListener("change", (event) => uploadOfficeLogo(event.target.files[0]));
+      $("importFile").addEventListener("change", (event) => uploadImportFile(event.target.files[0]));
       for (const type of ["dragenter", "dragover"]) $("docDropzone").addEventListener(type, (event) => { event.preventDefault(); $("docDropzone").classList.add("dragging"); });
       for (const type of ["dragleave", "drop"]) $("docDropzone").addEventListener(type, (event) => { event.preventDefault(); $("docDropzone").classList.remove("dragging"); });
       $("docDropzone").addEventListener("drop", (event) => setDocumentFile(event.dataTransfer.files[0]));
+      for (const type of ["dragenter", "dragover"]) $("importDropzone").addEventListener(type, (event) => { event.preventDefault(); $("importDropzone").classList.add("dragging"); });
+      for (const type of ["dragleave", "drop"]) $("importDropzone").addEventListener(type, (event) => { event.preventDefault(); $("importDropzone").classList.remove("dragging"); });
+      $("importDropzone").addEventListener("drop", (event) => uploadImportFile(event.dataTransfer.files[0]));
       let inputActionTimer = null;
       for (const type of ["change", "input"]) {
         document.addEventListener(type, (event) => {
