@@ -9,6 +9,7 @@ test('the administrative workspace and portal expose a complete bilingual surfac
   assert.match(html,/data-act="switchLanguage"/);
   for(const panel of ['portalCases','portalRequests','portalDocuments','portalBilling','portalAppointments','portalDeadlines','portalNotifications','portalProfile'])assert.match(html,new RegExp(`id="${panel}"`));
   for(const phrase of ['No active alerts.','Preview','Download','Delete','Approve','Reject','Manage','Work email','Sign In'])assert.ok(script.includes(`"${phrase}"`),`missing Arabic mapping for ${phrase}`);
+  assert.match(script,/trimmed\.replace\(\/\\s\+\/g," "\)/);
   assert.match(script,/document\.documentElement\.dir=currentLanguage==="Arabic"\?"rtl":"ltr"/);
   assert.match(script,/MutationObserver/);
 });

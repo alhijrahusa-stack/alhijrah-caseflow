@@ -46,8 +46,8 @@
       });
       const originalUiText=new WeakMap(),originalUiAttributes=new WeakMap();
       function translatedUiPhrase(value){
-        const text=String(value||""),trimmed=text.trim();if(!trimmed)return text;
-        let translated=uiPhraseArabic[trimmed]||supplementalUiPhraseArabic[trimmed]||Object.entries(translations.ar).find(([key])=>key===trimmed)?.[1];
+        const text=String(value||""),trimmed=text.trim(),normalized=trimmed.replace(/\s+/g," ");if(!trimmed)return text;
+        let translated=uiPhraseArabic[trimmed]||uiPhraseArabic[normalized]||supplementalUiPhraseArabic[trimmed]||supplementalUiPhraseArabic[normalized]||Object.entries(translations.ar).find(([key])=>key===trimmed||key===normalized)?.[1];
         if(!translated&&/^Version\s+/.test(trimmed))translated=trimmed.replace(/^Version/,"الإصدار");
         if(!translated&&/^Family member (\d+)$/.test(trimmed))translated=trimmed.replace(/^Family member/,"فرد العائلة");
         if(!translated&&/^(\d+) fields$/.test(trimmed))translated=trimmed.replace(/ fields$/," حقول");
