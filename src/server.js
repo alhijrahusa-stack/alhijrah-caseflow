@@ -49,7 +49,7 @@ import { normalizeLanguage, renderCaseOpeningEmail, sendTransactionalEmail } fro
 import { analyzeImportRows, buildImportReport, importFields, importSummary, parseImportFile, verifyImportRuntime } from './import-center.js';
 
 const port = Number(process.env.PORT || 3000);
-const version = '2.12.0';
+const version = '2.13.0';
 const service = 'alhijrah-caseflow-api';
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -670,28 +670,52 @@ async function handle(req,res){
   if(req.method==='GET'&&u.pathname==='/api/v1/portal'){
     const access=principal.permissions.has('*')?[]:await db('client_access',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&status=eq.active&select=client_id,access_role`});
     const clientIds=access.map(item=>item.client_id);
-    if(!principal.permissions.has('*')&&!clientIds.length)return json(res,200,{data:{clients:[],cases:[],document_requests:[],appointments:[]},requestId},ch);
+    if(!principal.permissions.has('*')&&!clientIds.length)return json(res,200,{data:{clients:[],cases:[],document_requests:[],appointments:[],deadlines:[],documents:[],billing:[],notifications:[]},requestId},ch);
     const clientFilter=principal.permissions.has('*')?'':`&id=in.(${clientIds.map(encodeURIComponent).join(',')})`;
     const caseFilter=principal.permissions.has('*')?'':`&client_id=in.(${clientIds.map(encodeURIComponent).join(',')})`;
     const clients=await db('clients',{query:`?select=id,client_number,legal_name,legal_name_ar,preferred_language,email,phone&archived_at=is.null${clientFilter}`});
     const caseRows=await db('cases',{query:`?select=id,client_id,case_number,case_reference,case_type,service_code,workflow_stage,agency,receipt_number,opened_on,updated_at&archived_at=is.null${caseFilter}&order=updated_at.desc`});
     const caseIds=caseRows.map(item=>item.id);
-    const documentRequests=caseIds.length?await db('document_requests',{query:`?case_id=in.(${caseIds.map(encodeURIComponent).join(',')})&select=id,case_id,person_id,category,title,instructions,required,due_date,status,reviewer_notes,updated_at&order=created_at.desc`}):[];
-    const appointments=clientIds.length?await db('appointments',{query:`?client_id=in.(${clientIds.map(encodeURIComponent).join(',')})&client_visible=eq.true&select=id,case_id,client_id,title,appointment_type,starts_at,ends_at,location,status&order=starts_at.asc`}):[];
-    return json(res,200,{data:{clients,cases:caseRows,document_requests:documentRequests,appointments},requestId},ch);
+    const encodedCases=caseIds.map(encodeURIComponent).join(',');
+    const encodedClients=clientIds.map(encodeURIComponent).join(',');
+    const [documentRequests,appointments,deadlines,documents,billing,notifications]=await Promise.all([
+      caseIds.length?db('document_requests',{query:`?case_id=in.(${encodedCases})&select=id,case_id,person_id,category,title,instructions,required,due_date,status,reviewer_notes,updated_at&order=created_at.desc`}):Promise.resolve([]),
+      clientIds.length?db('appointments',{query:`?client_id=in.(${encodedClients})&client_visible=eq.true&select=id,case_id,client_id,title,appointment_type,starts_at,ends_at,location,status&order=starts_at.asc`}):Promise.resolve([]),
+      caseIds.length?db('deadlines',{query:`?case_id=in.(${encodedCases})&client_visible=eq.true&select=id,case_id,title,deadline_date,deadline_type,status&order=deadline_date.asc`}):Promise.resolve([]),
+      caseIds.length?db('documents',{query:`?case_id=in.(${encodedCases})&request_id=not.is.null&archived_at=is.null&select=id,case_id,request_id,file_name,content_type,size_bytes,category,review_status,created_at&order=created_at.desc`}):Promise.resolve([]),
+      clientIds.length?db('invoices',{query:`?client_id=in.(${encodedClients})&client_visible=eq.true&status=in.(issued,partially_paid,paid,overdue)&select=id,invoice_number,client_id,case_id,currency,status,office_fee_cents,government_fee_cents,other_fee_cents,due_date,issued_at&order=created_at.desc`}):Promise.resolve([]),
+      clientIds.length?db('alerts',{query:`?client_id=in.(${encodedClients})&client_visible=eq.true&status=in.(open,acknowledged)&select=id,client_id,case_id,alert_type,severity,title,due_at,status,created_at&order=created_at.desc`}):Promise.resolve([]),
+    ]);
+    return json(res,200,{data:{clients,cases:caseRows,document_requests:documentRequests,appointments,deadlines,documents,billing,notifications},requestId},ch);
   }
 
   const portalCaseMatch=u.pathname.match(/^\/api\/v1\/portal\/cases\/([0-9a-f-]{36})$/i);
   if(portalCaseMatch&&req.method==='GET'){
     const currentCase=await portalCase(principal,portalCaseMatch[1]);
-    const [requests,appointments,messages,updates]=await Promise.all([
+    const [requests,appointments,messages,updates,deadlines,documents,invoices,notifications,communications]=await Promise.all([
       db('document_requests',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&select=id,person_id,category,title,instructions,required,due_date,status,reviewer_notes,updated_at&order=created_at.desc`}),
       db('appointments',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&client_visible=eq.true&select=id,title,appointment_type,starts_at,ends_at,location,status&order=starts_at.asc`}),
       db('case_messages',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&select=id,sender_type,body,created_at,edited_at&order=created_at.asc`}),
       db('case_notes',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&visibility=eq.client&select=id,body,created_at,updated_at&order=created_at.desc`}),
+      db('deadlines',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&client_visible=eq.true&select=id,title,deadline_date,deadline_type,status&order=deadline_date.asc`}),
+      db('documents',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&request_id=not.is.null&archived_at=is.null&select=id,request_id,file_name,content_type,size_bytes,category,review_status,created_at&order=created_at.desc`}),
+      db('invoices',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&client_visible=eq.true&status=in.(issued,partially_paid,paid,overdue)&select=id,invoice_number,currency,status,office_fee_cents,government_fee_cents,other_fee_cents,due_date,issued_at&order=created_at.desc`}),
+      db('alerts',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&client_visible=eq.true&status=in.(open,acknowledged)&select=id,alert_type,severity,title,due_at,status,created_at&order=created_at.desc`}),
+      db('outbound_communications',{query:`?case_id=eq.${encodeURIComponent(currentCase.id)}&status=in.(sent,delivered)&select=id,language,subject,body_text,status,sent_at,delivered_at,created_at&order=created_at.desc`}),
     ]);
     const safeCase={id:currentCase.id,client_id:currentCase.client_id,case_number:currentCase.case_number,case_reference:currentCase.case_reference,case_type:currentCase.case_type,service_code:currentCase.service_code,workflow_stage:currentCase.workflow_stage,agency:currentCase.agency,receipt_number:currentCase.receipt_number,opened_on:currentCase.opened_on,updated_at:currentCase.updated_at};
-    return json(res,200,{data:{case:safeCase,document_requests:requests,appointments,messages,updates},requestId},ch);
+    return json(res,200,{data:{case:safeCase,document_requests:requests,appointments,messages,updates,deadlines,documents,invoices,notifications,approved_communications:communications},requestId},ch);
+  }
+
+  const portalDocumentMatch=u.pathname.match(/^\/api\/v1\/portal\/documents\/([0-9a-f-]{36})\/url$/i);
+  if(portalDocumentMatch&&req.method==='GET'){
+    const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(portalDocumentMatch[1])}&request_id=not.is.null&archived_at=is.null&select=id,case_id,client_id,object_key,file_name,content_type&limit=1`});
+    if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
+    const currentCase=await portalCase(principal,rows[0].case_id);
+    if(rows[0].client_id&&rows[0].client_id!==currentCase.client_id)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
+    const signedUrl=await getSignedUrl(r2,new GetObjectCommand({Bucket:r2Bucket,Key:rows[0].object_key,ResponseContentDisposition:`inline; filename="${String(rows[0].file_name||'document').replace(/["\r\n]/g,'_')}"`,ResponseContentType:rows[0].content_type}),{expiresIn:300});
+    await audit(principal,'portal_document_viewed','document',rows[0].id,{case_id:currentCase.id,client_id:currentCase.client_id},req);
+    return json(res,200,{data:{url:signedUrl,expires_in:300},requestId},ch);
   }
 
   const portalMessagesMatch=u.pathname.match(/^\/api\/v1\/portal\/messages\/([0-9a-f-]{36})$/i);

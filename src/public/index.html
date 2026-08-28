@@ -790,12 +790,13 @@
       .office-logo-preview { width:84px;height:84px;border-radius:15px;border:1px solid #dce3ea;background:#071a2f;color:#d7b76b;display:grid;place-items:center;font-size:32px;font-weight:800;overflow:hidden; }
       .office-logo-preview img { width:100%;height:100%;object-fit:contain;background:#fff; }
       @media (max-width:1000px){.workspace-facts{grid-template-columns:repeat(3,1fr)}.settings-grid{grid-template-columns:1fr}.global-search-wrap{min-width:220px}}
-      @media (max-width:700px){html[dir="rtl"] .main{margin-right:0}.global-search-wrap{order:3;width:100%;min-width:0}.workspace-facts{grid-template-columns:repeat(2,1fr)}.workspace-head{padding:18px}.workspace-body{padding:13px;max-height:calc(94vh - 340px)}}
+      @media (max-width:700px){html[dir="rtl"] .main{margin-right:0}.global-search-wrap{order:3;width:100%;min-width:0}.workspace-facts{grid-template-columns:repeat(2,1fr)}.workspace-head{padding:16px}.workspace-head .ph,.workspace-identity{align-items:flex-start}.workspace-header-actions{width:100%;justify-content:flex-end}.workspace-dialog{width:100vw;height:100dvh;max-height:100dvh;border-radius:0}.workspace-body{padding:13px;max-height:calc(100dvh - 350px)}.workspace-tab,.btn,.linkbtn,.language-switcher{min-height:44px}.portal-shell{padding:16px}.portal-head{align-items:flex-start;gap:14px}.portal-head,.portal-head>div:last-child{flex-wrap:wrap}.portal-grid{grid-template-columns:1fr}.dialog{width:100vw;max-width:none;max-height:100dvh;border-radius:0}.table{overflow-x:auto;-webkit-overflow-scrolling:touch}}
     </style>
   </head>
   <body>
     <div class="login" id="login">
       <div class="loginbox" id="loginBox">
+        <div style="display:flex;justify-content:flex-end"><select class="language-switcher" data-act="switchLanguage" data-on="change" aria-label="Language"><option value="English">English</option><option value="Arabic">العربية</option></select></div>
         <div class="logo">A</div>
         <div class="eyebrow">Secure production workspace</div>
         <h2>Alhijrah Caseflow</h2>
@@ -821,6 +822,7 @@
         </button>
       </div>
       <div class="loginbox" id="inviteSetup" style="display:none">
+        <div style="display:flex;justify-content:flex-end"><select class="language-switcher" data-act="switchLanguage" data-on="change" aria-label="Language"><option value="English">English</option><option value="Arabic">العربية</option></select></div>
         <div class="logo">A</div>
         <div class="eyebrow">Secure account activation</div>
         <h2>Create your password</h2>
@@ -837,17 +839,22 @@
           <div class="brand" style="padding:0"><div class="logo">A</div><div><b>MY ALHIJRAH</b><small>Secure Client Portal</small></div></div>
           <div style="display:flex;gap:8px"><select class="language-switcher" data-act="switchLanguage" data-on="change" aria-label="Language"><option value="English">English</option><option value="Arabic">العربية</option></select><button id="portalSignOutBtn" class="btn" data-act="signOut" data-i18n="signOut">Sign Out</button></div>
         </div>
-        <div class="eyebrow">Your protected workspace</div>
-        <h1 class="title" style="margin-bottom:22px">Case status and next actions</h1>
+        <div class="eyebrow" data-i18n="yourProtectedWorkspace">Your protected workspace</div>
+        <h1 class="title" style="margin-bottom:22px" data-i18n="caseStatusNextActions">Case status and next actions</h1>
         <div class="err" id="portalErr"></div>
         <div class="portal-grid">
           <div>
-            <div class="panel"><div class="ph"><div><h2>Your Cases</h2><span>Current office workflow status</span></div><button class="btn" data-act="loadPortal">Refresh</button></div><div id="portalCases"><div class="empty">Loading…</div></div></div>
-            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2>Requested Documents</h2><span>Upload directly to the correct request</span></div></div><div id="portalRequests"></div></div>
+            <div class="panel"><div class="ph"><div><h2 data-i18n="yourCases">Your Cases</h2><span data-i18n="currentOfficeWorkflow">Current office workflow status</span></div><button class="btn" data-act="loadPortal" data-i18n="refresh">Refresh</button></div><div id="portalCases"><div class="empty" data-i18n="loading">Loading…</div></div></div>
+            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="requestedDocuments">Requested Documents</h2><span data-i18n="uploadCorrectRequest">Upload directly to the correct request</span></div></div><div id="portalRequests"></div></div>
+            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="yourDocuments">Your Documents</h2><span data-i18n="secureDocumentHistory">Secure upload and review history</span></div></div><div id="portalDocuments"></div></div>
+            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="authorizedBilling">Authorized Billing</h2><span data-i18n="visibleInvoicesOnly">Only invoices released to your account</span></div></div><div id="portalBilling"></div></div>
           </div>
           <div>
-            <div class="panel"><div class="ph"><div><h2>Appointments</h2><span>Upcoming scheduled events</span></div></div><div id="portalAppointments"></div></div>
-            <div class="notice" style="margin-top:16px">Documents are sent through secure storage. Do not send passwords for government accounts.</div>
+            <div class="panel"><div class="ph"><div><h2 data-i18n="appointments">Appointments</h2><span data-i18n="upcomingScheduledEvents">Upcoming scheduled events</span></div></div><div id="portalAppointments"></div></div>
+            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="deadlines">Deadlines</h2><span data-i18n="clientVisibleDeadlines">Dates released by your case team</span></div></div><div id="portalDeadlines"></div></div>
+            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="notifications">Notifications</h2><span data-i18n="caseAlerts">Case alerts and required attention</span></div></div><div id="portalNotifications"></div></div>
+            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="profile">Profile</h2><span data-i18n="protectedClientRecord">Protected client record</span></div></div><div id="portalProfile"></div></div>
+            <div class="notice" style="margin-top:16px" data-i18n="secureStorageNotice">Documents are sent through secure storage. Do not send passwords for government accounts.</div>
           </div>
         </div>
       </div>
