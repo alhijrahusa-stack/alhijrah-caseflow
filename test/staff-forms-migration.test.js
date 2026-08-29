@@ -6,7 +6,18 @@ test('staff forms migration is additive, server-only, idempotent and syntactical
   const sql=await readFile(new URL('../supabase/migrations/20260829010000_staff_forms_platform.sql',import.meta.url),'utf8');
   for(const destructive of [/\bdrop\s+(table|column|constraint|trigger|function)\b/i,/\btruncate\b/i,/\bdelete\s+from\b/i])assert.doesNotMatch(sql,destructive);
   assert.doesNotMatch(sql,/create\s+restrictive\s+policy/i);
-  assert.match(sql,/create policy %I on public\.%I as restrictive/i);
-  for(const table of ['form_registry','form_versions','form_definitions','form_instances','form_answers','background_jobs','generated_artifacts','ai_review_runs','ai_findings'])assert.match(sql,new RegExp(`create table if not exists public\\.${table}`));
-  assert.match(sql,/force row level security/i);assert.match(sql,/revoke all on public\.%I from anon, authenticated/i);assert.match(sql,/grant select, insert, update on public\.%I to service_role/i);
+  assert.doesNotMatch(sql,/using\s*\(\s*true\s*\)/i);
+  assert.doesNotMatch(sql,/with\s+check\s*\(\s*true\s*\)/i);
+  assert.doesNotMatch(sql,/on\s+delete\s+cascade/i);
+  const tables=['person_history_records','family_relationships','participant_match_reviews','form_registry','form_versions','form_definitions','form_instances','form_rules','form_answers','form_findings','background_jobs','generated_artifacts','ai_review_runs','ai_findings','controlled_document_templates','form_update_alerts'];
+  for(const table of tables){
+    assert.match(sql,new RegExp(`create table if not exists public\\.${table}`));
+    assert.match(sql,new RegExp(`alter table public\\.${table} enable row level security;`));
+    assert.match(sql,new RegExp(`alter table public\\.${table} force row level security;`));
+    assert.match(sql,new RegExp(`revoke all on table public\\.${table} from public, anon, authenticated;`));
+    assert.match(sql,new RegExp(`grant select, insert, update on table public\\.${table} to service_role;`));
+    assert.match(sql,new RegExp(`create policy ${table}_server_only on public\\.${table} as restrictive for all to anon, authenticated using \\(false\\) with check \\(false\\);`));
+  }
+  assert.match(sql,/on delete restrict/i);
+  assert.match(sql,/on delete set null/i);
 });

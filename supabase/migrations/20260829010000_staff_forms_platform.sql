@@ -53,6 +53,131 @@ insert into public.form_registry(authority,form_code,display_name,official_form_
 ('USCIS','I-130','Petition for Alien Relative','https://www.uscis.gov/i-130','USCIS'),('USCIS','I-130A','Supplemental Information for Spouse Beneficiary','https://www.uscis.gov/i-130','USCIS'),('USCIS','I-485','Application to Register Permanent Residence or Adjust Status','https://www.uscis.gov/i-485','USCIS'),('USCIS','I-765','Application for Employment Authorization','https://www.uscis.gov/i-765','USCIS'),('USCIS','I-131','Application for Travel Documents','https://www.uscis.gov/i-131','USCIS'),('USCIS','I-864','Affidavit of Support','https://www.uscis.gov/i-864','USCIS'),('USCIS','I-864A','Contract Between Sponsor and Household Member','https://www.uscis.gov/i-864a','USCIS'),('USCIS','I-693','Medical Examination and Vaccination Record','https://www.uscis.gov/i-693','USCIS_CHECKLIST_ONLY'),('USCIS','I-751','Petition to Remove Conditions','https://www.uscis.gov/i-751','USCIS'),('USCIS','N-400','Application for Naturalization','https://www.uscis.gov/n-400','USCIS'),('USCIS','I-912','Request for Fee Waiver','https://www.uscis.gov/i-912','USCIS_INDEPENDENT'),('USCIS','I-589','Application for Asylum and Withholding','https://www.uscis.gov/i-589','USCIS_AFFIRMATIVE'),('EOIR','I-589','Application for Asylum and Withholding','https://www.justice.gov/eoir/reference-materials/ic/chapter-3/15','EOIR_REMOVAL'),('USCIS','I-601','Waiver of Grounds of Inadmissibility','https://www.uscis.gov/i-601','USCIS'),('USCIS','I-601A','Provisional Unlawful Presence Waiver','https://www.uscis.gov/i-601a','USCIS'),('USCIS','I-918','Petition for U Nonimmigrant Status','https://www.uscis.gov/i-918','USCIS'),('USCIS','I-918A','Qualifying Family Member of U-1','https://www.uscis.gov/i-918','USCIS'),('USCIS','I-914','Application for T Nonimmigrant Status','https://www.uscis.gov/i-914','USCIS'),('USCIS','I-914A','Family Member of T-1','https://www.uscis.gov/i-914','USCIS'),('USCIS','I-360','Petition for Special Immigrant','https://www.uscis.gov/i-360','USCIS'),('USCIS','G-28','Notice of Entry of Appearance as Attorney or Accredited Representative','https://www.uscis.gov/g-28','USCIS_APPEARANCE_ONLY'),('DOS_PASSPORT','DS-11','Application for a U.S. Passport','https://travel.state.gov/en/passports/apply/help/forms.html','PASSPORT'),('DOS_PASSPORT','DS-82','U.S. Passport Renewal Application','https://travel.state.gov/en/passports/apply/help/forms.html','PASSPORT'),('DOS_PASSPORT','DS-5504','Passport Name Change or Correction','https://travel.state.gov/en/passports/renew-replace/change-correct-passport.html','PASSPORT'),('DOS_PASSPORT','DS-64','Lost or Stolen Passport Statement','https://travel.state.gov/en/passports/renew-replace/lost-stolen.html','PASSPORT'),('DOS_PASSPORT','DS-3053','Consent for Passport to a Child','https://travel.state.gov/en/passports/need-passport/under-16.html','PASSPORT') on conflict(authority,form_code)do nothing;
 insert into public.role_permissions(role_code,permission_code)values('admin','cases.prepare'),('supervisor','cases.prepare'),('case_manager','cases.prepare'),('attorney_accredited_representative','cases.prepare')on conflict(role_code,permission_code)do nothing;
 
-do $$ declare t text;p text;begin foreach t in array array['person_history_records','family_relationships','participant_match_reviews','form_registry','form_versions','form_definitions','form_instances','form_rules','form_answers','form_findings','background_jobs','generated_artifacts','ai_review_runs','ai_findings','controlled_document_templates','form_update_alerts']loop execute format('alter table public.%I enable row level security',t);execute format('alter table public.%I force row level security',t);execute format('revoke all on public.%I from anon, authenticated',t);execute format('grant select, insert, update on public.%I to service_role',t);p:=t||'_server_only';if not exists(select 1 from pg_policies where schemaname='public' and tablename=t and policyname=p)then execute format('create policy %I on public.%I as restrictive for all to anon, authenticated using (false) with check (false)',p,t);end if;end loop;end;$$;
+-- These tables are backend-only. Staff, Owner, and client authorization is
+-- enforced by the existing server RBAC and case/client-scope checks. Browser
+-- roles never receive direct table privileges. The service_role grant is
+-- deliberately limited to the operations used by the backend; no DELETE is
+-- granted and service_role continues to use its Supabase BYPASSRLS behavior.
+alter table public.person_history_records enable row level security;
+alter table public.person_history_records force row level security;
+alter table public.family_relationships enable row level security;
+alter table public.family_relationships force row level security;
+alter table public.participant_match_reviews enable row level security;
+alter table public.participant_match_reviews force row level security;
+alter table public.form_registry enable row level security;
+alter table public.form_registry force row level security;
+alter table public.form_versions enable row level security;
+alter table public.form_versions force row level security;
+alter table public.form_definitions enable row level security;
+alter table public.form_definitions force row level security;
+alter table public.form_instances enable row level security;
+alter table public.form_instances force row level security;
+alter table public.form_rules enable row level security;
+alter table public.form_rules force row level security;
+alter table public.form_answers enable row level security;
+alter table public.form_answers force row level security;
+alter table public.form_findings enable row level security;
+alter table public.form_findings force row level security;
+alter table public.background_jobs enable row level security;
+alter table public.background_jobs force row level security;
+alter table public.generated_artifacts enable row level security;
+alter table public.generated_artifacts force row level security;
+alter table public.ai_review_runs enable row level security;
+alter table public.ai_review_runs force row level security;
+alter table public.ai_findings enable row level security;
+alter table public.ai_findings force row level security;
+alter table public.controlled_document_templates enable row level security;
+alter table public.controlled_document_templates force row level security;
+alter table public.form_update_alerts enable row level security;
+alter table public.form_update_alerts force row level security;
+
+revoke all on table public.person_history_records from public, anon, authenticated;
+revoke all on table public.family_relationships from public, anon, authenticated;
+revoke all on table public.participant_match_reviews from public, anon, authenticated;
+revoke all on table public.form_registry from public, anon, authenticated;
+revoke all on table public.form_versions from public, anon, authenticated;
+revoke all on table public.form_definitions from public, anon, authenticated;
+revoke all on table public.form_instances from public, anon, authenticated;
+revoke all on table public.form_rules from public, anon, authenticated;
+revoke all on table public.form_answers from public, anon, authenticated;
+revoke all on table public.form_findings from public, anon, authenticated;
+revoke all on table public.background_jobs from public, anon, authenticated;
+revoke all on table public.generated_artifacts from public, anon, authenticated;
+revoke all on table public.ai_review_runs from public, anon, authenticated;
+revoke all on table public.ai_findings from public, anon, authenticated;
+revoke all on table public.controlled_document_templates from public, anon, authenticated;
+revoke all on table public.form_update_alerts from public, anon, authenticated;
+
+grant select, insert, update on table public.person_history_records to service_role;
+grant select, insert, update on table public.family_relationships to service_role;
+grant select, insert, update on table public.participant_match_reviews to service_role;
+grant select, insert, update on table public.form_registry to service_role;
+grant select, insert, update on table public.form_versions to service_role;
+grant select, insert, update on table public.form_definitions to service_role;
+grant select, insert, update on table public.form_instances to service_role;
+grant select, insert, update on table public.form_rules to service_role;
+grant select, insert, update on table public.form_answers to service_role;
+grant select, insert, update on table public.form_findings to service_role;
+grant select, insert, update on table public.background_jobs to service_role;
+grant select, insert, update on table public.generated_artifacts to service_role;
+grant select, insert, update on table public.ai_review_runs to service_role;
+grant select, insert, update on table public.ai_findings to service_role;
+grant select, insert, update on table public.controlled_document_templates to service_role;
+grant select, insert, update on table public.form_update_alerts to service_role;
+
+-- PostgreSQL has no CREATE POLICY IF NOT EXISTS. Each explicit, named policy
+-- is therefore guarded without dynamically constructing security statements.
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'person_history_records' and policyname = 'person_history_records_server_only') then
+    create policy person_history_records_server_only on public.person_history_records as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'family_relationships' and policyname = 'family_relationships_server_only') then
+    create policy family_relationships_server_only on public.family_relationships as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'participant_match_reviews' and policyname = 'participant_match_reviews_server_only') then
+    create policy participant_match_reviews_server_only on public.participant_match_reviews as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'form_registry' and policyname = 'form_registry_server_only') then
+    create policy form_registry_server_only on public.form_registry as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'form_versions' and policyname = 'form_versions_server_only') then
+    create policy form_versions_server_only on public.form_versions as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'form_definitions' and policyname = 'form_definitions_server_only') then
+    create policy form_definitions_server_only on public.form_definitions as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'form_instances' and policyname = 'form_instances_server_only') then
+    create policy form_instances_server_only on public.form_instances as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'form_rules' and policyname = 'form_rules_server_only') then
+    create policy form_rules_server_only on public.form_rules as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'form_answers' and policyname = 'form_answers_server_only') then
+    create policy form_answers_server_only on public.form_answers as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'form_findings' and policyname = 'form_findings_server_only') then
+    create policy form_findings_server_only on public.form_findings as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'background_jobs' and policyname = 'background_jobs_server_only') then
+    create policy background_jobs_server_only on public.background_jobs as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'generated_artifacts' and policyname = 'generated_artifacts_server_only') then
+    create policy generated_artifacts_server_only on public.generated_artifacts as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'ai_review_runs' and policyname = 'ai_review_runs_server_only') then
+    create policy ai_review_runs_server_only on public.ai_review_runs as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'ai_findings' and policyname = 'ai_findings_server_only') then
+    create policy ai_findings_server_only on public.ai_findings as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'controlled_document_templates' and policyname = 'controlled_document_templates_server_only') then
+    create policy controlled_document_templates_server_only on public.controlled_document_templates as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'form_update_alerts' and policyname = 'form_update_alerts_server_only') then
+    create policy form_update_alerts_server_only on public.form_update_alerts as restrictive for all to anon, authenticated using (false) with check (false);
+  end if;
+end;
+$$;
 notify pgrst,'reload schema';
 commit;

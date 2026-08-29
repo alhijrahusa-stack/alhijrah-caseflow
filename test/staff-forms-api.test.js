@@ -2,11 +2,12 @@ import test,{beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {addUser,backend,browserHeaders,cookieHeader,driver,putObject,resetBackend} from './helpers/harness.js';
-import {handle,respondToError} from '../src/server.js';
+import {handle,invalidateAccessCache,respondToError} from '../src/server.js';
 import {resetLoginThrottle} from '../src/auth.js';
 
 const request=driver(handle,respondToError),caseId='11111111-1111-4111-8111-111111111111',clientId='22222222-2222-4222-8222-222222222222';
 async function session(){const response=await request({method:'POST',path:'/api/v1/auth/login',headers:browserHeaders(),body:{email:'manager@caseflow.test',password:'correct-horse-battery'}});assert.equal(response.status,200,response.raw);return cookieHeader(response.cookies)}
+async function sessionFor(email){const response=await request({method:'POST',path:'/api/v1/auth/login',headers:browserHeaders(),body:{email,password:'correct-horse-battery'}});assert.equal(response.status,200,response.raw);return cookieHeader(response.cookies)}
 beforeEach(()=>{resetBackend();resetLoginThrottle();addUser({email:'manager@caseflow.test',roles:['case_manager']});backend.tables.clients.push({id:clientId,legal_name:'Amina Yusuf'});backend.tables.cases.push({id:caseId,client_id:clientId,client_name:'Amina Yusuf',case_type:'Naturalization',service_code:'N-400',status:'active',workflow_stage:'intake'});});
 
 test('staff creates participants and histories with case-scoped audit provenance',async()=>{
@@ -41,4 +42,62 @@ test('intake and document linkage reject cross-case identifiers supplied by the 
   const intake=await request({method:'GET',path:`/api/v1/intakes/${crypto.randomUUID()}/N-400`,headers});assert.equal(intake.status,404);
   const key=`cases/${caseId}/proof.pdf`;putObject(key,{size:3,contentType:'application/pdf'});
   const confirm=await request({method:'POST',path:'/api/v1/documents/confirm',headers,body:{case_id:caseId,client_id:otherClient,key,filename:'proof.pdf',content_type:'application/pdf',size_bytes:3}});assert.equal(confirm.status,409);assert.equal(confirm.body.error,'DOCUMENT_CLIENT_MISMATCH');assert.equal(backend.tables.documents.length,0);
+});
+
+test('Client A cannot read or mutate Client B staff-form data',async()=>{
+  const otherClientId=crypto.randomUUID(),otherCaseId=crypto.randomUUID();
+  backend.tables.clients.push({id:otherClientId,legal_name:'Client B'});
+  backend.tables.cases.push({id:otherCaseId,client_id:otherClientId,client_name:'Client B',case_type:'Family',status:'active'});
+  const clientA=addUser({email:'client-a@caseflow.test',roles:['client_owner']});
+  backend.tables.client_access.push({client_id:clientId,auth_user_id:clientA.id,access_role:'owner',status:'active'});
+  invalidateAccessCache();
+  const cookie=await sessionFor('client-a@caseflow.test'),headers={...browserHeaders(),cookie};
+  const read=await request({method:'GET',path:`/api/v1/cases/${otherCaseId}/forms`,headers});
+  const mutate=await request({method:'POST',path:`/api/v1/cases/${otherCaseId}/forms`,headers,body:{authority:'USCIS',form_code:'N-400'}});
+  assert.equal(read.status,403);
+  assert.equal(mutate.status,403);
+  assert.equal(backend.tables.form_instances.length,0);
+});
+
+test('staff, participant, form-answer, finding, artifact and job data remain case-scoped',async()=>{
+  const manager=backend.tables.app_users.find(row=>row.email==='manager@caseflow.test'),otherClientId=crypto.randomUUID(),otherCaseId=crypto.randomUUID(),foreignPersonId=crypto.randomUUID(),foreignInstanceId=crypto.randomUUID(),foreignFindingId=crypto.randomUUID(),foreignArtifactId=crypto.randomUUID();
+  backend.tables.clients.push({id:otherClientId,legal_name:'Client B'});
+  backend.tables.cases.push({id:otherCaseId,client_id:otherClientId,client_name:'Client B',case_type:'Family',status:'active'});
+  backend.tables.case_assignments.push({case_id:caseId,auth_user_id:manager.auth_user_id,active:true});
+  backend.tables.access_policies.push({subject_type:'user',subject_id:manager.auth_user_id,grants:[],restrictions:[],scopes:{cases:'assigned',documents:'assigned'}});
+  backend.tables.people.push({id:foreignPersonId,legal_name:'Foreign Participant'});
+  backend.tables.case_people.push({case_id:otherCaseId,person_id:foreignPersonId,case_role:'beneficiary'});
+  backend.tables.form_instances.push({id:foreignInstanceId,case_id:otherCaseId,form_definition_id:crypto.randomUUID(),form_version_id:crypto.randomUUID(),status:'draft'});
+  backend.tables.form_findings.push({id:foreignFindingId,case_id:otherCaseId,form_instance_id:foreignInstanceId,status:'open',severity:'warning'});
+  backend.tables.background_jobs.push({id:crypto.randomUUID(),case_id:otherCaseId,status:'queued'});
+  backend.tables.generated_artifacts.push({id:foreignArtifactId,case_id:otherCaseId,object_key:`cases/${otherCaseId}/foreign.pdf`,form_code:'N-400'});
+  invalidateAccessCache();
+  const cookie=await session(),headers={...browserHeaders(),cookie};
+  const ownWorkspace=await request({method:'GET',path:`/api/v1/cases/${caseId}/forms`,headers});
+  assert.equal(ownWorkspace.status,200,ownWorkspace.raw);
+  assert.deepEqual(ownWorkspace.body.data,{instances:[],findings:[],jobs:[],artifacts:[]});
+  const foreignWorkspace=await request({method:'GET',path:`/api/v1/cases/${otherCaseId}/forms`,headers});
+  assert.equal(foreignWorkspace.status,404);
+  const foreignParticipant=await request({method:'POST',path:`/api/v1/cases/${caseId}/forms`,headers,body:{authority:'USCIS',form_code:'N-400',participant_id:foreignPersonId}});
+  assert.equal(foreignParticipant.status,409);
+  assert.equal(foreignParticipant.body.error,'PARTICIPANT_NOT_IN_CASE');
+  const answerBypass=await request({method:'PATCH',path:`/api/v1/cases/${caseId}/forms/${foreignInstanceId}/answers/applicant.name`,headers,body:{value:'Bypass',expected_revision:0}});
+  assert.equal(answerBypass.status,404);
+  assert.equal(answerBypass.body.error,'FORM_INSTANCE_NOT_FOUND');
+  assert.equal(backend.tables.form_answers.length,0);
+  const artifactBypass=await request({method:'POST',path:`/api/v1/artifacts/${foreignArtifactId}/download-url`,headers});
+  assert.equal(artifactBypass.status,404);
+});
+
+test('AI findings remain Owner-authorized and cannot be resolved by staff-supplied UUID',async()=>{
+  const findingId=crypto.randomUUID();
+  backend.tables.ai_findings.push({id:findingId,case_id:caseId,resolution:null,requires_owner_approval:true});
+  const staffCookie=await session(),staffAttempt=await request({method:'PATCH',path:`/api/v1/ai-review/findings/${findingId}`,headers:{...browserHeaders(),cookie:staffCookie},body:{resolution:'accepted'}});
+  assert.equal(staffAttempt.status,403);
+  assert.equal(backend.tables.ai_findings[0].resolution,null);
+  addUser({email:'owner@caseflow.test',roles:['owner']});
+  invalidateAccessCache();
+  const ownerCookie=await sessionFor('owner@caseflow.test'),ownerReview=await request({method:'PATCH',path:`/api/v1/ai-review/findings/${findingId}`,headers:{...browserHeaders(),cookie:ownerCookie},body:{resolution:'accepted'}});
+  assert.equal(ownerReview.status,200,ownerReview.raw);
+  assert.equal(backend.tables.ai_findings[0].resolution,'accepted');
 });
