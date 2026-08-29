@@ -115,6 +115,14 @@ The workspace ships as `src/public/index.html` plus `src/public/app.js`, served 
 
 Markup declares intent as data attributes — `data-act="openCase" data-a1="..."` — and a single frozen dispatch table in `app.js` is the only thing that turns a name into a call. An unknown or attacker-supplied `data-act` matches nothing and does nothing; there is no `eval`, no `new Function`, and no lookup by string on `window`. Adding a new control means adding its handler to that table.
 
+## Staff forms platform
+
+Apply `supabase/migrations/20260829010000_staff_forms_platform.sql` once before enabling the Staff Forms workspace. The migration is additive, preserves the canonical client/case model, keeps every new table behind forced RLS, and grants Data API access only to `service_role`.
+
+Official form files are not bundled or guessed. An Owner retrieves an HTTPS source from the allow-listed USCIS, EOIR/DOJ, or State Department hosts, confirms its SHA-256, and activates it only after the AcroForm mapping harness passes. Existing case instances remain pinned to their verified authority, edition, mapping version, and source hash; detected upstream changes are quarantined and create a review alert.
+
+AI review is optional. When enabled, all four variables are required: `AI_PROVIDER`, `AI_PROVIDER_URL`, `AI_PROVIDER_MODEL`, and `AI_PROVIDER_API_KEY`. The provider endpoint must be HTTPS and can receive only results from the server-side read-tool allowlist. Findings remain review-required and never write canonical answers.
+
 ## Security baseline
 
 - Server-only Supabase service-role and R2 credentials

@@ -47,9 +47,12 @@ import { intakeDefinition, validateIntakeAnswers } from './intake-definitions.js
 import { extractIdentityDocument } from './identity-ocr.js';
 import { normalizeLanguage, renderCaseOpeningEmail, sendTransactionalEmail } from './email.js';
 import { analyzeImportRows, buildImportReport, importFields, importSummary, parseImportFile, verifyImportRuntime } from './import-center.js';
+import {formReadiness,generateControlledOfficeDocument,newJob,participantMatch,populateOfficialPdf,routeAsylumAuthority,routePassport,validateAiFinding,validateVersionActivation} from './forms-engine.js';
+import {probeOfficialSource} from './form-source-monitor.js';
+import {configuredAiProvider,runConstrainedAiReview} from './ai-review.js';
 
 const port = Number(process.env.PORT || 3000);
-const version = '2.13.0';
+const version = '2.14.0';
 const service = 'alhijrah-caseflow-api';
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -113,6 +116,7 @@ async function readJson(req,max=1_000_000){const chunks=[];let size=0;for await(
 async function readBuffer(req,max){const declared=Number(req.headers['content-length']||0);if(declared>max)throw Object.assign(new Error('PAYLOAD_TOO_LARGE'),{status:413});const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>max)throw Object.assign(new Error('PAYLOAD_TOO_LARGE'),{status:413});chunks.push(chunk)}return Buffer.concat(chunks,size)}
 function internalAuth(req){if(!internalApiKey)throw Object.assign(new Error('API_NOT_CONFIGURED'),{status:503});const supplied=req.headers['x-api-key'];if(typeof supplied!=='string')throw Object.assign(new Error('UNAUTHORIZED'),{status:401});const a=Buffer.from(supplied),b=Buffer.from(internalApiKey);if(a.length!==b.length||!crypto.timingSafeEqual(a,b))throw Object.assign(new Error('UNAUTHORIZED'),{status:401});return internalPrincipal()}
 async function db(path,{method='GET',body,query=''}={}){if(!supabaseUrl||!supabaseServiceKey)throw Object.assign(new Error('SUPABASE_NOT_CONFIGURED'),{status:503});const r=await fetch(`${supabaseUrl}/rest/v1/${path}${query}`,{method,headers:{apikey:supabaseServiceKey,authorization:`Bearer ${supabaseServiceKey}`,'content-type':'application/json',prefer:method==='POST'||method==='PATCH'?'return=representation':''},body:body===undefined?undefined:JSON.stringify(body)});const text=await r.text();let data=null;try{data=text?JSON.parse(text):null}catch{data=text}if(!r.ok){const e=new Error('DATABASE_REQUEST_FAILED');e.status=r.status>=500?502:r.status;e.internalDetails=data;throw e}return data}
+async function optionalDb(path,options={}){try{return await db(path,options)}catch(error){if(isMissingRelation(error)||error.status===400)return[];throw error}}
 async function officeSettings(){
   const rows=await db('office_settings',{query:'?singleton=eq.true&select=*&limit=1'});
   return rows[0]||{office_name:'ALHIJRAH SERVICES',default_language:'English'};
@@ -170,6 +174,59 @@ function identityExtraction(token,principal){
 function stableUuid(value){const hex=crypto.createHash('sha256').update(value).digest('hex').slice(0,32);return hex.slice(0,8)+'-'+hex.slice(8,12)+'-5'+hex.slice(13,16)+'-a'+hex.slice(17,20)+'-'+hex.slice(20,32)}
 function documentInput(body){const caseId=String(body.case_id||'');if(!uuid(caseId))throw Object.assign(new Error('VALID_CASE_ID_REQUIRED'),{status:400});const fileName=String(body.filename||body.file_name||'').trim().slice(0,180);if(!fileName||/[\x00-\x1f]/.test(fileName))throw Object.assign(new Error('VALID_FILENAME_REQUIRED'),{status:400});const contentType=String(body.content_type||'').toLowerCase();if(!allowedDocumentTypes.has(contentType))throw Object.assign(new Error('UNSUPPORTED_DOCUMENT_TYPE'),{status:415});const sizeBytes=Number(body.size_bytes);if(!Number.isSafeInteger(sizeBytes)||sizeBytes<1||sizeBytes>25*1024*1024)throw Object.assign(new Error('DOCUMENT_SIZE_NOT_ALLOWED'),{status:413});return{caseId,fileName,contentType,sizeBytes}}
 function documentChecksum(value){if(value===undefined||value===null||value==='')return null;const checksum=String(value).toLowerCase();if(!/^[a-f0-9]{64}$/.test(checksum))throw Object.assign(new Error('INVALID_DOCUMENT_CHECKSUM'),{status:400});return checksum}
+
+async function canonicalDocumentLinkage(caseRecord,body){
+  const caseId=String(caseRecord.id),clientId=caseRecord.client_id||null;
+  if(body.client_id!==undefined&&body.client_id!==null&&body.client_id!==''&&String(body.client_id)!==String(clientId))throw Object.assign(new Error('DOCUMENT_CLIENT_MISMATCH'),{status:409});
+  let personId=null,requestId=null,category=cleanText(body.category,{max:100}),replacement=null;
+  if(body.person_id){
+    if(!uuid(body.person_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});
+    const links=await db('case_people',{query:`?case_id=eq.${encodeURIComponent(caseId)}&person_id=eq.${encodeURIComponent(body.person_id)}&select=person_id&limit=1`});
+    if(!links.length)throw Object.assign(new Error('DOCUMENT_PERSON_NOT_IN_CASE'),{status:409});
+    personId=body.person_id;
+  }
+  if(body.request_id){
+    if(!uuid(body.request_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});
+    const requests=await db('document_requests',{query:`?id=eq.${encodeURIComponent(body.request_id)}&case_id=eq.${encodeURIComponent(caseId)}&select=*&limit=1`});
+    if(!requests.length)throw Object.assign(new Error('DOCUMENT_REQUEST_NOT_IN_CASE'),{status:409});
+    const request=requests[0];requestId=request.id;category=cleanText(request.category||category,{max:100});
+    if(request.person_id){if(personId&&String(personId)!==String(request.person_id))throw Object.assign(new Error('DOCUMENT_REQUEST_PERSON_MISMATCH'),{status:409});personId=request.person_id}
+  }
+  if(body.replaces_document_id){
+    if(!uuid(body.replaces_document_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});
+    const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(body.replaces_document_id)}&case_id=eq.${encodeURIComponent(caseId)}&archived_at=is.null&select=id,case_id,client_id,person_id,request_id,version&limit=1`});
+    if(!rows.length)throw Object.assign(new Error('REPLACED_DOCUMENT_NOT_FOUND'),{status:404});replacement=rows[0];
+    if(personId&&replacement.person_id&&String(personId)!==String(replacement.person_id))throw Object.assign(new Error('REPLACED_DOCUMENT_PERSON_MISMATCH'),{status:409});
+  }
+  return{client_id:clientId,person_id:personId,request_id:requestId,category,review_status:'received',replaces_document_id:replacement?.id||null,version:replacement?Number(replacement.version||1)+1:1,replacement};
+}
+
+async function storeGeneratedArtifact({caseId,instanceId,artifactType,authority,formCode,editionDate,mappingVersion,sourceHash,bytes,pdfHash,generatedBy}){
+  if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
+  const id=crypto.randomUUID(),objectKey=safeKey(`cases/${caseId}/generated/${id}-${formCode}.pdf`);
+  await r2.send(new PutObjectCommand({Bucket:r2Bucket,Key:objectKey,Body:bytes,ContentType:'application/pdf',ContentLength:bytes.length,Metadata:{case_id:caseId,artifact_type:artifactType}}));
+  try{
+    const record={id,case_id:caseId,form_instance_id:instanceId||null,artifact_type:artifactType,authority,form_code:formCode,edition_date:editionDate||null,mapping_version:mappingVersion||null,source_artifact_hash:sourceHash||null,object_key:objectKey,pdf_sha256:pdfHash,review_state:'review_required',immutable:true,generated_by:generatedBy};
+    const rows=await db('generated_artifacts',{method:'POST',body:record});return rows[0]||record;
+  }catch(error){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:objectKey})).catch(()=>{});throw error}
+}
+
+async function executeAiReadTool(name,{case_id}){
+  const map={
+    get_case_summary:()=>db('cases',{query:`?id=eq.${case_id}&select=*`}),get_participants:()=>db('case_people',{query:`?case_id=eq.${case_id}&select=*`}),get_documents:()=>db('documents',{query:`?case_id=eq.${case_id}&archived_at=is.null&select=*`}),get_open_findings:()=>db('form_findings',{query:`?case_id=eq.${case_id}&status=eq.open&select=*`}),get_deadlines:()=>db('deadlines',{query:`?case_id=eq.${case_id}&select=*`}),get_address_history:()=>db('person_history_records',{query:`?case_id=eq.${case_id}&history_type=eq.address&archived_at=is.null&select=*`}),get_employment_history:()=>db('person_history_records',{query:`?case_id=eq.${case_id}&history_type=eq.employment&archived_at=is.null&select=*`}),get_travel_history:()=>db('person_history_records',{query:`?case_id=eq.${case_id}&history_type=eq.travel&archived_at=is.null&select=*`})
+  };
+  if(['get_form_answers','get_form_definition','get_verified_fields'].includes(name)){
+    const instances=await db('form_instances',{query:`?case_id=eq.${case_id}&select=id,form_definition_id`});if(!instances.length)return[];
+    if(name==='get_form_definition')return db('form_definitions',{query:`?id=in.(${[...new Set(instances.map(x=>x.form_definition_id))].join(',')})&select=*`});
+    return db('form_answers',{query:`?form_instance_id=in.(${instances.map(x=>x.id).join(',')})${name==='get_verified_fields'?'&verification_status=eq.verified':''}&select=*`});
+  }
+  if(name==='get_family_history'){
+    const links=await db('case_people',{query:`?case_id=eq.${case_id}&select=person_id`});if(!links.length)return[];
+    const ids=links.map(x=>x.person_id).join(',');return db('family_relationships',{query:`?person_id=in.(${ids})&archived_at=is.null&select=*`});
+  }
+  if(name==='compare_forms'||name==='run_rule_validation'||name==='generate_review_report')return{requires_deterministic_pipeline:true};
+  if(!map[name])throw new Error('AI_TOOL_NOT_IMPLEMENTED');return map[name]();
+}
 
 const productionVerification={enabled:railwayRuntime,status:railwayRuntime?'pending':'disabled',documentUpload:false,identityOcr:false,clientAutofill:false,bulkImport:false,xlsx:false,csv:false,arabic:false,serviceMapping:false,dryRun:false,canonicalWrites:null,errors:{},completedAt:null,sha:productionSha};
 
@@ -368,6 +425,15 @@ function requiredPermission(req,path){
   if(path.startsWith('/api/v1/billing'))return req.method==='GET'?'billing.view':'billing.manage';
   if(path.startsWith('/api/v1/reports'))return 'reports.view';
   if(path.startsWith('/api/v1/imports'))return 'imports.manage';
+  if(path==='/api/v1/forms/registry')return 'cases.view';
+  if(path.startsWith('/api/v1/form-sources/'))return 'access.manage';
+  if(path==='/api/v1/passport-router'||path==='/api/v1/asylum-router')return 'cases.prepare';
+  if(/^\/api\/v1\/cases\/[0-9a-f-]{36}\/office-documents$/i.test(path))return 'cases.prepare';
+  if(/^\/api\/v1\/artifacts\/[0-9a-f-]{36}\/download-url$/i.test(path))return 'documents.view';
+  if(path.startsWith('/api/v1/ai-review'))return 'access.manage';
+  if(/^\/api\/v1\/cases\/[0-9a-f-]{36}\/participants/i.test(path))return req.method==='GET'?'cases.view':'cases.manage';
+  if(/^\/api\/v1\/cases\/[0-9a-f-]{36}\/histories/i.test(path))return req.method==='GET'?'cases.view':'cases.manage';
+  if(/^\/api\/v1\/cases\/[0-9a-f-]{36}\/forms/i.test(path))return req.method==='GET'?'cases.view':'cases.prepare';
   if(path.startsWith('/api/v1/review-queue'))return 'documents.review';
   if(path.startsWith('/api/v1/alerts'))return req.method==='GET'?'dashboard.view':'tasks.manage';
   if(path.startsWith('/api/v1/appointments'))return req.method==='GET'?'cases.view':'cases.manage';
@@ -529,7 +595,7 @@ async function handle(req,res){
     const [authStatus,databaseState,r2State]=await Promise.all([
       getAuthProvisioningStatus(),
       (async()=>{
-        const state={connected:false,coreSchema:false,phase1Schema:false,importSchema:false,authorizationSchema:false,authorizationTables:{teams:false,teamMembers:false,accessPolicies:false,recordAccessGrants:false},authorizationTableErrors:{}};
+        const state={connected:false,coreSchema:false,phase1Schema:false,importSchema:false,formsSchema:false,authorizationSchema:false,authorizationTables:{teams:false,teamMembers:false,accessPolicies:false,recordAccessGrants:false},authorizationTableErrors:{}};
         try{await db('cases',{query:'?select=id&limit=1'});state.connected=true}catch{return state}
         try{await db('clients',{query:'?select=id&limit=1'});state.coreSchema=true}catch{return state}
         try{
@@ -544,6 +610,7 @@ async function handle(req,res){
           state.phase1Schema=true;
         }catch{}
         try{await Promise.all([db('import_batches',{query:'?select=id,status&limit=1'}),db('import_rows',{query:'?select=id,batch_id&limit=1'})]);state.importSchema=true}catch{}
+        try{await Promise.all([db('form_registry',{query:'?select=id&limit=1'}),db('form_instances',{query:'?select=id&limit=1'}),db('background_jobs',{query:'?select=id&limit=1'}),db('generated_artifacts',{query:'?select=id&limit=1'})]);state.formsSchema=true}catch{}
         const tableChecks=await Promise.all([
           ['teams','teams','id'],
           ['teamMembers','team_members','team_id'],
@@ -568,7 +635,7 @@ async function handle(req,res){
     const emailConfigured=Boolean(process.env.RESEND_API_KEY&&process.env.RESEND_FROM_EMAIL);const checks={supabase:databaseState.connected,coreSchema:databaseState.coreSchema,phase1Schema:databaseState.phase1Schema,importSchema:databaseState.importSchema,authorizationSchema:databaseState.authorizationSchema,r2:r2State,internalAuth:Boolean(internalApiKey),userAuth:authStatus.configured,ownerAccount:authStatus.ownerProvisioned};
     if(productionVerification.enabled)Object.assign(checks,{documentUpload:productionVerification.documentUpload,identityOcr:productionVerification.identityOcr,clientAutofill:productionVerification.clientAutofill,bulkImport:productionVerification.bulkImport,xlsx:productionVerification.xlsx,csv:productionVerification.csv,arabic:productionVerification.arabic,serviceMapping:productionVerification.serviceMapping,dryRun:productionVerification.dryRun});
     const ready=Object.values(checks).every(Boolean);
-    return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,emailDelivery:{status:emailConfigured?'CONFIGURED':'PROVIDER_NOT_CONFIGURED',configured:emailConfigured},authorizationTables:databaseState.authorizationTables,authorizationTableErrors:databaseState.authorizationTableErrors,verification:productionVerification,requestId},ch);
+    return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,capabilities:{staffForms:databaseState.formsSchema,aiReview:Boolean(process.env.AI_PROVIDER&&process.env.AI_PROVIDER_URL&&process.env.AI_PROVIDER_MODEL&&process.env.AI_PROVIDER_API_KEY),emailDelivery:emailConfigured},emailDelivery:{status:emailConfigured?'CONFIGURED':'PROVIDER_NOT_CONFIGURED',configured:emailConfigured},authorizationTables:databaseState.authorizationTables,authorizationTableErrors:databaseState.authorizationTableErrors,verification:productionVerification,requestId},ch);
   }
 
   // Unauthenticated. Reports only whether sign-in is usable; the tenant user
@@ -595,6 +662,106 @@ async function handle(req,res){
   let principal=null;
   let access=null;
   if(u.pathname.startsWith('/api/'))({principal,access}=await authorize(req,res,requiredPermission(req,u.pathname)));
+
+  if(req.method==='GET'&&u.pathname==='/api/v1/forms/registry'){const registry=await db('form_registry',{query:'?select=*&order=authority,form_code'}),versions=registry.length?await db('form_versions',{query:`?registry_id=in.(${registry.map(x=>x.id).join(',')})&select=*&order=created_at.desc`}):[];return json(res,200,{data:registry.map(x=>({...x,versions:versions.filter(v=>v.registry_id===x.id)})),requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/form-sources/probe'){
+    if(!access.isOwner)throw Object.assign(new Error('OWNER_APPROVAL_REQUIRED'),{status:403});if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
+    const b=await readJson(req,32_768);if(!uuid(b.registry_id)||!String(b.edition_date||'').trim())throw Object.assign(new Error('FORM_VERSION_INPUT_REQUIRED'),{status:400});
+    const registry=await db('form_registry',{query:`?id=eq.${b.registry_id}&select=*&limit=1`});if(!registry.length)throw Object.assign(new Error('FORM_NOT_REGISTERED'),{status:404});
+    const existing=await db('form_versions',{query:`?registry_id=eq.${b.registry_id}&edition_date=eq.${encodeURIComponent(String(b.edition_date).trim())}&select=*&limit=1`});
+    const probe=await probeOfficialSource({url:b.official_pdf_source,etag:existing[0]?.source_etag,lastModified:existing[0]?.source_last_modified});
+    if(!probe.changed)return json(res,200,{data:{changed:false,version:existing[0]},requestId},ch);
+    const objectKey=safeKey(`official-forms/${b.registry_id}/${String(b.edition_date).replace(/[^0-9A-Za-z.-]/g,'_')}-${probe.sha256}.pdf`);
+    await r2.send(new PutObjectCommand({Bucket:r2Bucket,Key:objectKey,Body:probe.bytes,ContentType:probe.content_type,ContentLength:probe.bytes.length,Metadata:{registry_id:b.registry_id,source_sha256:probe.sha256}}));
+    if(existing.length&&['active','verified_source','mapped','tested'].includes(existing[0].status)&&existing[0].source_sha256&&existing[0].source_sha256!==probe.sha256){
+      const instances=await db('form_instances',{query:`?form_version_id=eq.${existing[0].id}&select=case_id`}),alertRows=await db('form_update_alerts',{query:`?form_version_id=eq.${existing[0].id}&detected_source_sha256=eq.${probe.sha256}&status=in.(open,acknowledged)&select=*`});
+      const alert=alertRows[0]||(await db('form_update_alerts',{method:'POST',body:{id:crypto.randomUUID(),form_version_id:existing[0].id,authority:registry[0].authority,form_code:registry[0].form_code,old_source_sha256:existing[0].source_sha256,detected_source_sha256:probe.sha256,old_etag:existing[0].source_etag,detected_etag:probe.etag,official_source:String(b.official_pdf_source),affected_open_cases:new Set(instances.map(x=>x.case_id)).size,mapping_status:'review_required',status:'open',metadata:{quarantine_object_key:objectKey,detected_last_modified:probe.last_modified}}}))[0];
+      await audit(principal,'official_form_source_change_detected','form_update_alert',alert.id,{registry_id:b.registry_id,form_version_id:existing[0].id,old_sha256:existing[0].source_sha256,detected_sha256:probe.sha256,affected_open_cases:alert.affected_open_cases,action_source:'SYSTEM'},req);
+      return json(res,202,{data:{changed:true,quarantined:true,alert,active_version_unchanged:true},requestId},ch);
+    }
+    const values={official_pdf_source:String(b.official_pdf_source),official_instructions_source:cleanText(b.official_instructions_source,{max:1000}),source_object_key:objectKey,retrieved_at:probe.retrieved_at,source_etag:probe.etag,source_last_modified:probe.last_modified,source_sha256:probe.sha256,status:'retrieved',mapping_test_status:'not_run'};
+    const rows=existing.length?await db('form_versions',{method:'PATCH',query:`?id=eq.${existing[0].id}`,body:values}):await db('form_versions',{method:'POST',body:{id:crypto.randomUUID(),registry_id:b.registry_id,edition_date:String(b.edition_date).trim(),...values}});
+    await audit(principal,'official_form_source_retrieved','form_version',rows[0]?.id,{registry_id:b.registry_id,authority:registry[0].authority,form_code:registry[0].form_code,source_sha256:probe.sha256,action_source:'SYSTEM'},req);
+    return json(res,201,{data:{changed:true,version:rows[0]},requestId},ch);
+  }
+  if(req.method==='POST'&&u.pathname==='/api/v1/form-sources/verify'){
+    if(!access.isOwner)throw Object.assign(new Error('OWNER_APPROVAL_REQUIRED'),{status:403});if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
+    const b=await readJson(req,500_000);if(b.human_confirmed!==true||!uuid(b.version_id))throw Object.assign(new Error('HUMAN_SOURCE_CONFIRMATION_REQUIRED'),{status:400});
+    const versions=await db('form_versions',{query:`?id=eq.${b.version_id}&select=*&limit=1`});if(!versions.length||!versions[0].source_object_key)throw Object.assign(new Error('FORM_SOURCE_NOT_RETRIEVED'),{status:409});const versionRecord=versions[0];
+    if(String(b.confirmed_sha256||'')!==String(versionRecord.source_sha256||''))throw Object.assign(new Error('FORM_SOURCE_HASH_MISMATCH'),{status:409});
+    const definition=b.definition&&typeof b.definition==='object'&&!Array.isArray(b.definition)?b.definition:null,mapping=definition?.pdf_mapping;if(!Array.isArray(mapping))throw Object.assign(new Error('PDF_MAPPING_REQUIRED'),{status:400});
+    const source=await r2.send(new GetObjectCommand({Bucket:r2Bucket,Key:versionRecord.source_object_key})),sourceBytes=Buffer.from(await source.Body.transformToByteArray());
+    const synthetic=Object.fromEntries(mapping.map(x=>[x.canonical_field_path,x.test_value??(x.control_type==='checkbox'?true:'TEST')]));
+    await populateOfficialPdf({sourceBytes,mapping,canonicalData:synthetic});
+    const mappingVersion=Math.max(1,Number(b.mapping_version||1)),definitionHash=crypto.createHash('sha256').update(JSON.stringify(definition)).digest('hex');
+    const oldDefinitions=await db('form_definitions',{query:`?form_version_id=eq.${versionRecord.id}&mapping_version=eq.${mappingVersion}&select=id`});
+    const definitionRows=oldDefinitions.length?await db('form_definitions',{method:'PATCH',query:`?id=eq.${oldDefinitions[0].id}`,body:{definition,definition_sha256:definitionHash,status:'active'}}):await db('form_definitions',{method:'POST',body:{id:crypto.randomUUID(),form_version_id:versionRecord.id,mapping_version:mappingVersion,definition,definition_sha256:definitionHash,status:'active',created_by:principal.id}});
+    await db('form_versions',{method:'PATCH',query:`?registry_id=eq.${versionRecord.registry_id}&status=eq.active`,body:{status:'superseded'}});
+    const versionRows=await db('form_versions',{method:'PATCH',query:`?id=eq.${versionRecord.id}`,body:{verified_at:new Date().toISOString(),mapping_version:mappingVersion,mapping_test_status:'passed',status:'active',activated_by:principal.id,activated_at:new Date().toISOString()}});
+    await audit(principal,'official_form_version_activated','form_version',versionRecord.id,{registry_id:versionRecord.registry_id,source_sha256:versionRecord.source_sha256,mapping_version:mappingVersion,definition_id:definitionRows[0]?.id,human_confirmed:true},req);
+    return json(res,200,{data:{version:versionRows[0],definition:definitionRows[0]},requestId},ch);
+  }
+  if(req.method==='POST'&&u.pathname==='/api/v1/passport-router'){const b=await readJson(req,32768);return json(res,200,{data:routePassport(b),requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/asylum-router'){const b=await readJson(req,16384);return json(res,200,{data:routeAsylumAuthority(b),requestId},ch)}
+
+  const participantRoute=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/participants(?:\/(match))?$/i);
+  if(participantRoute){const caseId=participantRoute[1],caseRows=await db('cases',{query:`?id=eq.${caseId}&select=*`});if(!caseRows.length||!canAccessCase(access,caseRows[0],req.method==='GET'?'cases.view':'cases.manage'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);if(req.method==='GET'){const links=await db('case_people',{query:`?case_id=eq.${caseId}&select=case_id,person_id,case_role,created_at&order=created_at`}),people=links.length?await db('people',{query:`?id=in.(${links.map(x=>x.person_id).join(',')})&select=*`}):[];return json(res,200,{data:links.map(x=>({...x,person:people.find(p=>p.id===x.person_id)||null})),requestId},ch)}const b=await readJson(req,64000),candidates=await db('people',{query:'?archived_at=is.null&select=id,legal_name,date_of_birth,a_number,passport_number,email,phone&limit=1000'}),matches=participantMatch(b,candidates);if(participantRoute[2])return json(res,200,{data:{matches,requires_human_review:Boolean(matches.length)},requestId},ch);const roles=new Set(['petitioner','beneficiary','principal_applicant','spouse','child','parent','sibling','derivative_beneficiary','sponsor','joint_sponsor','household_member','interpreter']),caseRole=String(b.case_role||'beneficiary');if(!roles.has(caseRole))throw Object.assign(new Error('INVALID_PARTICIPANT_ROLE'),{status:400});let personId,operation='participant_created';if(b.decision==='link_existing'){if(!uuid(b.person_id)||!matches.some(x=>x.person_id===b.person_id))throw Object.assign(new Error('MATCHED_PERSON_REQUIRED'),{status:409});personId=b.person_id;operation='participant_linked'}else{if(matches.length&&b.decision!=='create_new'){const review={id:crypto.randomUUID(),case_id:caseId,proposed_data:b,matched_person_id:matches[0].person_id,match_reasons:matches,status:'pending',created_by:principal.id};await db('participant_match_reviews',{method:'POST',body:review});throw Object.assign(new Error('POSSIBLE_PARTICIPANT_DUPLICATE_REQUIRES_REVIEW'),{status:409,details:{review_id:review.id,matches}})}if(matches.length){if(!uuid(b.match_review_id))throw Object.assign(new Error('MATCH_REVIEW_REQUIRED'),{status:409});const reviews=await db('participant_match_reviews',{query:`?id=eq.${b.match_review_id}&case_id=eq.${caseId}&status=eq.pending&select=id`});if(!reviews.length)throw Object.assign(new Error('MATCH_REVIEW_NOT_FOUND'),{status:409});await db('participant_match_reviews',{method:'PATCH',query:`?id=eq.${b.match_review_id}`,body:{status:'create_new',resolved_by:principal.id,resolved_at:new Date().toISOString()}})}personId=crypto.randomUUID();await db('people',{method:'POST',body:{id:personId,legal_name:cleanText(b.legal_name,{required:true,max:180}),legal_name_ar:cleanText(b.legal_name_ar,{max:180}),date_of_birth:cleanDate(b.date_of_birth),place_of_birth:cleanText(b.place_of_birth,{max:180}),nationality:cleanText(b.nationality,{max:120}),current_country:cleanText(b.current_country,{max:120}),a_number:cleanText(b.a_number,{max:30}),uscis_account_number:cleanText(b.uscis_account_number,{max:40}),passport_number:cleanText(b.passport_number,{max:60}),passport_expiration:cleanDate(b.passport_expiration),email:cleanText(b.email,{max:254}),phone:cleanText(b.phone,{max:60}),whatsapp:cleanText(b.whatsapp,{max:60}),physical_address:cleanText(b.physical_address,{max:500}),postal_code:cleanText(b.postal_code,{max:30}),immigration_status:cleanText(b.immigration_status,{max:180}),preferred_language:normalizeLanguage(b.preferred_language),identity_verification_status:'unverified'}})}const exists=await db('case_people',{query:`?case_id=eq.${caseId}&person_id=eq.${personId}&case_role=eq.${caseRole}&select=case_id`});if(!exists.length)await db('case_people',{method:'POST',body:{case_id:caseId,person_id:personId,case_role:caseRole}});await audit(principal,operation,'person',personId,{case_id:caseId,client_id:caseRows[0].client_id,participant_id:personId,case_role:caseRole,action_source:'STAFF_ASSISTED'},req);return json(res,201,{data:{person_id:personId,case_id:caseId,case_role:caseRole},requestId},ch)}
+
+  const histories=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/histories$/i);if(histories){const caseRows=await db('cases',{query:`?id=eq.${histories[1]}&select=*`});if(!caseRows.length||!canAccessCase(access,caseRows[0],req.method==='GET'?'cases.view':'cases.manage'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);if(req.method==='GET')return json(res,200,{data:await db('person_history_records',{query:`?case_id=eq.${histories[1]}&archived_at=is.null&select=*&order=starts_on.desc`}),requestId},ch);const b=await readJson(req,64000),link=await db('case_people',{query:`?case_id=eq.${histories[1]}&person_id=eq.${b.person_id}&select=case_id`});if(!uuid(b.person_id)||!link.length)throw Object.assign(new Error('PARTICIPANT_NOT_IN_CASE'),{status:409});if(!['immigration','address','employment','travel'].includes(b.history_type))throw Object.assign(new Error('INVALID_HISTORY_TYPE'),{status:400});const record={id:crypto.randomUUID(),person_id:b.person_id,case_id:histories[1],history_type:b.history_type,starts_on:cleanDate(b.starts_on),ends_on:cleanDate(b.ends_on),current_record:b.current_record===true,details:b.details&&typeof b.details==='object'&&!Array.isArray(b.details)?b.details:{},verification_status:'unverified',revision:1,created_by:principal.id,updated_by:principal.id};if(record.starts_on&&record.ends_on&&record.ends_on<record.starts_on)throw Object.assign(new Error('INVALID_HISTORY_RANGE'),{status:400});const data=await db('person_history_records',{method:'POST',body:record});await audit(principal,'participant_history_created','person_history',record.id,{case_id:record.case_id,client_id:caseRows[0].client_id,participant_id:record.person_id,history_type:record.history_type,action_source:'STAFF_ASSISTED'},req);return json(res,201,{data:data[0]||record,requestId},ch)}
+
+  const forms=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/forms$/i);if(forms){const caseRows=await db('cases',{query:`?id=eq.${forms[1]}&select=*`});if(!caseRows.length||!canAccessCase(access,caseRows[0],req.method==='GET'?'cases.view':'cases.prepare'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);if(req.method==='GET'){const instances=await db('form_instances',{query:`?case_id=eq.${forms[1]}&select=*&order=updated_at.desc`}),findings=await db('form_findings',{query:`?case_id=eq.${forms[1]}&status=eq.open&select=*`}),jobs=await db('background_jobs',{query:`?case_id=eq.${forms[1]}&select=*&limit=100`}),artifacts=await db('generated_artifacts',{query:`?case_id=eq.${forms[1]}&select=*`});return json(res,200,{data:{instances,findings,jobs,artifacts},requestId},ch)}const b=await readJson(req,32768),registry=await db('form_registry',{query:`?authority=eq.${encodeURIComponent(b.authority)}&form_code=eq.${encodeURIComponent(b.form_code)}&select=id,authority,form_code&limit=1`});if(!registry.length)throw Object.assign(new Error('FORM_NOT_REGISTERED'),{status:404});const versions=await db('form_versions',{query:`?registry_id=eq.${registry[0].id}&status=eq.active&select=*&limit=1`});if(!versions.length)throw Object.assign(new Error('NO_ACTIVE_VERIFIED_FORM_EDITION'),{status:409});const defs=await db('form_definitions',{query:`?form_version_id=eq.${versions[0].id}&status=eq.active&select=*&limit=1`});if(!defs.length)throw Object.assign(new Error('ACTIVE_FORM_MAPPING_NOT_FOUND'),{status:409});const v=validateVersionActivation(versions[0],defs[0].definition);if(!v.allowed)throw Object.assign(new Error('FORM_EDITION_NOT_ACTIVATABLE'),{status:409,details:v});const record={id:crypto.randomUUID(),case_id:forms[1],participant_id:b.participant_id||null,form_version_id:versions[0].id,form_definition_id:defs[0].id,pinned_authority:registry[0].authority,pinned_form_code:registry[0].form_code,pinned_edition_date:versions[0].edition_date,pinned_mapping_version:versions[0].mapping_version,pinned_source_sha256:versions[0].source_sha256,status:'draft',revision:1,created_by:principal.id,updated_by:principal.id};const data=await db('form_instances',{method:'POST',body:record});await audit(principal,'form_instance_created','form_instance',record.id,{case_id:record.case_id,client_id:caseRows[0].client_id,action_source:'STAFF_ASSISTED'},req);return json(res,201,{data:data[0]||record,requestId},ch)}
+
+  const answer=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/forms\/([0-9a-f-]{36})\/answers\/([^/]+)$/i);if(answer&&req.method==='PATCH'){const fieldPath=decodeURIComponent(answer[3]);if(!/^[a-zA-Z0-9_.\[\]-]{1,240}$/.test(fieldPath))throw Object.assign(new Error('INVALID_FORM_FIELD_PATH'),{status:400});const caseRows=await db('cases',{query:`?id=eq.${answer[1]}&select=*`});if(!caseRows.length||!canAccessCase(access,caseRows[0],'cases.prepare'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);const instances=await db('form_instances',{query:`?id=eq.${answer[2]}&case_id=eq.${answer[1]}&select=*`});if(!instances.length)throw Object.assign(new Error('FORM_INSTANCE_NOT_FOUND'),{status:404});const b=await readJson(req,64000),existing=await db('form_answers',{query:`?form_instance_id=eq.${answer[2]}&field_path=eq.${encodeURIComponent(fieldPath)}&select=*`}),expected=Number(b.expected_revision||0);if(existing.length&&expected!==Number(existing[0].revision))throw Object.assign(new Error('AUTOSAVE_CONFLICT'),{status:409,details:{server:existing[0],expected_revision:expected}});const values={answer_value:b.value===undefined?null:b.value,blank_state:b.blank_state||null,source_type:b.source_type||'manual',source_record_id:b.source_record_id||null,source_document_id:b.source_document_id||null,verification_status:b.verification_status||'unverified',revision:existing.length?Number(existing[0].revision)+1:1,last_changed_by:principal.id,last_changed_source:'STAFF_ASSISTED',updated_at:new Date().toISOString()},data=existing.length?await db('form_answers',{method:'PATCH',query:`?id=eq.${existing[0].id}`,body:values}):await db('form_answers',{method:'POST',body:{id:crypto.randomUUID(),form_instance_id:answer[2],field_path:fieldPath,...values}});await audit(principal,'form_answer_saved','form_answer',data[0]?.id,{case_id:answer[1],client_id:caseRows[0].client_id,field_path:fieldPath,old_value:existing[0]?.answer_value??null,new_value:values.answer_value,action_source:'STAFF_ASSISTED'},req);return json(res,200,{data:data[0]||data,requestId},ch)}
+
+  const validate=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/forms\/([0-9a-f-]{36})\/validate$/i);if(validate&&req.method==='POST'){const caseRows=await db('cases',{query:`?id=eq.${validate[1]}&select=*`});if(!caseRows.length||!canAccessCase(access,caseRows[0],'cases.prepare'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);const instances=await db('form_instances',{query:`?id=eq.${validate[2]}&case_id=eq.${validate[1]}&select=*`});if(!instances.length)throw Object.assign(new Error('FORM_INSTANCE_NOT_FOUND'),{status:404});const[defs,versions,answers]=await Promise.all([db('form_definitions',{query:`?id=eq.${instances[0].form_definition_id}&select=*`}),db('form_versions',{query:`?id=eq.${instances[0].form_version_id}&select=*`}),db('form_answers',{query:`?form_instance_id=eq.${instances[0].id}&select=*`})]);return json(res,200,{data:formReadiness({definition:defs[0]?.definition,answers:Object.fromEntries(answers.map(a=>[a.field_path,a.answer_value])),version:versions[0]||{}}),requestId},ch)}
+
+  const generate=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/forms\/([0-9a-f-]{36})\/generate$/i);
+  if(generate&&req.method==='POST'){
+    const generationRequest=await readJson(req,16_384);
+    const cases=await db('cases',{query:`?id=eq.${generate[1]}&select=*`});if(!cases.length||!canAccessCase(access,cases[0],'cases.prepare'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
+    const instances=await db('form_instances',{query:`?id=eq.${generate[2]}&case_id=eq.${generate[1]}&select=*`});if(!instances.length)throw Object.assign(new Error('FORM_INSTANCE_NOT_FOUND'),{status:404});const instance=instances[0];
+    const[defs,versions,answers]=await Promise.all([db('form_definitions',{query:`?id=eq.${instance.form_definition_id}&select=*`}),db('form_versions',{query:`?id=eq.${instance.form_version_id}&select=*`}),db('form_answers',{query:`?form_instance_id=eq.${instance.id}&select=*`})]);const definition=defs[0]?.definition,versionRecord=versions[0];
+    const readiness=formReadiness({definition,answers:Object.fromEntries(answers.map(a=>[a.field_path,a.answer_value])),version:versionRecord||{}});if(!readiness.filing_ready)throw Object.assign(new Error('FORM_NOT_READY_FOR_GENERATION'),{status:409,details:readiness});
+    if(!versionRecord?.source_object_key||!Array.isArray(definition?.pdf_mapping))throw Object.assign(new Error('VERIFIED_PDF_MAPPING_REQUIRED'),{status:409});
+    let job=newJob({jobType:'GENERATE_OFFICIAL_PDF',idempotencyKey:`official:${instance.id}:${instance.revision}`,caseId:generate[1],participantId:instance.participant_id,payload:{form_instance_id:instance.id},requestedBy:principal.id});
+    const existingJobs=await db('background_jobs',{query:`?idempotency_key=eq.${encodeURIComponent(job.idempotency_key)}&select=*`});if(existingJobs.length){if(existingJobs[0].status!=='failed'||generationRequest.retry_failed!==true)return json(res,200,{data:existingJobs[0],idempotent:true,requestId},ch);job=existingJobs[0];await db('background_jobs',{method:'PATCH',query:`?id=eq.${job.id}`,body:{status:'retrying',progress:0,last_error_code:null,updated_at:new Date().toISOString()}})}else await db('background_jobs',{method:'POST',body:job});
+    try{
+      await db('background_jobs',{method:'PATCH',query:`?id=eq.${job.id}`,body:{status:'running',progress:15,attempt_count:1,started_at:new Date().toISOString()}});
+      const source=await r2.send(new GetObjectCommand({Bucket:r2Bucket,Key:versionRecord.source_object_key})),sourceBytes=Buffer.from(await source.Body.transformToByteArray()),canonicalData=Object.fromEntries(answers.map(a=>[a.field_path,a.answer_value]));
+      const pdf=await populateOfficialPdf({sourceBytes,mapping:definition.pdf_mapping,canonicalData,flatten:false});
+      const artifact=await storeGeneratedArtifact({caseId:generate[1],instanceId:instance.id,artifactType:'official_form_pdf',authority:instance.pinned_authority,formCode:instance.pinned_form_code,editionDate:instance.pinned_edition_date,mappingVersion:instance.pinned_mapping_version,sourceHash:instance.pinned_source_sha256,bytes:pdf.bytes,pdfHash:pdf.sha256,generatedBy:principal.id});
+      const done=(await db('background_jobs',{method:'PATCH',query:`?id=eq.${job.id}`,body:{status:'succeeded',progress:100,result:{artifact_id:artifact.id,pdf_sha256:pdf.sha256,round_trip_passed:pdf.round_trip_passed,overflows:pdf.overflows},completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}}))[0];
+      await audit(principal,'official_form_pdf_generated','generated_artifact',artifact.id,{case_id:generate[1],client_id:cases[0].client_id,form_instance_id:instance.id,pdf_sha256:pdf.sha256,action_source:'SYSTEM'},req);return json(res,201,{data:{job:done,artifact},requestId},ch);
+    }catch(error){await db('background_jobs',{method:'PATCH',query:`?id=eq.${job.id}`,body:{status:'failed',last_error_code:String(error.message).slice(0,120),completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}}).catch(()=>{});throw error}
+  }
+
+  const officeDocument=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/office-documents$/i);
+  if(officeDocument&&req.method==='POST'){
+    const cases=await db('cases',{query:`?id=eq.${officeDocument[1]}&select=*`});if(!cases.length||!canAccessCase(access,cases[0],'cases.prepare'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);const b=await readJson(req,250_000);
+    const templates=await db('controlled_document_templates',{query:`?document_type=eq.${encodeURIComponent(b.document_type)}&jurisdiction=eq.${encodeURIComponent(b.jurisdiction)}&language=eq.${encodeURIComponent(b.language||'English')}&active=eq.true&source_review_status=eq.verified&select=*&order=template_version.desc&limit=1`});if(!templates.length)throw Object.assign(new Error('VERIFIED_OFFICE_TEMPLATE_REQUIRED'),{status:409});
+    const t=templates[0],rendered=await generateControlledOfficeDocument({documentType:t.document_type,title:cleanText(b.title,{required:true,max:180}),language:t.language,jurisdiction:t.jurisdiction,purpose:t.purpose,sections:t.template_definition.sections||[]}),artifact=await storeGeneratedArtifact({caseId:officeDocument[1],artifactType:'office_document_pdf',authority:'OFFICE',formCode:t.document_type,editionDate:String(t.effective_date||''),mappingVersion:t.template_version,sourceHash:crypto.createHash('sha256').update(JSON.stringify(t.template_definition)).digest('hex'),bytes:rendered.bytes,pdfHash:rendered.sha256,generatedBy:principal.id});
+    await audit(principal,'office_document_generated','generated_artifact',artifact.id,{case_id:officeDocument[1],client_id:cases[0].client_id,document_type:t.document_type,official:false,action_source:'STAFF_ASSISTED'},req);return json(res,201,{data:artifact,official:false,requestId},ch);
+  }
+
+  const artifactDownload=u.pathname.match(/^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/download-url$/i);
+  if(artifactDownload&&req.method==='POST'){
+    const rows=await db('generated_artifacts',{query:`?id=eq.${artifactDownload[1]}&select=*`});if(!rows.length)throw Object.assign(new Error('ARTIFACT_NOT_FOUND'),{status:404});const artifact=rows[0],cases=await db('cases',{query:`?id=eq.${artifact.case_id}&select=*`});if(!cases.length||!canAccessCase(access,cases[0],'documents.view'))throw Object.assign(new Error('ARTIFACT_NOT_FOUND'),{status:404});
+    const downloadUrl=await getSignedUrl(r2,new GetObjectCommand({Bucket:r2Bucket,Key:artifact.object_key,ResponseContentDisposition:`attachment; filename*=UTF-8''${encodeURIComponent(artifact.form_code+'.pdf')}`,ResponseContentType:'application/pdf'}),{expiresIn:300});return json(res,200,{download_url:downloadUrl,expires_in:300,requestId},ch);
+  }
+
+  if(req.method==='POST'&&u.pathname==='/api/v1/ai-review'){
+    if(!access.isOwner)throw Object.assign(new Error('OWNER_APPROVAL_REQUIRED'),{status:403});const provider=configuredAiProvider();if(!provider)throw Object.assign(new Error('AI_PROVIDER_NOT_CONFIGURED'),{status:503});
+    const b=await readJson(req,64000);if(!uuid(b.case_id))throw Object.assign(new Error('VALID_CASE_ID_REQUIRED'),{status:400});const cases=await db('cases',{query:`?id=eq.${b.case_id}&select=id`});if(!cases.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
+    const toolNames=Array.isArray(b.tool_names)&&b.tool_names.length?b.tool_names:['get_case_summary','get_participants','get_documents','get_open_findings','get_deadlines'];
+    let job=newJob({jobType:'AI_CASE_REVIEW',idempotencyKey:cleanText(b.idempotency_key,{required:true,max:200}),caseId:b.case_id,payload:{workflow:b.workflow||'full_case_review',tool_names:toolNames},requestedBy:principal.id});const existing=await db('background_jobs',{query:`?idempotency_key=eq.${encodeURIComponent(job.idempotency_key)}&select=*`});if(existing.length){if(existing[0].status!=='failed'||b.retry_failed!==true)return json(res,200,{data:existing[0],idempotent:true,requestId},ch);job=existing[0];await db('background_jobs',{method:'PATCH',query:`?id=eq.${job.id}`,body:{status:'retrying',progress:0,last_error_code:null,updated_at:new Date().toISOString()}})}else await db('background_jobs',{method:'POST',body:job});const run={id:crypto.randomUUID(),case_id:b.case_id,provider:provider.name,model_version:provider.model,workflow_version:'case-review-v1',status:'running',requested_by:principal.id,approved_by:principal.id,started_at:new Date().toISOString()};await db('ai_review_runs',{method:'POST',body:run});
+    try{const result=await runConstrainedAiReview({provider,principal,caseId:b.case_id,toolNames,executeTool:executeAiReadTool});for(const finding of result.findings)await db('ai_findings',{method:'POST',body:{id:crypto.randomUUID(),review_run_id:run.id,case_id:b.case_id,participant_id:finding.participant_id||null,form_instance_id:finding.form_instance_id||null,category:finding.category,severity:finding.severity,field_path:finding.field_path||null,claim:finding.claim,source_references:finding.source_references,reason:finding.reason,suggested_action:finding.suggested_action,confidence:finding.confidence||null,requires_owner_approval:true}});await db('ai_review_runs',{method:'PATCH',query:`?id=eq.${run.id}`,body:{status:'review_required',completed_at:new Date().toISOString()}});const done=(await db('background_jobs',{method:'PATCH',query:`?id=eq.${job.id}`,body:{status:'succeeded',progress:100,result:{review_run_id:run.id,finding_count:result.findings.length},completed_at:new Date().toISOString()}}))[0];await audit(principal,'ai_review_completed','ai_review_run',run.id,{case_id:b.case_id,provider:provider.name,model_version:provider.model,finding_count:result.findings.length,requires_owner_approval:true},req);return json(res,201,{data:{job:done,review_run_id:run.id,findings:result.findings},requestId},ch)}catch(error){await Promise.all([db('ai_review_runs',{method:'PATCH',query:`?id=eq.${run.id}`,body:{status:'failed',failure_code:String(error.message).slice(0,120),completed_at:new Date().toISOString()}}),db('background_jobs',{method:'PATCH',query:`?id=eq.${job.id}`,body:{status:'failed',last_error_code:String(error.message).slice(0,120),completed_at:new Date().toISOString()}})]).catch(()=>{});throw error}
+  }
+  const aiFinding=u.pathname.match(/^\/api\/v1\/ai-review\/findings\/([0-9a-f-]{36})$/i);
+  if(aiFinding&&req.method==='PATCH'){
+    if(!access.isOwner)throw Object.assign(new Error('OWNER_APPROVAL_REQUIRED'),{status:403});const b=await readJson(req,16_384);if(!['accepted','rejected','resolved'].includes(b.resolution))throw Object.assign(new Error('INVALID_AI_FINDING_RESOLUTION'),{status:400});
+    const existing=await db('ai_findings',{query:`?id=eq.${aiFinding[1]}&select=*`});if(!existing.length)throw Object.assign(new Error('AI_FINDING_NOT_FOUND'),{status:404});const rows=await db('ai_findings',{method:'PATCH',query:`?id=eq.${aiFinding[1]}`,body:{resolution:b.resolution,resolved_by:principal.id,resolved_at:new Date().toISOString()}});
+    await audit(principal,'ai_finding_human_resolved','ai_finding',aiFinding[1],{case_id:existing[0].case_id,resolution:b.resolution,canonical_data_changed:false},req);return json(res,200,{data:rows[0],requestId},ch);
+  }
 
   if(req.method==='GET'&&u.pathname==='/api/v1/imports'){const data=await db('import_batches',{query:'?select=*&order=created_at.desc&limit=100'});return json(res,200,{data,requestId},ch);}
   if(req.method==='POST'&&u.pathname==='/api/v1/imports/upload'){
@@ -939,6 +1106,8 @@ async function handle(req,res){
 
   const intakeMatch=u.pathname.match(/^\/api\/v1\/intakes\/([0-9a-f-]{36})\/([A-Za-z0-9-]+)$/i);
   if(intakeMatch&&req.method==='GET'){
+    const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(intakeMatch[1])}&select=*`});
+    if(!caseRows.length||!canAccessCase(access,caseRows[0],'cases.view'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
     const serviceCode=intakeMatch[2].toUpperCase();
     const definition=intakeDefinition(serviceCode);
     if(!definition)return json(res,404,{error:'INTAKE_DEFINITION_NOT_FOUND',requestId},ch);
@@ -947,6 +1116,8 @@ async function handle(req,res){
     return json(res,200,{data:rows[0]||null,definition,requestId},ch);
   }
   if(intakeMatch&&req.method==='POST'){
+    const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(intakeMatch[1])}&select=*`});
+    if(!caseRows.length||!canAccessCase(access,caseRows[0],'cases.manage'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
     const serviceCode=intakeMatch[2].toUpperCase();
     const definition=intakeDefinition(serviceCode);
     if(!definition)return json(res,404,{error:'INTAKE_DEFINITION_NOT_FOUND',requestId},ch);
@@ -964,7 +1135,7 @@ async function handle(req,res){
     }else{
       data=await db('intake_submissions',{method:'POST',body:{id:crypto.randomUUID(),case_id:intakeMatch[1],definition_id:definitionId,answers,current_step:currentStep,status,submitted_at:status==='submitted'?new Date().toISOString():null,last_saved_by:principal.id}});
     }
-    await audit(principal,status==='submitted'?'intake_submitted':'intake_saved','intake',data[0]?.id||existing[0]?.id,{case_id:intakeMatch[1],service_code:serviceCode},req);
+    await audit(principal,status==='submitted'?'intake_submitted':'intake_saved','intake',data[0]?.id||existing[0]?.id,{case_id:intakeMatch[1],client_id:caseRows[0].client_id,service_code:serviceCode,old_status:existing[0]?.status||null,new_status:status,action_source:'STAFF_ASSISTED'},req);
     return json(res,200,{data:data[0]||data,definition,requestId},ch);
   }
 
@@ -1227,7 +1398,7 @@ async function handle(req,res){
     const canViewBilling=hasEffectivePermission(access,'billing.view');
     const canViewAudit=hasEffectivePermission(access,'audit.view');
     const canManageCase=hasEffectivePermission(access,'cases.manage');
-    const [clientRows,people,assignments,tasks,deadlines,documents,requests,notes,appointments,events,intakes,messages,invoices,communications,auditRows]=await Promise.all([
+    const [clientRows,people,assignments,tasks,deadlines,documents,requests,notes,appointments,events,intakes,messages,invoices,communications,auditRows,histories,formsData,formFindings,jobs,artifacts]=await Promise.all([
       currentCase.client_id?db('clients',{query:`?id=eq.${encodeURIComponent(currentCase.client_id)}&select=*&limit=1`}):Promise.resolve([]),
       db('case_people',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=case_role,created_at,people(*)&order=created_at`}),
       db('case_assignments',{query:`?case_id=eq.${encodeURIComponent(caseId)}&active=eq.true&select=*&order=assigned_at`}),
@@ -1243,6 +1414,11 @@ async function handle(req,res){
       canViewBilling?db('invoices',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=created_at.desc`}):Promise.resolve([]),
       canManageCase?db('outbound_communications',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=id,recipient,language,template_key,template_version,subject,status,provider,provider_message_id,failure_code,queued_at,sent_at,delivered_at,created_at&order=created_at.desc`}):Promise.resolve([]),
       canViewAudit?db('audit_events',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=created_at.desc&limit=250`}):Promise.resolve([]),
+      optionalDb('person_history_records',{query:`?case_id=eq.${encodeURIComponent(caseId)}&archived_at=is.null&select=*&order=starts_on.desc`}),
+      optionalDb('form_instances',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=updated_at.desc`}),
+      optionalDb('form_findings',{query:`?case_id=eq.${encodeURIComponent(caseId)}&status=eq.open&select=*`}),
+      optionalDb('background_jobs',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=created_at.desc&limit=100`}),
+      optionalDb('generated_artifacts',{query:`?case_id=eq.${encodeURIComponent(caseId)}&select=*&order=generated_at.desc`}),
     ]);
     let payments=[];
     if(canViewBilling&&invoices.length)payments=await db('payments',{query:`?invoice_id=in.(${invoices.map(item=>item.id).join(',')})&select=*&order=received_at.desc`});
@@ -1253,7 +1429,7 @@ async function handle(req,res){
     }
     const totalFee=invoices.reduce((sum,item)=>sum+Number(item.office_fee_cents||0)+Number(item.government_fee_cents||0)+Number(item.other_fee_cents||0),0);
     const paid=payments.filter(item=>item.status==='recorded').reduce((sum,item)=>sum+Number(item.amount_cents||0),0);
-    return json(res,200,{data:{case:currentCase,client:clientProfile,people,assignments,tasks,deadlines,documents,document_requests:requests,notes,appointments,intakes,messages,communications,invoices,payments,financial_summary:canViewBilling?{total_fee_cents:totalFee,paid_cents:paid,balance_cents:Math.max(0,totalFee-paid)}:null,timeline:events,audit:auditRows,latest_activity:events[0]||null},requestId},ch);
+    return json(res,200,{data:{case:currentCase,client:clientProfile,people,assignments,tasks,deadlines,documents,document_requests:requests,notes,appointments,intakes,messages,communications,invoices,payments,histories,forms:formsData,form_findings:formFindings,background_jobs:jobs,generated_artifacts:artifacts,financial_summary:canViewBilling?{total_fee_cents:totalFee,paid_cents:paid,balance_cents:Math.max(0,totalFee-paid)}:null,timeline:events,audit:auditRows,latest_activity:events[0]||null},requestId},ch);
   }
 
   const caseNotesMatch=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/notes$/i);
@@ -1352,7 +1528,26 @@ async function handle(req,res){
     }catch(error){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key})).catch(()=>{});throw error}
   }
   if(req.method==='POST'&&u.pathname==='/api/v1/documents/presign'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});if(!Array.isArray(caseRows)||!caseRows.length||!canAccessCase(access,caseRows[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const filename=safeKey(input.fileName).split('/').pop();const key=safeKey(`cases/${input.caseId}/${crypto.randomUUID()}-${filename}`);const uploadUrl=await getSignedUrl(r2,new PutObjectCommand({Bucket:r2Bucket,Key:key,ContentType:input.contentType,ContentLength:input.sizeBytes,Metadata:{case_id:input.caseId}}),{expiresIn:900});return json(res,200,{key,upload_url:uploadUrl,expires_in:900,required_headers:{'content-type':input.contentType},requestId},ch)}
-  if(req.method==='POST'&&u.pathname==='/api/v1/documents/confirm'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const key=safeKey(b.key);if(!key.startsWith(`cases/${input.caseId}/`))throw Object.assign(new Error('DOCUMENT_CASE_MISMATCH'),{status:403});const confirmCase=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});if(!confirmCase.length||!canAccessCase(access,confirmCase[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const object=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));if(Number(object.ContentLength)!==input.sizeBytes||String(object.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});const checksum=documentChecksum(b.content_checksum);if(checksum){const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409,details:{document_id:duplicates[0].id}});}}const record={id:crypto.randomUUID(),case_id:input.caseId,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:checksum,status:'uploaded'};if(b.client_id||b.person_id||b.request_id||b.category||b.replaces_document_id){if(b.client_id&&!uuid(b.client_id)||b.person_id&&!uuid(b.person_id)||b.request_id&&!uuid(b.request_id)||b.replaces_document_id&&!uuid(b.replaces_document_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});Object.assign(record,{client_id:b.client_id||null,person_id:b.person_id||null,request_id:b.request_id||null,category:cleanText(b.category,{max:100}),review_status:'received',replaces_document_id:b.replaces_document_id||null});if(b.replaces_document_id){const previous=await db('documents',{query:`?id=eq.${encodeURIComponent(b.replaces_document_id)}&select=id,version`});if(!previous.length)throw Object.assign(new Error('REPLACED_DOCUMENT_NOT_FOUND'),{status:404});record.version=Number(previous[0].version||1)+1;await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(b.replaces_document_id)}`,body:{archived_at:new Date().toISOString()}})}}const data=await db('documents',{method:'POST',body:record});if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}`,body:{status:'received',updated_at:new Date().toISOString()}});await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id},principal,req);return json(res,201,{data,requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/documents/confirm'){
+    if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
+    const b=await readJson(req,32_768),input=documentInput(b),key=safeKey(b.key);
+    if(!key.startsWith(`cases/${input.caseId}/`))throw Object.assign(new Error('DOCUMENT_CASE_MISMATCH'),{status:403});
+    const cases=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});
+    if(!cases.length||!canAccessCase(access,cases[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
+    const object=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));
+    if(Number(object.ContentLength)!==input.sizeBytes||String(object.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});
+    const checksum=documentChecksum(b.content_checksum);
+    if(checksum){const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409,details:{document_id:duplicates[0].id}})}}
+    try{
+      const linkage=await canonicalDocumentLinkage(cases[0],b);
+      const record={id:crypto.randomUUID(),case_id:input.caseId,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:checksum,status:'uploaded',client_id:linkage.client_id,person_id:linkage.person_id,request_id:linkage.request_id,category:linkage.category,review_status:linkage.review_status,replaces_document_id:linkage.replaces_document_id,version:linkage.version};
+      const data=await db('documents',{method:'POST',body:record});
+      if(linkage.replacement)await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(linkage.replacement.id)}&archived_at=is.null`,body:{archived_at:new Date().toISOString()}});
+      if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}&case_id=eq.${encodeURIComponent(input.caseId)}`,body:{status:'received',updated_at:new Date().toISOString()}});
+      await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id,person_id:record.person_id,request_id:record.request_id,storage:'r2'},principal,req);
+      return json(res,201,{data,storage:'r2',linked:{case_id:record.case_id,client_id:record.client_id,person_id:record.person_id,request_id:record.request_id},preview_available:['application/pdf','image/jpeg','image/png','image/webp'].includes(record.content_type),requestId},ch);
+    }catch(error){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key})).catch(()=>{});throw error}
+  }
   if(req.method==='POST'&&u.pathname==='/api/v1/documents/download-url'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,16_384);let rows=[];if(uuid(b.document_id))rows=await db('documents',{query:`?id=eq.${encodeURIComponent(b.document_id)}&select=*`});else if(principal?.authType==='internal'&&b.key)rows=await db('documents',{query:`?object_key=eq.${encodeURIComponent(safeKey(b.key))}&select=*`});else throw Object.assign(new Error('VALID_DOCUMENT_ID_REQUIRED'),{status:400});if(!Array.isArray(rows)||!rows.length)throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});const doc=rows[0];
     // A signed URL is a bearer capability that outlives this request, so the
     // effective model is enforced before one is minted. A soft-deleted record
