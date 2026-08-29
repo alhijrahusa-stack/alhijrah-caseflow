@@ -25,6 +25,7 @@ test('forms pin verified versions, autosave with conflict control, and block inc
   const blocked=await request({method:'POST',path:`/api/v1/cases/${caseId}/forms/${instance.id}/validate`,headers,body:{}});assert.equal(blocked.status,200);assert.equal(blocked.body.data.filing_ready,false);
   const saved=await request({method:'PATCH',path:`/api/v1/cases/${caseId}/forms/${instance.id}/answers/applicant.name`,headers,body:{value:'Amina Yusuf',expected_revision:0}});assert.equal(saved.status,200,saved.raw);assert.equal(saved.body.data.revision,1);
   const conflict=await request({method:'PATCH',path:`/api/v1/cases/${caseId}/forms/${instance.id}/answers/applicant.name`,headers,body:{value:'Different',expected_revision:0}});assert.equal(conflict.status,409);assert.equal(conflict.body.error,'AUTOSAVE_CONFLICT');
+  const invented=await request({method:'PATCH',path:`/api/v1/cases/${caseId}/forms/${instance.id}/answers/invented.field`,headers,body:{value:'Unmapped',expected_revision:0}});assert.equal(invented.status,400);assert.equal(invented.body.error,'FORM_FIELD_NOT_DEFINED');
   const ready=await request({method:'POST',path:`/api/v1/cases/${caseId}/forms/${instance.id}/validate`,headers,body:{}});assert.equal(ready.body.data.filing_ready,true);
 });
 
