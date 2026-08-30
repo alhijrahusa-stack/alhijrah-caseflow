@@ -92,6 +92,7 @@ export const backend = {
   sessions: new Map(),
   objects: new Map(),
   authFailures: 0,
+  sharedLoginAttempts: new Map(),
   adminProbes: 0,
   emails: [],
   clientNumber: 0,
@@ -104,6 +105,7 @@ export function resetBackend() {
   backend.sessions = new Map();
   backend.objects = new Map();
   backend.authFailures = 0;
+  backend.sharedLoginAttempts = new Map();
   backend.adminProbes = 0;
   backend.emails = [];
   backend.clientNumber = 0;
@@ -158,6 +160,14 @@ function applyFilters(rows, params) {
     const value = rest.join('.');
     if (operator === 'eq') result = result.filter(row => String(row[key] ?? '') === value);
     else if (operator === 'neq') result = result.filter(row => String(row[key] ?? '') !== value);
+    else if (operator === 'not') {
+      const [nested, ...nestedRest] = rest;
+      const nestedValue = nestedRest.join('.');
+      if (nested === 'in') {
+        const members = new Set(nestedValue.replace(/^\(|\)$/g, '').split(',').filter(Boolean));
+        result = result.filter(row => !members.has(String(row[key] ?? '')));
+      } else if (nested === 'eq') result = result.filter(row => String(row[key] ?? '') !== nestedValue);
+    }
     else if (operator === 'ilike') {
       const needle = decodeURIComponent(value).toLowerCase();
       result = result.filter(row => String(row[key] ?? '').toLowerCase() === needle);
@@ -207,6 +217,14 @@ function applyOr(rows, expression) {
 
 async function handleRest(url, init) {
   const table = url.pathname.replace('/rest/v1/', '');
+  if(table==='rpc/consume_login_attempt'){
+    const body=JSON.parse(init.body||'{}'),now=Date.now(),windowMs=Number(body.p_window_seconds||900)*1000,entry=backend.sharedLoginAttempts.get(body.p_key_hash);
+    const next=!entry||now-entry.first>windowMs?{count:1,first:now}:{count:entry.count+1,first:entry.first};backend.sharedLoginAttempts.set(body.p_key_hash,next);
+    return jsonResponse(200,[{allowed:next.count<=Number(body.p_limit||8),retry_after_seconds:Math.max(0,Math.ceil((next.first+windowMs-now)/1000))}]);
+  }
+  if(table==='rpc/clear_login_attempt'){
+    const body=JSON.parse(init.body||'{}');backend.sharedLoginAttempts.delete(body.p_key_hash);return jsonResponse(200,true);
+  }
   const rows = backend.tables[table];
   if (!rows) return jsonResponse(404, { message: `relation "${table}" does not exist`, hint: 'internal detail that must not leak' });
   const method = (init.method || 'GET').toUpperCase();

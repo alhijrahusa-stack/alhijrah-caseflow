@@ -1,4 +1,6 @@
       const $ = (id) => document.getElementById(id);
+      const setVisible=(element,visible)=>{if(element)element.hidden=!visible};
+      const setProgress=(element,value)=>{if(element)element.dataset.progress=String(Math.max(0,Math.min(100,Math.round(Number(value)||0))))};
       let currentUser = null,
         currentLanguage = "English",
         cases = [],
@@ -198,12 +200,12 @@
         let firstVisible = null;
         document.querySelectorAll("#nav button").forEach((button) => {
           const ok = allowedTo(viewPermissions[button.dataset.view] || "dashboard.view");
-          button.style.display = ok ? "block" : "none";
+          setVisible(button,ok);
           if (ok && !firstVisible) firstVisible = button.dataset.view;
         });
-        $("newCaseButton").style.display = allowedTo("cases.manage") ? "inline-block" : "none";
+        setVisible($("newCaseButton"),allowedTo("cases.manage"));
         const active = document.querySelector("#nav button.active");
-        if (firstVisible && (!active || active.style.display === "none")) showView(firstVisible);
+        if (firstVisible && (!active || active.hidden)) showView(firstVisible);
       }
       document
         .querySelectorAll("#nav button")
@@ -245,7 +247,7 @@
           $("login").classList.add("hidden");
           const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
           if (clientUser) {
-            $("staffApp").style.display = "none";
+            setVisible($("staffApp"),false);
             $("clientPortal").classList.add("active");
             await loadPortal();
           } else await boot();
@@ -261,8 +263,8 @@
         if (!["invite", "recovery"].includes(fragment.get("type")) || !fragment.get("access_token")) return false;
         inviteAccessToken = fragment.get("access_token");
         history.replaceState(null, "", location.pathname + location.search);
-        $("loginBox").style.display = "none";
-        $("inviteSetup").style.display = "block";
+        setVisible($("loginBox"),false);
+        setVisible($("inviteSetup"),true);
         $("login").classList.remove("hidden");
         return true;
       }
@@ -283,11 +285,11 @@
           $("invitePasswordConfirm").value = "";
           currentUser = result.user;
           setLanguage(currentUser.preferred_language);
-          $("inviteSetup").style.display = "none";
+          setVisible($("inviteSetup"),false);
           $("login").classList.add("hidden");
           const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
           if (clientUser) {
-            $("staffApp").style.display = "none";
+            setVisible($("staffApp"),false);
             $("clientPortal").classList.add("active");
             await loadPortal();
           } else await boot();
@@ -537,9 +539,9 @@
       function resetIdentityIntake() {
         identityExtractionToken = null;
         if ($("identityFile")) $("identityFile").value = "";
-        if ($("identityProgress")) $("identityProgress").style.width = "0";
+        setProgress($("identityProgress"),0);
         if ($("identityStatus")) $("identityStatus").textContent = "";
-        if ($("identityReview")) $("identityReview").style.display = "none";
+        setVisible($("identityReview"),false);
         if ($("identityConfirmed")) $("identityConfirmed").checked = false;
       }
       function chooseIdentityFile() { $("identityFile").click(); }
@@ -550,7 +552,7 @@
         try {
           $("identityStatus").textContent = "Reading identity document…";
           const query = new URLSearchParams({ filename: file.name, size_bytes: String(file.size) });
-          const response = await uploadWithProgress(`/api/v1/identity/ocr?${query}`, file, (percent) => $("identityProgress").style.width = `${percent}%`);
+          const response = await uploadWithProgress(`/api/v1/identity/ocr?${query}`, file, (percent) => setProgress($("identityProgress"),percent));
           identityExtractionToken = response.extraction_token;
           const result = response.result, fields = result.fields || {};
           const values = {
@@ -564,11 +566,11 @@
           };
           for (const [id, value] of Object.entries(values)) $(id).value = value || "";
           $("identityConfirmed").checked = false;
-          $("identityReview").style.display = "block";
+          setVisible($("identityReview"),true);
           $("identityStatus").textContent = `${result.engine} · OCR confidence ${result.confidence}% · ${result.mrz.detected ? `${result.mrz.format || "MRZ"} ${result.mrz.valid ? "validated" : "requires review"}` : "MRZ not detected — review required"}`;
         } catch (error) {
           identityExtractionToken = null;
-          $("identityReview").style.display = "none";
+          setVisible($("identityReview"),false);
           $("clientErr").textContent = error.message;
           $("identityStatus").textContent = "Identity extraction failed.";
         }
@@ -709,8 +711,8 @@
           const participantCards=workspaceRows(workspace.people,link=>{const person=link.people||link.person||{};return `<div class="workspace-card"><b>${esc(person.legal_name||"—")}</b><span>${esc(intakeOptionLabel(link.case_role))}</span><small>${esc(person.a_number||person.passport_number||person.email||"")}</small></div>`});
           const historyCards=workspaceRows(workspace.histories,item=>`<div class="workspace-card"><b>${esc(intakeOptionLabel(item.history_type))}</b><span>${esc(item.starts_on||"—")} — ${esc(item.ends_on||(currentLanguage==="Arabic"?"حالي":"Current"))}</span><small>${esc(item.verification_status)}</small></div>`);
           const artifactCards=workspaceRows(workspace.generated_artifacts,item=>`<div class="workspace-card"><b>${esc(item.form_code)}</b><span>${esc(item.review_state)} · ${date(item.generated_at)}</span><button class="linkbtn" data-act="downloadArtifact" data-a1="${esc(item.id)}">${esc(tr("download"))}</button></div>`);
-          $("workspace-participants").innerHTML=`<div class="df" style="justify-content:flex-start"><button class="btn primary" data-act="openParticipant">${esc(tr("addParticipant"))}</button><button class="btn" data-act="openHistory">${esc(tr("addHistory"))}</button></div><h3>${esc(tr("participants"))}</h3>${participantCards}<h3>${esc(tr("histories"))}</h3>${historyCards}`;
-          $("workspace-forms").innerHTML=`<div class="df" style="justify-content:flex-start"><button class="btn primary" data-act="openForm">${esc(tr("startForm"))}</button></div><h3>${esc(tr("forms"))}</h3>${formCards}<h3>${esc(tr("openFindings"))}</h3>${workspaceRows(workspace.form_findings,item=>`<div class="workspace-card"><b>${esc(item.category)}</b><span>${esc(item.severity)}</span><small>${esc(item.claim)}</small></div>`)}<h3>${esc(tr("generatedArtifacts"))}</h3>${artifactCards}`;
+          $("workspace-participants").innerHTML=`<div class="df u-68b2edc6f5"><button class="btn primary" data-act="openParticipant">${esc(tr("addParticipant"))}</button><button class="btn" data-act="openHistory">${esc(tr("addHistory"))}</button></div><h3>${esc(tr("participants"))}</h3>${participantCards}<h3>${esc(tr("histories"))}</h3>${historyCards}`;
+          $("workspace-forms").innerHTML=`<div class="df u-68b2edc6f5"><button class="btn primary" data-act="openForm">${esc(tr("startForm"))}</button></div><h3>${esc(tr("forms"))}</h3>${formCards}<h3>${esc(tr("openFindings"))}</h3>${workspaceRows(workspace.form_findings,item=>`<div class="workspace-card"><b>${esc(item.category)}</b><span>${esc(item.severity)}</span><small>${esc(item.claim)}</small></div>`)}<h3>${esc(tr("generatedArtifacts"))}</h3>${artifactCards}`;
           $("workspace-documents").innerHTML=workspaceRows(workspace.documents,item=>`<div class="workspace-card"><b>${esc(item.file_name)}</b><span>${esc(item.category||"Unclassified")} · ${esc(item.review_status)} · v${Number(item.version||1)}</span><small>${date(item.created_at)}</small><div><button class="linkbtn" data-act="previewDoc" data-a1="${esc(item.id)}">${esc(currentLanguage==="Arabic"?"معاينة":"Preview")}</button> · <button class="linkbtn" data-act="downloadDoc" data-a1="${esc(item.id)}">${esc(tr("download"))}</button></div></div>`);
           $("workspace-actions").innerHTML=workspaceRows(workspace.document_requests,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(item.status)}${item.due_date?` · ${esc(item.due_date)}`:""}</span><small>${esc(item.instructions||"")}</small></div>`);
           $("workspace-tasks").innerHTML=workspaceRows(workspace.tasks,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(item.status)} · ${esc(item.priority)}</span><small>${esc(item.due_date||"—")}</small></div>`);
@@ -903,7 +905,7 @@
       }
       function renderPeopleField(field) {
         const people = Array.isArray(intakeState.answers[field.id]) ? intakeState.answers[field.id] : [];
-        return `<div class="people-list">${people.map((person, index) => `<div class="panel" style="margin:10px 0;padding:15px"><div class="ph"><b>${esc(currentLanguage==="Arabic"?`فرد العائلة ${index+1}`:`Family member ${index+1}`)}</b><button class="linkbtn" type="button" data-act="removeIntakePerson" data-a1="${esc(field.id)}" data-a2="${index}">${esc(currentLanguage==="Arabic"?"إزالة":"Remove")}</button></div><div class="form">${field.personFields.map((personField) => `<div class="field"><label>${esc(intakeFieldLabel(personField))}${personField.required ? " *" : ""}</label>${personField.type === "select" ? `<select data-person-group="${esc(field.id)}" data-person-index="${index}" data-person-field="${esc(personField.id)}"><option value="">${esc(currentLanguage==="Arabic"?"اختر":"Select")}</option>${personField.options.map((option) => `<option value="${esc(option)}"${person[personField.id] === option ? " selected" : ""}>${esc(intakeOptionLabel(option))}</option>`).join("")}</select>` : `<input type="${personField.type === "date" ? "date" : "text"}" data-person-group="${esc(field.id)}" data-person-index="${index}" data-person-field="${esc(personField.id)}" value="${esc(person[personField.id] || "")}" autocomplete="off">`}</div>`).join("")}</div></div>`).join("")}<button class="btn" type="button" data-act="addIntakePerson" data-a1="${esc(field.id)}">${esc(currentLanguage==="Arabic"?"إضافة فرد من العائلة":"Add family member")}</button></div>`;
+        return `<div class="people-list">${people.map((person, index) => `<div class="panel u-0fe9fa0cf8"><div class="ph"><b>${esc(currentLanguage==="Arabic"?`فرد العائلة ${index+1}`:`Family member ${index+1}`)}</b><button class="linkbtn" type="button" data-act="removeIntakePerson" data-a1="${esc(field.id)}" data-a2="${index}">${esc(currentLanguage==="Arabic"?"إزالة":"Remove")}</button></div><div class="form">${field.personFields.map((personField) => `<div class="field"><label>${esc(intakeFieldLabel(personField))}${personField.required ? " *" : ""}</label>${personField.type === "select" ? `<select data-person-group="${esc(field.id)}" data-person-index="${index}" data-person-field="${esc(personField.id)}"><option value="">${esc(currentLanguage==="Arabic"?"اختر":"Select")}</option>${personField.options.map((option) => `<option value="${esc(option)}"${person[personField.id] === option ? " selected" : ""}>${esc(intakeOptionLabel(option))}</option>`).join("")}</select>` : `<input type="${personField.type === "date" ? "date" : "text"}" data-person-group="${esc(field.id)}" data-person-index="${index}" data-person-field="${esc(personField.id)}" value="${esc(person[personField.id] || "")}" autocomplete="off">`}</div>`).join("")}</div></div>`).join("")}<button class="btn" type="button" data-act="addIntakePerson" data-a1="${esc(field.id)}">${esc(currentLanguage==="Arabic"?"إضافة فرد من العائلة":"Add family member")}</button></div>`;
       }
       function bindIntakeFields() {
         document.querySelectorAll("[data-intake-field]").forEach((input) =>
@@ -971,8 +973,8 @@
         $("intakeTitle").textContent = currentLanguage==="Arabic"?`استقبال خدمة ${intakeState.serviceCode}`:`${intakeState.serviceCode} Intake`;
         if (intakeState.review) {
           $("intakeProgress").textContent = currentLanguage==="Arabic"?"مراجعة قبل الإرسال":"Review before submit";
-          $("intakeFields").innerHTML = `<div class="panel"><h3>${esc(currentLanguage==="Arabic"?"تأكيد المعلومات":"Confirm the information")}</h3><p class="muted">${esc(currentLanguage==="Arabic"?"راجع كل قسم. استخدم تعديل لتصحيح المعلومات قبل الإرسال.":"Review every section. Use Edit to correct information before submitting.")}</p>${sections.map((section, index) => `<div class="sysrow"><div><b>${esc(intakeSectionLabel(section))}</b><small style="display:block;color:var(--muted);margin-top:5px">${section.fields.filter(intakeFieldVisible).map((field) => `${esc(intakeFieldLabel(field))}: ${esc(formatIntakeAnswer(intakeState.answers[field.id]))}`).join(" · ") || esc(currentLanguage==="Arabic"?"لم تُدخل معلومات":"No information entered")}</small></div><button class="linkbtn" data-act="editIntakeStep" data-a1="${index}">${esc(tr("edit"))}</button></div>`).join("")}</div>`;
-          $("intakeBack").style.display = "inline-block";
+          $("intakeFields").innerHTML = `<div class="panel"><h3>${esc(currentLanguage==="Arabic"?"تأكيد المعلومات":"Confirm the information")}</h3><p class="muted">${esc(currentLanguage==="Arabic"?"راجع كل قسم. استخدم تعديل لتصحيح المعلومات قبل الإرسال.":"Review every section. Use Edit to correct information before submitting.")}</p>${sections.map((section, index) => `<div class="sysrow"><div><b>${esc(intakeSectionLabel(section))}</b><small class="u-6f869c19ed">${section.fields.filter(intakeFieldVisible).map((field) => `${esc(intakeFieldLabel(field))}: ${esc(formatIntakeAnswer(intakeState.answers[field.id]))}`).join(" · ") || esc(currentLanguage==="Arabic"?"لم تُدخل معلومات":"No information entered")}</small></div><button class="linkbtn" data-act="editIntakeStep" data-a1="${index}">${esc(tr("edit"))}</button></div>`).join("")}</div>`;
+          setVisible($("intakeBack"),true);
           $("intakeNext").textContent = currentLanguage==="Arabic"?"إرسال بيانات الاستقبال":"Submit Intake";
           bindIntakeFields();
           return;
@@ -981,7 +983,7 @@
         $("intakeProgress").textContent = currentLanguage==="Arabic"?`الخطوة ${intakeState.step+1} من ${sections.length}`:`Step ${intakeState.step + 1} of ${sections.length}`;
         const sectionDescription=currentLanguage==="Arabic"&&section.id==="family_members"?"أضف فقط الأشخاص المرتبطين بهذا الطلب. يمكنك إضافة شخص أو إزالته قبل الإرسال.":section.description;
         $("intakeFields").innerHTML = `<h3>${esc(intakeSectionLabel(section))}</h3>${sectionDescription ? `<p class="muted">${esc(sectionDescription)}</p>` : ""}<div class="form">${section.fields.filter(intakeFieldVisible).map((field) => `<div class="field ${field.type === "textarea" || field.type === "multi_select" || field.type === "repeatable_people" ? "full" : ""}"><label>${esc(intakeFieldLabel(field))}${field.required ? " *" : ""}</label>${intakeInput(field)}</div>`).join("")}</div>`;
-        $("intakeBack").style.display = intakeState.step ? "inline-block" : "none";
+        setVisible($("intakeBack"),Boolean(intakeState.step));
         $("intakeNext").textContent = intakeState.step === sections.length - 1 ? (currentLanguage==="Arabic"?"مراجعة":"Review") : (currentLanguage==="Arabic"?"التالي":"Next");
         bindIntakeFields();
       }
@@ -1071,7 +1073,7 @@
             docs
               .map(
                 (d) =>
-                  `<tr><td><b>${esc(d.file_name)}</b><small style="display:block">${esc(intakeOptionLabel(d.category||"unclassified"))} · v${Number(d.version||1)}</small></td><td>${esc(names[d.case_id] || "Unknown")}</td><td>${esc(d.content_type || "—")}</td><td>${formatSize(d.size_bytes)}</td><td>${date(d.created_at)}</td><td>${["application/pdf","image/jpeg","image/png","image/webp"].includes(d.content_type) ? `<button class="linkbtn" data-act="previewDoc" data-a1="${d.id}">Preview</button> · ` : ""}${["image/jpeg","image/png","image/webp"].includes(d.content_type)?`<button class="linkbtn" data-act="reviewDocumentOcr" data-a1="${d.id}">OCR</button> · `:""}<button class="linkbtn" data-act="downloadDoc" data-a1="${d.id}">Download</button> · <button class="linkbtn" data-act="replaceDoc" data-a1="${d.id}">Replace</button> · <button class="linkbtn" data-act="deleteDoc" data-a1="${d.id}">Archive</button></td></tr>`,
+                  `<tr><td><b>${esc(d.file_name)}</b><small class="u-66a84ce714">${esc(intakeOptionLabel(d.category||"unclassified"))} · v${Number(d.version||1)}</small></td><td>${esc(names[d.case_id] || "Unknown")}</td><td>${esc(d.content_type || "—")}</td><td>${formatSize(d.size_bytes)}</td><td>${date(d.created_at)}</td><td>${["application/pdf","image/jpeg","image/png","image/webp"].includes(d.content_type) ? `<button class="linkbtn" data-act="previewDoc" data-a1="${d.id}">Preview</button> · ` : ""}${["image/jpeg","image/png","image/webp"].includes(d.content_type)?`<button class="linkbtn" data-act="reviewDocumentOcr" data-a1="${d.id}">OCR</button> · `:""}<button class="linkbtn" data-act="downloadDoc" data-a1="${d.id}">Download</button> · <button class="linkbtn" data-act="replaceDoc" data-a1="${d.id}">Replace</button> · <button class="linkbtn" data-act="deleteDoc" data-a1="${d.id}">Archive</button></td></tr>`,
               )
               .join("") ||
             '<tr><td colspan="6">No documents uploaded.</td></tr>';
@@ -1095,7 +1097,7 @@
           const query = new URLSearchParams({ case_id: caseId, filename: f.name, size_bytes: String(f.size) });
           if ($("docCategory").value) query.set("category", $("docCategory").value);
           if(replacementDocumentId)query.set("replaces_document_id",replacementDocumentId);
-          await uploadWithProgress(`/api/v1/documents/upload?${query}`, f, (percent) => $("docProgress").style.width = `${percent}%`, fileContentType(f));
+          await uploadWithProgress(`/api/v1/documents/upload?${query}`, f, (percent) => setProgress($("docProgress"),percent), fileContentType(f));
           clearDocumentFile();
           await loadDocuments();
         } catch (e) {
@@ -1130,7 +1132,7 @@
         selectedDocumentFile = file;
         $("docPreviewName").textContent = file.name;
         $("docPreviewMeta").textContent = `${formatSize(file.size)} · ${file.type || "Unknown type"}`;
-        $("docProgress").style.width = "0";
+        setProgress($("docProgress"),0);
         $("docPreview").classList.add("show");
       }
       function clearDocumentFile() {
@@ -1138,7 +1140,7 @@
         replacementDocumentId = null;
         $("docFile").value = "";
         $("docPreview").classList.remove("show");
-        $("docProgress").style.width = "0";
+        setProgress($("docProgress"),0);
       }
       async function downloadDoc(documentId) {
         try {
@@ -1524,8 +1526,8 @@
       function renderPortal() {
         const clientNumber=portalData.clients?.[0]?.client_number||"—";
         const client=portalData.clients?.[0]||{};
-        $("portalCases").innerHTML = (portalData.cases || []).map((item) => `<div class="portal-card"><div class="eyebrow">${esc(item.case_number || item.case_reference || item.service_code || tr("case"))}</div><h3>${esc(item.case_type)}</h3><p>${esc(tr("clientNumber"))}: <b>${esc(clientNumber)}</b> · <span class="tag active">${esc(intakeOptionLabel(item.workflow_stage))}</span>${item.receipt_number ? ` · ${esc(tr("receiptNumber"))}: ${esc(item.receipt_number)}` : ""}</p><div class="df" style="justify-content:flex-start"><button class="btn" data-act="openPortalCase" data-a1="${item.id}">${esc(tr("open"))}</button>${item.service_code ? `<button class="btn primary" data-act="openIntake" data-a1="${item.id}" data-a2="${esc(item.service_code)}" data-a3="true">${esc(tr("intake"))}</button>` : ""}</div></div>`).join("") || `<div class="empty">${esc(tr("noRecords"))}</div>`;
-        $("portalRequests").innerHTML = (portalData.document_requests || []).map((item) => `<div class="portal-card"><div><b>${esc(item.title)}</b><p class="muted">${esc(item.instructions || tr("uploadCorrectRequest"))}</p><span class="tag ${item.status === "approved" ? "active" : item.status === "rejected" ? "urgent" : "normal"}">${esc(intakeOptionLabel(item.status))}</span></div>${['missing','rejected'].includes(item.status) ? `<button class="btn primary" style="margin-top:12px" data-act="choosePortalFile" data-a1="${item.case_id}" data-a2="${item.id}">${esc(tr("uploadDocument"))}</button>` : ""}</div>`).join("") || `<div class="empty">${esc(tr("noRequestedDocuments"))}</div>`;
+        $("portalCases").innerHTML = (portalData.cases || []).map((item) => `<div class="portal-card"><div class="eyebrow">${esc(item.case_number || item.case_reference || item.service_code || tr("case"))}</div><h3>${esc(item.case_type)}</h3><p>${esc(tr("clientNumber"))}: <b>${esc(clientNumber)}</b> · <span class="tag active">${esc(intakeOptionLabel(item.workflow_stage))}</span>${item.receipt_number ? ` · ${esc(tr("receiptNumber"))}: ${esc(item.receipt_number)}` : ""}</p><div class="df u-68b2edc6f5"><button class="btn" data-act="openPortalCase" data-a1="${item.id}">${esc(tr("open"))}</button>${item.service_code ? `<button class="btn primary" data-act="openIntake" data-a1="${item.id}" data-a2="${esc(item.service_code)}" data-a3="true">${esc(tr("intake"))}</button>` : ""}</div></div>`).join("") || `<div class="empty">${esc(tr("noRecords"))}</div>`;
+        $("portalRequests").innerHTML = (portalData.document_requests || []).map((item) => `<div class="portal-card"><div><b>${esc(item.title)}</b><p class="muted">${esc(item.instructions || tr("uploadCorrectRequest"))}</p><span class="tag ${item.status === "approved" ? "active" : item.status === "rejected" ? "urgent" : "normal"}">${esc(intakeOptionLabel(item.status))}</span></div>${['missing','rejected'].includes(item.status) ? `<button class="btn primary u-0ee7f66ad9" data-act="choosePortalFile" data-a1="${item.case_id}" data-a2="${item.id}">${esc(tr("uploadDocument"))}</button>` : ""}</div>`).join("") || `<div class="empty">${esc(tr("noRequestedDocuments"))}</div>`;
         $("portalDocuments").innerHTML=(portalData.documents||[]).map(item=>`<div class="portal-card"><b>${esc(item.file_name)}</b><p>${esc(intakeOptionLabel(item.review_status))} · ${formatSize(item.size_bytes)} · ${date(item.created_at)}</p><button class="btn" data-act="downloadPortalDocument" data-a1="${item.id}">${esc(tr("download"))}</button></div>`).join("")||`<div class="empty">${esc(tr("noDocuments"))}</div>`;
         $("portalAppointments").innerHTML = (portalData.appointments || []).map((item) => `<div class="portal-card"><b>${esc(item.title)}</b><p>${date(item.starts_at)}</p><small>${esc(item.location || tr("locationPending"))}</small></div>`).join("") || `<div class="empty">${esc(tr("noAppointments"))}</div>`;
         $("portalDeadlines").innerHTML=(portalData.deadlines||[]).map(item=>`<div class="portal-card"><b>${esc(item.title)}</b><p>${esc(item.deadline_date)} · ${esc(intakeOptionLabel(item.status))}</p><small>${esc(intakeOptionLabel(item.deadline_type))}</small></div>`).join("")||`<div class="empty">${esc(tr("noDeadlines"))}</div>`;
@@ -1541,7 +1543,7 @@
           $("portalCaseModal").dataset.caseId = caseId;
           $("portalCaseTitle").textContent = workspace.case.case_type;
           const invoiceCards=(workspace.invoices||[]).map(item=>{const amount=Number(item.office_fee_cents||0)+Number(item.government_fee_cents||0)+Number(item.other_fee_cents||0);return `<div class="portal-card"><b>${esc(item.invoice_number)}</b><p>${money(amount,item.currency)} · ${esc(intakeOptionLabel(item.status))}</p></div>`;}).join("");
-          $("portalCaseDetail").innerHTML = `<div class="sys"><div class="sysrow"><span>${esc(tr("caseNumber"))}</span><b>${esc(workspace.case.case_number || workspace.case.case_reference || tr("pending"))}</b></div><div class="sysrow"><span>${esc(tr("currentStatus"))}</span><b>${esc(intakeOptionLabel(workspace.case.workflow_stage))}</b></div><div class="sysrow"><span>${esc(tr("agency"))}</span><b>${esc(workspace.case.agency || tr("notAssigned"))}</b></div><div class="sysrow"><span>${esc(tr("receiptNumber"))}</span><b>${esc(workspace.case.receipt_number || tr("notReceived"))}</b></div></div><h3 style="margin-top:18px">${esc(tr("updates"))}</h3>${workspace.updates.map((item) => `<div class="portal-card"><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || `<div class="empty">${esc(tr("noRecords"))}</div>`}<h3 style="margin-top:18px">${esc(tr("communications"))}</h3>${workspace.messages.map((item) => `<div class="portal-card"><b>${esc(intakeOptionLabel(item.sender_type))}</b><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || `<div class="empty">${esc(tr("noRecords"))}</div>`}<h3 style="margin-top:18px">${esc(tr("approvedCommunications"))}</h3>${(workspace.approved_communications||[]).map(item=>`<div class="portal-card"><b>${esc(item.subject)}</b><p>${esc(item.body_text)}</p><small>${date(item.delivered_at||item.sent_at||item.created_at)}</small></div>`).join("")||`<div class="empty">${esc(tr("noRecords"))}</div>`}<h3 style="margin-top:18px">${esc(tr("deadlines"))}</h3>${(workspace.deadlines||[]).map(item=>`<div class="portal-card"><b>${esc(item.title)}</b><p>${esc(item.deadline_date)} · ${esc(intakeOptionLabel(item.status))}</p></div>`).join("")||`<div class="empty">${esc(tr("noDeadlines"))}</div>`}<h3 style="margin-top:18px">${esc(tr("authorizedBilling"))}</h3>${invoiceCards||`<div class="empty">${esc(tr("noBilling"))}</div>`}`;
+          $("portalCaseDetail").innerHTML = `<div class="sys"><div class="sysrow"><span>${esc(tr("caseNumber"))}</span><b>${esc(workspace.case.case_number || workspace.case.case_reference || tr("pending"))}</b></div><div class="sysrow"><span>${esc(tr("currentStatus"))}</span><b>${esc(intakeOptionLabel(workspace.case.workflow_stage))}</b></div><div class="sysrow"><span>${esc(tr("agency"))}</span><b>${esc(workspace.case.agency || tr("notAssigned"))}</b></div><div class="sysrow"><span>${esc(tr("receiptNumber"))}</span><b>${esc(workspace.case.receipt_number || tr("notReceived"))}</b></div></div><h3 class="u-2bdf8e45fd">${esc(tr("updates"))}</h3>${workspace.updates.map((item) => `<div class="portal-card"><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || `<div class="empty">${esc(tr("noRecords"))}</div>`}<h3 class="u-2bdf8e45fd">${esc(tr("communications"))}</h3>${workspace.messages.map((item) => `<div class="portal-card"><b>${esc(intakeOptionLabel(item.sender_type))}</b><p>${esc(item.body)}</p><small>${date(item.created_at)}</small></div>`).join("") || `<div class="empty">${esc(tr("noRecords"))}</div>`}<h3 class="u-2bdf8e45fd">${esc(tr("approvedCommunications"))}</h3>${(workspace.approved_communications||[]).map(item=>`<div class="portal-card"><b>${esc(item.subject)}</b><p>${esc(item.body_text)}</p><small>${date(item.delivered_at||item.sent_at||item.created_at)}</small></div>`).join("")||`<div class="empty">${esc(tr("noRecords"))}</div>`}<h3 class="u-2bdf8e45fd">${esc(tr("deadlines"))}</h3>${(workspace.deadlines||[]).map(item=>`<div class="portal-card"><b>${esc(item.title)}</b><p>${esc(item.deadline_date)} · ${esc(intakeOptionLabel(item.status))}</p></div>`).join("")||`<div class="empty">${esc(tr("noDeadlines"))}</div>`}<h3 class="u-2bdf8e45fd">${esc(tr("authorizedBilling"))}</h3>${invoiceCards||`<div class="empty">${esc(tr("noBilling"))}</div>`}`;
           $("portalMessage").value = "";
           $("portalMessageErr").textContent = "";
           $("portalCaseModal").classList.add("show");
@@ -1590,9 +1592,9 @@
         }
       }
       function chooseImportFile(){ $("importFile").value="";$("importFile").click(); }
-      async function uploadImportFile(file){if(!file)return;$("importErr").textContent="";$("importProgress").style.width="20%";try{const response=await fetch(`/api/v1/imports/upload?filename=${encodeURIComponent(file.name)}&size_bytes=${file.size}`,{method:"POST",credentials:"same-origin",headers:{"content-type":"application/octet-stream"},body:file});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);$("importProgress").style.width="100%";selectedImportId=result.data.id;await loadImports();await openImport(result.data.id);}catch(error){$("importErr").textContent=error.message;$("importProgress").style.width="0";}}
+      async function uploadImportFile(file){if(!file)return;$("importErr").textContent="";setProgress($("importProgress"),20);try{const response=await fetch(`/api/v1/imports/upload?filename=${encodeURIComponent(file.name)}&size_bytes=${file.size}`,{method:"POST",credentials:"same-origin",headers:{"content-type":"application/octet-stream"},body:file});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);setProgress($("importProgress"),100);selectedImportId=result.data.id;await loadImports();await openImport(result.data.id);}catch(error){$("importErr").textContent=error.message;setProgress($("importProgress"),0);}}
       async function loadImports(){try{const result=await api("/api/v1/imports");$("importBatchTable").innerHTML=(result.data||[]).map(batch=>`<tr><td><b>${esc(batch.filename)}</b><small>${date(batch.created_at)}</small></td><td><span class="tag ${batch.status==='completed'?'active':batch.status==='failed'?'urgent':'normal'}">${esc(intakeOptionLabel(batch.status))}</span></td><td>${Number(batch.total_rows||0)}</td><td>${Number(batch.processed_rows||0)} / ${Number(batch.total_rows||0)}</td><td><button class="linkbtn" data-act="openImport" data-a1="${batch.id}">${esc(tr("open"))}</button></td></tr>`).join("")||`<tr><td colspan="5">${esc(tr("noRecords"))}</td></tr>`;$("importErr").textContent="";}catch(error){$("importErr").textContent=error.message;}}
-      function renderImportReview(data){const {batch,rows}=data;selectedImportId=batch.id;$("importReviewPanel").style.display="block";$("importReviewTitle").textContent=`${tr("humanReview")} · ${batch.filename}`;const fields=["first_name","middle_name","last_name","legal_name","legal_name_ar","date_of_birth","gender","nationality","place_of_birth","passport_number","a_number","uscis_account_number","receipt_number","email","phone","whatsapp","physical_address","preferred_language","service_code","workflow_stage","assigned_user_id","priority","operational_notes"];$("importMapping").innerHTML=fields.map(field=>`<div class="field"><label>${esc(intakeOptionLabel(field))}</label><select data-import-map="${field}"><option value="">—</option>${(batch.headers||[]).map(header=>`<option value="${esc(header)}"${batch.field_mapping?.[field]===header?' selected':''}>${esc(header)}</option>`).join("")}</select></div>`).join("");const summary=batch.summary||{};$("importReviewSummary").textContent=`${summary.total||batch.total_rows||0} ${tr("rows")} · ${summary.valid||0} ${tr("valid")} · ${summary.invalid||0} ${tr("invalid")} · ${summary.new_clients||0} ${tr("new")} · ${summary.existing_clients||0} ${tr("existing")}`;$("importMetrics").innerHTML=[["total",summary.total||batch.total_rows],["valid",summary.valid],["invalid",summary.invalid],["possible",summary.possible_duplicates]].map(([label,value])=>`<div class="metric"><div class="k">${esc(tr(label))}</div><div class="v">${Number(value||0)}</div></div>`).join("");$("importRowTable").innerHTML=(rows||[]).slice(0,500).map(row=>{const n=row.normalized_row||{};const errors=row.validation_errors||[];return `<tr><td>${row.source_row_number}</td><td><b>${esc(n.legal_name||n.legal_name_ar||"—")}</b><small>${esc(n.email||n.phone||"")}</small></td><td>${esc(n.service_code||n.unmapped_service||"Client only")}</td><td><span class="tag ${row.duplicate_classification==='new'?'active':row.duplicate_classification==='possible'?'urgent':'normal'}">${esc(intakeOptionLabel(row.duplicate_classification))}</span></td><td>${errors.length?`<span class="err">${esc(errors.join(", "))}</span>`:`<span class="tag active">${esc(intakeOptionLabel(row.row_status))}</span>`}</td><td><button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="approve">${esc(tr("approve"))}</button> · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="skip">${esc(tr("skip"))}</button> · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="correct">${esc(tr("correct"))}</button> · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="staff">${esc(tr("assignStaff"))}</button>${n.unmapped_service?` · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="service">${esc(tr("mapService"))}</button>`:""}${row.duplicate_classification==='possible'?` · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="merge">${esc(tr("merge"))}</button>`:""}</td></tr>`;}).join("");if(batch.status==='processing'){clearTimeout(importPollTimer);importPollTimer=setTimeout(()=>openImport(batch.id),1500);}else clearTimeout(importPollTimer);}
+      function renderImportReview(data){const {batch,rows}=data;selectedImportId=batch.id;setVisible($("importReviewPanel"),true);$("importReviewTitle").textContent=`${tr("humanReview")} · ${batch.filename}`;const fields=["first_name","middle_name","last_name","legal_name","legal_name_ar","date_of_birth","gender","nationality","place_of_birth","passport_number","a_number","uscis_account_number","receipt_number","email","phone","whatsapp","physical_address","preferred_language","service_code","workflow_stage","assigned_user_id","priority","operational_notes"];$("importMapping").innerHTML=fields.map(field=>`<div class="field"><label>${esc(intakeOptionLabel(field))}</label><select data-import-map="${field}"><option value="">—</option>${(batch.headers||[]).map(header=>`<option value="${esc(header)}"${batch.field_mapping?.[field]===header?' selected':''}>${esc(header)}</option>`).join("")}</select></div>`).join("");const summary=batch.summary||{};$("importReviewSummary").textContent=`${summary.total||batch.total_rows||0} ${tr("rows")} · ${summary.valid||0} ${tr("valid")} · ${summary.invalid||0} ${tr("invalid")} · ${summary.new_clients||0} ${tr("new")} · ${summary.existing_clients||0} ${tr("existing")}`;$("importMetrics").innerHTML=[["total",summary.total||batch.total_rows],["valid",summary.valid],["invalid",summary.invalid],["possible",summary.possible_duplicates]].map(([label,value])=>`<div class="metric"><div class="k">${esc(tr(label))}</div><div class="v">${Number(value||0)}</div></div>`).join("");$("importRowTable").innerHTML=(rows||[]).slice(0,500).map(row=>{const n=row.normalized_row||{};const errors=row.validation_errors||[];return `<tr><td>${row.source_row_number}</td><td><b>${esc(n.legal_name||n.legal_name_ar||"—")}</b><small>${esc(n.email||n.phone||"")}</small></td><td>${esc(n.service_code||n.unmapped_service||"Client only")}</td><td><span class="tag ${row.duplicate_classification==='new'?'active':row.duplicate_classification==='possible'?'urgent':'normal'}">${esc(intakeOptionLabel(row.duplicate_classification))}</span></td><td>${errors.length?`<span class="err">${esc(errors.join(", "))}</span>`:`<span class="tag active">${esc(intakeOptionLabel(row.row_status))}</span>`}</td><td><button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="approve">${esc(tr("approve"))}</button> · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="skip">${esc(tr("skip"))}</button> · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="correct">${esc(tr("correct"))}</button> · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="staff">${esc(tr("assignStaff"))}</button>${n.unmapped_service?` · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="service">${esc(tr("mapService"))}</button>`:""}${row.duplicate_classification==='possible'?` · <button class="linkbtn" data-act="reviewImportRow" data-a1="${row.id}" data-a2="merge">${esc(tr("merge"))}</button>`:""}</td></tr>`;}).join("");if(batch.status==='processing'){clearTimeout(importPollTimer);importPollTimer=setTimeout(()=>openImport(batch.id),1500);}else clearTimeout(importPollTimer);}
       async function openImport(id){try{const result=await api(`/api/v1/imports/${id}`);renderImportReview(result.data);}catch(error){$("importErr").textContent=error.message;}}
       async function saveImportMapping(){if(!selectedImportId)return;const mapping=Object.fromEntries([...document.querySelectorAll('[data-import-map]')].filter(element=>element.value).map(element=>[element.dataset.importMap,element.value]));try{await api(`/api/v1/imports/${selectedImportId}/mapping`,{method:"PATCH",body:JSON.stringify({mapping})});await openImport(selectedImportId);}catch(error){$("importErr").textContent=error.message;}}
       async function runImportDryRun(){if(!selectedImportId)return;try{const result=await api(`/api/v1/imports/${selectedImportId}/dry-run`,{method:"POST",body:"{}"});if(result.data.canonical_writes!==0)throw new Error("DRY_RUN_WRITE_GUARD_FAILED");await openImport(selectedImportId);}catch(error){$("importErr").textContent=error.message;}}
@@ -1622,7 +1624,7 @@
           $("login").classList.add("hidden");
           const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
           if (clientUser) {
-            $("staffApp").style.display = "none";
+            setVisible($("staffApp"),false);
             $("clientPortal").classList.add("active");
             await loadPortal();
           } else await boot();

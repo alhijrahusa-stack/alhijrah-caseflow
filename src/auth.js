@@ -85,10 +85,8 @@ async function authRequest(path, { method = 'GET', body, token, admin = false } 
   return data;
 }
 
-// Per-process login throttle. Supabase applies project-wide limits, but they do
-// not stop a slow credential-stuffing run spread across many accounts, and they
-// give this service no way to lock a single account out. In-memory: behind more
-// than one instance the effective limit is maxLoginAttempts per instance.
+// A small local bound protects one process from a burst; the authoritative
+// counter is the atomic PostgreSQL RPC below, shared by every replica.
 const loginAttempts = new Map();
 const maxLoginAttempts = 8;
 const loginWindowMs = 15 * 60 * 1000;
@@ -98,6 +96,29 @@ export function loginThrottleKey(email, req) {
   const forwarded = String(req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
   const ip = forwarded || req?.socket?.remoteAddress || 'unknown';
   return `${ip}|${String(email || '').trim().toLowerCase()}`;
+}
+
+function sharedThrottleHash(key){
+  const secret=process.env.LOGIN_THROTTLE_SECRET||serviceRoleKey;
+  if(!secret)throw authError('AUTH_THROTTLE_NOT_CONFIGURED',503);
+  return crypto.createHmac('sha256',secret).update(key).digest('hex');
+}
+
+async function throttleRpc(name,body){
+  if(!supabaseUrl||!serviceRoleKey)throw authError('AUTH_THROTTLE_NOT_CONFIGURED',503);
+  const response=await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:serviceRoleKey,authorization:`Bearer ${serviceRoleKey}`,'content-type':'application/json'},body:JSON.stringify(body)});
+  const text=await response.text();let data;try{data=text?JSON.parse(text):null}catch{data=null}
+  if(!response.ok)throw authError('AUTH_THROTTLE_UNAVAILABLE',503);
+  return Array.isArray(data)?data[0]:data;
+}
+
+async function consumeSharedLoginAttempt(key){
+  const result=await throttleRpc('consume_login_attempt',{p_key_hash:sharedThrottleHash(key),p_limit:maxLoginAttempts,p_window_seconds:Math.floor(loginWindowMs/1000)});
+  if(result?.allowed!==true)throw authError('TOO_MANY_LOGIN_ATTEMPTS',429);
+}
+
+async function clearSharedLoginAttempts(key){
+  await throttleRpc('clear_login_attempt',{p_key_hash:sharedThrottleHash(key)});
 }
 
 function consumeLoginAttempt(key, now = Date.now()) {
@@ -125,11 +146,16 @@ export async function signInWithPassword(email, password, req) {
   const throttleKey = loginThrottleKey(normalizedEmail, req);
   // Count before validating, so malformed submissions are not a free probe.
   consumeLoginAttempt(throttleKey);
+  // The shared boundary is identity-wide, so changing source IP or moving to
+  // another replica cannot multiply the effective allowance. The database
+  // stores only the HMAC, never the submitted email.
+  await consumeSharedLoginAttempt(normalizedEmail);
   if (!normalizedEmail || !/^\S+@\S+\.\S+$/.test(normalizedEmail) || typeof password !== 'string' || password.length < 8 || password.length > 256) {
     throw authError('INVALID_CREDENTIALS', 400);
   }
   const session = await authRequest('/token?grant_type=password', { method: 'POST', body: { email: normalizedEmail, password } });
   clearLoginAttempts(throttleKey);
+  await clearSharedLoginAttempts(normalizedEmail);
   return session;
 }
 

@@ -24,14 +24,15 @@ test('Case Workspace contains every operating surface under canonical client and
 });
 
 test('the client application is installable, mobile-first, and never caches protected API data',async()=>{
-  const [html,manifestSource,worker]=await Promise.all([publicFile('index.html'),publicFile('manifest.webmanifest'),publicFile('sw.js')]);
+  const [html,css,manifestSource,worker]=await Promise.all([publicFile('index.html'),publicFile('app.css'),publicFile('manifest.webmanifest'),publicFile('sw.js')]);
   const manifest=JSON.parse(manifestSource);
   assert.equal(manifest.display,'standalone');
   assert.equal(manifest.start_url,'/');
   assert.ok(manifest.icons.some(icon=>icon.purpose.includes('maskable')));
-  assert.match(html,/@media \(max-width:700px\)/);
-  assert.match(html,/min-height:44px/);
-  assert.match(html,/100dvh/);
+  assert.match(html,/href="\/app\.css"/);
+  assert.match(css,/@media \(max-width:700px\)/);
+  assert.match(css,/min-height:44px/);
+  assert.match(css,/100dvh/);
   assert.match(worker,/url\.pathname\.startsWith\('\/api\/'\)/);
   assert.doesNotMatch(worker,/SHELL=\[[^\]]*\/api\//);
 });

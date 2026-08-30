@@ -1,0 +1,74 @@
+name: P0 P1 verification
+
+on:
+  push:
+    branches: [p0-p1-hardening]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: caseflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d caseflow_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: caseflow_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Create Supabase-compatible database roles
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+          create role service_role nologin bypassrls;
+          SQL
+      - name: Execute complete migration chain
+        run: |
+          set -euo pipefail
+          for migration in $(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort); do
+            echo "Executing ${migration}"
+            psql -v ON_ERROR_STOP=1 -X -f "${migration}"
+          done
+      - name: Verify backend-only throttle boundary
+        run: |
+          psql -v ON_ERROR_STOP=1 -X <<'SQL'
+          set role anon;
+          do $block$
+          begin
+            begin
+              perform * from public.security_login_throttles;
+              raise exception 'anon unexpectedly read security_login_throttles';
+            exception when insufficient_privilege then null;
+            end;
+          end;
+          $block$;
+          reset role;
+          select * from public.consume_login_attempt(repeat('a', 64), 8, 900);
+          select * from public.consume_login_attempt(repeat('a', 64), 8, 900);
+          SQL
+      - run: npm ci
+      - run: npm test
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

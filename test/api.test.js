@@ -229,6 +229,16 @@ test('repeated failed logins are throttled before reaching the auth provider', a
   assert.ok(backend.authFailures <= 8, `upstream saw ${backend.authFailures} attempts; throttle should cap them`);
 });
 
+test('shared login throttling survives a process-local reset', async () => {
+  for(let attempt=0;attempt<8;attempt+=1){
+    const response=await request({method:'POST',path:'/api/v1/auth/login',headers:browserHeaders({'x-test-ip':'198.51.100.20'}),body:{email:'replica-test@caseflow.test',password:'wrong-password-guess'}});
+    assert.notEqual(response.status,429);
+  }
+  resetLoginThrottle();
+  const next=await request({method:'POST',path:'/api/v1/auth/login',headers:browserHeaders({'x-test-ip':'198.51.100.20'}),body:{email:'replica-test@caseflow.test',password:'wrong-password-guess'}});
+  assert.equal(next.status,429,'a fresh replica must observe the shared counter');
+});
+
 // ---------------------------------------------------------------------------
 // CSRF
 // ---------------------------------------------------------------------------
@@ -615,6 +625,14 @@ test('the workspace script is served as an external asset', async () => {
   assert.match(String(response.headers['content-type']), /text\/javascript/);
   assert.equal(response.headers['x-content-type-options'], 'nosniff');
   assert.ok(response.raw.includes('uiActions'), 'the dispatch table ships with it');
+});
+
+test('styles are external and CSP rejects inline style execution', async () => {
+  const [page,script,style,health]=await Promise.all([request({path:'/'}),request({path:'/app.js'}),request({path:'/app.css'}),request({path:'/health'})]);
+  assert.equal(style.status,200);assert.match(String(style.headers['content-type']),/text\/css/);
+  assert.ok(page.raw.includes('href="/app.css"'));assert.equal(/<style\b/i.test(page.raw),false);assert.equal(/\sstyle=/i.test(page.raw),false);assert.equal(/\.style\./.test(script.raw),false);
+  const styleSrc=health.headers['content-security-policy'].split(';').map(part=>part.trim()).find(part=>part.startsWith('style-src'));
+  assert.equal(styleSrc,"style-src 'self'");assert.equal(styleSrc.includes('unsafe-inline'),false);
 });
 
 test('public assets are precompressed and support conditional revalidation', async () => {

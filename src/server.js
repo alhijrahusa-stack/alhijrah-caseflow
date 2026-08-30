@@ -82,6 +82,7 @@ function publicAsset(path, contentType) {
 const publicAssets = Object.freeze({
   '/': publicAsset('./public/index.html', 'text/html; charset=utf-8'),
   '/app.js': publicAsset('./public/app.js', 'text/javascript; charset=utf-8'),
+  '/app.css': publicAsset('./public/app.css', 'text/css; charset=utf-8'),
   '/manifest.webmanifest': publicAsset('./public/manifest.webmanifest', 'application/manifest+json; charset=utf-8'),
   '/sw.js': publicAsset('./public/sw.js', 'text/javascript; charset=utf-8'),
   '/icon.svg': publicAsset('./public/icon.svg', 'image/svg+xml'),
@@ -109,7 +110,7 @@ function sendPublicAsset(req, res, asset) {
   return res.end(body);
 }
 
-function securityHeaders(){return {'cache-control':'no-store','content-security-policy':"default-src 'self'; connect-src 'self' https:; img-src 'self' data: blob:; frame-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",'permissions-policy':'camera=(), microphone=(), geolocation=()','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','strict-transport-security':'max-age=31536000; includeSubDomains'}}
+function securityHeaders(){return {'cache-control':'no-store','content-security-policy':"default-src 'self'; connect-src 'self' https:; img-src 'self' data: blob:; frame-src 'self' https:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",'permissions-policy':'camera=(), microphone=(), geolocation=()','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','strict-transport-security':'max-age=31536000; includeSubDomains'}}
 function json(res,status,body,extra={}){res.writeHead(status,{'content-type':'application/json; charset=utf-8',...securityHeaders(),...extra});res.end(JSON.stringify(body))}
 function cors(req){const origin=req.headers.origin;if(!origin||!trustedOrigins(req).has(origin))return {};return {'access-control-allow-origin':origin,'access-control-allow-credentials':'true','access-control-allow-methods':'GET,POST,PUT,PATCH,DELETE,OPTIONS','access-control-allow-headers':'content-type,x-api-key,x-request-id','access-control-max-age':'86400',vary:'Origin'}}
 async function readJson(req,max=1_000_000){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>max)throw Object.assign(new Error('PAYLOAD_TOO_LARGE'),{status:413});chunks.push(c)}try{return JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}')}catch{throw Object.assign(new Error('INVALID_JSON'),{status:400})}}
@@ -346,15 +347,16 @@ async function resolveApplicationPrincipal(principal){
     return {...principal,displayName:users[0].display_name||principal.displayName,preferredLanguage:normalizeLanguage(users[0].preferred_language),profileObjectKey:users[0].profile_object_key||null,roles,permissions:permissionsForRoles(roles)};
   }catch(error){
     if(error.message==='USER_INACTIVE'||error.message==='NO_ASSIGNED_ROLE')throw error;
-    return principal;
+    // JWT metadata is bootstrap input, not an authorization fallback. If the
+    // canonical application-user tables cannot be read, accepting JWT roles
+    // would reopen removed roles during a database or schema failure.
+    throw Object.assign(new Error('AUTHORIZATION_STATE_UNAVAILABLE'),{status:503});
   }
 }
 
-// The Owner's decisions live in a few small tables, read together and cached
-// briefly so a request costs no extra round trips in the common case.
-const accessCacheTtlMs=10_000;
-let accessCache=null;
-export function invalidateAccessCache(){accessCache=null}
+// Kept as the mutation-call compatibility hook. Decisions are intentionally
+// not process-cached, so every request observes the current database state.
+export function invalidateAccessCache(){}
 
 // A missing table means the authorization migration has not been applied yet.
 // That is the pre-migration state, in which no Owner decision exists and
@@ -365,7 +367,9 @@ export function invalidateAccessCache(){accessCache=null}
 function isMissingRelation(error){const d=error?.internalDetails;const m=typeof d==='string'?d:`${d?.message||''} ${d?.code||''}`;return error?.status===404||/does not exist|PGRST205|42P01/i.test(m)}
 
 async function loadAccessTables(){
-  if(accessCache&&Date.now()-accessCache.at<accessCacheTtlMs)return accessCache;
+  // Security decisions are read for every request. This deliberately removes
+  // the process-local authorization window: a revocation committed by one
+  // replica is observed by every other replica on its next request.
   const tables={at:Date.now(),policies:[],recordGrants:[],teamMembers:[],clientAccess:[],assignments:[],degraded:false};
   try{
     const [policies,recordGrants,teamMembers,clientAccess,assignments]=await Promise.all([
@@ -381,8 +385,7 @@ async function loadAccessTables(){
     console.warn('access-tables-unavailable: falling back to role defaults (authorization migration not applied?)');
     tables.degraded=true;
   }
-  accessCache=tables;
-  return accessCache;
+  return tables;
 }
 
 async function accessFor(principal){
@@ -433,6 +436,26 @@ async function accessibleClientIds(access,permission='clients.view'){
   }
   for(const id of access.restrictedClientIds)reachable.delete(String(id));
   return reachable;
+}
+
+// Alerts and invoices exist in two shapes: attached to a case, or attached only
+// to a client (passport-expiry alerts, retainer invoices). The listings gate
+// both shapes; every write path has to apply the same boundary or a narrowed
+// staff member reaches another client's record by addressing it directly.
+async function canReachClientRecord(access,record,casePermission){
+  if(record?.case_id){const cases=await casesById(access,[record.case_id]);return canAccessCase(access,cases.get(String(record.case_id)),casePermission)}
+  if(record?.client_id){const reachableClientIds=await accessibleClientIds(access,'clients.view');return canAccessClient(access,{id:record.client_id},'clients.view',{reachableClientIds})}
+  return Boolean(access?.isOwner);
+}
+
+// The /clients/:id sub-resources address a client by url id exactly the way the
+// parent route does, so they resolve through the same decision. Null means the
+// caller cannot reach it, and the caller reports 404 rather than confirming the
+// id exists.
+async function reachableClient(access,clientId,permission){
+  const rows=await db('clients',{query:`?id=eq.${encodeURIComponent(clientId)}&select=*`});
+  if(!Array.isArray(rows)||!rows.length)return null;
+  return canAccessClient(access,rows[0],permission,{reachableClientIds:await accessibleClientIds(access,permission)})?rows[0]:null;
 }
 
 function requiredPermission(req,path){
@@ -559,6 +582,10 @@ function validateAccessPolicy(body){
   const catalogue=new Set(permissionCatalogue());
   const grants=Array.isArray(body.grants)?body.grants.map(v=>String(v).trim()).filter(Boolean):[];
   const restrictions=Array.isArray(body.restrictions)?body.restrictions.map(v=>String(v).trim()).filter(Boolean):[];
+  if(new Set(grants).size!==grants.length)errors.grants='Duplicate permissions are not allowed';
+  if(new Set(restrictions).size!==restrictions.length)errors.restrictions='Duplicate permissions are not allowed';
+  if(grants.some(permission=>restrictions.includes(permission)))errors.permissions='The same permission cannot be granted and restricted';
+  if(grants.includes('*')||restrictions.includes('*'))errors.permissions='Wildcard policy permissions are not accepted';
   for(const permission of [...grants,...restrictions])if(permission!=='*'&&!catalogue.has(permission))errors.permissions=`Unknown permission: ${permission}`;
   const scopes={};
   const supplied=body.scopes&&typeof body.scopes==='object'&&!Array.isArray(body.scopes)?body.scopes:{};
@@ -591,12 +618,43 @@ function validateRecordGrant(body){
   if(!['grant','restrict'].includes(body.effect))errors.effect='Must be grant or restrict';
   const catalogue=new Set(permissionCatalogue());
   const permissions=Array.isArray(body.permissions)?body.permissions.map(v=>String(v).trim()).filter(Boolean):[];
+  if(new Set(permissions).size!==permissions.length)errors.permissions='Duplicate permissions are not allowed';
+  if(permissions.includes('*'))errors.permissions='Wildcard record permissions are not accepted';
   for(const permission of permissions)if(!catalogue.has(permission))errors.permissions=`Unknown permission: ${permission}`;
   if(Object.keys(errors).length)throw validationError(errors);
   const keyedTarget=['category','service'].includes(body.resource_type);
   return {subject_type:body.subject_type,subject_id:body.subject_id,resource_type:body.resource_type,
     resource_id:keyedTarget?null:body.resource_id,resource_key:keyedTarget?String(body.resource_key).trim():null,
     effect:body.effect,permissions,note:String(body.note||'').trim().slice(0,400)||null};
+}
+
+async function assertPolicyReferences(policy){
+  if(policy.subject_type==='role')return;
+  const table=policy.subject_type==='team'?'teams':'app_users',column=policy.subject_type==='team'?'id':'auth_user_id';
+  const rows=await db(table,{query:`?${column}=eq.${encodeURIComponent(policy.subject_id)}&select=${column}&limit=1`});
+  if(!rows.length)throw validationError({subject_id:`Unknown ${policy.subject_type}`});
+  if(policy.subject_type==='user'){
+    const roles=await db('user_roles',{query:`?auth_user_id=eq.${encodeURIComponent(policy.subject_id)}&role_code=eq.owner&select=role_code&limit=1`});
+    if(roles.length)throw validationError({subject_id:'The Owner cannot be restricted by user policy'});
+  }
+}
+
+async function assertGrantReferences(grant){
+  const subjectTable=grant.subject_type==='team'?'teams':'app_users',subjectColumn=grant.subject_type==='team'?'id':'auth_user_id';
+  const subjects=await db(subjectTable,{query:`?${subjectColumn}=eq.${encodeURIComponent(grant.subject_id)}&select=${subjectColumn}&limit=1`});
+  if(!subjects.length)throw validationError({subject_id:`Unknown ${grant.subject_type}`});
+  if(grant.subject_type==='user'){
+    const roles=await db('user_roles',{query:`?auth_user_id=eq.${encodeURIComponent(grant.subject_id)}&role_code=eq.owner&select=role_code&limit=1`});
+    if(roles.length)throw validationError({subject_id:'The Owner cannot receive record rules'});
+  }
+  if(grant.resource_type==='case'||grant.resource_type==='client'){
+    const table=grant.resource_type==='case'?'cases':'clients';
+    const resources=await db(table,{query:`?id=eq.${encodeURIComponent(grant.resource_id)}&select=id&limit=1`});
+    if(!resources.length)throw validationError({resource_id:`Unknown ${grant.resource_type}`});
+  }
+  const key=grant.resource_type==='case'||grant.resource_type==='client'?`resource_id=eq.${encodeURIComponent(grant.resource_id)}`:`resource_key=eq.${encodeURIComponent(grant.resource_key)}`;
+  const conflicts=await db('record_access_grants',{query:`?subject_type=eq.${grant.subject_type}&subject_id=eq.${encodeURIComponent(grant.subject_id)}&resource_type=eq.${grant.resource_type}&${key}&select=id,effect`});
+  if(conflicts.length)throw validationError({effect:'A rule for this subject and resource already exists; revoke it before replacing it'});
 }
 
 async function handle(req,res){
@@ -1106,11 +1164,15 @@ async function handle(req,res){
   }
   if(req.method==='POST'&&u.pathname==='/api/v1/alerts/refresh'){
     const [taskRows,deadlineRows,clientRows]=await Promise.all([db('tasks',{query:'?archived_at=is.null&select=id,case_id,client_id,title,due_date,status'}),db('deadlines',{query:'?status=eq.open&select=id,case_id,title,deadline_date'}),db('clients',{query:'?archived_at=is.null&passport_expiration=not.is.null&select=id,legal_name,passport_expiration'})]);
+    const [taskCases,deadlineCases,reachableClientIds]=await Promise.all([casesById(access,taskRows.map(row=>row.case_id).filter(Boolean)),casesById(access,deadlineRows.map(row=>row.case_id).filter(Boolean)),accessibleClientIds(access,'clients.view')]);
+    const visibleTasks=taskRows.filter(row=>row.case_id?canAccessCase(access,taskCases.get(String(row.case_id)),'tasks.manage'):canAccessClient(access,{id:row.client_id},'clients.view',{reachableClientIds}));
+    const visibleDeadlines=deadlineRows.filter(row=>canAccessCase(access,deadlineCases.get(String(row.case_id)),'tasks.manage'));
+    const visibleClients=clientRows.filter(row=>canAccessClient(access,row,'clients.view',{reachableClientIds}));
     const today=new Date();today.setUTCHours(0,0,0,0);const horizon=new Date(today);horizon.setUTCDate(horizon.getUTCDate()+180);
     const candidates=[];
-    for(const task of taskRows)if(task.due_date&& !['completed','cancelled'].includes(task.status)){const due=new Date(task.due_date+'T00:00:00Z');if(due<=horizon)candidates.push({client_id:task.client_id,case_id:task.case_id,alert_type:due<today?'task_overdue':'task_due',severity:due<today?'high':'normal',title:task.title,due_at:due.toISOString(),source_type:'task',source_id:task.id});}
-    for(const deadline of deadlineRows){const due=new Date(deadline.deadline_date+'T00:00:00Z');if(due<=horizon)candidates.push({case_id:deadline.case_id,alert_type:due<today?'deadline_overdue':'deadline_due',severity:due<today?'critical':'high',title:deadline.title,due_at:due.toISOString(),source_type:'deadline',source_id:deadline.id});}
-    for(const client of clientRows){const due=new Date(client.passport_expiration+'T00:00:00Z');if(due<=horizon)candidates.push({client_id:client.id,alert_type:'passport_expiration',severity:due<today?'high':'normal',title:`Passport expiration — ${client.legal_name}`,due_at:due.toISOString(),source_type:'client_passport',source_id:client.id});}
+    for(const task of visibleTasks)if(task.due_date&& !['completed','cancelled'].includes(task.status)){const due=new Date(task.due_date+'T00:00:00Z');if(due<=horizon)candidates.push({client_id:task.client_id,case_id:task.case_id,alert_type:due<today?'task_overdue':'task_due',severity:due<today?'high':'normal',title:task.title,due_at:due.toISOString(),source_type:'task',source_id:task.id});}
+    for(const deadline of visibleDeadlines){const due=new Date(deadline.deadline_date+'T00:00:00Z');if(due<=horizon)candidates.push({case_id:deadline.case_id,alert_type:due<today?'deadline_overdue':'deadline_due',severity:due<today?'critical':'high',title:deadline.title,due_at:due.toISOString(),source_type:'deadline',source_id:deadline.id});}
+    for(const client of visibleClients){const due=new Date(client.passport_expiration+'T00:00:00Z');if(due<=horizon)candidates.push({client_id:client.id,alert_type:'passport_expiration',severity:due<today?'high':'normal',title:`Passport expiration — ${client.legal_name}`,due_at:due.toISOString(),source_type:'client_passport',source_id:client.id});}
     let created=0;
     for(const candidate of candidates){const existing=await db('alerts',{query:`?alert_type=eq.${encodeURIComponent(candidate.alert_type)}&source_type=eq.${encodeURIComponent(candidate.source_type)}&source_id=eq.${encodeURIComponent(candidate.source_id)}&status=in.(open,acknowledged)&select=id`});if(!existing.length){await db('alerts',{method:'POST',body:{id:crypto.randomUUID(),...candidate}});created++;}}
     await audit(principal,'alerts_refreshed','alert',null,{candidates:candidates.length,created},req);
@@ -1120,7 +1182,7 @@ async function handle(req,res){
   if(alertMatch&&req.method==='PATCH'){
     const body=await readJson(req,8_192);
     if(!['acknowledged','resolved','dismissed'].includes(body.status))throw Object.assign(new Error('INVALID_ALERT_STATUS'),{status:400});
-    const existing=await db('alerts',{query:`?id=eq.${encodeURIComponent(alertMatch[1])}&select=*&limit=1`});if(!existing.length)return json(res,404,{error:'ALERT_NOT_FOUND',requestId},ch);if(existing[0].case_id){const alertCases=await casesById(access,[existing[0].case_id]);if(!canAccessCase(access,alertCases.get(String(existing[0].case_id)),'tasks.manage'))return json(res,404,{error:'ALERT_NOT_FOUND',requestId},ch)}
+    const existing=await db('alerts',{query:`?id=eq.${encodeURIComponent(alertMatch[1])}&select=*&limit=1`});if(!existing.length)return json(res,404,{error:'ALERT_NOT_FOUND',requestId},ch);if(!await canReachClientRecord(access,existing[0],'tasks.manage'))return json(res,404,{error:'ALERT_NOT_FOUND',requestId},ch);
     const data=await db('alerts',{method:'PATCH',query:`?id=eq.${encodeURIComponent(alertMatch[1])}`,body:{status:body.status,updated_at:new Date().toISOString()}});
     if(!data.length)return json(res,404,{error:'ALERT_NOT_FOUND',requestId},ch);
     await audit(principal,'alert_updated','alert',alertMatch[1],{case_id:data[0].case_id,client_id:data[0].client_id,status:body.status},req);
@@ -1165,7 +1227,7 @@ async function handle(req,res){
   const invoiceMatch=u.pathname.match(/^\/api\/v1\/billing\/invoices\/([0-9a-f-]{36})$/i);
   if(invoiceMatch&&req.method==='PATCH'){
     const body=await readJson(req,16_384);const allowed=new Set(['draft','issued','partially_paid','paid','void','overdue']);
-    const existing=await db('invoices',{query:`?id=eq.${encodeURIComponent(invoiceMatch[1])}&select=*&limit=1`});if(!existing.length)return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);const invoiceCases=await casesById(access,[existing[0].case_id]);if(existing[0].case_id&&!canAccessCase(access,invoiceCases.get(String(existing[0].case_id)),'billing.manage'))return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
+    const existing=await db('invoices',{query:`?id=eq.${encodeURIComponent(invoiceMatch[1])}&select=*&limit=1`});if(!existing.length)return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);if(!await canReachClientRecord(access,existing[0],'billing.manage'))return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
     if(!allowed.has(body.status))throw Object.assign(new Error('INVALID_INVOICE_STATUS'),{status:400});
     const patch={status:body.status,updated_at:new Date().toISOString()};if(body.status==='issued')patch.issued_at=new Date().toISOString();
     const data=await db('invoices',{method:'PATCH',query:`?id=eq.${encodeURIComponent(invoiceMatch[1])}`,body:patch});
@@ -1177,7 +1239,7 @@ async function handle(req,res){
     const body=await readJson(req,16_384);if(!uuid(body.invoice_id))throw Object.assign(new Error('VALID_INVOICE_ID_REQUIRED'),{status:400});
     const amount=Number(body.amount_cents);if(!Number.isSafeInteger(amount)||amount<1)throw Object.assign(new Error('INVALID_PAYMENT_AMOUNT'),{status:400});
     const invoices=await db('invoices',{query:`?id=eq.${encodeURIComponent(body.invoice_id)}&select=*`});if(!invoices.length)return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
-    const paymentCases=await casesById(access,[invoices[0].case_id]);if(invoices[0].case_id&&!canAccessCase(access,paymentCases.get(String(invoices[0].case_id)),'billing.manage'))return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
+    if(!await canReachClientRecord(access,invoices[0],'billing.manage'))return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
     const receivedAt=body.received_at?new Date(body.received_at):new Date();if(Number.isNaN(receivedAt.getTime()))throw Object.assign(new Error('INVALID_PAYMENT_DATE'),{status:400});
     const record={id:crypto.randomUUID(),invoice_id:body.invoice_id,amount_cents:amount,currency:invoices[0].currency,method:cleanText(body.method,{required:true,max:50}),external_reference:cleanText(body.external_reference,{max:120}),status:'recorded',received_at:receivedAt.toISOString(),created_by:principal.id};
     const data=await db('payments',{method:'POST',body:record});
@@ -1197,12 +1259,12 @@ async function handle(req,res){
     const body=await readJson(req,16_384);const recordType=cleanText(body.record_type,{required:true,max:80});const days=Number(body.retention_days);if(!Number.isSafeInteger(days)||days<0||days>36500)throw Object.assign(new Error('INVALID_RETENTION_DAYS'),{status:400});if(!['review','archive','delete'].includes(body.action))throw Object.assign(new Error('INVALID_RETENTION_ACTION'),{status:400});
     const existing=await db('retention_policies',{query:`?record_type=eq.${encodeURIComponent(recordType)}&select=record_type`});const values={retention_days:days,action:body.action,updated_by:principal.id,updated_at:new Date().toISOString()};const data=existing.length?await db('retention_policies',{method:'PATCH',query:`?record_type=eq.${encodeURIComponent(recordType)}`,body:values}):await db('retention_policies',{method:'POST',body:{record_type:recordType,...values}});await audit(principal,'retention_policy_updated','retention_policy',null,{record_type:recordType,retention_days:days,action:body.action},req);return json(res,200,{data:data[0]||data,requestId},ch);
   }
-  if(req.method==='GET'&&u.pathname==='/api/v1/legal-holds'){const data=await db('legal_holds',{query:'?select=*&order=placed_at.desc&limit=250'});return json(res,200,{data,requestId},ch);}
+  if(req.method==='GET'&&u.pathname==='/api/v1/legal-holds'){const data=await db('legal_holds',{query:'?select=*&order=placed_at.desc&limit=250'}),visible=[];for(const row of data||[])if(await canReachClientRecord(access,row,'cases.view'))visible.push(row);return json(res,200,{data:visible,requestId},ch);}
   if(req.method==='POST'&&u.pathname==='/api/v1/legal-holds'){
-    const body=await readJson(req,16_384);if(body.client_id&&!uuid(body.client_id)||body.case_id&&!uuid(body.case_id)||!body.client_id&&!body.case_id)throw Object.assign(new Error('VALID_HOLD_REFERENCE_REQUIRED'),{status:400});const record={id:crypto.randomUUID(),client_id:body.client_id||null,case_id:body.case_id||null,reason:cleanText(body.reason,{required:true,max:2000}),active:true,placed_by:principal.id};const data=await db('legal_holds',{method:'POST',body:record});await audit(principal,'legal_hold_placed','legal_hold',record.id,{case_id:record.case_id,client_id:record.client_id},req);return json(res,201,{data:data[0]||data,requestId},ch);
+    const body=await readJson(req,16_384);if(body.client_id&&!uuid(body.client_id)||body.case_id&&!uuid(body.case_id)||!body.client_id&&!body.case_id)throw Object.assign(new Error('VALID_HOLD_REFERENCE_REQUIRED'),{status:400});let caseRecord=null;if(body.case_id){const rows=await db('cases',{query:`?id=eq.${encodeURIComponent(body.case_id)}&select=*&limit=1`});if(!rows.length||body.client_id&&String(body.client_id)!==String(rows[0].client_id)||!canAccessCase(access,rows[0],'cases.view'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);caseRecord=rows[0]}else if(!await reachableClient(access,body.client_id,'clients.view'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);const record={id:crypto.randomUUID(),client_id:body.client_id||caseRecord?.client_id||null,case_id:body.case_id||null,reason:cleanText(body.reason,{required:true,max:2000}),active:true,placed_by:principal.id};const data=await db('legal_holds',{method:'POST',body:record});await audit(principal,'legal_hold_placed','legal_hold',record.id,{case_id:record.case_id,client_id:record.client_id},req);return json(res,201,{data:data[0]||data,requestId},ch);
   }
   const holdMatch=u.pathname.match(/^\/api\/v1\/legal-holds\/([0-9a-f-]{36})\/release$/i);
-  if(holdMatch&&req.method==='POST'){const data=await db('legal_holds',{method:'PATCH',query:`?id=eq.${encodeURIComponent(holdMatch[1])}&active=eq.true`,body:{active:false,released_by:principal.id,released_at:new Date().toISOString()}});if(!data.length)return json(res,404,{error:'ACTIVE_LEGAL_HOLD_NOT_FOUND',requestId},ch);await audit(principal,'legal_hold_released','legal_hold',holdMatch[1],{case_id:data[0].case_id,client_id:data[0].client_id},req);return json(res,200,{data:data[0],requestId},ch);}
+  if(holdMatch&&req.method==='POST'){const rows=await db('legal_holds',{query:`?id=eq.${encodeURIComponent(holdMatch[1])}&active=eq.true&select=*&limit=1`});if(!rows.length||!await canReachClientRecord(access,rows[0],'cases.view'))return json(res,404,{error:'ACTIVE_LEGAL_HOLD_NOT_FOUND',requestId},ch);const data=await db('legal_holds',{method:'PATCH',query:`?id=eq.${encodeURIComponent(holdMatch[1])}&active=eq.true`,body:{active:false,released_by:principal.id,released_at:new Date().toISOString()}});if(!data.length)return json(res,404,{error:'ACTIVE_LEGAL_HOLD_NOT_FOUND',requestId},ch);await audit(principal,'legal_hold_released','legal_hold',holdMatch[1],{case_id:data[0].case_id,client_id:data[0].client_id},req);return json(res,200,{data:data[0],requestId},ch);}
 
   if(req.method==='GET'&&u.pathname==='/api/v1/users'){const data=await listAuthUsers();return json(res,200,{data,requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/users'){const body=await readJson(req,32_768);assertOwnerRoleChangeAllowed(access,principal,null,body.roles,undefined);const data=await inviteAuthUser({email:body.email,displayName:body.display_name,roles:body.roles});await syncApplicationUser({...data,display_name:body.display_name,assigned_by:principal.id});await audit(principal,'user_invited','user',data.id,{roles:data.roles},req);return json(res,201,{data,requestId},ch)}
@@ -1312,11 +1374,13 @@ async function handle(req,res){
     const limit=Math.min(Math.max(Number(u.searchParams.get('limit')||100),1),250);
     const includeArchived=u.searchParams.get('archived')==='true';
     const archived=includeArchived?'':'&archived_at=is.null';
-    let data=await db('clients',{query:`?select=*&order=updated_at.desc&limit=${limit}${archived}`});
+    const reachableClientIds=await accessibleClientIds(access,'clients.view');
+    if(reachableClientIds&&reachableClientIds.size===0)return json(res,200,{data:[],requestId},ch);
+    const scopeQuery=reachableClientIds?`&id=in.(${[...reachableClientIds].join(',')})`:access.restrictedClientIds.size?`&id=not.in.(${[...access.restrictedClientIds].join(',')})`:'';
+    let data=await db('clients',{query:`?select=*&order=updated_at.desc&limit=${limit}${archived}${scopeQuery}`});
     const q=String(u.searchParams.get('q')||'').trim().toLowerCase();
     if(q)data=data.filter(client=>[client.client_number,client.legal_name,client.legal_name_ar,client.email,client.phone,client.whatsapp,client.a_number,client.uscis_account_number,client.passport_number].some(value=>String(value||'').toLowerCase().includes(q)));
-    const reachableClientIds=await accessibleClientIds(access,'clients.view');
-    if(reachableClientIds)data=(data||[]).filter(client=>canAccessClient(access,client,'clients.view',{reachableClientIds}));
+    data=(data||[]).filter(client=>canAccessClient(access,client,'clients.view',{reachableClientIds}));
     return json(res,200,{data,requestId},ch);
   }
   if(req.method==='POST'&&u.pathname==='/api/v1/clients'){
@@ -1350,10 +1414,12 @@ async function handle(req,res){
 
   const clientPeopleMatch=u.pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})\/people$/i);
   if(clientPeopleMatch&&req.method==='GET'){
+    if(!await reachableClient(access,clientPeopleMatch[1],'clients.view'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     const links=await db('client_people',{query:`?client_id=eq.${encodeURIComponent(clientPeopleMatch[1])}&select=relationship,is_primary,created_at,people(*)&order=created_at`});
     return json(res,200,{data:links,requestId},ch);
   }
   if(clientPeopleMatch&&req.method==='POST'){
+    if(!await reachableClient(access,clientPeopleMatch[1],'clients.manage'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     const body=await readJson(req);
     const relationship=cleanText(body.relationship,{required:true,max:50});
     const person={id:crypto.randomUUID(),legal_name:cleanText(body.legal_name,{required:true,max:180}),alternate_names:Array.isArray(body.alternate_names)?body.alternate_names.slice(0,20):[],date_of_birth:cleanDate(body.date_of_birth),place_of_birth:cleanText(body.place_of_birth,{max:180}),nationality:cleanText(body.nationality,{max:100}),a_number:cleanText(body.a_number,{max:20}),email:body.email?String(body.email).trim().toLowerCase():null,phone:cleanText(body.phone,{max:40})};
@@ -1366,10 +1432,12 @@ async function handle(req,res){
 
   const clientAccessMatch=u.pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})\/access$/i);
   if(clientAccessMatch&&req.method==='GET'){
+    if(!await reachableClient(access,clientAccessMatch[1],'clients.view'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     const data=await db('client_access',{query:`?client_id=eq.${encodeURIComponent(clientAccessMatch[1])}&select=*&order=granted_at`});
     return json(res,200,{data,requestId},ch);
   }
   if(clientAccessMatch&&req.method==='POST'){
+    if(!await reachableClient(access,clientAccessMatch[1],'clients.manage'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     const body=await readJson(req,16_384);
     if(!uuid(body.auth_user_id))throw Object.assign(new Error('VALID_USER_ID_REQUIRED'),{status:400});
     const accessRole=String(body.access_role||'collaborator');
@@ -1383,6 +1451,7 @@ async function handle(req,res){
 
   const clientAccessUserMatch=u.pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})\/access\/([0-9a-f-]{36})$/i);
   if(clientAccessUserMatch&&req.method==='DELETE'){
+    if(!await reachableClient(access,clientAccessUserMatch[1],'clients.manage'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     const data=await db('client_access',{method:'PATCH',query:`?client_id=eq.${encodeURIComponent(clientAccessUserMatch[1])}&auth_user_id=eq.${encodeURIComponent(clientAccessUserMatch[2])}`,body:{status:'revoked',revoked_at:new Date().toISOString()}});
     if(!data.length)return json(res,404,{error:'CLIENT_ACCESS_NOT_FOUND',requestId},ch);
     invalidateAccessCache();await audit(principal,'client_portal_access_revoked','client',clientAccessUserMatch[1],{client_id:clientAccessUserMatch[1],auth_user_id:clientAccessUserMatch[2]},req);
@@ -1417,7 +1486,7 @@ async function handle(req,res){
   if(taskMatch&&req.method==='PATCH'){
     const rows=await db('tasks',{query:`?id=eq.${encodeURIComponent(taskMatch[1])}&select=*`});
     if(!Array.isArray(rows)||!rows.length)return json(res,404,{error:'TASK_NOT_FOUND',requestId},ch);
-    const taskCases=await casesById(access,[rows[0].case_id]);if(rows[0].case_id&&!canAccessCase(access,taskCases.get(String(rows[0].case_id)),'tasks.manage'))return json(res,404,{error:'TASK_NOT_FOUND',requestId},ch);
+    if(!await canReachClientRecord(access,rows[0],'tasks.manage'))return json(res,404,{error:'TASK_NOT_FOUND',requestId},ch);
     const body=await readJson(req);
     const record=normalizeTaskInput({...rows[0],...body});
     const patch={...record,updated_by:principal.id,updated_at:new Date().toISOString(),completed_at:record.status==='completed'?(rows[0].completed_at||new Date().toISOString()):null};
@@ -1470,7 +1539,7 @@ async function handle(req,res){
     if(b.client_id){
       if(!uuid(b.client_id))throw Object.assign(new Error('VALID_CLIENT_ID_REQUIRED'),{status:400});
       const clients=await db('clients',{query:`?id=eq.${encodeURIComponent(b.client_id)}&archived_at=is.null&select=*`});
-      if(!Array.isArray(clients)||!clients.length)throw Object.assign(new Error('CLIENT_NOT_FOUND'),{status:404});
+      if(!Array.isArray(clients)||!clients.length||!canAccessClient(access,clients[0],'clients.manage',{reachableClientIds:await accessibleClientIds(access,'clients.manage')}))throw Object.assign(new Error('CLIENT_NOT_FOUND'),{status:404});
       caseClient=clients[0];clientName=caseClient.legal_name;
     }
     const serviceCode=cleanText(b.service_code,{max:40});
@@ -1503,6 +1572,11 @@ async function handle(req,res){
     const patch=Object.fromEntries(Object.entries(b).filter(([key])=>allowed.includes(key)));
     if(!Object.keys(patch).length&&b.archived===undefined)throw Object.assign(new Error('NO_VALID_FIELDS'),{status:400});
     if(patch.client_id&&!uuid(patch.client_id))throw Object.assign(new Error('VALID_CLIENT_ID_REQUIRED'),{status:400});
+    if(patch.client_id&&String(patch.client_id)!==String(target[0].client_id)){
+      const clients=await db('clients',{query:`?id=eq.${encodeURIComponent(patch.client_id)}&archived_at=is.null&select=*`});
+      if(!clients.length||!canAccessClient(access,clients[0],'clients.manage',{reachableClientIds:await accessibleClientIds(access,'clients.manage')}))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
+      patch.client_name=clients[0].legal_name;
+    }
     if(patch.priority)patch.priority=cleanPriority(patch.priority);
     if(patch.workflow_stage)patch.workflow_stage=cleanWorkflowStage(patch.workflow_stage);
     if(patch.review_state)patch.review_state=cleanReviewState(patch.review_state);
@@ -1708,6 +1782,13 @@ async function handle(req,res){
     const body=await readJson(req,32_768);
     if(!['approved','rejected'].includes(body.status))throw Object.assign(new Error('INVALID_DOCUMENT_REVIEW_STATUS'),{status:400});
     const patch={review_status:body.status,reviewer_notes:cleanText(body.reviewer_notes,{max:5000}),reviewed_by:principal.id,reviewed_at:new Date().toISOString()};
+    // Every other /documents route resolves the record before touching it. The
+    // review decision is evidentiary, so it gets the same boundary: a reviewer
+    // the Owner has narrowed must not sign off a document they cannot reach.
+    const existingReview=await db('documents',{query:`?id=eq.${encodeURIComponent(reviewMatch[1])}&select=*&limit=1`});
+    if(!existingReview.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
+    const reviewCases=await casesById(access,[existingReview[0].case_id]);
+    if(!canAccessDocument(access,existingReview[0],reviewCases.get(String(existingReview[0].case_id)),'documents.review'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
     const data=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reviewMatch[1])}`,body:patch});
     if(!data.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
     await event(data[0].case_id,'document_reviewed',{document_id:reviewMatch[1],review_status:body.status,case_id:data[0].case_id,client_id:data[0].client_id},principal,req);
@@ -1739,31 +1820,38 @@ async function handle(req,res){
   // revoke, restrict, expand or override access from the UI without a code
   // change or a schema change.
   if(req.method==='GET'&&u.pathname==='/api/v1/access'){
-    const [policies,recordGrants,teams,teamMembers,clients,clientAccess]=await Promise.all([
+    const [policies,recordGrants,teams,teamMembers,clients,clientAccess,appUsers,userRoles]=await Promise.all([
       db('access_policies',{query:'?select=*&order=subject_type.asc'}),
       db('record_access_grants',{query:'?select=*&order=created_at.desc&limit=500'}),
       db('teams',{query:'?select=*&order=name.asc'}),
       db('team_members',{query:'?select=*'}),
       db('clients',{query:'?select=id,legal_name&order=legal_name.asc&limit=500'}),
       db('client_access',{query:'?select=*'}),
+      db('app_users',{query:'?status=eq.active&select=auth_user_id,email,display_name,status'}),
+      db('user_roles',{query:'?select=auth_user_id,role_code'}),
     ]);
+    const excludedDiagnosticRoles=new Set(['owner','client_owner','client_collaborator']);
+    const staff=appUsers.filter(user=>userRoles.some(role=>String(role.auth_user_id)===String(user.auth_user_id)&&!excludedDiagnosticRoles.has(role.role_code))&&!userRoles.some(role=>String(role.auth_user_id)===String(user.auth_user_id)&&role.role_code==='owner'));
+    const unconfiguredGlobalStaff=staff.filter(user=>!policies.some(policy=>policy.subject_type==='user'&&String(policy.subject_id)===String(user.auth_user_id))).map(user=>({id:user.auth_user_id,email:user.email,display_name:user.display_name,posture:'unconfigured_global'}));
+    const intentionallyGlobalStaff=staff.filter(user=>policies.some(policy=>policy.subject_type==='user'&&String(policy.subject_id)===String(user.auth_user_id)&&Object.values(policy.scopes||{}).length>0&&Object.values(policy.scopes||{}).every(scope=>scope==='global'))).map(user=>({id:user.auth_user_id,email:user.email,display_name:user.display_name,posture:'explicit_global'}));
     return json(res,200,{data:{modules:accessModules,scopes:accessScopes,permissions:permissionCatalogue(),roles:Object.keys(roleDefinitions),
       defaults:{staff:'global',client:'client_self'},
       recordTargets:['case','client','category','service'],
       categories:[...new Set(serviceCatalog.map(service=>service.category))].sort(),
       services:serviceCatalog.map(service=>({code:service.code,name:service.name,category:service.category})),
       policies:policies||[],recordGrants:recordGrants||[],teams:teams||[],
-      teamMembers:teamMembers||[],clients:clients||[],clientAccess:clientAccess||[]},requestId},ch);
+      teamMembers:teamMembers||[],clients:clients||[],clientAccess:clientAccess||[],diagnostics:{unconfigured_global_staff:unconfiguredGlobalStaff,intentionally_global_staff:intentionallyGlobalStaff}},requestId},ch);
   }
   if(req.method==='PUT'&&u.pathname==='/api/v1/access/policies'){
     const policy=validateAccessPolicy(await readJson(req,65_536));
-    const existing=await db('access_policies',{query:`?subject_type=eq.${encodeURIComponent(policy.subject_type)}&subject_id=eq.${encodeURIComponent(policy.subject_id)}&select=id`});
+    await assertPolicyReferences(policy);
+    const existing=await db('access_policies',{query:`?subject_type=eq.${encodeURIComponent(policy.subject_type)}&subject_id=eq.${encodeURIComponent(policy.subject_id)}&select=*`});
     const payload={...policy,updated_by:principal?.id||null,updated_at:new Date().toISOString()};
     const data=existing.length
       ?await db('access_policies',{method:'PATCH',query:`?id=eq.${encodeURIComponent(existing[0].id)}`,body:payload})
       :await db('access_policies',{method:'POST',body:{id:crypto.randomUUID(),...payload}});
     invalidateAccessCache();
-    await audit(principal,'access_policy_set','access_policy',Array.isArray(data)&&data.length?data[0].id:null,policy,req);
+    await audit(principal,'access_policy_set','access_policy',Array.isArray(data)&&data.length?data[0].id:null,{subject_type:policy.subject_type,subject_id:policy.subject_id,previous_state:existing[0]||null,new_state:policy},req);
     return json(res,200,{data:Array.isArray(data)?data[0]:data,requestId},ch);
   }
   const policyMatch=u.pathname.match(/^\/api\/v1\/access\/policies\/(role|team|user)\/([^/]+)$/);
@@ -1778,6 +1866,7 @@ async function handle(req,res){
   }
   if(req.method==='POST'&&u.pathname==='/api/v1/access/record-grants'){
     const grant=validateRecordGrant(await readJson(req,32_768));
+    await assertGrantReferences(grant);
     const data=await db('record_access_grants',{method:'POST',body:{id:crypto.randomUUID(),...grant,created_by:principal?.id||null}});
     invalidateAccessCache();
     await audit(principal,`record_access_${grant.effect}ed`,'record_access_grant',Array.isArray(data)&&data.length?data[0].id:null,grant,req);
