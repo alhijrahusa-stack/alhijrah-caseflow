@@ -18,7 +18,10 @@
         identityExtractionToken = null,
         selectedImportId = null,
         importPollTimer = null,
-        currentWorkspace = null;
+        currentWorkspace = null,
+        documentGridMode = false,
+        replacementDocumentId = null,
+        workspaceMessageTimer = null;
       if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
       const translations = Object.freeze({
         ar: {
@@ -43,6 +46,7 @@
         "System":"النظام","Client only":"عميل فقط","Client":"العميل","Case":"الملف","Status":"الحالة","Priority":"الأولوية","Category":"الفئة","Notes":"الملاحظات",
         "Identity":"الهوية","Translation":"الترجمة","Other":"أخرى","Email":"البريد الإلكتروني","Phone":"الهاتف","WhatsApp":"واتساب","A-Number":"رقم الأجنبي",
         "Production record":"سجل إنتاجي","Save Access":"حفظ الوصول","Case workspace":"مساحة عمل الملف","Send a secure message":"إرسال رسالة آمنة",
+        "Team Workload":"عبء عمل الفريق","Active matters and overdue work":"الملفات النشطة والعمل المتأخر","Owner Signals":"مؤشرات المالك","Firm-wide operational exceptions":"الاستثناءات التشغيلية على مستوى المكتب","Communication Center":"مركز المراسلات","Internal and external delivery audit":"تدقيق المراسلات الداخلية والتسليم الخارجي","Restricted to authorized owners.":"مخصص للمالكين المصرح لهم.","Search filename or category":"ابحث باسم الملف أو الفئة","All categories":"جميع الفئات","All review states":"جميع حالات المراجعة","Under review":"قيد المراجعة","List / Grid":"قائمة / شبكة","Document preview":"معاينة المستند","Forms & Review":"النماذج والمراجعة","Recipients":"المستلمون","Internal message linked to this case":"رسالة داخلية مرتبطة بهذا الملف","Send message":"إرسال الرسالة","External delivery":"التسليم الخارجي","Archive":"أرشفة","All systems operational":"جميع الأنظمة تعمل",
         "Rejected document requires replacement":"المستند المرفوض يحتاج إلى بديل","Overdue task":"مهمة متأخرة","Save Mapping":"حفظ الربط","Dry Run":"تشغيل تجريبي",
         "PNG, JPG, WebP or SVG · 2 MB maximum":"PNG أو JPG أو WebP أو SVG · الحد الأقصى 2 ميغابايت","Start date":"تاريخ البدء","End date":"تاريخ الانتهاء","Case role":"الدور في الملف","Beneficiary":"المستفيد","Petitioner":"مقدم الالتماس","Spouse":"الزوج أو الزوجة","Child":"الطفل","Sponsor":"الكفيل","Interpreter":"المترجم","Immigration":"الهجرة","Address":"العنوان","Employment":"العمل","Travel":"السفر","Case-level form":"نموذج على مستوى الملف","Participant (optional)":"المشارك (اختياري)"
       });
@@ -305,23 +309,16 @@
             j = await r.json();
           $("version").textContent = "Version " + j.version;
           $("dot").className = "dot " + (j.status === "ready" ? "on" : "");
-          $("live").textContent =
-            j.status === "ready"
-              ? "All systems operational"
-              : "Attention required";
-          $("supabase").textContent = j.checks.supabase
-            ? "Operational"
-            : "Offline";
-          $("r2").textContent = j.checks.r2 ? "Operational" : "Offline";
-          $("auth").textContent = j.checks.userAuth
-            ? "Protected"
-            : "Offline";
-          $("setDb").textContent = j.checks.supabase ? "Connected" : "Offline";
-          $("setR2").textContent = j.checks.r2 ? "Connected" : "Offline";
+          $("live").textContent = j.status === "ready" ? "HEALTHY" : "DEGRADED";
+          $("supabase").textContent = j.checks.supabase ? "HEALTHY" : "UNAVAILABLE";
+          $("r2").textContent = j.checks.r2 ? "HEALTHY" : "UNAVAILABLE";
+          $("auth").textContent = j.checks.userAuth ? "HEALTHY" : "UNAVAILABLE";
+          $("setDb").textContent = j.checks.supabase ? "HEALTHY" : "UNAVAILABLE";
+          $("setR2").textContent = j.checks.r2 ? "HEALTHY" : "UNAVAILABLE";
           for (const id of ["supabase", "r2", "auth", "setDb", "setR2"])
-            $(id).className = $(id).textContent === "Offline" ? "" : "ok";
+            $(id).className = $(id).textContent === "HEALTHY" ? "ok" : "";
         } catch {
-          $("live").textContent = "Service unavailable";
+          $("live").textContent = "UNAVAILABLE";
         }
       }
       async function loadSettings(){
@@ -374,6 +371,7 @@
           renderRecent();
           renderCaseTable();
           fillCaseSelect();
+          await loadOperationsDashboard();
         } catch (e) {
           $("recentCases").innerHTML =
             '<div class="empty">Unable to load cases.</div>';
@@ -386,7 +384,9 @@
           const response=await api(`/api/v1/search?q=${encodeURIComponent(q)}`),data=response.data||{};
           const caseItems=(data.cases||[]).map(item=>`<button data-act="editCase" data-a1="${item.id}"><b>${esc(item.case_number||item.case_reference)}</b><span>${esc(item.client_name)} · ${esc(item.case_type)}</span></button>`);
           const clientItems=(data.clients||[]).map(item=>`<button data-act="openSearchClient" data-a1="${item.id}"><b>${esc(item.client_number)}</b><span>${esc(currentLanguage==="Arabic"&&item.legal_name_ar?item.legal_name_ar:item.legal_name)} · ${esc(item.email||item.phone||"")}</span></button>`);
-          results.innerHTML=[...caseItems,...clientItems].join("")||`<div class="empty">${esc(tr("noRecords"))}</div>`;results.classList.add("show");
+          const documentItems=(data.documents||[]).map(item=>`<button data-act="previewDoc" data-a1="${item.id}"><b>${esc(item.file_name)}</b><span>${esc(intakeOptionLabel(item.category||"unclassified"))} · ${esc(intakeOptionLabel(item.review_status))}</span></button>`);
+          const participantItems=(data.participants||[]).map(item=>`<button data-act="editCase" data-a1="${item.case_id}"><b>${esc(currentLanguage==="Arabic"&&item.legal_name_ar?item.legal_name_ar:item.legal_name)}</b><span>${esc(intakeOptionLabel(item.case_role))} · ${esc(item.a_number||item.passport_number||item.email||"")}</span></button>`);
+          results.innerHTML=[...caseItems,...clientItems,...documentItems,...participantItems].join("")||`<div class="empty">${esc(tr("noRecords"))}</div>`;results.classList.add("show");
         }catch(error){results.innerHTML=`<div class="empty">${esc(error.message)}</div>`;results.classList.add("show")}
       }
       async function openSearchClient(id){
@@ -428,6 +428,25 @@
           unclassified: docs.filter((item) => !item.category).length,
         };
         $("documentHealth").innerHTML = Object.entries(health).map(([key, count]) => `<button class="distribution-row" data-act="showView" data-a1="documents"><span>${esc(intakeOptionLabel(key))}</span><b>${count}</b></button>`).join("");
+      }
+      async function loadOperationsDashboard(){
+        if(!allowedTo("dashboard.view"))return;
+        try{
+          const response=await api("/api/v1/dashboard/operations"),data=response.data||{},metrics=data.metrics||{};
+          const ids={totalCases:"active_cases",intakeCases:"intake",awaitingDocs:"awaiting_documents",readyToFile:"ready_to_file",filedCases:"filed_receipted",overdueTasks:"overdue_tasks"};
+          for(const [id,key] of Object.entries(ids))if($(id))$(id).textContent=Number(metrics[key]||0);
+          $("operationsAttention").innerHTML=(data.attention||[]).map(item=>`<button class="ops-item" data-act="openDashboardItem" data-a1="${esc(item.case_id||"")}" data-a2="${esc(item.type)}"><span><b>${esc(item.title||item.type)}</b><small>${esc(intakeOptionLabel(item.type))}${item.due_at?` · ${esc(String(item.due_at).slice(0,10))}`:""}</small></span><span class="tag ${esc(item.severity||"normal")}">${esc(intakeOptionLabel(item.severity||"open"))}</span></button>`).join("")||`<div class="empty">${esc(currentLanguage==="Arabic"?"لا توجد استثناءات تشغيلية عاجلة.":"No urgent operational exceptions.")}</div>`;
+          $("workflowDistribution").innerHTML=Object.entries(data.workflow_distribution||{}).sort((a,b)=>b[1]-a[1]).map(([key,count])=>`<button class="distribution-row" data-act="showView" data-a1="cases"><span>${esc(intakeOptionLabel(key))}</span><b>${Number(count)}</b></button>`).join("")||`<div class="empty">${esc(tr("noRecords"))}</div>`;
+          $("documentHealth").innerHTML=Object.entries(data.document_health||{}).map(([key,count])=>`<button class="distribution-row" data-act="openDocumentHealth" data-a1="${esc(key)}"><span>${esc(intakeOptionLabel(key))}</span><b>${Number(count)}</b></button>`).join("");
+          $("teamWorkload").innerHTML=(data.workload||[]).map(item=>`<div class="distribution-row"><span><b>${esc(item.display_name)}</b><small>${Number(item.open_tasks)} ${esc(currentLanguage==="Arabic"?"مهام مفتوحة":"open tasks")}</small></span><b>${Number(item.active_cases)} / ${Number(item.overdue_tasks)}</b></div>`).join("")||`<div class="empty">${esc(tr("noRecords"))}</div>`;
+          if(data.owner_signals){$("ownerSignals").innerHTML=Object.entries(data.owner_signals).map(([key,count])=>`<button class="distribution-row" data-act="openOwnerSignal" data-a1="${esc(key)}"><span>${esc(intakeOptionLabel(key))}</span><b>${Number(count)}</b></button>`).join("");await loadOwnerCommunications()}else{$("ownerSignalsPanel").hidden=true;$("ownerCommunicationsPanel").hidden=true}
+        }catch(error){if($("operationsAttention"))$("operationsAttention").innerHTML=`<div class="empty">${esc(error.message)}</div>`}
+      }
+      function openDashboardItem(caseId,type){if(caseId)return editCase(caseId);showView(type==="document"?"documents":"tasks")}
+      function openDocumentHealth(state){showView("documents");if($("documentReviewFilter"))$("documentReviewFilter").value=state==="pending_review"?"received":state;loadDocuments()}
+      function openOwnerSignal(signal){showView(signal==="failed_communications"?"dashboard":signal.includes("task")?"tasks":"cases")}
+      async function loadOwnerCommunications(){
+        try{const response=await api("/api/v1/communications/center"),rows=response.data||[];$("ownerCommunications").innerHTML=rows.slice(0,8).map(item=>`<button class="ops-item" data-act="openDashboardItem" data-a1="${esc(item.case_id||"")}" data-a2="communication"><span><b>${esc(item.subject||item.body||item.kind)}</b><small>${esc(item.case_number||"—")} · ${esc(item.client_name||"—")}</small></span><span class="tag">${esc(item.status||item.kind)}</span></button>`).join("")||`<div class="empty">${esc(tr("noRecords"))}</div>`}catch{$("ownerCommunicationsPanel").hidden=true}
       }
       function renderRecent() {
         const a = cases.slice(0, 7);
@@ -690,25 +709,31 @@
           const participantCards=workspaceRows(workspace.people,link=>{const person=link.people||link.person||{};return `<div class="workspace-card"><b>${esc(person.legal_name||"—")}</b><span>${esc(intakeOptionLabel(link.case_role))}</span><small>${esc(person.a_number||person.passport_number||person.email||"")}</small></div>`});
           const historyCards=workspaceRows(workspace.histories,item=>`<div class="workspace-card"><b>${esc(intakeOptionLabel(item.history_type))}</b><span>${esc(item.starts_on||"—")} — ${esc(item.ends_on||(currentLanguage==="Arabic"?"حالي":"Current"))}</span><small>${esc(item.verification_status)}</small></div>`);
           const artifactCards=workspaceRows(workspace.generated_artifacts,item=>`<div class="workspace-card"><b>${esc(item.form_code)}</b><span>${esc(item.review_state)} · ${date(item.generated_at)}</span><button class="linkbtn" data-act="downloadArtifact" data-a1="${esc(item.id)}">${esc(tr("download"))}</button></div>`);
-          $("workspace-forms").innerHTML=`<div class="df" style="justify-content:flex-start"><button class="btn primary" data-act="openParticipant">${esc(tr("addParticipant"))}</button><button class="btn" data-act="openHistory">${esc(tr("addHistory"))}</button><button class="btn" data-act="openForm">${esc(tr("startForm"))}</button></div><h3>${esc(tr("participants"))}</h3>${participantCards}<h3>${esc(tr("histories"))}</h3>${historyCards}<h3>${esc(tr("forms"))}</h3>${formCards}<h3>${esc(tr("openFindings"))}</h3>${workspaceRows(workspace.form_findings,item=>`<div class="workspace-card"><b>${esc(item.category)}</b><span>${esc(item.severity)}</span><small>${esc(item.claim)}</small></div>`)}<h3>${esc(tr("generatedArtifacts"))}</h3>${artifactCards}`;
-          $("workspace-documents").innerHTML=workspaceRows(workspace.documents,item=>`<div class="workspace-card"><b>${esc(item.file_name)}</b><span>${esc(item.category||"Unclassified")} · ${esc(item.review_status)}</span><small>${date(item.created_at)}</small></div>`);
+          $("workspace-participants").innerHTML=`<div class="df" style="justify-content:flex-start"><button class="btn primary" data-act="openParticipant">${esc(tr("addParticipant"))}</button><button class="btn" data-act="openHistory">${esc(tr("addHistory"))}</button></div><h3>${esc(tr("participants"))}</h3>${participantCards}<h3>${esc(tr("histories"))}</h3>${historyCards}`;
+          $("workspace-forms").innerHTML=`<div class="df" style="justify-content:flex-start"><button class="btn primary" data-act="openForm">${esc(tr("startForm"))}</button></div><h3>${esc(tr("forms"))}</h3>${formCards}<h3>${esc(tr("openFindings"))}</h3>${workspaceRows(workspace.form_findings,item=>`<div class="workspace-card"><b>${esc(item.category)}</b><span>${esc(item.severity)}</span><small>${esc(item.claim)}</small></div>`)}<h3>${esc(tr("generatedArtifacts"))}</h3>${artifactCards}`;
+          $("workspace-documents").innerHTML=workspaceRows(workspace.documents,item=>`<div class="workspace-card"><b>${esc(item.file_name)}</b><span>${esc(item.category||"Unclassified")} · ${esc(item.review_status)} · v${Number(item.version||1)}</span><small>${date(item.created_at)}</small><div><button class="linkbtn" data-act="previewDoc" data-a1="${esc(item.id)}">${esc(currentLanguage==="Arabic"?"معاينة":"Preview")}</button> · <button class="linkbtn" data-act="downloadDoc" data-a1="${esc(item.id)}">${esc(tr("download"))}</button></div></div>`);
           $("workspace-actions").innerHTML=workspaceRows(workspace.document_requests,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(item.status)}${item.due_date?` · ${esc(item.due_date)}`:""}</span><small>${esc(item.instructions||"")}</small></div>`);
           $("workspace-tasks").innerHTML=workspaceRows(workspace.tasks,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(item.status)} · ${esc(item.priority)}</span><small>${esc(item.due_date||"—")}</small></div>`);
           $("workspace-deadlines").innerHTML=workspaceRows(workspace.deadlines,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(item.deadline_date)} · ${esc(item.status)}</span><small>${esc(item.deadline_type||"")}</small></div>`);
           $("workspace-appointments").innerHTML=workspaceRows(workspace.appointments,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${date(item.starts_at)}</span><small>${esc(item.location||"")}</small></div>`);
-          $("workspace-communications").innerHTML=workspaceRows([...(workspace.communications||[]),...(workspace.messages||[])],item=>`<div class="workspace-card"><b>${esc(item.subject||intakeOptionLabel(item.sender_type||item.template_key||"Message"))}</b><span>${esc(item.status||"")} · ${date(item.created_at||item.queued_at)}</span><small>${esc(item.recipient||item.body||"")}</small></div>`);
+          const recipientOptions=(workspace.assignments||[]).filter(item=>item.auth_user_id&&item.auth_user_id!==currentUser?.id).map(item=>`<option value="${esc(item.auth_user_id)}">${esc(item.assignment_role||item.auth_user_id)}</option>`).join("");
+          $("workspace-communications").innerHTML=`<div class="chat-compose"><label>${esc(currentLanguage==="Arabic"?"المستلمون":"Recipients")}</label><select id="workspaceMessageRecipients" multiple>${recipientOptions}</select><label>${esc(currentLanguage==="Arabic"?"رسالة داخلية مرتبطة بهذا الملف":"Internal message linked to this case")}</label><textarea id="workspaceMessageBody" maxlength="10000"></textarea><button class="btn primary" data-act="sendInternalMessage">${esc(currentLanguage==="Arabic"?"إرسال الرسالة":"Send message")}</button><div class="err" id="workspaceMessageErr"></div></div><div id="workspaceMessageList">${renderWorkspaceMessages(workspace.messages||[])}</div><h3>${esc(currentLanguage==="Arabic"?"التسليم الخارجي":"External delivery")}</h3>${workspaceRows(workspace.communications||[],item=>`<div class="workspace-card"><b>${esc(item.subject||item.template_key||"Message")}</b><span>${esc(item.status||"")} · ${date(item.created_at||item.queued_at)}</span><small>${esc(item.recipient||"")}</small></div>`)}`;
           $("workspace-billing").innerHTML=workspace.financial_summary?`<div class="workspace-summary">${summary("Total fee",money(workspace.financial_summary.total_fee_cents))}${summary("Paid",money(workspace.financial_summary.paid_cents))}${summary(tr("outstandingBalance"),money(workspace.financial_summary.balance_cents))}</div>${workspaceRows(workspace.invoices,item=>`<div class="workspace-card"><b>${esc(item.invoice_number)}</b><span>${esc(item.status)}</span><small>${esc(item.due_date||"—")}</small></div>`)}`:`<div class="empty">${esc(tr("noRecords"))}</div>`;
           $("workspace-notes").innerHTML=workspaceRows(workspace.notes,item=>`<div class="workspace-card"><b>${esc(intakeOptionLabel(item.visibility))}</b><span>${date(item.created_at)}</span><small>${esc(item.body)}</small></div>`);
           $("workspace-team").innerHTML=`<h3>${esc(tr("assigned"))}</h3>${workspaceRows(workspace.assignments,item=>`<div class="workspace-card"><b>${esc(item.assignment_role)}</b><span>${esc(item.auth_user_id)}</span></div>`)}<h3>${esc(tr("communications"))}</h3>${workspaceRows(workspace.messages,item=>`<div class="workspace-card"><b>${esc(item.sender_type)}</b><span>${date(item.created_at)}</span><small>${esc(item.body)}</small></div>`)}`;
           $("workspace-audit").innerHTML=workspaceRows(workspace.audit?.length?workspace.audit:workspace.timeline,item=>`<div class="workspace-card"><b>${esc(intakeOptionLabel(item.action||item.event_type))}</b><span>${esc(item.actor_label||item.actor||"System")} · ${date(item.created_at)}</span></div>`);
-          switchWorkspaceTab("overview");applyTranslations();$("caseWorkspaceModal").classList.add("show");
+          switchWorkspaceTab("overview");applyTranslations();$("caseWorkspaceModal").classList.add("show");startWorkspaceMessagePolling(id);
         }catch(error){alert(error.message)}
       }
       function switchWorkspaceTab(tab){
         document.querySelectorAll(".workspace-tab").forEach(button=>button.classList.toggle("active",button.dataset.a1===tab));
         document.querySelectorAll(".workspace-panel").forEach(panel=>panel.classList.toggle("active",panel.id===`workspace-${tab}`));
       }
-      function closeCaseWorkspace(){$("caseWorkspaceModal").classList.remove("show")}
+      function closeCaseWorkspace(){clearInterval(workspaceMessageTimer);workspaceMessageTimer=null;$("caseWorkspaceModal").classList.remove("show")}
+      function renderWorkspaceMessages(items){return workspaceRows(items,item=>`<div class="chat-message"><b>${esc(item.sender_name||intakeOptionLabel(item.sender_type||"staff"))}</b><div>${esc(item.body)}</div><small>${date(item.created_at)}${item.document_ids?.length?` · ${Number(item.document_ids.length)} ${esc(currentLanguage==="Arabic"?"مرفقات":"attachments")}`:""}</small></div>`)}
+      async function refreshWorkspaceMessages(caseId){try{const response=await api(`/api/v1/communications/internal?case_id=${encodeURIComponent(caseId)}`);if(currentWorkspace?.case?.id===caseId&&$("workspaceMessageList")){$("workspaceMessageList").innerHTML=renderWorkspaceMessages(response.data||[]);currentWorkspace.messages=response.data||[]}}catch{}}
+      function startWorkspaceMessagePolling(caseId){clearInterval(workspaceMessageTimer);workspaceMessageTimer=setInterval(()=>{if(!document.hidden&&$("caseWorkspaceModal").classList.contains("show"))refreshWorkspaceMessages(caseId)},12000)}
+      async function sendInternalMessage(){const body=$("workspaceMessageBody").value.trim(),recipient_user_ids=[...$("workspaceMessageRecipients").selectedOptions].map(option=>option.value);$("workspaceMessageErr").textContent="";if(!body||!recipient_user_ids.length)return $("workspaceMessageErr").textContent=currentLanguage==="Arabic"?"الرسالة ومستلم واحد على الأقل مطلوبان.":"A message and at least one recipient are required.";try{await api("/api/v1/communications/internal",{method:"POST",body:JSON.stringify({case_id:currentWorkspace.case.id,recipient_user_ids,body})});$("workspaceMessageBody").value="";await refreshWorkspaceMessages(currentWorkspace.case.id)}catch(error){$("workspaceMessageErr").textContent=error.message}}
       function openParticipant(){$("participantErr").textContent="";$("participantModal").classList.add("show")}
       function closeParticipant(){$("participantModal").classList.remove("show")}
       function openHistory(){if(!currentWorkspace?.people?.length)return alert(currentLanguage==="Arabic"?"أضف مشاركًا أولًا.":"Add a participant first.");$("historyErr").textContent="";$("historyModal").classList.add("show")}
@@ -717,9 +742,9 @@
       function closeForm(){$("formModal").classList.remove("show")}
       async function saveParticipant(){
         const body={case_role:$("participantRole").value,legal_name:$("participantName").value.trim(),date_of_birth:$("participantDob").value||null,a_number:$("participantANumber").value.trim()||null,passport_number:$("participantPassport").value.trim()||null,email:$("participantEmail").value.trim()||null,phone:$("participantPhone").value.trim()||null};
-        try{await api(`/api/v1/cases/${currentWorkspace.case.id}/participants`,{method:"POST",body:JSON.stringify(body)});closeParticipant();await editCase(currentWorkspace.case.id);switchWorkspaceTab("forms")}catch(error){if(error.details?.review_id&&confirm(currentLanguage==="Arabic"?"عُثر على تطابق محتمل. هل راجعت السجل وتريد إنشاء شخص جديد مستقل؟":"A possible match was found. After review, create a separate new person?")){try{await api(`/api/v1/cases/${currentWorkspace.case.id}/participants`,{method:"POST",body:JSON.stringify({...body,decision:"create_new",match_review_id:error.details.review_id})});closeParticipant();await editCase(currentWorkspace.case.id);switchWorkspaceTab("forms")}catch(retry){$("participantErr").textContent=retry.message}}else $("participantErr").textContent=error.message}
+        try{await api(`/api/v1/cases/${currentWorkspace.case.id}/participants`,{method:"POST",body:JSON.stringify(body)});closeParticipant();await editCase(currentWorkspace.case.id);switchWorkspaceTab("participants")}catch(error){if(error.details?.review_id&&confirm(currentLanguage==="Arabic"?"عُثر على تطابق محتمل. هل راجعت السجل وتريد إنشاء شخص جديد مستقل؟":"A possible match was found. After review, create a separate new person?")){try{await api(`/api/v1/cases/${currentWorkspace.case.id}/participants`,{method:"POST",body:JSON.stringify({...body,decision:"create_new",match_review_id:error.details.review_id})});closeParticipant();await editCase(currentWorkspace.case.id);switchWorkspaceTab("participants")}catch(retry){$("participantErr").textContent=retry.message}}else $("participantErr").textContent=error.message}
       }
-      async function saveHistory(){try{await api(`/api/v1/cases/${currentWorkspace.case.id}/histories`,{method:"POST",body:JSON.stringify({person_id:$("historyPerson").value,history_type:$("historyType").value,starts_on:$("historyStart").value||null,ends_on:$("historyEnd").value||null,details:{description:$("historyDetails").value.trim()}})});closeHistory();await editCase(currentWorkspace.case.id);switchWorkspaceTab("forms")}catch(error){$("historyErr").textContent=error.message}}
+      async function saveHistory(){try{await api(`/api/v1/cases/${currentWorkspace.case.id}/histories`,{method:"POST",body:JSON.stringify({person_id:$("historyPerson").value,history_type:$("historyType").value,starts_on:$("historyStart").value||null,ends_on:$("historyEnd").value||null,details:{description:$("historyDetails").value.trim()}})});closeHistory();await editCase(currentWorkspace.case.id);switchWorkspaceTab("participants")}catch(error){$("historyErr").textContent=error.message}}
       async function saveForm(){try{await api(`/api/v1/cases/${currentWorkspace.case.id}/forms`,{method:"POST",body:JSON.stringify({authority:$("formAuthority").value,form_code:$("formCode").value.trim().toUpperCase(),participant_id:$("formParticipant").value||null})});closeForm();await editCase(currentWorkspace.case.id);switchWorkspaceTab("forms")}catch(error){$("formErr").textContent=error.message}}
       async function downloadArtifact(id){try{const result=await api(`/api/v1/artifacts/${id}/download-url`,{method:"POST",body:"{}"});location.assign(result.download_url)}catch(error){alert(error.message)}}
       function closeCase() {
@@ -1034,7 +1059,8 @@
       }
       async function loadDocuments() {
         try {
-          const j = await api("/api/v1/documents");
+          const params=new URLSearchParams(),q=$("documentSearch")?.value.trim(),category=$("documentCategoryFilter")?.value,review=$("documentReviewFilter")?.value;if(q)params.set("q",q);if(category)params.set("category",category);if(review)params.set("review_status",review);
+          const j = await api("/api/v1/documents"+(params.size?`?${params}`:""));
           docs = j.data || [];
           $("docCount").textContent = docs.length;
           renderMetrics();
@@ -1045,14 +1071,17 @@
             docs
               .map(
                 (d) =>
-                  `<tr><td><b>${esc(d.file_name)}</b></td><td>${esc(names[d.case_id] || "Unknown")}</td><td>${esc(d.content_type || "—")}</td><td>${formatSize(d.size_bytes)}</td><td>${date(d.created_at)}</td><td>${["application/pdf","image/jpeg","image/png","image/webp"].includes(d.content_type) ? `<button class="linkbtn" data-act="previewDoc" data-a1="${d.id}">Preview</button> · ` : ""}<button class="linkbtn" data-act="downloadDoc" data-a1="${d.id}">Download</button> · <button class="linkbtn" data-act="deleteDoc" data-a1="${d.id}">Delete</button></td></tr>`,
+                  `<tr><td><b>${esc(d.file_name)}</b><small style="display:block">${esc(intakeOptionLabel(d.category||"unclassified"))} · v${Number(d.version||1)}</small></td><td>${esc(names[d.case_id] || "Unknown")}</td><td>${esc(d.content_type || "—")}</td><td>${formatSize(d.size_bytes)}</td><td>${date(d.created_at)}</td><td>${["application/pdf","image/jpeg","image/png","image/webp"].includes(d.content_type) ? `<button class="linkbtn" data-act="previewDoc" data-a1="${d.id}">Preview</button> · ` : ""}${["image/jpeg","image/png","image/webp"].includes(d.content_type)?`<button class="linkbtn" data-act="reviewDocumentOcr" data-a1="${d.id}">OCR</button> · `:""}<button class="linkbtn" data-act="downloadDoc" data-a1="${d.id}">Download</button> · <button class="linkbtn" data-act="replaceDoc" data-a1="${d.id}">Replace</button> · <button class="linkbtn" data-act="deleteDoc" data-a1="${d.id}">Archive</button></td></tr>`,
               )
               .join("") ||
             '<tr><td colspan="6">No documents uploaded.</td></tr>';
+          $("documentGrid").innerHTML=docs.map(d=>`<article class="document-card"><span class="tag">${esc(intakeOptionLabel(d.review_status||"received"))}</span><b>${esc(d.file_name)}</b><small>${esc(names[d.case_id]||"Unknown")} · ${esc(intakeOptionLabel(d.category||"unclassified"))}</small><small>${formatSize(d.size_bytes)} · v${Number(d.version||1)} · ${date(d.created_at)}</small><div>${["application/pdf","image/jpeg","image/png","image/webp"].includes(d.content_type)?`<button class="linkbtn" data-act="previewDoc" data-a1="${d.id}">Preview</button> · `:""}<button class="linkbtn" data-act="downloadDoc" data-a1="${d.id}">Download</button> · <button class="linkbtn" data-act="replaceDoc" data-a1="${d.id}">Replace</button></div></article>`).join("")||`<div class="empty">${esc(tr("noDocuments"))}</div>`;
+          $("documentGrid").hidden=!documentGridMode;$("docTable").closest(".table").hidden=documentGridMode;
         } catch (e) {
           $("docErr").textContent = e.message;
         }
       }
+      function toggleDocumentView(){documentGridMode=!documentGridMode;loadDocuments()}
       async function uploadDocument() {
         const f = selectedDocumentFile || $("docFile").files[0],
           caseId = $("docCase").value;
@@ -1065,6 +1094,7 @@
           uploadButton.textContent = "Uploading…";
           const query = new URLSearchParams({ case_id: caseId, filename: f.name, size_bytes: String(f.size) });
           if ($("docCategory").value) query.set("category", $("docCategory").value);
+          if(replacementDocumentId)query.set("replaces_document_id",replacementDocumentId);
           await uploadWithProgress(`/api/v1/documents/upload?${query}`, f, (percent) => $("docProgress").style.width = `${percent}%`, fileContentType(f));
           clearDocumentFile();
           await loadDocuments();
@@ -1093,6 +1123,8 @@
         });
       }
       function chooseDocumentFile() { $("docFile").click(); }
+      function replaceDoc(id){const doc=docs.find(item=>item.id===id);if(!doc)return;replacementDocumentId=id;$("docCase").value=doc.case_id;$("docCategory").value=doc.category||"";$("docErr").textContent=currentLanguage==="Arabic"?`اختر الملف البديل للإصدار ${Number(doc.version||1)+1}.`:`Choose the replacement file for version ${Number(doc.version||1)+1}.`;chooseDocumentFile()}
+      async function reviewDocumentOcr(id){try{const extracted=await api(`/api/v1/documents/${id}/ocr`,{method:"POST",body:"{}"}),reviewed=prompt(currentLanguage==="Arabic"?"راجع حقول OCR وعدّل JSON عند الحاجة. لن يُحفظ شيء دون تأكيدك.":"Review the OCR fields and edit the JSON if needed. Nothing is saved without your confirmation.",JSON.stringify(extracted.result.fields,null,2));if(reviewed===null)return;let fields;try{fields=JSON.parse(reviewed)}catch{return alert(currentLanguage==="Arabic"?"JSON غير صالح.":"Invalid JSON.")}if(!confirm(currentLanguage==="Arabic"?"هل تؤكد أن الحقول المراجعة دقيقة؟":"Confirm the reviewed fields are accurate?"))return;await api(`/api/v1/documents/${id}/ocr/confirm`,{method:"POST",body:JSON.stringify({review_token:extracted.review_token,category:"identity",fields,confirmed:true})});await loadDocuments()}catch(error){alert(error.message)}}
       function setDocumentFile(file) {
         if (!file) return;
         selectedDocumentFile = file;
@@ -1103,6 +1135,7 @@
       }
       function clearDocumentFile() {
         selectedDocumentFile = null;
+        replacementDocumentId = null;
         $("docFile").value = "";
         $("docPreview").classList.remove("show");
         $("docProgress").style.width = "0";
@@ -1124,11 +1157,12 @@
             method: "POST",
             body: JSON.stringify({ document_id: documentId, disposition: "inline" }),
           });
-          window.open(j.preview_url || j.download_url, "_blank", "noopener,noreferrer");
+          const doc=docs.find(item=>item.id===documentId)||currentWorkspace?.documents?.find(item=>item.id===documentId)||{};$("previewDocumentName").textContent=doc.file_name||"Document preview";$("previewDocumentMeta").textContent=`${doc.category||"Unclassified"} · ${formatSize(doc.size_bytes)} · v${Number(doc.version||1)}`;$("documentPreviewFrame").src=j.preview_url||j.download_url;$("previewDownloadButton").dataset.a1=documentId;$("documentPreviewModal").classList.add("show");
         } catch (e) {
           alert(e.message);
         }
       }
+      function closeDocumentPreview(){$("documentPreviewFrame").src="about:blank";$("documentPreviewModal").classList.remove("show")}
       async function deleteDoc(id) {
         if (!confirm("Move this document to the protected archive?")) return;
         try {
@@ -1660,6 +1694,7 @@
         clearDocumentFile,
         closeCase,
         closeCaseWorkspace,
+        closeDocumentPreview,
         closeForm,
         closeHistory,
         closeParticipant,
@@ -1689,6 +1724,9 @@
         loadTasks,
         nextIntakeStep,
         openCase,
+        openDashboardItem,
+        openDocumentHealth,
+        openOwnerSignal,
         openCaseEditor,
         openClient,
         openIntake: (a, b, c) => openIntake(a, b, c === "true"),
@@ -1708,6 +1746,8 @@
         renderCaseTable,
         renderClients,
         renderServices,
+        replaceDoc,
+        reviewDocumentOcr,
         reviewDocument,
         reviewImportRow,
         runImportDryRun,
@@ -1724,6 +1764,7 @@
         saveForm,
         saveHistory,
         saveParticipant,
+        sendInternalMessage,
         saveOfficeSettings,
         saveProfileSettings,
         saveTask,
@@ -1733,6 +1774,7 @@
         signOut,
         switchLanguage: (a,b,c,element) => switchLanguage(element.value),
         switchWorkspaceTab,
+        toggleDocumentView,
         testReady,
         uploadDocument,
         unifiedSearch,

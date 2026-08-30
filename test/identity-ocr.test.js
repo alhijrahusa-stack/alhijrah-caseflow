@@ -81,6 +81,14 @@ test('real OCR requires review before it autofills and saves a client', async ()
   assert.ok(backend.tables.audit_events.some(event => event.action === 'identity_autofill_confirmed'));
 });
 
+test('document OCR stays linked to its source and cannot classify without human confirmation',async()=>{
+  const cookie=await signIn(),image=await identityImage(),caseId='30000000-0000-4000-a000-000000000003',clientId='40000000-0000-4000-a000-000000000004';backend.tables.cases.push({id:caseId,client_id:clientId,archived_at:null});backend.tables.clients.push({id:clientId,legal_name:'OCR Client',archived_at:null});
+  const upload=await request({method:'POST',path:`/api/v1/documents/upload?case_id=${caseId}&filename=passport.png&size_bytes=${image.length}`,headers:browserHeaders({cookie,'content-type':'image/png','content-length':String(image.length)}),body:image});assert.equal(upload.status,201,upload.raw);const documentId=upload.body.data[0].id;
+  const extracted=await request({method:'POST',path:`/api/v1/documents/${documentId}/ocr`,headers:browserHeaders({cookie}),body:{}});assert.equal(extracted.status,200,extracted.raw);assert.equal(extracted.body.source_document_id,documentId);assert.equal(extracted.body.result.fields.passport_number,'L898902C3');assert.equal(extracted.body.human_confirmation_required,true);
+  const refused=await request({method:'POST',path:`/api/v1/documents/${documentId}/ocr/confirm`,headers:browserHeaders({cookie}),body:{review_token:extracted.body.review_token,category:'identity'}});assert.equal(refused.status,400);assert.equal(backend.tables.documents[0].category,null);
+  const confirmed=await request({method:'POST',path:`/api/v1/documents/${documentId}/ocr/confirm`,headers:browserHeaders({cookie}),body:{review_token:extracted.body.review_token,category:'identity',fields:extracted.body.result.fields,confirmed:true}});assert.equal(confirmed.status,200,confirmed.raw);assert.equal(confirmed.body.ocr.source_document_id,documentId);assert.equal(confirmed.body.ocr.human_confirmed,true);assert.equal(backend.tables.documents[0].category,'identity');assert.ok(backend.tables.case_events.some(row=>row.event_type==='document_ocr_confirmed'&&row.payload.document_id===documentId));
+});
+
 test('production verification exercises R2, metadata linkage, OCR, and client autofill without residue', async () => {
   backend.tables.cases.push({
     id: '10000000-0000-4000-a000-000000000001',

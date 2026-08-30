@@ -17,7 +17,7 @@ test('the administrative workspace and portal expose a complete bilingual surfac
 test('Case Workspace contains every operating surface under canonical client and case identifiers',async()=>{
   const html=await publicFile('index.html');
   const tabs=[...html.matchAll(/class="workspace-tab(?: active)?"[^>]+data-a1="([^"]+)"/g)].map(match=>match[1]);
-  assert.deepEqual(tabs,['overview','journey','profile','intake','forms','documents','actions','tasks','deadlines','appointments','communications','billing','notes','team','audit']);
+  assert.deepEqual(tabs,['overview','journey','profile','intake','participants','forms','documents','actions','tasks','deadlines','appointments','communications','billing','notes','team','audit']);
   assert.match(html,/id="workspaceClientNumber"/);
   assert.match(html,/id="workspaceCaseNumber"/);
   for(const modal of ['participantModal','historyModal','formModal'])assert.match(html,new RegExp(`id="${modal}"`));
