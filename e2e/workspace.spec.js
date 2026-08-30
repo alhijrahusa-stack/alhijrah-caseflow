@@ -99,7 +99,16 @@ test('Phase 1 client numbers, case numbers, bilingual preference, and full works
   await expect(page.locator('#caseWorkspaceModal')).toHaveClass(/show/);
   await expect(page.locator('#workspaceClientNumber')).toContainText(/AHC-2026-\d{6}/);
   await expect(page.locator('#workspaceCaseNumber')).toContainText(/AH-2026-\d{6}/);
-  await expect(page.locator('.workspace-tab')).toHaveCount(14);
+  // Pin the tab set by identity rather than by a bare count: a stale count says
+  // only that a number moved, and it does not prove a tab reaches a panel.
+  const workspaceTabs = ['overview', 'journey', 'profile', 'intake', 'participants', 'forms', 'documents',
+    'actions', 'tasks', 'deadlines', 'appointments', 'communications', 'billing', 'notes', 'team', 'audit'];
+  await expect(page.locator('.workspace-tab')).toHaveCount(workspaceTabs.length);
+  for (const tab of workspaceTabs) {
+    await expect(page.locator(`.workspace-tab[data-a1="${tab}"]`)).toHaveCount(1);
+    await page.click(`.workspace-tab[data-a1="${tab}"]`);
+    await expect(page.locator(`#workspace-${tab}`)).toBeVisible();
+  }
   await page.click('.workspace-tab[data-a1="profile"]');
   await expect(page.locator('#workspace-profile')).toContainText(clientName);
   await page.click('[data-act="closeCaseWorkspace"]');

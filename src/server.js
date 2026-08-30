@@ -435,6 +435,26 @@ async function accessibleClientIds(access,permission='clients.view'){
   return reachable;
 }
 
+// Alerts and invoices exist in two shapes: attached to a case, or attached only
+// to a client (passport-expiry alerts, retainer invoices). The listings gate
+// both shapes; every write path has to apply the same boundary or a narrowed
+// staff member reaches another client's record by addressing it directly.
+async function canReachClientRecord(access,record,casePermission){
+  if(record?.case_id){const cases=await casesById(access,[record.case_id]);return canAccessCase(access,cases.get(String(record.case_id)),casePermission)}
+  if(record?.client_id){const reachableClientIds=await accessibleClientIds(access,'clients.view');return canAccessClient(access,{id:record.client_id},'clients.view',{reachableClientIds})}
+  return Boolean(access?.isOwner);
+}
+
+// The /clients/:id sub-resources address a client by url id exactly the way the
+// parent route does, so they resolve through the same decision. Null means the
+// caller cannot reach it, and the caller reports 404 rather than confirming the
+// id exists.
+async function reachableClient(access,clientId,permission){
+  const rows=await db('clients',{query:`?id=eq.${encodeURIComponent(clientId)}&select=*`});
+  if(!Array.isArray(rows)||!rows.length)return null;
+  return canAccessClient(access,rows[0],permission,{reachableClientIds:await accessibleClientIds(access,permission)})?rows[0]:null;
+}
+
 function requiredPermission(req,path){
   if(path.startsWith('/api/v1/portal/documents'))return 'portal.documents';
   if(path.startsWith('/api/v1/portal/intakes'))return 'portal.intake';
@@ -1120,7 +1140,7 @@ async function handle(req,res){
   if(alertMatch&&req.method==='PATCH'){
     const body=await readJson(req,8_192);
     if(!['acknowledged','resolved','dismissed'].includes(body.status))throw Object.assign(new Error('INVALID_ALERT_STATUS'),{status:400});
-    const existing=await db('alerts',{query:`?id=eq.${encodeURIComponent(alertMatch[1])}&select=*&limit=1`});if(!existing.length)return json(res,404,{error:'ALERT_NOT_FOUND',requestId},ch);if(existing[0].case_id){const alertCases=await casesById(access,[existing[0].case_id]);if(!canAccessCase(access,alertCases.get(String(existing[0].case_id)),'tasks.manage'))return json(res,404,{error:'ALERT_NOT_FOUND',requestId},ch)}
+    const existing=await db('alerts',{query:`?id=eq.${encodeURIComponent(alertMatch[1])}&select=*&limit=1`});if(!existing.length)return json(res,404,{error:'ALERT_NOT_FOUND',requestId},ch);if(!await canReachClientRecord(access,existing[0],'tasks.manage'))return json(res,404,{error:'ALERT_NOT_FOUND',requestId},ch);
     const data=await db('alerts',{method:'PATCH',query:`?id=eq.${encodeURIComponent(alertMatch[1])}`,body:{status:body.status,updated_at:new Date().toISOString()}});
     if(!data.length)return json(res,404,{error:'ALERT_NOT_FOUND',requestId},ch);
     await audit(principal,'alert_updated','alert',alertMatch[1],{case_id:data[0].case_id,client_id:data[0].client_id,status:body.status},req);
@@ -1165,7 +1185,7 @@ async function handle(req,res){
   const invoiceMatch=u.pathname.match(/^\/api\/v1\/billing\/invoices\/([0-9a-f-]{36})$/i);
   if(invoiceMatch&&req.method==='PATCH'){
     const body=await readJson(req,16_384);const allowed=new Set(['draft','issued','partially_paid','paid','void','overdue']);
-    const existing=await db('invoices',{query:`?id=eq.${encodeURIComponent(invoiceMatch[1])}&select=*&limit=1`});if(!existing.length)return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);const invoiceCases=await casesById(access,[existing[0].case_id]);if(existing[0].case_id&&!canAccessCase(access,invoiceCases.get(String(existing[0].case_id)),'billing.manage'))return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
+    const existing=await db('invoices',{query:`?id=eq.${encodeURIComponent(invoiceMatch[1])}&select=*&limit=1`});if(!existing.length)return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);if(!await canReachClientRecord(access,existing[0],'billing.manage'))return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
     if(!allowed.has(body.status))throw Object.assign(new Error('INVALID_INVOICE_STATUS'),{status:400});
     const patch={status:body.status,updated_at:new Date().toISOString()};if(body.status==='issued')patch.issued_at=new Date().toISOString();
     const data=await db('invoices',{method:'PATCH',query:`?id=eq.${encodeURIComponent(invoiceMatch[1])}`,body:patch});
@@ -1177,7 +1197,7 @@ async function handle(req,res){
     const body=await readJson(req,16_384);if(!uuid(body.invoice_id))throw Object.assign(new Error('VALID_INVOICE_ID_REQUIRED'),{status:400});
     const amount=Number(body.amount_cents);if(!Number.isSafeInteger(amount)||amount<1)throw Object.assign(new Error('INVALID_PAYMENT_AMOUNT'),{status:400});
     const invoices=await db('invoices',{query:`?id=eq.${encodeURIComponent(body.invoice_id)}&select=*`});if(!invoices.length)return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
-    const paymentCases=await casesById(access,[invoices[0].case_id]);if(invoices[0].case_id&&!canAccessCase(access,paymentCases.get(String(invoices[0].case_id)),'billing.manage'))return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
+    if(!await canReachClientRecord(access,invoices[0],'billing.manage'))return json(res,404,{error:'INVOICE_NOT_FOUND',requestId},ch);
     const receivedAt=body.received_at?new Date(body.received_at):new Date();if(Number.isNaN(receivedAt.getTime()))throw Object.assign(new Error('INVALID_PAYMENT_DATE'),{status:400});
     const record={id:crypto.randomUUID(),invoice_id:body.invoice_id,amount_cents:amount,currency:invoices[0].currency,method:cleanText(body.method,{required:true,max:50}),external_reference:cleanText(body.external_reference,{max:120}),status:'recorded',received_at:receivedAt.toISOString(),created_by:principal.id};
     const data=await db('payments',{method:'POST',body:record});
@@ -1350,10 +1370,12 @@ async function handle(req,res){
 
   const clientPeopleMatch=u.pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})\/people$/i);
   if(clientPeopleMatch&&req.method==='GET'){
+    if(!await reachableClient(access,clientPeopleMatch[1],'clients.view'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     const links=await db('client_people',{query:`?client_id=eq.${encodeURIComponent(clientPeopleMatch[1])}&select=relationship,is_primary,created_at,people(*)&order=created_at`});
     return json(res,200,{data:links,requestId},ch);
   }
   if(clientPeopleMatch&&req.method==='POST'){
+    if(!await reachableClient(access,clientPeopleMatch[1],'clients.manage'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     const body=await readJson(req);
     const relationship=cleanText(body.relationship,{required:true,max:50});
     const person={id:crypto.randomUUID(),legal_name:cleanText(body.legal_name,{required:true,max:180}),alternate_names:Array.isArray(body.alternate_names)?body.alternate_names.slice(0,20):[],date_of_birth:cleanDate(body.date_of_birth),place_of_birth:cleanText(body.place_of_birth,{max:180}),nationality:cleanText(body.nationality,{max:100}),a_number:cleanText(body.a_number,{max:20}),email:body.email?String(body.email).trim().toLowerCase():null,phone:cleanText(body.phone,{max:40})};
@@ -1366,10 +1388,12 @@ async function handle(req,res){
 
   const clientAccessMatch=u.pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})\/access$/i);
   if(clientAccessMatch&&req.method==='GET'){
+    if(!await reachableClient(access,clientAccessMatch[1],'clients.view'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     const data=await db('client_access',{query:`?client_id=eq.${encodeURIComponent(clientAccessMatch[1])}&select=*&order=granted_at`});
     return json(res,200,{data,requestId},ch);
   }
   if(clientAccessMatch&&req.method==='POST'){
+    if(!await reachableClient(access,clientAccessMatch[1],'clients.manage'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     const body=await readJson(req,16_384);
     if(!uuid(body.auth_user_id))throw Object.assign(new Error('VALID_USER_ID_REQUIRED'),{status:400});
     const accessRole=String(body.access_role||'collaborator');
@@ -1383,6 +1407,7 @@ async function handle(req,res){
 
   const clientAccessUserMatch=u.pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})\/access\/([0-9a-f-]{36})$/i);
   if(clientAccessUserMatch&&req.method==='DELETE'){
+    if(!await reachableClient(access,clientAccessUserMatch[1],'clients.manage'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
     const data=await db('client_access',{method:'PATCH',query:`?client_id=eq.${encodeURIComponent(clientAccessUserMatch[1])}&auth_user_id=eq.${encodeURIComponent(clientAccessUserMatch[2])}`,body:{status:'revoked',revoked_at:new Date().toISOString()}});
     if(!data.length)return json(res,404,{error:'CLIENT_ACCESS_NOT_FOUND',requestId},ch);
     invalidateAccessCache();await audit(principal,'client_portal_access_revoked','client',clientAccessUserMatch[1],{client_id:clientAccessUserMatch[1],auth_user_id:clientAccessUserMatch[2]},req);
@@ -1708,6 +1733,13 @@ async function handle(req,res){
     const body=await readJson(req,32_768);
     if(!['approved','rejected'].includes(body.status))throw Object.assign(new Error('INVALID_DOCUMENT_REVIEW_STATUS'),{status:400});
     const patch={review_status:body.status,reviewer_notes:cleanText(body.reviewer_notes,{max:5000}),reviewed_by:principal.id,reviewed_at:new Date().toISOString()};
+    // Every other /documents route resolves the record before touching it. The
+    // review decision is evidentiary, so it gets the same boundary: a reviewer
+    // the Owner has narrowed must not sign off a document they cannot reach.
+    const existingReview=await db('documents',{query:`?id=eq.${encodeURIComponent(reviewMatch[1])}&select=*&limit=1`});
+    if(!existingReview.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
+    const reviewCases=await casesById(access,[existingReview[0].case_id]);
+    if(!canAccessDocument(access,existingReview[0],reviewCases.get(String(existingReview[0].case_id)),'documents.review'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
     const data=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reviewMatch[1])}`,body:patch});
     if(!data.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
     await event(data[0].case_id,'document_reviewed',{document_id:reviewMatch[1],review_status:body.status,case_id:data[0].case_id,client_id:data[0].client_id},principal,req);

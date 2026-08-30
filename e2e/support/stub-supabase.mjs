@@ -14,6 +14,13 @@ const tables = Object.fromEntries([
   'alerts','retention_policies','intake_definitions','intake_submissions','service_catalog','people',
   'client_people','case_people','form_role_assignments',
   'office_settings','communication_templates','outbound_communications',
+  // The workspace probes these on load. Without them the run is green but the
+  // server log carries DATABASE_REQUEST_FAILED for a table production has.
+  'import_batches','import_rows','person_history_records','family_relationships',
+  'participant_match_reviews','form_registry','form_versions','form_definitions',
+  'form_instances','form_rules','form_answers','form_findings','background_jobs',
+  'generated_artifacts','ai_review_runs','ai_findings','controlled_document_templates',
+  'form_update_alerts',
 ].map(name => [name, []]));
 tables.office_settings.push({ singleton:true, office_name:'ALHIJRAH SERVICES', default_language:'English' });
 tables.communication_templates.push({ id:crypto.randomUUID(),template_key:'case_opened',version:1,subject_en:'Your case is now open — {Case_Number}',subject_ar:'تم فتح ملفكم — {Case_Number}',body_en:'Your case has been opened successfully.',body_ar:'تم فتح ملفكم بنجاح.',active:true });
