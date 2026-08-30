@@ -44,6 +44,7 @@ export const accessModules = Object.freeze([
   'settings',
   'access',
   'dashboard',
+  'trash',
 ]);
 
 // Ordered widest to narrowest. The rank decides which scope wins when several
@@ -97,9 +98,13 @@ export function permissionCatalogue() {
   }
   for (const module of accessModules) {
     if (module === 'dashboard') continue;
+    // Trash has no generic manage verb: its authorities are the three
+    // destructive ones, kept separate on purpose.
+    if (module === 'trash') { all.add('trash.view'); continue; }
     all.add(`${module}.view`);
     all.add(`${module}.manage`);
   }
+  for (const permission of destructivePermissions) all.add(permission);
   return [...all].sort();
 }
 
@@ -260,9 +265,24 @@ export function scopeFor(access, module) {
   return access.isClientPrincipal ? defaultClientScope : defaultStaffScope;
 }
 
+// Deleting, restoring and permanently destroying are three separate
+// authorities, and none of them is implied by the others. Nothing in
+// roleDefinitions carries them, so they are deny-by-default until the Owner
+// grants one by name.
+export const destructivePermissions = Object.freeze([
+  'trash.delete',
+  'trash.restore',
+  'trash.purge',
+]);
+const destructiveSet = new Set(destructivePermissions);
+
 export function hasEffectivePermission(access, permission) {
   if (access.isOwner) return true;
   if (access.restrictions.has(permission)) return false;
+  // A wildcard grant is a convenience for the ordinary permissions. It must not
+  // silently hand someone the authority to destroy client records, so a
+  // destructive permission is only ever held by naming it.
+  if (destructiveSet.has(permission)) return access.permissions.has(permission);
   return access.permissions.has('*') || access.permissions.has(permission);
 }
 

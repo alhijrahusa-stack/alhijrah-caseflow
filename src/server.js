@@ -31,6 +31,7 @@ import {
   accessModules,accessScopes,canAccessCase,canAccessClient,canAccessDocument,caseListFilter,filterAccessibleCases,
   hasEffectivePermission,isValidScope,permissionCatalogue,resolveAccess,scopeFor,
 } from './access.js';
+import { activeLegalHold, documentFacet, purgeBlockers, resolveDocumentObject, retentionBlock, trashFacets, trashResourceTypes } from './trash.js';
 import {
   canTransitionWorkflow,
   cleanDate,
@@ -115,7 +116,18 @@ function cors(req){const origin=req.headers.origin;if(!origin||!trustedOrigins(r
 async function readJson(req,max=1_000_000){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>max)throw Object.assign(new Error('PAYLOAD_TOO_LARGE'),{status:413});chunks.push(c)}try{return JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}')}catch{throw Object.assign(new Error('INVALID_JSON'),{status:400})}}
 async function readBuffer(req,max){const declared=Number(req.headers['content-length']||0);if(declared>max)throw Object.assign(new Error('PAYLOAD_TOO_LARGE'),{status:413});const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>max)throw Object.assign(new Error('PAYLOAD_TOO_LARGE'),{status:413});chunks.push(chunk)}return Buffer.concat(chunks,size)}
 function internalAuth(req){if(!internalApiKey)throw Object.assign(new Error('API_NOT_CONFIGURED'),{status:503});const supplied=req.headers['x-api-key'];if(typeof supplied!=='string')throw Object.assign(new Error('UNAUTHORIZED'),{status:401});const a=Buffer.from(supplied),b=Buffer.from(internalApiKey);if(a.length!==b.length||!crypto.timingSafeEqual(a,b))throw Object.assign(new Error('UNAUTHORIZED'),{status:401});return internalPrincipal()}
-async function db(path,{method='GET',body,query=''}={}){if(!supabaseUrl||!supabaseServiceKey)throw Object.assign(new Error('SUPABASE_NOT_CONFIGURED'),{status:503});const r=await fetch(`${supabaseUrl}/rest/v1/${path}${query}`,{method,headers:{apikey:supabaseServiceKey,authorization:`Bearer ${supabaseServiceKey}`,'content-type':'application/json',prefer:method==='POST'||method==='PATCH'?'return=representation':''},body:body===undefined?undefined:JSON.stringify(body)});const text=await r.text();let data=null;try{data=text?JSON.parse(text):null}catch{data=text}if(!r.ok){const e=new Error('DATABASE_REQUEST_FAILED');e.status=r.status>=500?502:r.status;e.internalDetails=data;throw e}return data}
+// A soft-deleted record has left the active system. Rather than remembering to
+// exclude it at every one of the eighty-odd query sites -- and forgetting at
+// the next one added -- the exclusion lives in the single function every read
+// and update goes through. Trash, restore and permanent delete are the only
+// callers that opt back in, and they say so explicitly.
+const softDeleteTables=new Set(['clients','cases','documents']);
+function withSoftDeleteFilter(table,method,query,includeDeleted){
+  if(includeDeleted||method==='POST'||!softDeleteTables.has(table))return query;
+  if(/(^|[?&])deleted_at=/.test(query||''))return query;
+  return query?`${query}&deleted_at=is.null`:'?deleted_at=is.null';
+}
+async function db(path,{method='GET',body,query='',includeDeleted=false}={}){query=withSoftDeleteFilter(path,method,query,includeDeleted);if(!supabaseUrl||!supabaseServiceKey)throw Object.assign(new Error('SUPABASE_NOT_CONFIGURED'),{status:503});const r=await fetch(`${supabaseUrl}/rest/v1/${path}${query}`,{method,headers:{apikey:supabaseServiceKey,authorization:`Bearer ${supabaseServiceKey}`,'content-type':'application/json',prefer:method==='POST'||method==='PATCH'?'return=representation':''},body:body===undefined?undefined:JSON.stringify(body)});const text=await r.text();let data=null;try{data=text?JSON.parse(text):null}catch{data=text}if(!r.ok){const e=new Error('DATABASE_REQUEST_FAILED');e.status=r.status>=500?502:r.status;e.internalDetails=data;throw e}return data}
 async function optionalDb(path,options={}){try{return await db(path,options)}catch(error){if(isMissingRelation(error)||error.status===400)return[];throw error}}
 async function officeSettings(){
   const rows=await db('office_settings',{query:'?singleton=eq.true&select=*&limit=1'});
@@ -303,6 +315,11 @@ export async function runProductionVerification(force=false){
   return {...productionVerification};
 }
 async function audit(principal,action,entityType,entityId,payload={},req){try{await db('audit_events',{method:'POST',body:{id:crypto.randomUUID(),actor_user_id:principal?.id||null,actor_label:principal?.displayName||'System',actor_roles:principal?.roles||[],action,entity_type:entityType,entity_id:entityId||null,client_id:uuid(payload.client_id)?payload.client_id:null,case_id:uuid(payload.case_id)?payload.case_id:null,metadata:{...payload,...(req?safeAuditContext(req):{})}}})}catch(e){console.error('audit-write-failed',e.message)}}
+// The case timeline row without an audit row. event() also writes an audit
+// entry against the case, and the destructive paths audit the precise entity
+// themselves, so routing through it would put the same action in the audit log
+// twice under two different entity types.
+async function caseTimeline(caseId,type,payload,principal){try{await db('case_events',{method:'POST',body:{id:crypto.randomUUID(),case_id:caseId,event_type:type,actor:principal?.displayName||'Caseflow Workspace',actor_user_id:principal?.id||null,payload}})}catch(e){console.error('event-write-failed',e.message)}}
 async function event(caseId,type,payload={},principal,req){try{await db('case_events',{method:'POST',body:{id:crypto.randomUUID(),case_id:caseId,event_type:type,actor:principal?.displayName||'Caseflow Workspace',actor_user_id:principal?.id||null,payload}})}catch(e){console.error('event-write-failed',e.message)}await audit(principal,type,'case',caseId,payload,req)}
 
 const runningImports=new Set();
@@ -455,6 +472,52 @@ async function reachableClient(access,clientId,permission){
   return canAccessClient(access,rows[0],permission,{reachableClientIds:await accessibleClientIds(access,permission)})?rows[0]:null;
 }
 
+
+// ---- Secure delete / trash / restore ---------------------------------------
+// Soft delete, restore and permanent delete are three separate authorities and
+// none implies another. Every path re-resolves the record through the effective
+// access model, then through the integrity gates in trash.js, which apply to
+// the Owner exactly as they apply to everyone else.
+async function trashSubject(access,type,id){
+  if(type==='client'){
+    const rows=await db('clients',{query:`?id=eq.${encodeURIComponent(id)}&select=*&limit=1`,includeDeleted:true});if(!rows.length)return null;const record=rows[0];
+    if(!canAccessClient(access,record,'clients.manage',{reachableClientIds:await accessibleClientIds(access,'clients.manage')}))return null;
+    return {record,facet:'record',clientId:String(record.id),caseId:null,clientNumber:record.client_number||null,caseNumber:null,contentType:null,displayName:record.legal_name||record.client_number||'Client',createdAt:record.created_at,identifier:record.client_number||String(record.id)};
+  }
+  if(type==='case'){
+    const rows=await db('cases',{query:`?id=eq.${encodeURIComponent(id)}&select=*&limit=1`,includeDeleted:true});if(!rows.length)return null;const record=rows[0];
+    if(!canAccessCase(access,record,'cases.manage'))return null;
+    const client=record.client_id?(await db('clients',{query:`?id=eq.${encodeURIComponent(record.client_id)}&select=id,client_number,legal_name&limit=1`,includeDeleted:true}))[0]:null;
+    const number=record.case_number||record.case_reference||null;
+    return {record,facet:'record',clientId:record.client_id?String(record.client_id):null,caseId:String(record.id),clientNumber:client?.client_number||null,caseNumber:number,contentType:null,displayName:number||record.client_name||'Case',createdAt:record.created_at,identifier:number||String(record.id)};
+  }
+  const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(id)}&select=*&limit=1`,includeDeleted:true});if(!rows.length)return null;const record=rows[0];
+  const scopeCases=await casesById(access,[record.case_id]);
+  if(!canAccessDocument(access,record,scopeCases.get(String(record.case_id)),'documents.manage'))return null;
+  const caseRow=record.case_id?(await db('cases',{query:`?id=eq.${encodeURIComponent(record.case_id)}&select=id,case_number,case_reference,client_id&limit=1`,includeDeleted:true}))[0]:null;
+  const client=(caseRow?.client_id||record.client_id)?(await db('clients',{query:`?id=eq.${encodeURIComponent(caseRow?.client_id||record.client_id)}&select=id,client_number&limit=1`,includeDeleted:true}))[0]:null;
+  return {record,facet:documentFacet(record),clientId:record.client_id?String(record.client_id):(caseRow?.client_id?String(caseRow.client_id):null),caseId:record.case_id?String(record.case_id):null,clientNumber:client?.client_number||null,caseNumber:caseRow?.case_number||caseRow?.case_reference||null,contentType:record.content_type||null,displayName:record.file_name||'Document',createdAt:record.created_at,identifier:record.file_name||String(record.id)};
+}
+const trashTable={client:'clients',case:'cases',document:'documents'};
+// A trash entry is only visible to someone who could reach the record it
+// describes. The entry carries the canonical ids, so the decision survives the
+// record itself being purged.
+async function visibleTrashEntries(access,entries){
+  if(access?.isOwner)return entries;
+  const cases=await casesById(access,entries.map(row=>row.case_id).filter(Boolean));
+  const reachableClientIds=await accessibleClientIds(access,'clients.view');
+  return entries.filter(row=>row.case_id?canAccessCase(access,cases.get(String(row.case_id)),'cases.view'):row.client_id?canAccessClient(access,{id:row.client_id},'clients.view',{reachableClientIds}):false);
+}
+async function purgeImpact(subject,type){
+  const [blockers,hold,retention]=await Promise.all([
+    purgeBlockers(db,type,subject.record.id),
+    activeLegalHold(db,{clientId:subject.clientId,caseId:subject.caseId}),
+    retentionBlock(db,type,subject.createdAt),
+  ]);
+  const object=type==='document'?resolveDocumentObject(subject.record):null;
+  return {blockers,hold,retention,object};
+}
+
 function requiredPermission(req,path){
   if(path.startsWith('/api/v1/portal/documents'))return 'portal.documents';
   if(path.startsWith('/api/v1/portal/intakes'))return 'portal.intake';
@@ -463,6 +526,12 @@ function requiredPermission(req,path){
   if(path==='/api/v1/users')return req.method==='GET'?'users.view':'users.manage';
   if(/^\/api\/v1\/users\/[0-9a-f-]{36}$/i.test(path))return 'users.manage';
   if(path==='/api/v1/audit')return 'audit.view';
+  // Three distinct destructive authorities. None is implied by another and none
+  // is conferred by a wildcard grant -- see destructivePermissions in access.js.
+  if(path==='/api/v1/trash/delete')return 'trash.delete';
+  if(/^\/api\/v1\/trash\/[0-9a-f-]{36}\/restore$/i.test(path))return 'trash.restore';
+  if(/^\/api\/v1\/trash\/[0-9a-f-]{36}\/purge$/i.test(path))return 'trash.purge';
+  if(path==='/api/v1/trash'||/^\/api\/v1\/trash\/[0-9a-f-]{36}$/i.test(path))return 'trash.view';
   if(path.startsWith('/api/v1/billing'))return req.method==='GET'?'billing.view':'billing.manage';
   if(path.startsWith('/api/v1/reports'))return 'reports.view';
   if(path==='/api/v1/dashboard/operations')return 'dashboard.view';
@@ -1765,6 +1834,138 @@ async function handle(req,res){
     return json(res,200,{data,requestId},ch);
   }
   if(dm&&req.method==='DELETE'){const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(dm[1])}&select=*`});if(!Array.isArray(rows)||!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const doc=rows[0];const delCases=await casesById(access,[doc.case_id]);if(!canAccessDocument(access,doc,delCases.get(String(doc.case_id)),'documents.manage'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const holds=await db('legal_holds',{query:`?active=eq.true&or=(case_id.eq.${encodeURIComponent(doc.case_id)},client_id.eq.${encodeURIComponent(doc.client_id||'00000000-0000-0000-0000-000000000000')})&select=id`});if(holds.length)throw Object.assign(new Error('DOCUMENT_UNDER_LEGAL_HOLD'),{status:409});await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(dm[1])}`,body:{archived_at:new Date().toISOString()}});await event(doc.case_id,'document_archived',{document_id:doc.id,file_name:doc.file_name,case_id:doc.case_id,client_id:doc.client_id},principal,req);return json(res,200,{deleted:true,recoverable:true,requestId},ch)}
+
+
+  // ---- Trash: listing, soft delete, restore, permanent delete ---------------
+  if(req.method==='GET'&&u.pathname==='/api/v1/trash'){
+    const filters=[];
+    const type=u.searchParams.get('resource_type');if(type){if(!trashResourceTypes.includes(type))throw Object.assign(new Error('INVALID_RESOURCE_TYPE'),{status:400});filters.push(`resource_type=eq.${encodeURIComponent(type)}`)}
+    const facet=u.searchParams.get('resource_facet');if(facet){if(!trashFacets.includes(facet))throw Object.assign(new Error('INVALID_RESOURCE_FACET'),{status:400});filters.push(`resource_facet=eq.${encodeURIComponent(facet)}`)}
+    for(const [param,column] of [['client_id','client_id'],['case_id','case_id'],['deleted_by','deleted_by']]){const value=u.searchParams.get(param);if(value){if(!uuid(value))throw Object.assign(new Error('INVALID_TRASH_FILTER'),{status:400});filters.push(`${column}=eq.${encodeURIComponent(value)}`)}}
+    for(const [param,operator] of [['deleted_from','gte'],['deleted_to','lte']]){const value=u.searchParams.get(param);if(value){const parsed=cleanDate(value);if(!parsed)throw Object.assign(new Error('INVALID_TRASH_DATE'),{status:400});filters.push(`deleted_at=${operator}.${encodeURIComponent(operator==='lte'?`${parsed}T23:59:59.999Z`:`${parsed}T00:00:00.000Z`)}`)}}
+    const state=u.searchParams.get('state')||'deleted';
+    if(!['deleted','restored','purged','all'].includes(state))throw Object.assign(new Error('INVALID_TRASH_STATE'),{status:400});
+    if(state==='deleted')filters.push('restored_at=is.null','purged_at=is.null');
+    if(state==='restored')filters.push('restored_at=not.is.null');
+    if(state==='purged')filters.push('purged_at=not.is.null');
+    const rows=await db('trash_entries',{query:`?${filters.length?`${filters.join('&')}&`:''}select=*&order=deleted_at.desc&limit=250`});
+    return json(res,200,{data:await visibleTrashEntries(access,rows||[]),requestId},ch);
+  }
+
+  if(req.method==='POST'&&u.pathname==='/api/v1/trash/delete'){
+    const body=await readJson(req,16_384);
+    const type=String(body.resource_type||'');
+    if(!trashResourceTypes.includes(type))throw Object.assign(new Error('INVALID_RESOURCE_TYPE'),{status:400});
+    if(!uuid(body.resource_id))throw Object.assign(new Error('VALID_RESOURCE_ID_REQUIRED'),{status:400});
+    const subject=await trashSubject(access,type,body.resource_id);
+    if(!subject)return json(res,404,{error:'RESOURCE_NOT_FOUND',requestId},ch);
+    // Repeating a delete is not an error and must not stack Trash rows. The
+    // partial unique index is the real guard; this is the fast path.
+    const existing=await db('trash_entries',{query:`?resource_type=eq.${encodeURIComponent(type)}&resource_id=eq.${encodeURIComponent(body.resource_id)}&restored_at=is.null&purged_at=is.null&select=*&limit=1`});
+    if(existing.length)return json(res,200,{data:existing[0],idempotent:true,requestId},ch);
+    const hold=await activeLegalHold(db,{clientId:subject.clientId,caseId:subject.caseId});
+    if(hold)throw Object.assign(new Error('RESOURCE_UNDER_LEGAL_HOLD'),{status:409,details:{reason:hold.reason,legal_hold_id:hold.id}});
+    const now=new Date().toISOString();
+    const entry={id:crypto.randomUUID(),resource_type:type,resource_facet:subject.facet,resource_id:String(subject.record.id),client_id:subject.clientId,case_id:subject.caseId,client_number:subject.clientNumber,case_number:subject.caseNumber,display_name:subject.displayName,content_type:subject.contentType,deleted_by:principal.id,deleted_by_label:principal.displayName||null,deleted_reason:cleanText(body.reason,{max:500}),deleted_at:now,legal_hold_at_deletion:false,retention_record_type:type,request_id:uuid(body.request_id)?body.request_id:null};
+    let stored;
+    try{stored=(await db('trash_entries',{method:'POST',body:entry}))[0]||entry}
+    catch(error){
+      // Lost the race against a concurrent delete: adopt the winner's entry.
+      const raced=await db('trash_entries',{query:`?resource_type=eq.${encodeURIComponent(type)}&resource_id=eq.${encodeURIComponent(body.resource_id)}&restored_at=is.null&purged_at=is.null&select=*&limit=1`});
+      if(!raced.length)throw error;
+      return json(res,200,{data:raced[0],idempotent:true,requestId},ch);
+    }
+    // Only stamp the record once the ledger entry exists, so a record can never
+    // vanish from the active views without a Trash row that explains it.
+    await db(trashTable[type],{method:'PATCH',query:`?id=eq.${encodeURIComponent(body.resource_id)}&deleted_at=is.null`,body:{deleted_at:now,deleted_by:principal.id,deleted_reason:entry.deleted_reason}});
+    if(type!=='document')invalidateAccessCache();
+    await audit(principal,'record_soft_deleted',type,String(subject.record.id),{resource_type:type,resource_facet:subject.facet,client_id:subject.clientId,case_id:subject.caseId,client_number:subject.clientNumber,case_number:subject.caseNumber,display_name:subject.displayName,trash_entry_id:stored.id,recoverable:true},req);
+    if(subject.caseId)await caseTimeline(subject.caseId,'record_soft_deleted',{resource_type:type,resource_id:String(subject.record.id),trash_entry_id:stored.id,case_id:subject.caseId,client_id:subject.clientId},principal);
+    return json(res,201,{data:stored,requestId},ch);
+  }
+
+  const trashEntryMatch=u.pathname.match(/^\/api\/v1\/trash\/([0-9a-f-]{36})$/i);
+  if(trashEntryMatch&&req.method==='GET'){
+    const rows=await db('trash_entries',{query:`?id=eq.${encodeURIComponent(trashEntryMatch[1])}&select=*&limit=1`});
+    if(!rows.length)return json(res,404,{error:'TRASH_ENTRY_NOT_FOUND',requestId},ch);
+    const visible=await visibleTrashEntries(access,rows);
+    if(!visible.length)return json(res,404,{error:'TRASH_ENTRY_NOT_FOUND',requestId},ch);
+    const entry=visible[0];
+    const subject=await trashSubject(access,entry.resource_type,entry.resource_id);
+    if(!subject)return json(res,200,{data:{entry,impact:null,purgeable:false,blocked_reason:'RESOURCE_NO_LONGER_RESOLVABLE',requestId}},ch);
+    const impact=await purgeImpact(subject,entry.resource_type);
+    const blocked=impact.blockers.length?impact.blockers[0].code:impact.hold?'RESOURCE_UNDER_LEGAL_HOLD':impact.retention?'RETENTION_PERIOD_ACTIVE':impact.object?.reason||null;
+    return json(res,200,{data:{entry,impact,purgeable:!blocked,blocked_reason:blocked,confirm_identifier:subject.identifier},requestId},ch);
+  }
+
+  const trashRestoreMatch=u.pathname.match(/^\/api\/v1\/trash\/([0-9a-f-]{36})\/restore$/i);
+  if(trashRestoreMatch&&req.method==='POST'){
+    const rows=await db('trash_entries',{query:`?id=eq.${encodeURIComponent(trashRestoreMatch[1])}&select=*&limit=1`});
+    if(!rows.length)return json(res,404,{error:'TRASH_ENTRY_NOT_FOUND',requestId},ch);
+    const visible=await visibleTrashEntries(access,rows);
+    if(!visible.length)return json(res,404,{error:'TRASH_ENTRY_NOT_FOUND',requestId},ch);
+    const entry=visible[0];
+    if(entry.purged_at)throw Object.assign(new Error('RESOURCE_ALREADY_PERMANENTLY_DELETED'),{status:409});
+    if(entry.restored_at)return json(res,200,{data:entry,idempotent:true,requestId},ch);
+    // Restore the same row by id. Numbers are immutable in the database and no
+    // insert happens here, so the client, case and document identifiers that
+    // come back are the ones that went in.
+    await db(trashTable[entry.resource_type],{method:'PATCH',query:`?id=eq.${encodeURIComponent(entry.resource_id)}`,body:{deleted_at:null,deleted_by:null,deleted_reason:null},includeDeleted:true});
+    const claimed=await db('trash_entries',{method:'PATCH',query:`?id=eq.${encodeURIComponent(entry.id)}&restored_at=is.null&purged_at=is.null`,body:{restored_at:new Date().toISOString(),restored_by:principal.id}});
+    if(!claimed.length)return json(res,200,{data:(await db('trash_entries',{query:`?id=eq.${encodeURIComponent(entry.id)}&select=*&limit=1`}))[0]||entry,idempotent:true,requestId},ch);
+    if(entry.resource_type!=='document')invalidateAccessCache();
+    await audit(principal,'record_restored',entry.resource_type,String(entry.resource_id),{resource_type:entry.resource_type,client_id:entry.client_id,case_id:entry.case_id,client_number:entry.client_number,case_number:entry.case_number,display_name:entry.display_name,trash_entry_id:entry.id,identifiers_preserved:true},req);
+    if(entry.case_id)await caseTimeline(entry.case_id,'record_restored',{resource_type:entry.resource_type,resource_id:String(entry.resource_id),trash_entry_id:entry.id,case_id:entry.case_id,client_id:entry.client_id},principal);
+    return json(res,200,{data:claimed[0],requestId},ch);
+  }
+
+  const trashPurgeMatch=u.pathname.match(/^\/api\/v1\/trash\/([0-9a-f-]{36})\/purge$/i);
+  if(trashPurgeMatch&&req.method==='POST'){
+    const body=await readJson(req,16_384);
+    const rows=await db('trash_entries',{query:`?id=eq.${encodeURIComponent(trashPurgeMatch[1])}&select=*&limit=1`});
+    if(!rows.length)return json(res,404,{error:'TRASH_ENTRY_NOT_FOUND',requestId},ch);
+    const visible=await visibleTrashEntries(access,rows);
+    if(!visible.length)return json(res,404,{error:'TRASH_ENTRY_NOT_FOUND',requestId},ch);
+    const entry=visible[0];
+    if(entry.purged_at)return json(res,200,{data:entry,idempotent:true,requestId},ch);
+    if(entry.restored_at)throw Object.assign(new Error('RESOURCE_NOT_IN_TRASH'),{status:409});
+    const subject=await trashSubject(access,entry.resource_type,entry.resource_id);
+    if(!subject)return json(res,404,{error:'RESOURCE_NOT_FOUND',requestId},ch);
+    // The confirmation has to name the resource. Echoing the canonical
+    // identifier back is what makes "are you sure" specific rather than a
+    // reflex, and it does not depend on the dialog being red.
+    if(String(body.confirm_identifier||'').trim()!==String(subject.identifier))throw Object.assign(new Error('CONFIRMATION_IDENTIFIER_MISMATCH'),{status:400,details:{expected_field:entry.resource_type==='client'?'client_number':entry.resource_type==='case'?'case_number':'file_name'}});
+    const impact=await purgeImpact(subject,entry.resource_type);
+    if(impact.hold)throw Object.assign(new Error('RESOURCE_UNDER_LEGAL_HOLD'),{status:409,details:{reason:impact.hold.reason,legal_hold_id:impact.hold.id}});
+    if(impact.retention)throw Object.assign(new Error('RETENTION_PERIOD_ACTIVE'),{status:409,details:impact.retention});
+    if(impact.blockers.length)throw Object.assign(new Error('DEPENDENT_RECORDS_BLOCK_PERMANENT_DELETE'),{status:409,details:{blockers:impact.blockers}});
+    const now=new Date().toISOString();
+    let destroyedObject=null;
+    if(entry.resource_type==='document'){
+      if(impact.object.reason)throw Object.assign(new Error(impact.object.reason),{status:409});
+      if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
+      // The key came off the canonical row and was checked against the case's
+      // own namespace, never off the request. A missing object is treated as
+      // already destroyed so a retried purge still converges.
+      try{await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:impact.object.key}));destroyedObject=impact.object.key}
+      catch(error){if(error?.$metadata?.httpStatusCode!==404&&error?.name!=='NoSuchKey')throw Object.assign(new Error('OBJECT_DESTRUCTION_FAILED'),{status:502});destroyedObject=impact.object.key}
+      await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(entry.resource_id)}`,body:{object_key:null,status:'deleted',purged_at:now,purged_by:principal.id},includeDeleted:true});
+    }else{
+      // cases cannot be hard-deleted (cases_prevent_hard_delete) and clients
+      // cascade into documents, tasks and portal access, so neither is removed
+      // by row. The record becomes a tombstone: identifiers and audit survive,
+      // the content does not.
+      const redaction=entry.resource_type==='client'
+        ?{purged_at:now,purged_by:principal.id,legal_name:'[permanently deleted]',legal_name_ar:null,email:null,phone:null,whatsapp:null,a_number:null,passport_number:null,uscis_account_number:null,date_of_birth:null,physical_address:null,postal_code:null}
+        :{purged_at:now,purged_by:principal.id,client_name:'[permanently deleted]',notes:null,receipt_number:null};
+      await db(trashTable[entry.resource_type],{method:'PATCH',query:`?id=eq.${encodeURIComponent(entry.resource_id)}`,body:redaction,includeDeleted:true});
+    }
+    const claimed=await db('trash_entries',{method:'PATCH',query:`?id=eq.${encodeURIComponent(entry.id)}&purged_at=is.null&restored_at=is.null`,body:{purged_at:now,purged_by:principal.id}});
+    if(entry.resource_type!=='document')invalidateAccessCache();
+    await audit(principal,'record_permanently_deleted',entry.resource_type,String(entry.resource_id),{resource_type:entry.resource_type,resource_facet:entry.resource_facet,client_id:entry.client_id,case_id:entry.case_id,client_number:entry.client_number,case_number:entry.case_number,display_name:entry.display_name,trash_entry_id:entry.id,object_destroyed:destroyedObject,recoverable:false},req);
+    if(entry.case_id)await caseTimeline(entry.case_id,'record_permanently_deleted',{resource_type:entry.resource_type,resource_id:String(entry.resource_id),trash_entry_id:entry.id,case_id:entry.case_id,client_id:entry.client_id},principal);
+    return json(res,200,{data:claimed[0]||{...entry,purged_at:now,purged_by:principal.id},object_destroyed:Boolean(destroyedObject),requestId},ch);
+  }
 
   // ---- Owner access management ---------------------------------------------
   // Everything the model reads is editable here, so the Owner can grant,

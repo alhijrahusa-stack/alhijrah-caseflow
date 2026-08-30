@@ -48,6 +48,7 @@ const emptyTables = () => ({
   tasks: [],
   deadlines: [],
   legal_holds: [],
+  trash_entries: [],
   document_requests: [],
   case_notes: [],
   case_messages: [],
@@ -168,6 +169,17 @@ function applyFilters(rows, params) {
       if (value === 'null') result = result.filter(row => row[key] === null || row[key] === undefined);
       else if (value === 'true') result = result.filter(row => row[key] === true);
       else if (value === 'false') result = result.filter(row => row[key] === false);
+    } else if (operator === 'not') {
+      // PostgREST negation, which the Trash listing uses as `not.is.null`.
+      if (value === 'is.null') result = result.filter(row => row[key] !== null && row[key] !== undefined);
+      else if (value.startsWith('eq.')) result = result.filter(row => String(row[key] ?? '') !== value.slice(3));
+    } else if (operator === 'gte' || operator === 'lte') {
+      const bound = decodeURIComponent(value);
+      result = result.filter(row => {
+        const held = row[key];
+        if (held === null || held === undefined) return false;
+        return operator === 'gte' ? String(held) >= bound : String(held) <= bound;
+      });
     }
   }
   return result;

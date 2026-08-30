@@ -50,10 +50,14 @@
         "Rejected document requires replacement":"المستند المرفوض يحتاج إلى بديل","Overdue task":"مهمة متأخرة","Save Mapping":"حفظ الربط","Dry Run":"تشغيل تجريبي",
         "PNG, JPG, WebP or SVG · 2 MB maximum":"PNG أو JPG أو WebP أو SVG · الحد الأقصى 2 ميغابايت","Start date":"تاريخ البدء","End date":"تاريخ الانتهاء","Case role":"الدور في الملف","Beneficiary":"المستفيد","Petitioner":"مقدم الالتماس","Spouse":"الزوج أو الزوجة","Child":"الطفل","Sponsor":"الكفيل","Interpreter":"المترجم","Immigration":"الهجرة","Address":"العنوان","Employment":"العمل","Travel":"السفر","Case-level form":"نموذج على مستوى الملف","Participant (optional)":"المشارك (اختياري)"
       });
+      // Secure delete: every new label, state, confirmation and blocked reason
+      // in both languages. A blocked deletion has to read the same in Arabic.
+      Object.assign(translations.ar,{"trash":"سلة المحذوفات","trashSubtitle":"العملاء والملفات والمستندات والصور المحذوفة. استعادة أو حذف نهائي.","trashFilters":"مرشّحات سلة المحذوفات","resourceType":"نوع السجل","itemKind":"نوع العنصر","allTypes":"كل الأنواع","allKinds":"كل الأصناف","records":"سجلات","images":"صور","documentVersions":"إصدارات المستندات","allClients":"كل العملاء","allCases":"كل الملفات","anyone":"أي مستخدم","deletedBy":"حذفه","deletedAt":"تاريخ الحذف","deletedFrom":"محذوف من","deletedTo":"محذوف إلى","state":"الحالة","inTrash":"في سلة المحذوفات","restored":"مُستعاد","permanentlyDeleted":"محذوف نهائياً","all":"الكل","clientNumber":"رقم العميل","caseNumber":"رقم الملف","retentionState":"الاحتفاظ / الحجز","actions":"إجراءات","name":"الاسم","moveToTrash":"نقل إلى سلة المحذوفات","moveToTrashHint":"يخرج السجل من مساحة العمل النشطة ويمكن استعادته من سلة المحذوفات.","reasonOptional":"السبب (اختياري)","notice":"تنبيه","softDeleteNotice":"هذا حذف ناعم. لا يُتلَف أي محتوى ويُسجَّل قيد تدقيق غير قابل للتعديل.","permanentlyDelete":"حذف نهائي","permanentlyDeleteHint":"يُتلِف هذا المحتوى المخزَّن. لا يمكن التراجع عنه.","typeIdentifierToConfirm":"للتأكيد، اكتب المُعرِّف بالضبط","permanentDeleteNotice":"الحذف النهائي يُتلِف المحتوى المخزَّن. يُحتفَظ بالمُعرِّف وبسجل التدقيق.","cancel":"إلغاء","close":"إغلاق"});
+      const trashPhraseArabic=Object.freeze({"Trash":"سلة المحذوفات","Delete":"حذف","Restore":"استعادة","Permanently Delete":"حذف نهائي","More actions":"إجراءات إضافية","Trash is empty.":"سلة المحذوفات فارغة.","In Trash":"في سلة المحذوفات","Restored":"مُستعاد","Permanently deleted":"محذوف نهائياً","Legal hold":"حجز قانوني","Retention applies":"تنطبق سياسة احتفاظ","Retention until":"احتفاظ حتى","None":"لا يوجد","Blocked":"محظور","This cannot be permanently deleted yet.":"لا يمكن حذف هذا نهائياً بعد.","Resource type":"نوع السجل","Name":"الاسم","Client Number":"رقم العميل","Case Number":"رقم الملف","Deleted By":"حذفه","Deleted At":"تاريخ الحذف","Retention / Hold":"الاحتفاظ / الحجز","Client":"العميل","Case":"الملف","Document":"المستند","Record":"سجل","Image":"صورة","Document version":"إصدار مستند","Moved to Trash.":"نُقل إلى سلة المحذوفات.","Already in Trash.":"موجود في سلة المحذوفات بالفعل.","Restored with the same identifiers.":"تمت الاستعادة بالمُعرِّفات نفسها.","Permanently deleted.":"تم الحذف النهائي.","The identifier does not match. Type it exactly to confirm.":"المُعرِّف غير مطابق. اكتبه بالضبط للتأكيد.","A legal hold prevents this deletion.":"يمنع حجز قانوني هذا الحذف.","The retention period has not elapsed.":"لم تنقضِ مدة الاحتفاظ.","Dependent records must be removed first.":"يجب إزالة السجلات التابعة أولاً.","This was already permanently deleted.":"سبق حذف هذا نهائياً.","This is no longer in Trash.":"لم يعد هذا في سلة المحذوفات.","The record can no longer be resolved.":"تعذّر تحديد السجل.","The stored file does not belong to this case.":"الملف المخزَّن لا يخص هذا الملف.","There is no stored file to destroy.":"لا يوجد ملف مخزَّن لإتلافه.","The document is not linked to a case.":"المستند غير مرتبط بملف.","A newer version of this document exists.":"يوجد إصدار أحدث من هذا المستند.","A form answer cites this document as its source.":"إجابة نموذج تستشهد بهذا المستند كمصدر.","A history record cites this document as its source.":"سجل تاريخي يستشهد بهذا المستند كمصدر.","The client still has cases.":"لا يزال لدى العميل ملفات.","The client still has documents.":"لا تزال لدى العميل مستندات.","The client still has invoices.":"لا تزال لدى العميل فواتير.","The client still has tasks.":"لا تزال لدى العميل مهام.","The client still has appointments.":"لا تزال لدى العميل مواعيد.","The client still has document requests.":"لا تزال لدى العميل طلبات مستندات.","The client still has linked people.":"لا يزال لدى العميل أشخاص مرتبطون.","The client still has portal access grants.":"لا تزال لدى العميل صلاحيات وصول للبوابة.","The client still has family records.":"لا تزال لدى العميل سجلات عائلية.","The client still has sent communications.":"لا تزال لدى العميل مراسلات مُرسَلة.","The client still has alerts.":"لا تزال لدى العميل تنبيهات.","Import records still reference this client.":"لا تزال سجلات الاستيراد تشير إلى هذا العميل.","The case still has documents.":"لا تزال لدى الملف مستندات.","The case still has invoices.":"لا تزال لدى الملف فواتير.","The case still has forms.":"لا تزال لدى الملف نماذج.","The case still has form findings.":"لا تزال لدى الملف ملاحظات نماذج.","The case still has generated documents.":"لا تزال لدى الملف مستندات مولَّدة.","The case still has AI review runs.":"لا تزال لدى الملف عمليات مراجعة بالذكاء الاصطناعي.","The case still has AI findings.":"لا تزال لدى الملف ملاحظات ذكاء اصطناعي.","The case still has background jobs.":"لا تزال لدى الملف مهام خلفية.","The case still has sent communications.":"لا تزال لدى الملف مراسلات مُرسَلة.","The case still has history records.":"لا تزال لدى الملف سجلات تاريخية.","The case still has participant match reviews.":"لا تزال لدى الملف مراجعات مطابقة مشاركين.","The case still has intake submissions.":"لا تزال لدى الملف استمارات استقبال.","The case still has participants.":"لا يزال لدى الملف مشاركون.","The case still has messages.":"لا تزال لدى الملف رسائل.","The case still has notes.":"لا تزال لدى الملف ملاحظات.","The case still has tasks.":"لا تزال لدى الملف مهام.","The case still has deadlines.":"لا تزال لدى الملف مواعيد نهائية.","The case still has appointments.":"لا تزال لدى الملف مواعيد.","The case still has document requests.":"لا تزال لدى الملف طلبات مستندات.","The case still has staff assignments.":"لا تزال لدى الملف إسنادات موظفين.","The case still has form role assignments.":"لا تزال لدى الملف إسنادات أدوار نماذج.","Import records still reference this case.":"لا تزال سجلات الاستيراد تشير إلى هذا الملف.","The record is not available to you.":"السجل غير متاح لك.","The Trash entry is not available to you.":"مدخل سلة المحذوفات غير متاح لك.","Request failed.":"فشل الطلب."});
       const originalUiText=new WeakMap(),originalUiAttributes=new WeakMap();
       function translatedUiPhrase(value){
         const text=String(value||""),trimmed=text.trim(),normalized=trimmed.replace(/\s+/g," ");if(!trimmed)return text;
-        let translated=uiPhraseArabic[trimmed]||uiPhraseArabic[normalized]||supplementalUiPhraseArabic[trimmed]||supplementalUiPhraseArabic[normalized]||Object.entries(translations.ar).find(([key])=>key===trimmed||key===normalized)?.[1];
+        let translated=uiPhraseArabic[trimmed]||uiPhraseArabic[normalized]||supplementalUiPhraseArabic[trimmed]||supplementalUiPhraseArabic[normalized]||trashPhraseArabic[trimmed]||trashPhraseArabic[normalized]||Object.entries(translations.ar).find(([key])=>key===trimmed||key===normalized)?.[1];
         if(!translated&&/^Version\s+/.test(trimmed))translated=trimmed.replace(/^Version/,"الإصدار");
         if(!translated&&/^Family member (\d+)$/.test(trimmed))translated=trimmed.replace(/^Family member/,"فرد العائلة");
         if(!translated&&/^(\d+) fields$/.test(trimmed))translated=trimmed.replace(/ fields$/," حقول");
@@ -119,6 +123,7 @@
           roles: ["accessControl", "teamRoles"],
           audit: ["activityAudit", "auditTrail"],
           access: ["accessControl", "accessControl"],
+          trash: ["workspaceSettings", "trash"],
           settings: ["workspaceSettings", "settings"],
         };
         $("sectionEyebrow").textContent = tr(t[v][0]);
@@ -149,6 +154,7 @@
         roles: loadTeam,
         audit: loadAudit,
         access: () => allowedTo("access.manage") ? loadAccess() : Promise.resolve(),
+        trash: loadTrash,
         settings: loadSettings,
       };
       function loadViewData(view, force = false) {
@@ -168,6 +174,7 @@
       // in step with whatever the Owner has configured rather than with a
       // second hardcoded role table.
       const viewPermissions = {
+        trash: "trash.view",
         dashboard: "dashboard.view",
         cases: "cases.view",
         clients: "clients.view",
@@ -183,8 +190,16 @@
         access: "access.manage",
         settings: "settings.manage",
       };
+      // Mirrors hasEffectivePermission on the server, including the rule that a
+      // wildcard grant never reaches the three destructive authorities. The
+      // server is the boundary; this only keeps the UI from offering a control
+      // that would be refused.
+      const destructivePermissions = ["trash.delete", "trash.restore", "trash.purge"];
       function allowedTo(permission) {
         const held = currentUser?.permissions || [];
+        if (destructivePermissions.includes(permission)) {
+          return held.includes(permission) || (currentUser?.roles || []).includes("owner");
+        }
         return held.includes("*") || held.includes(permission);
       }
       function configureNavigation() {
@@ -468,7 +483,7 @@
           a
             .map(
               (x) =>
-                `<tr><td><b>${esc(x.case_number||x.case_reference||"—")}</b></td><td><b>${esc(x.client_name)}</b></td><td>${esc(x.case_type)}</td><td>${esc(x.workflow_stage||x.status)}</td><td>${esc(x.priority)}</td><td>${esc(x.assigned_to || "—")}</td><td><button class="linkbtn" data-act="editCase" data-a1="${x.id}">${esc(tr("open"))}</button></td></tr>`,
+                `<tr><td><b>${esc(x.case_number||x.case_reference||"—")}</b></td><td><b>${esc(x.client_name)}</b></td><td>${esc(x.case_type)}</td><td>${esc(x.workflow_stage||x.status)}</td><td>${esc(x.priority)}</td><td>${esc(x.assigned_to || "—")}</td><td><button class="linkbtn" data-act="editCase" data-a1="${x.id}">${esc(tr("open"))}</button>${rowMenu("case", x.id)}</td></tr>`,
             )
             .join("") || '<tr><td colspan="7">No matching cases.</td></tr>';
       }
@@ -493,7 +508,7 @@
           visible
             .map(
               (client) =>
-                `<tr><td><b>${esc(client.client_number||"—")}</b></td><td><b>${esc(currentLanguage==="Arabic"&&client.legal_name_ar?client.legal_name_ar:client.legal_name)}</b><br><small>${esc(client.nationality || "—")}</small></td><td>${esc(client.email || client.phone || "—")}</td><td>${esc(client.a_number || "—")}</td><td>${esc(client.preferred_language || "—")}</td><td><button class="linkbtn" data-act="editClient" data-a1="${client.id}">${esc(tr("edit"))}</button></td></tr>`,
+                `<tr><td><b>${esc(client.client_number||"—")}</b></td><td><b>${esc(currentLanguage==="Arabic"&&client.legal_name_ar?client.legal_name_ar:client.legal_name)}</b><br><small>${esc(client.nationality || "—")}</small></td><td>${esc(client.email || client.phone || "—")}</td><td>${esc(client.a_number || "—")}</td><td>${esc(client.preferred_language || "—")}</td><td><button class="linkbtn" data-act="editClient" data-a1="${client.id}">${esc(tr("edit"))}</button>${rowMenu("client", client.id)}</td></tr>`,
             )
             .join("") || '<tr><td colspan="6">No matching clients.</td></tr>';
       }
@@ -1071,7 +1086,7 @@
             docs
               .map(
                 (d) =>
-                  `<tr><td><b>${esc(d.file_name)}</b><small style="display:block">${esc(intakeOptionLabel(d.category||"unclassified"))} · v${Number(d.version||1)}</small></td><td>${esc(names[d.case_id] || "Unknown")}</td><td>${esc(d.content_type || "—")}</td><td>${formatSize(d.size_bytes)}</td><td>${date(d.created_at)}</td><td>${["application/pdf","image/jpeg","image/png","image/webp"].includes(d.content_type) ? `<button class="linkbtn" data-act="previewDoc" data-a1="${d.id}">Preview</button> · ` : ""}${["image/jpeg","image/png","image/webp"].includes(d.content_type)?`<button class="linkbtn" data-act="reviewDocumentOcr" data-a1="${d.id}">OCR</button> · `:""}<button class="linkbtn" data-act="downloadDoc" data-a1="${d.id}">Download</button> · <button class="linkbtn" data-act="replaceDoc" data-a1="${d.id}">Replace</button> · <button class="linkbtn" data-act="deleteDoc" data-a1="${d.id}">Archive</button></td></tr>`,
+                  `<tr><td><b>${esc(d.file_name)}</b><small style="display:block">${esc(intakeOptionLabel(d.category||"unclassified"))} · v${Number(d.version||1)}</small></td><td>${esc(names[d.case_id] || "Unknown")}</td><td>${esc(d.content_type || "—")}</td><td>${formatSize(d.size_bytes)}</td><td>${date(d.created_at)}</td><td>${["application/pdf","image/jpeg","image/png","image/webp"].includes(d.content_type) ? `<button class="linkbtn" data-act="previewDoc" data-a1="${d.id}">Preview</button> · ` : ""}${["image/jpeg","image/png","image/webp"].includes(d.content_type)?`<button class="linkbtn" data-act="reviewDocumentOcr" data-a1="${d.id}">OCR</button> · `:""}<button class="linkbtn" data-act="downloadDoc" data-a1="${d.id}">Download</button> · <button class="linkbtn" data-act="replaceDoc" data-a1="${d.id}">Replace</button> · <button class="linkbtn" data-act="deleteDoc" data-a1="${d.id}">Archive</button>${rowMenu("document", d.id)}</td></tr>`,
               )
               .join("") ||
             '<tr><td colspan="6">No documents uploaded.</td></tr>';
@@ -1684,8 +1699,308 @@
       // (data-act="openCase" data-a1="...") and this table is the only thing that
       // turns that name into a call: an unknown or attacker-supplied name matches
       // nothing and does nothing. No eval, no lookup by string on window.
+
+      // ---- Secure delete: contextual menus, Trash, restore, permanent delete
+      // The delete affordance is deliberately quiet: it lives behind the row's
+      // overflow menu, never in the primary navigation or as a standing button.
+      const resourceLabels = { client: "Client", case: "Case", document: "Document" };
+      const facetLabels = { record: "Record", image: "Image", version: "Document version" };
+      let trashPending = null;
+      let menuReturnFocus = null;
+
+      function rowMenu(resourceType, id, extra = []) {
+        const items = extra.slice();
+        if (allowedTo("trash.delete")) {
+          items.push(`<button role="menuitem" class="danger" data-act="openDeleteConfirm" data-a1="${resourceType}" data-a2="${id}">${esc("Delete")}</button>`);
+        }
+        if (!items.length) return "";
+        return `<span class="rowmenu"><button type="button" class="rowmenu-toggle" aria-haspopup="menu" aria-expanded="false" aria-label="${esc("More actions")}" data-act="toggleRowMenu" data-a1="${resourceType}-${id}">&#8943;</button>`
+          + `<div class="rowmenu-panel" role="menu" id="rowmenu-${resourceType}-${id}" hidden>${items.join("")}</div></span>`;
+      }
+
+      function closeRowMenus() {
+        document.querySelectorAll(".rowmenu-panel").forEach((panel) => { panel.hidden = true; });
+        document.querySelectorAll(".rowmenu-toggle").forEach((button) => button.setAttribute("aria-expanded", "false"));
+      }
+
+      function toggleRowMenu(key) {
+        const panel = $(`rowmenu-${key}`);
+        if (!panel) return;
+        const wasOpen = !panel.hidden;
+        closeRowMenus();
+        if (wasOpen) return;
+        panel.hidden = false;
+        const toggle = panel.parentElement.querySelector(".rowmenu-toggle");
+        toggle?.setAttribute("aria-expanded", "true");
+        menuReturnFocus = toggle || null;
+        panel.querySelector("button")?.focus();
+      }
+
+      // Enough canonical context to know exactly what is about to be deleted.
+      function factsMarkup(facts) {
+        return facts
+          .filter((entry) => entry[1] !== null && entry[1] !== undefined && entry[1] !== "")
+          .map(([label, value]) => `<div><label>${esc(label)}</label><b>${esc(String(value))}</b></div>`)
+          .join("");
+      }
+
+      async function openDeleteConfirm(resourceType, id) {
+        closeRowMenus();
+        const facts = await deleteSubjectFacts(resourceType, id);
+        trashPending = { mode: "delete", resourceType, id };
+        $("deleteFacts").innerHTML = factsMarkup(facts);
+        $("deleteReason").value = "";
+        $("deleteConfirmErr").textContent = "";
+        $("deleteConfirmModal").classList.add("show");$("deleteReason").focus();
+      }
+
+      function deleteSubjectFacts(resourceType, id) {
+        const known = resourceType === "client"
+          ? clients.find((row) => String(row.id) === String(id))
+          : resourceType === "case"
+            ? cases.find((row) => String(row.id) === String(id))
+            : docs.find((row) => String(row.id) === String(id));
+        const clientRow = resourceType === "client" ? known : clients.find((row) => String(row.id) === String(known?.client_id));
+        const caseRow = resourceType === "case" ? known : cases.find((row) => String(row.id) === String(known?.case_id));
+        return Promise.resolve([
+          ["Resource type", resourceLabels[resourceType] || resourceType],
+          ["Name", resourceType === "document" ? known?.file_name : resourceType === "case" ? (known?.case_number || known?.case_reference) : known?.legal_name],
+          ["Client Number", clientRow?.client_number || caseRow?.client_number || null],
+          ["Case Number", caseRow?.case_number || caseRow?.case_reference || null],
+        ]);
+      }
+
+      async function confirmDelete() {
+        if (!trashPending) return;
+        const button = $("deleteConfirmBtn");
+        // closeDeleteConfirm() clears trashPending, so the type is read first.
+        const { resourceType, id } = trashPending;
+        button.disabled = true;
+        try {
+          const response = await api("/api/v1/trash/delete", {
+            method: "POST",
+            body: JSON.stringify({ resource_type: resourceType, resource_id: id, reason: $("deleteReason").value || undefined }),
+          });
+          closeDeleteConfirm();
+          $("trashErr").textContent = response.idempotent ? "Already in Trash." : "Moved to Trash.";
+          await refreshAfterTrashChange(resourceType);
+        } catch (error) {
+          $("deleteConfirmErr").textContent = trashErrorText(error);
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      function closeDeleteConfirm() { trashPending = null; $("deleteConfirmModal").classList.remove("show");menuReturnFocus?.focus(); }
+      function closePurgeConfirm() { trashPending = null; $("purgeConfirmModal").classList.remove("show"); }
+
+      async function loadTrash() {
+        if (!allowedTo("trash.view")) return;
+        const params = new URLSearchParams();
+        const pick = (id, key) => { const value = $(id)?.value; if (value) params.set(key, value); };
+        pick("trashType", "resource_type");
+        pick("trashFacet", "resource_facet");
+        pick("trashClient", "client_id");
+        pick("trashCase", "case_id");
+        pick("trashActor", "deleted_by");
+        pick("trashFrom", "deleted_from");
+        pick("trashTo", "deleted_to");
+        params.set("state", $("trashState")?.value || "deleted");
+        $("trashErr").textContent = "";
+        let entries = [];
+        try {
+          entries = (await api(`/api/v1/trash?${params.toString()}`)).data || [];
+        } catch (error) {
+          $("trashErr").textContent = trashErrorText(error);
+          return;
+        }
+        populateTrashFilterOptions(entries);
+        const canRestore = allowedTo("trash.restore");
+        const canPurge = allowedTo("trash.purge");
+        $("trashRows").innerHTML = entries.length
+          ? entries.map((entry) => {
+              const state = entry.purged_at ? "Permanently deleted" : entry.restored_at ? "Restored" : "In Trash";
+              const held = entry.legal_hold_at_deletion ? "Legal hold" : entry.retention_record_type ? "Retention applies" : "—";
+              const actions = [];
+              if (!entry.purged_at && !entry.restored_at && canRestore) actions.push(`<button class="linkbtn" data-act="restoreTrashEntry" data-a1="${entry.id}">${esc("Restore")}</button>`);
+              if (!entry.purged_at && !entry.restored_at && canPurge) actions.push(`<button class="linkbtn danger" data-act="openPurgeConfirm" data-a1="${entry.id}">${esc("Permanently Delete")}</button>`);
+              return `<tr><td><b>${esc(resourceLabels[entry.resource_type] || entry.resource_type)}</b><small style="display:block">${esc(facetLabels[entry.resource_facet] || entry.resource_facet)}</small></td>`
+                + `<td><b>${esc(entry.display_name || "—")}</b><small style="display:block">${esc(state)}</small></td>`
+                + `<td>${esc(entry.client_number || "—")}</td><td>${esc(entry.case_number || "—")}</td>`
+                + `<td>${esc(entry.deleted_by_label || "—")}</td><td>${esc(date(entry.deleted_at))}</td>`
+                + `<td>${esc(held)}</td><td>${actions.join(" · ") || "—"}</td></tr>`;
+            }).join("")
+          : `<tr><td colspan="8">${esc("Trash is empty.")}</td></tr>`;
+      }
+
+      function populateTrashFilterOptions(entries) {
+        const fill = (id, pairs, allLabel) => {
+          const select = $(id);
+          if (!select) return;
+          const current = select.value;
+          const seen = new Map(pairs.filter(([value]) => value));
+          select.innerHTML = `<option value="">${esc(allLabel)}</option>`
+            + [...seen].map(([value, label]) => `<option value="${esc(value)}"${String(current) === String(value) ? " selected" : ""}>${esc(label)}</option>`).join("");
+        };
+        fill("trashClient", entries.map((row) => [row.client_id, row.client_number || row.client_id]), "All clients");
+        fill("trashCase", entries.map((row) => [row.case_id, row.case_number || row.case_id]), "All cases");
+        fill("trashActor", entries.map((row) => [row.deleted_by, row.deleted_by_label || row.deleted_by]), "Anyone");
+      }
+
+      const applyTrashFilters = () => loadTrash();
+
+      async function restoreTrashEntry(entryId) {
+        try {
+          await api(`/api/v1/trash/${entryId}/restore`, { method: "POST" });
+          await loadTrash();
+          await refreshAfterTrashChange();
+          $("trashErr").textContent = "Restored with the same identifiers.";
+        } catch (error) {
+          $("trashErr").textContent = trashErrorText(error);
+        }
+      }
+
+      async function openPurgeConfirm(entryId) {
+        let detail;
+        try {
+          detail = (await api(`/api/v1/trash/${entryId}`)).data;
+        } catch (error) {
+          $("trashErr").textContent = trashErrorText(error);
+          return;
+        }
+        const entry = detail.entry;
+        trashPending = { mode: "purge", entryId, expected: detail.confirm_identifier || "" };
+        $("purgeFacts").innerHTML = factsMarkup([
+          ["Resource type", resourceLabels[entry.resource_type] || entry.resource_type],
+          ["Name", entry.display_name],
+          ["Client Number", entry.client_number],
+          ["Case Number", entry.case_number],
+          ["Deleted By", entry.deleted_by_label],
+          ["Deleted At", date(entry.deleted_at)],
+          ["Retention / Hold", detail.impact?.hold ? "Legal hold" : detail.impact?.retention ? `${"Retention until"} ${date(detail.impact.retention.releases_at)}` : "None"],
+        ]);
+        const blocked = !detail.purgeable;
+        // The blocked state is stated in words and repeated as a list, so it is
+        // never carried by colour on its own.
+        $("purgeBlocked").innerHTML = blocked
+          ? `<p class="danger-note"><b>${esc("Blocked")}</b> ${esc("This cannot be permanently deleted yet.")}<ul class="blocked-list">`
+            + (detail.impact?.blockers?.length
+              ? detail.impact.blockers.map((row) => `<li>${esc(trashErrorPhrase(row.code))} (${Number(row.count)})</li>`).join("")
+              : `<li>${esc(trashErrorPhrase(detail.blocked_reason))}</li>`)
+            + "</ul></p>"
+          : "";
+        $("purgeConfirmField").hidden = blocked;
+        $("purgeConfirmBtn").disabled = blocked;
+        $("purgeExpected").textContent = detail.confirm_identifier || "";
+        $("purgeIdentifier").value = "";
+        $("purgeConfirmErr").textContent = "";
+        $("purgeConfirmModal").classList.add("show");if(!blocked)$("purgeIdentifier").focus();else $("purgeConfirmBtn").blur();
+      }
+
+      async function confirmPurge() {
+        if (!trashPending || trashPending.mode !== "purge") return;
+        const typed = $("purgeIdentifier").value.trim();
+        if (typed !== String(trashPending.expected)) {
+          $("purgeConfirmErr").textContent = "The identifier does not match. Type it exactly to confirm.";
+          $("purgeIdentifier").focus();
+          return;
+        }
+        const button = $("purgeConfirmBtn");
+        button.disabled = true;
+        try {
+          await api(`/api/v1/trash/${trashPending.entryId}/purge`, { method: "POST", body: JSON.stringify({ confirm_identifier: typed }) });
+          closePurgeConfirm();
+          await loadTrash();
+          $("trashErr").textContent = "Permanently deleted.";
+        } catch (error) {
+          $("purgeConfirmErr").textContent = trashErrorText(error);
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      async function refreshAfterTrashChange(resourceType) {
+        const views = resourceType === "client" ? ["clients"] : resourceType === "case" ? ["cases"] : resourceType === "document" ? ["documents"] : ["clients", "cases", "documents"];
+        for (const view of views) await loadViewData(view, true).catch(() => {});
+      }
+
+      // Server error codes rendered as sentences. Every one of these is also in
+      // the Arabic phrase table, so a blocked deletion reads the same in both.
+      const trashErrorPhrases = {
+        RESOURCE_UNDER_LEGAL_HOLD: "A legal hold prevents this deletion.",
+        RETENTION_PERIOD_ACTIVE: "The retention period has not elapsed.",
+        DEPENDENT_RECORDS_BLOCK_PERMANENT_DELETE: "Dependent records must be removed first.",
+        CONFIRMATION_IDENTIFIER_MISMATCH: "The identifier does not match. Type it exactly to confirm.",
+        RESOURCE_ALREADY_PERMANENTLY_DELETED: "This was already permanently deleted.",
+        RESOURCE_NOT_IN_TRASH: "This is no longer in Trash.",
+        RESOURCE_NO_LONGER_RESOLVABLE: "The record can no longer be resolved.",
+        DOCUMENT_OBJECT_OUTSIDE_CASE_NAMESPACE: "The stored file does not belong to this case.",
+        DOCUMENT_HAS_NO_OBJECT: "There is no stored file to destroy.",
+        DOCUMENT_NOT_LINKED_TO_CASE: "The document is not linked to a case.",
+        DOCUMENT_HAS_SUCCESSOR_VERSION: "A newer version of this document exists.",
+        DOCUMENT_CITED_BY_FORM_ANSWER: "A form answer cites this document as its source.",
+        DOCUMENT_CITED_BY_HISTORY: "A history record cites this document as its source.",
+        CLIENT_HAS_CASES: "The client still has cases.",
+        CLIENT_HAS_DOCUMENTS: "The client still has documents.",
+        CLIENT_HAS_INVOICES: "The client still has invoices.",
+        CLIENT_HAS_TASKS: "The client still has tasks.",
+        CLIENT_HAS_APPOINTMENTS: "The client still has appointments.",
+        CLIENT_HAS_DOCUMENT_REQUESTS: "The client still has document requests.",
+        CLIENT_HAS_PARTICIPANTS: "The client still has linked people.",
+        CLIENT_HAS_PORTAL_ACCESS: "The client still has portal access grants.",
+        CLIENT_HAS_FAMILY_RECORDS: "The client still has family records.",
+        CLIENT_HAS_COMMUNICATIONS: "The client still has sent communications.",
+        CLIENT_HAS_ALERTS: "The client still has alerts.",
+        CLIENT_HAS_IMPORT_PROVENANCE: "Import records still reference this client.",
+        CASE_HAS_DOCUMENTS: "The case still has documents.",
+        CASE_HAS_INVOICES: "The case still has invoices.",
+        CASE_HAS_FORMS: "The case still has forms.",
+        CASE_HAS_FORM_FINDINGS: "The case still has form findings.",
+        CASE_HAS_GENERATED_ARTIFACTS: "The case still has generated documents.",
+        CASE_HAS_AI_REVIEWS: "The case still has AI review runs.",
+        CASE_HAS_AI_FINDINGS: "The case still has AI findings.",
+        CASE_HAS_BACKGROUND_JOBS: "The case still has background jobs.",
+        CASE_HAS_COMMUNICATIONS: "The case still has sent communications.",
+        CASE_HAS_HISTORY_RECORDS: "The case still has history records.",
+        CASE_HAS_MATCH_REVIEWS: "The case still has participant match reviews.",
+        CASE_HAS_INTAKE: "The case still has intake submissions.",
+        CASE_HAS_PARTICIPANTS: "The case still has participants.",
+        CASE_HAS_MESSAGES: "The case still has messages.",
+        CASE_HAS_NOTES: "The case still has notes.",
+        CASE_HAS_TASKS: "The case still has tasks.",
+        CASE_HAS_DEADLINES: "The case still has deadlines.",
+        CASE_HAS_APPOINTMENTS: "The case still has appointments.",
+        CASE_HAS_DOCUMENT_REQUESTS: "The case still has document requests.",
+        CASE_HAS_ASSIGNMENTS: "The case still has staff assignments.",
+        CASE_HAS_FORM_ROLES: "The case still has form role assignments.",
+        CASE_HAS_IMPORT_PROVENANCE: "Import records still reference this case.",
+        RESOURCE_NOT_FOUND: "The record is not available to you.",
+        TRASH_ENTRY_NOT_FOUND: "The Trash entry is not available to you.",
+      };
+      const trashErrorPhrase = (code) => trashErrorPhrases[code] || String(code || "Request failed.");
+      function trashErrorText(error) {
+        const base = trashErrorPhrase(error?.message);
+        const blockers = error?.details?.blockers;
+        if (Array.isArray(blockers) && blockers.length) {
+          return `${base} ${blockers.map((row) => trashErrorPhrase(row.code)).join(" ")}`;
+        }
+        if (error?.details?.releases_at) return `${base} (${date(error.details.releases_at)})`;
+        if (error?.details?.reason) return `${base} ${error.details.reason}`;
+        return base;
+      }
+
       const uiActions = Object.freeze({
         acceptInvite,
+        applyTrashFilters,
+        closeDeleteConfirm,
+        closePurgeConfirm,
+        confirmDelete,
+        confirmPurge,
+        loadTrash,
+        openDeleteConfirm,
+        openPurgeConfirm,
+        restoreTrashEntry,
+        toggleRowMenu,
         addIntakePerson,
         chooseIdentityFile,
         chooseOfficeLogo,
@@ -1798,6 +2113,20 @@
         if (!element) return;
         event.preventDefault();
         runUiAction(element);
+      });
+      for (const id of ["trashType", "trashFacet", "trashClient", "trashCase", "trashActor", "trashFrom", "trashTo", "trashState"]) {
+        $(id)?.addEventListener("change", () => loadTrash());
+      }
+      // A row menu is transient: it closes on outside click and on Escape, and
+      // Escape returns focus to the control that opened it.
+      document.addEventListener("click", (event) => {
+        if (!event.target.closest(".rowmenu")) closeRowMenus();
+      }, true);
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        if (document.querySelector(".rowmenu-panel:not([hidden])")) { closeRowMenus(); menuReturnFocus?.focus(); return; }
+        if ($("purgeConfirmModal")?.classList.contains("show")) return closePurgeConfirm();
+        if ($("deleteConfirmModal")?.classList.contains("show")) return closeDeleteConfirm();
       });
       $("docFile").addEventListener("change", (event) => setDocumentFile(event.target.files[0]));
       $("identityFile").addEventListener("change", (event) => runIdentityOcr(event.target.files[0]));

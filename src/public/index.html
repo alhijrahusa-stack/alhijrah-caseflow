@@ -497,6 +497,50 @@
         margin-top: 5px;
         line-height: 1.4;
       }
+
+      /* Secure delete. Scoped to this feature -- no global token is redefined. */
+      .rowmenu { position: relative; display: inline-block; }
+      .rowmenu > button.rowmenu-toggle {
+        background: transparent; border: 1px solid var(--line); color: var(--muted);
+        border-radius: 8px; padding: 2px 8px; line-height: 1.4; cursor: pointer;
+        font-size: 13px; letter-spacing: 1px;
+      }
+      .rowmenu > button.rowmenu-toggle:hover, .rowmenu > button.rowmenu-toggle:focus-visible { color: var(--text); border-color: var(--gold); }
+      .rowmenu-panel {
+        position: absolute; inset-inline-end: 0; top: calc(100% + 4px); z-index: 40;
+        min-width: 190px; padding: 5px; text-align: start;
+        background: var(--panel2); border: 1px solid var(--line); border-radius: 12px;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.42);
+      }
+      .rowmenu-panel button {
+        display: block; width: 100%; text-align: start; background: transparent;
+        border: 0; color: var(--text); padding: 7px 10px; border-radius: 8px;
+        cursor: pointer; font: inherit;
+      }
+      .rowmenu-panel button:hover, .rowmenu-panel button:focus-visible { background: rgba(255, 255, 255, 0.06); }
+      /* Destructive items carry a word and a mark, never colour on its own. */
+      .rowmenu-panel button.danger { color: var(--red); }
+      .rowmenu-panel button.danger::before { content: "\2715\00a0\00a0"; }
+      .danger-dialog { border-color: rgba(255, 133, 133, 0.42); }
+      .danger-note {
+        border: 1px solid rgba(255, 133, 133, 0.42); border-radius: 12px;
+        padding: 10px 12px; margin: 10px 0; color: var(--text); background: rgba(255, 133, 133, 0.07);
+      }
+      .danger-note b::before { content: "\26a0\00a0"; }
+      .facts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin: 10px 0; }
+      .facts-grid div { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+      .facts-grid label { display: block; color: var(--muted); font-size: 11px; margin-bottom: 2px; }
+      .facts-grid b { word-break: break-word; }
+      .blocked-list { margin: 6px 0 0; padding-inline-start: 18px; color: var(--muted); }
+      .trash-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+      .trash-filters .field { min-width: 150px; }
+      .trash-tablewrap { overflow-x: auto; }
+      .danger-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+      .danger-actions #deleteConfirmBtn, .danger-actions #purgeConfirmBtn { border-color: var(--red); color: var(--red); }
+      .visually-hidden {
+        position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+        overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+      }
       .modal {
         position: fixed;
         inset: 0;
@@ -883,6 +927,7 @@
           ><button data-view="roles" data-i18n="teamRoles">Team & Roles</button
           ><button data-view="audit" data-i18n="auditTrail">Audit Trail</button
           ><button data-view="access" data-i18n="accessControl">Access Control</button
+          ><button data-view="trash" data-i18n="trash">Trash</button
           ><button data-view="settings" data-i18n="settings">Settings</button>
         </div>
         <div class="sidefoot">
@@ -1307,6 +1352,66 @@
           <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="stagedImports">Staged Imports</h2><span data-i18n="importWorkflow">Map, validate, review, approve, then process in the background.</span></div></div><div class="table"><table><thead><tr><th data-i18n="filename">Filename</th><th data-i18n="status">Status</th><th data-i18n="rows">Rows</th><th data-i18n="progress">Progress</th><th></th></tr></thead><tbody id="importBatchTable"></tbody></table></div></div>
           <div class="panel" id="importReviewPanel" style="display:none;margin-top:16px"><div class="ph"><div><h2 id="importReviewTitle" data-i18n="humanReview">Human Review</h2><span id="importReviewSummary"></span></div><div class="df"><button class="btn" data-act="saveImportMapping" data-i18n="saveMapping">Save Mapping</button><button class="btn" data-act="runImportDryRun" data-i18n="dryRun">Dry Run</button><button class="btn" data-act="downloadImportReport" data-a1="csv" data-i18n="csvReport">CSV Report</button><button class="btn" data-act="downloadImportReport" data-a1="xlsx" data-i18n="xlsxReport">XLSX Report</button><button class="btn primary" data-act="approveImport" data-i18n="approveImport">Approve Import</button><button class="btn primary" data-act="processImport" data-i18n="startImport">Start Import</button></div></div><div class="form" id="importMapping" style="margin-bottom:16px"></div><div class="table"><table><thead><tr><th data-i18n="sourceRow">Source Row</th><th data-i18n="client">Client</th><th data-i18n="service">Service</th><th data-i18n="duplicateDecision">Duplicate Decision</th><th data-i18n="validation">Validation</th><th></th></tr></thead><tbody id="importRowTable"></tbody></table></div></div>
         </section>
+        <section class="view" id="view-trash">
+          <div class="panel">
+            <div class="ph">
+              <div>
+                <h2 data-i18n="trash">Trash</h2>
+                <span data-i18n="trashSubtitle">Deleted clients, cases, documents and images. Restore or permanently delete.</span>
+              </div>
+            </div>
+            <div class="trash-filters" role="group" aria-labelledby="trashFilterLabel">
+              <span id="trashFilterLabel" class="visually-hidden" data-i18n="trashFilters">Trash filters</span>
+              <div class="field"><label for="trashType" data-i18n="resourceType">Resource type</label>
+                <select id="trashType">
+                  <option value="" data-i18n="allTypes">All types</option>
+                  <option value="client" data-i18n="client">Client</option>
+                  <option value="case" data-i18n="case">Case</option>
+                  <option value="document" data-i18n="document">Document</option>
+                </select></div>
+              <div class="field"><label for="trashFacet" data-i18n="itemKind">Item kind</label>
+                <select id="trashFacet">
+                  <option value="" data-i18n="allKinds">All kinds</option>
+                  <option value="record" data-i18n="records">Records</option>
+                  <option value="image" data-i18n="images">Images</option>
+                  <option value="version" data-i18n="documentVersions">Document versions</option>
+                </select></div>
+              <div class="field"><label for="trashClient" data-i18n="client">Client</label>
+                <select id="trashClient"><option value="" data-i18n="allClients">All clients</option></select></div>
+              <div class="field"><label for="trashCase" data-i18n="case">Case</label>
+                <select id="trashCase"><option value="" data-i18n="allCases">All cases</option></select></div>
+              <div class="field"><label for="trashActor" data-i18n="deletedBy">Deleted by</label>
+                <select id="trashActor"><option value="" data-i18n="anyone">Anyone</option></select></div>
+              <div class="field"><label for="trashFrom" data-i18n="deletedFrom">Deleted from</label>
+                <input id="trashFrom" type="date"></div>
+              <div class="field"><label for="trashTo" data-i18n="deletedTo">Deleted to</label>
+                <input id="trashTo" type="date"></div>
+              <div class="field"><label for="trashState" data-i18n="state">State</label>
+                <select id="trashState">
+                  <option value="deleted" data-i18n="inTrash">In Trash</option>
+                  <option value="restored" data-i18n="restored">Restored</option>
+                  <option value="purged" data-i18n="permanentlyDeleted">Permanently deleted</option>
+                  <option value="all" data-i18n="all">All</option>
+                </select></div>
+            </div>
+            <p id="trashErr" class="err" role="status" aria-live="polite"></p>
+            <div class="trash-tablewrap">
+              <table class="table">
+                <thead><tr>
+                  <th data-i18n="resourceType">Resource type</th>
+                  <th data-i18n="name">Name</th>
+                  <th data-i18n="clientNumber">Client Number</th>
+                  <th data-i18n="caseNumber">Case Number</th>
+                  <th data-i18n="deletedBy">Deleted By</th>
+                  <th data-i18n="deletedAt">Deleted At</th>
+                  <th data-i18n="retentionState">Retention / Hold</th>
+                  <th data-i18n="actions">Actions</th>
+                </tr></thead>
+                <tbody id="trashRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
         <section class="view" id="view-settings">
           <div class="settings-grid">
             <div class="panel"><div class="ph"><div><h2 data-i18n="officeBrand">Office Brand</h2><span>Client communication and portal identity</span></div></div>
@@ -1520,6 +1625,42 @@
     </div>
     <div class="modal" id="invoiceModal">
       <div class="dialog"><div class="ph"><div><h2>Create Invoice</h2><span>Amounts are entered in U.S. dollars</span></div><button class="btn" data-act="closeInvoice">Close</button></div><div class="form"><div class="field"><label>Client</label><select id="invoiceClient"></select></div><div class="field"><label>Case</label><select id="invoiceCase"></select></div><div class="field"><label>Office fee</label><input id="invoiceOfficeFee" type="number" min="0" step="0.01"></div><div class="field"><label>Government fee</label><input id="invoiceGovernmentFee" type="number" min="0" step="0.01"></div><div class="field"><label>Other fee</label><input id="invoiceOtherFee" type="number" min="0" step="0.01"></div><div class="field"><label>Due date</label><input id="invoiceDue" type="date"></div></div><div class="err" id="invoiceErr"></div><div class="df"><button class="btn" data-act="closeInvoice">Cancel</button><button class="btn primary" data-act="saveInvoice">Create Invoice</button></div></div>
+    </div>
+    <div class="modal" id="deleteConfirmModal" role="dialog" aria-modal="true" aria-labelledby="deleteConfirmTitle" aria-describedby="deleteConfirmBody">
+      <div class="dialog danger-dialog">
+        <div class="ph"><div><h2 id="deleteConfirmTitle" data-i18n="moveToTrash">Move to Trash</h2><span data-i18n="moveToTrashHint">The record leaves the active workspace and can be restored from Trash.</span></div>
+          <button class="linkbtn" data-act="closeDeleteConfirm" data-i18n="close">Close</button></div>
+        <div id="deleteConfirmBody">
+          <div class="facts-grid" id="deleteFacts"></div>
+          <div class="field full"><label for="deleteReason" data-i18n="reasonOptional">Reason (optional)</label><input id="deleteReason" maxlength="500"></div>
+          <p class="danger-note"><b data-i18n="notice">Notice</b> <span data-i18n="softDeleteNotice">This is a soft delete. Nothing is destroyed and an audit entry is written.</span></p>
+          <p id="deleteConfirmErr" class="err" role="status" aria-live="assertive"></p>
+        </div>
+        <div class="danger-actions">
+          <button class="btn" data-act="closeDeleteConfirm" data-i18n="cancel">Cancel</button>
+          <button class="btn" id="deleteConfirmBtn" data-act="confirmDelete" data-i18n="moveToTrash">Move to Trash</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal" id="purgeConfirmModal" role="dialog" aria-modal="true" aria-labelledby="purgeConfirmTitle" aria-describedby="purgeConfirmBody">
+      <div class="dialog danger-dialog">
+        <div class="ph"><div><h2 id="purgeConfirmTitle" data-i18n="permanentlyDelete">Permanently Delete</h2><span data-i18n="permanentlyDeleteHint">This destroys the stored content. It cannot be undone.</span></div>
+          <button class="linkbtn" data-act="closePurgeConfirm" data-i18n="close">Close</button></div>
+        <div id="purgeConfirmBody">
+          <div class="facts-grid" id="purgeFacts"></div>
+          <div id="purgeBlocked"></div>
+          <div id="purgeConfirmField" class="field full">
+            <label for="purgeIdentifier"><span data-i18n="typeIdentifierToConfirm">To confirm, type the exact identifier</span>: <b id="purgeExpected"></b></label>
+            <input id="purgeIdentifier" autocomplete="off" aria-describedby="purgeExpected">
+          </div>
+          <p class="danger-note"><b data-i18n="notice">Notice</b> <span data-i18n="permanentDeleteNotice">Permanent deletion destroys stored content. The identifier and the audit record are kept.</span></p>
+          <p id="purgeConfirmErr" class="err" role="status" aria-live="assertive"></p>
+        </div>
+        <div class="danger-actions">
+          <button class="btn" data-act="closePurgeConfirm" data-i18n="cancel">Cancel</button>
+          <button class="btn" id="purgeConfirmBtn" data-act="confirmPurge" data-i18n="permanentlyDelete">Permanently Delete</button>
+        </div>
+      </div>
     </div>
     <div class="modal" id="userModal">
       <div class="dialog"><div class="ph"><div><h2>Manage User</h2><span id="manageUserEmail"></span></div><button class="btn" data-act="closeManageUser">Close</button></div><input id="manageUserId" type="hidden"><div class="field"><label>Status</label><select id="manageUserStatus"><option value="active">Active</option><option value="invited">Invited</option><option value="inactive">Inactive</option></select></div><div class="field full" style="margin-top:14px"><label>Roles</label><div class="intake-options" id="manageUserRoles"></div></div><div class="err" id="manageUserErr"></div><div class="df"><button class="btn" data-act="closeManageUser">Cancel</button><button class="btn primary" data-act="saveManagedUser">Save Access</button></div></div>

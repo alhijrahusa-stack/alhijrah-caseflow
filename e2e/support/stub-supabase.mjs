@@ -16,7 +16,7 @@ const tables = Object.fromEntries([
   'office_settings','communication_templates','outbound_communications',
   // The workspace probes these on load. Without them the run is green but the
   // server log carries DATABASE_REQUEST_FAILED for a table production has.
-  'import_batches','import_rows','person_history_records','family_relationships',
+  'trash_entries','import_batches','import_rows','person_history_records','family_relationships',
   'participant_match_reviews','form_registry','form_versions','form_definitions',
   'form_instances','form_rules','form_answers','form_findings','background_jobs',
   'generated_artifacts','ai_review_runs','ai_findings','controlled_document_templates',
@@ -82,6 +82,16 @@ function filter(rows, params) {
       if (value === 'null') result = result.filter(row => row[key] === null || row[key] === undefined);
       else if (value === 'true') result = result.filter(row => row[key] === true);
       else if (value === 'false') result = result.filter(row => row[key] === false);
+    } else if (operator === 'not') {
+      if (value === 'is.null') result = result.filter(row => row[key] !== null && row[key] !== undefined);
+      else if (value.startsWith('eq.')) result = result.filter(row => String(row[key] ?? '') !== value.slice(3));
+    } else if (operator === 'gte' || operator === 'lte') {
+      const bound = decodeURIComponent(value);
+      result = result.filter(row => {
+        const held = row[key];
+        if (held === null || held === undefined) return false;
+        return operator === 'gte' ? String(held) >= bound : String(held) <= bound;
+      });
     }
   }
   return result;

@@ -326,3 +326,106 @@ test('every navigation destination the Owner is offered is actually clickable', 
     await expect(page.locator(`#view-${view}`), `${view} must open when its nav item is clicked`).toHaveClass(/active/);
   }
 });
+
+// Secure delete, end to end in the browser: the delete is reached through the
+// row's overflow menu, the confirmation names the record, Trash restores it
+// with the same identifiers, and permanent delete refuses a wrong identifier.
+test('a client is deleted through the row menu, appears in Trash and restores with the same identifiers', async ({ page }) => {
+  await signIn(page, OWNER);
+  await expect(page.locator('#login')).toBeHidden();
+
+  await page.click('#nav button[data-view="clients"]');
+  const clientName = `Trash Subject ${Date.now()}`;
+  await page.click('[data-act="openClient"]');
+  await page.fill('#clientLegalName', clientName);
+  await page.click('[data-act="saveClient"]');
+  await expect(page.locator('#clientTable')).toContainText(clientName);
+
+  const row = page.locator('#clientTable tr', { hasText: clientName });
+  const clientNumber = (await row.locator('td').first().innerText()).trim();
+  expect(clientNumber).toMatch(/AHC-2026-\d{6}/);
+
+  // The destructive action is not a standing button: it lives behind the menu.
+  await expect(row.locator('[data-act="openDeleteConfirm"]')).toBeHidden();
+  await row.locator('.rowmenu-toggle').click();
+  await expect(row.locator('.rowmenu-toggle')).toHaveAttribute('aria-expanded', 'true');
+  await row.locator('[data-act="openDeleteConfirm"]').click();
+
+  // Canonical context before anything destructive happens.
+  await expect(page.locator('#deleteConfirmModal')).toHaveClass(/show/);
+  await expect(page.locator('#deleteFacts')).toContainText(clientName);
+  await expect(page.locator('#deleteFacts')).toContainText(clientNumber);
+  await page.fill('#deleteReason', 'created in error');
+  await page.click('#deleteConfirmBtn');
+
+  await expect(page.locator('#clientTable')).not.toContainText(clientName);
+
+  await page.click('#nav button[data-view="trash"]');
+  const trashRow = page.locator('#trashRows tr', { hasText: clientName });
+  await expect(trashRow).toContainText(clientNumber);
+  await expect(trashRow).toContainText('Owner');
+
+  await trashRow.locator('[data-act="restoreTrashEntry"]').click();
+  await expect(page.locator('#trashErr')).toContainText(/Restored/);
+
+  await page.click('#nav button[data-view="clients"]');
+  const restored = page.locator('#clientTable tr', { hasText: clientName });
+  await expect(restored).toBeVisible();
+  await expect(restored.locator('td').first()).toHaveText(clientNumber);
+});
+
+test('permanent delete refuses a mismatched identifier and states blockers in words', async ({ page }) => {
+  await signIn(page, OWNER);
+  await page.click('#nav button[data-view="clients"]');
+  const clientName = `Purge Subject ${Date.now()}`;
+  await page.click('[data-act="openClient"]');
+  await page.fill('#clientLegalName', clientName);
+  await page.click('[data-act="saveClient"]');
+  await expect(page.locator('#clientTable')).toContainText(clientName);
+
+  const row = page.locator('#clientTable tr', { hasText: clientName });
+  const clientNumber = (await row.locator('td').first().innerText()).trim();
+  await row.locator('.rowmenu-toggle').click();
+  await row.locator('[data-act="openDeleteConfirm"]').click();
+  await page.click('#deleteConfirmBtn');
+
+  await page.click('#nav button[data-view="trash"]');
+  const trashRow = page.locator('#trashRows tr', { hasText: clientName });
+  await trashRow.locator('[data-act="openPurgeConfirm"]').click();
+  await expect(page.locator('#purgeConfirmModal')).toHaveClass(/show/);
+  await expect(page.locator('#purgeExpected')).toHaveText(clientNumber);
+
+  // A wrong identifier must not destroy anything, and the refusal is a sentence.
+  await page.fill('#purgeIdentifier', 'AHC-2026-000000');
+  await page.click('#purgeConfirmBtn');
+  await expect(page.locator('#purgeConfirmErr')).toContainText(/does not match/i);
+  await expect(page.locator('#purgeConfirmModal')).toHaveClass(/show/);
+
+  // Escape closes the destructive dialog without acting.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#purgeConfirmModal')).not.toHaveClass(/show/);
+  await expect(page.locator('#trashRows')).toContainText(clientName);
+});
+
+test('the Trash view is withheld from a user without the permission', async ({ page }) => {
+  await signIn(page);
+  await expect(page.locator('#login')).toBeHidden();
+  // No role carries a destructive permission, so the manager sees no Trash and
+  // no delete affordance anywhere.
+  await expect(page.locator('#nav button[data-view="trash"]')).toBeHidden();
+  await page.click('#nav button[data-view="clients"]');
+  await expect(page.locator('#clientTable [data-act="openDeleteConfirm"]')).toHaveCount(0);
+});
+
+test('the Trash view is fully translated and stays RTL in Arabic', async ({ page }) => {
+  await signIn(page, OWNER);
+  await page.selectOption('#languageSwitcher', 'Arabic');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await page.click('#nav button[data-view="trash"]');
+  await expect(page.locator('#nav button[data-view="trash"]')).toHaveText('سلة المحذوفات');
+  await expect(page.locator('#view-trash h2')).toHaveText('سلة المحذوفات');
+  await expect(page.locator('#view-trash')).toContainText('رقم العميل');
+  await expect(page.locator('#view-trash')).toContainText('تاريخ الحذف');
+  // No English label may survive the switch in the new surface.
+  await expect(page.locator('#view-trash thead')).not.toContainText(/Client Number|Deleted At/);
+});
