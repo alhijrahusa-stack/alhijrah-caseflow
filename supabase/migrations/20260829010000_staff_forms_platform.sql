@@ -46,8 +46,41 @@ create index if not exists background_jobs_case_idx on public.background_jobs(ca
 create index if not exists generated_artifacts_case_idx on public.generated_artifacts(case_id,generated_at desc);
 create unique index if not exists form_update_alert_open_unique_idx on public.form_update_alerts(form_version_id,detected_source_sha256) where status in('open','acknowledged');
 
-do $$ begin if not exists(select 1 from pg_proc where pronamespace='public'::regnamespace and proname='protect_form_instance_pin') then execute $f$create function public.protect_form_instance_pin() returns trigger language plpgsql as $b$ begin if old.pinned_authority is distinct from new.pinned_authority or old.pinned_form_code is distinct from new.pinned_form_code or old.pinned_edition_date is distinct from new.pinned_edition_date or old.pinned_mapping_version is distinct from new.pinned_mapping_version or old.pinned_source_sha256 is distinct from new.pinned_source_sha256 then raise exception 'Form edition pin is immutable'; end if; return new; end; $b$$f$;end if;end;$$;
-do $$ begin if not exists(select 1 from pg_trigger where tgname='protect_form_instance_pin_trigger' and tgrelid='public.form_instances'::regclass)then create trigger protect_form_instance_pin_trigger before update on public.form_instances for each row execute function public.protect_form_instance_pin();end if;end;$$;
+create or replace function public.protect_form_instance_pin()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if old.pinned_authority is distinct from new.pinned_authority
+     or old.pinned_form_code is distinct from new.pinned_form_code
+     or old.pinned_edition_date is distinct from new.pinned_edition_date
+     or old.pinned_mapping_version is distinct from new.pinned_mapping_version
+     or old.pinned_source_sha256 is distinct from new.pinned_source_sha256
+  then
+    raise exception 'Form edition pin is immutable';
+  end if;
+
+  return new;
+end;
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_trigger
+    where tgname = 'protect_form_instance_pin_trigger'
+      and tgrelid = 'public.form_instances'::regclass
+      and not tgisinternal
+  ) then
+    create trigger protect_form_instance_pin_trigger
+      before update on public.form_instances
+      for each row
+      execute function public.protect_form_instance_pin();
+  end if;
+end;
+$$;
 
 insert into public.form_registry(authority,form_code,display_name,official_form_page,routing_context) values
 ('USCIS','I-130','Petition for Alien Relative','https://www.uscis.gov/i-130','USCIS'),('USCIS','I-130A','Supplemental Information for Spouse Beneficiary','https://www.uscis.gov/i-130','USCIS'),('USCIS','I-485','Application to Register Permanent Residence or Adjust Status','https://www.uscis.gov/i-485','USCIS'),('USCIS','I-765','Application for Employment Authorization','https://www.uscis.gov/i-765','USCIS'),('USCIS','I-131','Application for Travel Documents','https://www.uscis.gov/i-131','USCIS'),('USCIS','I-864','Affidavit of Support','https://www.uscis.gov/i-864','USCIS'),('USCIS','I-864A','Contract Between Sponsor and Household Member','https://www.uscis.gov/i-864a','USCIS'),('USCIS','I-693','Medical Examination and Vaccination Record','https://www.uscis.gov/i-693','USCIS_CHECKLIST_ONLY'),('USCIS','I-751','Petition to Remove Conditions','https://www.uscis.gov/i-751','USCIS'),('USCIS','N-400','Application for Naturalization','https://www.uscis.gov/n-400','USCIS'),('USCIS','I-912','Request for Fee Waiver','https://www.uscis.gov/i-912','USCIS_INDEPENDENT'),('USCIS','I-589','Application for Asylum and Withholding','https://www.uscis.gov/i-589','USCIS_AFFIRMATIVE'),('EOIR','I-589','Application for Asylum and Withholding','https://www.justice.gov/eoir/reference-materials/ic/chapter-3/15','EOIR_REMOVAL'),('USCIS','I-601','Waiver of Grounds of Inadmissibility','https://www.uscis.gov/i-601','USCIS'),('USCIS','I-601A','Provisional Unlawful Presence Waiver','https://www.uscis.gov/i-601a','USCIS'),('USCIS','I-918','Petition for U Nonimmigrant Status','https://www.uscis.gov/i-918','USCIS'),('USCIS','I-918A','Qualifying Family Member of U-1','https://www.uscis.gov/i-918','USCIS'),('USCIS','I-914','Application for T Nonimmigrant Status','https://www.uscis.gov/i-914','USCIS'),('USCIS','I-914A','Family Member of T-1','https://www.uscis.gov/i-914','USCIS'),('USCIS','I-360','Petition for Special Immigrant','https://www.uscis.gov/i-360','USCIS'),('USCIS','G-28','Notice of Entry of Appearance as Attorney or Accredited Representative','https://www.uscis.gov/g-28','USCIS_APPEARANCE_ONLY'),('DOS_PASSPORT','DS-11','Application for a U.S. Passport','https://travel.state.gov/en/passports/apply/help/forms.html','PASSPORT'),('DOS_PASSPORT','DS-82','U.S. Passport Renewal Application','https://travel.state.gov/en/passports/apply/help/forms.html','PASSPORT'),('DOS_PASSPORT','DS-5504','Passport Name Change or Correction','https://travel.state.gov/en/passports/renew-replace/change-correct-passport.html','PASSPORT'),('DOS_PASSPORT','DS-64','Lost or Stolen Passport Statement','https://travel.state.gov/en/passports/renew-replace/lost-stolen.html','PASSPORT'),('DOS_PASSPORT','DS-3053','Consent for Passport to a Child','https://travel.state.gov/en/passports/need-passport/under-16.html','PASSPORT') on conflict(authority,form_code)do nothing;
