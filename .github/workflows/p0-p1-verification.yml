@@ -48,6 +48,9 @@ jobs:
       - name: Execute complete migration chain
         run: |
           set -euo pipefail
+          # schema.sql is the repository's canonical pre-migration baseline;
+          # the first dated migration intentionally extends these tables.
+          psql -v ON_ERROR_STOP=1 -X -f supabase/schema.sql
           for migration in $(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort); do
             echo "Executing ${migration}"
             psql -v ON_ERROR_STOP=1 -X -f "${migration}"
