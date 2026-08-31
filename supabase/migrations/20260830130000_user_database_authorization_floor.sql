@@ -4,6 +4,11 @@ begin;
 -- these functions independently prevent a user JWT from escaping its current
 -- client/case/document boundary. They use the canonical authorization tables.
 
+-- The server has always emitted the authenticated actor for case events, but
+-- the historical baseline omitted its canonical storage column.
+alter table public.case_events add column if not exists actor_user_id uuid;
+create index if not exists case_events_actor_user_idx on public.case_events(actor_user_id,created_at desc);
+
 create or replace function public.caseflow_actor_id()
 returns uuid language plpgsql stable security definer
 set search_path = public, pg_temp as $$
