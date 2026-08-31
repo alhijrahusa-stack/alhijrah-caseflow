@@ -391,12 +391,11 @@ test('database error payloads never reach the client', async () => {
   const first = await request({ method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }), body });
   assert.equal(first.status, 201);
 
-  // Confirming the same object twice trips the unique index on object_key, so
-  // PostgREST answers 4xx with a payload naming the constraint. That payload
-  // was previously forwarded to the caller verbatim.
+  // Confirming the same immutable bytes twice is rejected before a second
+  // metadata insert. The response remains stable and reveals no DB details.
   const duplicate = await request({ method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }), body });
   assert.ok(duplicate.status >= 400, `expected a failure, got ${duplicate.status}`);
-  assert.equal(duplicate.body.error, 'DATABASE_REQUEST_FAILED');
+  assert.equal(duplicate.body.error, 'DUPLICATE_DOCUMENT');
   assert.equal('details' in duplicate.body, false, 'upstream error payloads must not be forwarded');
   assert.equal(duplicate.raw.includes('constraint'), false);
   assert.equal(duplicate.raw.includes('documents_object_key_key'), false);
@@ -466,6 +465,8 @@ test('same-origin upload persists bytes in R2, metadata in Supabase and case/cli
   assert.equal(row.category, 'identity');
   assert.ok(backend.objects.has(row.object_key), 'R2 contains the uploaded object');
   assert.ok(backend.tables.documents.some(document => document.id === row.id), 'Supabase metadata was created');
+  const commitRequest=backend.restRequests.find(entry=>entry.method==='POST'&&entry.path.endsWith('/documents'));
+  assert.equal(commitRequest?.headers.apikey,'service-role-key','only the post-verification metadata commit uses the trusted system boundary');
 
   const preview = await request({
     method: 'POST', path: '/api/v1/documents/download-url', headers: browserHeaders({ cookie }),
@@ -507,6 +508,52 @@ test('confirm rejects an object whose stored bytes differ from the declared uplo
   });
   assert.equal(response.status, 409);
   assert.equal(response.body.error, 'UPLOADED_OBJECT_MISMATCH');
+});
+
+test('presigned confirmation verifies the exact R2 bytes instead of trusting a browser checksum', async () => {
+  const cookie = await signIn();
+  seedCase();
+  const bytes = Buffer.from('immutable evidence bytes');
+  const key = `cases/${CASE_ID}/${crypto.randomUUID()}-evidence.pdf`;
+  backend.objects.set(key, { size: bytes.length, contentType: 'application/pdf', body: bytes });
+  const forgedChecksum = 'f'.repeat(64);
+  const response = await request({
+    method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }),
+    body: { case_id: CASE_ID, key, file_name: 'evidence.pdf', content_type: 'application/pdf', size_bytes: bytes.length, content_checksum: forgedChecksum },
+  });
+  assert.equal(response.status, 409);
+  assert.equal(response.body.error, 'DOCUMENT_CHECKSUM_MISMATCH');
+  assert.equal(backend.tables.documents.length, 0);
+});
+
+test('a replacement appends a consecutive version and inherits canonical ownership links', async () => {
+  const cookie = await signIn();
+  const clientId = crypto.randomUUID(), personId = crypto.randomUUID(), requestId = crypto.randomUUID();
+  seedCase({ client_id: clientId });
+  backend.tables.people.push({ id: personId, legal_name: 'Synthetic Person' });
+  backend.tables.case_people.push({ case_id: CASE_ID, person_id: personId, case_role: 'beneficiary' });
+  backend.tables.document_requests.push({ id: requestId, case_id: CASE_ID, client_id: clientId, person_id: personId, category: 'identity', status: 'missing' });
+  const upload = async (name, replaces_document_id) => {
+    const bytes = Buffer.from(`version:${name}`), key = `cases/${CASE_ID}/${crypto.randomUUID()}-${name}`;
+    backend.objects.set(key, { size: bytes.length, contentType: 'application/pdf', body: bytes });
+    return request({ method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }), body: {
+      case_id: CASE_ID, key, file_name: name, content_type: 'application/pdf', size_bytes: bytes.length,
+      ...(replaces_document_id ? { replaces_document_id } : { person_id: personId, request_id: requestId }),
+    }});
+  };
+  const first = await upload('v1.pdf');
+  assert.equal(first.status, 201, first.raw);
+  const second = await upload('v2.pdf', first.body.data[0].id);
+  assert.equal(second.status, 201, second.raw);
+  const replacement = second.body.data[0];
+  assert.equal(replacement.version, 2);
+  assert.equal(replacement.replaces_document_id, first.body.data[0].id);
+  assert.equal(replacement.client_id, clientId);
+  assert.equal(replacement.person_id, personId);
+  assert.equal(replacement.request_id, requestId);
+  assert.equal(replacement.category, 'identity');
+  assert.match(replacement.content_checksum, /^[0-9a-f]{64}$/);
+  assert.ok(backend.tables.documents.find(row => row.id === first.body.data[0].id).archived_at);
 });
 
 test('deleting a document removes the object but preserves the record and its trail', async () => {

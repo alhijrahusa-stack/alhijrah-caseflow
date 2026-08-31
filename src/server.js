@@ -182,6 +182,18 @@ function stableUuid(value){const hex=crypto.createHash('sha256').update(value).d
 function documentInput(body){const caseId=String(body.case_id||'');if(!uuid(caseId))throw Object.assign(new Error('VALID_CASE_ID_REQUIRED'),{status:400});const fileName=String(body.filename||body.file_name||'').trim().slice(0,180);if(!fileName||/[\x00-\x1f]/.test(fileName))throw Object.assign(new Error('VALID_FILENAME_REQUIRED'),{status:400});const contentType=String(body.content_type||'').toLowerCase();if(!allowedDocumentTypes.has(contentType))throw Object.assign(new Error('UNSUPPORTED_DOCUMENT_TYPE'),{status:415});const sizeBytes=Number(body.size_bytes);if(!Number.isSafeInteger(sizeBytes)||sizeBytes<1||sizeBytes>25*1024*1024)throw Object.assign(new Error('DOCUMENT_SIZE_NOT_ALLOWED'),{status:413});return{caseId,fileName,contentType,sizeBytes}}
 function documentChecksum(value){if(value===undefined||value===null||value==='')return null;const checksum=String(value).toLowerCase();if(!/^[a-f0-9]{64}$/.test(checksum))throw Object.assign(new Error('INVALID_DOCUMENT_CHECKSUM'),{status:400});return checksum}
 
+async function verifiedStoredDocument(key,input,declaredChecksum){
+  const object=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));
+  if(Number(object.ContentLength)!==input.sizeBytes||String(object.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});
+  const stored=await r2.send(new GetObjectCommand({Bucket:r2Bucket,Key:key}));
+  const bytes=Buffer.from(await stored.Body.transformToByteArray());
+  if(bytes.length!==input.sizeBytes)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});
+  const checksum=crypto.createHash('sha256').update(bytes).digest('hex');
+  const declared=documentChecksum(declaredChecksum);
+  if(declared&&declared!==checksum)throw Object.assign(new Error('DOCUMENT_CHECKSUM_MISMATCH'),{status:409});
+  return{checksum,etag:String(object.ETag||'').replace(/^"|"$/g,'')||null};
+}
+
 async function canonicalDocumentLinkage(caseRecord,body){
   const caseId=String(caseRecord.id),clientId=caseRecord.client_id||null;
   if(body.client_id!==undefined&&body.client_id!==null&&body.client_id!==''&&String(body.client_id)!==String(clientId))throw Object.assign(new Error('DOCUMENT_CLIENT_MISMATCH'),{status:409});
@@ -201,9 +213,11 @@ async function canonicalDocumentLinkage(caseRecord,body){
   }
   if(body.replaces_document_id){
     if(!uuid(body.replaces_document_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});
-    const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(body.replaces_document_id)}&case_id=eq.${encodeURIComponent(caseId)}&archived_at=is.null&select=id,case_id,client_id,person_id,request_id,version&limit=1`});
+    const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(body.replaces_document_id)}&case_id=eq.${encodeURIComponent(caseId)}&archived_at=is.null&select=id,case_id,client_id,person_id,request_id,category,version&limit=1`});
     if(!rows.length)throw Object.assign(new Error('REPLACED_DOCUMENT_NOT_FOUND'),{status:404});replacement=rows[0];
     if(personId&&replacement.person_id&&String(personId)!==String(replacement.person_id))throw Object.assign(new Error('REPLACED_DOCUMENT_PERSON_MISMATCH'),{status:409});
+    if(requestId&&replacement.request_id&&String(requestId)!==String(replacement.request_id))throw Object.assign(new Error('REPLACED_DOCUMENT_REQUEST_MISMATCH'),{status:409});
+    personId=personId||replacement.person_id||null;requestId=requestId||replacement.request_id||null;category=category||replacement.category||null;
   }
   return{client_id:clientId,person_id:personId,request_id:requestId,category,review_status:'received',replaces_document_id:replacement?.id||null,version:replacement?Number(replacement.version||1)+1:1,replacement};
 }
@@ -263,14 +277,16 @@ async function runProductionVerificationRaw(force=false){
   try{
     const caseRows=await db('cases',{query:'?archived_at=is.null&select=id,client_id&limit=1'});
     if(!caseRows.length)throw new Error('NO_CASE_AVAILABLE');
+    const activeUsers=await db('app_users',{query:'?status=eq.active&select=auth_user_id&limit=1'});
+    if(!activeUsers.length)throw new Error('NO_ACTIVE_USER_AVAILABLE');
     const payload=Buffer.from(`%PDF-1.7\nCaseflow production verification ${crypto.randomUUID()}\n%%EOF`);
     const checksum=crypto.createHash('sha256').update(payload).digest('hex');
-    objectKey=`verification/${crypto.randomUUID()}.pdf`;
+    objectKey=`cases/${caseRows[0].id}/verification-${crypto.randomUUID()}.pdf`;
     documentId=crypto.randomUUID();
     await r2.send(new PutObjectCommand({Bucket:r2Bucket,Key:objectKey,Body:payload,ContentType:'application/pdf',ContentLength:payload.length,Metadata:{verification:'true'}}));
     const head=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:objectKey}));
     if(Number(head.ContentLength)!==payload.length||String(head.ContentType).toLowerCase()!=='application/pdf')throw new Error('R2_OBJECT_MISMATCH');
-    await db('documents',{method:'POST',body:{id:documentId,case_id:caseRows[0].id,client_id:caseRows[0].client_id||null,object_key:objectKey,file_name:'caseflow-production-verification.pdf',content_type:'application/pdf',size_bytes:payload.length,content_checksum:checksum,status:'uploaded',category:'verification',review_status:'received'}});
+    await db('documents',{method:'POST',body:{id:documentId,case_id:caseRows[0].id,client_id:caseRows[0].client_id||null,object_key:objectKey,file_name:'caseflow-production-verification.pdf',content_type:'application/pdf',size_bytes:payload.length,content_checksum:checksum,object_etag:String(head.ETag||'').replace(/^"|"$/g,'')||null,uploaded_by:activeUsers[0].auth_user_id,status:'uploaded',category:'verification',review_status:'received'}});
     const rows=await db('documents',{query:`?id=eq.${documentId}&select=id,case_id,client_id,object_key,size_bytes,content_checksum`});
     if(rows.length!==1||rows[0].case_id!==caseRows[0].id||rows[0].client_id!==(caseRows[0].client_id||null)||rows[0].content_checksum!==checksum)throw new Error('DOCUMENT_METADATA_MISMATCH');
     const downloaded=await r2.send(new GetObjectCommand({Bucket:r2Bucket,Key:objectKey}));
@@ -1130,12 +1146,13 @@ async function handleRaw(req,res){
       body.person_id=requestRows[0].person_id;
       body.category=requestRows[0].category;
     }
-    const object=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));
-    if(Number(object.ContentLength)!==input.sizeBytes||String(object.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});
-    const checksum=documentChecksum(body.content_checksum);
-    if(checksum){const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409,details:{document_id:duplicates[0].id}});}}
-    const record={id:crypto.randomUUID(),case_id:input.caseId,client_id:currentCase.client_id,person_id:body.person_id||null,request_id:body.request_id||null,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:checksum,status:'uploaded',category:cleanText(body.category,{max:100}),review_status:'received'};
-    const data=await db('documents',{method:'POST',body:record});
+    const verified=await verifiedStoredDocument(key,input,body.content_checksum);
+    const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${verified.checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409});}
+    const record={id:crypto.randomUUID(),case_id:input.caseId,client_id:currentCase.client_id,person_id:body.person_id||null,request_id:body.request_id||null,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:verified.checksum,object_etag:verified.etag,status:'uploaded',category:cleanText(body.category,{max:100}),review_status:'received',uploaded_by:principal.id};
+    // Committing byte metadata is an explicit trusted operation: ordinary JWT
+    // roles cannot attest to R2 contents. Ownership and version invariants are
+    // still enforced by the database trigger for service-role calls.
+    const data=await systemDb('documents',{method:'POST',body:record});
     // This workflow transition is trusted only after the user-scoped document
     // insert and the verified R2 object; clients have no direct request UPDATE.
     if(record.request_id)await systemDb('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}`,body:{status:'received',updated_at:new Date().toISOString()}});
@@ -1733,7 +1750,7 @@ async function handleRaw(req,res){
     if(file.length!==input.sizeBytes)throw Object.assign(new Error('DOCUMENT_SIZE_MISMATCH'),{status:409});
     const checksum=crypto.createHash('sha256').update(file).digest('hex');
     const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${checksum}&archived_at=is.null&select=id`});
-    if(duplicates.length)throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409,details:{document_id:duplicates[0].id}});
+    if(duplicates.length)throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409});
     const filename=safeKey(input.fileName).split('/').pop();
     const key=safeKey(`cases/${input.caseId}/${crypto.randomUUID()}-${filename}`);
     await r2.send(new PutObjectCommand({Bucket:r2Bucket,Key:key,Body:file,ContentType:input.contentType,ContentLength:file.length,Metadata:{case_id:input.caseId}}));
@@ -1741,8 +1758,8 @@ async function handleRaw(req,res){
       const stored=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));
       if(Number(stored.ContentLength)!==file.length||String(stored.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});
       const linkage=await canonicalDocumentLinkage(caseRows[0],{client_id:u.searchParams.get('client_id'),person_id:u.searchParams.get('person_id'),request_id:u.searchParams.get('request_id'),replaces_document_id:u.searchParams.get('replaces_document_id'),category:u.searchParams.get('category')});
-      const record={id:crypto.randomUUID(),case_id:input.caseId,client_id:linkage.client_id,person_id:linkage.person_id,request_id:linkage.request_id,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:file.length,content_checksum:checksum,status:'uploaded',category:linkage.category,review_status:linkage.review_status,replaces_document_id:linkage.replaces_document_id,version:linkage.version};
-      const data=await db('documents',{method:'POST',body:record});
+      const record={id:crypto.randomUUID(),case_id:input.caseId,client_id:linkage.client_id,person_id:linkage.person_id,request_id:linkage.request_id,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:file.length,content_checksum:checksum,object_etag:String(stored.ETag||'').replace(/^"|"$/g,'')||null,status:'uploaded',category:linkage.category,review_status:linkage.review_status,replaces_document_id:linkage.replaces_document_id,version:linkage.version,uploaded_by:principal.id};
+      const data=await systemDb('documents',{method:'POST',body:record});
       if(linkage.replacement)await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(linkage.replacement.id)}&archived_at=is.null`,body:{archived_at:new Date().toISOString()}});
       if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}&case_id=eq.${encodeURIComponent(input.caseId)}`,body:{status:'received',updated_at:new Date().toISOString()}});
       await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id,storage:'r2'},principal,req);
@@ -1756,14 +1773,12 @@ async function handleRaw(req,res){
     if(!key.startsWith(`cases/${input.caseId}/`))throw Object.assign(new Error('DOCUMENT_CASE_MISMATCH'),{status:403});
     const cases=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});
     if(!cases.length||!canAccessCase(access,cases[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
-    const object=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));
-    if(Number(object.ContentLength)!==input.sizeBytes||String(object.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});
-    const checksum=documentChecksum(b.content_checksum);
-    if(checksum){const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409,details:{document_id:duplicates[0].id}})}}
+    const verified=await verifiedStoredDocument(key,input,b.content_checksum);
+    const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${verified.checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409})}
     try{
       const linkage=await canonicalDocumentLinkage(cases[0],b);
-      const record={id:crypto.randomUUID(),case_id:input.caseId,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:checksum,status:'uploaded',client_id:linkage.client_id,person_id:linkage.person_id,request_id:linkage.request_id,category:linkage.category,review_status:linkage.review_status,replaces_document_id:linkage.replaces_document_id,version:linkage.version};
-      const data=await db('documents',{method:'POST',body:record});
+      const record={id:crypto.randomUUID(),case_id:input.caseId,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:verified.checksum,object_etag:verified.etag,status:'uploaded',client_id:linkage.client_id,person_id:linkage.person_id,request_id:linkage.request_id,category:linkage.category,review_status:linkage.review_status,replaces_document_id:linkage.replaces_document_id,version:linkage.version,uploaded_by:principal.id};
+      const data=await systemDb('documents',{method:'POST',body:record});
       if(linkage.replacement)await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(linkage.replacement.id)}&archived_at=is.null`,body:{archived_at:new Date().toISOString()}});
       if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}&case_id=eq.${encodeURIComponent(input.caseId)}`,body:{status:'received',updated_at:new Date().toISOString()}});
       await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id,person_id:record.person_id,request_id:record.request_id,storage:'r2'},principal,req);
