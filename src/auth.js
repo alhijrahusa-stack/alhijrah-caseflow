@@ -19,7 +19,7 @@ const accessCookie = '__Host-caseflow_access';
 const refreshCookie = '__Host-caseflow_refresh';
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const anonKey = process.env.SUPABASE_ANON_KEY || serviceRoleKey;
+const anonKey = process.env.SUPABASE_ANON_KEY;
 const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
 const appBaseUrl = process.env.APP_BASE_URL?.replace(/\/$/, '');
 const productionAppUrl = 'https://alhijrah-caseflow-production-716b.up.railway.app';
@@ -64,7 +64,7 @@ export function clearSessionCookies(res) {
 }
 
 async function authRequest(path, { method = 'GET', body, token, admin = false } = {}) {
-  if (!supabaseUrl || !serviceRoleKey || !anonKey) throw authError('AUTH_PROVIDER_NOT_CONFIGURED', 503);
+  if (!supabaseUrl || !anonKey || (admin && !serviceRoleKey)) throw authError('AUTH_PROVIDER_NOT_CONFIGURED', 503);
   const apiKey = admin ? serviceRoleKey : anonKey;
   const response = await fetch(`${supabaseUrl}/auth/v1${path}`, {
     method,
@@ -218,13 +218,13 @@ export async function authenticateSession(req, res) {
   const cookies = parseCookies(req);
   let accessToken = cookies[accessCookie];
   try {
-    return principalFromUser(await getUser(accessToken));
+    return { ...principalFromUser(await getUser(accessToken)), databaseAccessToken: accessToken };
   } catch (error) {
     if (!cookies[refreshCookie] || error.status !== 401) throw error;
     const session = await refreshSession(cookies[refreshCookie]);
     setSessionCookies(res, session);
     accessToken = session.access_token;
-    return principalFromUser(session.user || await getUser(accessToken));
+    return { ...principalFromUser(session.user || await getUser(accessToken)), databaseAccessToken: accessToken };
   }
 }
 

@@ -72,6 +72,19 @@ jobs:
           select * from public.consume_login_attempt(repeat('a', 64), 8, 900);
           select * from public.consume_login_attempt(repeat('a', 64), 8, 900);
           SQL
+      - name: Execute P1 database adversarial suite
+        run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p1_database_adversarial.sql
+      - name: Verify anon Data API role has no application-table access
+        run: |
+          set -euo pipefail
+          if psql -v ON_ERROR_STOP=1 -X -c "set role anon; select id from public.clients limit 1"; then
+            echo "anon unexpectedly read clients" >&2
+            exit 1
+          fi
+          if psql -v ON_ERROR_STOP=1 -X -c "set role anon; insert into public.clients(id,legal_name) values('90000000-0000-0000-0000-000000000001','forged')"; then
+            echo "anon unexpectedly wrote clients" >&2
+            exit 1
+          fi
       - run: npm ci
       - run: npm test
       - name: Install Chromium

@@ -97,6 +97,8 @@ export const backend = {
   emails: [],
   clientNumber: 0,
   caseNumber: 0,
+  restRequests: [],
+  failNextUserDatabaseRequest: 0,
 };
 
 export function resetBackend() {
@@ -110,6 +112,8 @@ export function resetBackend() {
   backend.emails = [];
   backend.clientNumber = 0;
   backend.caseNumber = 0;
+  backend.restRequests = [];
+  backend.failNextUserDatabaseRequest = 0;
 }
 
 export function addUser({ id = crypto.randomUUID(), email, password = 'correct-horse-battery', roles = [], status, confirmed = true, fullName } = {}) {
@@ -362,7 +366,15 @@ async function handleAuth(url, init) {
 
 globalThis.fetch = async (input, init = {}) => {
   const url = new URL(typeof input === 'string' ? input : input.url);
-  if (url.pathname.startsWith('/rest/v1/')) return handleRest(url, init);
+  if (url.pathname.startsWith('/rest/v1/')) {
+    const headers=Object.fromEntries(Object.entries(init.headers||{}).map(([name,value])=>[String(name).toLowerCase(),String(value)]));
+    backend.restRequests.push({method:String(init.method||'GET').toUpperCase(),path:url.pathname,query:url.search,headers});
+    if(headers.apikey==='anon-key'&&backend.failNextUserDatabaseRequest>0){
+      backend.failNextUserDatabaseRequest-=1;
+      return jsonResponse(403,{message:'synthetic user database denial'});
+    }
+    return handleRest(url, init);
+  }
   if (url.pathname.startsWith('/auth/v1/')) return handleAuth(url, init);
   if (url.origin === 'https://api.resend.com' && url.pathname === '/emails') {
     const message = JSON.parse(init.body || '{}');
