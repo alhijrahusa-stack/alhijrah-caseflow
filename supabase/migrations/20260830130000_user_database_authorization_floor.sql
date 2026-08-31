@@ -373,7 +373,7 @@ create policy form_answers_write_floor on public.form_answers for all to authent
   with check(exists(select 1 from public.form_instances f where f.id=form_instance_id and public.caseflow_can_case(f.case_id,'cases.prepare')));
 
 create policy alerts_read_floor on public.alerts for select to authenticated using(
-  (case_id is not null and public.caseflow_can_case(case_id,'dashboard.view'))
+  (case_id is not null and public.caseflow_can_case(case_id,'cases.view'))
   or (case_id is null and client_id is not null and public.caseflow_can_client(client_id,'clients.view')));
 create policy alerts_write_floor on public.alerts for all to authenticated using(
   (case_id is not null and public.caseflow_can_case(case_id,'tasks.manage'))
