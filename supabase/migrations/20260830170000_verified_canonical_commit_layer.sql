@@ -105,7 +105,7 @@ declare
   key text;
   value jsonb;
   committed integer:=0;
-  reviewed_at timestamptz:=clock_timestamp();
+  commit_time timestamptz:=clock_timestamp();
   allowed constant text[]:=array['legal_name','date_of_birth','place_of_birth','nationality','current_country','passport_number','passport_country','passport_expiration'];
 begin
   if actor is null or not public.caseflow_actor_active() then raise exception 'Active authenticated reviewer required'; end if;
@@ -153,7 +153,7 @@ begin
         passport_number=case when p_reviewed_fields?'passport_number' then nullif(p_reviewed_fields->>'passport_number','') else passport_number end,
         passport_country=case when p_reviewed_fields?'passport_country' then nullif(p_reviewed_fields->>'passport_country','') else passport_country end,
         passport_expiration=case when p_reviewed_fields?'passport_expiration' then nullif(p_reviewed_fields->>'passport_expiration','')::date else passport_expiration end,
-        updated_by=actor,updated_at=reviewed_at where id=target_client;
+        updated_by=actor,updated_at=commit_time where id=target_client;
     end if;
     if extraction.document_id is not null then target_case:=extraction.case_id; end if;
   else
@@ -171,31 +171,31 @@ begin
       passport_number=case when p_reviewed_fields?'passport_number' then nullif(p_reviewed_fields->>'passport_number','') else passport_number end,
       passport_country=case when p_reviewed_fields?'passport_country' then nullif(p_reviewed_fields->>'passport_country','') else passport_country end,
       passport_expiration=case when p_reviewed_fields?'passport_expiration' then nullif(p_reviewed_fields->>'passport_expiration','')::date else passport_expiration end,
-      identity_verification_status='verified',identity_verified_at=reviewed_at,identity_verified_by=actor,
-      updated_at=reviewed_at where id=target_person;
+      identity_verification_status='verified',identity_verified_at=commit_time,identity_verified_by=actor,
+      updated_at=commit_time where id=target_person;
   end if;
 
   update public.document_extracted_fields set
     reviewed_value=case when p_reviewed_fields?field_path then p_reviewed_fields->field_path else null end,
     verification_status=case when p_reviewed_fields?field_path then 'accepted' else 'rejected' end,
-    reviewed_by=actor,reviewed_at=reviewed_at,updated_at=reviewed_at
+    reviewed_by=actor,reviewed_at=commit_time,updated_at=commit_time
     where extraction_id=extraction.id and verification_status='proposed';
-  update public.document_extractions set status='confirmed',reviewed_by=actor,reviewed_at=reviewed_at,updated_at=reviewed_at
+  update public.document_extractions set status='confirmed',reviewed_by=actor,reviewed_at=commit_time,updated_at=commit_time
     where id=extraction.id and status='reviewing';
 
   for key,value in select * from jsonb_each(p_reviewed_fields) loop
     select * into proposal from public.document_extracted_fields
       where extraction_id=extraction.id and field_path=key and verification_status='accepted';
     if not found then raise exception 'Accepted proposal disappeared during commit'; end if;
-    select * into prior from public.verified_canonical_fields
-      where subject_type=p_subject_type and subject_id=coalesce(target_person,target_client) and field_path=key and status='current'
+    select * into prior from public.verified_canonical_fields vf
+      where vf.subject_type=p_subject_type and vf.subject_id=coalesce(target_person,target_client) and vf.field_path=key and vf.status='current'
       for update;
     next_id:=gen_random_uuid();next_revision:=coalesce(prior.revision,0)+1;
-    if prior.id is not null then update public.verified_canonical_fields set status='superseded',superseded_by=next_id,superseded_at=reviewed_at where id=prior.id; end if;
+    if prior.id is not null then update public.verified_canonical_fields set status='superseded',superseded_by=next_id,superseded_at=commit_time where id=prior.id; end if;
     insert into public.verified_canonical_fields(id,client_id,case_id,person_id,subject_type,subject_id,field_path,field_value,
       revision,source_extraction_id,source_field_id,source_document_id,source_document_version,source_sha256,verified_by,verified_at)
     values(next_id,target_client,target_case,target_person,p_subject_type,coalesce(target_person,target_client),key,value,next_revision,
-      extraction.id,proposal.id,extraction.document_id,extraction.document_version,extraction.source_sha256,actor,reviewed_at);
+      extraction.id,proposal.id,extraction.document_id,extraction.document_version,extraction.source_sha256,actor,commit_time);
     committed:=committed+1;
   end loop;
 
