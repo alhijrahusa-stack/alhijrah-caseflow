@@ -86,6 +86,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p6_deterministic_form_engine.sql
       - name: Execute hybrid discovery integrity suite
         run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p7_hybrid_discovery_integrity.sql
+      - name: Execute deterministic case review suite
+        run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p8_deterministic_case_review.sql
       - name: Verify anon Data API role has no application-table access
         run: |
           set -euo pipefail
