@@ -102,7 +102,7 @@ test('Phase 1 client numbers, case numbers, bilingual preference, and full works
   // Pin the tab set by identity rather than by a bare count: a stale count says
   // only that a number moved, and it does not prove a tab reaches a panel.
   const workspaceTabs = ['overview', 'journey', 'profile', 'intake', 'participants', 'forms', 'documents',
-    'actions', 'tasks', 'deadlines', 'appointments', 'communications', 'billing', 'notes', 'team', 'audit'];
+    'rfe', 'actions', 'tasks', 'deadlines', 'appointments', 'communications', 'billing', 'notes', 'team', 'audit'];
   await expect(page.locator('.workspace-tab')).toHaveCount(workspaceTabs.length);
   for (const tab of workspaceTabs) {
     await expect(page.locator(`.workspace-tab[data-a1="${tab}"]`)).toHaveCount(1);

@@ -10,7 +10,7 @@ const sessions = new Map();
 const tables = Object.fromEntries([
   'cases','documents','case_events','audit_events','clients','app_users','user_roles','case_assignments',
   'client_access','teams','team_members','access_policies','record_access_grants','tasks','deadlines',
-  'legal_holds','document_requests','case_notes','case_messages','appointments','invoices','payments',
+  'legal_holds','document_requests','agency_requests','evidence_requirements','evidence_links','case_notes','case_messages','appointments','invoices','payments',
   'alerts','retention_policies','intake_definitions','intake_submissions','service_catalog','people',
   'client_people','case_people','form_role_assignments',
   'office_settings','communication_templates','outbound_communications',

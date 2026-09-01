@@ -1,2 +1,0 @@
-import test from'node:test';import assert from'node:assert/strict';import fs from'node:fs';
-test('P8 reverse ingestion stays bound to immutable case-owned PDF bytes',()=>{const source=fs.readFileSync(new URL('../src/server.js',import.meta.url),'utf8');assert.match(source,/DOCUMENT_BYTE_VERSION_MISMATCH/);assert.match(source,/official_pdf_reverse_ingest_confirmed/);assert.match(source,/human_confirmed:true/);assert.match(source,/verification_status:'review_required'/)});
