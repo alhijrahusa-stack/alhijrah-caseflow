@@ -30,6 +30,24 @@ test('forms pin verified versions, autosave with conflict control, and block inc
   const ready=await request({method:'POST',path:`/api/v1/cases/${caseId}/forms/${instance.id}/validate`,headers,body:{}});assert.equal(ready.body.data.filing_ready,true);
 });
 
+test('canonical autofill requires human confirmation and pins the exact verified fact',async()=>{
+  const cookie=await session(),headers={...browserHeaders(),cookie},registryId=crypto.randomUUID(),versionId=crypto.randomUUID(),definitionId=crypto.randomUUID(),factId=crypto.randomUUID();
+  const definition={fields:[{path:'applicant.name',canonical_field_path:'client.legal_name',official_label:'Legal Name',part:'1',item_number:'1',type:'text',required:true}],pdf_mapping:[{pdf_field:'name',canonical_field_path:'applicant.name'}]};
+  backend.tables.form_registry.push({id:registryId,authority:'USCIS',form_code:'I-90'});backend.tables.form_versions.push({id:versionId,registry_id:registryId,edition_date:'2026-01-01',official_pdf_source:'https://www.uscis.gov/i-90',source_sha256:'b'.repeat(64),verified_at:new Date().toISOString(),mapping_version:1,mapping_test_status:'passed',status:'active'});backend.tables.form_definitions.push({id:definitionId,form_version_id:versionId,mapping_version:1,status:'active',definition});
+  backend.tables.verified_canonical_fields.push({id:factId,client_id:clientId,subject_type:'client',subject_id:clientId,field_path:'legal_name',field_value:'Amina Yusuf',revision:1,status:'current'});
+  const started=await request({method:'POST',path:`/api/v1/cases/${caseId}/forms`,headers,body:{authority:'USCIS',form_code:'I-90'}}),instance=started.body.data;
+  const preview=await request({method:'GET',path:`/api/v1/cases/${caseId}/forms/${instance.id}/canonical-autofill`,headers});assert.equal(preview.status,200,preview.raw);assert.equal(preview.body.data.human_confirmation_required,true);assert.equal(backend.tables.form_answers.length,0);
+  const denied=await request({method:'POST',path:`/api/v1/cases/${caseId}/forms/${instance.id}/canonical-autofill`,headers,body:{field_paths:['applicant.name']}});assert.equal(denied.status,400);assert.equal(backend.tables.form_answers.length,0);
+  const saved=await request({method:'POST',path:`/api/v1/cases/${caseId}/forms/${instance.id}/canonical-autofill`,headers,body:{confirmed:true,field_paths:['applicant.name']}});assert.equal(saved.status,200,saved.raw);assert.equal(saved.body.data.answers[0].verified_canonical_field_id,factId);assert.equal(saved.body.data.answers[0].verification_status,'verified');assert.equal(backend.tables.form_answer_revisions.length,1);assert.equal(backend.tables.form_instances.find(item=>item.id===instance.id).revision,2);
+  const manual=await request({method:'PATCH',path:`/api/v1/cases/${caseId}/forms/${instance.id}/answers/applicant.name`,headers,body:{value:'Human correction',expected_revision:1,verification_status:'verified'}});assert.equal(manual.status,200,manual.raw);assert.equal(manual.body.data.verification_status,'unverified');assert.equal(manual.body.data.verified_canonical_field_id,null);assert.equal(backend.tables.form_answer_revisions.length,2);
+});
+
+test('verified form provenance rejects forged canonical facts and values before mutation',async()=>{
+  const cookie=await session(),headers={...browserHeaders(),cookie},instanceId=crypto.randomUUID(),definitionId=crypto.randomUUID(),foreignClient=crypto.randomUUID(),factId=crypto.randomUUID();
+  backend.tables.form_instances.push({id:instanceId,case_id:caseId,participant_id:null,form_definition_id:definitionId,revision:1});backend.tables.form_definitions.push({id:definitionId,definition:{fields:[{path:'applicant.name',canonical_field_path:'client.legal_name',official_label:'Legal Name',part:'1',item_number:'1',type:'text'}]}});backend.tables.verified_canonical_fields.push({id:factId,client_id:foreignClient,subject_type:'client',subject_id:foreignClient,field_path:'legal_name',field_value:'Foreign Client',revision:1,status:'current'});
+  const forged=await request({method:'PATCH',path:`/api/v1/cases/${caseId}/forms/${instanceId}/answers/applicant.name`,headers,body:{value:'Foreign Client',expected_revision:0,source_type:'verified_field',source_record_id:factId}});assert.equal(forged.status,409,forged.raw);assert.equal(forged.body.error,'ANSWER_SOURCE_NOT_IN_CASE');assert.equal(backend.tables.form_answers.length,0);
+});
+
 test('unverified forms and unavailable AI provider do not fabricate results',async()=>{
   const cookie=await session(),headers={...browserHeaders(),cookie},registryId=crypto.randomUUID();backend.tables.form_registry.push({id:registryId,authority:'USCIS',form_code:'I-130'});
   const form=await request({method:'POST',path:`/api/v1/cases/${caseId}/forms`,headers,body:{authority:'USCIS',form_code:'I-130'}});assert.equal(form.status,409);assert.equal(form.body.error,'NO_ACTIVE_VERIFIED_FORM_EDITION');

@@ -82,6 +82,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p4_persistent_document_intelligence.sql
       - name: Execute verified canonical commit suite
         run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p5_verified_canonical_commit.sql
+      - name: Execute deterministic form engine suite
+        run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p6_deterministic_form_engine.sql
       - name: Verify anon Data API role has no application-table access
         run: |
           set -euo pipefail

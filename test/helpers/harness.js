@@ -72,6 +72,7 @@ const emptyTables = () => ({
   form_instances: [],
   form_rules: [],
   form_answers: [],
+  form_answer_revisions: [],
   form_findings: [],
   background_jobs: [],
   generated_artifacts: [],
@@ -222,6 +223,11 @@ function applyOr(rows, expression) {
   }));
 }
 
+function recordFormAnswerRevision(record) {
+  backend.tables.form_answer_revisions.push({id:crypto.randomUUID(),form_answer_id:record.id,form_instance_id:record.form_instance_id,answer_revision:record.revision,field_path:record.field_path,canonical_field_path:record.canonical_field_path||null,answer_value:record.answer_value,source_type:record.source_type,source_record_id:record.source_record_id||null,verified_canonical_field_id:record.verified_canonical_field_id||null,canonical_value_sha256:record.canonical_value_sha256||null,verification_status:record.verification_status,validation_errors:record.validation_errors||[],changed_by:record.last_changed_by,changed_source:record.last_changed_source});
+  const instance=backend.tables.form_instances.find(item=>item.id===record.form_instance_id);if(instance){instance.revision=Number(instance.revision||0)+1;instance.canonical_snapshot_hash=null}
+}
+
 async function handleRest(url, init) {
   const table = url.pathname.replace('/rest/v1/', '');
   if(table==='rpc/consume_login_attempt'){
@@ -301,6 +307,7 @@ async function handleRest(url, init) {
       return jsonResponse(409, { code: '23505', message: 'duplicate key value violates unique constraint "documents_object_key_key"' });
     }
     rows.push(record);
+    if(table==='form_answers')recordFormAnswerRevision(record);
     created.push(record);
     }
     return jsonResponse(201, created);
@@ -308,7 +315,7 @@ async function handleRest(url, init) {
 
   if (method === 'PATCH') {
     const matched = applyFilters(rows, url.searchParams);
-    for (const row of matched) Object.assign(row, body);
+    for (const row of matched) {Object.assign(row, body);if(table==='form_answers')recordFormAnswerRevision(row)}
     return jsonResponse(200, matched);
   }
 

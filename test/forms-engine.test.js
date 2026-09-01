@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {authorizeAiTool,blankAudit,compareFormAnswers,formReadiness,participantMatch,routeAsylumAuthority,routePassport,validateVersionActivation} from '../src/forms-engine.js';
+import {authorizeAiTool,blankAudit,buildCanonicalSuggestions,compareFormAnswers,conditionMatches,formReadiness,participantMatch,routeAsylumAuthority,routePassport,validateFieldAnswer,validateVersionActivation} from '../src/forms-engine.js';
 
 test('participant matching uses exact identifiers and forces a human decision',()=>{
   const matches=participantMatch({legal_name:'Amina Yusuf',date_of_birth:'1990-01-02',passport_number:'P123'},[{id:'p1',legal_name:'Amina Yusuf',date_of_birth:'1990-01-02',passport_number:'P123'}]);
@@ -22,4 +22,19 @@ test('blank, cross-form, version and AI tool controls fail closed',()=>{
   assert.equal(validateVersionActivation({edition_date:'x'},definition).allowed,false);
   assert.equal(formReadiness({definition,answers:{},version:{}}).filing_ready,false);
   assert.equal(authorizeAiTool('delete_case',{id:'u'},'c').allowed,false);
+});
+
+test('deterministic conditions and typed validation fail closed',()=>{
+  const answers={country:'US',age:21,consent:true};
+  assert.equal(conditionMatches({all:[{field:'country',value:'US'},{field:'age',operator:'greater_than',value:18}]},answers),true);
+  assert.equal(conditionMatches({not:{field:'consent',value:true}},answers),false);
+  assert.deepEqual(validateFieldAnswer({type:'date'},'2026-02-31'),['VALID_DATE_REQUIRED']);
+  assert.deepEqual(validateFieldAnswer({type:'enum',options:['yes','no']},'maybe'),['ENUM_VALUE_NOT_ALLOWED']);
+});
+
+test('canonical suggestions use only current verified facts and expose conflicts for confirmation',()=>{
+  const definition={fields:[{path:'applicant.name',canonical_field_path:'person.legal_name',type:'text'}]};
+  const facts=[{id:'old',field_path:'legal_name',field_value:'Old',revision:1,status:'superseded'},{id:'current',field_path:'legal_name',field_value:'Amina Yusuf',revision:2,status:'current'}];
+  const suggestions=buildCanonicalSuggestions(definition,facts,[{field_path:'applicant.name',answer_value:'Manual'}]);
+  assert.equal(suggestions.length,1);assert.equal(suggestions[0].verified_canonical_field_id,'current');assert.equal(suggestions[0].conflict,true);assert.equal(suggestions[0].eligible,true);
 });
