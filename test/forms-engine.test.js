@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {authorizeAiTool,blankAudit,buildCanonicalSuggestions,compareFormAnswers,conditionMatches,formReadiness,participantMatch,routeAsylumAuthority,routePassport,validateFieldAnswer,validateVersionActivation} from '../src/forms-engine.js';
+import {PDFDocument} from'pdf-lib';
+import {authorizeAiTool,blankAudit,buildCanonicalSuggestions,compareFormAnswers,conditionMatches,extractOfficialPdfAnswers,formReadiness,participantMatch,routeAsylumAuthority,routePassport,validateFieldAnswer,validateVersionActivation} from '../src/forms-engine.js';
 
 test('participant matching uses exact identifiers and forces a human decision',()=>{
   const matches=participantMatch({legal_name:'Amina Yusuf',date_of_birth:'1990-01-02',passport_number:'P123'},[{id:'p1',legal_name:'Amina Yusuf',date_of_birth:'1990-01-02',passport_number:'P123'}]);
@@ -38,3 +39,5 @@ test('canonical suggestions use only current verified facts and expose conflicts
   const suggestions=buildCanonicalSuggestions(definition,facts,[{field_path:'applicant.name',answer_value:'Manual'}]);
   assert.equal(suggestions.length,1);assert.equal(suggestions[0].verified_canonical_field_id,'current');assert.equal(suggestions[0].conflict,true);assert.equal(suggestions[0].eligible,true);
 });
+
+test('reverse ingestion reads real AcroForm values and requires human confirmation',async()=>{const pdf=await PDFDocument.create(),page=pdf.addPage(),field=pdf.getForm().createTextField('name');field.addToPage(page);field.setText('Amina Yusuf');const bytes=await pdf.save(),result=await extractOfficialPdfAnswers({sourceBytes:bytes,mapping:[{pdf_field:'name',canonical_field_path:'applicant.name'}]});assert.equal(result.answers[0].value,'Amina Yusuf');assert.equal(result.human_confirmation_required,true);assert.match(result.source_sha256,/^[0-9a-f]{64}$/)});

@@ -465,8 +465,9 @@ S3Client.prototype.send = async function stubbedSend(command) {
   throw new Error(`unexpected S3 command ${name}`);
 };
 
-export function putObject(key, { size, contentType }) {
-  backend.objects.set(key, { size, contentType, body: Buffer.alloc(size) });
+export function putObject(key, { size, contentType, body }) {
+  const bytes = body == null ? Buffer.alloc(size) : Buffer.from(body);
+  backend.objects.set(key, { size: bytes.length, contentType, body: bytes });
 }
 
 // ---------------------------------------------------------------------------

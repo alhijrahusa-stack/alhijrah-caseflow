@@ -1,6 +1,7 @@
 import test,{beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import {PDFDocument}from'pdf-lib';
 import {addUser,backend,browserHeaders,cookieHeader,driver,putObject,resetBackend} from './helpers/harness.js';
 import {handle,invalidateAccessCache,respondToError} from '../src/server.js';
 import {resetLoginThrottle} from '../src/auth.js';
@@ -46,6 +47,14 @@ test('verified form provenance rejects forged canonical facts and values before 
   const cookie=await session(),headers={...browserHeaders(),cookie},instanceId=crypto.randomUUID(),definitionId=crypto.randomUUID(),foreignClient=crypto.randomUUID(),factId=crypto.randomUUID();
   backend.tables.form_instances.push({id:instanceId,case_id:caseId,participant_id:null,form_definition_id:definitionId,revision:1});backend.tables.form_definitions.push({id:definitionId,definition:{fields:[{path:'applicant.name',canonical_field_path:'client.legal_name',official_label:'Legal Name',part:'1',item_number:'1',type:'text'}]}});backend.tables.verified_canonical_fields.push({id:factId,client_id:foreignClient,subject_type:'client',subject_id:foreignClient,field_path:'legal_name',field_value:'Foreign Client',revision:1,status:'current'});
   const forged=await request({method:'PATCH',path:`/api/v1/cases/${caseId}/forms/${instanceId}/answers/applicant.name`,headers,body:{value:'Foreign Client',expected_revision:0,source_type:'verified_field',source_record_id:factId}});assert.equal(forged.status,409,forged.raw);assert.equal(forged.body.error,'ANSWER_SOURCE_NOT_IN_CASE');assert.equal(backend.tables.form_answers.length,0);
+});
+
+test('reverse ingestion recomputes immutable PDF bytes and writes only after human confirmation',async()=>{
+  const cookie=await session(),headers={...browserHeaders(),cookie},instanceId=crypto.randomUUID(),definitionId=crypto.randomUUID(),documentId=crypto.randomUUID(),objectKey=`cases/${caseId}/synthetic-filled.pdf`;
+  const pdf=await PDFDocument.create(),page=pdf.addPage(),pdfField=pdf.getForm().createTextField('legal_name');pdfField.addToPage(page);pdfField.setText('Amina Yusuf');const bytes=Buffer.from(await pdf.save()),checksum=crypto.createHash('sha256').update(bytes).digest('hex');putObject(objectKey,{body:bytes,contentType:'application/pdf'});
+  backend.tables.documents.push({id:documentId,case_id:caseId,client_id:clientId,object_key:objectKey,file_name:'synthetic-filled.pdf',content_type:'application/pdf',size_bytes:bytes.length,content_checksum:checksum,archived_at:null});backend.tables.form_instances.push({id:instanceId,case_id:caseId,participant_id:null,form_definition_id:definitionId,revision:1});backend.tables.form_definitions.push({id:definitionId,definition:{fields:[{path:'applicant.name',canonical_field_path:'client.legal_name',official_label:'Legal Name',part:'1',item_number:'1',type:'text'}],pdf_mapping:[{pdf_field:'legal_name',canonical_field_path:'applicant.name'}]}});
+  const preview=await request({method:'POST',path:`/api/v1/cases/${caseId}/forms/${instanceId}/reverse-ingest`,headers,body:{document_id:documentId}});assert.equal(preview.status,200,preview.raw);assert.equal(preview.body.data.answers[0].value,'Amina Yusuf');assert.equal(backend.tables.form_answers.length,0);
+  const saved=await request({method:'POST',path:`/api/v1/cases/${caseId}/forms/${instanceId}/reverse-ingest`,headers,body:{document_id:documentId,confirmed:true,field_paths:['applicant.name']}});assert.equal(saved.status,200,saved.raw);assert.equal(saved.body.data.answers[0].verification_status,'review_required');assert.equal(saved.body.data.answers[0].source_document_id,documentId);assert.ok(backend.tables.audit_events.some(event=>event.action==='official_pdf_reverse_ingest_confirmed'));
 });
 
 test('unverified forms and unavailable AI provider do not fabricate results',async()=>{
