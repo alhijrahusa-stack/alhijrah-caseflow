@@ -1,0 +1,123 @@
+name: Patch deterministic review server
+
+on:
+  push:
+    branches: [p0-p1-hardening]
+    paths:
+      - .github/workflows/patch-p7-server.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: p0-p1-hardening
+      - name: Patch server deterministically
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/server.js')
+          text=p.read_text()
+
+          old="import {buildCanonicalSuggestions,formReadiness,generateControlledOfficeDocument,newJob,participantMatch,populateOfficialPdf,routeAsylumAuthority,routePassport,validateAiFinding,validateFieldAnswer,validateVersionActivation} from './forms-engine.js';"
+          new="import {buildCanonicalSuggestions,compareFormAnswers,conditionMatches,formReadiness,generateControlledOfficeDocument,newJob,participantMatch,populateOfficialPdf,routeAsylumAuthority,routePassport,validateAiFinding,validateFieldAnswer,validateVersionActivation} from './forms-engine.js';"
+          if old not in text: raise SystemExit('forms-engine import anchor missing')
+          text=text.replace(old,new,1)
+
+          anchor="async function executeAiReadTool(name,{case_id}){"
+          helper=r'''function deterministicRuleFindings(rules,answers,instance){
+            const findings=[];
+            for(const rule of rules){
+              const definition=rule.rule_definition,source={engine:'verified_form_rule',rule_id:rule.id,rule_code:rule.rule_code,rule_version:rule.rule_version,official_source:rule.official_source,verified_at:rule.verified_at};
+              if(!rule.verified_at||!definition||typeof definition!=='object'||Array.isArray(definition)||!definition.assert||!['blocker','warning','review'].includes(definition.severity)||typeof definition.claim!=='string'||!definition.claim.trim()){
+                findings.push({category:'RULE_CONFIGURATION',severity:'blocker',field_path:null,claim:'Active deterministic rule is invalid or unverified.',source_references:[rule.id].filter(Boolean),rule_source:source});continue;
+              }
+              if(definition.applies_when&&!conditionMatches(definition.applies_when,answers))continue;
+              if(conditionMatches(definition.assert,answers))continue;
+              findings.push({category:definition.category||'RULE_VIOLATION',severity:definition.severity,field_path:definition.field_path||null,claim:definition.claim.trim(),source_references:[rule.id].filter(Boolean),rule_source:source});
+            }
+            return findings;
+          }
+          function deterministicFindingMetadata(finding){
+            const semantic={form_instance_id:finding.form_instance_id||null,category:finding.category,field_path:finding.field_path||null,engine:finding.rule_source?.engine||'form_readiness',rule_id:finding.rule_source?.rule_id||null,source_references:finding.category==='CROSS_FORM_CONFLICT'?[...(finding.source_references||[])].sort():[]};
+            const deterministic_key=crypto.createHash('sha256').update(canonicalJson(semantic)).digest('hex');
+            const fingerprint=crypto.createHash('sha256').update(canonicalJson({semantic,severity:finding.severity,claim:finding.claim,source_references:finding.source_references||[],rule_source:finding.rule_source||null})).digest('hex');
+            return{deterministic_key,fingerprint};
+          }
+          async function buildDeterministicCaseReview(caseId,{persist=false,actorId=null}={}){
+            const instances=await db('form_instances',{query:`?case_id=eq.${caseId}&select=*`});
+            if(!instances.length)return{findings:[],cross_form_findings:[],rule_findings:[],readiness_by_instance:{},filing_ready:true};
+            const definitionIds=[...new Set(instances.map(item=>item.form_definition_id).filter(Boolean))],versionIds=[...new Set(instances.map(item=>item.form_version_id).filter(Boolean))];
+            const[definitions,versions,answers,rules]=await Promise.all([
+              definitionIds.length?db('form_definitions',{query:`?id=in.(${definitionIds.join(',')})&select=*`}):Promise.resolve([]),
+              versionIds.length?db('form_versions',{query:`?id=in.(${versionIds.join(',')})&select=*`}):Promise.resolve([]),
+              db('form_answers',{query:`?form_instance_id=in.(${instances.map(item=>item.id).join(',')})&select=*`}),
+              db('form_rules',{query:'?status=eq.active&select=*'})
+            ]);
+            const definitionById=new Map(definitions.map(item=>[item.id,item])),versionById=new Map(versions.map(item=>[item.id,item])),answersByInstance=new Map();
+            for(const answer of answers){const list=answersByInstance.get(answer.form_instance_id)||[];list.push(answer);answersByInstance.set(answer.form_instance_id,list)}
+            const normalized=instances.map(instance=>({id:instance.id,form_code:instance.pinned_form_code||'FORM',answers:(answersByInstance.get(instance.id)||[]).map(answer=>({id:answer.id,canonical_field_path:answer.canonical_field_path,value:answer.answer_value}))}));
+            const crossFormFindings=compareFormAnswers(normalized).map(finding=>({...finding,form_instance_id:null,participant_id:null,rule_source:{engine:'cross_form_consistency'}}));
+            const findings=[...crossFormFindings],ruleFindings=[],readinessByInstance={};
+            for(const instance of instances){
+              const definition=definitionById.get(instance.form_definition_id)?.definition,version=versionById.get(instance.form_version_id)||{},rows=answersByInstance.get(instance.id)||[],answerMap=Object.fromEntries(rows.map(answer=>[answer.field_path,answer.answer_value]));
+              const applicableRules=rules.filter(rule=>rule.authority===instance.pinned_authority),instanceRuleFindings=deterministicRuleFindings(applicableRules,answerMap,instance).map(finding=>({...finding,form_instance_id:instance.id,participant_id:instance.participant_id||null}));
+              ruleFindings.push(...instanceRuleFindings);
+              const base=formReadiness({definition,answers:answerMap,version,crossFormFindings:[]});
+              for(const finding of [...base.blockers,...base.warnings,...base.review_items])findings.push({...finding,form_instance_id:instance.id,participant_id:instance.participant_id||null,source_references:finding.source_references||[],rule_source:finding.rule_source||{engine:'form_readiness'}});
+              findings.push(...instanceRuleFindings);
+              readinessByInstance[instance.id]=formReadiness({definition,answers:answerMap,version,crossFormFindings:[...crossFormFindings,...instanceRuleFindings]});
+            }
+            const decorated=findings.map(finding=>({...finding,...deterministicFindingMetadata(finding)}));
+            if(persist){
+              const existing=await db('form_findings',{query:`?case_id=eq.${caseId}&created_by_type=eq.deterministic&status=eq.open&select=*`}),desired=new Map(decorated.map(finding=>[finding.deterministic_key,finding]));
+              for(const prior of existing){
+                const key=prior.rule_source?.deterministic_key,current=desired.get(key);
+                if(current&&prior.rule_source?.fingerprint===current.fingerprint){desired.delete(key);continue}
+                await db('form_findings',{method:'PATCH',query:`?id=eq.${prior.id}&status=eq.open`,body:{status:'resolved',resolved_by:actorId,resolved_at:new Date().toISOString()}});
+              }
+              for(const finding of desired.values()){
+                const record={id:crypto.randomUUID(),case_id:caseId,form_instance_id:finding.form_instance_id||null,participant_id:finding.participant_id||null,category:finding.category,severity:finding.severity,field_path:finding.field_path||null,claim:finding.claim,source_references:finding.source_references||[],rule_source:{...(finding.rule_source||{}),deterministic_key:finding.deterministic_key,fingerprint:finding.fingerprint},status:'open',created_by_type:'deterministic'};
+                try{await db('form_findings',{method:'POST',body:record})}catch(error){if(error.status!==409)throw error}
+              }
+            }
+            return{findings:decorated,cross_form_findings:crossFormFindings,rule_findings:ruleFindings,readiness_by_instance:readinessByInstance,filing_ready:Object.values(readinessByInstance).every(item=>item.filing_ready)};
+          }
+
+          '''+anchor
+          if anchor not in text: raise SystemExit('AI read tool anchor missing')
+          text=text.replace(anchor,helper,1)
+
+          old="if(name==='compare_forms'||name==='run_rule_validation'||name==='generate_review_report')return{requires_deterministic_pipeline:true};"
+          new="if(name==='compare_forms'){const review=await buildDeterministicCaseReview(case_id);return review.cross_form_findings}if(name==='run_rule_validation'){const review=await buildDeterministicCaseReview(case_id);return review.rule_findings}if(name==='generate_review_report'){const review=await buildDeterministicCaseReview(case_id);return{filing_ready:review.filing_ready,findings:review.findings,readiness_by_instance:review.readiness_by_instance}};"
+          if old not in text: raise SystemExit('deterministic AI placeholder anchor missing')
+          text=text.replace(old,new,1)
+
+          old="const validate=u.pathname.match(/^\\/api\\/v1\\/cases\\/([0-9a-f-]{36})\\/forms\\/([0-9a-f-]{36})\\/validate$/i);if(validate&&req.method==='POST'){const caseRows=await db('cases',{query:`?id=eq.${validate[1]}&select=*`});if(!caseRows.length||!canAccessCase(access,caseRows[0],'cases.prepare'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);const instances=await db('form_instances',{query:`?id=eq.${validate[2]}&case_id=eq.${validate[1]}&select=*`});if(!instances.length)throw Object.assign(new Error('FORM_INSTANCE_NOT_FOUND'),{status:404});const[defs,versions,answers]=await Promise.all([db('form_definitions',{query:`?id=eq.${instances[0].form_definition_id}&select=*`}),db('form_versions',{query:`?id=eq.${instances[0].form_version_id}&select=*`}),db('form_answers',{query:`?form_instance_id=eq.${instances[0].id}&select=*`})]);return json(res,200,{data:formReadiness({definition:defs[0]?.definition,answers:Object.fromEntries(answers.map(a=>[a.field_path,a.answer_value])),version:versions[0]||{}}),requestId},ch)}"
+          new="const validate=u.pathname.match(/^\\/api\\/v1\\/cases\\/([0-9a-f-]{36})\\/forms\\/([0-9a-f-]{36})\\/validate$/i);if(validate&&req.method==='POST'){const caseRows=await db('cases',{query:`?id=eq.${validate[1]}&select=*`});if(!caseRows.length||!canAccessCase(access,caseRows[0],'cases.prepare'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);const instances=await db('form_instances',{query:`?id=eq.${validate[2]}&case_id=eq.${validate[1]}&select=id`});if(!instances.length)throw Object.assign(new Error('FORM_INSTANCE_NOT_FOUND'),{status:404});const review=await buildDeterministicCaseReview(validate[1],{persist:true,actorId:principal.id}),readiness=review.readiness_by_instance[validate[2]];return json(res,200,{data:{...readiness,deterministic_findings:review.findings.filter(item=>item.form_instance_id===validate[2]||item.form_instance_id===null)},requestId},ch)}"
+          if old not in text: raise SystemExit('validate route anchor missing')
+          text=text.replace(old,new,1)
+
+          old="const readiness=formReadiness({definition,answers:Object.fromEntries(answers.map(a=>[a.field_path,a.answer_value])),version:versionRecord||{}});if(!readiness.filing_ready)throw Object.assign(new Error('FORM_NOT_READY_FOR_GENERATION'),{status:409,details:readiness});"
+          new="const deterministicReview=await buildDeterministicCaseReview(generate[1],{persist:true,actorId:principal.id}),readiness=deterministicReview.readiness_by_instance[instance.id]||formReadiness({definition,answers:Object.fromEntries(answers.map(a=>[a.field_path,a.answer_value])),version:versionRecord||{}});if(!readiness.filing_ready)throw Object.assign(new Error('FORM_NOT_READY_FOR_GENERATION'),{status:409,details:{...readiness,deterministic_findings:deterministicReview.findings.filter(item=>item.form_instance_id===instance.id||item.form_instance_id===null)}});"
+          if old not in text: raise SystemExit('generation readiness anchor missing')
+          text=text.replace(old,new,1)
+
+          p.write_text(text)
+          PY
+      - name: Syntax check
+        run: node --check src/server.js
+      - name: Commit server patch
+        shell: bash
+        run: |
+          git config user.name "ALHIJRAH CASEFLOW Automation"
+          git config user.email "alhijrahusa@gmail.com"
+          git add src/server.js
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: enforce deterministic case review pipeline"
+          git push origin HEAD:p0-p1-hardening
