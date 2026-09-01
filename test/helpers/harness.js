@@ -229,6 +229,21 @@ async function handleRest(url, init) {
   if(table==='rpc/clear_login_attempt'){
     const body=JSON.parse(init.body||'{}');backend.sharedLoginAttempts.delete(body.p_key_hash);return jsonResponse(200,true);
   }
+  if(table==='rpc/claim_background_jobs'){
+    const body=JSON.parse(init.body||'{}'),now=Date.now(),limit=Math.max(1,Math.min(Number(body.p_limit||2),8)),leaseSeconds=Math.max(15,Math.min(Number(body.p_lease_seconds||120),900));
+    const candidates=backend.tables.background_jobs.filter(job=>Number(job.attempt_count||0)<Number(job.max_attempts||5)&&new Date(job.available_at||0).getTime()<=now&&(job.status==='queued'||job.status==='retrying'||job.status==='running'&&new Date(job.lease_expires_at||0).getTime()<now)).sort((a,b)=>Number(a.priority||100)-Number(b.priority||100)||new Date(a.available_at||0)-new Date(b.available_at||0)||new Date(a.created_at||0)-new Date(b.created_at||0)).slice(0,limit);
+    for(const job of candidates)Object.assign(job,{status:'running',attempt_count:Number(job.attempt_count||0)+1,lease_token:crypto.randomUUID(),leased_by:body.p_worker_id,lease_expires_at:new Date(now+leaseSeconds*1000).toISOString(),last_heartbeat_at:new Date(now).toISOString(),started_at:job.started_at||new Date(now).toISOString(),completed_at:null,updated_at:new Date(now).toISOString()});
+    return jsonResponse(200,candidates);
+  }
+  if(table==='rpc/heartbeat_background_job'){
+    const body=JSON.parse(init.body||'{}'),now=Date.now(),job=backend.tables.background_jobs.find(item=>item.id===body.p_job_id&&item.status==='running'&&item.lease_token===body.p_lease_token&&new Date(item.lease_expires_at).getTime()>now);if(!job)return jsonResponse(200,false);job.last_heartbeat_at=new Date(now).toISOString();job.lease_expires_at=new Date(now+Math.max(15,Math.min(Number(body.p_lease_seconds||120),900))*1000).toISOString();return jsonResponse(200,true);
+  }
+  if(table==='rpc/complete_background_job'){
+    const body=JSON.parse(init.body||'{}'),now=Date.now(),job=backend.tables.background_jobs.find(item=>item.id===body.p_job_id&&item.status==='running'&&item.lease_token===body.p_lease_token&&new Date(item.lease_expires_at).getTime()>now);if(!job)return jsonResponse(200,false);Object.assign(job,{status:'succeeded',progress:100,result:body.p_result||{},lease_token:null,leased_by:null,lease_expires_at:null,last_error_code:null,failure_class:null,completed_at:new Date(now).toISOString(),updated_at:new Date(now).toISOString()});return jsonResponse(200,true);
+  }
+  if(table==='rpc/fail_background_job'){
+    const body=JSON.parse(init.body||'{}'),now=Date.now(),job=backend.tables.background_jobs.find(item=>item.id===body.p_job_id&&item.status==='running'&&item.lease_token===body.p_lease_token&&new Date(item.lease_expires_at).getTime()>now);if(!job)return jsonResponse(409,{message:'JOB_LEASE_INVALID'});const permanent=body.p_failure_class==='permanent'||Number(job.attempt_count||0)>=Number(job.max_attempts||5),status=permanent?'failed':'retrying';Object.assign(job,{status,available_at:permanent?job.available_at:new Date(now+5000*Math.pow(2,Math.max(Number(job.attempt_count||1)-1,0))).toISOString(),last_error_code:String(body.p_error_code||'JOB_FAILED').slice(0,120),failure_class:body.p_failure_class||'transient',lease_token:null,leased_by:null,lease_expires_at:null,completed_at:permanent?new Date(now).toISOString():null,updated_at:new Date(now).toISOString()});return jsonResponse(200,status);
+  }
   const rows = backend.tables[table];
   if (!rows) return jsonResponse(404, { message: `relation "${table}" does not exist`, hint: 'internal detail that must not leak' });
   const method = (init.method || 'GET').toUpperCase();
