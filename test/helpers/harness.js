@@ -79,6 +79,7 @@ const emptyTables = () => ({
   ai_findings: [],
   document_extractions: [],
   document_extracted_fields: [],
+  verified_canonical_fields: [],
   controlled_document_templates: [],
   form_update_alerts: [],
   office_settings: [{ singleton: true, office_name: 'ALHIJRAH SERVICES', default_language: 'English' }],
@@ -245,6 +246,25 @@ async function handleRest(url, init) {
   }
   if(table==='rpc/fail_background_job'){
     const body=JSON.parse(init.body||'{}'),now=Date.now(),job=backend.tables.background_jobs.find(item=>item.id===body.p_job_id&&item.status==='running'&&item.lease_token===body.p_lease_token&&new Date(item.lease_expires_at).getTime()>now);if(!job)return jsonResponse(409,{message:'JOB_LEASE_INVALID'});const permanent=body.p_failure_class==='permanent'||Number(job.attempt_count||0)>=Number(job.max_attempts||5),status=permanent?'failed':'retrying';Object.assign(job,{status,available_at:permanent?job.available_at:new Date(now+5000*Math.pow(2,Math.max(Number(job.attempt_count||1)-1,0))).toISOString(),last_error_code:String(body.p_error_code||'JOB_FAILED').slice(0,120),failure_class:body.p_failure_class||'transient',lease_token:null,leased_by:null,lease_expires_at:null,completed_at:permanent?new Date(now).toISOString():null,updated_at:new Date(now).toISOString()});return jsonResponse(200,status);
+  }
+  if(table==='rpc/commit_verified_identity_extraction'){
+    const body=JSON.parse(init.body||'{}'),bearer=String(init.headers?.authorization||'').replace(/^Bearer /,''),email=backend.sessions.get(bearer),actor=[...backend.users.values()].find(user=>user.email===email)?.id;
+    const extraction=backend.tables.document_extractions.find(item=>item.id===body.p_extraction_id&&item.status==='reviewing'&&item.requested_by===actor);
+    if(!extraction)return jsonResponse(409,{message:'Extraction is not available for commit'});
+    const fields=body.p_reviewed_fields&&typeof body.p_reviewed_fields==='object'&&!Array.isArray(body.p_reviewed_fields)?body.p_reviewed_fields:{};
+    let subjectId=body.p_subject_id;
+    if(body.p_subject_type==='client'){
+      let client=backend.tables.clients.find(item=>item.id===subjectId);
+      if(!client){subjectId=crypto.randomUUID();client={id:subjectId,legal_name:fields.legal_name,preferred_language:'English',created_by:actor,updated_by:actor,created_at:new Date().toISOString()};backend.tables.clients.push(client)}
+      Object.assign(client,fields,{updated_by:actor,updated_at:new Date().toISOString()});
+    }else{
+      const person=backend.tables.people.find(item=>item.id===subjectId);if(!person)return jsonResponse(409,{message:'Canonical participant is not authorized for the extraction case'});Object.assign(person,fields,{identity_verification_status:'verified',identity_verified_by:actor,identity_verified_at:new Date().toISOString(),updated_at:new Date().toISOString()});
+    }
+    const reviewedAt=new Date().toISOString();
+    for(const proposal of backend.tables.document_extracted_fields.filter(item=>item.extraction_id===extraction.id)){const accepted=Object.hasOwn(fields,proposal.field_path);Object.assign(proposal,{reviewed_value:accepted?fields[proposal.field_path]:null,verification_status:accepted?'accepted':'rejected',reviewed_by:actor,reviewed_at:reviewedAt,updated_at:reviewedAt});if(!accepted)continue;const prior=backend.tables.verified_canonical_fields.find(item=>item.subject_type===body.p_subject_type&&item.subject_id===subjectId&&item.field_path===proposal.field_path&&item.status==='current'),id=crypto.randomUUID();if(prior)Object.assign(prior,{status:'superseded',superseded_by:id,superseded_at:reviewedAt});backend.tables.verified_canonical_fields.push({id,client_id:extraction.client_id||subjectId,case_id:extraction.case_id||null,person_id:body.p_subject_type==='person'?subjectId:null,subject_type:body.p_subject_type,subject_id:subjectId,field_path:proposal.field_path,field_value:fields[proposal.field_path],revision:Number(prior?.revision||0)+1,status:'current',source_extraction_id:extraction.id,source_field_id:proposal.id,source_document_id:extraction.document_id||null,source_document_version:extraction.document_version||null,source_sha256:extraction.source_sha256,verified_by:actor,verified_at:reviewedAt,created_at:reviewedAt})}
+    Object.assign(extraction,{status:'confirmed',reviewed_by:actor,reviewed_at:reviewedAt,updated_at:reviewedAt});
+    backend.tables.audit_events.push({id:crypto.randomUUID(),actor_user_id:actor,action:'verified_identity_committed',entity_type:body.p_subject_type,entity_id:subjectId,client_id:extraction.client_id||subjectId,case_id:extraction.case_id||null,metadata:{extraction_id:extraction.id,human_confirmed:true},created_at:reviewedAt});
+    return jsonResponse(200,[{subject_type:body.p_subject_type,subject_id:subjectId,committed_fields:Object.keys(fields).length}]);
   }
   const rows = backend.tables[table];
   if (!rows) return jsonResponse(404, { message: `relation "${table}" does not exist`, hint: 'internal detail that must not leak' });

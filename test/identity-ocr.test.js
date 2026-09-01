@@ -78,11 +78,19 @@ test('real OCR requires review before it autofills and saves a client', async ()
   });
   assert.equal(confirmed.status, 200, confirmed.raw);
   assert.equal(confirmed.body.autofill.human_confirmed, true);
+  assert.equal(confirmed.body.autofill.canonical_commit, true);
   assert.equal(confirmed.body.autofill.engine, 'tesseract.js');
   assert.equal(confirmed.body.data.passport_number, 'L898902C3');
   assert.equal(backend.tables.clients.length, 1);
   assert.equal(backend.tables.document_extractions[0].status,'confirmed');
   assert.equal(backend.tables.document_extracted_fields.find(field=>field.field_path==='passport_number').verification_status,'accepted');
+  const passportFact=backend.tables.verified_canonical_fields.find(field=>field.field_path==='passport_number');
+  assert.equal(passportFact.field_value,'L898902C3');
+  assert.equal(passportFact.source_extraction_id,extracted.body.extraction_id);
+  assert.equal(passportFact.verified_by,backend.tables.app_users[0].auth_user_id);
+  const facts=await request({method:'GET',path:`/api/v1/clients/${confirmed.body.data.id}/verified-fields`,headers:browserHeaders({cookie})});
+  assert.equal(facts.status,200,facts.raw);
+  assert.ok(facts.body.data.some(field=>field.field_path==='passport_number'));
   assert.ok(backend.tables.audit_events.some(event => event.action === 'identity_autofill_confirmed'));
   const replay=await request({method:'POST',path:'/api/v1/identity/confirm',headers:browserHeaders({cookie}),body:{extraction_token:extracted.body.extraction_token,fields:extracted.body.result.fields,confirmed:true}});
   assert.equal(replay.status,410);
@@ -93,7 +101,7 @@ test('document OCR stays linked to its source and cannot classify without human 
   const upload=await request({method:'POST',path:`/api/v1/documents/upload?case_id=${caseId}&filename=passport.png&size_bytes=${image.length}`,headers:browserHeaders({cookie,'content-type':'image/png','content-length':String(image.length)}),body:image});assert.equal(upload.status,201,upload.raw);const documentId=upload.body.data[0].id;
   const extracted=await request({method:'POST',path:`/api/v1/documents/${documentId}/ocr`,headers:browserHeaders({cookie}),body:{}});assert.equal(extracted.status,200,extracted.raw);assert.equal(extracted.body.source_document_id,documentId);assert.equal(extracted.body.result.fields.passport_number,'L898902C3');assert.equal(extracted.body.human_confirmation_required,true);
   const refused=await request({method:'POST',path:`/api/v1/documents/${documentId}/ocr/confirm`,headers:browserHeaders({cookie}),body:{review_token:extracted.body.review_token,category:'identity'}});assert.equal(refused.status,400);assert.equal(backend.tables.documents[0].category,null);
-  const confirmed=await request({method:'POST',path:`/api/v1/documents/${documentId}/ocr/confirm`,headers:browserHeaders({cookie}),body:{review_token:extracted.body.review_token,category:'identity',fields:extracted.body.result.fields,confirmed:true}});assert.equal(confirmed.status,200,confirmed.raw);assert.equal(confirmed.body.ocr.source_document_id,documentId);assert.equal(confirmed.body.ocr.human_confirmed,true);assert.equal(backend.tables.documents[0].category,'identity');assert.equal(backend.tables.document_extractions[0].document_id,documentId);assert.equal(backend.tables.document_extractions[0].source_sha256,backend.tables.documents[0].content_checksum);assert.equal(backend.tables.document_extractions[0].status,'confirmed');const history=await request({method:'GET',path:`/api/v1/documents/${documentId}/ocr`,headers:browserHeaders({cookie})});assert.equal(history.status,200,history.raw);assert.equal(history.body.data[0].id,extracted.body.extraction_id);assert.ok(history.body.data[0].fields.some(field=>field.field_path==='passport_number'));assert.ok(backend.tables.case_events.some(row=>row.event_type==='document_ocr_confirmed'&&row.payload.document_id===documentId));
+  const confirmed=await request({method:'POST',path:`/api/v1/documents/${documentId}/ocr/confirm`,headers:browserHeaders({cookie}),body:{review_token:extracted.body.review_token,category:'identity',fields:extracted.body.result.fields,confirmed:true}});assert.equal(confirmed.status,200,confirmed.raw);assert.equal(confirmed.body.ocr.source_document_id,documentId);assert.equal(confirmed.body.ocr.human_confirmed,true);assert.equal(confirmed.body.ocr.canonical_commit,true);assert.equal(backend.tables.documents[0].category,'identity');assert.equal(backend.tables.document_extractions[0].document_id,documentId);assert.equal(backend.tables.document_extractions[0].source_sha256,backend.tables.documents[0].content_checksum);assert.equal(backend.tables.document_extractions[0].status,'confirmed');assert.equal(backend.tables.verified_canonical_fields.find(field=>field.field_path==='passport_number').source_document_id,documentId);const history=await request({method:'GET',path:`/api/v1/documents/${documentId}/ocr`,headers:browserHeaders({cookie})});assert.equal(history.status,200,history.raw);assert.equal(history.body.data[0].id,extracted.body.extraction_id);assert.ok(history.body.data[0].fields.some(field=>field.field_path==='passport_number'));assert.ok(backend.tables.case_events.some(row=>row.event_type==='document_ocr_confirmed'&&row.payload.document_id===documentId));
 });
 
 test('production verification exercises R2, metadata linkage, OCR, and client autofill without residue', async () => {

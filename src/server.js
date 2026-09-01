@@ -169,10 +169,25 @@ async function claimDocumentExtraction(token,principal,{documentId=null,errorCod
   const claimed=await systemDb('document_extractions',{method:'PATCH',query:`?id=eq.${run.id}&requested_by=eq.${principal.id}&status=eq.${run.status}&updated_at=eq.${encodeURIComponent(run.updated_at)}`,body:{status:'reviewing',updated_at:new Date(now).toISOString()}});if(!claimed.length)throw Object.assign(new Error(errorCode),{status:410});return{...run,status:'reviewing',result:run.raw_result};
 }
 async function releaseDocumentExtraction(run){await systemDb('document_extractions',{method:'PATCH',query:`?id=eq.${run.id}&status=eq.reviewing`,body:{status:'pending_review',updated_at:new Date().toISOString()}}).catch(()=>{});}
-async function confirmDocumentExtraction(run,principal,reviewed){
-  const fields=await systemDb('document_extracted_fields',{query:`?extraction_id=eq.${run.id}&select=*`}),accepted=new Set(Object.keys(reviewed||{})),now=new Date().toISOString();
-  for(const field of fields)await systemDb('document_extracted_fields',{method:'PATCH',query:`?id=eq.${field.id}`,body:{reviewed_value:accepted.has(field.field_path)?reviewed[field.field_path]:null,verification_status:accepted.has(field.field_path)?'accepted':'rejected',reviewed_by:principal.id,reviewed_at:now,updated_at:now}});
-  await systemDb('document_extractions',{method:'PATCH',query:`?id=eq.${run.id}&status=eq.reviewing`,body:{status:'confirmed',reviewed_by:principal.id,reviewed_at:now,updated_at:now}});
+const canonicalIdentityFieldNames=['legal_name','date_of_birth','place_of_birth','nationality','current_country','passport_number','passport_country','passport_expiration'];
+function normalizeReviewedIdentityFields(reviewed,{requireLegalName=false}={}){
+  const source=reviewed&&typeof reviewed==='object'&&!Array.isArray(reviewed)?reviewed:{};
+  const result={};
+  for(const field of canonicalIdentityFieldNames){
+    if(source[field]===undefined)continue;
+    result[field]=field==='date_of_birth'||field==='passport_expiration'
+      ?cleanDate(source[field])
+      :cleanText(source[field],{required:field==='legal_name',max:field==='passport_number'?40:field==='nationality'||field==='current_country'||field==='passport_country'?100:180});
+    if(result[field]===null||result[field]==='')throw Object.assign(new Error('INVALID_REVIEWED_IDENTITY_FIELD'),{status:400});
+  }
+  if(requireLegalName&&!result.legal_name)throw Object.assign(new Error('LEGAL_NAME_REQUIRED'),{status:400});
+  return result;
+}
+async function commitVerifiedIdentityExtraction(run,subjectType,subjectId,reviewed){
+  const rows=await db('rpc/commit_verified_identity_extraction',{method:'POST',body:{p_extraction_id:run.id,p_subject_type:subjectType,p_subject_id:subjectId||null,p_reviewed_fields:reviewed}});
+  const committed=Array.isArray(rows)?rows[0]:rows;
+  if(!committed?.subject_id)throw Object.assign(new Error('VERIFIED_IDENTITY_COMMIT_FAILED'),{status:409});
+  return committed;
 }
 function stableUuid(value){const hex=crypto.createHash('sha256').update(value).digest('hex').slice(0,32);return hex.slice(0,8)+'-'+hex.slice(8,12)+'-5'+hex.slice(13,16)+'-a'+hex.slice(17,20)+'-'+hex.slice(20,32)}
 function documentInput(body){const caseId=String(body.case_id||'');if(!uuid(caseId))throw Object.assign(new Error('VALID_CASE_ID_REQUIRED'),{status:400});const fileName=String(body.filename||body.file_name||'').trim().slice(0,180);if(!fileName||/[\x00-\x1f]/.test(fileName))throw Object.assign(new Error('VALID_FILENAME_REQUIRED'),{status:400});const contentType=String(body.content_type||'').toLowerCase();if(!allowedDocumentTypes.has(contentType))throw Object.assign(new Error('UNSUPPORTED_DOCUMENT_TYPE'),{status:415});const sizeBytes=Number(body.size_bytes);if(!Number.isSafeInteger(sizeBytes)||sizeBytes<1||sizeBytes>25*1024*1024)throw Object.assign(new Error('DOCUMENT_SIZE_NOT_ALLOWED'),{status:413});return{caseId,fileName,contentType,sizeBytes}}
@@ -1386,11 +1401,8 @@ async function handleRaw(req,res){
     const body=await readJson(req,32_768);
     if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});
     const extraction=await claimDocumentExtraction(body.extraction_token,principal,{errorCode:'IDENTITY_EXTRACTION_EXPIRED'});
-    const reviewed=body.fields&&typeof body.fields==='object'&&!Array.isArray(body.fields)?body.fields:{};
-    const allowed=['legal_name','date_of_birth','place_of_birth','nationality','current_country','passport_number','passport_country','passport_expiration'];
-    const accepted=Object.fromEntries(allowed.filter(field=>reviewed[field]!==undefined).map(field=>[field,reviewed[field]]));
-    let record;
-    let data;
+    let targetClient=null;
+    let accepted;
     try{
       if(body.client_id){
         if(!uuid(body.client_id))throw Object.assign(new Error('VALID_CLIENT_ID_REQUIRED'),{status:400});
@@ -1398,17 +1410,15 @@ async function handleRaw(req,res){
         // Autofill writes identity fields, so it obeys the same client boundary
         // as an ordinary client edit.
         if(!rows.length||!canAccessClient(access,rows[0],'clients.manage',{reachableClientIds:await accessibleClientIds(access,'clients.manage')}))throw Object.assign(new Error('CLIENT_NOT_FOUND'),{status:404});
-        record={...normalizeClientInput({...rows[0],...accepted}),updated_by:principal.id,updated_at:new Date().toISOString()};
-        data=await db('clients',{method:'PATCH',query:`?id=eq.${encodeURIComponent(body.client_id)}`,body:record});
-      }else{
-        const id=crypto.randomUUID();
-        record={id,...normalizeClientInput({...accepted,preferred_language:'English'}),created_by:principal.id,updated_by:principal.id};
-        data=await db('clients',{method:'POST',body:record});
+        targetClient=rows[0];
       }
+      accepted=normalizeReviewedIdentityFields(body.fields,{requireLegalName:!targetClient});
+      const committed=await commitVerifiedIdentityExtraction(extraction,'client',targetClient?.id||null,accepted);
+      const data=await db('clients',{query:`?id=eq.${encodeURIComponent(committed.subject_id)}&select=*&limit=1`});
+      targetClient=data[0];
     }catch(error){await releaseDocumentExtraction(extraction);throw error}
-    const client=Array.isArray(data)?data[0]:data;
-    await confirmDocumentExtraction(extraction,principal,accepted);await audit(principal,'identity_autofill_confirmed','client',client.id,{client_id:client.id,extraction_id:extraction.id,engine:extraction.result.engine,mrz_valid:extraction.result.mrz.valid,human_confirmed:true},req);
-    return json(res,200,{data:client,autofill:{saved:true,human_confirmed:true,engine:extraction.result.engine,mrz_valid:extraction.result.mrz.valid,extraction_id:extraction.id},requestId},ch);
+    await audit(principal,'identity_autofill_confirmed','client',targetClient.id,{client_id:targetClient.id,extraction_id:extraction.id,engine:extraction.result.engine,mrz_valid:extraction.result.mrz.valid,human_confirmed:true,canonical_commit:true},req);
+    return json(res,200,{data:targetClient,autofill:{saved:true,human_confirmed:true,canonical_commit:true,engine:extraction.result.engine,mrz_valid:extraction.result.mrz.valid,extraction_id:extraction.id},requestId},ch);
   }
 
   if(req.method==='GET'&&u.pathname==='/api/v1/clients'){
@@ -1430,6 +1440,13 @@ async function handleRaw(req,res){
     const data=await db('clients',{method:'POST',body:record});
     await audit(principal,'client_created','client',record.id,{client_id:record.id},req);
     return json(res,201,{data,requestId},ch);
+  }
+  const verifiedClientFields=u.pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})\/verified-fields$/i);
+  if(verifiedClientFields&&req.method==='GET'){
+    const rows=await db('clients',{query:`?id=eq.${encodeURIComponent(verifiedClientFields[1])}&select=id`});
+    if(!rows.length||!await reachableClient(access,verifiedClientFields[1],'clients.view'))return json(res,404,{error:'CLIENT_NOT_FOUND',requestId},ch);
+    const data=await db('verified_canonical_fields',{query:`?client_id=eq.${encodeURIComponent(verifiedClientFields[1])}&status=eq.current&select=*&order=field_path`});
+    return json(res,200,{data,requestId},ch);
   }
   const clientMatch=u.pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})$/i);
   if(clientMatch&&req.method==='GET'){
@@ -1814,7 +1831,7 @@ async function handleRaw(req,res){
   if(documentOcrMatch&&req.method==='POST'){
     if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
     const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(documentOcrMatch[1])}&archived_at=is.null&select=*&limit=1`});if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const document=rows[0],ocrCases=await casesById(access,[document.case_id]);if(!canAccessDocument(access,document,ocrCases.get(String(document.case_id)),'documents.manage'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
-    if(documentOcrMatch[2]){const body=await readJson(req,32_768);if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});const review=await claimDocumentExtraction(body.review_token,principal,{documentId:document.id,errorCode:'DOCUMENT_OCR_REVIEW_EXPIRED'});const patch={category:cleanText(body.category||document.category||'identity',{required:true,max:100}),review_status:'under_review'};if(body.person_id){if(!uuid(body.person_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});const links=await db('case_people',{query:`?case_id=eq.${encodeURIComponent(document.case_id)}&person_id=eq.${encodeURIComponent(body.person_id)}&select=person_id&limit=1`});if(!links.length){await releaseDocumentExtraction(review);throw Object.assign(new Error('DOCUMENT_PERSON_NOT_IN_CASE'),{status:409})}patch.person_id=body.person_id}let updated;try{updated=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(document.id)}`,body:patch});await confirmDocumentExtraction(review,principal,body.fields&&typeof body.fields==='object'?body.fields:{});}catch(error){await releaseDocumentExtraction(review);throw error}await event(document.case_id,'document_ocr_confirmed',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:review.id,person_id:patch.person_id||document.person_id||null,engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,confirmed_fields:Object.keys(body.fields&&typeof body.fields==='object'?body.fields:{})},principal,req);return json(res,200,{data:updated[0]||updated,ocr:{engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,source_document_id:document.id,extraction_id:review.id},requestId},ch)}
+    if(documentOcrMatch[2]){const body=await readJson(req,32_768);if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});const review=await claimDocumentExtraction(body.review_token,principal,{documentId:document.id,errorCode:'DOCUMENT_OCR_REVIEW_EXPIRED'});const patch={category:cleanText(body.category||document.category||'identity',{required:true,max:100}),review_status:'under_review'};if(body.person_id){if(!uuid(body.person_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});const links=await db('case_people',{query:`?case_id=eq.${encodeURIComponent(document.case_id)}&person_id=eq.${encodeURIComponent(body.person_id)}&select=person_id&limit=1`});if(!links.length){await releaseDocumentExtraction(review);throw Object.assign(new Error('DOCUMENT_PERSON_NOT_IN_CASE'),{status:409})}patch.person_id=body.person_id}let updated,canonical;try{const accepted=normalizeReviewedIdentityFields(body.fields);updated=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(document.id)}`,body:patch});canonical=await commitVerifiedIdentityExtraction(review,patch.person_id?'person':'client',patch.person_id||document.client_id,accepted);}catch(error){await releaseDocumentExtraction(review);throw error}await event(document.case_id,'document_ocr_confirmed',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:review.id,person_id:patch.person_id||document.person_id||null,engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,canonical_commit:true,committed_fields:canonical.committed_fields,confirmed_fields:Object.keys(body.fields&&typeof body.fields==='object'?body.fields:{})},principal,req);return json(res,200,{data:updated[0]||updated,ocr:{engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,canonical_commit:true,committed_fields:canonical.committed_fields,source_document_id:document.id,extraction_id:review.id},requestId},ch)}
     if(!allowedIdentityTypes.has(String(document.content_type||'').toLowerCase()))throw Object.assign(new Error('DOCUMENT_OCR_IMAGE_REQUIRED'),{status:415});const object=await r2.send(new GetObjectCommand({Bucket:r2Bucket,Key:document.object_key})),bytes=Buffer.from(await object.Body.transformToByteArray());let result;try{result=await extractIdentityDocument(bytes)}catch{throw Object.assign(new Error('DOCUMENT_OCR_FAILED'),{status:422})}if(!result.mrz.detected&&!Object.keys(result.fields).length)throw Object.assign(new Error('DOCUMENT_NOT_RECOGNIZED'),{status:422});const persisted=await persistDocumentExtraction(principal,result,{document,sourceSha256:crypto.createHash('sha256').update(bytes).digest('hex')});await event(document.case_id,'document_ocr_review_required',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:persisted.run.id,engine:result.engine,mrz_detected:result.mrz.detected,mrz_valid:result.mrz.valid,human_confirmation_required:true},principal,req);return json(res,200,{review_token:persisted.token,extraction_id:persisted.run.id,expires_in:900,result,source_document_id:document.id,human_confirmation_required:true,requestId},ch);
   }
   const reviewMatch=u.pathname.match(/^\/api\/v1\/documents\/([0-9a-f-]{36})\/review$/i);
