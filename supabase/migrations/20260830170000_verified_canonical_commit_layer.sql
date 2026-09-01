@@ -64,7 +64,7 @@ begin
      or extraction.document_id is distinct from new.source_document_id
      or extraction.document_version is distinct from new.source_document_version
      or extraction.case_id is distinct from new.case_id or extraction.client_id is distinct from
-       case when new.source_document_id is null then null else new.client_id end then
+       (case when new.source_document_id is null then null else new.client_id end) then
     raise exception 'Canonical value must match its confirmed extraction';
   end if;
   if new.subject_type='client' and new.client_id<>new.subject_id then
