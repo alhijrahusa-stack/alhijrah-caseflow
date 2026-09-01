@@ -47,7 +47,7 @@ import { intakeDefinition, validateIntakeAnswers } from './intake-definitions.js
 import { extractIdentityDocument } from './identity-ocr.js';
 import { normalizeLanguage, renderCaseOpeningEmail, sendTransactionalEmail } from './email.js';
 import { analyzeImportRows, buildImportReport, importFields, importSummary, parseImportFile, verifyImportRuntime } from './import-center.js';
-import {buildCanonicalSuggestions,formReadiness,generateControlledOfficeDocument,newJob,participantMatch,populateOfficialPdf,routeAsylumAuthority,routePassport,validateAiFinding,validateFieldAnswer,validateVersionActivation} from './forms-engine.js';
+import {buildCanonicalSuggestions,compareFormAnswers,conditionMatches,formReadiness,generateControlledOfficeDocument,newJob,participantMatch,populateOfficialPdf,routeAsylumAuthority,routePassport,validateAiFinding,validateFieldAnswer,validateVersionActivation} from './forms-engine.js';
 import {probeOfficialSource} from './form-source-monitor.js';
 import {configuredAiProvider,runConstrainedAiReview} from './ai-review.js';
 import {activateUserDatabase,scopedDb,systemDb,withSystemDatabase} from './database.js';
@@ -262,6 +262,65 @@ async function storeGeneratedArtifact({caseId,instanceId,artifactType,authority,
   }catch(error){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:objectKey})).catch(()=>{});throw error}
 }
 
+function deterministicRuleFindings(rules,answers,instance){
+  const findings=[];
+  for(const rule of rules){
+    const definition=rule.rule_definition,source={engine:'verified_form_rule',rule_id:rule.id,rule_code:rule.rule_code,rule_version:rule.rule_version,official_source:rule.official_source,verified_at:rule.verified_at};
+    if(!rule.verified_at||!definition||typeof definition!=='object'||Array.isArray(definition)||!definition.assert||!['blocker','warning','review'].includes(definition.severity)||typeof definition.claim!=='string'||!definition.claim.trim()){
+      findings.push({category:'RULE_CONFIGURATION',severity:'blocker',field_path:null,claim:'Active deterministic rule is invalid or unverified.',source_references:[rule.id].filter(Boolean),rule_source:source});continue;
+    }
+    if(definition.applies_when&&!conditionMatches(definition.applies_when,answers))continue;
+    if(conditionMatches(definition.assert,answers))continue;
+    findings.push({category:definition.category||'RULE_VIOLATION',severity:definition.severity,field_path:definition.field_path||null,claim:definition.claim.trim(),source_references:[rule.id].filter(Boolean),rule_source:source});
+  }
+  return findings;
+}
+function deterministicFindingMetadata(finding){
+  const semantic={form_instance_id:finding.form_instance_id||null,category:finding.category,field_path:finding.field_path||null,engine:finding.rule_source?.engine||'form_readiness',rule_id:finding.rule_source?.rule_id||null,source_references:finding.category==='CROSS_FORM_CONFLICT'?[...(finding.source_references||[])].sort():[]};
+  const deterministic_key=crypto.createHash('sha256').update(canonicalJson(semantic)).digest('hex');
+  const fingerprint=crypto.createHash('sha256').update(canonicalJson({semantic,severity:finding.severity,claim:finding.claim,source_references:finding.source_references||[],rule_source:finding.rule_source||null})).digest('hex');
+  return{deterministic_key,fingerprint};
+}
+async function buildDeterministicCaseReview(caseId,{persist=false,actorId=null}={}){
+  const instances=await db('form_instances',{query:`?case_id=eq.${caseId}&select=*`});
+  if(!instances.length)return{findings:[],cross_form_findings:[],rule_findings:[],readiness_by_instance:{},filing_ready:true};
+  const definitionIds=[...new Set(instances.map(item=>item.form_definition_id).filter(Boolean))],versionIds=[...new Set(instances.map(item=>item.form_version_id).filter(Boolean))];
+  const[definitions,versions,answers,rules]=await Promise.all([
+    definitionIds.length?db('form_definitions',{query:`?id=in.(${definitionIds.join(',')})&select=*`}):Promise.resolve([]),
+    versionIds.length?db('form_versions',{query:`?id=in.(${versionIds.join(',')})&select=*`}):Promise.resolve([]),
+    db('form_answers',{query:`?form_instance_id=in.(${instances.map(item=>item.id).join(',')})&select=*`}),
+    db('form_rules',{query:'?status=eq.active&select=*'})
+  ]);
+  const definitionById=new Map(definitions.map(item=>[item.id,item])),versionById=new Map(versions.map(item=>[item.id,item])),answersByInstance=new Map();
+  for(const answer of answers){const list=answersByInstance.get(answer.form_instance_id)||[];list.push(answer);answersByInstance.set(answer.form_instance_id,list)}
+  const normalized=instances.map(instance=>({id:instance.id,form_code:instance.pinned_form_code||'FORM',answers:(answersByInstance.get(instance.id)||[]).map(answer=>({id:answer.id,canonical_field_path:answer.canonical_field_path,value:answer.answer_value}))}));
+  const crossFormFindings=compareFormAnswers(normalized).map(finding=>({...finding,form_instance_id:null,participant_id:null,rule_source:{engine:'cross_form_consistency'}}));
+  const findings=[...crossFormFindings],ruleFindings=[],readinessByInstance={};
+  for(const instance of instances){
+    const definition=definitionById.get(instance.form_definition_id)?.definition,version=versionById.get(instance.form_version_id)||{},rows=answersByInstance.get(instance.id)||[],answerMap=Object.fromEntries(rows.map(answer=>[answer.field_path,answer.answer_value]));
+    const applicableRules=rules.filter(rule=>rule.authority===instance.pinned_authority),instanceRuleFindings=deterministicRuleFindings(applicableRules,answerMap,instance).map(finding=>({...finding,form_instance_id:instance.id,participant_id:instance.participant_id||null}));
+    ruleFindings.push(...instanceRuleFindings);
+    const base=formReadiness({definition,answers:answerMap,version,crossFormFindings:[]});
+    for(const finding of [...base.blockers,...base.warnings,...base.review_items])findings.push({...finding,form_instance_id:instance.id,participant_id:instance.participant_id||null,source_references:finding.source_references||[],rule_source:finding.rule_source||{engine:'form_readiness'}});
+    findings.push(...instanceRuleFindings);
+    readinessByInstance[instance.id]=formReadiness({definition,answers:answerMap,version,crossFormFindings:[...crossFormFindings,...instanceRuleFindings]});
+  }
+  const decorated=findings.map(finding=>({...finding,...deterministicFindingMetadata(finding)}));
+  if(persist){
+    const existing=await db('form_findings',{query:`?case_id=eq.${caseId}&created_by_type=eq.deterministic&status=eq.open&select=*`}),desired=new Map(decorated.map(finding=>[finding.deterministic_key,finding]));
+    for(const prior of existing){
+      const key=prior.rule_source?.deterministic_key,current=desired.get(key);
+      if(current&&prior.rule_source?.fingerprint===current.fingerprint){desired.delete(key);continue}
+      await db('form_findings',{method:'PATCH',query:`?id=eq.${prior.id}&status=eq.open`,body:{status:'resolved',resolved_by:actorId,resolved_at:new Date().toISOString()}});
+    }
+    for(const finding of desired.values()){
+      const record={id:crypto.randomUUID(),case_id:caseId,form_instance_id:finding.form_instance_id||null,participant_id:finding.participant_id||null,category:finding.category,severity:finding.severity,field_path:finding.field_path||null,claim:finding.claim,source_references:finding.source_references||[],rule_source:{...(finding.rule_source||{}),deterministic_key:finding.deterministic_key,fingerprint:finding.fingerprint},status:'open',created_by_type:'deterministic'};
+      try{await db('form_findings',{method:'POST',body:record})}catch(error){if(error.status!==409)throw error}
+    }
+  }
+  return{findings:decorated,cross_form_findings:crossFormFindings,rule_findings:ruleFindings,readiness_by_instance:readinessByInstance,filing_ready:Object.values(readinessByInstance).every(item=>item.filing_ready)};
+}
+
 async function executeAiReadTool(name,{case_id}){
   const map={
     get_case_summary:()=>db('cases',{query:`?id=eq.${case_id}&select=*`}),get_participants:()=>db('case_people',{query:`?case_id=eq.${case_id}&select=*`}),get_documents:()=>db('documents',{query:`?case_id=eq.${case_id}&archived_at=is.null&select=*`}),get_open_findings:()=>db('form_findings',{query:`?case_id=eq.${case_id}&status=eq.open&select=*`}),get_deadlines:()=>db('deadlines',{query:`?case_id=eq.${case_id}&select=*`}),get_address_history:()=>db('person_history_records',{query:`?case_id=eq.${case_id}&history_type=eq.address&archived_at=is.null&select=*`}),get_employment_history:()=>db('person_history_records',{query:`?case_id=eq.${case_id}&history_type=eq.employment&archived_at=is.null&select=*`}),get_travel_history:()=>db('person_history_records',{query:`?case_id=eq.${case_id}&history_type=eq.travel&archived_at=is.null&select=*`})
@@ -275,7 +334,7 @@ async function executeAiReadTool(name,{case_id}){
     const links=await db('case_people',{query:`?case_id=eq.${case_id}&select=person_id`});if(!links.length)return[];
     const ids=links.map(x=>x.person_id).join(',');return db('family_relationships',{query:`?person_id=in.(${ids})&archived_at=is.null&select=*`});
   }
-  if(name==='compare_forms'||name==='run_rule_validation'||name==='generate_review_report')return{requires_deterministic_pipeline:true};
+  if(name==='compare_forms'){const review=await buildDeterministicCaseReview(case_id);return review.cross_form_findings}if(name==='run_rule_validation'){const review=await buildDeterministicCaseReview(case_id);return review.rule_findings}if(name==='generate_review_report'){const review=await buildDeterministicCaseReview(case_id);return{filing_ready:review.filing_ready,findings:review.findings,readiness_by_instance:review.readiness_by_instance}};
   if(!map[name])throw new Error('AI_TOOL_NOT_IMPLEMENTED');return map[name]();
 }
 
@@ -885,7 +944,7 @@ async function handleRaw(req,res){
     await audit(principal,'form_answer_saved','form_answer',data[0]?.id,{case_id:answer[1],client_id:caseRows[0].client_id,field_path:fieldPath,old_value:existing[0]?.answer_value??null,new_value:values.answer_value,verified_canonical_field_id:canonicalFact?.id||null,action_source:'STAFF_ASSISTED'},req);return json(res,200,{data:data[0]||data,requestId},ch)
   }
 
-  const validate=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/forms\/([0-9a-f-]{36})\/validate$/i);if(validate&&req.method==='POST'){const caseRows=await db('cases',{query:`?id=eq.${validate[1]}&select=*`});if(!caseRows.length||!canAccessCase(access,caseRows[0],'cases.prepare'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);const instances=await db('form_instances',{query:`?id=eq.${validate[2]}&case_id=eq.${validate[1]}&select=*`});if(!instances.length)throw Object.assign(new Error('FORM_INSTANCE_NOT_FOUND'),{status:404});const[defs,versions,answers]=await Promise.all([db('form_definitions',{query:`?id=eq.${instances[0].form_definition_id}&select=*`}),db('form_versions',{query:`?id=eq.${instances[0].form_version_id}&select=*`}),db('form_answers',{query:`?form_instance_id=eq.${instances[0].id}&select=*`})]);return json(res,200,{data:formReadiness({definition:defs[0]?.definition,answers:Object.fromEntries(answers.map(a=>[a.field_path,a.answer_value])),version:versions[0]||{}}),requestId},ch)}
+  const validate=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/forms\/([0-9a-f-]{36})\/validate$/i);if(validate&&req.method==='POST'){const caseRows=await db('cases',{query:`?id=eq.${validate[1]}&select=*`});if(!caseRows.length||!canAccessCase(access,caseRows[0],'cases.prepare'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);const instances=await db('form_instances',{query:`?id=eq.${validate[2]}&case_id=eq.${validate[1]}&select=id`});if(!instances.length)throw Object.assign(new Error('FORM_INSTANCE_NOT_FOUND'),{status:404});const review=await buildDeterministicCaseReview(validate[1],{persist:true,actorId:principal.id}),readiness=review.readiness_by_instance[validate[2]];return json(res,200,{data:{...readiness,deterministic_findings:review.findings.filter(item=>item.form_instance_id===validate[2]||item.form_instance_id===null)},requestId},ch)}
 
   const generate=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/forms\/([0-9a-f-]{36})\/generate$/i);
   if(generate&&req.method==='POST'){
@@ -893,7 +952,7 @@ async function handleRaw(req,res){
     const cases=await db('cases',{query:`?id=eq.${generate[1]}&select=*`});if(!cases.length||!canAccessCase(access,cases[0],'cases.prepare'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
     const instances=await db('form_instances',{query:`?id=eq.${generate[2]}&case_id=eq.${generate[1]}&select=*`});if(!instances.length)throw Object.assign(new Error('FORM_INSTANCE_NOT_FOUND'),{status:404});const instance=instances[0];
     const[defs,versions,answers]=await Promise.all([db('form_definitions',{query:`?id=eq.${instance.form_definition_id}&select=*`}),db('form_versions',{query:`?id=eq.${instance.form_version_id}&select=*`}),db('form_answers',{query:`?form_instance_id=eq.${instance.id}&select=*`})]);const definition=defs[0]?.definition,versionRecord=versions[0];
-    const readiness=formReadiness({definition,answers:Object.fromEntries(answers.map(a=>[a.field_path,a.answer_value])),version:versionRecord||{}});if(!readiness.filing_ready)throw Object.assign(new Error('FORM_NOT_READY_FOR_GENERATION'),{status:409,details:readiness});
+    const deterministicReview=await buildDeterministicCaseReview(generate[1],{persist:true,actorId:principal.id}),readiness=deterministicReview.readiness_by_instance[instance.id]||formReadiness({definition,answers:Object.fromEntries(answers.map(a=>[a.field_path,a.answer_value])),version:versionRecord||{}});if(!readiness.filing_ready)throw Object.assign(new Error('FORM_NOT_READY_FOR_GENERATION'),{status:409,details:{...readiness,deterministic_findings:deterministicReview.findings.filter(item=>item.form_instance_id===instance.id||item.form_instance_id===null)}});
     if(!versionRecord?.source_object_key||!Array.isArray(definition?.pdf_mapping))throw Object.assign(new Error('VERIFIED_PDF_MAPPING_REQUIRED'),{status:409});
     let job=newJob({jobType:'GENERATE_OFFICIAL_PDF',idempotencyKey:`official:${instance.id}:${instance.revision}`,caseId:generate[1],participantId:instance.participant_id,payload:{form_instance_id:instance.id,form_revision:instance.revision},requestedBy:principal.id});
     const existingJobs=await db('background_jobs',{query:`?idempotency_key=eq.${encodeURIComponent(job.idempotency_key)}&select=*`});
