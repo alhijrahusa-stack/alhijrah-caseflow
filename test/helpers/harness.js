@@ -77,6 +77,8 @@ const emptyTables = () => ({
   generated_artifacts: [],
   ai_review_runs: [],
   ai_findings: [],
+  document_extractions: [],
+  document_extracted_fields: [],
   controlled_document_templates: [],
   form_update_alerts: [],
   office_settings: [{ singleton: true, office_name: 'ALHIJRAH SERVICES', default_language: 'English' }],

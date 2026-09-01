@@ -78,6 +78,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p2_immutable_document_versioning.sql
       - name: Execute durable background processing suite
         run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p3_durable_background_processing.sql
+      - name: Execute persistent document intelligence suite
+        run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p4_persistent_document_intelligence.sql
       - name: Verify anon Data API role has no application-table access
         run: |
           set -euo pipefail

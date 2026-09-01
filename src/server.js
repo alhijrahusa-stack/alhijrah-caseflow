@@ -155,29 +155,25 @@ function safeKey(x){const c=String(x||'').replace(/[^a-zA-Z0-9._/-]/g,'_').repla
 function uuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||''))}
 const allowedDocumentTypes=new Set(['application/pdf','image/jpeg','image/png','image/webp','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
 const allowedIdentityTypes=new Set(['image/jpeg','image/png','image/webp']);
-const identityExtractions=new Map();
-const documentOcrReviews=new Map();
-
-function storeIdentityExtraction(principal,result){
-  const now=Date.now();
-  for(const [token,entry] of identityExtractions)if(entry.expiresAt<=now)identityExtractions.delete(token);
-  while(identityExtractions.size>=100)identityExtractions.delete(identityExtractions.keys().next().value);
-  const token=crypto.randomBytes(32).toString('base64url');
-  identityExtractions.set(token,{principalId:principal.id,result,expiresAt:now+15*60_000,used:false});
-  return token;
+function reviewTokenHash(token){return crypto.createHash('sha256').update(String(token||'')).digest('hex');}
+async function persistDocumentExtraction(principal,result,{document=null,sourceSha256}){
+  const token=crypto.randomBytes(32).toString('base64url'),id=crypto.randomUUID(),now=new Date().toISOString(),expiresAt=new Date(Date.now()+15*60_000).toISOString();
+  const run={id,document_id:document?.id||null,case_id:document?.case_id||null,client_id:document?.client_id||null,document_version:document?.version||null,source_sha256:sourceSha256,review_token_hash:reviewTokenHash(token),extraction_kind:document?'document_identity':'identity_upload',engine:result.engine,engine_version:'identity-ocr-v1',status:'pending_review',confidence:result.confidence??null,mrz_detected:result.mrz.detected,mrz_valid:result.mrz.valid,raw_text:result.raw_text||null,raw_result:result,requested_by:principal.id,expires_at:expiresAt,created_at:now,updated_at:now};
+  await systemDb('document_extractions',{method:'POST',body:run});
+  for(const[field,value]of Object.entries(result.fields||{}))await systemDb('document_extracted_fields',{method:'POST',body:{id:crypto.randomUUID(),extraction_id:id,field_path:field,extracted_value:value,confidence:result.confidence??null,source_locator:{method:result.mrz.detected?'mrz':'ocr'}}});
+  return{token,run};
 }
-
-function identityExtraction(token,principal){
-  const entry=identityExtractions.get(String(token||''));
-  if(!entry||entry.expiresAt<=Date.now()||entry.principalId!==principal.id||entry.used)throw Object.assign(new Error('IDENTITY_EXTRACTION_EXPIRED'),{status:410});
-  entry.used=true;
-  return entry;
+async function claimDocumentExtraction(token,principal,{documentId=null,errorCode}){
+  const hash=reviewTokenHash(token),rows=await systemDb('document_extractions',{query:`?review_token_hash=eq.${hash}&requested_by=eq.${principal.id}&select=*&limit=1`}),run=rows[0],now=Date.now();
+  if(!run||documentId&&run.document_id!==documentId||new Date(run.expires_at).getTime()<=now||!['pending_review','reviewing'].includes(run.status)||run.status==='reviewing'&&new Date(run.updated_at).getTime()>now-5*60_000)throw Object.assign(new Error(errorCode),{status:410});
+  const claimed=await systemDb('document_extractions',{method:'PATCH',query:`?id=eq.${run.id}&requested_by=eq.${principal.id}&status=eq.${run.status}&updated_at=eq.${encodeURIComponent(run.updated_at)}`,body:{status:'reviewing',updated_at:new Date(now).toISOString()}});if(!claimed.length)throw Object.assign(new Error(errorCode),{status:410});return{...run,status:'reviewing',result:run.raw_result};
 }
-function storeDocumentOcrReview(principal,document,result){
-  const now=Date.now();for(const [token,entry] of documentOcrReviews)if(entry.expiresAt<=now)documentOcrReviews.delete(token);while(documentOcrReviews.size>=100)documentOcrReviews.delete(documentOcrReviews.keys().next().value);
-  const token=crypto.randomBytes(32).toString('base64url');documentOcrReviews.set(token,{principalId:principal.id,documentId:document.id,caseId:document.case_id,result,expiresAt:now+15*60_000,used:false});return token;
+async function releaseDocumentExtraction(run){await systemDb('document_extractions',{method:'PATCH',query:`?id=eq.${run.id}&status=eq.reviewing`,body:{status:'pending_review',updated_at:new Date().toISOString()}}).catch(()=>{});}
+async function confirmDocumentExtraction(run,principal,reviewed){
+  const fields=await systemDb('document_extracted_fields',{query:`?extraction_id=eq.${run.id}&select=*`}),accepted=new Set(Object.keys(reviewed||{})),now=new Date().toISOString();
+  for(const field of fields)await systemDb('document_extracted_fields',{method:'PATCH',query:`?id=eq.${field.id}`,body:{reviewed_value:accepted.has(field.field_path)?reviewed[field.field_path]:null,verification_status:accepted.has(field.field_path)?'accepted':'rejected',reviewed_by:principal.id,reviewed_at:now,updated_at:now}});
+  await systemDb('document_extractions',{method:'PATCH',query:`?id=eq.${run.id}&status=eq.reviewing`,body:{status:'confirmed',reviewed_by:principal.id,reviewed_at:now,updated_at:now}});
 }
-function documentOcrReview(token,principal,documentId){const entry=documentOcrReviews.get(String(token||''));if(!entry||entry.expiresAt<=Date.now()||entry.principalId!==principal.id||entry.documentId!==documentId||entry.used)throw Object.assign(new Error('DOCUMENT_OCR_REVIEW_EXPIRED'),{status:410});entry.used=true;return entry}
 function stableUuid(value){const hex=crypto.createHash('sha256').update(value).digest('hex').slice(0,32);return hex.slice(0,8)+'-'+hex.slice(8,12)+'-5'+hex.slice(13,16)+'-a'+hex.slice(17,20)+'-'+hex.slice(20,32)}
 function documentInput(body){const caseId=String(body.case_id||'');if(!uuid(caseId))throw Object.assign(new Error('VALID_CASE_ID_REQUIRED'),{status:400});const fileName=String(body.filename||body.file_name||'').trim().slice(0,180);if(!fileName||/[\x00-\x1f]/.test(fileName))throw Object.assign(new Error('VALID_FILENAME_REQUIRED'),{status:400});const contentType=String(body.content_type||'').toLowerCase();if(!allowedDocumentTypes.has(contentType))throw Object.assign(new Error('UNSUPPORTED_DOCUMENT_TYPE'),{status:415});const sizeBytes=Number(body.size_bytes);if(!Number.isSafeInteger(sizeBytes)||sizeBytes<1||sizeBytes>25*1024*1024)throw Object.assign(new Error('DOCUMENT_SIZE_NOT_ALLOWED'),{status:413});return{caseId,fileName,contentType,sizeBytes}}
 function documentChecksum(value){if(value===undefined||value===null||value==='')return null;const checksum=String(value).toLowerCase();if(!/^[a-f0-9]{64}$/.test(checksum))throw Object.assign(new Error('INVALID_DOCUMENT_CHECKSUM'),{status:400});return checksum}
@@ -1382,14 +1378,14 @@ async function handleRaw(req,res){
     let result;
     try{result=await extractIdentityDocument(image)}catch(error){console.error('identity-ocr-failed',error.message);throw Object.assign(new Error('IDENTITY_OCR_FAILED'),{status:422})}
     if(!result.mrz.detected&&!Object.keys(result.fields).length)throw Object.assign(new Error('IDENTITY_NOT_RECOGNIZED'),{status:422});
-    const extractionToken=storeIdentityExtraction(principal,result);
-    await audit(principal,'identity_ocr_completed','identity_extraction',null,{engine:result.engine,mrz_detected:result.mrz.detected,mrz_valid:result.mrz.valid,confidence:result.confidence},req);
-    return json(res,200,{extraction_token:extractionToken,expires_in:900,result,requestId},ch);
+    const persisted=await persistDocumentExtraction(principal,result,{sourceSha256:crypto.createHash('sha256').update(image).digest('hex')});
+    await audit(principal,'identity_ocr_completed','document_extraction',persisted.run.id,{engine:result.engine,mrz_detected:result.mrz.detected,mrz_valid:result.mrz.valid,confidence:result.confidence,persistent:true},req);
+    return json(res,200,{extraction_token:persisted.token,extraction_id:persisted.run.id,expires_in:900,result,requestId},ch);
   }
   if(req.method==='POST'&&u.pathname==='/api/v1/identity/confirm'){
     const body=await readJson(req,32_768);
     if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});
-    const extraction=identityExtraction(body.extraction_token,principal);
+    const extraction=await claimDocumentExtraction(body.extraction_token,principal,{errorCode:'IDENTITY_EXTRACTION_EXPIRED'});
     const reviewed=body.fields&&typeof body.fields==='object'&&!Array.isArray(body.fields)?body.fields:{};
     const allowed=['legal_name','date_of_birth','place_of_birth','nationality','current_country','passport_number','passport_country','passport_expiration'];
     const accepted=Object.fromEntries(allowed.filter(field=>reviewed[field]!==undefined).map(field=>[field,reviewed[field]]));
@@ -1409,11 +1405,10 @@ async function handleRaw(req,res){
         record={id,...normalizeClientInput({...accepted,preferred_language:'English'}),created_by:principal.id,updated_by:principal.id};
         data=await db('clients',{method:'POST',body:record});
       }
-    }catch(error){extraction.used=false;throw error}
-    identityExtractions.delete(String(body.extraction_token));
+    }catch(error){await releaseDocumentExtraction(extraction);throw error}
     const client=Array.isArray(data)?data[0]:data;
-    await audit(principal,'identity_autofill_confirmed','client',client.id,{client_id:client.id,engine:extraction.result.engine,mrz_valid:extraction.result.mrz.valid,human_confirmed:true},req);
-    return json(res,200,{data:client,autofill:{saved:true,human_confirmed:true,engine:extraction.result.engine,mrz_valid:extraction.result.mrz.valid},requestId},ch);
+    await confirmDocumentExtraction(extraction,principal,accepted);await audit(principal,'identity_autofill_confirmed','client',client.id,{client_id:client.id,extraction_id:extraction.id,engine:extraction.result.engine,mrz_valid:extraction.result.mrz.valid,human_confirmed:true},req);
+    return json(res,200,{data:client,autofill:{saved:true,human_confirmed:true,engine:extraction.result.engine,mrz_valid:extraction.result.mrz.valid,extraction_id:extraction.id},requestId},ch);
   }
 
   if(req.method==='GET'&&u.pathname==='/api/v1/clients'){
@@ -1815,11 +1810,12 @@ async function handleRaw(req,res){
     if(!canAccessDocument(access,doc,dlCases.get(String(doc.case_id)),'documents.view'))throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});
     const inline=b.disposition==='inline'&&['application/pdf','image/jpeg','image/png','image/webp'].includes(doc.content_type);const disposition=inline?'inline':'attachment';const downloadUrl=await getSignedUrl(r2,new GetObjectCommand({Bucket:r2Bucket,Key:doc.object_key,ResponseContentDisposition:`${disposition}; filename*=UTF-8''${encodeURIComponent(doc.file_name)}`,ResponseContentType:doc.content_type}),{expiresIn:300});await event(doc.case_id,inline?'document_previewed':'document_downloaded',{document_id:doc.id},principal,req);return json(res,200,{download_url:downloadUrl,preview_url:inline?downloadUrl:null,disposition,expires_in:300,requestId},ch)}
   const documentOcrMatch=u.pathname.match(/^\/api\/v1\/documents\/([0-9a-f-]{36})\/ocr(?:\/(confirm))?$/i);
+  if(documentOcrMatch&&req.method==='GET'&&!documentOcrMatch[2]){const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(documentOcrMatch[1])}&archived_at=is.null&select=*&limit=1`});if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const document=rows[0],ocrCases=await casesById(access,[document.case_id]);if(!canAccessDocument(access,document,ocrCases.get(String(document.case_id)),'documents.manage'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const runs=await db('document_extractions',{query:`?document_id=eq.${document.id}&select=*&order=created_at.desc&limit=50`}),fields=runs.length?await db('document_extracted_fields',{query:`?extraction_id=in.(${runs.map(run=>run.id).join(',')})&select=*`}):[];return json(res,200,{data:runs.map(run=>({...run,fields:fields.filter(field=>field.extraction_id===run.id)})),requestId},ch);}
   if(documentOcrMatch&&req.method==='POST'){
     if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
     const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(documentOcrMatch[1])}&archived_at=is.null&select=*&limit=1`});if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const document=rows[0],ocrCases=await casesById(access,[document.case_id]);if(!canAccessDocument(access,document,ocrCases.get(String(document.case_id)),'documents.manage'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
-    if(documentOcrMatch[2]){const body=await readJson(req,32_768);if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});const review=documentOcrReview(body.review_token,principal,document.id);const patch={category:cleanText(body.category||document.category||'identity',{required:true,max:100}),review_status:'under_review'};if(body.person_id){if(!uuid(body.person_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});const links=await db('case_people',{query:`?case_id=eq.${encodeURIComponent(document.case_id)}&person_id=eq.${encodeURIComponent(body.person_id)}&select=person_id&limit=1`});if(!links.length){review.used=false;throw Object.assign(new Error('DOCUMENT_PERSON_NOT_IN_CASE'),{status:409})}patch.person_id=body.person_id}const updated=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(document.id)}`,body:patch});documentOcrReviews.delete(String(body.review_token));await event(document.case_id,'document_ocr_confirmed',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,person_id:patch.person_id||document.person_id||null,engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,confirmed_fields:Object.keys(body.fields&&typeof body.fields==='object'?body.fields:{})},principal,req);return json(res,200,{data:updated[0]||updated,ocr:{engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,source_document_id:document.id},requestId},ch)}
-    if(!allowedIdentityTypes.has(String(document.content_type||'').toLowerCase()))throw Object.assign(new Error('DOCUMENT_OCR_IMAGE_REQUIRED'),{status:415});const object=await r2.send(new GetObjectCommand({Bucket:r2Bucket,Key:document.object_key})),bytes=Buffer.from(await object.Body.transformToByteArray());let result;try{result=await extractIdentityDocument(bytes)}catch{throw Object.assign(new Error('DOCUMENT_OCR_FAILED'),{status:422})}if(!result.mrz.detected&&!Object.keys(result.fields).length)throw Object.assign(new Error('DOCUMENT_NOT_RECOGNIZED'),{status:422});const reviewToken=storeDocumentOcrReview(principal,document,result);await event(document.case_id,'document_ocr_review_required',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,engine:result.engine,mrz_detected:result.mrz.detected,mrz_valid:result.mrz.valid,human_confirmation_required:true},principal,req);return json(res,200,{review_token:reviewToken,expires_in:900,result,source_document_id:document.id,human_confirmation_required:true,requestId},ch);
+    if(documentOcrMatch[2]){const body=await readJson(req,32_768);if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});const review=await claimDocumentExtraction(body.review_token,principal,{documentId:document.id,errorCode:'DOCUMENT_OCR_REVIEW_EXPIRED'});const patch={category:cleanText(body.category||document.category||'identity',{required:true,max:100}),review_status:'under_review'};if(body.person_id){if(!uuid(body.person_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});const links=await db('case_people',{query:`?case_id=eq.${encodeURIComponent(document.case_id)}&person_id=eq.${encodeURIComponent(body.person_id)}&select=person_id&limit=1`});if(!links.length){await releaseDocumentExtraction(review);throw Object.assign(new Error('DOCUMENT_PERSON_NOT_IN_CASE'),{status:409})}patch.person_id=body.person_id}let updated;try{updated=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(document.id)}`,body:patch});await confirmDocumentExtraction(review,principal,body.fields&&typeof body.fields==='object'?body.fields:{});}catch(error){await releaseDocumentExtraction(review);throw error}await event(document.case_id,'document_ocr_confirmed',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:review.id,person_id:patch.person_id||document.person_id||null,engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,confirmed_fields:Object.keys(body.fields&&typeof body.fields==='object'?body.fields:{})},principal,req);return json(res,200,{data:updated[0]||updated,ocr:{engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,source_document_id:document.id,extraction_id:review.id},requestId},ch)}
+    if(!allowedIdentityTypes.has(String(document.content_type||'').toLowerCase()))throw Object.assign(new Error('DOCUMENT_OCR_IMAGE_REQUIRED'),{status:415});const object=await r2.send(new GetObjectCommand({Bucket:r2Bucket,Key:document.object_key})),bytes=Buffer.from(await object.Body.transformToByteArray());let result;try{result=await extractIdentityDocument(bytes)}catch{throw Object.assign(new Error('DOCUMENT_OCR_FAILED'),{status:422})}if(!result.mrz.detected&&!Object.keys(result.fields).length)throw Object.assign(new Error('DOCUMENT_NOT_RECOGNIZED'),{status:422});const persisted=await persistDocumentExtraction(principal,result,{document,sourceSha256:crypto.createHash('sha256').update(bytes).digest('hex')});await event(document.case_id,'document_ocr_review_required',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:persisted.run.id,engine:result.engine,mrz_detected:result.mrz.detected,mrz_valid:result.mrz.valid,human_confirmation_required:true},principal,req);return json(res,200,{review_token:persisted.token,extraction_id:persisted.run.id,expires_in:900,result,source_document_id:document.id,human_confirmation_required:true,requestId},ch);
   }
   const reviewMatch=u.pathname.match(/^\/api\/v1\/documents\/([0-9a-f-]{36})\/review$/i);
   if(reviewMatch&&req.method==='POST'){
