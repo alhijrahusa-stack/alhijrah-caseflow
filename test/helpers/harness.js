@@ -41,6 +41,7 @@ const emptyTables = () => ({
   user_roles: [],
   case_assignments: [],
   client_access: [],
+  portal_case_access: [],
   teams: [],
   team_members: [],
   access_policies: [],

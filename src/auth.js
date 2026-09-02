@@ -13,6 +13,8 @@ export const roleDefinitions = Object.freeze({
   auditor: ['dashboard.view', 'clients.view', 'cases.view', 'documents.view', 'tasks.view', 'billing.view', 'audit.view', 'reports.view'],
   client_owner: ['portal.view', 'portal.intake', 'portal.documents', 'portal.messages'],
   client_collaborator: ['portal.view', 'portal.documents', 'portal.messages'],
+  employer_portal: ['portal.view', 'portal.documents', 'portal.messages'],
+  beneficiary_portal: ['portal.view', 'portal.intake', 'portal.documents', 'portal.messages'],
 });
 
 const accessCookie = '__Host-caseflow_access';

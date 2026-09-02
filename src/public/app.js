@@ -83,7 +83,7 @@
       async function switchLanguage(language){
         setLanguage(language);
         if(!currentUser)return;
-        const portalUser=(currentUser.roles||[]).some(role=>role.startsWith("client_"));
+        const portalUser=(currentUser.roles||[]).some(role=>role.startsWith("client_")||role.endsWith("_portal"));
         try{await api(portalUser?"/api/v1/portal/language":"/api/v1/profile/preferences",{method:"PATCH",body:JSON.stringify({preferred_language:currentLanguage})});currentUser.preferred_language=currentLanguage;if(portalUser&&portalData)renderPortal();else{const activeView=document.querySelector("#nav button.active")?.dataset.view;if(activeView)await loadViewData(activeView,true);const workspaceId=$("workspaceEditButton")?.dataset.a1;if(workspaceId&&$("caseWorkspaceModal").classList.contains("show"))await editCase(workspaceId);}}catch(error){alert(error.message)}
       }
       const viewLoadedAt = new Map(),
@@ -106,6 +106,8 @@
         ["Auditor", "Read-only compliance and audit access.", "auditor"],
         ["Client Owner", "Primary client portal authority.", "client_owner"],
         ["Client Collaborator", "Limited shared case collaboration.", "client_collaborator"],
+        ["Employer Portal", "Case-specific employer access.", "employer_portal"],
+        ["Beneficiary Portal", "Case-specific beneficiary access.", "beneficiary_portal"],
       ];
       function titles(v) {
         const t = {
@@ -246,7 +248,7 @@
           setLanguage(currentUser.preferred_language);
           $("password").value = "";
           $("login").classList.add("hidden");
-          const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
+          const clientUser = currentUser.roles.some((role) => ["client_owner","client_collaborator","employer_portal","beneficiary_portal"].includes(role));
           if (clientUser) {
             setVisible($("staffApp"),false);
             $("clientPortal").classList.add("active");
@@ -288,7 +290,7 @@
           setLanguage(currentUser.preferred_language);
           setVisible($("inviteSetup"),false);
           $("login").classList.add("hidden");
-          const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
+          const clientUser = currentUser.roles.some((role) => ["client_owner","client_collaborator","employer_portal","beneficiary_portal"].includes(role));
           if (clientUser) {
             setVisible($("staffApp"),false);
             $("clientPortal").classList.add("active");
@@ -1205,7 +1207,7 @@
       function renderAccessForm() {
         const policy = currentAccessPolicy();
         const scopes = policy?.scopes || {};
-        const isClientRole = ["client_owner", "client_collaborator"].includes($("accessSubject").value);
+        const isClientRole = ["client_owner", "client_collaborator", "employer_portal", "beneficiary_portal"].includes($("accessSubject").value);
         const fallback = isClientRole ? accessData.defaults.client : accessData.defaults.staff;
         $("accessScopes").innerHTML = (accessData?.modules || [])
           .filter((m) => m !== "dashboard")
@@ -1533,14 +1535,18 @@
       function renderPortal() {
         const clientNumber=portalData.clients?.[0]?.client_number||"—";
         const client=portalData.clients?.[0]||{};
-        $("portalCases").innerHTML = (portalData.cases || []).map((item) => `<div class="portal-card"><div class="eyebrow">${esc(item.case_number || item.case_reference || item.service_code || tr("case"))}</div><h3>${esc(item.case_type)}</h3><p>${esc(tr("clientNumber"))}: <b>${esc(clientNumber)}</b> · <span class="tag active">${esc(intakeOptionLabel(item.workflow_stage))}</span>${item.receipt_number ? ` · ${esc(tr("receiptNumber"))}: ${esc(item.receipt_number)}` : ""}</p><div class="df u-68b2edc6f5"><button class="btn" data-act="openPortalCase" data-a1="${item.id}">${esc(tr("open"))}</button>${item.service_code ? `<button class="btn primary" data-act="openIntake" data-a1="${item.id}" data-a2="${esc(item.service_code)}" data-a3="true">${esc(tr("intake"))}</button>` : ""}</div></div>`).join("") || `<div class="empty">${esc(tr("noRecords"))}</div>`;
+        const portalType=currentUser?.roles?.includes("beneficiary_portal")?"beneficiary":currentUser?.roles?.includes("employer_portal")?"employer":"client";
+        $("portalBrandName").textContent=portalType==="beneficiary"?(currentLanguage==="Arabic"?"بوابة المستفيد":"BENEFICIARY PORTAL"):portalType==="employer"?(currentLanguage==="Arabic"?"بوابة صاحب العمل":"EMPLOYER PORTAL"):"MY ALHIJRAH";
+        $("portalBrandType").textContent=currentLanguage==="Arabic"?"وصول آمن ومحدد بالقضية":"Secure case-specific access";
+        $("portalCases").innerHTML = (portalData.cases || []).map((item) => `<div class="portal-card"><div class="eyebrow">${esc(item.case_number || item.case_reference || item.service_code || tr("case"))}</div><h3>${esc(item.case_type)}</h3><p>${esc(tr("clientNumber"))}: <b>${esc(clientNumber)}</b> · <span class="tag active">${esc(intakeOptionLabel(item.workflow_stage))}</span>${item.receipt_number ? ` · ${esc(tr("receiptNumber"))}: ${esc(item.receipt_number)}` : ""}</p><div class="df u-68b2edc6f5"><button class="btn" data-act="openPortalCase" data-a1="${item.id}">${esc(tr("open"))}</button>${item.service_code&&portalType!=="employer" ? `<button class="btn primary" data-act="openIntake" data-a1="${item.id}" data-a2="${esc(item.service_code)}" data-a3="true">${esc(tr("intake"))}</button>` : ""}</div></div>`).join("") || `<div class="empty">${esc(tr("noRecords"))}</div>`;
         $("portalRequests").innerHTML = (portalData.document_requests || []).map((item) => `<div class="portal-card"><div><b>${esc(item.title)}</b><p class="muted">${esc(item.instructions || tr("uploadCorrectRequest"))}</p><span class="tag ${item.status === "approved" ? "active" : item.status === "rejected" ? "urgent" : "normal"}">${esc(intakeOptionLabel(item.status))}</span></div>${['missing','rejected'].includes(item.status) ? `<button class="btn primary u-0ee7f66ad9" data-act="choosePortalFile" data-a1="${item.case_id}" data-a2="${item.id}">${esc(tr("uploadDocument"))}</button>` : ""}</div>`).join("") || `<div class="empty">${esc(tr("noRequestedDocuments"))}</div>`;
         $("portalDocuments").innerHTML=(portalData.documents||[]).map(item=>`<div class="portal-card"><b>${esc(item.file_name)}</b><p>${esc(intakeOptionLabel(item.review_status))} · ${formatSize(item.size_bytes)} · ${date(item.created_at)}</p><button class="btn" data-act="downloadPortalDocument" data-a1="${item.id}">${esc(tr("download"))}</button></div>`).join("")||`<div class="empty">${esc(tr("noDocuments"))}</div>`;
         $("portalAppointments").innerHTML = (portalData.appointments || []).map((item) => `<div class="portal-card"><b>${esc(item.title)}</b><p>${date(item.starts_at)}</p><small>${esc(item.location || tr("locationPending"))}</small></div>`).join("") || `<div class="empty">${esc(tr("noAppointments"))}</div>`;
         $("portalDeadlines").innerHTML=(portalData.deadlines||[]).map(item=>`<div class="portal-card"><b>${esc(item.title)}</b><p>${esc(item.deadline_date)} · ${esc(intakeOptionLabel(item.status))}</p><small>${esc(intakeOptionLabel(item.deadline_type))}</small></div>`).join("")||`<div class="empty">${esc(tr("noDeadlines"))}</div>`;
         $("portalNotifications").innerHTML=(portalData.notifications||[]).map(item=>`<div class="portal-card"><b>${esc(item.title)}</b><p><span class="tag ${item.severity==='critical'||item.severity==='high'?'urgent':'normal'}">${esc(intakeOptionLabel(item.severity))}</span>${item.due_at?` · ${date(item.due_at)}`:""}</p></div>`).join("")||`<div class="empty">${esc(tr("noNotifications"))}</div>`;
         $("portalBilling").innerHTML=(portalData.billing||[]).map(item=>{const amount=Number(item.office_fee_cents||0)+Number(item.government_fee_cents||0)+Number(item.other_fee_cents||0);return `<div class="portal-card"><b>${esc(item.invoice_number)}</b><p>${esc(tr("amount"))}: ${money(amount,item.currency)} · ${esc(intakeOptionLabel(item.status))}</p><small>${item.due_date?`${esc(tr("dueDate"))}: ${esc(item.due_date)}`:""}</small></div>`;}).join("")||`<div class="empty">${esc(tr("noBilling"))}</div>`;
-        $("portalProfile").innerHTML=`<div class="sys"><div class="sysrow"><span>${esc(tr("clientNumber"))}</span><b>${esc(client.client_number||"—")}</b></div><div class="sysrow"><span>${esc(tr("displayName"))}</span><b>${esc(currentLanguage==="Arabic"&&client.legal_name_ar?client.legal_name_ar:client.legal_name||"—")}</b></div><div class="sysrow"><span>${esc(tr("email"))}</span><b>${esc(client.email||"—")}</b></div><div class="sysrow"><span>${esc(tr("phone"))}</span><b>${esc(client.phone||"—")}</b></div><div class="sysrow"><span>${esc(tr("preferredLanguage"))}</span><b>${esc(client.preferred_language||"—")}</b></div></div>`;
+        const participant=portalType==="beneficiary"?(portalData.participants?.[0]||{}):null,profile=participant||client;
+        $("portalProfile").innerHTML=`<div class="sys"><div class="sysrow"><span>${esc(tr("clientNumber"))}</span><b>${esc(client.client_number||"—")}</b></div><div class="sysrow"><span>${esc(tr("displayName"))}</span><b>${esc(currentLanguage==="Arabic"&&profile.legal_name_ar?profile.legal_name_ar:profile.legal_name||"—")}</b></div><div class="sysrow"><span>${esc(tr("email"))}</span><b>${esc(profile.email||"—")}</b></div><div class="sysrow"><span>${esc(tr("phone"))}</span><b>${esc(profile.phone||"—")}</b></div><div class="sysrow"><span>${esc(tr("preferredLanguage"))}</span><b>${esc(profile.preferred_language||client.preferred_language||"—")}</b></div></div>`;
         applyTranslations();
       }
       async function openPortalCase(caseId) {
@@ -1629,7 +1635,7 @@
           currentUser = result.user;
           setLanguage(currentUser.preferred_language);
           $("login").classList.add("hidden");
-          const clientUser = currentUser.roles.some((role) => role === "client_owner" || role === "client_collaborator");
+          const clientUser = currentUser.roles.some((role) => ["client_owner","client_collaborator","employer_portal","beneficiary_portal"].includes(role));
           if (clientUser) {
             setVisible($("staffApp"),false);
             $("clientPortal").classList.add("active");

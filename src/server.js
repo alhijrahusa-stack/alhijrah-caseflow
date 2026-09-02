@@ -586,6 +586,7 @@ function requiredPermission(req,path){
   if(path.startsWith('/api/v1/portal/intakes'))return 'portal.intake';
   if(path.startsWith('/api/v1/portal/messages'))return 'portal.messages';
   if(path.startsWith('/api/v1/portal'))return 'portal.view';
+  if(/^\/api\/v1\/cases\/[0-9a-f-]{36}\/portal-access/i.test(path))return req.method==='GET'?'cases.view':'cases.manage';
   if(path==='/api/v1/users')return req.method==='GET'?'users.view':'users.manage';
   if(/^\/api\/v1\/users\/[0-9a-f-]{36}$/i.test(path))return 'users.manage';
   if(path==='/api/v1/audit')return 'audit.view';
@@ -649,9 +650,11 @@ async function portalCase(principal,caseId){
     return cases[0];
   }
   const access=await db('client_access',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&status=eq.active&select=client_id,access_role`});
-  if(!access.length)throw Object.assign(new Error('PORTAL_ACCESS_NOT_FOUND'),{status:403});
+  const direct=await db('portal_case_access',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&case_id=eq.${encodeURIComponent(caseId)}&status=eq.active&select=case_id,portal_type,person_id`});
+  if(!access.length&&!direct.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
   const clientIds=access.map(item=>item.client_id);
-  const cases=await db('cases',{query:`?id=eq.${encodeURIComponent(caseId)}&client_id=in.(${clientIds.map(encodeURIComponent).join(',')})&archived_at=is.null&select=*`});
+  const clientClause=clientIds.length?`&client_id=in.(${clientIds.map(encodeURIComponent).join(',')})`:'';
+  const cases=await db('cases',{query:`?id=eq.${encodeURIComponent(caseId)}${direct.length?'':clientClause}&archived_at=is.null&select=*`});
   if(!cases.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
   return cases[0];
 }
@@ -938,6 +941,36 @@ async function handleRaw(req,res){
     const requirements=await db('evidence_requirements',{query:`?id=eq.${evidenceDocuments[1]}&select=*`});if(!requirements.length)throw Object.assign(new Error('EVIDENCE_REQUIREMENT_NOT_FOUND'),{status:404});const requirement=requirements[0],cases=await db('cases',{query:`?id=eq.${requirement.case_id}&select=*`});if(!cases.length||!canAccessCase(access,cases[0],'cases.manage')||!hasEffectivePermission(access,'documents.manage'))throw Object.assign(new Error('EVIDENCE_REQUIREMENT_NOT_FOUND'),{status:404});const b=await readJson(req,32_768);if(!uuid(b.document_id))throw Object.assign(new Error('VALID_DOCUMENT_ID_REQUIRED'),{status:400});const documents=await db('documents',{query:`?id=eq.${b.document_id}&case_id=eq.${requirement.case_id}&archived_at=is.null&select=*`});if(!documents.length||!canAccessDocument(access,documents[0],cases[0],'documents.manage'))throw Object.assign(new Error('DOCUMENT_NOT_IN_CASE'),{status:409});const existing=await db('evidence_links',{query:`?evidence_requirement_id=eq.${requirement.id}&document_id=eq.${b.document_id}&select=*`});if(existing.length)return json(res,200,{data:existing[0],idempotent:true,requestId},ch);const record={id:crypto.randomUUID(),evidence_requirement_id:requirement.id,document_id:b.document_id,case_id:requirement.case_id,relevance_status:'proposed',notes:cleanText(b.notes,{max:5000}),linked_by:principal.id};const data=await db('evidence_links',{method:'POST',body:record});await audit(principal,'evidence_document_linked','evidence_link',record.id,{case_id:record.case_id,client_id:cases[0].client_id,agency_request_id:requirement.agency_request_id,evidence_requirement_id:record.evidence_requirement_id,document_id:record.document_id},req);return json(res,201,{data:data[0]||record,requestId},ch)
   }
 
+  const portalAccessRoute=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/portal-access(?:\/([0-9a-f-]{36}))?$/i);
+  if(portalAccessRoute){
+    const caseId=portalAccessRoute[1],caseRows=await db('cases',{query:`?id=eq.${caseId}&archived_at=is.null&select=*`});
+    if(!caseRows.length||!canAccessCase(access,caseRows[0],req.method==='GET'?'cases.view':'cases.manage'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
+    if(req.method==='GET')return json(res,200,{data:await db('portal_case_access',{query:`?case_id=eq.${caseId}&select=*&order=granted_at`}),requestId},ch);
+    if(req.method==='POST'){
+      const body=await readJson(req,16_384),portalType=String(body.portal_type||'');
+      if(!uuid(body.auth_user_id)||!['employer','beneficiary'].includes(portalType))throw Object.assign(new Error('VALID_PORTAL_ACCESS_REQUIRED'),{status:400});
+      if(portalType==='beneficiary'){
+        if(!uuid(body.person_id))throw Object.assign(new Error('BENEFICIARY_PERSON_REQUIRED'),{status:400});
+        const links=await db('case_people',{query:`?case_id=eq.${caseId}&person_id=eq.${encodeURIComponent(body.person_id)}&case_role=in.(beneficiary,principal_applicant,derivative_beneficiary,spouse,child)&select=person_id&limit=1`});
+        if(!links.length)throw Object.assign(new Error('BENEFICIARY_NOT_IN_CASE'),{status:409});
+      }
+      const expectedRole=portalType==='employer'?'employer_portal':'beneficiary_portal';
+      const role=await db('user_roles',{query:`?auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}&role_code=eq.${expectedRole}&select=auth_user_id&limit=1`});
+      if(!role.length)throw Object.assign(new Error('PORTAL_ROLE_MISMATCH'),{status:409});
+      const existing=await db('portal_case_access',{query:`?case_id=eq.${caseId}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}&select=case_id,status`});
+      const record={case_id:caseId,auth_user_id:body.auth_user_id,portal_type:portalType,person_id:body.person_id||null,status:'active',granted_by:principal.id,granted_at:new Date().toISOString(),revoked_at:null};
+      const data=existing.length?await db('portal_case_access',{method:'PATCH',query:`?case_id=eq.${caseId}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}`,body:{status:'active',revoked_at:null}}):await db('portal_case_access',{method:'POST',body:record});
+      await audit(principal,'case_portal_access_granted','case',caseId,{case_id:caseId,client_id:caseRows[0].client_id,auth_user_id:body.auth_user_id,portal_type:portalType,person_id:body.person_id||null},req);
+      return json(res,200,{data:data[0]||data,requestId},ch);
+    }
+    if(req.method==='DELETE'&&portalAccessRoute[2]){
+      const data=await db('portal_case_access',{method:'PATCH',query:`?case_id=eq.${caseId}&auth_user_id=eq.${portalAccessRoute[2]}&status=eq.active`,body:{status:'revoked',revoked_at:new Date().toISOString()}});
+      if(!data.length)return json(res,404,{error:'PORTAL_CASE_ACCESS_NOT_FOUND',requestId},ch);
+      await audit(principal,'case_portal_access_revoked','case',caseId,{case_id:caseId,client_id:caseRows[0].client_id,auth_user_id:portalAccessRoute[2]},req);
+      return json(res,200,{data:data[0],requestId},ch);
+    }
+  }
+
   const participantRoute=u.pathname.match(/^\/api\/v1\/cases\/([0-9a-f-]{36})\/participants(?:\/(match))?$/i);
   if(participantRoute){const caseId=participantRoute[1],caseRows=await db('cases',{query:`?id=eq.${caseId}&select=*`});if(!caseRows.length||!canAccessCase(access,caseRows[0],req.method==='GET'?'cases.view':'cases.manage'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);if(req.method==='GET'){const links=await db('case_people',{query:`?case_id=eq.${caseId}&select=case_id,person_id,case_role,created_at&order=created_at`}),people=links.length?await db('people',{query:`?id=in.(${links.map(x=>x.person_id).join(',')})&select=*`}):[];return json(res,200,{data:links.map(x=>({...x,person:people.find(p=>p.id===x.person_id)||null})),requestId},ch)}const b=await readJson(req,64000),candidates=await db('people',{query:'?archived_at=is.null&select=id,legal_name,date_of_birth,a_number,passport_number,email,phone&limit=1000'}),matches=participantMatch(b,candidates);if(participantRoute[2])return json(res,200,{data:{matches,requires_human_review:Boolean(matches.length)},requestId},ch);const roles=new Set(['petitioner','beneficiary','principal_applicant','spouse','child','parent','sibling','derivative_beneficiary','sponsor','joint_sponsor','household_member','interpreter']),caseRole=String(b.case_role||'beneficiary');if(!roles.has(caseRole))throw Object.assign(new Error('INVALID_PARTICIPANT_ROLE'),{status:400});let personId,operation='participant_created';if(b.decision==='link_existing'){if(!uuid(b.person_id)||!matches.some(x=>x.person_id===b.person_id))throw Object.assign(new Error('MATCHED_PERSON_REQUIRED'),{status:409});personId=b.person_id;operation='participant_linked'}else{if(matches.length&&b.decision!=='create_new'){const review={id:crypto.randomUUID(),case_id:caseId,proposed_data:b,matched_person_id:matches[0].person_id,match_reasons:matches,status:'pending',created_by:principal.id};await db('participant_match_reviews',{method:'POST',body:review});throw Object.assign(new Error('POSSIBLE_PARTICIPANT_DUPLICATE_REQUIRES_REVIEW'),{status:409,details:{review_id:review.id,matches}})}if(matches.length){if(!uuid(b.match_review_id))throw Object.assign(new Error('MATCH_REVIEW_REQUIRED'),{status:409});const reviews=await db('participant_match_reviews',{query:`?id=eq.${b.match_review_id}&case_id=eq.${caseId}&status=eq.pending&select=id`});if(!reviews.length)throw Object.assign(new Error('MATCH_REVIEW_NOT_FOUND'),{status:409});await db('participant_match_reviews',{method:'PATCH',query:`?id=eq.${b.match_review_id}`,body:{status:'create_new',resolved_by:principal.id,resolved_at:new Date().toISOString()}})}personId=crypto.randomUUID();await db('people',{method:'POST',body:{id:personId,legal_name:cleanText(b.legal_name,{required:true,max:180}),legal_name_ar:cleanText(b.legal_name_ar,{max:180}),date_of_birth:cleanDate(b.date_of_birth),place_of_birth:cleanText(b.place_of_birth,{max:180}),nationality:cleanText(b.nationality,{max:120}),current_country:cleanText(b.current_country,{max:120}),a_number:cleanText(b.a_number,{max:30}),uscis_account_number:cleanText(b.uscis_account_number,{max:40}),passport_number:cleanText(b.passport_number,{max:60}),passport_expiration:cleanDate(b.passport_expiration),email:cleanText(b.email,{max:254}),phone:cleanText(b.phone,{max:60}),whatsapp:cleanText(b.whatsapp,{max:60}),physical_address:cleanText(b.physical_address,{max:500}),postal_code:cleanText(b.postal_code,{max:30}),immigration_status:cleanText(b.immigration_status,{max:180}),preferred_language:normalizeLanguage(b.preferred_language),identity_verification_status:'unverified'}})}const exists=await db('case_people',{query:`?case_id=eq.${caseId}&person_id=eq.${personId}&case_role=eq.${caseRole}&select=case_id`});if(!exists.length)await db('case_people',{method:'POST',body:{case_id:caseId,person_id:personId,case_role:caseRole}});await audit(principal,operation,'person',personId,{case_id:caseId,client_id:caseRows[0].client_id,participant_id:personId,case_role:caseRole,action_source:'STAFF_ASSISTED'},req);return json(res,201,{data:{person_id:personId,case_id:caseId,case_role:caseRole},requestId},ch)}
 
@@ -1184,30 +1217,43 @@ async function handleRaw(req,res){
     const body=await readJson(req,8_192);const language=normalizeLanguage(body.preferred_language);
     const links=await db('client_access',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&status=eq.active&select=client_id`});
     for(const link of links)await db('clients',{method:'PATCH',query:`?id=eq.${encodeURIComponent(link.client_id)}`,body:{preferred_language:language,updated_by:principal.id,updated_at:new Date().toISOString()}});
+    await db('app_users',{method:'PATCH',query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}`,body:{preferred_language:language,updated_at:new Date().toISOString()}});
     await audit(principal,'client_language_updated','client',links[0]?.client_id||null,{client_ids:links.map(link=>link.client_id),preferred_language:language},req);
     return json(res,200,{data:{preferred_language:language},requestId},ch);
   }
 
   if(req.method==='GET'&&u.pathname==='/api/v1/portal'){
     const access=principal.permissions.has('*')?[]:await db('client_access',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&status=eq.active&select=client_id,access_role`});
-    const clientIds=access.map(item=>item.client_id);
-    if(!principal.permissions.has('*')&&!clientIds.length)return json(res,200,{data:{clients:[],cases:[],document_requests:[],appointments:[],deadlines:[],documents:[],billing:[],notifications:[]},requestId},ch);
-    const clientFilter=principal.permissions.has('*')?'':`&id=in.(${clientIds.map(encodeURIComponent).join(',')})`;
-    const caseFilter=principal.permissions.has('*')?'':`&client_id=in.(${clientIds.map(encodeURIComponent).join(',')})`;
-    const clients=await db('clients',{query:`?select=id,client_number,legal_name,legal_name_ar,preferred_language,email,phone&archived_at=is.null${clientFilter}`});
-    const caseRows=await db('cases',{query:`?select=id,client_id,case_number,case_reference,case_type,service_code,workflow_stage,agency,receipt_number,opened_on,updated_at&archived_at=is.null${caseFilter}&order=updated_at.desc`});
+    const direct=principal.permissions.has('*')?[]:await db('portal_case_access',{query:`?auth_user_id=eq.${encodeURIComponent(principal.id)}&status=eq.active&select=case_id,portal_type,person_id`});
+    const linkedClientIds=[...new Set(access.map(item=>item.client_id))];
+    if(!principal.permissions.has('*')&&!linkedClientIds.length&&!direct.length)return json(res,200,{data:{clients:[],cases:[],document_requests:[],appointments:[],deadlines:[],documents:[],billing:[],notifications:[],portal_contexts:[],participants:[]},requestId},ch);
+    const caseSelect='id,client_id,case_number,case_reference,case_type,service_code,workflow_stage,agency,receipt_number,opened_on,updated_at';
+    const clientCases=principal.permissions.has('*')?await db('cases',{query:`?select=${caseSelect}&archived_at=is.null&order=updated_at.desc`}):linkedClientIds.length?await db('cases',{query:`?select=${caseSelect}&archived_at=is.null&client_id=in.(${linkedClientIds.map(encodeURIComponent).join(',')})&order=updated_at.desc`}):[];
+    const directCases=direct.length?await db('cases',{query:`?select=${caseSelect}&archived_at=is.null&id=in.(${direct.map(item=>encodeURIComponent(item.case_id)).join(',')})&order=updated_at.desc`}):[];
+    const caseRows=[...new Map([...clientCases,...directCases].map(item=>[item.id,item])).values()].sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||'')));
+    const clientIds=principal.permissions.has('*')?[...new Set(caseRows.map(item=>item.client_id).filter(Boolean))]:linkedClientIds;
+    const clients=clientIds.length?await db('clients',{query:`?select=id,client_number,legal_name,legal_name_ar,preferred_language,email,phone&archived_at=is.null&id=in.(${clientIds.map(encodeURIComponent).join(',')})`}):[];
+    const personIds=[...new Set(direct.map(item=>item.person_id).filter(Boolean))];
+    const participants=personIds.length?await db('people',{query:`?id=in.(${personIds.map(encodeURIComponent).join(',')})&select=id,legal_name,legal_name_ar,preferred_language,email,phone`}):[];
     const caseIds=caseRows.map(item=>item.id);
+    const directCaseIds=[...new Set(direct.map(item=>item.case_id))];
     const encodedCases=caseIds.map(encodeURIComponent).join(',');
     const encodedClients=clientIds.map(encodeURIComponent).join(',');
-    const [documentRequests,appointments,deadlines,documents,billing,notifications]=await Promise.all([
+    const encodedDirectCases=directCaseIds.map(encodeURIComponent).join(',');
+    const [documentRequests,clientAppointments,directAppointments,deadlines,documents,clientBilling,directBilling,clientNotifications,directNotifications]=await Promise.all([
       caseIds.length?db('document_requests',{query:`?case_id=in.(${encodedCases})&select=id,case_id,person_id,category,title,instructions,required,due_date,status,reviewer_notes,updated_at&order=created_at.desc`}):Promise.resolve([]),
       clientIds.length?db('appointments',{query:`?client_id=in.(${encodedClients})&client_visible=eq.true&select=id,case_id,client_id,title,appointment_type,starts_at,ends_at,location,status&order=starts_at.asc`}):Promise.resolve([]),
+      directCaseIds.length?db('appointments',{query:`?case_id=in.(${encodedDirectCases})&client_visible=eq.true&select=id,case_id,client_id,title,appointment_type,starts_at,ends_at,location,status&order=starts_at.asc`}):Promise.resolve([]),
       caseIds.length?db('deadlines',{query:`?case_id=in.(${encodedCases})&client_visible=eq.true&select=id,case_id,title,deadline_date,deadline_type,status&order=deadline_date.asc`}):Promise.resolve([]),
       caseIds.length?db('documents',{query:`?case_id=in.(${encodedCases})&request_id=not.is.null&archived_at=is.null&select=id,case_id,request_id,file_name,content_type,size_bytes,category,review_status,created_at&order=created_at.desc`}):Promise.resolve([]),
       clientIds.length?db('invoices',{query:`?client_id=in.(${encodedClients})&client_visible=eq.true&status=in.(issued,partially_paid,paid,overdue)&select=id,invoice_number,client_id,case_id,currency,status,office_fee_cents,government_fee_cents,other_fee_cents,due_date,issued_at&order=created_at.desc`}):Promise.resolve([]),
+      directCaseIds.length?db('invoices',{query:`?case_id=in.(${encodedDirectCases})&client_visible=eq.true&status=in.(issued,partially_paid,paid,overdue)&select=id,invoice_number,client_id,case_id,currency,status,office_fee_cents,government_fee_cents,other_fee_cents,due_date,issued_at&order=created_at.desc`}):Promise.resolve([]),
       clientIds.length?db('alerts',{query:`?client_id=in.(${encodedClients})&client_visible=eq.true&status=in.(open,acknowledged)&select=id,client_id,case_id,alert_type,severity,title,due_at,status,created_at&order=created_at.desc`}):Promise.resolve([]),
+      directCaseIds.length?db('alerts',{query:`?case_id=in.(${encodedDirectCases})&client_visible=eq.true&status=in.(open,acknowledged)&select=id,client_id,case_id,alert_type,severity,title,due_at,status,created_at&order=created_at.desc`}):Promise.resolve([]),
     ]);
-    return json(res,200,{data:{clients,cases:caseRows,document_requests:documentRequests,appointments,deadlines,documents,billing,notifications},requestId},ch);
+    const mergeRows=(...groups)=>[...new Map(groups.flat().map(item=>[item.id,item])).values()];
+    const appointments=mergeRows(clientAppointments,directAppointments),billing=mergeRows(clientBilling,directBilling),notifications=mergeRows(clientNotifications,directNotifications);
+    return json(res,200,{data:{clients,cases:caseRows,document_requests:documentRequests,appointments,deadlines,documents,billing,notifications,portal_contexts:direct,participants},requestId},ch);
   }
 
   const portalCaseMatch=u.pathname.match(/^\/api\/v1\/portal\/cases\/([0-9a-f-]{36})$/i);
@@ -1243,7 +1289,7 @@ async function handleRaw(req,res){
   if(portalMessagesMatch&&req.method==='POST'){
     const currentCase=await portalCase(principal,portalMessagesMatch[1]);
     const body=await readJson(req,32_768);
-    const record={id:crypto.randomUUID(),case_id:currentCase.id,sender_user_id:principal.id,sender_type:principal.roles.some(role=>role.startsWith('client_'))?'client':'staff',body:cleanText(body.body,{required:true,max:5000})};
+    const record={id:crypto.randomUUID(),case_id:currentCase.id,sender_user_id:principal.id,sender_type:principal.roles.some(role=>role.startsWith('client_')||role.endsWith('_portal'))?'client':'staff',body:cleanText(body.body,{required:true,max:5000})};
     const data=await db('case_messages',{method:'POST',body:record});
     await audit(principal,'portal_message_sent','case_message',record.id,{case_id:currentCase.id,client_id:currentCase.client_id},req);
     return json(res,201,{data:data[0]||data,requestId},ch);
@@ -2013,7 +2059,7 @@ async function handleRaw(req,res){
       db('app_users',{query:'?status=eq.active&select=auth_user_id,email,display_name,status'}),
       db('user_roles',{query:'?select=auth_user_id,role_code'}),
     ]);
-    const excludedDiagnosticRoles=new Set(['owner','client_owner','client_collaborator']);
+    const excludedDiagnosticRoles=new Set(['owner','client_owner','client_collaborator','employer_portal','beneficiary_portal']);
     const staff=appUsers.filter(user=>userRoles.some(role=>String(role.auth_user_id)===String(user.auth_user_id)&&!excludedDiagnosticRoles.has(role.role_code))&&!userRoles.some(role=>String(role.auth_user_id)===String(user.auth_user_id)&&role.role_code==='owner'));
     const unconfiguredGlobalStaff=staff.filter(user=>!policies.some(policy=>policy.subject_type==='user'&&String(policy.subject_id)===String(user.auth_user_id))).map(user=>({id:user.auth_user_id,email:user.email,display_name:user.display_name,posture:'unconfigured_global'}));
     const intentionallyGlobalStaff=staff.filter(user=>policies.some(policy=>policy.subject_type==='user'&&String(policy.subject_id)===String(user.auth_user_id)&&Object.values(policy.scopes||{}).length>0&&Object.values(policy.scopes||{}).every(scope=>scope==='global'))).map(user=>({id:user.auth_user_id,email:user.email,display_name:user.display_name,posture:'explicit_global'}));

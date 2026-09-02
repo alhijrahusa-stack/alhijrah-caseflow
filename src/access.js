@@ -76,7 +76,7 @@ export const defaultStaffScope = 'global';
 // explicitly authorises a supported collaborator relationship.
 export const defaultClientScope = 'client_self';
 
-const clientRoles = new Set(['client_owner', 'client_collaborator']);
+const clientRoles = new Set(['client_owner', 'client_collaborator', 'employer_portal', 'beneficiary_portal']);
 
 export function moduleOf(permission) {
   const [module] = String(permission || '').split('.');
