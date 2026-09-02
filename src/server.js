@@ -439,6 +439,20 @@ async function executeBackgroundJob(job){if(job.job_type==='BULK_IMPORT')return 
 const backgroundWorkerId=`node-${process.pid}-${crypto.randomUUID()}`,backgroundLeaseSeconds=120;let backgroundWorkerActive=false;
 export async function runBackgroundWorkerCycle(){if(backgroundWorkerActive)return 0;backgroundWorkerActive=true;try{return await withSystemDatabase(async()=>{const claimed=await systemDb('rpc/claim_background_jobs',{method:'POST',body:{p_worker_id:backgroundWorkerId,p_limit:2,p_lease_seconds:backgroundLeaseSeconds}});for(const job of claimed){let heartbeatError=null;const heartbeat=setInterval(()=>systemDb('rpc/heartbeat_background_job',{method:'POST',body:{p_job_id:job.id,p_lease_token:job.lease_token,p_lease_seconds:backgroundLeaseSeconds}}).then(ok=>{if(ok!==true)heartbeatError=new Error('JOB_LEASE_LOST')}).catch(error=>{heartbeatError=error}),30_000);heartbeat.unref();try{const result=await executeBackgroundJob(job);if(heartbeatError)throw heartbeatError;const completed=await systemDb('rpc/complete_background_job',{method:'POST',body:{p_job_id:job.id,p_lease_token:job.lease_token,p_result:result||{}}});if(completed!==true)throw new Error('JOB_LEASE_LOST');}catch(error){await systemDb('rpc/fail_background_job',{method:'POST',body:{p_job_id:job.id,p_lease_token:job.lease_token,p_error_code:String(error.message||'JOB_FAILED').slice(0,120),p_failure_class:error.failureClass||'transient'}}).catch(failure=>console.error('background-job-failure-recording-failed',job.id,failure.message));}finally{clearInterval(heartbeat);}}return claimed.length;});}finally{backgroundWorkerActive=false;}}
 function wakeBackgroundWorker(){setImmediate(()=>runBackgroundWorkerCycle().catch(error=>{if(!isMissingRelation(error))console.error('background-worker-failed',error.message)}));}
+export async function recoverPendingImportJobs(){
+  const [batches,jobs]=await Promise.all([
+    systemDb('import_batches',{query:'?status=in.(approved,processing)&select=id,uploaded_by&limit=10000'}),
+    systemDb('background_jobs',{query:'?job_type=eq.BULK_IMPORT&select=idempotency_key&limit=10000'}),
+  ]);
+  const existing=new Set(jobs.map(job=>job.idempotency_key));let queued=0;
+  for(const batch of batches){
+    const idempotencyKey=`bulk-import:${batch.id}`;
+    if(existing.has(idempotencyKey))continue;
+    await enqueueBackgroundJob(newJob({jobType:'BULK_IMPORT',idempotencyKey,payload:{batch_id:batch.id},requestedBy:batch.uploaded_by||null}));
+    existing.add(idempotencyKey);queued++;
+  }
+  return queued;
+}
 
 async function syncApplicationUser(user){
   // Auth lifecycle provisioning follows a verified Supabase Auth result (or an
@@ -2225,7 +2239,9 @@ export function createServer(){
   ensureConfiguredOwnerInvitation()
     .then(result=>{if(result.invited||result.resent)console.log('Configured Owner activation sent')})
     .catch(error=>console.error('owner-invitation-failed',error.message));
-  wakeBackgroundWorker();
+  recoverPendingImportJobs()
+    .catch(error=>{if(!isMissingRelation(error))console.error('import-recovery-failed',error.message)})
+    .finally(()=>wakeBackgroundWorker());
   const server=http.createServer((req,res)=>handle(req,res).catch(err=>respondToError(req,res,err)));
   server.requestTimeout=30_000;server.headersTimeout=35_000;server.keepAliveTimeout=5_000;
   const workerPoll=setInterval(wakeBackgroundWorker,2_000);workerPoll.unref();server.on('close',()=>clearInterval(workerPoll));

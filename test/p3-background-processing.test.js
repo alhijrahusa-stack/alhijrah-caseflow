@@ -3,9 +3,24 @@ import assert from'node:assert/strict';
 import crypto from'node:crypto';
 import fs from'node:fs';
 import{backend,resetBackend}from'./helpers/harness.js';
-import{runBackgroundWorkerCycle}from'../src/server.js';
+import{recoverPendingImportJobs,runBackgroundWorkerCycle}from'../src/server.js';
 
 beforeEach(resetBackend);
+
+test('startup recovery re-enqueues legacy approved and processing imports idempotently',async()=>{
+  const approved=crypto.randomUUID(),processing=crypto.randomUUID();
+  backend.tables.import_batches.push(
+    {id:approved,status:'approved',uploaded_by:'90000000-0000-4000-8000-000000000001'},
+    {id:processing,status:'processing',uploaded_by:'90000000-0000-4000-8000-000000000002'},
+  );
+  assert.equal(await recoverPendingImportJobs(),2);
+  assert.equal(await recoverPendingImportJobs(),0);
+  assert.deepEqual(backend.tables.background_jobs.map(job=>job.idempotency_key).sort(),[
+    `bulk-import:${approved}`,
+    `bulk-import:${processing}`,
+  ].sort());
+  assert.deepEqual(backend.tables.background_jobs.map(job=>job.payload.batch_id).sort(),[approved,processing].sort());
+});
 
 test('durable worker claims an unknown job once and fails it permanently',async()=>{
   const job={id:crypto.randomUUID(),job_type:'UNSUPPORTED_SYNTHETIC_JOB',idempotency_key:`p3-${crypto.randomUUID()}`,status:'queued',progress:0,payload:{synthetic:true},attempt_count:0,max_attempts:5,priority:100,available_at:new Date().toISOString(),input_fingerprint:'0'.repeat(64),created_at:new Date().toISOString()};
