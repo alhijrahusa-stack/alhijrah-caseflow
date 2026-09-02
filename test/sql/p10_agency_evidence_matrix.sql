@@ -14,8 +14,8 @@ insert into public.cases(id,client_id,client_name,case_type,status,service_code)
  ('39000000-0000-0000-0000-000000000001','29000000-0000-0000-0000-000000000001','P9 Client A','I-130','active','I-130'),
  ('39000000-0000-0000-0000-000000000002','29000000-0000-0000-0000-000000000002','P9 Client B','I-485','active','I-485');
 insert into public.documents(id,case_id,client_id,object_key,file_name,content_type,size_bytes,content_checksum) values
- ('49000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000001','29000000-0000-0000-0000-000000000001','cases/p9/a.pdf','a.pdf','application/pdf',1,repeat('a',64)),
- ('49000000-0000-0000-0000-000000000002','39000000-0000-0000-0000-000000000002','29000000-0000-0000-0000-000000000002','cases/p9/b.pdf','b.pdf','application/pdf',1,repeat('b',64));
+ ('49000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000001','29000000-0000-0000-0000-000000000001','cases/39000000-0000-0000-0000-000000000001/a.pdf','a.pdf','application/pdf',1,repeat('a',64)),
+ ('49000000-0000-0000-0000-000000000002','39000000-0000-0000-0000-000000000002','29000000-0000-0000-0000-000000000002','cases/39000000-0000-0000-0000-000000000002/b.pdf','b.pdf','application/pdf',1,repeat('b',64));
 insert into public.agency_requests(id,case_id,request_type,title,created_by,updated_by) values
  ('59000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000001','rfe','P9 RFE A','19000000-0000-0000-0000-000000000001','19000000-0000-0000-0000-000000000001'),
  ('59000000-0000-0000-0000-000000000002','39000000-0000-0000-0000-000000000002','rfe','P9 RFE B','19000000-0000-0000-0000-000000000001','19000000-0000-0000-0000-000000000001');
@@ -33,7 +33,7 @@ do $$ declare n integer; begin
   select count(*) into n from public.evidence_requirements; if n<>1 then raise exception 'cross-case requirement escaped: %',n; end if;
   insert into public.evidence_links(id,evidence_requirement_id,document_id,case_id,linked_by) values('79000000-0000-0000-0000-000000000001','69000000-0000-0000-0000-000000000001','49000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000001','19000000-0000-0000-0000-000000000001');
   begin
-    insert into public.evidence_links(id,evidence_requirement_id,document_id,case_id,linked_by) values('79000000-0000-0000-0000-000000000002','69000000-0000-0000-0000-000000000001','49000000-0000-0000-0000-000000000002','39000000-0000-0000-0000-000000000001','19000000-0000-0000-0000-000000000001');
+    insert into public.evidence_links(id,evidence_requirement_id,document_id,case_id,linked_by) values('79000000-0000-0000-0000-000000000002','69000000-0000-0000-0000-000000000001','49000000-0000-0000-0000-000000000002','39000000-0000-0000-00000000000001','19000000-0000-0000-0000-000000000001');
     raise exception 'cross-case evidence link succeeded';
   exception when foreign_key_violation or insufficient_privilege then if sqlerrm='cross-case evidence link succeeded' then raise; end if; end;
   update public.agency_requests set status='closed' where id='59000000-0000-0000-0000-000000000002';get diagnostics n=row_count;if n<>0 then raise exception 'cross-case agency request mutation succeeded';end if;
