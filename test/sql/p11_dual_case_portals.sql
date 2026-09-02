@@ -4,11 +4,11 @@ begin;
 insert into public.app_users(auth_user_id,email,display_name,status) values
  ('1a000000-0000-4000-8000-000000000001','p11-beneficiary@test.invalid','P11 Beneficiary','active'),
  ('1a000000-0000-4000-8000-000000000002','p11-employer@test.invalid','P11 Employer','active'),
- ('1a000000-0000-4000-8000-000000000003','p11-manager@test.invalid','P11 Manager','active');
+ ('1a000000-0000-4000-8000-000000000003','p11-owner@test.invalid','P11 Owner','active');
 insert into public.user_roles(auth_user_id,role_code) values
  ('1a000000-0000-4000-8000-000000000001','beneficiary_portal'),
  ('1a000000-0000-4000-8000-000000000002','employer_portal'),
- ('1a000000-0000-4000-8000-000000000003','case_manager');
+ ('1a000000-0000-4000-8000-000000000003','owner');
 insert into public.clients(id,legal_name) values
  ('2a000000-0000-4000-8000-000000000001','P11 Client A'),
  ('2a000000-0000-4000-8000-000000000002','P11 Client B');
