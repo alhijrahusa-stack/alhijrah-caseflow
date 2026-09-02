@@ -417,7 +417,7 @@
         </section>
         <section class="view" id="view-reports">
           <div class="metrics"><div class="metric"><div class="k">Open Cases</div><div class="v" id="reportCases">—</div></div><div class="metric"><div class="k">Overdue Tasks</div><div class="v" id="reportTasks">—</div></div><div class="metric"><div class="k">Open Deadlines</div><div class="v" id="reportDeadlines">—</div></div><div class="metric"><div class="k">Documents</div><div class="v" id="reportDocuments">—</div></div></div>
-          <div class="panel"><div class="ph"><div><h2>Operational Breakdown</h2><span>Current persistent records</span></div><button class="btn" data-act="loadReports">Refresh</button></div><div id="reportDetails"></div><div class="err" id="reportErr"></div></div>
+          <div class="panel"><div class="ph"><div><h2>Operational Breakdown</h2><span>Current persistent records</span></div><div class="df"><label class="field"><span>From</span><input id="reportFrom" type="date"></label><label class="field"><span>To</span><input id="reportTo" type="date"></label><button class="btn" data-act="loadReports">Refresh</button><button class="btn" data-act="downloadReports">Export CSV</button></div></div><div id="reportDetails"></div><div class="err" id="reportErr"></div></div>
         </section>
         <section class="view" id="view-audit">
           <div class="panel">

@@ -659,6 +659,49 @@ async function portalCase(principal,caseId){
   return cases[0];
 }
 
+async function operationalReport(access,params){
+  const from=String(params.get('from')||''),to=String(params.get('to')||''),serviceCode=String(params.get('service_code')||''),teamId=String(params.get('team_id')||''),assignedUserId=String(params.get('assigned_user_id')||'');
+  if(from&&!/^\d{4}-\d{2}-\d{2}$/.test(from)||to&&!/^\d{4}-\d{2}-\d{2}$/.test(to)||from&&to&&from>to)throw Object.assign(new Error('INVALID_REPORT_DATE_RANGE'),{status:400});
+  if(teamId&&!uuid(teamId)||assignedUserId&&!uuid(assignedUserId)||serviceCode&&!/^[A-Za-z0-9-]{1,40}$/.test(serviceCode))throw Object.assign(new Error('INVALID_REPORT_FILTER'),{status:400});
+  const [allCases,allTasks,allDeadlines,allDocuments,allInvoices,allPayments,allAgencyRequests]=await Promise.all([
+    db('cases',{query:'?archived_at=is.null&select=id,client_id,team_id,assigned_user_id,assigned_to,service_code,workflow_stage,priority,created_at,updated_at'}),
+    db('tasks',{query:'?archived_at=is.null&select=id,case_id,status,due_date,priority,assigned_user_id,created_at,completed_at'}),
+    db('deadlines',{query:'?select=id,case_id,status,deadline_date,deadline_type'}),
+    db('documents',{query:'?archived_at=is.null&select=id,case_id,review_status,category,created_at'}),
+    db('invoices',{query:'?select=id,client_id,case_id,status,currency,office_fee_cents,government_fee_cents,other_fee_cents,created_at'}),
+    db('payments',{query:'?status=eq.recorded&select=id,invoice_id,amount_cents,currency,received_at'}),
+    db('agency_requests',{query:'?select=id,case_id,request_type,status,response_due_date,created_at'}),
+  ]);
+  let caseRows=filterAccessibleCases(access,allCases||[],'cases.view');
+  caseRows=caseRows.filter(row=>(!from||String(row.created_at||'').slice(0,10)>=from)&&(!to||String(row.created_at||'').slice(0,10)<=to)&&(!serviceCode||row.service_code===serviceCode)&&(!teamId||row.team_id===teamId)&&(!assignedUserId||row.assigned_user_id===assignedUserId));
+  const caseIds=new Set(caseRows.map(row=>String(row.id))),clientIds=new Set(caseRows.map(row=>String(row.client_id)).filter(Boolean));
+  const tasks=(allTasks||[]).filter(row=>caseIds.has(String(row.case_id))),deadlines=(allDeadlines||[]).filter(row=>caseIds.has(String(row.case_id))),documents=(allDocuments||[]).filter(row=>caseIds.has(String(row.case_id))),agency=(allAgencyRequests||[]).filter(row=>caseIds.has(String(row.case_id)));
+  const invoices=(allInvoices||[]).filter(row=>row.case_id?caseIds.has(String(row.case_id)):clientIds.has(String(row.client_id))),invoiceIds=new Set(invoices.map(row=>String(row.id))),payments=(allPayments||[]).filter(row=>invoiceIds.has(String(row.invoice_id)));
+  const countBy=(rows,key)=>rows.reduce((out,row)=>{const value=String(row[key]||'unknown');out[value]=(out[value]||0)+1;return out},{});
+  const sum=(rows,key)=>rows.reduce((total,row)=>total+Number(row[key]||0),0),today=new Date().toISOString().slice(0,10);
+  const completedDurations=tasks.filter(row=>row.completed_at&&row.created_at).map(row=>(new Date(row.completed_at)-new Date(row.created_at))/86400000).filter(Number.isFinite);
+  const billed=invoices.filter(row=>row.status!=='void').reduce((total,row)=>total+Number(row.office_fee_cents||0)+Number(row.government_fee_cents||0)+Number(row.other_fee_cents||0),0),collected=sum(payments,'amount_cents');
+  return {
+    filters:{from:from||null,to:to||null,service_code:serviceCode||null,team_id:teamId||null,assigned_user_id:assignedUserId||null},
+    cases:{total:caseRows.length,by_stage:countBy(caseRows,'workflow_stage'),by_priority:countBy(caseRows,'priority'),by_service:countBy(caseRows,'service_code'),by_team:countBy(caseRows,'team_id')},
+    tasks:{total:tasks.length,overdue:tasks.filter(row=>!['completed','cancelled'].includes(row.status)&&row.due_date&&row.due_date<today).length,by_status:countBy(tasks,'status'),average_completion_days:completedDurations.length?Number((sum(completedDurations.map(value=>({value})),'value')/completedDurations.length).toFixed(2)):null},
+    deadlines:{open:deadlines.filter(row=>row.status==='open').length,overdue:deadlines.filter(row=>row.status==='open'&&row.deadline_date<today).length,by_type:countBy(deadlines,'deadline_type')},
+    documents:{total:documents.length,by_review_status:countBy(documents,'review_status'),by_category:countBy(documents,'category')},
+    agency_requests:{total:agency.length,open:agency.filter(row=>!['filed','closed'].includes(row.status)).length,overdue:agency.filter(row=>!['filed','closed'].includes(row.status)&&row.response_due_date&&row.response_due_date<today).length,by_type:countBy(agency,'request_type')},
+    billing:{invoice_count:invoices.length,billed_cents:billed,collected_cents:collected,outstanding_cents:Math.max(0,billed-collected),by_status:countBy(invoices,'status')},
+  };
+}
+
+function reportCsv(report){
+  const rows=[['section','metric','key','value']];
+  for(const [section,metrics] of Object.entries(report))if(section!=='filters')for(const [metric,value] of Object.entries(metrics)){
+    if(value&&typeof value==='object')for(const [key,count] of Object.entries(value))rows.push([section,metric,key,count]);
+    else rows.push([section,metric,'',value??'']);
+  }
+  const escape=value=>`"${String(value).replace(/"/g,'""')}"`;
+  return Buffer.from('\ufeff'+rows.map(row=>row.map(escape).join(',')).join('\r\n'),'utf8');
+}
+
 // The owner role is the root of this system's authority: it is unrestricted by
 // design, so being able to hand it out is equivalent to being able to take
 // over. Only an existing owner may grant or remove it, and only an owner may
@@ -957,7 +1000,8 @@ async function handleRaw(req,res){
       const expectedRole=portalType==='employer'?'employer_portal':'beneficiary_portal';
       const role=await db('user_roles',{query:`?auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}&role_code=eq.${expectedRole}&select=auth_user_id&limit=1`});
       if(!role.length)throw Object.assign(new Error('PORTAL_ROLE_MISMATCH'),{status:409});
-      const existing=await db('portal_case_access',{query:`?case_id=eq.${caseId}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}&select=case_id,status`});
+      const existing=await db('portal_case_access',{query:`?case_id=eq.${caseId}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}&select=case_id,status,portal_type,person_id`});
+      if(existing.length&&(existing[0].portal_type!==portalType||String(existing[0].person_id||'')!==String(body.person_id||'')))throw Object.assign(new Error('PORTAL_ACCESS_IDENTITY_IMMUTABLE'),{status:409});
       const record={case_id:caseId,auth_user_id:body.auth_user_id,portal_type:portalType,person_id:body.person_id||null,status:'active',granted_by:principal.id,granted_at:new Date().toISOString(),revoked_at:null};
       const data=existing.length?await db('portal_case_access',{method:'PATCH',query:`?case_id=eq.${caseId}&auth_user_id=eq.${encodeURIComponent(body.auth_user_id)}`,body:{status:'active',revoked_at:null}}):await db('portal_case_access',{method:'POST',body:record});
       await audit(principal,'case_portal_access_granted','case',caseId,{case_id:caseId,client_id:caseRows[0].client_id,auth_user_id:body.auth_user_id,portal_type:portalType,person_id:body.person_id||null},req);
@@ -1477,10 +1521,13 @@ async function handleRaw(req,res){
   }
 
   if(req.method==='GET'&&u.pathname==='/api/v1/reports/summary'){
-    const [allCases,allTasks,allDeadlines,allDocuments]=await Promise.all([db('cases',{query:'?archived_at=is.null&select=id,client_id,team_id,assigned_user_id,assigned_to,service_code,workflow_stage,priority'}),db('tasks',{query:'?archived_at=is.null&select=case_id,status,due_date,priority'}),db('deadlines',{query:'?status=eq.open&select=case_id,deadline_date'}),db('documents',{query:'?archived_at=is.null&select=case_id,review_status'})]),caseRows=filterAccessibleCases(access,allCases||[],'cases.view'),caseIds=new Set(caseRows.map(row=>String(row.id))),taskRows=(allTasks||[]).filter(row=>caseIds.has(String(row.case_id))),deadlineRows=(allDeadlines||[]).filter(row=>caseIds.has(String(row.case_id))),documentRows=(allDocuments||[]).filter(row=>caseIds.has(String(row.case_id)));
-    const countBy=(rows,key)=>rows.reduce((result,row)=>({...result,[row[key]||'unknown']:(result[row[key]||'unknown']||0)+1}),{});
-    const today=new Date().toISOString().slice(0,10);
-    return json(res,200,{data:{cases:{total:caseRows.length,by_stage:countBy(caseRows,'workflow_stage'),by_priority:countBy(caseRows,'priority')},tasks:{total:taskRows.length,overdue:taskRows.filter(item=>item.status!=='completed'&&item.due_date&&item.due_date<today).length,by_status:countBy(taskRows,'status')},deadlines:{open:deadlineRows.length,overdue:deadlineRows.filter(item=>item.deadline_date<today).length},documents:{total:documentRows.length,by_review_status:countBy(documentRows,'review_status')}},requestId},ch);
+    return json(res,200,{data:await operationalReport(access,u.searchParams),requestId},ch);
+  }
+  if(req.method==='GET'&&u.pathname==='/api/v1/reports/export.csv'){
+    const report=await operationalReport(access,u.searchParams),buffer=reportCsv(report);
+    await audit(principal,'operational_report_exported','report',null,{filters:report.filters,case_count:report.cases.total},req);
+    res.writeHead(200,{...securityHeaders(),'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="caseflow-operational-report.csv"','content-length':buffer.length});
+    return res.end(buffer);
   }
 
   if(req.method==='GET'&&u.pathname==='/api/v1/retention-policies'){const data=await db('retention_policies',{query:'?select=*&order=record_type'});return json(res,200,{data,requestId},ch);}

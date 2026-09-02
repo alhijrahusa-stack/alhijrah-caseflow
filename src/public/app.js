@@ -51,7 +51,7 @@
         "Production record":"سجل إنتاجي","Save Access":"حفظ الوصول","Case workspace":"مساحة عمل الملف","Send a secure message":"إرسال رسالة آمنة",
         "Team Workload":"عبء عمل الفريق","Active matters and overdue work":"الملفات النشطة والعمل المتأخر","Owner Signals":"مؤشرات المالك","Firm-wide operational exceptions":"الاستثناءات التشغيلية على مستوى المكتب","Communication Center":"مركز المراسلات","Internal and external delivery audit":"تدقيق المراسلات الداخلية والتسليم الخارجي","Restricted to authorized owners.":"مخصص للمالكين المصرح لهم.","Search filename or category":"ابحث باسم الملف أو الفئة","All categories":"جميع الفئات","All review states":"جميع حالات المراجعة","Under review":"قيد المراجعة","List / Grid":"قائمة / شبكة","Document preview":"معاينة المستند","Forms & Review":"النماذج والمراجعة","Recipients":"المستلمون","Internal message linked to this case":"رسالة داخلية مرتبطة بهذا الملف","Send message":"إرسال الرسالة","External delivery":"التسليم الخارجي","Archive":"أرشفة","All systems operational":"جميع الأنظمة تعمل",
         "Rejected document requires replacement":"المستند المرفوض يحتاج إلى بديل","Overdue task":"مهمة متأخرة","Save Mapping":"حفظ الربط","Dry Run":"تشغيل تجريبي",
-        "PNG, JPG, WebP or SVG · 2 MB maximum":"PNG أو JPG أو WebP أو SVG · الحد الأقصى 2 ميغابايت","Start date":"تاريخ البدء","End date":"تاريخ الانتهاء","Case role":"الدور في الملف","Beneficiary":"المستفيد","Petitioner":"مقدم الالتماس","Spouse":"الزوج أو الزوجة","Child":"الطفل","Sponsor":"الكفيل","Interpreter":"المترجم","Immigration":"الهجرة","Address":"العنوان","Employment":"العمل","Travel":"السفر","Case-level form":"نموذج على مستوى الملف","Participant (optional)":"المشارك (اختياري)"
+        "PNG, JPG, WebP or SVG · 2 MB maximum":"PNG أو JPG أو WebP أو SVG · الحد الأقصى 2 ميغابايت","Start date":"تاريخ البدء","End date":"تاريخ الانتهاء","Case role":"الدور في الملف","Beneficiary":"المستفيد","Petitioner":"مقدم الالتماس","Spouse":"الزوج أو الزوجة","Child":"الطفل","Sponsor":"الكفيل","Interpreter":"المترجم","Immigration":"الهجرة","Address":"العنوان","Employment":"العمل","Travel":"السفر","Case-level form":"نموذج على مستوى الملف","Participant (optional)":"المشارك (اختياري)","From":"من","To":"إلى","Export CSV":"تصدير CSV","Operational Breakdown":"التوزيع التشغيلي","Current persistent records":"السجلات الحالية المحفوظة","Cases by service":"الملفات حسب الخدمة","RFE / agency requests":"طلبات الجهة","Billing":"الفوترة","Billed":"مفوتر","Collected":"محصل","Outstanding":"متبقٍ"
       });
       const originalUiText=new WeakMap(),originalUiAttributes=new WeakMap();
       function translatedUiPhrase(value){
@@ -1431,12 +1431,14 @@
       }
       async function loadReports() {
         try {
-          const result = await api("/api/v1/reports/summary"), data = result.data;
+          const query=new URLSearchParams();if($("reportFrom").value)query.set("from",$("reportFrom").value);if($("reportTo").value)query.set("to",$("reportTo").value);
+          const result = await api("/api/v1/reports/summary"+(query.size?`?${query}`:"")), data = result.data;
           $("reportCases").textContent = data.cases.total; $("reportTasks").textContent = data.tasks.overdue; $("reportDeadlines").textContent = data.deadlines.open; $("reportDocuments").textContent = data.documents.total;
           const rows = (label, values) => `<div class="sysrow"><span>${esc(label)}</span><b>${Object.entries(values).map(([key,value]) => `${esc(intakeOptionLabel(key))}: ${value}`).join(" · ") || "None"}</b></div>`;
-          $("reportDetails").innerHTML = `<div class="sys">${rows("Cases by stage",data.cases.by_stage)}${rows("Cases by priority",data.cases.by_priority)}${rows("Tasks by status",data.tasks.by_status)}${rows("Documents by review",data.documents.by_review_status)}</div>`; $("reportErr").textContent = "";
+          $("reportDetails").innerHTML = `<div class="sys">${rows("Cases by stage",data.cases.by_stage)}${rows("Cases by priority",data.cases.by_priority)}${rows("Cases by service",data.cases.by_service)}${rows("Tasks by status",data.tasks.by_status)}${rows("Documents by review",data.documents.by_review_status)}<div class="sysrow"><span>RFE / agency requests</span><b>${data.agency_requests.open} open · ${data.agency_requests.overdue} overdue</b></div><div class="sysrow"><span>Billing</span><b>${money(data.billing.billed_cents)} billed · ${money(data.billing.collected_cents)} collected · ${money(data.billing.outstanding_cents)} outstanding</b></div></div>`; $("reportErr").textContent = "";
         } catch (error) { $("reportErr").textContent = error.message; }
       }
+      function downloadReports(){const query=new URLSearchParams();if($("reportFrom").value)query.set("from",$("reportFrom").value);if($("reportTo").value)query.set("to",$("reportTo").value);window.location.assign("/api/v1/reports/export.csv"+(query.size?`?${query}`:""));}
       async function loadTeam() {
         try {
           const result = await api("/api/v1/users");
@@ -1725,6 +1727,7 @@
         downloadDoc,
         downloadArtifact,
         downloadPortalDocument,
+        downloadReports,
         editCase,
         editClient,
         editIntakeStep: a => editIntakeStep(Number(a)),
