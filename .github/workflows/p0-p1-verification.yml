@@ -92,6 +92,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p10_agency_evidence_matrix.sql
       - name: Execute dual case portals suite
         run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p11_dual_case_portals.sql
+      - name: Execute functional convergence suite
+        run: psql -v ON_ERROR_STOP=1 -X -f test/sql/p13_functional_convergence.sql
       - name: Verify anon Data API role has no application-table access
         run: |
           set -euo pipefail

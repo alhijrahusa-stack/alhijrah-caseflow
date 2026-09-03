@@ -23,6 +23,7 @@
         currentWorkspace = null,
         documentGridMode = false,
         replacementDocumentId = null,
+        selectedDocumentRequestId = null,
         workspaceMessageTimer = null;
       if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
       const translations = Object.freeze({
@@ -655,12 +656,13 @@
       }
       async function openCase(type = "", serviceCode = "") {
         await Promise.all([loadViewData("services"), loadViewData("clients")]);
+        const selectedService=services.find(service=>service.code===serviceCode)||services.find(service=>service.name===type)||services[0]||null;
         caseModalTitle.textContent = "Create New Case";
         $("editCaseId").value = "";
-        $("selectedServiceCode").value = serviceCode;
+        $("selectedServiceCode").value = selectedService?.code||"";
         $("caseClientSelect").value = "";
         $("clientName").value = "";
-        $("caseType").value = type || services[0]?.name || "";
+        $("caseType").value = selectedService?.name||type||"";
         $("caseStatus").value = "intake";
         $("priority").value = "normal";
         $("assigned").value = "";
@@ -668,6 +670,7 @@
         $("caseErr").textContent = "";
         $("caseModal").classList.add("show");
       }
+      function selectCaseService(){const selected=services.find(service=>service.name===$("caseType").value);$("selectedServiceCode").value=selected?.code||""}
       function openCaseEditor(id) {
         const c = cases.find((x) => x.id === id);
         if (!c) return;
@@ -704,22 +707,23 @@
           $("workspaceBalance").textContent=workspace.financial_summary?money(workspace.financial_summary.balance_cents):"—";
           $("workspaceEditButton").dataset.a1=id;
           const summary=(label,value)=>`<div class="workspace-stat"><span>${esc(label)}</span><b>${esc(value||"—")}</b></div>`;
-          $("workspace-overview").innerHTML=`<div class="workspace-summary">${summary(tr("caseNumber"),c.case_number||c.case_reference)}${summary(tr("clientNumber"),client.client_number)}${summary(tr("service"),c.case_type)}${summary(tr("currentStatus"),intakeOptionLabel(c.workflow_stage||c.status))}${summary(tr("latestActivity"),workspace.latest_activity?intakeOptionLabel(workspace.latest_activity.event_type):"—")}${summary(tr("outstandingBalance"),workspace.financial_summary?money(workspace.financial_summary.balance_cents):"—")}</div><div class="workspace-note">${esc(c.notes||tr("noRecords"))}</div>`;
+          const readiness=workspace.readiness||{state:"ACTION_REQUIRED",blocker_count:0,blockers:[]};
+          $("workspace-overview").innerHTML=`<div class="workspace-card"><b>${esc(intakeOptionLabel(readiness.state))}</b><span>${Number(readiness.blocker_count||0)} ${esc(currentLanguage==="Arabic"?"عناصر تتطلب إجراء":"items require action")}</span><small>${esc((readiness.blockers||[]).slice(0,5).map(item=>`${intakeOptionLabel(item.type)}: ${intakeOptionLabel(item.key)} (${intakeOptionLabel(item.status)})`).join(" · ")||(currentLanguage==="Arabic"?"لا توجد موانع تشغيلية مفتوحة":"No open operational blockers"))}</small></div><div class="workspace-summary">${summary(tr("caseNumber"),c.case_number||c.case_reference)}${summary(tr("clientNumber"),client.client_number)}${summary(tr("service"),c.case_type)}${summary(tr("currentStatus"),intakeOptionLabel(c.workflow_stage||c.status))}${summary(tr("latestActivity"),workspace.latest_activity?intakeOptionLabel(workspace.latest_activity.event_type):"—")}${summary(tr("outstandingBalance"),workspace.financial_summary?money(workspace.financial_summary.balance_cents):"—")}</div><div class="workspace-note">${esc(c.notes||tr("noRecords"))}</div>`;
           $("workspace-journey").innerHTML=workspaceRows(workspace.timeline,item=>`<div class="timeline-item"><span></span><div><b>${esc(intakeOptionLabel(item.event_type))}</b><p>${esc(item.actor||"System")} · ${date(item.created_at)}</p></div></div>`);
           $("workspace-profile").innerHTML=`<div class="workspace-summary">${summary(tr("clientNumber"),client.client_number)}${summary(tr("displayName"),client.legal_name)}${summary("الاسم بالعربية / Arabic name",client.legal_name_ar)}${summary("A-Number",client.a_number)}${summary("Passport",client.passport_number)}${summary("USCIS Account",client.uscis_account_number)}${summary("Email",client.email)}${summary("Phone",client.phone)}${summary(tr("preferredLanguage"),client.preferred_language)}</div>`;
           $("workspace-intake").innerHTML=workspaceRows(workspace.intakes,item=>`<div class="workspace-card"><b>${esc(item.status)}</b><span>${date(item.updated_at)}</span><small>${Object.keys(item.answers||{}).length} fields</small></div>`);
           const personOptions=(workspace.people||[]).map(link=>{const person=link.people||link.person||{};return `<option value="${esc(person.id||link.person_id)}">${esc(person.legal_name||person.id||link.person_id)} · ${esc(intakeOptionLabel(link.case_role))}</option>`}).join("");
           $("historyPerson").innerHTML=personOptions;$("formParticipant").innerHTML=`<option value="">${esc(currentLanguage==="Arabic"?"نموذج على مستوى الملف":"Case-level form")}</option>${personOptions}`;
-          const formCards=workspaceRows(workspace.forms,item=>`<div class="workspace-card"><b>${esc(item.pinned_authority)} · ${esc(item.pinned_form_code)}</b><span>${esc(item.pinned_edition_date||"—")} · ${esc(item.status)}</span><small>${esc(currentLanguage==="Arabic"?"إصدار الربط":"Mapping version")} ${Number(item.pinned_mapping_version||0)}</small></div>`);
+          const formCards=workspaceRows(workspace.readiness?.forms,item=>`<div class="workspace-card"><b>${esc(item.authority)} · ${esc(item.form_code)}</b><span>${esc(intakeOptionLabel(item.status))}</span><small>${item.form_instance_id?esc(currentLanguage==="Arabic"?"مثبت على الإصدار المعتمد":"Pinned to the approved edition"):esc(currentLanguage==="Arabic"?"ابدأ النموذج بعد اعتماد نسخته وربطه":"Start after its edition and mapping are approved")}</small></div>`);
           const participantCards=workspaceRows(workspace.people,link=>{const person=link.people||link.person||{};return `<div class="workspace-card"><b>${esc(person.legal_name||"—")}</b><span>${esc(intakeOptionLabel(link.case_role))}</span><small>${esc(person.a_number||person.passport_number||person.email||"")}</small></div>`});
           const historyCards=workspaceRows(workspace.histories,item=>`<div class="workspace-card"><b>${esc(intakeOptionLabel(item.history_type))}</b><span>${esc(item.starts_on||"—")} — ${esc(item.ends_on||(currentLanguage==="Arabic"?"حالي":"Current"))}</span><small>${esc(item.verification_status)}</small></div>`);
           const artifactCards=workspaceRows(workspace.generated_artifacts,item=>`<div class="workspace-card"><b>${esc(item.form_code)}</b><span>${esc(item.review_state)} · ${date(item.generated_at)}</span><button class="linkbtn" data-act="downloadArtifact" data-a1="${esc(item.id)}">${esc(tr("download"))}</button></div>`);
           $("workspace-participants").innerHTML=`<div class="df u-68b2edc6f5"><button class="btn primary" data-act="openParticipant">${esc(tr("addParticipant"))}</button><button class="btn" data-act="openHistory">${esc(tr("addHistory"))}</button></div><h3>${esc(tr("participants"))}</h3>${participantCards}<h3>${esc(tr("histories"))}</h3>${historyCards}`;
           $("workspace-forms").innerHTML=`<div class="df u-68b2edc6f5"><button class="btn primary" data-act="openForm">${esc(tr("startForm"))}</button></div><h3>${esc(tr("forms"))}</h3>${formCards}<h3>${esc(tr("openFindings"))}</h3>${workspaceRows(workspace.form_findings,item=>`<div class="workspace-card"><b>${esc(item.category)}</b><span>${esc(item.severity)}</span><small>${esc(item.claim)}</small></div>`)}<h3>${esc(tr("generatedArtifacts"))}</h3>${artifactCards}`;
-          $("workspace-documents").innerHTML=workspaceRows(workspace.documents,item=>`<div class="workspace-card"><b>${esc(item.file_name)}</b><span>${esc(item.category||"Unclassified")} · ${esc(item.review_status)} · v${Number(item.version||1)}</span><small>${date(item.created_at)}</small><div><button class="linkbtn" data-act="previewDoc" data-a1="${esc(item.id)}">${esc(currentLanguage==="Arabic"?"معاينة":"Preview")}</button> · <button class="linkbtn" data-act="downloadDoc" data-a1="${esc(item.id)}">${esc(tr("download"))}</button></div></div>`);
+          $("workspace-documents").innerHTML=workspaceRows(workspace.documents,item=>`<div class="workspace-card"><b>${esc(item.file_name)}</b><span>${esc(item.category||"Unclassified")} · ${esc(intakeOptionLabel(item.automation_status||item.review_status))} · v${Number(item.version||1)}</span><small>${esc(item.quality_status||"")} ${date(item.created_at)}</small><div><button class="linkbtn" data-act="previewDoc" data-a1="${esc(item.id)}">${esc(currentLanguage==="Arabic"?"معاينة":"Preview")}</button> · <button class="linkbtn" data-act="downloadDoc" data-a1="${esc(item.id)}">${esc(tr("download"))}</button>${["REVIEW_REQUIRED","CONFLICT"].includes(item.automation_status)?` · <button class="linkbtn" data-act="reviewDocumentOcr" data-a1="${esc(item.id)}">${esc(currentLanguage==="Arabic"?"تحقق من الاستخراج":"Verify extraction")}</button>`:""}</div></div>`);
           const evidence=workspace.evidence||{requests:[],requirements:[],links:[]},documentOptions=(workspace.documents||[]).map(item=>`<option value="${esc(item.id)}">${esc(item.file_name)}</option>`).join("");
           $("workspace-rfe").innerHTML=`<div class="df u-68b2edc6f5"><button class="btn primary" data-act="createAgencyRequest">${esc(currentLanguage==="Arabic"?"إضافة طلب جهة":"Add agency request")}</button></div>${workspaceRows(evidence.requests,request=>{const requirements=evidence.requirements.filter(item=>item.agency_request_id===request.id);return `<div class="workspace-card"><b>${esc(request.request_type.toUpperCase())} · ${esc(request.title)}</b><span>${esc(intakeOptionLabel(request.status))}${request.response_due_date?` · ${esc(currentLanguage==="Arabic"?"الرد مستحق":"Response due")} ${esc(request.response_due_date)}`:""}</span><small>${esc(request.summary||"")}</small><div><button class="linkbtn" data-act="createEvidenceRequirement" data-a1="${esc(request.id)}">${esc(currentLanguage==="Arabic"?"إضافة بند دليل":"Add evidence item")}</button></div>${workspaceRows(requirements,item=>{const linked=evidence.links.filter(link=>link.evidence_requirement_id===item.id);return `<div class="workspace-card"><b>${esc(item.requirement_code)} · ${esc(item.title)}</b><span>${esc(intakeOptionLabel(item.status))} · ${linked.length} ${esc(currentLanguage==="Arabic"?"مستندات":"documents")}</span><small>${esc(item.description||"")}</small><div class="df"><select id="evidence-doc-${esc(item.id)}"><option value="">${esc(currentLanguage==="Arabic"?"اختر مستندًا":"Select document")}</option>${documentOptions}</select><button class="linkbtn" data-act="linkEvidenceDocument" data-a1="${esc(item.id)}">${esc(currentLanguage==="Arabic"?"ربط الدليل":"Link evidence")}</button><button class="linkbtn" data-act="setEvidenceStatus" data-a1="${esc(item.id)}">${esc(currentLanguage==="Arabic"?"تحديث الحالة":"Update status")}</button></div></div>`})}</div>`})}`;
-          $("workspace-actions").innerHTML=workspaceRows(workspace.document_requests,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(item.status)}${item.due_date?` · ${esc(item.due_date)}`:""}</span><small>${esc(item.instructions||"")}</small></div>`);
+          $("workspace-actions").innerHTML=workspaceRows(workspace.document_requests,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(intakeOptionLabel(item.status))}${item.due_date?` · ${esc(item.due_date)}`:""}</span><small>${esc(item.instructions||item.requirement_code||"")}</small>${["missing","rejected"].includes(item.status)?`<button class="btn primary" data-act="uploadForRequest" data-a1="${esc(item.id)}">${esc(currentLanguage==="Arabic"?"رفع المطلوب":"Upload requested document")}</button>`:""}</div>`);
           $("workspace-tasks").innerHTML=workspaceRows(workspace.tasks,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(item.status)} · ${esc(item.priority)}</span><small>${esc(item.due_date||"—")}</small></div>`);
           $("workspace-deadlines").innerHTML=workspaceRows(workspace.deadlines,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${esc(item.deadline_date)} · ${esc(item.status)}</span><small>${esc(item.deadline_type||"")}</small></div>`);
           $("workspace-appointments").innerHTML=workspaceRows(workspace.appointments,item=>`<div class="workspace-card"><b>${esc(item.title)}</b><span>${date(item.starts_at)}</span><small>${esc(item.location||"")}</small></div>`);
@@ -1105,6 +1109,7 @@
           uploadButton.textContent = "Uploading…";
           const query = new URLSearchParams({ case_id: caseId, filename: f.name, size_bytes: String(f.size) });
           if ($("docCategory").value) query.set("category", $("docCategory").value);
+          if(selectedDocumentRequestId)query.set("request_id",selectedDocumentRequestId);
           if(replacementDocumentId)query.set("replaces_document_id",replacementDocumentId);
           await uploadWithProgress(`/api/v1/documents/upload?${query}`, f, (percent) => setProgress($("docProgress"),percent), fileContentType(f));
           clearDocumentFile();
@@ -1134,8 +1139,9 @@
         });
       }
       function chooseDocumentFile() { $("docFile").click(); }
+      async function uploadForRequest(requestId){const item=currentWorkspace?.document_requests?.find(request=>request.id===requestId);if(!item)return;selectedDocumentRequestId=requestId;replacementDocumentId=null;closeCaseWorkspace();showView("documents");await loadViewData("documents",true);$("docCase").value=item.case_id;$("docCategory").value=item.category||"";chooseDocumentFile()}
       function replaceDoc(id){const doc=docs.find(item=>item.id===id);if(!doc)return;replacementDocumentId=id;$("docCase").value=doc.case_id;$("docCategory").value=doc.category||"";$("docErr").textContent=currentLanguage==="Arabic"?`اختر الملف البديل للإصدار ${Number(doc.version||1)+1}.`:`Choose the replacement file for version ${Number(doc.version||1)+1}.`;chooseDocumentFile()}
-      async function reviewDocumentOcr(id){try{const extracted=await api(`/api/v1/documents/${id}/ocr`,{method:"POST",body:"{}"}),reviewed=prompt(currentLanguage==="Arabic"?"راجع حقول OCR وعدّل JSON عند الحاجة. لن يُحفظ شيء دون تأكيدك.":"Review the OCR fields and edit the JSON if needed. Nothing is saved without your confirmation.",JSON.stringify(extracted.result.fields,null,2));if(reviewed===null)return;let fields;try{fields=JSON.parse(reviewed)}catch{return alert(currentLanguage==="Arabic"?"JSON غير صالح.":"Invalid JSON.")}if(!confirm(currentLanguage==="Arabic"?"هل تؤكد أن الحقول المراجعة دقيقة؟":"Confirm the reviewed fields are accurate?"))return;await api(`/api/v1/documents/${id}/ocr/confirm`,{method:"POST",body:JSON.stringify({review_token:extracted.review_token,category:"identity",fields,confirmed:true})});await loadDocuments()}catch(error){alert(error.message)}}
+      async function reviewDocumentOcr(id){try{const history=await api(`/api/v1/documents/${id}/ocr`),pending=(history.data||[]).find(item=>item.status==="pending_review"),extracted=pending?{extraction_id:pending.id,result:pending.raw_result}:await api(`/api/v1/documents/${id}/ocr`,{method:"POST",body:"{}"}),reviewed=prompt(currentLanguage==="Arabic"?"راجع حقول OCR وعدّل JSON عند الحاجة. لن يُحفظ شيء دون تأكيدك.":"Review the OCR fields and edit JSON if needed. Only confirmed values become canonical.",JSON.stringify(extracted.result.fields,null,2));if(reviewed===null)return;let fields;try{fields=JSON.parse(reviewed)}catch{return alert(currentLanguage==="Arabic"?"JSON غير صالح.":"Invalid JSON.")}if(!confirm(currentLanguage==="Arabic"?"هل تؤكد أن الحقول المراجعة دقيقة؟":"Confirm the reviewed fields are accurate?"))return;const path=pending?`/api/v1/documents/${id}/extractions/${pending.id}/confirm`:`/api/v1/documents/${id}/ocr/confirm`,body=pending?{fields,confirmed:true}:{review_token:extracted.review_token,category:"identity",fields,confirmed:true};await api(path,{method:"POST",body:JSON.stringify(body)});await loadDocuments();if(currentWorkspace?.case?.id)await editCase(currentWorkspace.case.id)}catch(error){alert(error.message)}}
       function setDocumentFile(file) {
         if (!file) return;
         selectedDocumentFile = file;
@@ -1147,6 +1153,7 @@
       function clearDocumentFile() {
         selectedDocumentFile = null;
         replacementDocumentId = null;
+        selectedDocumentRequestId = null;
         $("docFile").value = "";
         $("docPreview").classList.remove("show");
         setProgress($("docProgress"),0);
@@ -1769,6 +1776,7 @@
         renderServices,
         replaceDoc,
         reviewDocumentOcr,
+        uploadForRequest,
         reviewDocument,
         reviewImportRow,
         runImportDryRun,
@@ -1778,6 +1786,7 @@
         chooseImportFile,
         saveAndExitIntake,
         saveCase,
+        selectCaseService,
         saveClient,
         saveInvoice,
         saveImportMapping,

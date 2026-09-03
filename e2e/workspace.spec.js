@@ -121,6 +121,15 @@ test('Phase 1 client numbers, case numbers, bilingual preference, and full works
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 });
 
+test('the visible service selection drives pinned requirements in the case workspace',async({page})=>{
+  await signIn(page);await expect(page.locator('#login')).toBeHidden();await page.click('#nav button[data-view="services"]');
+  await page.locator('.service').filter({hasText:'N-400'}).click();await expect(page.locator('#caseModal')).toHaveClass(/show/);await expect(page.locator('#selectedServiceCode')).toHaveValue('N-400');
+  const clientName=`Service Driven ${Date.now()}`;await page.fill('#clientName',clientName);await page.click('#saveCaseBtn');await expect(page.locator('#caseModal')).not.toHaveClass(/show/);
+  await page.click('#nav button[data-view="cases"]');const row=page.locator('#caseTable tr').filter({hasText:clientName});await expect(row).toContainText('Naturalization');await row.locator('[data-act="editCase"]').click();await expect(page.locator('#caseWorkspaceModal')).toHaveClass(/show/);
+  await page.click('.workspace-tab[data-a1="actions"]');await expect(page.locator('#workspace-actions')).toContainText('Client identity document');await expect(page.locator('#workspace-actions')).toContainText('Permanent resident card');await expect(page.locator('#workspace-actions [data-act="uploadForRequest"]')).toHaveCount(3);
+  await page.click('.workspace-tab[data-a1="overview"]');await expect(page.locator('#workspace-overview')).toContainText(/ACTION REQUIRED|ACTION_REQUIRED|items require action/i);
+});
+
 test('navigation only offers destinations the role can actually reach', async ({ page }) => {
   await signIn(page);
   await expect(page.locator('#login')).toBeHidden();

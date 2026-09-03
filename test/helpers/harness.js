@@ -259,7 +259,7 @@ async function handleRest(url, init) {
   }
   if(table==='rpc/commit_verified_identity_extraction'){
     const body=JSON.parse(init.body||'{}'),bearer=String(init.headers?.authorization||'').replace(/^Bearer /,''),email=backend.sessions.get(bearer),actor=[...backend.users.values()].find(user=>user.email===email)?.id;
-    const extraction=backend.tables.document_extractions.find(item=>item.id===body.p_extraction_id&&item.status==='reviewing'&&item.requested_by===actor);
+    const extraction=backend.tables.document_extractions.find(item=>item.id===body.p_extraction_id&&item.status==='reviewing'&&(item.document_id||item.requested_by===actor));
     if(!extraction)return jsonResponse(409,{message:'Extraction is not available for commit'});
     const fields=body.p_reviewed_fields&&typeof body.p_reviewed_fields==='object'&&!Array.isArray(body.p_reviewed_fields)?body.p_reviewed_fields:{};
     let subjectId=body.p_subject_id;
