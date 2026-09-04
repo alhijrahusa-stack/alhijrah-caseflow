@@ -51,6 +51,14 @@ test('a client principal defaults to their own client, not to global', () => {
   assert.equal(resolved.isClientPrincipal, true);
 });
 
+test('employer and beneficiary portals remain client principals with a fail-closed scope', () => {
+  for (const role of ['employer_portal', 'beneficiary_portal']) {
+    const resolved = resolveAccess({ principal: principal([role]) });
+    assert.equal(scopeFor(resolved, 'portal'), 'client_self');
+    assert.equal(resolved.isClientPrincipal, true);
+  }
+});
+
 test('a staff role mixed with a client role is treated as staff', () => {
   const resolved = resolveAccess({ principal: principal(['case_manager', 'client_owner']) });
   assert.equal(resolved.isClientPrincipal, false);

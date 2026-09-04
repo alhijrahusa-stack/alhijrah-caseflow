@@ -65,6 +65,97 @@ export const serviceCatalog = Object.freeze([
   ['administrative', 'FLIGHT', 'Flight Booking'],
 ].map(([category, code, name]) => Object.freeze({ category, code, name })));
 
+const serviceParticipants = Object.freeze({
+  'I-130': ['beneficiary'],
+  'I-864': ['sponsor'],
+  'I-864A': ['sponsor', 'household_member'],
+  'K-1': ['beneficiary'],
+  'NVC': ['petitioner'],
+  'CONSULAR': ['petitioner'],
+});
+
+const serviceForms = Object.freeze({
+  'I-130': [['USCIS', 'I-130']],
+  'I-485': [['USCIS', 'I-485']],
+  'I-864': [['USCIS', 'I-864']],
+  'I-864A': [['USCIS', 'I-864A']],
+  'I-765': [['USCIS', 'I-765']],
+  'I-131': [['USCIS', 'I-131']],
+  'I-751': [['USCIS', 'I-751']],
+  'N-400': [['USCIS', 'N-400']],
+  'I-90': [['USCIS', 'I-90']],
+  'DS-260': [['DOS', 'DS-260']],
+  'K-1': [['USCIS', 'I-129F']],
+  'ASYLUM': [['USCIS', 'I-589']],
+  'BIA-APPEAL': [['EOIR', 'EOIR-26']],
+  'I-601': [['USCIS', 'I-601']],
+  'I-601A': [['USCIS', 'I-601A']],
+  'VAWA': [['USCIS', 'I-360']],
+  'U-VISA': [['USCIS', 'I-918']],
+  'T-VISA': [['USCIS', 'I-914']],
+  'SIJS': [['USCIS', 'I-360']],
+  'TPS': [['USCIS', 'I-821']],
+});
+
+const serviceEvidence = Object.freeze({
+  'I-130': [['RELATIONSHIP_EVIDENCE', 'relationship_evidence', 'Relationship evidence']],
+  'I-485': [['ENTRY_RECORD', 'civil_document', 'Admission or parole record'], ['BIRTH_CERTIFICATE', 'civil_document', 'Birth certificate']],
+  'I-864': [['TAX_TRANSCRIPT', 'financial_evidence', 'Most recent tax transcript'], ['CURRENT_INCOME', 'financial_evidence', 'Current income evidence']],
+  'I-864A': [['HOUSEHOLD_INCOME', 'financial_evidence', 'Household member income evidence']],
+  'I-765': [['ELIGIBILITY_EVIDENCE', 'civil_document', 'Employment authorization eligibility evidence']],
+  'I-131': [['TRAVEL_EVIDENCE', 'civil_document', 'Travel document eligibility evidence']],
+  'I-751': [['SHARED_LIFE_EVIDENCE', 'relationship_evidence', 'Shared life evidence']],
+  'N-400': [['PERMANENT_RESIDENT_CARD', 'identity', 'Permanent resident card'], ['TRAVEL_HISTORY', 'civil_document', 'Travel history evidence']],
+  'I-90': [['PERMANENT_RESIDENT_CARD', 'identity', 'Permanent resident card or replacement evidence']],
+  'DS-260': [['CIVIL_DOCUMENTS', 'civil_document', 'Civil documents']],
+  'NVC': [['NVC_CORRESPONDENCE', 'agency_notice', 'NVC correspondence'], ['CIVIL_DOCUMENTS', 'civil_document', 'Civil documents']],
+  'CONSULAR': [['PETITION_APPROVAL', 'agency_notice', 'Petition approval notice'], ['CIVIL_DOCUMENTS', 'civil_document', 'Civil documents']],
+  'K-1': [['RELATIONSHIP_EVIDENCE', 'relationship_evidence', 'Relationship and meeting evidence']],
+  'ASYLUM': [['CLAIM_EVIDENCE', 'civil_document', 'Claim supporting evidence']],
+  'EOIR': [['COURT_NOTICE', 'agency_notice', 'Court notice']],
+  'REMOVAL': [['NOTICE_TO_APPEAR', 'agency_notice', 'Notice to Appear']],
+  'DETENTION': [['DETENTION_RECORD', 'agency_notice', 'Detention record']],
+  'BIA-APPEAL': [['WRITTEN_DECISION', 'agency_notice', 'Written decision']],
+  'MTR': [['FINAL_ORDER', 'agency_notice', 'Final order and motion evidence']],
+  'MTC': [['DECISION', 'agency_notice', 'Decision being challenged']],
+  'I-601': [['INADMISSIBILITY_NOTICE', 'agency_notice', 'Government inadmissibility notice'], ['HARDSHIP_EVIDENCE', 'civil_document', 'Hardship evidence']],
+  'I-601A': [['PETITION_APPROVAL', 'agency_notice', 'Approved petition notice'], ['HARDSHIP_EVIDENCE', 'civil_document', 'Hardship evidence']],
+  'VAWA': [['QUALIFYING_RELATIONSHIP', 'relationship_evidence', 'Qualifying relationship evidence'], ['SUPPORTING_EVIDENCE', 'civil_document', 'Supporting evidence']],
+  'U-VISA': [['LAW_ENFORCEMENT_CERTIFICATION', 'civil_document', 'Law enforcement certification']],
+  'T-VISA': [['TRAFFICKING_EVIDENCE', 'civil_document', 'Trafficking supporting evidence']],
+  'SIJS': [['STATE_COURT_ORDER', 'civil_document', 'Qualifying state court order']],
+  'TPS': [['RESIDENCE_EVIDENCE', 'civil_document', 'Residence and physical presence evidence']],
+  'PASSPORT': [['CURRENT_PASSPORT', 'identity', 'Current or expired passport']],
+  'TRANSLATION': [['SOURCE_DOCUMENTS', 'translation', 'Documents to translate']],
+  'NOTARY': [['DOCUMENTS_TO_NOTARIZE', 'other', 'Documents to notarize'], ['SIGNER_IDENTIFICATION', 'identity', 'Signer identification']],
+  'POA': [['IDENTITY_AND_INSTRUCTIONS', 'identity', 'Principal identification and authority instructions']],
+  'FLIGHT': [['TRAVEL_DOCUMENTS', 'identity', 'Passenger travel documents']],
+});
+
+/**
+ * Versioned operational configuration for each supported service. It selects
+ * work queues and official form candidates; it does not make an eligibility
+ * or legal conclusion.
+ */
+export function serviceWorkflowFor(serviceCode) {
+  const service = serviceCatalog.find(item => item.code === serviceCode);
+  if (!service) return null;
+  const participantRoles = serviceParticipants[service.code] || [];
+  const documents = [
+    { code: 'CLIENT_IDENTITY', category: 'identity', title: 'Client identity document', participant_role: null, required: true },
+    ...(serviceEvidence[service.code] || []).map(([code, category, title]) => ({ code, category, title, participant_role: null, required: true })),
+    ...participantRoles.map(role => ({ code: `${role.toUpperCase()}_IDENTITY`, category: 'identity', title: `${role.replaceAll('_', ' ')} identity document`, participant_role: role, required: true })),
+  ];
+  return Object.freeze({
+    version: 1,
+    service_code: service.code,
+    participant_roles: Object.freeze([...participantRoles]),
+    documents: Object.freeze(documents.map(item => Object.freeze(item))),
+    forms: Object.freeze((serviceForms[service.code] || []).map(([authority, form_code]) => Object.freeze({ authority, form_code, participant_role: null, required: true }))),
+    review_gates: Object.freeze(['participants_complete', 'documents_verified', 'forms_valid', 'evidence_complete', 'deadlines_resolved']),
+  });
+}
+
 const allowedPriorities = new Set(['low', 'normal', 'high', 'urgent']);
 const allowedTaskStatuses = new Set(['open', 'in_progress', 'blocked', 'completed', 'cancelled']);
 

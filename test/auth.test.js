@@ -22,6 +22,8 @@ test('all required production roles are defined', () => {
     'auditor',
     'client_owner',
     'client_collaborator',
+    'employer_portal',
+    'beneficiary_portal',
   ]);
 });
 

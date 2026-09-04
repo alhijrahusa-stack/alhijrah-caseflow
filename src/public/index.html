@@ -10,794 +10,12 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#08111d" />
     <title>Alhijrah Caseflow</title>
-    <style>
-      :root {
-        --bg: #07101b;
-        --panel: #0b1725;
-        --panel2: #0f1d2d;
-        --line: #1e3147;
-        --muted: #8fa2b7;
-        --text: #f4f7fb;
-        --gold: #d4b774;
-        --green: #65ce95;
-        --red: #ff8585;
-        --blue: #6da7ff;
-        --shadow: 0 18px 60px rgba(0, 0, 0, 0.24);
-        --ease: cubic-bezier(0.16, 1, 0.3, 1);
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family:
-          Inter,
-          ui-sans-serif,
-          system-ui,
-          -apple-system,
-          Segoe UI,
-          Arial,
-          sans-serif;
-        background:
-          radial-gradient(circle at 80% -5%, #183552 0, transparent 32%),
-          var(--bg);
-        color: var(--text);
-      }
-      button,
-      input,
-      select,
-      textarea {
-        font: inherit;
-      }
-      .app {
-        min-height: 100vh;
-        display: grid;
-        grid-template-columns: 270px 1fr;
-      }
-      .side {
-        background: rgba(8, 19, 32, 0.94);
-        backdrop-filter: blur(22px) saturate(135%);
-        border-right: 1px solid var(--line);
-        padding: 22px 17px;
-        position: sticky;
-        top: 0;
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-      }
-      .brand {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        padding: 8px 8px 26px;
-      }
-      .logo {
-        width: 40px;
-        height: 40px;
-        border-radius: 13px;
-        background: linear-gradient(135deg, #ead29d, #9d7637);
-        display: grid;
-        place-items: center;
-        color: #09111a;
-        font-weight: 900;
-      }
-      .brand b {
-        font-size: 15px;
-        letter-spacing: 0.7px;
-      }
-      .brand small {
-        display: block;
-        color: var(--muted);
-        margin-top: 3px;
-        font-size: 10px;
-      }
-      .nav {
-        display: grid;
-        gap: 5px;
-        align-content: start;
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
-      }
-      .nav button {
-        all: unset;
-        cursor: pointer;
-        padding: 12px 14px;
-        border-radius: 11px;
-        color: #a8b7c8;
-        font-size: 14px;
-        font-weight: 650;
-        transition: transform 180ms var(--ease), background 180ms var(--ease), box-shadow 180ms var(--ease), color 180ms var(--ease);
-      }
-      .nav button:hover {
-        background: rgba(19, 36, 58, 0.72);
-        color: white;
-        transform: translateX(2px);
-      }
-      .nav button.active {
-        background: #13243a;
-        color: white;
-        box-shadow: inset 3px 0 0 var(--gold), 0 8px 24px rgba(0, 0, 0, 0.2);
-      }
-      .sidefoot {
-        flex-shrink: 0;
-        margin-top: 14px;
-        padding-top: 14px;
-        border-top: 1px solid var(--line);
-        color: #7890a8;
-        font-size: 11px;
-      }
-      .main {
-        padding: 28px 30px 52px;
-        min-width: 0;
-      }
-      .top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 18px;
-        margin-bottom: 24px;
-      }
-      .eyebrow {
-        color: var(--gold);
-        font-size: 10px;
-        letter-spacing: 1.8px;
-        text-transform: uppercase;
-      }
-      .title {
-        font-size: 28px;
-        margin: 4px 0 0;
-      }
-      .topright {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-      }
-      .pill {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        border: 1px solid var(--line);
-        background: #0b1725;
-        padding: 9px 12px;
-        border-radius: 999px;
-        color: #b7c5d6;
-        font-size: 12px;
-      }
-      .dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #6c8197;
-      }
-      .dot.on {
-        background: var(--green);
-        box-shadow: 0 0 0 4px rgba(101, 206, 149, 0.12);
-      }
-      .btn {
-        border: 1px solid var(--line);
-        background: #13243a;
-        color: #eef4fa;
-        border-radius: 10px;
-        padding: 10px 14px;
-        cursor: pointer;
-        font-weight: 750;
-        font-size: 12px;
-        transition: transform 160ms var(--ease), box-shadow 180ms var(--ease), border-color 180ms var(--ease), opacity 180ms var(--ease);
-      }
-      .btn:hover:not(:disabled) {
-        transform: translateY(-1px);
-        border-color: #3a5674;
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
-      }
-      .btn:active:not(:disabled) {
-        transform: translateY(0) scale(0.98);
-      }
-      .btn:focus-visible,
-      .nav button:focus-visible,
-      .service:focus-visible {
-        outline: 2px solid var(--gold);
-        outline-offset: 3px;
-      }
-      .btn:disabled {
-        cursor: not-allowed;
-        opacity: 0.48;
-      }
-      .btn.primary {
-        border: 0;
-        background: linear-gradient(135deg, #dfc486, #b58b46);
-        color: #0d1218;
-      }
-      .btn.danger {
-        background: #30191d;
-        border-color: #5a2b34;
-        color: #ffb9c0;
-      }
-      .view {
-        display: none;
-      }
-      .view.active {
-        display: block;
-      }
-      .metrics {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 13px;
-      }
-      .metric,
-      .panel {
-        background: linear-gradient(
-          180deg,
-          rgba(15, 30, 47, 0.98),
-          rgba(10, 23, 37, 0.98)
-        );
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        box-shadow: var(--shadow);
-      }
-      .metric {
-        padding: 18px;
-      }
-      button.metric {
-        color: inherit;
-        text-align: left;
-        cursor: pointer;
-        font: inherit;
-        transition: transform 170ms var(--ease), border-color 170ms var(--ease), box-shadow 170ms var(--ease);
-      }
-      button.metric:hover { transform: translateY(-2px); border-color: rgba(212, 183, 116, 0.45); }
-      button.metric:active { transform: scale(0.985); }
-      .metric .k {
-        font-size: 11px;
-        color: var(--muted);
-      }
-      .metric .v {
-        font-size: 28px;
-        font-weight: 850;
-        margin-top: 7px;
-      }
-      .metric .s {
-        font-size: 10px;
-        color: #6f8399;
-        margin-top: 4px;
-      }
-      .layout {
-        display: grid;
-        grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
-        gap: 15px;
-        margin-top: 15px;
-      }
-      .panel {
-        padding: 18px;
-      }
-      .ph {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 14px;
-      }
-      .ph h2 {
-        font-size: 15px;
-        margin: 0;
-      }
-      .ph span {
-        font-size: 11px;
-        color: var(--muted);
-      }
-      .list {
-        display: grid;
-        gap: 8px;
-      }
-      .row {
-        display: grid;
-        grid-template-columns: minmax(0, 1.45fr) 0.8fr 0.7fr auto;
-        gap: 10px;
-        align-items: center;
-        padding: 12px;
-        border: 1px solid #183047;
-        background: #091522;
-        border-radius: 12px;
-      }
-      .row strong {
-        font-size: 12px;
-      }
-      .row small {
-        display: block;
-        color: var(--muted);
-        font-size: 10px;
-        margin-top: 4px;
-      }
-      .tag {
-        font-size: 10px;
-        padding: 6px 8px;
-        border-radius: 999px;
-        background: #17304a;
-        color: #bfd5e8;
-        text-align: center;
-      }
-      .tag.high {
-        background: #3a2416;
-        color: #f1c590;
-      }
-      .tag.urgent {
-        background: #381c23;
-        color: #ffb8c0;
-      }
-      .empty {
-        padding: 30px;
-        text-align: center;
-        border: 1px dashed #29445f;
-        border-radius: 12px;
-        color: var(--muted);
-        font-size: 12px;
-      }
-      .quick {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 9px;
-      }
-      .quick button {
-        min-height: 88px;
-        text-align: left;
-        background: #091522;
-        border: 1px solid #1b3047;
-        color: #fff;
-        border-radius: 13px;
-        padding: 13px;
-        cursor: pointer;
-      }
-      .quick b {
-        display: block;
-        font-size: 12px;
-      }
-      .quick span {
-        display: block;
-        color: var(--muted);
-        font-size: 10px;
-        line-height: 1.45;
-        margin-top: 5px;
-      }
-      .sys {
-        display: grid;
-        gap: 4px;
-      }
-      .sysrow {
-        display: flex;
-        justify-content: space-between;
-        border-bottom: 1px solid #16283b;
-        padding: 10px 0;
-        color: #b2c0d0;
-        font-size: 11px;
-      }
-      .ops-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .8fr) minmax(260px, .8fr); gap: 15px; margin-top: 15px; }
-      .ops-item, .distribution-row { width: 100%; border: 0; border-bottom: 1px solid #16283b; background: transparent; color: #dce6ef; padding: 11px 2px; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; cursor: pointer; }
-      .ops-item:last-child, .distribution-row:last-child { border-bottom: 0; }
-      .ops-item:hover, .distribution-row:hover { color: white; background: rgba(35, 62, 89, .24); }
-      .ops-item b { display: block; font-size: 12px; }
-      .ops-item small { display: block; color: var(--muted); margin-top: 4px; font-size: 10px; }
-      .ok {
-        color: var(--green);
-      }
-      .toolbar {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-bottom: 14px;
-      }
-      .search {
-        flex: 1;
-        min-width: 220px;
-        background: #08131f;
-        border: 1px solid #243950;
-        color: #fff;
-        border-radius: 10px;
-        padding: 10px 12px;
-        outline: none;
-      }
-      .table {
-        overflow: auto;
-        border: 1px solid var(--line);
-        border-radius: 14px;
-      }
-      .table table {
-        width: 100%;
-        border-collapse: collapse;
-        min-width: 760px;
-      }
-      .table th,
-      .table td {
-        text-align: left;
-        padding: 12px 14px;
-        border-bottom: 1px solid #17293c;
-        font-size: 11px;
-      }
-      .table th {
-        color: #8397ad;
-        font-weight: 650;
-        background: #0b1725;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-      }
-      .table tbody tr { transition: background 160ms ease; }
-      .table tbody tr:hover { background: rgba(34, 61, 88, 0.32); }
-      .table tr:last-child td {
-        border-bottom: 0;
-      }
-      .linkbtn {
-        background: none;
-        border: 0;
-        color: #9fc1ff;
-        cursor: pointer;
-        padding: 0;
-      }
-      .services {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 18px;
-      }
-      .service {
-        min-height: 148px;
-        padding: 15px;
-        background: linear-gradient(155deg, rgba(17, 35, 54, 0.92), rgba(8, 20, 33, 0.96));
-        border: 1px solid rgba(94, 122, 151, 0.3);
-        border-top-color: rgba(255, 255, 255, 0.13);
-        border-radius: 16px;
-        box-shadow: 0 15px 34px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.035);
-        cursor: pointer;
-        display: flex;
-        flex-direction: column;
-        transition: transform 190ms var(--ease), border-color 190ms var(--ease), box-shadow 190ms var(--ease);
-      }
-      .service:hover {
-        transform: translateY(-4px);
-        border-color: rgba(212, 183, 116, 0.5);
-        box-shadow: 0 22px 44px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.07);
-      }
-      .service:active {
-        transform: translateY(-1px) scale(0.985);
-      }
-      .service h3 {
-        font-size: 16px;
-        line-height: 1.35;
-        margin: 7px 0 5px;
-      }
-      .service p {
-        font-size: 11px;
-        color: var(--muted);
-        line-height: 1.5;
-        margin: 0;
-      }
-      .service-action {
-        color: var(--gold);
-        font-size: 11px;
-        font-weight: 750;
-        margin-top: auto;
-        padding-top: 13px;
-      }
-      .roles {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-      }
-      .role {
-        padding: 14px;
-        background: #0a1623;
-        border: 1px solid #1b3047;
-        border-radius: 12px;
-      }
-      .role b {
-        font-size: 12px;
-      }
-      .role small {
-        display: block;
-        color: var(--muted);
-        font-size: 10px;
-        margin-top: 5px;
-        line-height: 1.4;
-      }
-      .modal {
-        position: fixed;
-        inset: 0;
-        background: rgba(1, 6, 12, 0.78);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 18px;
-        z-index: 50;
-      }
-      .modal.show {
-        display: flex;
-        animation: modal-fade 180ms ease-out;
-      }
-      .dialog {
-        width: min(660px, 100%);
-        max-height: 90vh;
-        overflow: auto;
-        background: #0b1725;
-        border: 1px solid #2b425d;
-        border-radius: 18px;
-        padding: 21px;
-        box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
-        animation: dialog-rise 200ms var(--ease);
-      }
-      @keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
-      @keyframes dialog-rise { from { opacity: 0; transform: translateY(10px) scale(0.99); } to { opacity: 1; transform: none; } }
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
-      }
-      .form {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 11px;
-      }
-      .field {
-        display: grid;
-        gap: 6px;
-      }
-      .field.full {
-        grid-column: 1/-1;
-      }
-      .field label {
-        font-size: 10px;
-        color: #8fa2b7;
-      }
-      .field input,
-      .field select,
-      .field textarea {
-        width: 100%;
-        background: #08131f;
-        color: #fff;
-        border: 1px solid #243950;
-        border-radius: 10px;
-        padding: 11px;
-        outline: none;
-      }
-      .field textarea {
-        min-height: 90px;
-        resize: vertical;
-      }
-      .df {
-        display: flex;
-        justify-content: flex-end;
-        gap: 9px;
-        margin-top: 15px;
-      }
-      .err {
-        color: var(--red);
-        font-size: 11px;
-        min-height: 17px;
-      }
-      .login {
-        position: fixed;
-        inset: 0;
-        background: radial-gradient(circle at 50% 0, #193452, #07101b 40%);
-        z-index: 100;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-      }
-      .login.hidden {
-        display: none;
-      }
-      .loginbox {
-        width: min(430px, 100%);
-        background: #0a1725;
-        border: 1px solid #263d56;
-        border-radius: 20px;
-        padding: 27px;
-        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
-      }
-      .loginbox h2 {
-        margin: 8px 0 0;
-        font-size: 23px;
-      }
-      .loginbox p {
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.6;
-      }
-      .loginbox input {
-        width: 100%;
-        background: #07111c;
-        color: #fff;
-        border: 1px solid #29405a;
-        border-radius: 10px;
-        padding: 12px;
-        margin: 9px 0;
-      }
-      .notice {
-        padding: 12px;
-        border: 1px solid #214262;
-        background: #0a1a29;
-        border-radius: 11px;
-        color: #a8bfd4;
-        font-size: 11px;
-        line-height: 1.5;
-      }
-      .dropzone {
-        margin-top: 14px;
-        border: 1px dashed #385777;
-        background: rgba(7, 19, 31, 0.72);
-        border-radius: 16px;
-        padding: 24px;
-        text-align: center;
-        cursor: pointer;
-        transition: border-color 170ms ease, background 170ms ease, transform 170ms var(--ease);
-      }
-      .dropzone:hover, .dropzone.dragging { border-color: var(--gold); background: rgba(25, 42, 59, .82); transform: translateY(-1px); }
-      .dropzone b { display: block; font-size: 14px; }
-      .dropzone span { display: block; color: var(--muted); font-size: 11px; margin-top: 6px; }
-      .upload-preview { display: none; grid-template-columns: 1fr auto; gap: 14px; align-items: center; margin-top: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: #081522; }
-      .upload-preview.show { display: grid; }
-      .upload-progress { height: 5px; overflow: hidden; background: #12263a; border-radius: 999px; margin-top: 10px; }
-      .upload-progress > span { display: block; width: 0; height: 100%; background: var(--gold); transition: width 150ms ease; }
-      .mobile {
-        display: none;
-      }
-      .portal {
-        display: none;
-        min-height: 100vh;
-        padding: 28px;
-      }
-      .portal.active {
-        display: block;
-      }
-      .portal-shell {
-        max-width: 1120px;
-        margin: 0 auto;
-      }
-      .portal-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 24px;
-      }
-      .portal-grid {
-        display: grid;
-        grid-template-columns: 1.35fr 0.9fr;
-        gap: 16px;
-      }
-      .portal-card {
-        border: 1px solid var(--line);
-        background: var(--panel);
-        border-radius: 16px;
-        padding: 18px;
-        margin-bottom: 12px;
-      }
-      @media (max-width: 1080px) {
-        .metrics {
-          grid-template-columns: 1fr 1fr;
-        }
-        .layout {
-          grid-template-columns: 1fr;
-        }
-        .services,
-        .roles {
-          grid-template-columns: 1fr 1fr;
-        }
-        .ops-grid { grid-template-columns: 1fr 1fr; }
-        .ops-grid > :first-child { grid-column: 1 / -1; }
-      }
-      @media (max-width: 760px) {
-        .portal { padding: 18px 13px 40px; }
-        .portal-grid { grid-template-columns: 1fr; }
-        .app {
-          grid-template-columns: 1fr;
-        }
-        .side {
-          display: none;
-        }
-        .main {
-          padding: 18px 13px 84px;
-        }
-        .top {
-          align-items: flex-start;
-          flex-direction: column;
-        }
-        .title {
-          font-size: 23px;
-        }
-        .metrics {
-          grid-template-columns: 1fr 1fr;
-          gap: 9px;
-        }
-        .metric {
-          padding: 14px;
-        }
-        .metric .v {
-          font-size: 23px;
-        }
-        .row {
-          grid-template-columns: 1fr auto;
-        }
-        .hide-sm {
-          display: none;
-        }
-        .services,
-        .roles {
-          grid-template-columns: 1fr;
-        }
-        .ops-grid { grid-template-columns: 1fr; }
-        .ops-grid > :first-child { grid-column: auto; }
-        .form {
-          grid-template-columns: 1fr;
-        }
-        .mobile {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          position: fixed;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: #091522;
-          border-top: 1px solid #1f3147;
-          z-index: 20;
-        }
-        .mobile button {
-          all: unset;
-          padding: 12px 3px;
-          text-align: center;
-          color: #8ea1b6;
-          font-size: 9px;
-        }
-        .mobile button.active {
-          color: var(--gold);
-        }
-      }
-      html[dir="rtl"] body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; }
-      html[dir="rtl"] .side { right: 0; left: auto; border-right: 0; border-left: 1px solid #1f3147; }
-      html[dir="rtl"] .main { margin-left: 0; margin-right: 250px; }
-      html[dir="rtl"] .nav button, html[dir="rtl"] .field, html[dir="rtl"] .workspace-card, html[dir="rtl"] .workspace-stat { text-align: right; }
-      .language-switcher { background:#0d2238;color:#f3f5f7;border:1px solid #29405a;border-radius:9px;padding:9px 11px;min-width:105px; }
-      .global-search-wrap { position:relative; min-width:min(360px,32vw); }
-      .global-search-wrap .search { width:100%; background:#fff; }
-      .global-search-results { display:none; position:absolute; inset:calc(100% + 7px) 0 auto; max-height:390px; overflow:auto; background:#fff;border:1px solid #d7dee7;border-radius:11px;box-shadow:0 18px 45px rgba(6,21,38,.17);z-index:40;padding:7px; }
-      .global-search-results.show { display:grid; }
-      .global-search-results button { border:0;background:transparent;padding:11px;text-align:left;border-radius:8px;display:grid;gap:3px;cursor:pointer;color:#102033; }
-      .global-search-results button:hover,.global-search-results button:focus-visible { background:#f1f4f7;outline:2px solid #b99345; }
-      .global-search-results span { color:#66778a;font-size:12px; }
-      .workspace-dialog { width:min(1320px,96vw);max-height:94vh;padding:0;overflow:hidden; }
-      .workspace-head { background:linear-gradient(130deg,#071a2f,#102d4a);color:#fff;padding:25px 28px;border-bottom:3px solid #b99345; }
-      .workspace-identity { display:flex;align-items:center;gap:16px; }
-      .workspace-avatar { width:68px;height:68px;border-radius:15px;background:#b99345;color:#071a2f;display:grid;place-items:center;font-size:22px;font-weight:800;overflow:hidden;flex:0 0 auto; }
-      .workspace-avatar img { width:100%;height:100%;object-fit:cover; }
-      .workspace-numbers { display:flex;gap:9px;flex-wrap:wrap;margin-top:7px;color:#cfdae5;font-size:12px; }
-      .workspace-numbers b { color:#efd492; }
-      .workspace-header-actions { display:flex;gap:8px;align-items:center; }
-      .workspace-facts { display:grid;grid-template-columns:repeat(4,minmax(125px,1fr));gap:1px;background:#dbe2e9;border-bottom:1px solid #dbe2e9; }
-      .workspace-fact { padding:12px 14px;background:#fff;min-height:63px; }
-      .workspace-fact span,.workspace-stat span { display:block;color:#6b7b8c;font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px; }
-      .workspace-tabs { display:flex;gap:4px;overflow-x:auto;padding:12px 16px;border-bottom:1px solid #dfe5eb;background:#f7f9fb;scrollbar-width:thin; }
-      .workspace-tab { white-space:nowrap;border:1px solid transparent;background:transparent;border-radius:8px;padding:9px 12px;color:#536578;cursor:pointer;font-weight:650; }
-      .workspace-tab.active { background:#071a2f;color:#fff;border-color:#071a2f; }
-      .workspace-body { padding:22px;overflow:auto;max-height:calc(94vh - 300px);background:#f3f6f9; }
-      .workspace-panel { display:none; }
-      .workspace-panel.active { display:block; }
-      .workspace-summary { display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px; }
-      .workspace-stat,.workspace-card,.workspace-note { background:#fff;border:1px solid #dfe5eb;border-radius:10px;padding:14px;box-shadow:0 4px 14px rgba(14,38,61,.04); }
-      .workspace-card { display:grid;gap:4px;margin-bottom:9px; }
-      .workspace-card span,.workspace-card small { color:#657588; }
-      .workspace-note { margin-top:12px;line-height:1.7; }
-      .timeline-item { display:grid;grid-template-columns:14px 1fr;gap:12px;position:relative;padding-bottom:15px; }
-      .timeline-item>span { width:10px;height:10px;border:2px solid #b99345;border-radius:50%;margin-top:4px;background:#fff; }
-      .timeline-item p { margin:3px 0;color:#6b7b8c;font-size:12px; }
-      .settings-grid { display:grid;grid-template-columns:1.4fr .8fr;gap:16px; }
-      .logo-settings { display:flex;align-items:center;gap:15px;margin-bottom:18px; }
-      .office-logo-preview { width:84px;height:84px;border-radius:15px;border:1px solid #dce3ea;background:#071a2f;color:#d7b76b;display:grid;place-items:center;font-size:32px;font-weight:800;overflow:hidden; }
-      .office-logo-preview img { width:100%;height:100%;object-fit:contain;background:#fff; }
-      @media (max-width:1000px){.workspace-facts{grid-template-columns:repeat(3,1fr)}.settings-grid{grid-template-columns:1fr}.global-search-wrap{min-width:220px}}
-      @media (max-width:700px){html[dir="rtl"] .main{margin-right:0}.global-search-wrap{order:3;width:100%;min-width:0}.workspace-facts{grid-template-columns:repeat(2,1fr)}.workspace-head{padding:16px}.workspace-head .ph,.workspace-identity{align-items:flex-start}.workspace-header-actions{width:100%;justify-content:flex-end}.workspace-dialog{width:100vw;height:100dvh;max-height:100dvh;border-radius:0}.workspace-body{padding:13px;max-height:calc(100dvh - 350px)}.workspace-tab,.btn,.linkbtn,.language-switcher{min-height:44px}.portal-shell{padding:16px}.portal-head{align-items:flex-start;gap:14px}.portal-head,.portal-head>div:last-child{flex-wrap:wrap}.portal-grid{grid-template-columns:1fr}.dialog{width:100vw;max-width:none;max-height:100dvh;border-radius:0}.table{overflow-x:auto;-webkit-overflow-scrolling:touch}}
-      .document-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-top:16px}.document-grid[hidden]{display:none}.document-card{border:1px solid var(--line);border-radius:16px;padding:16px;background:var(--surface);display:grid;gap:9px;min-width:0}.document-card b{overflow-wrap:anywhere}.document-card small{color:var(--muted)}.document-toolbar{margin-top:14px;flex-wrap:wrap}.document-toolbar .search{min-width:220px}.preview-dialog{width:min(1100px,96vw);height:min(880px,92vh);display:flex;flex-direction:column}.preview-dialog iframe{width:100%;flex:1;min-height:420px;border:1px solid var(--line);border-radius:14px;background:white}.chat-compose{display:grid;gap:10px;margin-bottom:16px}.chat-compose textarea{min-height:84px}.chat-message{border-inline-start:3px solid var(--gold);padding:10px 12px;margin:8px 0;background:var(--soft);border-radius:10px}.chat-message small{display:block;color:var(--muted);margin-top:5px}@media(max-width:700px){.document-grid{grid-template-columns:1fr}.preview-dialog{height:96vh}.preview-dialog iframe{min-height:300px}}
-    </style>
+    <link rel="stylesheet" href="/app.css" />
   </head>
   <body>
     <div class="login" id="login">
       <div class="loginbox" id="loginBox">
-        <div style="display:flex;justify-content:flex-end"><select class="language-switcher" data-act="switchLanguage" data-on="change" aria-label="Language"><option value="English">English</option><option value="Arabic">العربية</option></select></div>
+        <div class="u-406e13d184"><select class="language-switcher" data-act="switchLanguage" data-on="change" aria-label="Language"><option value="English">English</option><option value="Arabic">العربية</option></select></div>
         <div class="logo">A</div>
         <div class="eyebrow">Secure production workspace</div>
         <h2>Alhijrah Caseflow</h2>
@@ -818,12 +36,12 @@
           autocomplete="current-password"
         />
         <div class="err" id="loginErr"></div>
-        <button id="signInBtn" class="btn primary" style="width: 100%" data-act="signIn">
+        <button id="signInBtn" class="btn primary u-20e5983dc7" data-act="signIn">
           Sign In
         </button>
       </div>
-      <div class="loginbox" id="inviteSetup" style="display:none">
-        <div style="display:flex;justify-content:flex-end"><select class="language-switcher" data-act="switchLanguage" data-on="change" aria-label="Language"><option value="English">English</option><option value="Arabic">العربية</option></select></div>
+      <div class="loginbox" id="inviteSetup" hidden>
+        <div class="u-406e13d184"><select class="language-switcher" data-act="switchLanguage" data-on="change" aria-label="Language"><option value="English">English</option><option value="Arabic">العربية</option></select></div>
         <div class="logo">A</div>
         <div class="eyebrow">Secure account activation</div>
         <h2>Create your password</h2>
@@ -831,31 +49,31 @@
         <input id="invitePassword" type="password" placeholder="New password" autocomplete="new-password" />
         <input id="invitePasswordConfirm" type="password" placeholder="Confirm password" autocomplete="new-password" />
         <div class="err" id="inviteSetupErr"></div>
-        <button id="acceptInviteBtn" class="btn primary" style="width:100%" data-act="acceptInvite">Activate Account</button>
+        <button id="acceptInviteBtn" class="btn primary u-b7aa1ec004" data-act="acceptInvite">Activate Account</button>
       </div>
     </div>
     <div class="portal" id="clientPortal">
       <div class="portal-shell">
         <div class="portal-head">
-          <div class="brand" style="padding:0"><div class="logo">A</div><div><b>MY ALHIJRAH</b><small>Secure Client Portal</small></div></div>
-          <div style="display:flex;gap:8px"><select class="language-switcher" data-act="switchLanguage" data-on="change" aria-label="Language"><option value="English">English</option><option value="Arabic">العربية</option></select><button id="portalSignOutBtn" class="btn" data-act="signOut" data-i18n="signOut">Sign Out</button></div>
+          <div class="brand u-35eecf3e83"><div class="logo">A</div><div><b id="portalBrandName">MY ALHIJRAH</b><small id="portalBrandType">Secure Client Portal</small></div></div>
+          <div class="u-9c40389b4a"><select class="language-switcher" data-act="switchLanguage" data-on="change" aria-label="Language"><option value="English">English</option><option value="Arabic">العربية</option></select><button id="portalSignOutBtn" class="btn" data-act="signOut" data-i18n="signOut">Sign Out</button></div>
         </div>
         <div class="eyebrow" data-i18n="yourProtectedWorkspace">Your protected workspace</div>
-        <h1 class="title" style="margin-bottom:22px" data-i18n="caseStatusNextActions">Case status and next actions</h1>
+        <h1 class="title u-36fd066838" data-i18n="caseStatusNextActions">Case status and next actions</h1>
         <div class="err" id="portalErr"></div>
         <div class="portal-grid">
           <div>
             <div class="panel"><div class="ph"><div><h2 data-i18n="yourCases">Your Cases</h2><span data-i18n="currentOfficeWorkflow">Current office workflow status</span></div><button class="btn" data-act="loadPortal" data-i18n="refresh">Refresh</button></div><div id="portalCases"><div class="empty" data-i18n="loading">Loading…</div></div></div>
-            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="requestedDocuments">Requested Documents</h2><span data-i18n="uploadCorrectRequest">Upload directly to the correct request</span></div></div><div id="portalRequests"></div></div>
-            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="yourDocuments">Your Documents</h2><span data-i18n="secureDocumentHistory">Secure upload and review history</span></div></div><div id="portalDocuments"></div></div>
-            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="authorizedBilling">Authorized Billing</h2><span data-i18n="visibleInvoicesOnly">Only invoices released to your account</span></div></div><div id="portalBilling"></div></div>
+            <div class="panel u-92c18f6bda"><div class="ph"><div><h2 data-i18n="requestedDocuments">Requested Documents</h2><span data-i18n="uploadCorrectRequest">Upload directly to the correct request</span></div></div><div id="portalRequests"></div></div>
+            <div class="panel u-92c18f6bda"><div class="ph"><div><h2 data-i18n="yourDocuments">Your Documents</h2><span data-i18n="secureDocumentHistory">Secure upload and review history</span></div></div><div id="portalDocuments"></div></div>
+            <div class="panel u-92c18f6bda"><div class="ph"><div><h2 data-i18n="authorizedBilling">Authorized Billing</h2><span data-i18n="visibleInvoicesOnly">Only invoices released to your account</span></div></div><div id="portalBilling"></div></div>
           </div>
           <div>
             <div class="panel"><div class="ph"><div><h2 data-i18n="appointments">Appointments</h2><span data-i18n="upcomingScheduledEvents">Upcoming scheduled events</span></div></div><div id="portalAppointments"></div></div>
-            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="deadlines">Deadlines</h2><span data-i18n="clientVisibleDeadlines">Dates released by your case team</span></div></div><div id="portalDeadlines"></div></div>
-            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="notifications">Notifications</h2><span data-i18n="caseAlerts">Case alerts and required attention</span></div></div><div id="portalNotifications"></div></div>
-            <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="profile">Profile</h2><span data-i18n="protectedClientRecord">Protected client record</span></div></div><div id="portalProfile"></div></div>
-            <div class="notice" style="margin-top:16px" data-i18n="secureStorageNotice">Documents are sent through secure storage. Do not send passwords for government accounts.</div>
+            <div class="panel u-92c18f6bda"><div class="ph"><div><h2 data-i18n="deadlines">Deadlines</h2><span data-i18n="clientVisibleDeadlines">Dates released by your case team</span></div></div><div id="portalDeadlines"></div></div>
+            <div class="panel u-92c18f6bda"><div class="ph"><div><h2 data-i18n="notifications">Notifications</h2><span data-i18n="caseAlerts">Case alerts and required attention</span></div></div><div id="portalNotifications"></div></div>
+            <div class="panel u-92c18f6bda"><div class="ph"><div><h2 data-i18n="profile">Profile</h2><span data-i18n="protectedClientRecord">Protected client record</span></div></div><div id="portalProfile"></div></div>
+            <div class="notice u-92c18f6bda" data-i18n="secureStorageNotice">Documents are sent through secure storage. Do not send passwords for government accounts.</div>
           </div>
         </div>
       </div>
@@ -886,7 +104,7 @@
           ><button data-view="settings" data-i18n="settings">Settings</button>
         </div>
         <div class="sidefoot">
-          <div id="ownerProfile" style="display:grid;gap:3px;margin-bottom:12px"><b>Authenticated user</b><small style="color:var(--muted)">Loading access…</small></div>
+          <div id="ownerProfile" class="u-edb53bbf3a"><b>Authenticated user</b><small class="u-eac7694072">Loading access…</small></div>
           Production Environment<br /><span id="version">Version —</span>
         </div>
       </aside>
@@ -987,7 +205,7 @@
                   </button>
                 </div>
               </div>
-              <div class="panel" style="margin-top: 15px">
+              <div class="panel u-d13405ae7c">
                 <div class="ph">
                   <div>
                     <h2>Infrastructure</h2>
@@ -1006,7 +224,7 @@
                   </div>
                 </div>
               </div>
-              <div class="panel" style="margin-top: 15px">
+              <div class="panel u-d13405ae7c">
                 <div class="ph"><div><h2>Operational Alerts</h2><span>Deadlines, tasks, and expiring records</span></div><button class="btn" data-act="refreshAlerts">Refresh</button></div>
                 <div id="alertList"><div class="empty">Loading alerts…</div></div>
               </div>
@@ -1106,14 +324,14 @@
               <span>PDF, JPG, PNG, WebP, DOC or DOCX · Maximum 25MB</span>
             </div>
             <input id="docFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.doc,.docx" hidden />
-            <div class="upload-preview" id="docPreview"><div><b id="docPreviewName"></b><small id="docPreviewMeta" style="display:block;color:var(--muted);margin-top:4px"></small><div class="upload-progress"><span id="docProgress"></span></div></div><button class="btn" data-act="clearDocumentFile">Remove</button></div>
-            <div class="df" style="justify-content: flex-start">
+            <div class="upload-preview" id="docPreview"><div><b id="docPreviewName"></b><small id="docPreviewMeta" class="u-dcdd0797cb"></small><div class="upload-progress"><span id="docProgress"></span></div></div><button class="btn" data-act="clearDocumentFile">Remove</button></div>
+            <div class="df u-8d07fad8b7">
               <button class="btn primary" id="documentUploadButton" data-act="uploadDocument">
                 Upload Document</button
               ><button class="btn" data-act="loadDocuments">Refresh</button>
             </div>
             <div class="err" id="docErr"></div>
-            <div class="table" style="margin-top: 15px">
+            <div class="table u-d13405ae7c">
               <table>
                 <thead>
                   <tr>
@@ -1177,29 +395,29 @@
           </div>
         </section>
         <section class="view" id="view-roles">
-          <div class="panel" style="margin-bottom: 15px">
+          <div class="panel u-e83efe872a">
             <div class="ph"><div><h2>Team</h2><span>Authenticated users and assigned roles</span></div></div>
             <div class="form">
               <div class="field"><label>Name</label><input id="inviteName" /></div>
               <div class="field"><label>Email</label><input id="inviteEmail" type="email" /></div>
               <div class="field"><label>Role</label><select id="inviteRole"></select></div>
-              <div class="field" style="align-self:end"><button class="btn primary" data-act="inviteUser">Invite User</button></div>
+              <div class="field u-edcd900711"><button class="btn primary" data-act="inviteUser">Invite User</button></div>
             </div>
             <div class="err" id="teamErr"></div>
-            <div class="table" style="margin-top:15px"><table><thead><tr><th>User</th><th>Roles</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody id="teamTable"></tbody></table></div>
+            <div class="table u-d108cd5406"><table><thead><tr><th>User</th><th>Roles</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody id="teamTable"></tbody></table></div>
           </div>
           <div class="roles" id="roleGrid"></div>
         </section>
         <section class="view" id="view-reviews">
           <div class="panel"><div class="ph"><div><h2>Case Review Queue</h2><span>Matters awaiting controlled review</span></div><button class="btn" data-act="loadReviewQueue">Refresh</button></div><div class="table"><table><thead><tr><th>Case</th><th>Service</th><th>Workflow</th><th>Review State</th><th>Priority</th></tr></thead><tbody id="reviewCaseTable"></tbody></table></div></div>
-          <div class="panel" style="margin-top:16px"><div class="ph"><div><h2>Document Review Queue</h2><span>Received or returned documents</span></div></div><div class="table"><table><thead><tr><th>Document</th><th>Category</th><th>Status</th><th>Received</th><th></th></tr></thead><tbody id="reviewDocumentTable"></tbody></table></div><div class="err" id="reviewErr"></div></div>
+          <div class="panel u-92c18f6bda"><div class="ph"><div><h2>Document Review Queue</h2><span>Received or returned documents</span></div></div><div class="table"><table><thead><tr><th>Document</th><th>Category</th><th>Status</th><th>Received</th><th></th></tr></thead><tbody id="reviewDocumentTable"></tbody></table></div><div class="err" id="reviewErr"></div></div>
         </section>
         <section class="view" id="view-billing">
           <div class="panel"><div class="ph"><div><h2>Invoices</h2><span>Office, government, and other fees remain separated</span></div><button class="btn primary" data-act="openInvoice">+ New Invoice</button></div><div class="table"><table><thead><tr><th>Invoice</th><th>Client</th><th>Office Fee</th><th>Government Fee</th><th>Total</th><th>Status</th></tr></thead><tbody id="invoiceTable"></tbody></table></div><div class="err" id="billingErr"></div></div>
         </section>
         <section class="view" id="view-reports">
           <div class="metrics"><div class="metric"><div class="k">Open Cases</div><div class="v" id="reportCases">—</div></div><div class="metric"><div class="k">Overdue Tasks</div><div class="v" id="reportTasks">—</div></div><div class="metric"><div class="k">Open Deadlines</div><div class="v" id="reportDeadlines">—</div></div><div class="metric"><div class="k">Documents</div><div class="v" id="reportDocuments">—</div></div></div>
-          <div class="panel"><div class="ph"><div><h2>Operational Breakdown</h2><span>Current persistent records</span></div><button class="btn" data-act="loadReports">Refresh</button></div><div id="reportDetails"></div><div class="err" id="reportErr"></div></div>
+          <div class="panel"><div class="ph"><div><h2>Operational Breakdown</h2><span>Current persistent records</span></div><div class="df"><label class="field"><span>From</span><input id="reportFrom" type="date"></label><label class="field"><span>To</span><input id="reportTo" type="date"></label><button class="btn" data-act="loadReports">Refresh</button><button class="btn" data-act="downloadReports">Export CSV</button></div></div><div id="reportDetails"></div><div class="err" id="reportErr"></div></div>
         </section>
         <section class="view" id="view-audit">
           <div class="panel">
@@ -1302,10 +520,10 @@
           </div>
         </section>
         <section class="view" id="view-imports">
-          <div class="panel"><div class="ph"><div><div class="eyebrow" data-i18n="bulkImport">Bulk Client &amp; Case Import</div><h2 data-i18n="importCenter">Import Center</h2><span data-i18n="importSafety">Files remain in protected staging until a human approves the dry run.</span></div><button class="btn" data-act="loadImports" data-i18n="refresh">Refresh</button></div><div class="doc-dropzone" id="importDropzone" data-act="chooseImportFile" role="button" tabindex="0"><b data-i18n="dropSpreadsheet">Drop XLSX or UTF-8 CSV here</b><span data-i18n="browseSpreadsheet">or choose a spreadsheet · 25 MB maximum · 10,000 rows</span></div><input id="importFile" type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><div class="upload-progress" style="margin-top:12px"><span id="importProgress"></span></div><div class="err" id="importErr"></div></div>
-          <div class="metrics" id="importMetrics" style="margin-top:16px"></div>
-          <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="stagedImports">Staged Imports</h2><span data-i18n="importWorkflow">Map, validate, review, approve, then process in the background.</span></div></div><div class="table"><table><thead><tr><th data-i18n="filename">Filename</th><th data-i18n="status">Status</th><th data-i18n="rows">Rows</th><th data-i18n="progress">Progress</th><th></th></tr></thead><tbody id="importBatchTable"></tbody></table></div></div>
-          <div class="panel" id="importReviewPanel" style="display:none;margin-top:16px"><div class="ph"><div><h2 id="importReviewTitle" data-i18n="humanReview">Human Review</h2><span id="importReviewSummary"></span></div><div class="df"><button class="btn" data-act="saveImportMapping" data-i18n="saveMapping">Save Mapping</button><button class="btn" data-act="runImportDryRun" data-i18n="dryRun">Dry Run</button><button class="btn" data-act="downloadImportReport" data-a1="csv" data-i18n="csvReport">CSV Report</button><button class="btn" data-act="downloadImportReport" data-a1="xlsx" data-i18n="xlsxReport">XLSX Report</button><button class="btn primary" data-act="approveImport" data-i18n="approveImport">Approve Import</button><button class="btn primary" data-act="processImport" data-i18n="startImport">Start Import</button></div></div><div class="form" id="importMapping" style="margin-bottom:16px"></div><div class="table"><table><thead><tr><th data-i18n="sourceRow">Source Row</th><th data-i18n="client">Client</th><th data-i18n="service">Service</th><th data-i18n="duplicateDecision">Duplicate Decision</th><th data-i18n="validation">Validation</th><th></th></tr></thead><tbody id="importRowTable"></tbody></table></div></div>
+          <div class="panel"><div class="ph"><div><div class="eyebrow" data-i18n="bulkImport">Bulk Client &amp; Case Import</div><h2 data-i18n="importCenter">Import Center</h2><span data-i18n="importSafety">Files remain in protected staging until a human approves the dry run.</span></div><button class="btn" data-act="loadImports" data-i18n="refresh">Refresh</button></div><div class="doc-dropzone" id="importDropzone" data-act="chooseImportFile" role="button" tabindex="0"><b data-i18n="dropSpreadsheet">Drop XLSX or UTF-8 CSV here</b><span data-i18n="browseSpreadsheet">or choose a spreadsheet · 25 MB maximum · 10,000 rows</span></div><input id="importFile" type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><div class="upload-progress u-0ee7f66ad9"><span id="importProgress"></span></div><div class="err" id="importErr"></div></div>
+          <div class="metrics u-92c18f6bda" id="importMetrics"></div>
+          <div class="panel u-92c18f6bda"><div class="ph"><div><h2 data-i18n="stagedImports">Staged Imports</h2><span data-i18n="importWorkflow">Map, validate, review, approve, then process in the background.</span></div></div><div class="table"><table><thead><tr><th data-i18n="filename">Filename</th><th data-i18n="status">Status</th><th data-i18n="rows">Rows</th><th data-i18n="progress">Progress</th><th></th></tr></thead><tbody id="importBatchTable"></tbody></table></div></div>
+          <div class="panel u-92c18f6bda" id="importReviewPanel" hidden><div class="ph"><div><h2 id="importReviewTitle" data-i18n="humanReview">Human Review</h2><span id="importReviewSummary"></span></div><div class="df"><button class="btn" data-act="saveImportMapping" data-i18n="saveMapping">Save Mapping</button><button class="btn" data-act="runImportDryRun" data-i18n="dryRun">Dry Run</button><button class="btn" data-act="downloadImportReport" data-a1="csv" data-i18n="csvReport">CSV Report</button><button class="btn" data-act="downloadImportReport" data-a1="xlsx" data-i18n="xlsxReport">XLSX Report</button><button class="btn primary" data-act="approveImport" data-i18n="approveImport">Approve Import</button><button class="btn primary" data-act="processImport" data-i18n="startImport">Start Import</button></div></div><div class="form u-bf4a218e05" id="importMapping"></div><div class="table"><table><thead><tr><th data-i18n="sourceRow">Source Row</th><th data-i18n="client">Client</th><th data-i18n="service">Service</th><th data-i18n="duplicateDecision">Duplicate Decision</th><th data-i18n="validation">Validation</th><th></th></tr></thead><tbody id="importRowTable"></tbody></table></div></div>
         </section>
         <section class="view" id="view-settings">
           <div class="settings-grid">
@@ -1323,7 +541,7 @@
               </div><div class="df"><button class="btn primary" data-act="saveOfficeSettings" data-i18n="saveSettings">Save Settings</button></div>
             </div>
             <div><div class="panel"><div class="ph"><div><h2 data-i18n="staffProfile">Staff Profile</h2><span>Personal display and interface language</span></div></div><div class="form"><div class="field full"><label data-i18n="displayName">Display Name</label><input id="profileDisplayName"></div><div class="field full"><label data-i18n="preferredLanguage">Preferred Language</label><select id="profileLanguage"><option value="English">English</option><option value="Arabic">العربية</option></select></div></div><div class="df"><button class="btn primary" data-act="saveProfileSettings" data-i18n="saveProfile">Save Profile</button></div></div>
-              <div class="panel" style="margin-top:16px"><div class="ph"><div><h2 data-i18n="workspaceSettings">Workspace Settings</h2><span>Production configuration status</span></div></div><div class="sys"><div class="sysrow"><span>Environment</span><b class="ok">Production</b></div><div class="sysrow"><span>Database</span><b id="setDb">Checking</b></div><div class="sysrow"><span>Object Storage</span><b id="setR2">Checking</b></div><div class="sysrow"><span>Email Delivery</span><b id="emailProviderStatus">Checking</b></div></div></div>
+              <div class="panel u-92c18f6bda"><div class="ph"><div><h2 data-i18n="workspaceSettings">Workspace Settings</h2><span>Production configuration status</span></div></div><div class="sys"><div class="sysrow"><span>Environment</span><b class="ok">Production</b></div><div class="sysrow"><span>Database</span><b id="setDb">Checking</b></div><div class="sysrow"><span>Object Storage</span><b id="setR2">Checking</b></div><div class="sysrow"><span>Email Delivery</span><b id="emailProviderStatus">Checking</b></div></div></div>
             </div>
           </div><div class="err" id="settingsErr"></div>
         </section>
@@ -1337,14 +555,14 @@
     </div>
     <div class="modal" id="caseWorkspaceModal">
       <div class="dialog workspace-dialog">
-        <div class="workspace-head"><div class="ph" style="margin:0"><div class="workspace-identity"><div class="workspace-avatar" id="workspaceAvatar">A</div><div><div class="eyebrow" style="color:#d7b76b" data-i18n="caseWorkspace">Case Workspace</div><h2 id="workspaceClientName" style="margin:3px 0">Client</h2><div class="workspace-numbers"><span><span data-i18n="clientNumber">Client Number</span>: <b id="workspaceClientNumber">—</b></span><span><span data-i18n="caseNumber">Case Number</span>: <b id="workspaceCaseNumber">—</b></span></div></div></div><div class="workspace-header-actions"><button class="btn" id="workspaceEditButton" data-act="openCaseEditor" data-i18n="edit">Edit</button><button class="btn" data-act="closeCaseWorkspace" data-i18n="close">Close</button></div></div></div>
+        <div class="workspace-head"><div class="ph u-ab79ea2b85"><div class="workspace-identity"><div class="workspace-avatar" id="workspaceAvatar">A</div><div><div class="eyebrow u-edb61a989d" data-i18n="caseWorkspace">Case Workspace</div><h2 id="workspaceClientName" class="u-3ec3e1cc94">Client</h2><div class="workspace-numbers"><span><span data-i18n="clientNumber">Client Number</span>: <b id="workspaceClientNumber">—</b></span><span><span data-i18n="caseNumber">Case Number</span>: <b id="workspaceCaseNumber">—</b></span></div></div></div><div class="workspace-header-actions"><button class="btn" id="workspaceEditButton" data-act="openCaseEditor" data-i18n="edit">Edit</button><button class="btn" data-act="closeCaseWorkspace" data-i18n="close">Close</button></div></div></div>
         <div class="workspace-facts">
           <div class="workspace-fact"><span data-i18n="service">Service</span><b id="workspaceService">—</b></div><div class="workspace-fact"><span data-i18n="status">Status</span><b id="workspaceStatus">—</b></div><div class="workspace-fact"><span data-i18n="priority">Priority</span><b id="workspacePriority">—</b></div><div class="workspace-fact"><span data-i18n="assigned">Assigned</span><b id="workspaceAssigned">—</b></div><div class="workspace-fact"><span data-i18n="workflowStage">Workflow Stage</span><b id="workspaceStage">—</b></div><div class="workspace-fact"><span data-i18n="latestActivity">Latest Activity</span><b id="workspaceLatest">—</b></div><div class="workspace-fact"><span data-i18n="nextDeadline">Next Deadline</span><b id="workspaceDeadline">—</b></div><div class="workspace-fact"><span data-i18n="outstandingBalance">Outstanding Balance</span><b id="workspaceBalance">—</b></div>
         </div>
         <div class="workspace-tabs">
-          <button class="workspace-tab active" data-act="switchWorkspaceTab" data-a1="overview" data-i18n="overview">Overview</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="journey" data-i18n="caseJourney">Case Journey</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="profile" data-i18n="clientProfile">Client Profile</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="intake" data-i18n="intake">Intake</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="participants" data-i18n="participants">Participants</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="forms" data-i18n="forms">Forms & Review</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="documents" data-i18n="documents">Documents</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="actions" data-i18n="requiredActions">Required Actions</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="tasks" data-i18n="tasks">Tasks</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="deadlines" data-i18n="deadlines">Deadlines</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="appointments" data-i18n="appointments">Appointments</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="communications" data-i18n="communications">Communications</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="billing" data-i18n="billing">Billing</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="notes" data-i18n="internalNotes">Internal Notes</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="team" data-i18n="teamHub">Team Hub</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="audit" data-i18n="activityAudit">Activity / Audit</button>
+          <button class="workspace-tab active" data-act="switchWorkspaceTab" data-a1="overview" data-i18n="overview">Overview</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="journey" data-i18n="caseJourney">Case Journey</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="profile" data-i18n="clientProfile">Client Profile</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="intake" data-i18n="intake">Intake</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="participants" data-i18n="participants">Participants</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="forms" data-i18n="forms">Forms & Review</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="documents" data-i18n="documents">Documents</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="rfe" data-i18n="rfeCenter">RFE / Evidence</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="actions" data-i18n="requiredActions">Required Actions</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="tasks" data-i18n="tasks">Tasks</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="deadlines" data-i18n="deadlines">Deadlines</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="appointments" data-i18n="appointments">Appointments</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="communications" data-i18n="communications">Communications</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="billing" data-i18n="billing">Billing</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="notes" data-i18n="internalNotes">Internal Notes</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="team" data-i18n="teamHub">Team Hub</button><button class="workspace-tab" data-act="switchWorkspaceTab" data-a1="audit" data-i18n="activityAudit">Activity / Audit</button>
         </div>
-        <div class="workspace-body"><section class="workspace-panel active" id="workspace-overview"></section><section class="workspace-panel" id="workspace-journey"></section><section class="workspace-panel" id="workspace-profile"></section><section class="workspace-panel" id="workspace-intake"></section><section class="workspace-panel" id="workspace-participants"></section><section class="workspace-panel" id="workspace-forms"></section><section class="workspace-panel" id="workspace-documents"></section><section class="workspace-panel" id="workspace-actions"></section><section class="workspace-panel" id="workspace-tasks"></section><section class="workspace-panel" id="workspace-deadlines"></section><section class="workspace-panel" id="workspace-appointments"></section><section class="workspace-panel" id="workspace-communications"></section><section class="workspace-panel" id="workspace-billing"></section><section class="workspace-panel" id="workspace-notes"></section><section class="workspace-panel" id="workspace-team"></section><section class="workspace-panel" id="workspace-audit"></section></div>
+        <div class="workspace-body"><section class="workspace-panel active" id="workspace-overview"></section><section class="workspace-panel" id="workspace-journey"></section><section class="workspace-panel" id="workspace-profile"></section><section class="workspace-panel" id="workspace-intake"></section><section class="workspace-panel" id="workspace-participants"></section><section class="workspace-panel" id="workspace-forms"></section><section class="workspace-panel" id="workspace-documents"></section><section class="workspace-panel" id="workspace-rfe"></section><section class="workspace-panel" id="workspace-actions"></section><section class="workspace-panel" id="workspace-tasks"></section><section class="workspace-panel" id="workspace-deadlines"></section><section class="workspace-panel" id="workspace-appointments"></section><section class="workspace-panel" id="workspace-communications"></section><section class="workspace-panel" id="workspace-billing"></section><section class="workspace-panel" id="workspace-notes"></section><section class="workspace-panel" id="workspace-team"></section><section class="workspace-panel" id="workspace-audit"></section></div>
       </div>
     </div>
     <div class="modal" id="documentPreviewModal"><div class="dialog preview-dialog"><div class="ph"><div><h2 id="previewDocumentName">Document preview</h2><span id="previewDocumentMeta"></span></div><button class="btn" data-act="closeDocumentPreview">Close</button></div><iframe id="documentPreviewFrame" title="Secure document preview"></iframe><div class="df"><button class="btn" data-act="closeDocumentPreview">Close</button><button class="btn primary" id="previewDownloadButton" data-act="downloadDoc">Download</button></div></div></div>
@@ -1371,7 +589,7 @@
           </div>
           <div class="field">
             <label>Case type</label
-            ><select id="caseType"></select>
+            ><select id="caseType" data-act="selectCaseService" data-on="change"></select>
           </div>
           <div class="field">
             <label>Status</label
@@ -1415,16 +633,16 @@
           <button class="btn" data-act="closeClient">Close</button>
         </div>
         <input type="hidden" id="editClientId" />
-        <div class="sys" style="margin-bottom:16px">
-          <div class="ph" style="margin-bottom:10px">
+        <div class="sys u-bf4a218e05">
+          <div class="ph u-b922c89f16">
             <div><div class="eyebrow">Smart identity intake</div><b>Passport or government ID</b></div>
             <button class="btn" data-act="chooseIdentityFile">Upload identity</button>
           </div>
           <input id="identityFile" type="file" accept="image/jpeg,image/png,image/webp" hidden />
-          <p class="muted" style="margin:0">The image is processed by OCR and MRZ validation. Nothing is saved until a person reviews and confirms the extracted fields.</p>
-          <div class="upload-progress" style="margin-top:10px"><span id="identityProgress"></span></div>
-          <div id="identityStatus" class="muted" style="margin-top:8px"></div>
-          <div id="identityReview" style="display:none;margin-top:14px">
+          <p class="muted u-ab79ea2b85">The image is processed by OCR and MRZ validation. Nothing is saved until a person reviews and confirms the extracted fields.</p>
+          <div class="upload-progress u-df928149c5"><span id="identityProgress"></span></div>
+          <div id="identityStatus" class="muted u-43a97fe494"></div>
+          <div id="identityReview" class="u-c53ea1da23" hidden>
             <div class="form">
               <div class="field full"><label>Reviewed legal name</label><input id="identityLegalName" /></div>
               <div class="field"><label>Reviewed date of birth</label><input id="identityDob" type="date" /></div>
@@ -1434,8 +652,8 @@
               <div class="field"><label>Reviewed issuing country</label><input id="identityCountry" /></div>
               <div class="field"><label>Reviewed expiration date</label><input id="identityExpiration" type="date" /></div>
             </div>
-            <label style="display:flex;gap:9px;align-items:flex-start;margin-top:12px"><input id="identityConfirmed" type="checkbox" /> <span>I reviewed the image and confirm these fields are accurate.</span></label>
-            <div class="df" style="justify-content:flex-start;margin-top:12px"><button class="btn primary" data-act="confirmIdentityAutofill">Confirm, autofill and save</button></div>
+            <label class="u-cb34eab728"><input id="identityConfirmed" type="checkbox" /> <span>I reviewed the image and confirm these fields are accurate.</span></label>
+            <div class="df u-621560b5d1"><button class="btn primary" data-act="confirmIdentityAutofill">Confirm, autofill and save</button></div>
           </div>
         </div>
         <div class="form">
@@ -1513,7 +731,7 @@
       <div class="dialog">
         <div class="ph"><div><div class="eyebrow">Case workspace</div><h2 id="portalCaseTitle">Case</h2></div><button class="btn" data-act="closePortalCase">Close</button></div>
         <div id="portalCaseDetail"></div>
-        <div class="field full" style="margin-top:16px"><label>Send a secure message</label><textarea id="portalMessage" maxlength="5000"></textarea></div>
+        <div class="field full u-92c18f6bda"><label>Send a secure message</label><textarea id="portalMessage" maxlength="5000"></textarea></div>
         <div class="err" id="portalMessageErr"></div>
         <div class="df"><button class="btn primary" data-act="sendPortalMessage">Send Message</button></div>
       </div>
@@ -1522,7 +740,7 @@
       <div class="dialog"><div class="ph"><div><h2>Create Invoice</h2><span>Amounts are entered in U.S. dollars</span></div><button class="btn" data-act="closeInvoice">Close</button></div><div class="form"><div class="field"><label>Client</label><select id="invoiceClient"></select></div><div class="field"><label>Case</label><select id="invoiceCase"></select></div><div class="field"><label>Office fee</label><input id="invoiceOfficeFee" type="number" min="0" step="0.01"></div><div class="field"><label>Government fee</label><input id="invoiceGovernmentFee" type="number" min="0" step="0.01"></div><div class="field"><label>Other fee</label><input id="invoiceOtherFee" type="number" min="0" step="0.01"></div><div class="field"><label>Due date</label><input id="invoiceDue" type="date"></div></div><div class="err" id="invoiceErr"></div><div class="df"><button class="btn" data-act="closeInvoice">Cancel</button><button class="btn primary" data-act="saveInvoice">Create Invoice</button></div></div>
     </div>
     <div class="modal" id="userModal">
-      <div class="dialog"><div class="ph"><div><h2>Manage User</h2><span id="manageUserEmail"></span></div><button class="btn" data-act="closeManageUser">Close</button></div><input id="manageUserId" type="hidden"><div class="field"><label>Status</label><select id="manageUserStatus"><option value="active">Active</option><option value="invited">Invited</option><option value="inactive">Inactive</option></select></div><div class="field full" style="margin-top:14px"><label>Roles</label><div class="intake-options" id="manageUserRoles"></div></div><div class="err" id="manageUserErr"></div><div class="df"><button class="btn" data-act="closeManageUser">Cancel</button><button class="btn primary" data-act="saveManagedUser">Save Access</button></div></div>
+      <div class="dialog"><div class="ph"><div><h2>Manage User</h2><span id="manageUserEmail"></span></div><button class="btn" data-act="closeManageUser">Close</button></div><input id="manageUserId" type="hidden"><div class="field"><label>Status</label><select id="manageUserStatus"><option value="active">Active</option><option value="invited">Invited</option><option value="inactive">Inactive</option></select></div><div class="field full u-c53ea1da23"><label>Roles</label><div class="intake-options" id="manageUserRoles"></div></div><div class="err" id="manageUserErr"></div><div class="df"><button class="btn" data-act="closeManageUser">Cancel</button><button class="btn primary" data-act="saveManagedUser">Save Access</button></div></div>
     </div>
     <script src="/app.js" defer></script>
   </body>

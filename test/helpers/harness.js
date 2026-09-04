@@ -41,6 +41,7 @@ const emptyTables = () => ({
   user_roles: [],
   case_assignments: [],
   client_access: [],
+  portal_case_access: [],
   teams: [],
   team_members: [],
   access_policies: [],
@@ -49,6 +50,9 @@ const emptyTables = () => ({
   deadlines: [],
   legal_holds: [],
   document_requests: [],
+  agency_requests: [],
+  evidence_requirements: [],
+  evidence_links: [],
   case_notes: [],
   case_messages: [],
   appointments: [],
@@ -72,11 +76,15 @@ const emptyTables = () => ({
   form_instances: [],
   form_rules: [],
   form_answers: [],
+  form_answer_revisions: [],
   form_findings: [],
   background_jobs: [],
   generated_artifacts: [],
   ai_review_runs: [],
   ai_findings: [],
+  document_extractions: [],
+  document_extracted_fields: [],
+  verified_canonical_fields: [],
   controlled_document_templates: [],
   form_update_alerts: [],
   office_settings: [{ singleton: true, office_name: 'ALHIJRAH SERVICES', default_language: 'English' }],
@@ -92,10 +100,13 @@ export const backend = {
   sessions: new Map(),
   objects: new Map(),
   authFailures: 0,
+  sharedLoginAttempts: new Map(),
   adminProbes: 0,
   emails: [],
   clientNumber: 0,
   caseNumber: 0,
+  restRequests: [],
+  failNextUserDatabaseRequest: 0,
 };
 
 export function resetBackend() {
@@ -104,10 +115,13 @@ export function resetBackend() {
   backend.sessions = new Map();
   backend.objects = new Map();
   backend.authFailures = 0;
+  backend.sharedLoginAttempts = new Map();
   backend.adminProbes = 0;
   backend.emails = [];
   backend.clientNumber = 0;
   backend.caseNumber = 0;
+  backend.restRequests = [];
+  backend.failNextUserDatabaseRequest = 0;
 }
 
 export function addUser({ id = crypto.randomUUID(), email, password = 'correct-horse-battery', roles = [], status, confirmed = true, fullName } = {}) {
@@ -158,6 +172,14 @@ function applyFilters(rows, params) {
     const value = rest.join('.');
     if (operator === 'eq') result = result.filter(row => String(row[key] ?? '') === value);
     else if (operator === 'neq') result = result.filter(row => String(row[key] ?? '') !== value);
+    else if (operator === 'not') {
+      const [nested, ...nestedRest] = rest;
+      const nestedValue = nestedRest.join('.');
+      if (nested === 'in') {
+        const members = new Set(nestedValue.replace(/^\(|\)$/g, '').split(',').filter(Boolean));
+        result = result.filter(row => !members.has(String(row[key] ?? '')));
+      } else if (nested === 'eq') result = result.filter(row => String(row[key] ?? '') !== nestedValue);
+    }
     else if (operator === 'ilike') {
       const needle = decodeURIComponent(value).toLowerCase();
       result = result.filter(row => String(row[key] ?? '').toLowerCase() === needle);
@@ -205,8 +227,55 @@ function applyOr(rows, expression) {
   }));
 }
 
+function recordFormAnswerRevision(record) {
+  backend.tables.form_answer_revisions.push({id:crypto.randomUUID(),form_answer_id:record.id,form_instance_id:record.form_instance_id,answer_revision:record.revision,field_path:record.field_path,canonical_field_path:record.canonical_field_path||null,answer_value:record.answer_value,source_type:record.source_type,source_record_id:record.source_record_id||null,verified_canonical_field_id:record.verified_canonical_field_id||null,canonical_value_sha256:record.canonical_value_sha256||null,verification_status:record.verification_status,validation_errors:record.validation_errors||[],changed_by:record.last_changed_by,changed_source:record.last_changed_source});
+  const instance=backend.tables.form_instances.find(item=>item.id===record.form_instance_id);if(instance){instance.revision=Number(instance.revision||0)+1;instance.canonical_snapshot_hash=null}
+}
+
 async function handleRest(url, init) {
   const table = url.pathname.replace('/rest/v1/', '');
+  if(table==='rpc/consume_login_attempt'){
+    const body=JSON.parse(init.body||'{}'),now=Date.now(),windowMs=Number(body.p_window_seconds||900)*1000,entry=backend.sharedLoginAttempts.get(body.p_key_hash);
+    const next=!entry||now-entry.first>windowMs?{count:1,first:now}:{count:entry.count+1,first:entry.first};backend.sharedLoginAttempts.set(body.p_key_hash,next);
+    return jsonResponse(200,[{allowed:next.count<=Number(body.p_limit||8),retry_after_seconds:Math.max(0,Math.ceil((next.first+windowMs-now)/1000))}]);
+  }
+  if(table==='rpc/clear_login_attempt'){
+    const body=JSON.parse(init.body||'{}');backend.sharedLoginAttempts.delete(body.p_key_hash);return jsonResponse(200,true);
+  }
+  if(table==='rpc/claim_background_jobs'){
+    const body=JSON.parse(init.body||'{}'),now=Date.now(),limit=Math.max(1,Math.min(Number(body.p_limit||2),8)),leaseSeconds=Math.max(15,Math.min(Number(body.p_lease_seconds||120),900));
+    const candidates=backend.tables.background_jobs.filter(job=>Number(job.attempt_count||0)<Number(job.max_attempts||5)&&new Date(job.available_at||0).getTime()<=now&&(job.status==='queued'||job.status==='retrying'||job.status==='running'&&new Date(job.lease_expires_at||0).getTime()<now)).sort((a,b)=>Number(a.priority||100)-Number(b.priority||100)||new Date(a.available_at||0)-new Date(b.available_at||0)||new Date(a.created_at||0)-new Date(b.created_at||0)).slice(0,limit);
+    for(const job of candidates)Object.assign(job,{status:'running',attempt_count:Number(job.attempt_count||0)+1,lease_token:crypto.randomUUID(),leased_by:body.p_worker_id,lease_expires_at:new Date(now+leaseSeconds*1000).toISOString(),last_heartbeat_at:new Date(now).toISOString(),started_at:job.started_at||new Date(now).toISOString(),completed_at:null,updated_at:new Date(now).toISOString()});
+    return jsonResponse(200,candidates);
+  }
+  if(table==='rpc/heartbeat_background_job'){
+    const body=JSON.parse(init.body||'{}'),now=Date.now(),job=backend.tables.background_jobs.find(item=>item.id===body.p_job_id&&item.status==='running'&&item.lease_token===body.p_lease_token&&new Date(item.lease_expires_at).getTime()>now);if(!job)return jsonResponse(200,false);job.last_heartbeat_at=new Date(now).toISOString();job.lease_expires_at=new Date(now+Math.max(15,Math.min(Number(body.p_lease_seconds||120),900))*1000).toISOString();return jsonResponse(200,true);
+  }
+  if(table==='rpc/complete_background_job'){
+    const body=JSON.parse(init.body||'{}'),now=Date.now(),job=backend.tables.background_jobs.find(item=>item.id===body.p_job_id&&item.status==='running'&&item.lease_token===body.p_lease_token&&new Date(item.lease_expires_at).getTime()>now);if(!job)return jsonResponse(200,false);Object.assign(job,{status:'succeeded',progress:100,result:body.p_result||{},lease_token:null,leased_by:null,lease_expires_at:null,last_error_code:null,failure_class:null,completed_at:new Date(now).toISOString(),updated_at:new Date(now).toISOString()});return jsonResponse(200,true);
+  }
+  if(table==='rpc/fail_background_job'){
+    const body=JSON.parse(init.body||'{}'),now=Date.now(),job=backend.tables.background_jobs.find(item=>item.id===body.p_job_id&&item.status==='running'&&item.lease_token===body.p_lease_token&&new Date(item.lease_expires_at).getTime()>now);if(!job)return jsonResponse(409,{message:'JOB_LEASE_INVALID'});const permanent=body.p_failure_class==='permanent'||Number(job.attempt_count||0)>=Number(job.max_attempts||5),status=permanent?'failed':'retrying';Object.assign(job,{status,available_at:permanent?job.available_at:new Date(now+5000*Math.pow(2,Math.max(Number(job.attempt_count||1)-1,0))).toISOString(),last_error_code:String(body.p_error_code||'JOB_FAILED').slice(0,120),failure_class:body.p_failure_class||'transient',lease_token:null,leased_by:null,lease_expires_at:null,completed_at:permanent?new Date(now).toISOString():null,updated_at:new Date(now).toISOString()});return jsonResponse(200,status);
+  }
+  if(table==='rpc/commit_verified_identity_extraction'){
+    const body=JSON.parse(init.body||'{}'),bearer=String(init.headers?.authorization||'').replace(/^Bearer /,''),email=backend.sessions.get(bearer),actor=[...backend.users.values()].find(user=>user.email===email)?.id;
+    const extraction=backend.tables.document_extractions.find(item=>item.id===body.p_extraction_id&&item.status==='reviewing'&&(item.document_id||item.requested_by===actor));
+    if(!extraction)return jsonResponse(409,{message:'Extraction is not available for commit'});
+    const fields=body.p_reviewed_fields&&typeof body.p_reviewed_fields==='object'&&!Array.isArray(body.p_reviewed_fields)?body.p_reviewed_fields:{};
+    let subjectId=body.p_subject_id;
+    if(body.p_subject_type==='client'){
+      let client=backend.tables.clients.find(item=>item.id===subjectId);
+      if(!client){subjectId=crypto.randomUUID();client={id:subjectId,legal_name:fields.legal_name,preferred_language:'English',created_by:actor,updated_by:actor,created_at:new Date().toISOString()};backend.tables.clients.push(client)}
+      Object.assign(client,fields,{updated_by:actor,updated_at:new Date().toISOString()});
+    }else{
+      const person=backend.tables.people.find(item=>item.id===subjectId);if(!person)return jsonResponse(409,{message:'Canonical participant is not authorized for the extraction case'});Object.assign(person,fields,{identity_verification_status:'verified',identity_verified_by:actor,identity_verified_at:new Date().toISOString(),updated_at:new Date().toISOString()});
+    }
+    const reviewedAt=new Date().toISOString();
+    for(const proposal of backend.tables.document_extracted_fields.filter(item=>item.extraction_id===extraction.id)){const accepted=Object.hasOwn(fields,proposal.field_path);Object.assign(proposal,{reviewed_value:accepted?fields[proposal.field_path]:null,verification_status:accepted?'accepted':'rejected',reviewed_by:actor,reviewed_at:reviewedAt,updated_at:reviewedAt});if(!accepted)continue;const prior=backend.tables.verified_canonical_fields.find(item=>item.subject_type===body.p_subject_type&&item.subject_id===subjectId&&item.field_path===proposal.field_path&&item.status==='current'),id=crypto.randomUUID();if(prior)Object.assign(prior,{status:'superseded',superseded_by:id,superseded_at:reviewedAt});backend.tables.verified_canonical_fields.push({id,client_id:extraction.client_id||subjectId,case_id:extraction.case_id||null,person_id:body.p_subject_type==='person'?subjectId:null,subject_type:body.p_subject_type,subject_id:subjectId,field_path:proposal.field_path,field_value:fields[proposal.field_path],revision:Number(prior?.revision||0)+1,status:'current',source_extraction_id:extraction.id,source_field_id:proposal.id,source_document_id:extraction.document_id||null,source_document_version:extraction.document_version||null,source_sha256:extraction.source_sha256,verified_by:actor,verified_at:reviewedAt,created_at:reviewedAt})}
+    Object.assign(extraction,{status:'confirmed',reviewed_by:actor,reviewed_at:reviewedAt,updated_at:reviewedAt});
+    backend.tables.audit_events.push({id:crypto.randomUUID(),actor_user_id:actor,action:'verified_identity_committed',entity_type:body.p_subject_type,entity_id:subjectId,client_id:extraction.client_id||subjectId,case_id:extraction.case_id||null,metadata:{extraction_id:extraction.id,human_confirmed:true},created_at:reviewedAt});
+    return jsonResponse(200,[{subject_type:body.p_subject_type,subject_id:subjectId,committed_fields:Object.keys(fields).length}]);
+  }
   const rows = backend.tables[table];
   if (!rows) return jsonResponse(404, { message: `relation "${table}" does not exist`, hint: 'internal detail that must not leak' });
   const method = (init.method || 'GET').toUpperCase();
@@ -242,6 +311,7 @@ async function handleRest(url, init) {
       return jsonResponse(409, { code: '23505', message: 'duplicate key value violates unique constraint "documents_object_key_key"' });
     }
     rows.push(record);
+    if(table==='form_answers')recordFormAnswerRevision(record);
     created.push(record);
     }
     return jsonResponse(201, created);
@@ -249,7 +319,7 @@ async function handleRest(url, init) {
 
   if (method === 'PATCH') {
     const matched = applyFilters(rows, url.searchParams);
-    for (const row of matched) Object.assign(row, body);
+    for (const row of matched) {Object.assign(row, body);if(table==='form_answers')recordFormAnswerRevision(row)}
     return jsonResponse(200, matched);
   }
 
@@ -344,7 +414,15 @@ async function handleAuth(url, init) {
 
 globalThis.fetch = async (input, init = {}) => {
   const url = new URL(typeof input === 'string' ? input : input.url);
-  if (url.pathname.startsWith('/rest/v1/')) return handleRest(url, init);
+  if (url.pathname.startsWith('/rest/v1/')) {
+    const headers=Object.fromEntries(Object.entries(init.headers||{}).map(([name,value])=>[String(name).toLowerCase(),String(value)]));
+    backend.restRequests.push({method:String(init.method||'GET').toUpperCase(),path:url.pathname,query:url.search,headers});
+    if(headers.apikey==='anon-key'&&backend.failNextUserDatabaseRequest>0){
+      backend.failNextUserDatabaseRequest-=1;
+      return jsonResponse(403,{message:'synthetic user database denial'});
+    }
+    return handleRest(url, init);
+  }
   if (url.pathname.startsWith('/auth/v1/')) return handleAuth(url, init);
   if (url.origin === 'https://api.resend.com' && url.pathname === '/emails') {
     const message = JSON.parse(init.body || '{}');
@@ -391,8 +469,9 @@ S3Client.prototype.send = async function stubbedSend(command) {
   throw new Error(`unexpected S3 command ${name}`);
 };
 
-export function putObject(key, { size, contentType }) {
-  backend.objects.set(key, { size, contentType, body: Buffer.alloc(size) });
+export function putObject(key, { size, contentType, body }) {
+  const bytes = body == null ? Buffer.alloc(size) : Buffer.from(body);
+  backend.objects.set(key, { size: bytes.length, contentType, body: bytes });
 }
 
 // ---------------------------------------------------------------------------

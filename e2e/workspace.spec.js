@@ -16,6 +16,12 @@ async function signOut(page) {
   await expect(page.locator('#login')).toBeVisible();
 }
 
+async function saveAndExitNewCaseIntake(page) {
+  await expect(page.locator('#intakeModal')).toHaveClass(/show/);
+  await page.click('#intakeModal [data-act="saveAndExitIntake"]');
+  await expect(page.locator('#intakeModal')).not.toHaveClass(/show/);
+}
+
 test('the workspace is gated behind sign-in', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('#login')).toBeVisible();
@@ -62,6 +68,7 @@ test('a case created through the UI round-trips, and its event is visible to an 
   await page.click('#saveCaseBtn');
 
   await expect(page.locator('#caseModal')).not.toHaveClass(/show/);
+  await saveAndExitNewCaseIntake(page);
   await expect(page.locator('#caseTable')).toContainText(clientName);
 
   // A case_manager holds no audit.view permission, so the audit destination is
@@ -94,12 +101,22 @@ test('Phase 1 client numbers, case numbers, bilingual preference, and full works
   await page.selectOption('#caseClientSelect', { label: clientName });
   await page.selectOption('#caseType', { index: 0 });
   await page.click('#saveCaseBtn');
+  await saveAndExitNewCaseIntake(page);
   await expect(page.locator('#caseTable')).toContainText(/AH-2026-\d{6}/);
   await page.locator('#caseTable [data-act="editCase"]').first().click();
   await expect(page.locator('#caseWorkspaceModal')).toHaveClass(/show/);
   await expect(page.locator('#workspaceClientNumber')).toContainText(/AHC-2026-\d{6}/);
   await expect(page.locator('#workspaceCaseNumber')).toContainText(/AH-2026-\d{6}/);
-  await expect(page.locator('.workspace-tab')).toHaveCount(14);
+  // Pin the tab set by identity rather than by a bare count: a stale count says
+  // only that a number moved, and it does not prove a tab reaches a panel.
+  const workspaceTabs = ['overview', 'journey', 'profile', 'intake', 'participants', 'forms', 'documents',
+    'rfe', 'actions', 'tasks', 'deadlines', 'appointments', 'communications', 'billing', 'notes', 'team', 'audit'];
+  await expect(page.locator('.workspace-tab')).toHaveCount(workspaceTabs.length);
+  for (const tab of workspaceTabs) {
+    await expect(page.locator(`.workspace-tab[data-a1="${tab}"]`)).toHaveCount(1);
+    await page.click(`.workspace-tab[data-a1="${tab}"]`);
+    await expect(page.locator(`#workspace-${tab}`)).toBeVisible();
+  }
   await page.click('.workspace-tab[data-a1="profile"]');
   await expect(page.locator('#workspace-profile')).toContainText(clientName);
   await page.click('[data-act="closeCaseWorkspace"]');
@@ -110,6 +127,15 @@ test('Phase 1 client numbers, case numbers, bilingual preference, and full works
   await page.reload();
   await expect(page.locator('#login')).toBeHidden();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+});
+
+test('the visible service selection drives pinned requirements in the case workspace',async({page})=>{
+  await signIn(page);await expect(page.locator('#login')).toBeHidden();await page.click('#nav button[data-view="services"]');
+  await page.locator('.service').filter({hasText:'N-400'}).click();await expect(page.locator('#caseModal')).toHaveClass(/show/);await expect(page.locator('#selectedServiceCode')).toHaveValue('N-400');
+  const clientName=`Service Driven ${Date.now()}`;await page.fill('#clientName',clientName);await page.click('#saveCaseBtn');await expect(page.locator('#caseModal')).not.toHaveClass(/show/);await saveAndExitNewCaseIntake(page);
+  await page.click('#nav button[data-view="cases"]');const row=page.locator('#caseTable tr').filter({hasText:clientName});await expect(row).toContainText('Naturalization');await row.locator('[data-act="editCase"]').click();await expect(page.locator('#caseWorkspaceModal')).toHaveClass(/show/);
+  await page.click('.workspace-tab[data-a1="actions"]');await expect(page.locator('#workspace-actions')).toContainText('Client identity document');await expect(page.locator('#workspace-actions')).toContainText('Permanent resident card');await expect(page.locator('#workspace-actions [data-act="uploadForRequest"]')).toHaveCount(3);
+  await page.click('.workspace-tab[data-a1="overview"]');await expect(page.locator('#workspace-overview')).toContainText(/ACTION REQUIRED|ACTION_REQUIRED|items require action/i);
 });
 
 test('navigation only offers destinations the role can actually reach', async ({ page }) => {
@@ -210,6 +236,7 @@ test('the Owner can narrow a user and widen them again from the UI', async ({ pa
   await page.fill('#clientName', clientName);
   await page.selectOption('#caseType', { index: 0 });
   await page.click('#saveCaseBtn');
+  await saveAndExitNewCaseIntake(page);
   await expect(page.locator('#caseTable')).toContainText(clientName);
 
   // The manager sees it today, because staff default to firm-wide access.
