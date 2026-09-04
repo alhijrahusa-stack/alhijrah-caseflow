@@ -39,13 +39,22 @@ test('invalid and empty role assignments are rejected', () => {
   assert.deepEqual(validateRoles(['case_manager', 'case_manager']), ['case_manager']);
 });
 
-test('inactive and unassigned users cannot become principals', () => {
+test('inactive, invited, and unassigned users cannot become principals', () => {
   assert.throws(
     () => principalFromUser({ id: '1', email: 'inactive@example.com', app_metadata: { roles: ['admin'], status: 'inactive' } }),
     /USER_INACTIVE/,
   );
   assert.throws(
-    () => principalFromUser({ id: '2', email: 'none@example.com', app_metadata: {} }),
+    () => principalFromUser({ id: '2', email: 'invited@example.com', app_metadata: { roles: ['admin'], status: 'invited' } }),
+    /USER_INVITATION_PENDING/,
+  );
+  assert.throws(
+    () => principalFromUser({ id: '3', email: 'none@example.com', app_metadata: {} }),
     /NO_ASSIGNED_ROLE/,
   );
+});
+
+test('active and legacy provisioned users with valid roles can become principals', () => {
+  assert.deepEqual(principalFromUser({ id: '4', email: 'active@example.com', app_metadata: { roles: ['case_manager'], status: 'active' } }).roles, ['case_manager']);
+  assert.deepEqual(principalFromUser({ id: '5', email: 'legacy@example.com', app_metadata: { roles: ['case_manager'] } }).roles, ['case_manager']);
 });
