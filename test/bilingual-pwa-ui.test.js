@@ -23,7 +23,7 @@ test('Case Workspace contains every operating surface under canonical client and
   for(const modal of ['participantModal','historyModal','formModal'])assert.match(html,new RegExp(`id="${modal}"`));
 });
 
-test('the client application is installable, mobile-first, and never caches protected API data',async()=>{
+test('the client application is installable, mobile-first, and caches only the explicit static shell',async()=>{
   const [html,css,manifestSource,worker]=await Promise.all([publicFile('index.html'),publicFile('app.css'),publicFile('manifest.webmanifest'),publicFile('sw.js')]);
   const manifest=JSON.parse(manifestSource);
   assert.equal(manifest.display,'standalone');
@@ -33,6 +33,9 @@ test('the client application is installable, mobile-first, and never caches prot
   assert.match(css,/@media \(max-width:700px\)/);
   assert.match(css,/min-height:44px/);
   assert.match(css,/100dvh/);
-  assert.match(worker,/url\.pathname\.startsWith\('\/api\/'\)/);
+  assert.match(worker,/const SHELL_PATHS=new Set\(SHELL\)/);
+  assert.match(worker,/!SHELL_PATHS\.has\(url\.pathname\)/);
+  assert.doesNotMatch(worker,/pathname\.startsWith\('\/api\/'\)/);
+  assert.doesNotMatch(worker,/caches\.match\('\/'\)/);
   assert.doesNotMatch(worker,/SHELL=\[[^\]]*\/api\//);
 });
