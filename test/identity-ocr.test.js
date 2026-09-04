@@ -45,6 +45,18 @@ test('MRZ parser validates ICAO TD3 data and maps client fields', () => {
   assert.equal(parsed.result.valid, true);
   assert.equal(parsed.result.format, 'TD3');
   assert.equal(parsed.result.documentNumber, 'L898902C3');
+  assert.equal(parsed.correction_required, false);
+  assert.equal(parsed.corrected_result, null);
+});
+
+test('MRZ parser never promotes an autocorrected OCR candidate as raw truth', () => {
+  const corrupted = 'L8989O2C36USA7408122F1204159<<<<<<<<<<<<<<<8';
+  const parsed = parseMrzFromText(`${line1}\n${corrupted}`);
+  assert.ok(parsed);
+  assert.equal(parsed.result?.valid, false);
+  assert.equal(parsed.correction_required, true);
+  assert.equal(parsed.corrected_result?.valid, true);
+  assert.equal(parsed.corrected_result?.documentNumber, 'L898902C3');
 });
 
 test('real OCR requires review before it autofills and saves a client', async () => {
