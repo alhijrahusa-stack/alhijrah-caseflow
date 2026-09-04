@@ -2,7 +2,7 @@ name: P0 P1 verification
 
 on:
   push:
-    branches: [p0-p1-hardening]
+    branches: [p0-p1-hardening, 'final-audit-fix-*']
   pull_request:
     branches: [main]
   workflow_dispatch:
