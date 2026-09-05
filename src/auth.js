@@ -205,6 +205,7 @@ export function principalFromUser(user) {
   const emailConfirmed = Boolean(user.email_confirmed_at || user.confirmed_at);
   if (ownerEmail && emailConfirmed && String(user.email || '').toLowerCase() === ownerEmail && !roles.includes('owner')) roles.push('owner');
   if (metadata.status === 'inactive') throw authError('USER_INACTIVE', 403);
+  if (metadata.status === 'invited') throw authError('USER_INVITATION_PENDING', 403);
   if (!roles.length) throw authError('NO_ASSIGNED_ROLE', 403);
   return {
     id: user.id,
