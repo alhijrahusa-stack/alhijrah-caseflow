@@ -264,6 +264,15 @@ async function canonicalDocumentLinkage(caseRecord,body){
   return{client_id:clientId,person_id:personId,request_id:requestId,category,review_status:'received',replaces_document_id:replacement?.id||null,version:replacement?Number(replacement.version||1)+1:1,replacement};
 }
 
+async function documentUploadPermission(access,caseRecord,body){
+  if(canAccessCase(access,caseRecord,'documents.manage'))return'documents.manage';
+  if(!canAccessCase(access,caseRecord,'documents.translate'))return null;
+  if(body.replaces_document_id||body.category!=='translation'||!uuid(body.request_id))throw Object.assign(new Error('TRANSLATION_REQUEST_REQUIRED'),{status:409});
+  const requests=await db('document_requests',{query:`?id=eq.${encodeURIComponent(body.request_id)}&case_id=eq.${encodeURIComponent(caseRecord.id)}&category=eq.translation&status=in.(missing,rejected,received)&select=id&limit=1`});
+  if(!requests.length)throw Object.assign(new Error('TRANSLATION_REQUEST_REQUIRED'),{status:409});
+  return'documents.translate';
+}
+
 async function validateAnswerProvenance(caseRecord,body){
   const sourceType=String(body.source_type||'manual'),sourceId=body.source_record_id||null,documentId=body.source_document_id||null;
   if(!['manual','client','participant','history','document_ocr','verified_field','prior_form','system'].includes(sourceType))throw Object.assign(new Error('INVALID_ANSWER_SOURCE_TYPE'),{status:400});
@@ -826,7 +835,7 @@ function requiredPermission(req,path){
   if(path.startsWith('/api/v1/services'))return 'dashboard.view';
   if(path.startsWith('/api/v1/document-requests'))return req.method==='GET'?'documents.view':'documents.manage';
   if(path.startsWith('/api/v1/agency-requests')||path.startsWith('/api/v1/evidence-requirements'))return req.method==='GET'?'cases.view':'cases.manage';
-  if(path.startsWith('/api/v1/documents'))return path.endsWith('/review')||path.endsWith('/ocr/confirm')||/\/extractions\/[0-9a-f-]{36}\/confirm$/i.test(path)?'documents.review':req.method==='GET'||path.endsWith('/download-url')?'documents.view':'documents.manage';
+  if(path.startsWith('/api/v1/documents'))return req.method==='POST'&&['/api/v1/documents/upload','/api/v1/documents/presign','/api/v1/documents/confirm'].includes(path)?['documents.manage','documents.translate']:path.endsWith('/review')||path.endsWith('/ocr/confirm')||/\/extractions\/[0-9a-f-]{36}\/confirm$/i.test(path)?'documents.review':req.method==='GET'||path.endsWith('/download-url')?'documents.view':'documents.manage';
   if(path.startsWith('/api/v1/identity'))return 'clients.manage';
   if(path.startsWith('/api/v1/cases'))return req.method==='GET'?'cases.view':'cases.manage';
   if(path==='/api/v1/search')return 'cases.view';
@@ -848,7 +857,8 @@ async function authorize(req,res,permission){
   // A null permission means no rule matched the route: deny. The module-level
   // check happens here; record-level checks happen in the route, where the
   // record is available.
-  if(!permission||!hasEffectivePermission(access,permission))throw Object.assign(new Error('FORBIDDEN'),{status:403});
+  const permitted=Array.isArray(permission)?permission.some(item=>hasEffectivePermission(access,item)):permission&&hasEffectivePermission(access,permission);
+  if(!permitted)throw Object.assign(new Error('FORBIDDEN'),{status:403});
   return {principal,access};
 }
 
@@ -2212,8 +2222,10 @@ async function handleRaw(req,res){
     if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
     const contentType=String(req.headers['content-type']||'').split(';')[0].toLowerCase();
     const input=documentInput({case_id:u.searchParams.get('case_id'),filename:u.searchParams.get('filename'),content_type:contentType,size_bytes:Number(u.searchParams.get('size_bytes')||req.headers['content-length']||0)});
+    const uploadContext={request_id:u.searchParams.get('request_id'),replaces_document_id:u.searchParams.get('replaces_document_id'),category:u.searchParams.get('category')};
     const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});
-    if(!caseRows.length||!canAccessCase(access,caseRows[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
+    if(!caseRows.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
+    const uploadPermission=await documentUploadPermission(access,caseRows[0],uploadContext);if(!uploadPermission)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
     const file=await readBuffer(req,25*1024*1024);
     if(file.length!==input.sizeBytes)throw Object.assign(new Error('DOCUMENT_SIZE_MISMATCH'),{status:409});
     const checksum=crypto.createHash('sha256').update(file).digest('hex');
@@ -2226,7 +2238,7 @@ async function handleRaw(req,res){
     try{
       const stored=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));
       if(Number(stored.ContentLength)!==file.length||String(stored.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});
-      const linkage=await canonicalDocumentLinkage(caseRows[0],{client_id:u.searchParams.get('client_id'),person_id:u.searchParams.get('person_id'),request_id:u.searchParams.get('request_id'),replaces_document_id:u.searchParams.get('replaces_document_id'),category:u.searchParams.get('category')});
+      const linkage=await canonicalDocumentLinkage(caseRows[0],{client_id:u.searchParams.get('client_id'),person_id:u.searchParams.get('person_id'),...uploadContext});
       const record={id:crypto.randomUUID(),case_id:input.caseId,client_id:linkage.client_id,person_id:linkage.person_id,request_id:linkage.request_id,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:file.length,content_checksum:checksum,object_etag:String(stored.ETag||'').replace(/^"|"$/g,'')||null,status:'uploaded',category:linkage.category,review_status:linkage.review_status,replaces_document_id:linkage.replaces_document_id,version:linkage.version,uploaded_by:principal.id};
       const data=await systemDb('documents',{method:'POST',body:record});
       documentPersisted=true;
@@ -2237,13 +2249,13 @@ async function handleRaw(req,res){
       return json(res,201,{data,storage:'r2',processing,linked:{case_id:record.case_id,client_id:record.client_id,...(record.person_id?{person_id:record.person_id}:{}),...(record.request_id?{request_id:record.request_id}:{})},preview_available:['application/pdf','image/jpeg','image/png','image/webp'].includes(record.content_type),requestId},ch);
     }catch(error){if(!documentPersisted)await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key})).catch(()=>{});throw error}
   }
-  if(req.method==='POST'&&u.pathname==='/api/v1/documents/presign'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});if(!Array.isArray(caseRows)||!caseRows.length||!canAccessCase(access,caseRows[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const filename=safeKey(input.fileName).split('/').pop();const key=safeKey(`cases/${input.caseId}/${crypto.randomUUID()}-${filename}`);const uploadUrl=await getSignedUrl(r2,new PutObjectCommand({Bucket:r2Bucket,Key:key,ContentType:input.contentType,ContentLength:input.sizeBytes,Metadata:{case_id:input.caseId}}),{expiresIn:900});return json(res,200,{key,upload_url:uploadUrl,expires_in:900,required_headers:{'content-type':input.contentType},requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/documents/presign'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});if(!Array.isArray(caseRows)||!caseRows.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const uploadPermission=await documentUploadPermission(access,caseRows[0],b);if(!uploadPermission)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const filename=safeKey(input.fileName).split('/').pop();const key=safeKey(`cases/${input.caseId}/${crypto.randomUUID()}-${filename}`);const uploadUrl=await getSignedUrl(r2,new PutObjectCommand({Bucket:r2Bucket,Key:key,ContentType:input.contentType,ContentLength:input.sizeBytes,Metadata:{case_id:input.caseId}}),{expiresIn:900});return json(res,200,{key,upload_url:uploadUrl,expires_in:900,required_headers:{'content-type':input.contentType},requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/documents/confirm'){
     if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
     const b=await readJson(req,32_768),input=documentInput(b),key=safeKey(b.key);
     if(!key.startsWith(`cases/${input.caseId}/`))throw Object.assign(new Error('DOCUMENT_CASE_MISMATCH'),{status:403});
     const cases=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});
-    if(!cases.length||!canAccessCase(access,cases[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
+    if(!cases.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const uploadPermission=await documentUploadPermission(access,cases[0],b);if(!uploadPermission)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
     const verified=await verifiedStoredDocument(key,input,b.content_checksum);
     const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${verified.checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409})}
     let documentPersisted=false;
