@@ -3,7 +3,7 @@ import assert from'node:assert/strict';
 import crypto from'node:crypto';
 import fs from'node:fs';
 import{backend,resetBackend}from'./helpers/harness.js';
-import{recoverPendingImportJobs,runBackgroundWorkerCycle}from'../src/server.js';
+import{recoverPendingDocumentJobs,recoverPendingImportJobs,runBackgroundWorkerCycle}from'../src/server.js';
 
 beforeEach(resetBackend);
 
@@ -20,6 +20,19 @@ test('startup recovery re-enqueues legacy approved and processing imports idempo
     `bulk-import:${processing}`,
   ].sort());
   assert.deepEqual(backend.tables.background_jobs.map(job=>job.payload.batch_id).sort(),[approved,processing].sort());
+});
+
+test('document recovery queues only incomplete orphaned uploads and is idempotent',async()=>{
+  const uploader='90000000-0000-4000-8000-000000000001',caseId=crypto.randomUUID(),pending=crypto.randomUUID();
+  backend.tables.documents.push(
+    {id:pending,case_id:caseId,content_checksum:'a'.repeat(64),uploaded_by:uploader,version:1,automation_status:'FAILED',archived_at:null},
+    {id:crypto.randomUUID(),case_id:caseId,content_checksum:'b'.repeat(64),uploaded_by:uploader,version:1,automation_status:'VERIFIED',archived_at:null},
+    {id:crypto.randomUUID(),case_id:caseId,content_checksum:'c'.repeat(64),uploaded_by:uploader,version:1,automation_status:'REVIEW_REQUIRED',archived_at:null},
+  );
+  assert.equal(await recoverPendingDocumentJobs(),1);
+  assert.equal(await recoverPendingDocumentJobs(),0);
+  assert.equal(backend.tables.background_jobs.length,1);
+  assert.equal(backend.tables.background_jobs[0].payload.document_id,pending);
 });
 
 test('durable worker claims an unknown job once and fails it permanently',async()=>{

@@ -47,6 +47,17 @@ test('verified upload immediately creates a durable processing job and a real re
   assert.ok(backend.tables.tasks.some(item=>item.automation_key===`document:${backend.tables.documents[0].id}:v1`&&item.status==='open'));
 });
 
+test('a transient queue outage preserves the accepted upload for automatic recovery',async()=>{
+  const cookie=await signIn(user.email),headers=browserHeaders({cookie,'content-type':'application/pdf'}),caseId=crypto.randomUUID();
+  backend.tables.cases.push({id:caseId,client_id:clientId,client_name:'Convergence Client',case_type:'N-400',service_code:'N-400',status:'active',archived_at:null});
+  backend.failNextBackgroundJobInsert=1;
+  const bytes=Buffer.from('%PDF-1.4\nqueue outage document\n%%EOF');
+  const uploaded=await request({method:'POST',path:`/api/v1/documents/upload?case_id=${caseId}&filename=outage.pdf&size_bytes=${bytes.length}`,headers,body:bytes});
+  assert.equal(uploaded.status,201,uploaded.raw);assert.equal(uploaded.body.processing.status,'DEFERRED');assert.equal(uploaded.body.processing.error,'DOCUMENT_QUEUE_UNAVAILABLE');
+  assert.equal(backend.tables.documents.length,1);assert.equal(backend.tables.documents[0].automation_status,'FAILED');assert.equal(backend.tables.background_jobs.length,0);
+  const{recoverPendingDocumentJobs}=await import('../src/server.js');assert.equal(await recoverPendingDocumentJobs(),1);assert.equal(backend.tables.background_jobs.length,1);assert.equal(backend.tables.documents[0].automation_status,'QUEUED');
+});
+
 test('an authorized reviewer commits background extraction and refreshes affected form answers',async()=>{
   const reviewer=addUser({email:'reviewer@caseflow.test',roles:['document_reviewer']}),manager=addUser({email:'manager-only@caseflow.test',roles:['case_manager']}),cookie=await signIn(reviewer),headers=browserHeaders({cookie}),caseId=crypto.randomUUID(),documentId=crypto.randomUUID(),requestId=crypto.randomUUID(),extractionId=crypto.randomUUID(),fieldId=crypto.randomUUID(),instanceId=crypto.randomUUID(),definitionId=crypto.randomUUID(),versionId=crypto.randomUUID(),uploaderId=crypto.randomUUID();
   backend.tables.cases.push({id:caseId,client_id:clientId,client_name:'Convergence Client',case_type:'N-400',service_code:'N-400',status:'active',archived_at:null});backend.tables.document_requests.push({id:requestId,case_id:caseId,client_id:clientId,requirement_code:'CLIENT_IDENTITY',status:'received'});backend.tables.documents.push({id:documentId,case_id:caseId,client_id:clientId,request_id:requestId,file_name:'identity.png',content_type:'image/png',content_checksum:'b'.repeat(64),size_bytes:1000,version:1,uploaded_by:uploaderId,automation_status:'REVIEW_REQUIRED',review_status:'under_review',archived_at:null});

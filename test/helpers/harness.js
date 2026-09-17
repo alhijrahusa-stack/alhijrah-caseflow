@@ -107,6 +107,7 @@ export const backend = {
   caseNumber: 0,
   restRequests: [],
   failNextUserDatabaseRequest: 0,
+  failNextBackgroundJobInsert: 0,
 };
 
 export function resetBackend() {
@@ -122,6 +123,7 @@ export function resetBackend() {
   backend.caseNumber = 0;
   backend.restRequests = [];
   backend.failNextUserDatabaseRequest = 0;
+  backend.failNextBackgroundJobInsert = 0;
 }
 
 export function addUser({ id = crypto.randomUUID(), email, password = 'correct-horse-battery', roles = [], status, confirmed = true, fullName } = {}) {
@@ -296,6 +298,7 @@ async function handleRest(url, init) {
   }
 
   if (method === 'POST') {
+    if(table==='background_jobs'&&backend.failNextBackgroundJobInsert>0){backend.failNextBackgroundJobInsert-=1;return jsonResponse(503,{message:'synthetic background queue outage'});}
     const inputs = Array.isArray(body) ? body : [body];
     const created = [];
     for (const input of inputs) {
