@@ -45,7 +45,7 @@ Record grants and restrictions are addressed to a **case**, a **client**, a **ca
 
 ### Database layer
 
-Every table has RLS enabled with **no permissive policy**, and `anon`/`authenticated` hold **no grants**, so a leaked publishable key reads nothing — verified in CI-style checks against PostgreSQL 16. The API reaches the database solely through the server-side `service_role` connection, which bypasses RLS by design; the API is therefore the authorization boundary and every route resolves the effective model before touching data. `audit_events` and `case_events` remain append-only against `UPDATE`/`DELETE` via trigger, and `ON DELETE RESTRICT` stops a case deletion from taking its own history with it.
+Every table is protected by RLS. Ordinary authenticated requests use the Supabase publishable key together with the caller's JWT and never retry through `service_role`; trusted operations use an explicit server-only boundary only where verified storage metadata, background processing, or an atomic security-definer workflow requires it. A leaked publishable key has no anonymous application-table access, which the PostgreSQL CI suite verifies. The API also resolves the effective access model before record access. `audit_events` and `case_events` remain append-only against `UPDATE`/`DELETE` via trigger, and `ON DELETE RESTRICT` stops a case deletion from taking its own history with it.
 
 The model is enforced on case listing and direct UUID reads, case writes, document listing, presigning, upload confirmation, signed download URLs, document review and deletion, and the audit trail. Listings narrow in the query where the scope allows and are filtered again per row, so a bug in the query filter cannot widen access. An unreachable record reports 404 rather than 403, so a response does not confirm that an id exists.
 
@@ -86,12 +86,7 @@ Never commit production credentials.
 
 ## Database deployment
 
-For an existing installation, apply SQL files in filename order:
-
-1. `supabase/schema.sql` is the preserved baseline.
-2. `supabase/migrations/20260824030000_core_platform.sql` is the non-destructive production expansion.
-3. `supabase/migrations/20260824040000_authorization_model.sql` adds teams, access policies and record grants, plus the integrity gaps the expansion left open.
-4. `supabase/migrations/20260824050000_category_access_grants.sql` lets a record grant target a case category or service code. Non-destructive: adds one nullable column, relaxes `resource_id` to nullable, and replaces the uniqueness index so both target shapes share one key. No row is written, altered or deleted.
+For an existing installation, apply `supabase/schema.sql` only when creating the preserved baseline, then apply every file in `supabase/migrations/` in filename order. Never edit or replay a successful historical migration manually; deployment must record and execute the additive chain exactly once per environment. The verification workflow builds a fresh PostgreSQL 17 database from that complete sequence on every push and pull request.
 
 The migrations retain existing case/document data, add operational entities and seed data, enable RLS on server-owned tables, and revoke direct `anon` and `authenticated` access. Translators, preparers, interpreters and representatives are form assignments—not case parties.
 
@@ -142,7 +137,6 @@ AI review is optional. When enabled, all four variables are required: `AI_PROVID
 
 ### Known residual risks
 
-- **Security hardening debt, tracked for final production lockdown:** `style-src` still allows `'unsafe-inline'`, because the markup carries 21 `style` attributes that a nonce cannot cover. Closing it means moving them into the stylesheet. `script-src` is already `'self'` with no inline allowance, so there is no script-execution surface behind this item.
-- Login throttling is per process. Behind more than one instance the effective limit multiplies; a shared store is needed to scale it horizontally.
-- Broad staff access remains the default, by design. It is now the Owner's decision rather than a hard-coded property, but an untouched deployment still has every staff member seeing every case.
-- Listings apply the row filter after the query limit, so a narrowed principal paging a very large table may see fewer than `limit` rows per page.
+- Broad staff access remains the default, by design. It is the Owner's decision rather than a hard-coded property, but an untouched deployment still has every staff member seeing every case.
+- Some secondary operational listings still apply a defensive in-process record filter after a bounded database query. Authorization remains fail-closed, but a narrowly scoped user can receive a short page when their authorized records fall beyond that bound.
+- Production readiness still depends on environment-specific checks: a successful deployment must report `/ready` as ready and pass `STRICT_READY=1 npm run smoke:production` from a network that can reach the Railway service.
