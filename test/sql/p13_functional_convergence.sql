@@ -18,6 +18,8 @@ insert into public.document_extractions(id,document_id,case_id,client_id,documen
 values('69000000-0000-0000-0000-000000000001','59000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000001','29000000-0000-0000-0000-000000000001',1,repeat('3',64),repeat('4',64),'document_identity','tesseract.js','identity-ocr-v1','reviewing','{"fields":{"legal_name":"Reviewed By Queue"}}','19000000-0000-0000-0000-000000000001',now()+interval '1 day');
 insert into public.document_extracted_fields(id,extraction_id,field_path,extracted_value,source_locator)
 values('79000000-0000-0000-0000-000000000001','69000000-0000-0000-0000-000000000001','legal_name','"Reviewed By Queue"','{"method":"mrz"}');
+insert into public.tasks(id,case_id,client_id,title,status,automation_key)
+values('89000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000001','29000000-0000-0000-0000-000000000001','Verify extracted identity fields','open','document:59000000-0000-0000-0000-000000000001:v1');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','19000000-0000-0000-0000-000000000002',true);
@@ -31,6 +33,9 @@ select * from public.commit_verified_identity_extraction('69000000-0000-0000-000
 do $$ begin
   if (select legal_name from public.clients where id='29000000-0000-0000-0000-000000000001')<>'Reviewed By Queue' then raise exception 'authorized queue reviewer could not commit uploader extraction'; end if;
   if (select reviewed_by from public.document_extractions where id='69000000-0000-0000-0000-000000000001')<>'19000000-0000-0000-0000-000000000002' then raise exception 'reviewer provenance was not recorded'; end if;
+  if not exists(select 1 from public.documents where id='59000000-0000-0000-0000-000000000001' and review_status='approved' and automation_status='VERIFIED') then raise exception 'confirmed extraction did not finalize its source document'; end if;
+  if not exists(select 1 from public.document_requests where id='49000000-0000-0000-0000-000000000001' and status='approved') then raise exception 'confirmed extraction did not finalize its document request'; end if;
+  if not exists(select 1 from public.tasks where id='89000000-0000-0000-0000-000000000001' and status='completed') then raise exception 'confirmed extraction did not close its review task'; end if;
 end $$;
 reset role;
 
