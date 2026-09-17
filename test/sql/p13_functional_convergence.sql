@@ -21,6 +21,11 @@ values('79000000-0000-0000-0000-000000000001','69000000-0000-0000-0000-000000000
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','19000000-0000-0000-0000-000000000002',true);
+do $$ begin
+  if (select count(*) from public.document_extractions where id='69000000-0000-0000-0000-000000000001')<>1
+    or (select count(*) from public.document_extracted_fields where extraction_id='69000000-0000-0000-0000-000000000001')<>1
+  then raise exception 'authorized reviewer could not read extraction evidence through RLS'; end if;
+end $$;
 select * from public.commit_verified_identity_extraction('69000000-0000-0000-0000-000000000001','client','29000000-0000-0000-0000-000000000001','{"legal_name":"Reviewed By Queue"}'::jsonb);
 
 do $$ begin

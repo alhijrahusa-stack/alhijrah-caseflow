@@ -35,7 +35,7 @@ beforeEach(() => {
   resetBackend();
   resetLoginThrottle();
   resetAuthProvisioningCache();
-  addUser({ email: 'manager@caseflow.test', roles: ['case_manager'], fullName: 'Case Manager' });
+  addUser({ email: 'manager@caseflow.test', roles: ['admin'], fullName: 'Document Review Administrator' });
 });
 
 after(async () => shutdownIdentityOcr());
