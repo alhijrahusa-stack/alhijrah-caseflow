@@ -178,7 +178,8 @@ async function claimDocumentExtractionById(extractionId,{documentId,errorCode}){
 async function releaseDocumentExtraction(run){await systemDb('document_extractions',{method:'PATCH',query:`?id=eq.${run.id}&status=eq.reviewing`,body:{status:'pending_review',updated_at:new Date().toISOString()}}).catch(()=>{});}
 async function finalizeDocumentReviewState(document,{status,reviewerId,notes=null,reviewedAt=new Date().toISOString()}){
   const approved=status==='approved',patch={review_status:status,automation_status:approved?'VERIFIED':'RECAPTURE_REQUIRED',reviewer_notes:notes,reviewed_by:reviewerId,reviewed_at:reviewedAt,processing_error:null};
-  const data=await systemDb('documents',{method:'PATCH',query:`?id=eq.${document.id}&case_id=eq.${document.case_id}`,body:patch});
+  const data=await systemDb('documents',{method:'PATCH',query:`?id=eq.${document.id}&case_id=eq.${document.case_id}&reviewed_at=is.null`,body:patch});
+  if(!data.length)throw Object.assign(new Error('DOCUMENT_REVIEW_CONFLICT'),{status:409});
   if(document.request_id)await systemDb('document_requests',{method:'PATCH',query:`?id=eq.${document.request_id}&case_id=eq.${document.case_id}`,body:{status:approved?'approved':'rejected',reviewed_by:reviewerId,reviewer_notes:notes,updated_at:reviewedAt}});
   await systemDb('tasks',{method:'PATCH',query:`?automation_key=eq.${encodeURIComponent(`document:${document.id}:v${Number(document.version||1)}`)}`,body:approved?{status:'completed',completed_at:reviewedAt,updated_by:reviewerId,updated_at:reviewedAt}:{status:'open',completed_at:null,priority:'high',updated_by:reviewerId,updated_at:reviewedAt}});
   return data;
@@ -226,6 +227,20 @@ async function verifiedStoredDocument(key,input,declaredChecksum){
   const declared=documentChecksum(declaredChecksum);
   if(declared&&declared!==checksum)throw Object.assign(new Error('DOCUMENT_CHECKSUM_MISMATCH'),{status:409});
   return{checksum,etag:String(object.ETag||'').replace(/^"|"$/g,'')||null};
+}
+
+async function existingDocumentForUpload(caseId,checksum,key){
+  const rows=await db('documents',{query:`?case_id=eq.${encodeURIComponent(caseId)}&content_checksum=eq.${checksum}&archived_at=is.null&select=*`});
+  return{sameObject:rows.find(row=>row.object_key===key)||null,duplicates:rows};
+}
+
+async function deleteUncommittedObject(key){
+  // A concurrent confirmation may have committed this exact object after the
+  // caller's pre-insert check. Never delete bytes that now back a document.
+  try{
+    const committed=await systemDb('documents',{query:`?object_key=eq.${encodeURIComponent(key)}&select=id&limit=1`});
+    if(!committed.length)await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key})).catch(()=>{});
+  }catch(error){console.error('uncommitted-object-cleanup-deferred',error.message)}
 }
 
 async function canonicalDocumentLinkage(caseRecord,body){
@@ -723,9 +738,12 @@ async function loadAccessTables(){
     ]);
     Object.assign(tables,{policies:policies||[],recordGrants:recordGrants||[],teamMembers:teamMembers||[],clientAccess:clientAccess||[],assignments:assignments||[]});
   }catch(error){
-    if(!isMissingRelation(error))throw error;
-    console.warn('access-tables-unavailable: falling back to role defaults (authorization migration not applied?)');
-    tables.degraded=true;
+    // Access-policy state is part of the authorization boundary. Falling back
+    // to role defaults when any table is missing or unavailable silently
+    // widens staff back to global scope and discards explicit restrictions.
+    // Owners and internal callers bypass this lookup above; everyone else
+    // must fail closed until the canonical authorization state is readable.
+    throw Object.assign(new Error('AUTHORIZATION_STATE_UNAVAILABLE'),{status:503,internalDetails:error?.internalDetails||error?.message});
   }
   return tables;
 }
@@ -1067,7 +1085,7 @@ async function handleRaw(req,res){
     const [authStatus,databaseState,r2State]=await Promise.all([
       getAuthProvisioningStatus(),
       (async()=>{
-        const state={connected:false,coreSchema:false,phase1Schema:false,importSchema:false,formsSchema:false,authorizationSchema:false,authorizationTables:{teams:false,teamMembers:false,accessPolicies:false,recordAccessGrants:false},authorizationTableErrors:{}};
+        const state={connected:false,coreSchema:false,phase1Schema:false,importSchema:false,formsSchema:false,convergenceSchema:false,authorizationSchema:false,authorizationTables:{teams:false,teamMembers:false,accessPolicies:false,recordAccessGrants:false},authorizationTableErrors:{}};
         try{await db('cases',{query:'?select=id&limit=1'});state.connected=true}catch{return state}
         try{await db('clients',{query:'?select=id&limit=1'});state.coreSchema=true}catch{return state}
         try{
@@ -1083,6 +1101,16 @@ async function handleRaw(req,res){
         }catch{}
         try{await Promise.all([db('import_batches',{query:'?select=id,status&limit=1'}),db('import_rows',{query:'?select=id,batch_id&limit=1'})]);state.importSchema=true}catch{}
         try{await Promise.all([db('form_registry',{query:'?select=id&limit=1'}),db('form_instances',{query:'?select=id&limit=1'}),db('background_jobs',{query:'?select=id&limit=1'}),db('generated_artifacts',{query:'?select=id&limit=1'})]);state.formsSchema=true}catch{}
+        try{await Promise.all([
+          db('documents',{query:'?select=id,automation_status,content_checksum,version,reviewed_at&limit=1'}),
+          db('document_extractions',{query:'?select=id,source_sha256,status&limit=1'}),
+          db('document_extracted_fields',{query:'?select=id,extraction_id,verification_status&limit=1'}),
+          db('verified_canonical_fields',{query:'?select=id,subject_type,subject_id,revision,status&limit=1'}),
+          db('form_answer_revisions',{query:'?select=id,form_answer_id,answer_revision&limit=1'}),
+          db('evidence_requirements',{query:'?select=id,case_id,status&limit=1'}),
+          db('portal_case_access',{query:'?select=case_id,auth_user_id,status&limit=1'}),
+          db('service_catalog',{query:'?select=id,workflow_version,default_workflow&limit=1'}),
+        ]);state.convergenceSchema=true}catch{}
         const tableChecks=await Promise.all([
           ['teams','teams','id'],
           ['teamMembers','team_members','team_id'],
@@ -1106,6 +1134,8 @@ async function handleRaw(req,res){
     ]);
     const emailConfigured=Boolean(process.env.RESEND_API_KEY&&process.env.RESEND_FROM_EMAIL);const checks={supabase:databaseState.connected,coreSchema:databaseState.coreSchema,phase1Schema:databaseState.phase1Schema,importSchema:databaseState.importSchema,authorizationSchema:databaseState.authorizationSchema,r2:r2State,internalAuth:Boolean(internalApiKey),userAuth:authStatus.configured,ownerAccount:authStatus.ownerProvisioned};
     if(productionVerification.enabled)Object.assign(checks,{documentUpload:productionVerification.documentUpload,identityOcr:productionVerification.identityOcr,clientAutofill:productionVerification.clientAutofill,bulkImport:productionVerification.bulkImport,xlsx:productionVerification.xlsx,csv:productionVerification.csv,arabic:productionVerification.arabic,serviceMapping:productionVerification.serviceMapping,dryRun:productionVerification.dryRun});
+    checks.formsSchema=databaseState.formsSchema;
+    checks.convergenceSchema=databaseState.convergenceSchema;
     const ready=Object.values(checks).every(Boolean);
     return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,capabilities:{staffForms:databaseState.formsSchema,aiReview:Boolean(process.env.AI_PROVIDER&&process.env.AI_PROVIDER_URL&&process.env.AI_PROVIDER_MODEL&&process.env.AI_PROVIDER_API_KEY),emailDelivery:emailConfigured},emailDelivery:{status:emailConfigured?'CONFIGURED':'PROVIDER_NOT_CONFIGURED',configured:emailConfigured},authorizationTables:databaseState.authorizationTables,authorizationTableErrors:databaseState.authorizationTableErrors,verification:productionVerification,requestId},ch);
   }
@@ -1609,18 +1639,24 @@ async function handleRaw(req,res){
     if(!key.startsWith(`cases/${input.caseId}/`))throw Object.assign(new Error('DOCUMENT_CASE_MISMATCH'),{status:403});
     const linkage=await canonicalDocumentLinkage(currentCase,body);
     const verified=await verifiedStoredDocument(key,input,body.content_checksum);
-    const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${verified.checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409});}
+    const duplicateState=await existingDocumentForUpload(input.caseId,verified.checksum,key);
+    if(duplicateState.sameObject)return json(res,200,{data:duplicateState.sameObject,idempotent:true,requestId},ch);
+    if(duplicateState.duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409});}
     const record={id:crypto.randomUUID(),case_id:input.caseId,client_id:linkage.client_id,person_id:linkage.person_id,request_id:linkage.request_id,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:verified.checksum,object_etag:verified.etag,status:'uploaded',category:linkage.category,review_status:linkage.review_status,uploaded_by:principal.id};
     // Committing byte metadata is an explicit trusted operation: ordinary JWT
     // roles cannot attest to R2 contents. Ownership and version invariants are
     // still enforced by the database trigger for service-role calls.
-    const data=await systemDb('documents',{method:'POST',body:record});
-    const processing=await enqueueDocumentProcessingDurably(data[0]||record,principal.id);
-    // This workflow transition is trusted only after the user-scoped document
-    // insert and the verified R2 object; clients have no direct request UPDATE.
-    if(record.request_id)await systemDb('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}`,body:{status:'received',updated_at:new Date().toISOString()}});
-    await audit(principal,'portal_document_uploaded','document',record.id,{case_id:record.case_id,client_id:record.client_id,request_id:record.request_id},req);
-    return json(res,201,{data:data[0]||data,processing,requestId},ch);
+    let documentPersisted=false;
+    try{
+      const data=await systemDb('documents',{method:'POST',body:record});
+      documentPersisted=true;
+      const processing=await enqueueDocumentProcessingDurably(data[0]||record,principal.id);
+      // This workflow transition is trusted only after the user-scoped document
+      // insert and the verified R2 object; clients have no direct request UPDATE.
+      if(record.request_id)await systemDb('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}`,body:{status:'received',updated_at:new Date().toISOString()}});
+      await audit(principal,'portal_document_uploaded','document',record.id,{case_id:record.case_id,client_id:record.client_id,request_id:record.request_id},req);
+      return json(res,201,{data:data[0]||data,processing,requestId},ch);
+    }catch(error){if(!documentPersisted)await deleteUncommittedObject(key);throw error}
   }
   if(req.method==='POST'&&u.pathname==='/api/v1/portal/documents/download-url'){
     if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
@@ -2060,9 +2096,7 @@ async function handleRaw(req,res){
     const target=await db('cases',{query:`?id=eq.${encodeURIComponent(cm[1])}&select=*`});
     if(!target.length||!canAccessCase(access,target[0],'cases.manage'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
     if(b.workflow_stage){
-      const rows=await db('cases',{query:`?id=eq.${encodeURIComponent(cm[1])}&select=id,workflow_stage`});
-      if(!rows.length)return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
-      if(!canTransitionWorkflow(rows[0].workflow_stage,b.workflow_stage))throw Object.assign(new Error('WORKFLOW_TRANSITION_NOT_ALLOWED'),{status:409,details:{from:rows[0].workflow_stage,to:b.workflow_stage}});
+      if(!canTransitionWorkflow(target[0].workflow_stage,b.workflow_stage))throw Object.assign(new Error('WORKFLOW_TRANSITION_NOT_ALLOWED'),{status:409,details:{from:target[0].workflow_stage,to:b.workflow_stage}});
     }
     if(b.service_code&&String(b.service_code).toUpperCase()!==String(target[0].service_code||'').toUpperCase()&&target[0].service_plan_snapshot)throw Object.assign(new Error('SERVICE_CHANGE_REQUIRES_RECONFIGURATION'),{status:409});
     const enhanced=['client_id','service_code','workflow_stage','review_state','agency','filing_type','jurisdiction','receipt_number'].some(field=>field in b)||b.archived!==undefined;
@@ -2083,7 +2117,9 @@ async function handleRaw(req,res){
     if(b.archived===false)patch.archived_at=null;
     if(enhanced)patch.updated_by=principal.id;
     patch.updated_at=new Date().toISOString();
-    const data=await db('cases',{method:'PATCH',query:`?id=eq.${encodeURIComponent(cm[1])}`,body:patch});
+    const transitionGuard=b.workflow_stage?`&workflow_stage=eq.${encodeURIComponent(target[0].workflow_stage)}`:'';
+    const data=await db('cases',{method:'PATCH',query:`?id=eq.${encodeURIComponent(cm[1])}${transitionGuard}`,body:patch});
+    if(!data.length)throw Object.assign(new Error('CASE_WORKFLOW_CONFLICT'),{status:409});
     await event(cm[1],b.archived===true?'case_archived':b.archived===false?'case_restored':patch.workflow_stage?'workflow_changed':'case_updated',{...patch,case_id:cm[1]},principal,req);
     return json(res,200,{data,requestId},ch);
   }
@@ -2247,7 +2283,7 @@ async function handleRaw(req,res){
       if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}&case_id=eq.${encodeURIComponent(input.caseId)}`,body:{status:'received',updated_at:new Date().toISOString()}});
       await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id,person_id:record.person_id,request_id:record.request_id,storage:'r2'},principal,req);
       return json(res,201,{data,storage:'r2',processing,linked:{case_id:record.case_id,client_id:record.client_id,...(record.person_id?{person_id:record.person_id}:{}),...(record.request_id?{request_id:record.request_id}:{})},preview_available:['application/pdf','image/jpeg','image/png','image/webp'].includes(record.content_type),requestId},ch);
-    }catch(error){if(!documentPersisted)await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key})).catch(()=>{});throw error}
+    }catch(error){if(!documentPersisted)await deleteUncommittedObject(key);throw error}
   }
   if(req.method==='POST'&&u.pathname==='/api/v1/documents/presign'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});if(!Array.isArray(caseRows)||!caseRows.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const uploadPermission=await documentUploadPermission(access,caseRows[0],b);if(!uploadPermission)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const filename=safeKey(input.fileName).split('/').pop();const key=safeKey(`cases/${input.caseId}/${crypto.randomUUID()}-${filename}`);const uploadUrl=await getSignedUrl(r2,new PutObjectCommand({Bucket:r2Bucket,Key:key,ContentType:input.contentType,ContentLength:input.sizeBytes,Metadata:{case_id:input.caseId}}),{expiresIn:900});return json(res,200,{key,upload_url:uploadUrl,expires_in:900,required_headers:{'content-type':input.contentType},requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/documents/confirm'){
@@ -2257,7 +2293,9 @@ async function handleRaw(req,res){
     const cases=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});
     if(!cases.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const uploadPermission=await documentUploadPermission(access,cases[0],b);if(!uploadPermission)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
     const verified=await verifiedStoredDocument(key,input,b.content_checksum);
-    const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${verified.checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409})}
+    const duplicateState=await existingDocumentForUpload(input.caseId,verified.checksum,key);
+    if(duplicateState.sameObject)return json(res,200,{data:duplicateState.sameObject,storage:'r2',idempotent:true,requestId},ch);
+    if(duplicateState.duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409})}
     let documentPersisted=false;
     try{
       const linkage=await canonicalDocumentLinkage(cases[0],b);
@@ -2269,7 +2307,7 @@ async function handleRaw(req,res){
       if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}&case_id=eq.${encodeURIComponent(input.caseId)}`,body:{status:'received',updated_at:new Date().toISOString()}});
       await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id,person_id:record.person_id,request_id:record.request_id,storage:'r2'},principal,req);
       return json(res,201,{data,storage:'r2',processing,linked:{case_id:record.case_id,client_id:record.client_id,person_id:record.person_id,request_id:record.request_id},preview_available:['application/pdf','image/jpeg','image/png','image/webp'].includes(record.content_type),requestId},ch);
-    }catch(error){if(!documentPersisted)await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key})).catch(()=>{});throw error}
+    }catch(error){if(!documentPersisted)await deleteUncommittedObject(key);throw error}
   }
   if(req.method==='POST'&&u.pathname==='/api/v1/documents/download-url'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,16_384);let rows=[];if(uuid(b.document_id))rows=await db('documents',{query:`?id=eq.${encodeURIComponent(b.document_id)}&select=*`});else if(principal?.authType==='internal'&&b.key)rows=await db('documents',{query:`?object_key=eq.${encodeURIComponent(safeKey(b.key))}&select=*`});else throw Object.assign(new Error('VALID_DOCUMENT_ID_REQUIRED'),{status:400});if(!Array.isArray(rows)||!rows.length)throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});const doc=rows[0];
     // A signed URL is a bearer capability that outlives this request, so the
@@ -2294,14 +2332,13 @@ async function handleRaw(req,res){
     const body=await readJson(req,32_768);if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});const review=await claimDocumentExtractionById(extractionConfirmMatch[2],{documentId:document.id,errorCode:'DOCUMENT_OCR_REVIEW_EXPIRED'});const accepted=normalizeReviewedIdentityFields(body.fields);let canonical;
     try{canonical=await commitVerifiedIdentityExtraction(review,document.person_id?'person':'client',document.person_id||document.client_id,accepted);}catch(error){await releaseDocumentExtraction(review);throw error}
     const synchronizedForms=await synchronizeVerifiedCanonicalToForms({id:document.case_id,client_id:document.client_id},{subjectType:document.person_id?'person':'client',subjectId:document.person_id||document.client_id,principal});
-    await finalizeDocumentReviewState(document,{status:'approved',reviewerId:principal.id});
     await event(document.case_id,'document_extraction_verified',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:review.id,person_id:document.person_id||null,committed_fields:canonical.committed_fields,synchronized_forms:synchronizedForms,human_confirmed:true,action_source:'STAFF_ASSISTED'},principal,req);return json(res,200,{data:{document_id:document.id,extraction_id:review.id,automation_status:'VERIFIED',committed_fields:canonical.committed_fields,synchronized_forms:synchronizedForms},requestId},ch);
   }
   const documentOcrMatch=u.pathname.match(/^\/api\/v1\/documents\/([0-9a-f-]{36})\/ocr(?:\/(confirm))?$/i);
   if(documentOcrMatch&&req.method==='GET'&&!documentOcrMatch[2]){const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(documentOcrMatch[1])}&archived_at=is.null&select=*&limit=1`});if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const document=rows[0],ocrCases=await casesById(access,[document.case_id]),ocrCase=ocrCases.get(String(document.case_id));if(!canAccessDocument(access,document,ocrCase,'documents.manage')&&!canAccessDocument(access,document,ocrCase,'documents.review'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const runs=await db('document_extractions',{query:`?document_id=eq.${document.id}&select=*&order=created_at.desc&limit=50`}),fields=runs.length?await db('document_extracted_fields',{query:`?extraction_id=in.(${runs.map(run=>run.id).join(',')})&select=*`}):[];return json(res,200,{data:runs.map(run=>({...run,fields:fields.filter(field=>field.extraction_id===run.id)})),requestId},ch);}
   if(documentOcrMatch&&req.method==='POST'){
     const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(documentOcrMatch[1])}&archived_at=is.null&select=*&limit=1`});if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const document=rows[0],ocrCases=await casesById(access,[document.case_id]),ocrPermission=documentOcrMatch[2]?'documents.review':'documents.manage';if(!canAccessDocument(access,document,ocrCases.get(String(document.case_id)),ocrPermission))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
-    if(documentOcrMatch[2]){const body=await readJson(req,32_768);if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});const review=await claimDocumentExtraction(body.review_token,principal,{documentId:document.id,errorCode:'DOCUMENT_OCR_REVIEW_EXPIRED'});const patch={category:cleanText(body.category||document.category||'identity',{required:true,max:100}),review_status:'under_review'};if(body.person_id){if(!uuid(body.person_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});const links=await db('case_people',{query:`?case_id=eq.${encodeURIComponent(document.case_id)}&person_id=eq.${encodeURIComponent(body.person_id)}&select=person_id&limit=1`});if(!links.length){await releaseDocumentExtraction(review);throw Object.assign(new Error('DOCUMENT_PERSON_NOT_IN_CASE'),{status:409})}patch.person_id=body.person_id}let updated,canonical;try{const accepted=normalizeReviewedIdentityFields(body.fields);updated=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(document.id)}`,body:patch});canonical=await commitVerifiedIdentityExtraction(review,patch.person_id?'person':'client',patch.person_id||document.client_id,accepted);await finalizeDocumentReviewState({...document,...patch},{status:'approved',reviewerId:principal.id});}catch(error){await releaseDocumentExtraction(review);throw error}await event(document.case_id,'document_ocr_confirmed',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:review.id,person_id:patch.person_id||document.person_id||null,engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,canonical_commit:true,committed_fields:canonical.committed_fields,confirmed_fields:Object.keys(body.fields&&typeof body.fields==='object'?body.fields:{})},principal,req);return json(res,200,{data:{...(updated[0]||updated),review_status:'approved',automation_status:'VERIFIED'},ocr:{engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,canonical_commit:true,committed_fields:canonical.committed_fields,source_document_id:document.id,extraction_id:review.id},requestId},ch)}
+    if(documentOcrMatch[2]){const body=await readJson(req,32_768);if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});const review=await claimDocumentExtraction(body.review_token,principal,{documentId:document.id,errorCode:'DOCUMENT_OCR_REVIEW_EXPIRED'});const patch={category:cleanText(body.category||document.category||'identity',{required:true,max:100}),review_status:'under_review'};if(body.person_id){if(!uuid(body.person_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});const links=await db('case_people',{query:`?case_id=eq.${encodeURIComponent(document.case_id)}&person_id=eq.${encodeURIComponent(body.person_id)}&select=person_id&limit=1`});if(!links.length){await releaseDocumentExtraction(review);throw Object.assign(new Error('DOCUMENT_PERSON_NOT_IN_CASE'),{status:409})}patch.person_id=body.person_id}let updated,canonical;try{const accepted=normalizeReviewedIdentityFields(body.fields);updated=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(document.id)}`,body:patch});canonical=await commitVerifiedIdentityExtraction(review,patch.person_id?'person':'client',patch.person_id||document.client_id,accepted);}catch(error){await releaseDocumentExtraction(review);throw error}await event(document.case_id,'document_ocr_confirmed',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:review.id,person_id:patch.person_id||document.person_id||null,engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,canonical_commit:true,committed_fields:canonical.committed_fields,confirmed_fields:Object.keys(body.fields&&typeof body.fields==='object'?body.fields:{})},principal,req);return json(res,200,{data:{...(updated[0]||updated),review_status:'approved',automation_status:'VERIFIED'},ocr:{engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,canonical_commit:true,committed_fields:canonical.committed_fields,source_document_id:document.id,extraction_id:review.id},requestId},ch)}
     if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
     if(!allowedIdentityTypes.has(String(document.content_type||'').toLowerCase()))throw Object.assign(new Error('DOCUMENT_OCR_IMAGE_REQUIRED'),{status:415});const object=await r2.send(new GetObjectCommand({Bucket:r2Bucket,Key:document.object_key})),bytes=Buffer.from(await object.Body.transformToByteArray());let result;try{result=await extractIdentityDocument(bytes)}catch{throw Object.assign(new Error('DOCUMENT_OCR_FAILED'),{status:422})}if(!result.mrz.detected&&!Object.keys(result.fields).length)throw Object.assign(new Error('DOCUMENT_NOT_RECOGNIZED'),{status:422});const persisted=await persistDocumentExtraction(principal,result,{document,sourceSha256:crypto.createHash('sha256').update(bytes).digest('hex')});await event(document.case_id,'document_ocr_review_required',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:persisted.run.id,engine:result.engine,mrz_detected:result.mrz.detected,mrz_valid:result.mrz.valid,human_confirmation_required:true},principal,req);return json(res,200,{review_token:persisted.token,extraction_id:persisted.run.id,expires_in:900,result,source_document_id:document.id,human_confirmation_required:true,requestId},ch);
   }
