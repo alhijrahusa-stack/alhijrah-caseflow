@@ -1166,7 +1166,7 @@
             method: "POST",
             body: JSON.stringify({ document_id: documentId }),
           });
-          window.open(j.download_url, "_blank");
+          window.open(j.download_url, "_blank", "noopener,noreferrer");
         } catch (e) {
           alert(e.message);
         }
@@ -1177,12 +1177,12 @@
             method: "POST",
             body: JSON.stringify({ document_id: documentId, disposition: "inline" }),
           });
-          const doc=docs.find(item=>item.id===documentId)||currentWorkspace?.documents?.find(item=>item.id===documentId)||{};$("previewDocumentName").textContent=doc.file_name||"Document preview";$("previewDocumentMeta").textContent=`${doc.category||"Unclassified"} · ${formatSize(doc.size_bytes)} · v${Number(doc.version||1)}`;$("documentPreviewFrame").src=j.preview_url||j.download_url;$("previewDownloadButton").dataset.a1=documentId;$("documentPreviewModal").classList.add("show");
+          const doc=docs.find(item=>item.id===documentId)||currentWorkspace?.documents?.find(item=>item.id===documentId)||{};$("previewDocumentName").textContent=doc.file_name||"Document preview";$("previewDocumentMeta").textContent=`${doc.category||"Unclassified"} · ${formatSize(doc.size_bytes)} · v${Number(doc.version||1)}`;$("documentPreviewFrame").setAttribute("sandbox","allow-same-origin");$("documentPreviewFrame").src=j.preview_url||j.download_url;$("previewDownloadButton").dataset.a1=documentId;$("documentPreviewModal").classList.add("show");
         } catch (e) {
           alert(e.message);
         }
       }
-      function closeDocumentPreview(){$("documentPreviewFrame").src="about:blank";$("documentPreviewModal").classList.remove("show")}
+      function closeDocumentPreview(){$("documentPreviewFrame").removeAttribute("sandbox");$("documentPreviewFrame").src="about:blank";$("documentPreviewModal").classList.remove("show")}
       async function deleteDoc(id) {
         if (!confirm("Move this document to the protected archive?")) return;
         try {

@@ -188,10 +188,11 @@ export function hasPermission(principal, permission) {
   return principal?.permissions?.has('*') || principal?.permissions?.has(permission);
 }
 
-export function validateRoles(roles) {
+export function validateRoles(roles, { allowOwner = false } = {}) {
   if (!Array.isArray(roles) || !roles.length) throw authError('AT_LEAST_ONE_ROLE_REQUIRED', 400);
   const unique = [...new Set(roles.map(value => String(value || '').trim()))];
   if (unique.some(role => !roleDefinitions[role])) throw authError('INVALID_ROLE', 400);
+  if (!allowOwner && unique.includes('owner')) throw authError('OWNER_ROLE_NOT_ASSIGNABLE', 400);
   return unique;
 }
 
@@ -345,10 +346,10 @@ export async function listAuthUsers() {
   }));
 }
 
-export async function inviteAuthUser({ email, displayName, roles, redirectTo = activationRedirectUrl() }) {
+export async function inviteAuthUser({ email, displayName, roles, allowOwner = false, redirectTo = activationRedirectUrl() }) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) throw authError('VALID_EMAIL_REQUIRED', 400);
-  const validatedRoles = validateRoles(roles);
+  const validatedRoles = validateRoles(roles, { allowOwner });
   const redirect = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : '';
   const invited = await authRequest(`/invite${redirect}`, { method: 'POST', admin: true, body: { email: normalizedEmail, data: { full_name: String(displayName || '').trim().slice(0, 120) } } });
   await authRequest(`/admin/users/${encodeURIComponent(invited.id)}`, { method: 'PUT', admin: true, body: { app_metadata: { ...(invited.app_metadata || {}), roles: validatedRoles, status: 'invited' } } });
@@ -367,7 +368,7 @@ export async function ensureConfiguredOwnerInvitation() {
     }
     return { invited: false, reason: 'OWNER_ACCOUNT_EXISTS' };
   }
-  const invited = await inviteAuthUser({ email: ownerEmail, displayName: 'Owner', roles: ['owner'] });
+  const invited = await inviteAuthUser({ email: ownerEmail, displayName: 'Owner', roles: ['owner'], allowOwner: true });
   return { invited: true, userId: invited.id };
 }
 
@@ -422,14 +423,14 @@ export async function getAuthUser(userId) {
   };
 }
 
-export async function updateAuthUser(userId, { displayName, roles, status }) {
+export async function updateAuthUser(userId, { displayName, roles, status, allowOwner = false }) {
   if (!/^[0-9a-f-]{36}$/i.test(String(userId || ''))) throw authError('INVALID_USER_ID', 400);
   const body = {};
   if (displayName !== undefined) body.user_metadata = { full_name: String(displayName || '').trim().slice(0, 120) };
   if (roles !== undefined || status !== undefined) {
     const current = await authRequest(`/admin/users/${encodeURIComponent(userId)}`, { admin: true });
     body.app_metadata = { ...(current.app_metadata || {}) };
-    if (roles !== undefined) body.app_metadata.roles = validateRoles(roles);
+    if (roles !== undefined) body.app_metadata.roles = validateRoles(roles, { allowOwner });
     if (status !== undefined) {
       if (!['active', 'inactive', 'invited'].includes(status)) throw authError('INVALID_USER_STATUS', 400);
       body.app_metadata.status = status;
