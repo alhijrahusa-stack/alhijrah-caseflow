@@ -50,6 +50,14 @@ function parseScore(result) {
   return (result.valid ? 1000 : 0) + validFields;
 }
 
+function parseCandidate(lines, autocorrect) {
+  try {
+    return parse(lines, { autocorrect });
+  } catch {
+    return null;
+  }
+}
+
 export function parseMrzFromText(text) {
   const rawLines = normalizeMrzText(text).split(/\r?\n/).flatMap(lineVariants);
   const candidates = [];
@@ -82,10 +90,18 @@ export function parseMrzFromText(text) {
 
   let best = null;
   for (const lines of candidates) {
-    try {
-      const result = parse(lines, { autocorrect: true });
-      if (!best || parseScore(result) > parseScore(best.result)) best = { lines, result };
-    } catch {}
+    const result = parseCandidate(lines, false);
+    const correctedResult = result?.valid ? null : parseCandidate(lines, true);
+    const score = parseScore(result) + (correctedResult?.valid ? 100 : 0);
+    if (!best || score > best.score) {
+      best = {
+        lines,
+        result,
+        corrected_result: correctedResult?.valid ? correctedResult : null,
+        correction_required: Boolean(!result?.valid && correctedResult?.valid),
+        score,
+      };
+    }
   }
   return best;
 }
@@ -93,8 +109,8 @@ export function parseMrzFromText(text) {
 function mrzDate(value, kind) {
   if (!/^\d{6}$/.test(String(value || ''))) return null;
   const yy = Number(value.slice(0, 2));
-  const month = value.slice(2, 4);
-  const day = value.slice(4, 6);
+  const month = Number(value.slice(2, 4));
+  const day = Number(value.slice(4, 6));
   const current = new Date().getUTCFullYear();
   let year;
   if (kind === 'birth') {
@@ -104,13 +120,19 @@ function mrzDate(value, kind) {
     year = 2000 + yy;
     if (year < current - 20) year += 100;
   }
-  const date = `${year}-${month}-${day}`;
-  return Number.isNaN(Date.parse(`${date}T00:00:00Z`)) ? null : date;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    Number.isNaN(date.getTime())
+    || date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) return null;
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-function fieldsFromMrz(best) {
-  if (!best) return {};
-  const fields = best.result.fields || {};
+function fieldsFromResult(result) {
+  if (!result) return {};
+  const fields = result.fields || {};
   const legalName = [fields.firstName, fields.lastName].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
   const stateName = states[fields.issuingState] || fields.issuingState || null;
   const nationality = states[fields.nationality] || fields.nationality || null;
@@ -118,11 +140,16 @@ function fieldsFromMrz(best) {
     legal_name: legalName || null,
     date_of_birth: mrzDate(fields.birthDate, 'birth'),
     nationality,
-    passport_number: best.result.documentNumber || fields.documentNumber || null,
+    passport_number: result.documentNumber || fields.documentNumber || null,
     passport_country: stateName,
     passport_expiration: mrzDate(fields.expirationDate, 'expiration'),
     sex: fields.sex || null,
   };
+}
+
+function fieldsFromMrz(best) {
+  if (!best?.result?.valid) return {};
+  return fieldsFromResult(best.result);
 }
 
 function visualFallback(text) {
@@ -166,16 +193,26 @@ async function runRecognition(imageBuffer) {
   const best = parseMrzFromText(combinedText);
   const extracted = { ...visualFallback(full.data.text), ...fieldsFromMrz(best) };
   for (const [key, value] of Object.entries(extracted)) if (value === null || value === '') delete extracted[key];
+  const correctedFields = best?.corrected_result ? fieldsFromResult(best.corrected_result) : null;
+  if (correctedFields) {
+    for (const [key, value] of Object.entries(correctedFields)) if (value === null || value === '') delete correctedFields[key];
+  }
   return {
     engine: 'tesseract.js',
     confidence: Math.round(Number(full.data.confidence || 0) * 10) / 10,
     mrz: best ? {
       detected: true,
-      valid: Boolean(best.result.valid),
-      format: best.result.format,
+      valid: Boolean(best.result?.valid),
+      format: best.result?.format || best.corrected_result?.format || null,
       lines: best.lines,
-      invalid_fields: best.result.details.filter(detail => detail.field && !detail.valid).map(detail => detail.field),
-    } : { detected: false, valid: false, format: null, lines: [], invalid_fields: [] },
+      invalid_fields: best.result?.details?.filter(detail => detail.field && !detail.valid).map(detail => detail.field) || [],
+      correction_required: best.correction_required,
+      correction_candidate: best.corrected_result ? {
+        valid: true,
+        format: best.corrected_result.format || null,
+        fields: correctedFields || {},
+      } : null,
+    } : { detected: false, valid: false, format: null, lines: [], invalid_fields: [], correction_required: false, correction_candidate: null },
     fields: extracted,
     raw_text: String(full.data.text || '').trim().slice(0, 4000),
   };
