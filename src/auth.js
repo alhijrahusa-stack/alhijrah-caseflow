@@ -13,13 +13,15 @@ export const roleDefinitions = Object.freeze({
   auditor: ['dashboard.view', 'clients.view', 'cases.view', 'documents.view', 'tasks.view', 'billing.view', 'audit.view', 'reports.view'],
   client_owner: ['portal.view', 'portal.intake', 'portal.documents', 'portal.messages'],
   client_collaborator: ['portal.view', 'portal.documents', 'portal.messages'],
+  employer_portal: ['portal.view', 'portal.documents', 'portal.messages'],
+  beneficiary_portal: ['portal.view', 'portal.intake', 'portal.documents', 'portal.messages'],
 });
 
 const accessCookie = '__Host-caseflow_access';
 const refreshCookie = '__Host-caseflow_refresh';
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const anonKey = process.env.SUPABASE_ANON_KEY || serviceRoleKey;
+const anonKey = process.env.SUPABASE_ANON_KEY;
 const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
 const appBaseUrl = process.env.APP_BASE_URL?.replace(/\/$/, '');
 const productionAppUrl = 'https://alhijrah-caseflow-production-716b.up.railway.app';
@@ -64,7 +66,7 @@ export function clearSessionCookies(res) {
 }
 
 async function authRequest(path, { method = 'GET', body, token, admin = false } = {}) {
-  if (!supabaseUrl || !serviceRoleKey || !anonKey) throw authError('AUTH_PROVIDER_NOT_CONFIGURED', 503);
+  if (!supabaseUrl || !anonKey || (admin && !serviceRoleKey)) throw authError('AUTH_PROVIDER_NOT_CONFIGURED', 503);
   const apiKey = admin ? serviceRoleKey : anonKey;
   const response = await fetch(`${supabaseUrl}/auth/v1${path}`, {
     method,
@@ -85,10 +87,8 @@ async function authRequest(path, { method = 'GET', body, token, admin = false } 
   return data;
 }
 
-// Per-process login throttle. Supabase applies project-wide limits, but they do
-// not stop a slow credential-stuffing run spread across many accounts, and they
-// give this service no way to lock a single account out. In-memory: behind more
-// than one instance the effective limit is maxLoginAttempts per instance.
+// A small local bound protects one process from a burst; the authoritative
+// counter is the atomic PostgreSQL RPC below, shared by every replica.
 const loginAttempts = new Map();
 const maxLoginAttempts = 8;
 const loginWindowMs = 15 * 60 * 1000;
@@ -98,6 +98,29 @@ export function loginThrottleKey(email, req) {
   const forwarded = String(req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
   const ip = forwarded || req?.socket?.remoteAddress || 'unknown';
   return `${ip}|${String(email || '').trim().toLowerCase()}`;
+}
+
+function sharedThrottleHash(key){
+  const secret=process.env.LOGIN_THROTTLE_SECRET||serviceRoleKey;
+  if(!secret)throw authError('AUTH_THROTTLE_NOT_CONFIGURED',503);
+  return crypto.createHmac('sha256',secret).update(key).digest('hex');
+}
+
+async function throttleRpc(name,body){
+  if(!supabaseUrl||!serviceRoleKey)throw authError('AUTH_THROTTLE_NOT_CONFIGURED',503);
+  const response=await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:serviceRoleKey,authorization:`Bearer ${serviceRoleKey}`,'content-type':'application/json'},body:JSON.stringify(body)});
+  const text=await response.text();let data;try{data=text?JSON.parse(text):null}catch{data=null}
+  if(!response.ok)throw authError('AUTH_THROTTLE_UNAVAILABLE',503);
+  return Array.isArray(data)?data[0]:data;
+}
+
+async function consumeSharedLoginAttempt(key){
+  const result=await throttleRpc('consume_login_attempt',{p_key_hash:sharedThrottleHash(key),p_limit:maxLoginAttempts,p_window_seconds:Math.floor(loginWindowMs/1000)});
+  if(result?.allowed!==true)throw authError('TOO_MANY_LOGIN_ATTEMPTS',429);
+}
+
+async function clearSharedLoginAttempts(key){
+  await throttleRpc('clear_login_attempt',{p_key_hash:sharedThrottleHash(key)});
 }
 
 function consumeLoginAttempt(key, now = Date.now()) {
@@ -125,11 +148,16 @@ export async function signInWithPassword(email, password, req) {
   const throttleKey = loginThrottleKey(normalizedEmail, req);
   // Count before validating, so malformed submissions are not a free probe.
   consumeLoginAttempt(throttleKey);
+  // The shared boundary is identity-wide, so changing source IP or moving to
+  // another replica cannot multiply the effective allowance. The database
+  // stores only the HMAC, never the submitted email.
+  await consumeSharedLoginAttempt(normalizedEmail);
   if (!normalizedEmail || !/^\S+@\S+\.\S+$/.test(normalizedEmail) || typeof password !== 'string' || password.length < 8 || password.length > 256) {
     throw authError('INVALID_CREDENTIALS', 400);
   }
   const session = await authRequest('/token?grant_type=password', { method: 'POST', body: { email: normalizedEmail, password } });
   clearLoginAttempts(throttleKey);
+  await clearSharedLoginAttempts(normalizedEmail);
   return session;
 }
 
@@ -192,13 +220,13 @@ export async function authenticateSession(req, res) {
   const cookies = parseCookies(req);
   let accessToken = cookies[accessCookie];
   try {
-    return principalFromUser(await getUser(accessToken));
+    return { ...principalFromUser(await getUser(accessToken)), databaseAccessToken: accessToken };
   } catch (error) {
     if (!cookies[refreshCookie] || error.status !== 401) throw error;
     const session = await refreshSession(cookies[refreshCookie]);
     setSessionCookies(res, session);
     accessToken = session.access_token;
-    return principalFromUser(session.user || await getUser(accessToken));
+    return { ...principalFromUser(session.user || await getUser(accessToken)), databaseAccessToken: accessToken };
   }
 }
 

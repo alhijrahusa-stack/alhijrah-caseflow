@@ -4,6 +4,7 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 import { APP_ORIGIN, INTERNAL_KEY, addUser, backend, browserHeaders, cookieHeader, driver, issueSession, putObject, resetBackend } from './helpers/harness.js';
 import { handle, requiredPermission, respondToError } from '../src/server.js';
@@ -53,10 +54,18 @@ test('readiness verifies the authorization schema independently of owner provisi
   assert.equal(response.status, 503, 'the test tenant has no Owner account');
   assert.equal(response.body.checks.supabase, true);
   assert.equal(response.body.checks.coreSchema, true);
+  assert.equal(response.body.checks.formsSchema, true);
+  assert.equal(response.body.checks.convergenceSchema, true);
   assert.equal(response.body.checks.authorizationSchema, true);
   assert.deepEqual(response.body.authorizationTables, { teams: true, teamMembers: true, accessPolicies: true, recordAccessGrants: true });
   assert.deepEqual(response.body.authorizationTableErrors, {});
   assert.equal(response.body.checks.ownerAccount, false);
+});
+
+test('Railway gates deployment on full readiness rather than liveness', async () => {
+  const configuration = await readFile(new URL('../railway.toml', import.meta.url), 'utf8');
+  assert.match(configuration, /healthcheckPath\s*=\s*"\/ready"/);
+  assert.doesNotMatch(configuration, /healthcheckPath\s*=\s*"\/health"/);
 });
 
 // ---------------------------------------------------------------------------
@@ -229,6 +238,16 @@ test('repeated failed logins are throttled before reaching the auth provider', a
   assert.ok(backend.authFailures <= 8, `upstream saw ${backend.authFailures} attempts; throttle should cap them`);
 });
 
+test('shared login throttling survives a process-local reset', async () => {
+  for(let attempt=0;attempt<8;attempt+=1){
+    const response=await request({method:'POST',path:'/api/v1/auth/login',headers:browserHeaders({'x-test-ip':'198.51.100.20'}),body:{email:'replica-test@caseflow.test',password:'wrong-password-guess'}});
+    assert.notEqual(response.status,429);
+  }
+  resetLoginThrottle();
+  const next=await request({method:'POST',path:'/api/v1/auth/login',headers:browserHeaders({'x-test-ip':'198.51.100.20'}),body:{email:'replica-test@caseflow.test',password:'wrong-password-guess'}});
+  assert.equal(next.status,429,'a fresh replica must observe the shared counter');
+});
+
 // ---------------------------------------------------------------------------
 // CSRF
 // ---------------------------------------------------------------------------
@@ -367,11 +386,36 @@ test('a PATCH that matches no case reports 404 rather than a phantom success', a
   assert.equal(backend.tables.case_events.filter(row => row.event_type === 'case_updated').length, 0, 'no audit event may be written for a case that does not exist');
 });
 
+test('concurrent workflow transitions commit exactly one decision', async () => {
+  const cookie = await signIn();
+  seedCase({ workflow_stage: 'intake' });
+  const [advance, close] = await Promise.all([
+    request({ method: 'PATCH', path: `/api/v1/cases/${CASE_ID}`, headers: browserHeaders({ cookie }), body: { workflow_stage: 'awaiting_documents' } }),
+    request({ method: 'PATCH', path: `/api/v1/cases/${CASE_ID}`, headers: browserHeaders({ cookie }), body: { workflow_stage: 'closed' } }),
+  ]);
+  assert.deepEqual([advance.status, close.status].sort(), [200, 409]);
+  assert.equal(backend.tables.case_events.filter(row => row.event_type === 'workflow_changed').length, 1);
+});
+
+test('conflicting concurrent document reviews commit exactly one decision', async () => {
+  addUser({ email: 'owner@caseflow.test', roles: ['owner'], fullName: 'Owner' });
+  const cookie = await signIn('owner@caseflow.test');
+  const clientId = crypto.randomUUID(), documentId = crypto.randomUUID();
+  seedCase({ client_id: clientId });
+  backend.tables.documents.push({ id: documentId, case_id: CASE_ID, client_id: clientId, review_status: 'under_review', reviewed_at: null, archived_at: null });
+  const [approve, reject] = await Promise.all([
+    request({ method: 'POST', path: `/api/v1/documents/${documentId}/review`, headers: browserHeaders({ cookie }), body: { status: 'approved' } }),
+    request({ method: 'POST', path: `/api/v1/documents/${documentId}/review`, headers: browserHeaders({ cookie }), body: { status: 'rejected' } }),
+  ]);
+  assert.deepEqual([approve.status, reject.status].sort(), [200, 409]);
+  assert.equal(backend.tables.case_events.filter(row => row.event_type === 'document_reviewed').length, 1);
+});
+
 // ---------------------------------------------------------------------------
 // Error disclosure
 // ---------------------------------------------------------------------------
 
-test('database error payloads never reach the client', async () => {
+test('reconfirming the same stored object is idempotent and never deletes committed bytes', async () => {
   const cookie = await signIn();
   seedCase();
   const key = `cases/${CASE_ID}/${crypto.randomUUID()}-file.pdf`;
@@ -381,16 +425,34 @@ test('database error payloads never reach the client', async () => {
   const first = await request({ method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }), body });
   assert.equal(first.status, 201);
 
-  // Confirming the same object twice trips the unique index on object_key, so
-  // PostgREST answers 4xx with a payload naming the constraint. That payload
-  // was previously forwarded to the caller verbatim.
+  // A client may retry after the first response is lost. That retry must not
+  // delete the object already referenced by the committed document row.
   const duplicate = await request({ method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }), body });
-  assert.ok(duplicate.status >= 400, `expected a failure, got ${duplicate.status}`);
-  assert.equal(duplicate.body.error, 'DATABASE_REQUEST_FAILED');
-  assert.equal('details' in duplicate.body, false, 'upstream error payloads must not be forwarded');
-  assert.equal(duplicate.raw.includes('constraint'), false);
-  assert.equal(duplicate.raw.includes('documents_object_key_key'), false);
-  assert.equal(duplicate.raw.includes('23505'), false);
+  assert.equal(duplicate.status, 200, duplicate.raw);
+  assert.equal(duplicate.body.idempotent, true);
+  assert.equal(backend.objects.has(key), true, 'committed R2 bytes must survive a confirm retry');
+  assert.equal(backend.tables.documents.length, 1);
+
+  // A genuinely separate upload of the same bytes is rejected and only its
+  // uncommitted object is removed.
+  const otherKey = `cases/${CASE_ID}/${crypto.randomUUID()}-duplicate.pdf`;
+  putObject(otherKey, { size: 1024, contentType: 'application/pdf' });
+  const other = await request({ method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }), body: { ...body, key: otherKey } });
+  assert.equal(other.status, 409);
+  assert.equal(other.body.error, 'DUPLICATE_DOCUMENT');
+  assert.equal(backend.objects.has(otherKey), false);
+  assert.equal(backend.objects.has(key), true);
+  assert.equal('details' in other.body, false, 'upstream error payloads must not be forwarded');
+});
+
+test('authorization-table failure denies non-owner access instead of widening to role defaults', async () => {
+  const cookie = await signIn();
+  seedCase();
+  backend.tables.access_policies = undefined;
+  const response = await request({ path: '/api/v1/cases', headers: browserHeaders({ cookie }) });
+  assert.equal(response.status, 503);
+  assert.equal(response.body.error, 'INTERNAL_ERROR');
+  assert.equal(response.body.data, undefined);
 });
 
 test('malformed identifiers are rejected locally instead of at the database', async () => {
@@ -456,6 +518,8 @@ test('same-origin upload persists bytes in R2, metadata in Supabase and case/cli
   assert.equal(row.category, 'identity');
   assert.ok(backend.objects.has(row.object_key), 'R2 contains the uploaded object');
   assert.ok(backend.tables.documents.some(document => document.id === row.id), 'Supabase metadata was created');
+  const commitRequest=backend.restRequests.find(entry=>entry.method==='POST'&&entry.path.endsWith('/documents'));
+  assert.equal(commitRequest?.headers.apikey,'service-role-key','only the post-verification metadata commit uses the trusted system boundary');
 
   const preview = await request({
     method: 'POST', path: '/api/v1/documents/download-url', headers: browserHeaders({ cookie }),
@@ -497,6 +561,52 @@ test('confirm rejects an object whose stored bytes differ from the declared uplo
   });
   assert.equal(response.status, 409);
   assert.equal(response.body.error, 'UPLOADED_OBJECT_MISMATCH');
+});
+
+test('presigned confirmation verifies the exact R2 bytes instead of trusting a browser checksum', async () => {
+  const cookie = await signIn();
+  seedCase();
+  const bytes = Buffer.from('immutable evidence bytes');
+  const key = `cases/${CASE_ID}/${crypto.randomUUID()}-evidence.pdf`;
+  backend.objects.set(key, { size: bytes.length, contentType: 'application/pdf', body: bytes });
+  const forgedChecksum = 'f'.repeat(64);
+  const response = await request({
+    method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }),
+    body: { case_id: CASE_ID, key, file_name: 'evidence.pdf', content_type: 'application/pdf', size_bytes: bytes.length, content_checksum: forgedChecksum },
+  });
+  assert.equal(response.status, 409);
+  assert.equal(response.body.error, 'DOCUMENT_CHECKSUM_MISMATCH');
+  assert.equal(backend.tables.documents.length, 0);
+});
+
+test('a replacement appends a consecutive version and inherits canonical ownership links', async () => {
+  const cookie = await signIn();
+  const clientId = crypto.randomUUID(), personId = crypto.randomUUID(), requestId = crypto.randomUUID();
+  seedCase({ client_id: clientId });
+  backend.tables.people.push({ id: personId, legal_name: 'Synthetic Person' });
+  backend.tables.case_people.push({ case_id: CASE_ID, person_id: personId, case_role: 'beneficiary' });
+  backend.tables.document_requests.push({ id: requestId, case_id: CASE_ID, client_id: clientId, person_id: personId, category: 'identity', status: 'missing' });
+  const upload = async (name, replaces_document_id) => {
+    const bytes = Buffer.from(`version:${name}`), key = `cases/${CASE_ID}/${crypto.randomUUID()}-${name}`;
+    backend.objects.set(key, { size: bytes.length, contentType: 'application/pdf', body: bytes });
+    return request({ method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }), body: {
+      case_id: CASE_ID, key, file_name: name, content_type: 'application/pdf', size_bytes: bytes.length,
+      ...(replaces_document_id ? { replaces_document_id } : { person_id: personId, request_id: requestId }),
+    }});
+  };
+  const first = await upload('v1.pdf');
+  assert.equal(first.status, 201, first.raw);
+  const second = await upload('v2.pdf', first.body.data[0].id);
+  assert.equal(second.status, 201, second.raw);
+  const replacement = second.body.data[0];
+  assert.equal(replacement.version, 2);
+  assert.equal(replacement.replaces_document_id, first.body.data[0].id);
+  assert.equal(replacement.client_id, clientId);
+  assert.equal(replacement.person_id, personId);
+  assert.equal(replacement.request_id, requestId);
+  assert.equal(replacement.category, 'identity');
+  assert.match(replacement.content_checksum, /^[0-9a-f]{64}$/);
+  assert.ok(backend.tables.documents.find(row => row.id === first.body.data[0].id).archived_at);
 });
 
 test('deleting a document removes the object but preserves the record and its trail', async () => {
@@ -615,6 +725,14 @@ test('the workspace script is served as an external asset', async () => {
   assert.match(String(response.headers['content-type']), /text\/javascript/);
   assert.equal(response.headers['x-content-type-options'], 'nosniff');
   assert.ok(response.raw.includes('uiActions'), 'the dispatch table ships with it');
+});
+
+test('styles are external and CSP rejects inline style execution', async () => {
+  const [page,script,style,health]=await Promise.all([request({path:'/'}),request({path:'/app.js'}),request({path:'/app.css'}),request({path:'/health'})]);
+  assert.equal(style.status,200);assert.match(String(style.headers['content-type']),/text\/css/);
+  assert.ok(page.raw.includes('href="/app.css"'));assert.equal(/<style\b/i.test(page.raw),false);assert.equal(/\sstyle=/i.test(page.raw),false);assert.equal(/\.style\./.test(script.raw),false);
+  const styleSrc=health.headers['content-security-policy'].split(';').map(part=>part.trim()).find(part=>part.startsWith('style-src'));
+  assert.equal(styleSrc,"style-src 'self'");assert.equal(styleSrc.includes('unsafe-inline'),false);
 });
 
 test('public assets are precompressed and support conditional revalidation', async () => {

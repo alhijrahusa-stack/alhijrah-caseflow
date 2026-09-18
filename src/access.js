@@ -76,7 +76,7 @@ export const defaultStaffScope = 'global';
 // explicitly authorises a supported collaborator relationship.
 export const defaultClientScope = 'client_self';
 
-const clientRoles = new Set(['client_owner', 'client_collaborator']);
+const clientRoles = new Set(['client_owner', 'client_collaborator', 'employer_portal', 'beneficiary_portal']);
 
 export function moduleOf(permission) {
   const [module] = String(permission || '').split('.');
@@ -388,9 +388,9 @@ export function caseListFilter(access, permission = 'cases.view') {
   const clauses = [];
   const scope = scopeFor(access, moduleOf(permission));
   const permitted = hasEffectivePermission(access, permission);
+  const globallyPermitted = permitted && scope === 'global';
 
   if (permitted) {
-    if (scope === 'global') return null;
     if (scope === 'team' && access.teamIds.size) clauses.push(`team_id.in.(${[...access.teamIds].join(',')})`);
     if (scope === 'assigned') {
       if (access.assignedCaseIds.size) clauses.push(`id.in.(${[...access.assignedCaseIds].join(',')})`);
@@ -414,10 +414,23 @@ export function caseListFilter(access, permission = 'cases.view') {
   }
   if (grantedCodes.size) clauses.push(`service_code.in.(${[...grantedCodes].join(',')})`);
 
+  // Apply restrictions in PostgreSQL before LIMIT. The final row predicate is
+  // still retained by callers as defense in depth, but it must not be the
+  // first place a restriction is applied or a page can be incomplete.
+  const exclusions=[];
+  if(access.restrictedCaseIds.size)exclusions.push(`id=not.in.(${[...access.restrictedCaseIds].join(',')})`);
+  if(access.restrictedClientIds.size)exclusions.push(`client_id=not.in.(${[...access.restrictedClientIds].join(',')})`);
+  const restrictedCodes=new Set(access.restrictedServiceCodes);
+  for(const category of access.restrictedCategories)for(const [code,name] of serviceCategory)if(name===category)restrictedCodes.add(code);
+  if(restrictedCodes.size)exclusions.push(`service_code=not.in.(${[...restrictedCodes].join(',')})`);
+
   // No clause at all means nothing is reachable. Encode that as a filter that
   // matches no row rather than returning null, which would mean "everything".
-  if (!clauses.length) return { matchesNothing: true, query: '' };
-  return { matchesNothing: false, query: `&or=(${clauses.join(',')})` };
+  if (!globallyPermitted&&!clauses.length) return { matchesNothing: true, query: '' };
+  const positive=globallyPermitted?'':`&or=(${clauses.join(',')})`;
+  const negative=exclusions.length?`&${exclusions.join('&')}`:'';
+  if(!positive&&!negative)return null;
+  return { matchesNothing: false, query: positive+negative };
 }
 
 export function filterAccessibleCases(access, rows, permission = 'cases.view') {

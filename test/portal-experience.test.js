@@ -1,6 +1,6 @@
 import test,{beforeEach}from'node:test';
 import assert from'node:assert/strict';
-import{addUser,backend,browserHeaders,cookieHeader,driver,resetBackend}from'./helpers/harness.js';
+import{addUser,backend,browserHeaders,cookieHeader,driver,putObject,resetBackend}from'./helpers/harness.js';
 import{handle,respondToError}from'../src/server.js';
 import{resetAuthProvisioningCache,resetLoginThrottle}from'../src/auth.js';
 
@@ -65,4 +65,18 @@ test('approved client communications exclude queued and failed provider records'
   const response=await request({path:`/api/v1/portal/cases/${CASE_A}`,headers:browserHeaders({cookie})});
   assert.equal(response.status,200,response.raw);
   assert.deepEqual(response.body.data.approved_communications.map(item=>item.subject),['Approved']);
+});
+
+test('portal upload confirmation retry preserves the committed object',async()=>{
+  const requestId='caaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',key=`cases/${CASE_A}/portal-retry.pdf`,bytes=Buffer.from('portal evidence');
+  backend.tables.document_requests.push({id:requestId,case_id:CASE_A,client_id:CLIENT_A,category:'civil_document',status:'missing'});
+  putObject(key,{size:bytes.length,contentType:'application/pdf',body:bytes});
+  const cookie=await signIn(),body={case_id:CASE_A,request_id:requestId,key,file_name:'portal-retry.pdf',content_type:'application/pdf',size_bytes:bytes.length};
+  const first=await request({method:'POST',path:'/api/v1/portal/documents/confirm',headers:browserHeaders({cookie}),body});
+  assert.equal(first.status,201,first.raw);
+  const retry=await request({method:'POST',path:'/api/v1/portal/documents/confirm',headers:browserHeaders({cookie}),body});
+  assert.equal(retry.status,200,retry.raw);
+  assert.equal(retry.body.idempotent,true);
+  assert.equal(backend.objects.has(key),true);
+  assert.equal(backend.tables.documents.filter(item=>item.object_key===key).length,1);
 });
