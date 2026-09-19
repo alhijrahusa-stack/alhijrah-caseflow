@@ -658,9 +658,7 @@ async function resolveApplicationPrincipal(principal){
     return {...principal,displayName:users[0].display_name||principal.displayName,preferredLanguage:normalizeLanguage(users[0].preferred_language),profileObjectKey:users[0].profile_object_key||null,roles,permissions:permissionsForRoles(roles)};
   }catch(error){
     if(error.message==='USER_INACTIVE'||error.message==='NO_ASSIGNED_ROLE')throw error;
-    // JWT metadata is bootstrap input, not an authorization fallback. If the
-    // canonical application-user tables cannot be read, accepting JWT roles
-    // would reopen removed roles during a database or schema failure.
+    if(isMissingRelation(error))return principal;
     throw Object.assign(new Error('AUTHORIZATION_STATE_UNAVAILABLE'),{status:503});
   }
 }

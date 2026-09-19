@@ -115,12 +115,17 @@ async function throttleRpc(name,body){
 }
 
 async function consumeSharedLoginAttempt(key){
-  const result=await throttleRpc('consume_login_attempt',{p_key_hash:sharedThrottleHash(key),p_limit:maxLoginAttempts,p_window_seconds:Math.floor(loginWindowMs/1000)});
-  if(result?.allowed!==true)throw authError('TOO_MANY_LOGIN_ATTEMPTS',429);
+  try{
+    const result=await throttleRpc('consume_login_attempt',{p_key_hash:sharedThrottleHash(key),p_limit:maxLoginAttempts,p_window_seconds:Math.floor(loginWindowMs/1000)});
+    if(result?.allowed!==true)throw authError('TOO_MANY_LOGIN_ATTEMPTS',429);
+  }catch(error){
+    if(error.message==='TOO_MANY_LOGIN_ATTEMPTS')throw error;
+    console.warn('shared-login-throttle-unavailable',error.message);
+  }
 }
 
 async function clearSharedLoginAttempts(key){
-  await throttleRpc('clear_login_attempt',{p_key_hash:sharedThrottleHash(key)});
+  try{await throttleRpc('clear_login_attempt',{p_key_hash:sharedThrottleHash(key)})}catch(error){console.warn('shared-login-throttle-clear-failed',error.message)}
 }
 
 function consumeLoginAttempt(key, now = Date.now()) {

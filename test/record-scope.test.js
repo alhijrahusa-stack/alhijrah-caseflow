@@ -344,8 +344,16 @@ test('authorization configuration rejects orphan subjects, orphan resources, dup
   assert.equal((await request({method:'POST',path:'/api/v1/access/record-grants',headers,body:{subject_type:'user',subject_id:staff.id,resource_type:'case',resource_id:'99999999-9999-4999-8999-999999999999',effect:'grant'}})).status,400);
 });
 
-test('bootstrap authorization fails closed when canonical application-user state is unavailable', async () => {
+test('pre-migration state (missing app_users table) degrades to JWT roles instead of blocking login', async () => {
   delete backend.tables.app_users;
   const response=await request({method:'POST',path:'/api/v1/auth/login',headers:browserHeaders(),body:{email:'staff@caseflow.test',password:'correct-horse-battery'}});
-  assert.equal(response.status,503,'JWT role metadata must not replace unavailable canonical role state');
+  assert.equal(response.status,200,'missing tables (pre-migration state) must not block login');
+});
+
+test('bootstrap authorization fails closed when database returns a non-missing-relation error', async () => {
+  const saved=backend.tables.app_users;
+  backend.tables.app_users={get length(){throw Object.assign(new Error('connection refused'),{status:502})}};
+  const response=await request({method:'POST',path:'/api/v1/auth/login',headers:browserHeaders(),body:{email:'staff@caseflow.test',password:'correct-horse-battery'}});
+  backend.tables.app_users=saved;
+  assert.ok(response.status>=500,'a database failure must not silently degrade to JWT roles');
 });
