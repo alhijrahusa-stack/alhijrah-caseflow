@@ -162,7 +162,7 @@ const allowedTaskStatuses = new Set(['open', 'in_progress', 'blocked', 'complete
 export function cleanText(value, { required = false, max = 255 } = {}) {
   const text = String(value ?? '').trim();
   if (required && !text) throw Object.assign(new Error('REQUIRED_FIELD_MISSING'), { status: 400 });
-  if (text.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text)) {
+  if (text.length > max || /[\u0000-\u001f]/.test(text)) {
     throw Object.assign(new Error('INVALID_TEXT_VALUE'), { status: 400 });
   }
   return text || null;

@@ -33,6 +33,7 @@ function validDate(y,m,d){const text=`${y}-${String(m).padStart(2,'0')}-${String
 export function detectMapping(headers){const result={};for(const header of headers){const normalized=key(header);const field=Object.entries(aliases).find(([,values])=>values.some(alias=>key(alias)===normalized))?.[0];if(field&&!result[field])result[field]=header;}return result;}
 function cellValue(value){if(value&&typeof value==='object'){if(value.text!==undefined)return value.text;if(value.result!==undefined)return value.result;if(Array.isArray(value.richText))return value.richText.map(item=>item.text).join('');}return value instanceof Date?value:compact(value);}
 export async function parseImportFile(buffer,filename){
+  if(!Buffer.isBuffer(buffer)&&!(buffer instanceof Uint8Array)||buffer.length>20*1024*1024)throw Object.assign(new Error('IMPORT_FILE_TOO_LARGE'),{status:413});
   const extension=String(filename||'').toLowerCase().split('.').pop();const workbook=new ExcelJS.Workbook();
   if(extension==='csv')await workbook.csv.read(Readable.from(buffer),{parserOptions:{skipEmptyLines:true}});else if(extension==='xlsx')await workbook.xlsx.load(buffer);else throw Object.assign(new Error('IMPORT_FILE_TYPE_NOT_SUPPORTED'),{status:415});
   const sheet=workbook.worksheets[0];if(!sheet)throw Object.assign(new Error('IMPORT_WORKSHEET_EMPTY'),{status:400});const headers=[];sheet.getRow(1).eachCell({includeEmpty:true},(cell,column)=>headers[column-1]=compact(cellValue(cell.value))||`Column ${column}`);
