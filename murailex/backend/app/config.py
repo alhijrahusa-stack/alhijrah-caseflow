@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     s3_access_key_id: SecretStr | None = None
     s3_secret_access_key: SecretStr | None = None
     s3_bucket: str = "murailex-evidence"
+    s3_server_side_encryption: str | None = "AES256"  # empty string disables SSE header
     s3_object_lock_mode: str | None = None  # GOVERNANCE | COMPLIANCE
     s3_object_lock_days: int = 0
 

@@ -47,9 +47,14 @@ def _lock_args() -> dict[str, Any]:
     return {}
 
 
+def _sse() -> dict[str, Any]:
+    mode = get_settings().s3_server_side_encryption
+    return {"ServerSideEncryption": mode} if mode else {}
+
+
 def start_multipart(key: str, content_type: str) -> str:
     resp = client().create_multipart_upload(
-        Bucket=bucket(), Key=key, ContentType=content_type, ServerSideEncryption="AES256", **_lock_args()
+        Bucket=bucket(), Key=key, ContentType=content_type, **_sse(), **_lock_args()
     )
     return resp["UploadId"]
 
@@ -85,15 +90,15 @@ def put_bytes(key: str, data: bytes, content_type: str, lock: bool = False) -> d
         Key=key,
         Body=data,
         ContentType=content_type,
-        ServerSideEncryption="AES256",
         ChecksumAlgorithm="SHA256",
+        **_sse(),
         **(_lock_args() if lock else {}),
     )
 
 
 def put_file(key: str, fileobj: BinaryIO, content_type: str) -> dict[str, Any]:
     return client().put_object(
-        Bucket=bucket(), Key=key, Body=fileobj, ContentType=content_type, ServerSideEncryption="AES256"
+        Bucket=bucket(), Key=key, Body=fileobj, ContentType=content_type, **_sse()
     )
 
 

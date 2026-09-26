@@ -25,3 +25,6 @@ exclude = ["alembic/", "tests/"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["alembic"]
