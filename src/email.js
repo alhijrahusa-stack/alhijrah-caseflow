@@ -46,6 +46,7 @@ export async function sendTransactionalEmail({ to, subject, html, text }) {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({ from, to: [to], subject, html, text }),
+    signal: AbortSignal.timeout(15000),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || !payload.id) throw Object.assign(new Error('EMAIL_DELIVERY_FAILED'), { code: `RESEND_${response.status}` });
