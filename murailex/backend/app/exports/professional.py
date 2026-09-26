@@ -236,7 +236,7 @@ def render_professional_pdf(ctx: dict[str, Any]) -> bytes:
         block: list[Any] = [Paragraph(f"[{ts_value}]  " + render._font_runs(render._visual(label) if render._is_rtl(label) else label, ar_font, la_font, 9), mono)]
         style = rtl if render._is_rtl(text) else ltr
         visual = render._visual(text) if render._is_rtl(text) else text
-        block.append(Paragraph(render._font_runs(visual, ar_font, la_font, 12 if style is rtl else 10.5), style))
+        block.append(Paragraph(render._font_runs(visual, ar_font, la_font, 12 if style is rtl else 10), style))
         block.append(Spacer(1, 2.4 * mm))
         story.append(KeepTogether(block))
 
