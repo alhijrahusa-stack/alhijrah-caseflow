@@ -1,71 +1,43 @@
-import { z } from "zod";
-import { fail, json, parseBody, requireStaff } from "@/lib/api";
+import { sql } from "@/lib/db";
+import { clientIp, err, ok, staffAllowed } from "@/lib/http";
+import { logActivity } from "@/lib/service";
+import { signedUrl } from "@/lib/storage";
 
-const BUCKET = process.env.DOCUMENTS_BUCKET || "client-documents";
-const Params = z.uuid();
-const Update = z.object({ verified: z.boolean() });
+export const runtime = "nodejs";
 
-type Ctx = { params: Promise<{ id: string }> };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Returns a 60-second signed download URL. */
-export async function GET(_req: Request, ctx: Ctx) {
-  const { staff, response } = await requireStaff();
-  if (response) return response;
-  const id = Params.safeParse((await ctx.params).id);
-  if (!id.success) return fail("Not found", 404);
+/** Issues a 10-minute signed URL and records the access. */
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  if (!(await staffAllowed())) return err("unauthorized", "Office access required", 401);
+  const { id } = await ctx.params;
+  if (!UUID.test(id)) return err("not_found", "Document not found", 404);
+  const handledBy = new URL(req.url).searchParams.get("handled_by");
+  if (handledBy && !UUID.test(handledBy)) return err("invalid_staff", "Invalid staff member");
 
-  const { data: doc } = await staff.supabase
-    .from("documents").select("storage_path, file_name").eq("id", id.data).maybeSingle();
-  if (!doc) return fail("Not found", 404);
+  const db = sql();
+  const [doc] = await db`select id, client_id, storage_path, file_name from documents where id = ${id}`;
+  if (!doc) return err("not_found", "Document not found", 404);
+  if (handledBy) {
+    const [s] = await db`select id from staff_directory where id = ${handledBy} and active`;
+    if (!s) return err("invalid_staff", "Unknown or inactive staff member");
+  }
 
-  const { data, error } = await staff.supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(doc.storage_path, 60, { download: doc.file_name });
-  if (error) return fail(error.message, 500);
-  return json({ url: data.signedUrl });
-}
+  let signed;
+  try {
+    signed = await signedUrl(doc.storage_path, doc.file_name);
+  } catch (e) {
+    console.error(e);
+    return err("storage_error", "Could not create a download link", 502);
+  }
 
-export async function PATCH(req: Request, ctx: Ctx) {
-  const { staff, response } = await requireStaff();
-  if (response) return response;
-  const id = Params.safeParse((await ctx.params).id);
-  if (!id.success) return fail("Not found", 404);
-  const { data, response: bad } = await parseBody(req, Update);
-  if (bad) return bad;
-
-  const { data: doc, error } = await staff.supabase
-    .from("documents").update({ verified: data.verified }).eq("id", id.data)
-    .select("id, client_id, kind").maybeSingle();
-  if (error) return fail(error.message, 500);
-  if (!doc) return fail("Not found", 404);
-
-  await staff.supabase.from("activity").insert({
-    client_id: doc.client_id, actor: staff.user.id, type: "document_reviewed",
-    summary: `${doc.kind.replace("_", " ")} document marked ${data.verified ? "verified" : "unverified"}`,
-    data: { document_id: doc.id },
+  await db.begin(async (tx) => {
+    await tx`insert into document_access_log (document_id, client_id, handled_by, ip_address)
+             values (${doc.id}, ${doc.client_id}, ${handledBy}, ${clientIp(req)})`;
+    await logActivity(tx, {
+      clientId: doc.client_id, action: "document_opened", handledBy, entityType: "document", entityId: doc.id,
+    });
   });
-  return json(doc);
-}
 
-export async function DELETE(_req: Request, ctx: Ctx) {
-  const { staff, response } = await requireStaff();
-  if (response) return response;
-  const id = Params.safeParse((await ctx.params).id);
-  if (!id.success) return fail("Not found", 404);
-
-  const { data: doc } = await staff.supabase
-    .from("documents").select("id, client_id, kind, storage_path, file_name").eq("id", id.data).maybeSingle();
-  if (!doc) return fail("Not found", 404);
-
-  // Remove the object first: a dangling row is visible and retryable, a dangling object is not.
-  const { error: rmErr } = await staff.supabase.storage.from(BUCKET).remove([doc.storage_path]);
-  if (rmErr) return fail(rmErr.message, 500);
-  const { error } = await staff.supabase.from("documents").delete().eq("id", doc.id);
-  if (error) return fail(error.message, 500);
-
-  await staff.supabase.from("activity").insert({
-    client_id: doc.client_id, actor: staff.user.id, type: "document_deleted",
-    summary: `Deleted ${doc.kind.replace("_", " ")} document ${doc.file_name}`,
-  });
-  return new Response(null, { status: 204 });
+  return ok({ url: signed.url, expires_in: signed.expiresIn });
 }

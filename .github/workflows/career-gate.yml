@@ -12,11 +12,8 @@ permissions:
 
 jobs:
   web:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults: { run: { working-directory: career-gate } }
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,4 +21,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: End-to-end (test catalog fixture)
+        run: ./e2e/run.sh
+        env: { PW_CHROMIUM: "" }
+      - name: End-to-end (committed catalog)
+        run: ./e2e/run.sh
+        env: { PW_CHROMIUM: "", CATALOG: real }
