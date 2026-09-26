@@ -36,8 +36,10 @@ test("critical path: sign in → upload → process → review → lock → expo
   const sha = crypto.createHash("sha256").update(fs.readFileSync(SAMPLE)).digest("hex");
   await expect(page.locator(`button[title="${sha}"]`)).toBeVisible();
 
-  // Durable background processing reaches review
+  // Durable background processing reaches review. Summary is the default results view;
+  // switch to the full transcript before transcript-specific assertions.
   await expect(page.locator('[data-status="needs_review"]')).toBeVisible({ timeout: 90_000 });
+  await page.getByRole("button", { name: "النص الكامل" }).click();
   await expect(page.getByTestId("segment").first()).toBeVisible();
   await expect(page.getByTestId("transcript")).toContainText("والله");
   await expect(page.getByTestId("transcript")).toContainText("okay");
@@ -73,6 +75,7 @@ test("critical path: sign in → upload → process → review → lock → expo
   page.once("dialog", (d) => d.accept());
   await page.getByTestId("lock").click();
   await expect(page.locator('[data-status="locked"]')).toBeVisible();
+  await page.getByRole("button", { name: "النص الكامل" }).click();
   await expect(page.getByTestId("transcript")).toContainText("[غير مسموع]");
 
   // Exports
