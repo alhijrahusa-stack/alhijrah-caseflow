@@ -1,0 +1,123 @@
+{
+ "words": [
+  {
+   "text": "والله",
+   "start": 20,
+   "end": 410,
+   "confidence": 0.96,
+   "speaker": "A"
+  },
+  {
+   "text": "ما",
+   "start": 420,
+   "end": 810,
+   "confidence": 0.9400000000000001,
+   "speaker": "A"
+  },
+  {
+   "text": "شفته",
+   "start": 820,
+   "end": 1310,
+   "confidence": 0.95,
+   "speaker": "A"
+  },
+  {
+   "text": "okay",
+   "start": 1320,
+   "end": 1810,
+   "confidence": 0.91,
+   "speaker": "A"
+  },
+  {
+   "text": "دفعت",
+   "start": 2020,
+   "end": 2510,
+   "confidence": 0.93,
+   "speaker": "A"
+  },
+  {
+   "text": "خمسين",
+   "start": 2500,
+   "end": 3000,
+   "confidence": 0.85,
+   "speaker": "A"
+  },
+  {
+   "text": "آلاف",
+   "start": 3020,
+   "end": 3510,
+   "confidence": 0.91,
+   "speaker": "A"
+  },
+  {
+   "text": "ريال",
+   "start": 3520,
+   "end": 4010,
+   "confidence": 0.92,
+   "speaker": "A"
+  },
+  {
+   "text": "يا",
+   "start": 5020,
+   "end": 5510,
+   "confidence": 0.96,
+   "speaker": "A"
+  },
+  {
+   "text": "أبو",
+   "start": 5520,
+   "end": 6010,
+   "confidence": 0.96,
+   "speaker": "A"
+  },
+  {
+   "text": "سالم",
+   "start": 6020,
+   "end": 6510,
+   "confidence": 0.89,
+   "speaker": "A"
+  },
+  {
+   "text": "تعال",
+   "start": 6520,
+   "end": 7010,
+   "confidence": 0.96,
+   "speaker": "A"
+  },
+  {
+   "text": "أنا",
+   "start": 11020,
+   "end": 11510,
+   "confidence": 0.96,
+   "speaker": "B"
+  },
+  {
+   "text": "ما",
+   "start": 11520,
+   "end": 12010,
+   "confidence": 0.91,
+   "speaker": "B"
+  },
+  {
+   "text": "قلت",
+   "start": 12020,
+   "end": 12410,
+   "confidence": 0.91,
+   "speaker": "B"
+  },
+  {
+   "text": "كذا",
+   "start": 12520,
+   "end": 13010,
+   "confidence": 0.51,
+   "speaker": "B"
+  },
+  {
+   "text": "شكرا",
+   "start": 15020,
+   "end": 15510,
+   "confidence": 0.98,
+   "speaker": "B"
+  }
+ ]
+}

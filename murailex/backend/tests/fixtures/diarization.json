@@ -1,0 +1,19 @@
+{
+ "turns": [
+  {
+   "speaker": "SPEAKER_00",
+   "start": 0,
+   "end": 7200
+  },
+  {
+   "speaker": "SPEAKER_01",
+   "start": 11000,
+   "end": 16000
+  },
+  {
+   "speaker": "SPEAKER_00",
+   "start": 12400,
+   "end": 13100
+  }
+ ]
+}
