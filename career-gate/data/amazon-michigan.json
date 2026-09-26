@@ -1,0 +1,41 @@
+{
+  "_status": "PLACEHOLDER — every site code, address, job, shift and pay figure below is sample data. Replace with verified postings before launch.",
+  "updated": null,
+  "shifts": [
+    { "code": "DAY", "label": "Day shift", "hours": "Placeholder — confirm with site" },
+    { "code": "NIGHT", "label": "Night shift", "hours": "Placeholder — confirm with site" },
+    { "code": "WEEKEND", "label": "Weekend shift", "hours": "Placeholder — confirm with site" },
+    { "code": "FLEX", "label": "Flex / part-time", "hours": "Placeholder — confirm with site" }
+  ],
+  "cities": [
+    {
+      "code": "city-a",
+      "name": "City A",
+      "sites": [
+        {
+          "code": "SITE-A1",
+          "name": "Sample fulfillment center A1",
+          "address": null,
+          "jobs": [
+            { "code": "WH-ASSOC", "title": "Warehouse associate", "payCentsPerHour": null, "shifts": ["DAY", "NIGHT", "WEEKEND"] },
+            { "code": "SORT-ASSOC", "title": "Sortation associate", "payCentsPerHour": null, "shifts": ["NIGHT", "FLEX"] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "city-b",
+      "name": "City B",
+      "sites": [
+        {
+          "code": "SITE-B1",
+          "name": "Sample delivery station B1",
+          "address": null,
+          "jobs": [
+            { "code": "DS-ASSOC", "title": "Delivery station associate", "payCentsPerHour": null, "shifts": ["DAY", "NIGHT", "FLEX"] }
+          ]
+        }
+      ]
+    }
+  ]
+}
