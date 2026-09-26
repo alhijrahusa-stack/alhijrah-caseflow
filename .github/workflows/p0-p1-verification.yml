@@ -2,7 +2,7 @@ name: P0 P1 verification
 
 on:
   push:
-    branches: [p0-p1-hardening]
+    branches: [main, p0-p1-hardening]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -110,3 +110,39 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - name: Verify exact production deployment
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          PRODUCTION_URL: https://alhijrah-caseflow-production-716b.up.railway.app
+        run: |
+          set -euo pipefail
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+              "$PRODUCTION_URL/ready" -o /tmp/caseflow-ready.json; then
+              if node -e '
+                const fs = require("node:fs");
+                const body = JSON.parse(fs.readFileSync("/tmp/caseflow-ready.json", "utf8"));
+                if (body.status !== "ready") process.exit(1);
+                if (body.verification?.sha !== process.env.GITHUB_SHA) process.exit(1);
+                if (!body.checks || Object.values(body.checks).some(value => value !== true)) process.exit(1);
+              '; then
+                ready=true
+                break
+              fi
+            fi
+            sleep 15
+          done
+          test "$ready" = true
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+            -D /tmp/caseflow-headers.txt "$PRODUCTION_URL/" -o /tmp/caseflow-root.html
+          grep -qi '^content-security-policy:' /tmp/caseflow-headers.txt
+          grep -qi '^strict-transport-security:' /tmp/caseflow-headers.txt
+          grep -q 'ALHIJRAH CASEFLOW' /tmp/caseflow-root.html
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+            "$PRODUCTION_URL/api/v1/auth/status" -o /tmp/caseflow-auth.json
+          node -e '
+            const fs = require("node:fs");
+            const body = JSON.parse(fs.readFileSync("/tmp/caseflow-auth.json", "utf8"));
+            if (body.configured !== true || body.ownerProvisioned !== true || body.errorCode !== null) process.exit(1);
+          '

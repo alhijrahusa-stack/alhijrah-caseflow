@@ -1,0 +1,130 @@
+{
+ "words": [
+  {
+   "text": "والله",
+   "start": 0,
+   "end": 400,
+   "confidence": 0.95,
+   "speaker": "A"
+  },
+  {
+   "text": "ما",
+   "start": 400,
+   "end": 800,
+   "confidence": 0.93,
+   "speaker": "A"
+  },
+  {
+   "text": "شفته",
+   "start": 800,
+   "end": 1300,
+   "confidence": 0.94,
+   "speaker": "A"
+  },
+  {
+   "text": "okay",
+   "start": 1300,
+   "end": 1800,
+   "confidence": 0.9,
+   "speaker": "A"
+  },
+  {
+   "text": "دفعت",
+   "start": 2000,
+   "end": 2500,
+   "confidence": 0.92,
+   "speaker": "A"
+  },
+  {
+   "text": "خمسة",
+   "start": 2500,
+   "end": 3000,
+   "confidence": 0.9,
+   "speaker": "A"
+  },
+  {
+   "text": "آلاف",
+   "start": 3000,
+   "end": 3500,
+   "confidence": 0.9,
+   "speaker": "A"
+  },
+  {
+   "text": "ريال",
+   "start": 3500,
+   "end": 4000,
+   "confidence": 0.91,
+   "speaker": "A"
+  },
+  {
+   "text": "يا",
+   "start": 5000,
+   "end": 5500,
+   "confidence": 0.95,
+   "speaker": "A"
+  },
+  {
+   "text": "أبو",
+   "start": 5500,
+   "end": 6000,
+   "confidence": 0.95,
+   "speaker": "A"
+  },
+  {
+   "text": "سالم",
+   "start": 6000,
+   "end": 6500,
+   "confidence": 0.88,
+   "speaker": "A"
+  },
+  {
+   "text": "تعال",
+   "start": 6500,
+   "end": 7000,
+   "confidence": 0.95,
+   "speaker": "A"
+  },
+  {
+   "text": "أنا",
+   "start": 11000,
+   "end": 11500,
+   "confidence": 0.95,
+   "speaker": "B"
+  },
+  {
+   "text": "ما",
+   "start": 11500,
+   "end": 12000,
+   "confidence": 0.9,
+   "speaker": "B"
+  },
+  {
+   "text": "قلت",
+   "start": 12000,
+   "end": 12400,
+   "confidence": 0.9,
+   "speaker": "B"
+  },
+  {
+   "text": "كذا",
+   "start": 12500,
+   "end": 13000,
+   "confidence": 0.5,
+   "speaker": "B"
+  },
+  {
+   "text": "hello",
+   "start": 14000,
+   "end": 14500,
+   "confidence": 0.95,
+   "speaker": "B"
+  },
+  {
+   "text": "شكرا",
+   "start": 15000,
+   "end": 15500,
+   "confidence": 0.97,
+   "speaker": "B"
+  }
+ ]
+}

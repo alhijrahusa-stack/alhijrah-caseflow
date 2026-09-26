@@ -176,6 +176,14 @@ async function claimDocumentExtractionById(extractionId,{documentId,errorCode}){
   const claimed=await systemDb('document_extractions',{method:'PATCH',query:`?id=eq.${run.id}&status=eq.${run.status}&updated_at=eq.${encodeURIComponent(run.updated_at)}`,body:{status:'reviewing',updated_at:new Date(now).toISOString()}});if(!claimed.length)throw Object.assign(new Error(errorCode),{status:410});return{...run,status:'reviewing',result:run.raw_result};
 }
 async function releaseDocumentExtraction(run){await systemDb('document_extractions',{method:'PATCH',query:`?id=eq.${run.id}&status=eq.reviewing`,body:{status:'pending_review',updated_at:new Date().toISOString()}}).catch(()=>{});}
+async function finalizeDocumentReviewState(document,{status,reviewerId,notes=null,reviewedAt=new Date().toISOString()}){
+  const approved=status==='approved',patch={review_status:status,automation_status:approved?'VERIFIED':'RECAPTURE_REQUIRED',reviewer_notes:notes,reviewed_by:reviewerId,reviewed_at:reviewedAt,processing_error:null};
+  const data=await systemDb('documents',{method:'PATCH',query:`?id=eq.${document.id}&case_id=eq.${document.case_id}&reviewed_at=is.null`,body:patch});
+  if(!data.length)throw Object.assign(new Error('DOCUMENT_REVIEW_CONFLICT'),{status:409});
+  if(document.request_id)await systemDb('document_requests',{method:'PATCH',query:`?id=eq.${document.request_id}&case_id=eq.${document.case_id}`,body:{status:approved?'approved':'rejected',reviewed_by:reviewerId,reviewer_notes:notes,updated_at:reviewedAt}});
+  await systemDb('tasks',{method:'PATCH',query:`?automation_key=eq.${encodeURIComponent(`document:${document.id}:v${Number(document.version||1)}`)}`,body:approved?{status:'completed',completed_at:reviewedAt,updated_by:reviewerId,updated_at:reviewedAt}:{status:'open',completed_at:null,priority:'high',updated_by:reviewerId,updated_at:reviewedAt}});
+  return data;
+}
 const canonicalIdentityFieldNames=['legal_name','date_of_birth','place_of_birth','nationality','current_country','passport_number','passport_country','passport_expiration'];
 function normalizeReviewedIdentityFields(reviewed,{requireLegalName=false}={}){
   const source=reviewed&&typeof reviewed==='object'&&!Array.isArray(reviewed)?reviewed:{};
@@ -221,6 +229,20 @@ async function verifiedStoredDocument(key,input,declaredChecksum){
   return{checksum,etag:String(object.ETag||'').replace(/^"|"$/g,'')||null};
 }
 
+async function existingDocumentForUpload(caseId,checksum,key){
+  const rows=await db('documents',{query:`?case_id=eq.${encodeURIComponent(caseId)}&content_checksum=eq.${checksum}&archived_at=is.null&select=*`});
+  return{sameObject:rows.find(row=>row.object_key===key)||null,duplicates:rows};
+}
+
+async function deleteUncommittedObject(key){
+  // A concurrent confirmation may have committed this exact object after the
+  // caller's pre-insert check. Never delete bytes that now back a document.
+  try{
+    const committed=await systemDb('documents',{query:`?object_key=eq.${encodeURIComponent(key)}&select=id&limit=1`});
+    if(!committed.length)await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key})).catch(()=>{});
+  }catch(error){console.error('uncommitted-object-cleanup-deferred',error.message)}
+}
+
 async function canonicalDocumentLinkage(caseRecord,body){
   const caseId=String(caseRecord.id),clientId=caseRecord.client_id||null;
   if(body.client_id!==undefined&&body.client_id!==null&&body.client_id!==''&&String(body.client_id)!==String(clientId))throw Object.assign(new Error('DOCUMENT_CLIENT_MISMATCH'),{status:409});
@@ -255,6 +277,15 @@ async function canonicalDocumentLinkage(caseRecord,body){
     personId=personId||replacement.person_id||null;requestId=requestId||replacement.request_id||null;category=category||replacement.category||null;
   }
   return{client_id:clientId,person_id:personId,request_id:requestId,category,review_status:'received',replaces_document_id:replacement?.id||null,version:replacement?Number(replacement.version||1)+1:1,replacement};
+}
+
+async function documentUploadPermission(access,caseRecord,body){
+  if(canAccessCase(access,caseRecord,'documents.manage'))return'documents.manage';
+  if(!canAccessCase(access,caseRecord,'documents.translate'))return null;
+  if(body.replaces_document_id||body.category!=='translation'||!uuid(body.request_id))throw Object.assign(new Error('TRANSLATION_REQUEST_REQUIRED'),{status:409});
+  const requests=await db('document_requests',{query:`?id=eq.${encodeURIComponent(body.request_id)}&case_id=eq.${encodeURIComponent(caseRecord.id)}&category=eq.translation&status=in.(missing,rejected,received)&select=id&limit=1`});
+  if(!requests.length)throw Object.assign(new Error('TRANSLATION_REQUEST_REQUIRED'),{status:409});
+  return'documents.translate';
 }
 
 async function validateAnswerProvenance(caseRecord,body){
@@ -537,7 +568,7 @@ async function processAiReviewJob(job){
 async function ensureAutomationTask(document,title,description,priority='normal'){
   const automationKey=`document:${document.id}:v${Number(document.version||1)}`;
   const existing=await systemDb('tasks',{query:`?automation_key=eq.${encodeURIComponent(automationKey)}&select=*&limit=1`});
-  if(existing.length){if(existing[0].status==='completed'||existing[0].status==='cancelled')await systemDb('tasks',{method:'PATCH',query:`?id=eq.${existing[0].id}`,body:{status:'open',completed_at:null,title,description,priority,updated_at:new Date().toISOString()}});return existing[0];}
+  if(existing.length){const updated=await systemDb('tasks',{method:'PATCH',query:`?id=eq.${existing[0].id}`,body:{status:'open',completed_at:null,title,description,priority,updated_at:new Date().toISOString()}});return updated[0]||{...existing[0],status:'open',title,description,priority};}
   const record={id:crypto.randomUUID(),case_id:document.case_id,client_id:document.client_id,title,description,priority,status:'open',automation_key:automationKey,created_by:document.uploaded_by||null,updated_by:document.uploaded_by||null};
   return(await systemDb('tasks',{method:'POST',body:record}))[0]||record;
 }
@@ -590,6 +621,14 @@ async function processDocumentExtractionJob(job){
   return{document_id:document.id,extraction_id:persisted.run.id,automation_status:automationStatus,classification,quality:{width,height,status:'ACCEPTABLE'},invalid_fields:candidates.invalid.map(item=>item.field_path),conflict_fields:conflicts.map(item=>item.field_path),task_id:task.id};
 }
 async function enqueueDocumentProcessing(document,requestedBy){const job=await enqueueBackgroundJob(newJob({jobType:'DOCUMENT_EXTRACT',idempotencyKey:`document-extract:${document.id}:v${Number(document.version||1)}:${document.content_checksum}`,caseId:document.case_id,participantId:document.person_id||null,payload:{document_id:document.id,document_version:Number(document.version||1),source_sha256:document.content_checksum},requestedBy:requestedBy||document.uploaded_by}));await systemDb('documents',{method:'PATCH',query:`?id=eq.${document.id}`,body:{automation_status:'QUEUED',processing_error:null}});wakeBackgroundWorker();return job;}
+async function enqueueDocumentProcessingDurably(document,requestedBy){
+  try{const job=await enqueueDocumentProcessing(document,requestedBy);return{status:'QUEUED',job_id:job.id};}
+  catch(error){
+    await systemDb('documents',{method:'PATCH',query:`?id=eq.${document.id}`,body:{automation_status:'FAILED',processing_error:'DOCUMENT_QUEUE_UNAVAILABLE'}}).catch(()=>{});
+    console.error('document-queue-deferred',document.id,error.message);
+    return{status:'DEFERRED',job_id:null,error:'DOCUMENT_QUEUE_UNAVAILABLE'};
+  }
+}
 async function executeBackgroundJob(job){if(job.job_type==='BULK_IMPORT')return processImport(job.payload?.batch_id,backgroundPrincipal(job));if(job.job_type==='GENERATE_OFFICIAL_PDF')return processOfficialPdfJob(job);if(job.job_type==='AI_CASE_REVIEW')return processAiReviewJob(job);if(job.job_type==='DOCUMENT_EXTRACT'){try{return await processDocumentExtractionJob(job)}catch(error){const rows=uuid(job.payload?.document_id)?await systemDb('documents',{query:`?id=eq.${job.payload.document_id}&select=*&limit=1`}).catch(()=>[]):[];if(rows[0]){await systemDb('documents',{method:'PATCH',query:`?id=eq.${rows[0].id}`,body:{automation_status:'FAILED',processing_error:String(error.message||'DOCUMENT_PROCESSING_FAILED').slice(0,120)}}).catch(()=>{});await ensureAutomationTask(rows[0],'Resolve document processing failure',`Automated processing failed with ${String(error.message||'DOCUMENT_PROCESSING_FAILED').slice(0,120)}. Retry or review the document manually.`,'high').catch(()=>{});}throw error}}throw Object.assign(new Error('UNSUPPORTED_JOB_TYPE'),{failureClass:'permanent'});}
 const backgroundWorkerId=`node-${process.pid}-${crypto.randomUUID()}`,backgroundLeaseSeconds=120;let backgroundWorkerActive=false;
 export async function runBackgroundWorkerCycle(){if(backgroundWorkerActive)return 0;backgroundWorkerActive=true;try{return await withSystemDatabase(async()=>{const claimed=await systemDb('rpc/claim_background_jobs',{method:'POST',body:{p_worker_id:backgroundWorkerId,p_limit:2,p_lease_seconds:backgroundLeaseSeconds}});for(const job of claimed){let heartbeatError=null;const heartbeat=setInterval(()=>systemDb('rpc/heartbeat_background_job',{method:'POST',body:{p_job_id:job.id,p_lease_token:job.lease_token,p_lease_seconds:backgroundLeaseSeconds}}).then(ok=>{if(ok!==true)heartbeatError=new Error('JOB_LEASE_LOST')}).catch(error=>{heartbeatError=error}),30_000);heartbeat.unref();try{const result=await executeBackgroundJob(job);if(heartbeatError)throw heartbeatError;const completed=await systemDb('rpc/complete_background_job',{method:'POST',body:{p_job_id:job.id,p_lease_token:job.lease_token,p_result:result||{}}});if(completed!==true)throw new Error('JOB_LEASE_LOST');}catch(error){await systemDb('rpc/fail_background_job',{method:'POST',body:{p_job_id:job.id,p_lease_token:job.lease_token,p_error_code:String(error.message||'JOB_FAILED').slice(0,120),p_failure_class:error.failureClass||'transient'}}).catch(failure=>console.error('background-job-failure-recording-failed',job.id,failure.message));}finally{clearInterval(heartbeat);}}return claimed.length;});}finally{backgroundWorkerActive=false;}}
@@ -610,7 +649,7 @@ export async function recoverPendingImportJobs(){
 }
 export async function recoverPendingDocumentJobs(){
   const [documents,jobs]=await Promise.all([
-    systemDb('documents',{query:'?archived_at=is.null&select=*&limit=10000'}),
+    systemDb('documents',{query:'?archived_at=is.null&automation_status=in.(NOT_QUEUED,QUEUED,PROCESSING,FAILED)&select=*&limit=10000'}),
     systemDb('background_jobs',{query:'?job_type=eq.DOCUMENT_EXTRACT&select=idempotency_key&limit=10000'}),
   ]);
   const existing=new Set(jobs.map(job=>job.idempotency_key));let queued=0;
@@ -621,6 +660,13 @@ export async function recoverPendingDocumentJobs(){
     await enqueueDocumentProcessing(document,document.uploaded_by);existing.add(key);queued++;
   }
   return queued;
+}
+let workflowRecoveryActive=false;
+export async function runWorkflowRecoveryCycle(){
+  if(workflowRecoveryActive)return{imports:0,documents:0,cases:0};
+  workflowRecoveryActive=true;
+  try{const[imports,documents,cases]=await Promise.all([recoverPendingImportJobs(),recoverPendingDocumentJobs(),recoverCaseServiceWorkflows()]);wakeBackgroundWorker();return{imports,documents,cases};}
+  finally{workflowRecoveryActive=false;}
 }
 export async function recoverCaseServiceWorkflows(){
   const cases=await systemDb('cases',{query:'?archived_at=is.null&select=*&limit=10000'});let initialized=0;
@@ -690,9 +736,12 @@ async function loadAccessTables(){
     ]);
     Object.assign(tables,{policies:policies||[],recordGrants:recordGrants||[],teamMembers:teamMembers||[],clientAccess:clientAccess||[],assignments:assignments||[]});
   }catch(error){
-    if(!isMissingRelation(error))throw error;
-    console.warn('access-tables-unavailable: falling back to role defaults (authorization migration not applied?)');
-    tables.degraded=true;
+    // Access-policy state is part of the authorization boundary. Falling back
+    // to role defaults when any table is missing or unavailable silently
+    // widens staff back to global scope and discards explicit restrictions.
+    // Owners and internal callers bypass this lookup above; everyone else
+    // must fail closed until the canonical authorization state is readable.
+    throw Object.assign(new Error('AUTHORIZATION_STATE_UNAVAILABLE'),{status:503,internalDetails:error?.internalDetails||error?.message});
   }
   return tables;
 }
@@ -802,7 +851,7 @@ function requiredPermission(req,path){
   if(path.startsWith('/api/v1/services'))return 'dashboard.view';
   if(path.startsWith('/api/v1/document-requests'))return req.method==='GET'?'documents.view':'documents.manage';
   if(path.startsWith('/api/v1/agency-requests')||path.startsWith('/api/v1/evidence-requirements'))return req.method==='GET'?'cases.view':'cases.manage';
-  if(path.startsWith('/api/v1/documents'))return path.endsWith('/review')||/\/extractions\/[0-9a-f-]{36}\/confirm$/i.test(path)?'documents.review':req.method==='GET'||path.endsWith('/download-url')?'documents.view':'documents.manage';
+  if(path.startsWith('/api/v1/documents'))return req.method==='POST'&&['/api/v1/documents/upload','/api/v1/documents/presign','/api/v1/documents/confirm'].includes(path)?['documents.manage','documents.translate']:path.endsWith('/review')||path.endsWith('/ocr/confirm')||/\/extractions\/[0-9a-f-]{36}\/confirm$/i.test(path)?'documents.review':req.method==='GET'||path.endsWith('/download-url')?'documents.view':'documents.manage';
   if(path.startsWith('/api/v1/identity'))return 'clients.manage';
   if(path.startsWith('/api/v1/cases'))return req.method==='GET'?'cases.view':'cases.manage';
   if(path==='/api/v1/search')return 'cases.view';
@@ -824,7 +873,8 @@ async function authorize(req,res,permission){
   // A null permission means no rule matched the route: deny. The module-level
   // check happens here; record-level checks happen in the route, where the
   // record is available.
-  if(!permission||!hasEffectivePermission(access,permission))throw Object.assign(new Error('FORBIDDEN'),{status:403});
+  const permitted=Array.isArray(permission)?permission.some(item=>hasEffectivePermission(access,item)):permission&&hasEffectivePermission(access,permission);
+  if(!permitted)throw Object.assign(new Error('FORBIDDEN'),{status:403});
   return {principal,access};
 }
 
@@ -1033,7 +1083,7 @@ async function handleRaw(req,res){
     const [authStatus,databaseState,r2State]=await Promise.all([
       getAuthProvisioningStatus(),
       (async()=>{
-        const state={connected:false,coreSchema:false,phase1Schema:false,importSchema:false,formsSchema:false,authorizationSchema:false,authorizationTables:{teams:false,teamMembers:false,accessPolicies:false,recordAccessGrants:false},authorizationTableErrors:{}};
+        const state={connected:false,coreSchema:false,phase1Schema:false,importSchema:false,formsSchema:false,convergenceSchema:false,authorizationSchema:false,authorizationTables:{teams:false,teamMembers:false,accessPolicies:false,recordAccessGrants:false},authorizationTableErrors:{}};
         try{await db('cases',{query:'?select=id&limit=1'});state.connected=true}catch{return state}
         try{await db('clients',{query:'?select=id&limit=1'});state.coreSchema=true}catch{return state}
         try{
@@ -1049,6 +1099,16 @@ async function handleRaw(req,res){
         }catch{}
         try{await Promise.all([db('import_batches',{query:'?select=id,status&limit=1'}),db('import_rows',{query:'?select=id,batch_id&limit=1'})]);state.importSchema=true}catch{}
         try{await Promise.all([db('form_registry',{query:'?select=id&limit=1'}),db('form_instances',{query:'?select=id&limit=1'}),db('background_jobs',{query:'?select=id&limit=1'}),db('generated_artifacts',{query:'?select=id&limit=1'})]);state.formsSchema=true}catch{}
+        try{await Promise.all([
+          db('documents',{query:'?select=id,automation_status,content_checksum,version,reviewed_at&limit=1'}),
+          db('document_extractions',{query:'?select=id,source_sha256,status&limit=1'}),
+          db('document_extracted_fields',{query:'?select=id,extraction_id,verification_status&limit=1'}),
+          db('verified_canonical_fields',{query:'?select=id,subject_type,subject_id,revision,status&limit=1'}),
+          db('form_answer_revisions',{query:'?select=id,form_answer_id,answer_revision&limit=1'}),
+          db('evidence_requirements',{query:'?select=id,case_id,status&limit=1'}),
+          db('portal_case_access',{query:'?select=case_id,auth_user_id,status&limit=1'}),
+          db('service_catalog',{query:'?select=id,workflow_version,default_workflow&limit=1'}),
+        ]);state.convergenceSchema=true}catch{}
         const tableChecks=await Promise.all([
           ['teams','teams','id'],
           ['teamMembers','team_members','team_id'],
@@ -1072,6 +1132,8 @@ async function handleRaw(req,res){
     ]);
     const emailConfigured=Boolean(process.env.RESEND_API_KEY&&process.env.RESEND_FROM_EMAIL);const checks={supabase:databaseState.connected,coreSchema:databaseState.coreSchema,phase1Schema:databaseState.phase1Schema,importSchema:databaseState.importSchema,authorizationSchema:databaseState.authorizationSchema,r2:r2State,internalAuth:Boolean(internalApiKey),userAuth:authStatus.configured,ownerAccount:authStatus.ownerProvisioned};
     if(productionVerification.enabled)Object.assign(checks,{documentUpload:productionVerification.documentUpload,identityOcr:productionVerification.identityOcr,clientAutofill:productionVerification.clientAutofill,bulkImport:productionVerification.bulkImport,xlsx:productionVerification.xlsx,csv:productionVerification.csv,arabic:productionVerification.arabic,serviceMapping:productionVerification.serviceMapping,dryRun:productionVerification.dryRun});
+    checks.formsSchema=databaseState.formsSchema;
+    checks.convergenceSchema=databaseState.convergenceSchema;
     const ready=Object.values(checks).every(Boolean);
     return json(res,ready?200:503,{status:ready?'ready':'not-ready',service,version,checks,capabilities:{staffForms:databaseState.formsSchema,aiReview:Boolean(process.env.AI_PROVIDER&&process.env.AI_PROVIDER_URL&&process.env.AI_PROVIDER_MODEL&&process.env.AI_PROVIDER_API_KEY),emailDelivery:emailConfigured},emailDelivery:{status:emailConfigured?'CONFIGURED':'PROVIDER_NOT_CONFIGURED',configured:emailConfigured},authorizationTables:databaseState.authorizationTables,authorizationTableErrors:databaseState.authorizationTableErrors,verification:productionVerification,requestId},ch);
   }
@@ -1575,18 +1637,24 @@ async function handleRaw(req,res){
     if(!key.startsWith(`cases/${input.caseId}/`))throw Object.assign(new Error('DOCUMENT_CASE_MISMATCH'),{status:403});
     const linkage=await canonicalDocumentLinkage(currentCase,body);
     const verified=await verifiedStoredDocument(key,input,body.content_checksum);
-    const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${verified.checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409});}
+    const duplicateState=await existingDocumentForUpload(input.caseId,verified.checksum,key);
+    if(duplicateState.sameObject)return json(res,200,{data:duplicateState.sameObject,idempotent:true,requestId},ch);
+    if(duplicateState.duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409});}
     const record={id:crypto.randomUUID(),case_id:input.caseId,client_id:linkage.client_id,person_id:linkage.person_id,request_id:linkage.request_id,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:verified.checksum,object_etag:verified.etag,status:'uploaded',category:linkage.category,review_status:linkage.review_status,uploaded_by:principal.id};
     // Committing byte metadata is an explicit trusted operation: ordinary JWT
     // roles cannot attest to R2 contents. Ownership and version invariants are
     // still enforced by the database trigger for service-role calls.
-    const data=await systemDb('documents',{method:'POST',body:record});
-    const processingJob=await enqueueDocumentProcessing(data[0]||record,principal.id);
-    // This workflow transition is trusted only after the user-scoped document
-    // insert and the verified R2 object; clients have no direct request UPDATE.
-    if(record.request_id)await systemDb('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}`,body:{status:'received',updated_at:new Date().toISOString()}});
-    await audit(principal,'portal_document_uploaded','document',record.id,{case_id:record.case_id,client_id:record.client_id,request_id:record.request_id},req);
-    return json(res,201,{data:data[0]||data,processing:{status:'QUEUED',job_id:processingJob.id},requestId},ch);
+    let documentPersisted=false;
+    try{
+      const data=await systemDb('documents',{method:'POST',body:record});
+      documentPersisted=true;
+      const processing=await enqueueDocumentProcessingDurably(data[0]||record,principal.id);
+      // This workflow transition is trusted only after the user-scoped document
+      // insert and the verified R2 object; clients have no direct request UPDATE.
+      if(record.request_id)await systemDb('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}`,body:{status:'received',updated_at:new Date().toISOString()}});
+      await audit(principal,'portal_document_uploaded','document',record.id,{case_id:record.case_id,client_id:record.client_id,request_id:record.request_id},req);
+      return json(res,201,{data:data[0]||data,processing,requestId},ch);
+    }catch(error){if(!documentPersisted)await deleteUncommittedObject(key);throw error}
   }
   if(req.method==='POST'&&u.pathname==='/api/v1/portal/documents/download-url'){
     if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
@@ -2028,9 +2096,7 @@ async function handleRaw(req,res){
     const target=await db('cases',{query:`?id=eq.${encodeURIComponent(cm[1])}&select=*`});
     if(!target.length||!canAccessCase(access,target[0],'cases.manage'))return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
     if(b.workflow_stage){
-      const rows=await db('cases',{query:`?id=eq.${encodeURIComponent(cm[1])}&select=id,workflow_stage`});
-      if(!rows.length)return json(res,404,{error:'CASE_NOT_FOUND',requestId},ch);
-      if(!canTransitionWorkflow(rows[0].workflow_stage,b.workflow_stage))throw Object.assign(new Error('WORKFLOW_TRANSITION_NOT_ALLOWED'),{status:409,details:{from:rows[0].workflow_stage,to:b.workflow_stage}});
+      if(!canTransitionWorkflow(target[0].workflow_stage,b.workflow_stage))throw Object.assign(new Error('WORKFLOW_TRANSITION_NOT_ALLOWED'),{status:409,details:{from:target[0].workflow_stage,to:b.workflow_stage}});
     }
     if(b.service_code&&String(b.service_code).toUpperCase()!==String(target[0].service_code||'').toUpperCase()&&target[0].service_plan_snapshot)throw Object.assign(new Error('SERVICE_CHANGE_REQUIRES_RECONFIGURATION'),{status:409});
     const enhanced=['client_id','service_code','workflow_stage','review_state','agency','filing_type','jurisdiction','receipt_number'].some(field=>field in b)||b.archived!==undefined;
@@ -2051,7 +2117,9 @@ async function handleRaw(req,res){
     if(b.archived===false)patch.archived_at=null;
     if(enhanced)patch.updated_by=principal.id;
     patch.updated_at=new Date().toISOString();
-    const data=await db('cases',{method:'PATCH',query:`?id=eq.${encodeURIComponent(cm[1])}`,body:patch});
+    const transitionGuard=b.workflow_stage?`&workflow_stage=eq.${encodeURIComponent(target[0].workflow_stage)}`:'';
+    const data=await db('cases',{method:'PATCH',query:`?id=eq.${encodeURIComponent(cm[1])}${transitionGuard}`,body:patch});
+    if(!data.length)throw Object.assign(new Error('CASE_WORKFLOW_CONFLICT'),{status:409});
     await event(cm[1],b.archived===true?'case_archived':b.archived===false?'case_restored':patch.workflow_stage?'workflow_changed':'case_updated',{...patch,case_id:cm[1]},principal,req);
     return json(res,200,{data,requestId},ch);
   }
@@ -2190,8 +2258,10 @@ async function handleRaw(req,res){
     if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
     const contentType=String(req.headers['content-type']||'').split(';')[0].toLowerCase();
     const input=documentInput({case_id:u.searchParams.get('case_id'),filename:u.searchParams.get('filename'),content_type:contentType,size_bytes:Number(u.searchParams.get('size_bytes')||req.headers['content-length']||0)});
+    const uploadContext={request_id:u.searchParams.get('request_id'),replaces_document_id:u.searchParams.get('replaces_document_id'),category:u.searchParams.get('category')};
     const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});
-    if(!caseRows.length||!canAccessCase(access,caseRows[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
+    if(!caseRows.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
+    const uploadPermission=await documentUploadPermission(access,caseRows[0],uploadContext);if(!uploadPermission)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
     const file=await readBuffer(req,25*1024*1024);
     if(file.length!==input.sizeBytes)throw Object.assign(new Error('DOCUMENT_SIZE_MISMATCH'),{status:409});
     const checksum=crypto.createHash('sha256').update(file).digest('hex');
@@ -2204,38 +2274,40 @@ async function handleRaw(req,res){
     try{
       const stored=await r2.send(new HeadObjectCommand({Bucket:r2Bucket,Key:key}));
       if(Number(stored.ContentLength)!==file.length||String(stored.ContentType||'').toLowerCase()!==input.contentType)throw Object.assign(new Error('UPLOADED_OBJECT_MISMATCH'),{status:409});
-      const linkage=await canonicalDocumentLinkage(caseRows[0],{client_id:u.searchParams.get('client_id'),person_id:u.searchParams.get('person_id'),request_id:u.searchParams.get('request_id'),replaces_document_id:u.searchParams.get('replaces_document_id'),category:u.searchParams.get('category')});
+      const linkage=await canonicalDocumentLinkage(caseRows[0],{client_id:u.searchParams.get('client_id'),person_id:u.searchParams.get('person_id'),...uploadContext});
       const record={id:crypto.randomUUID(),case_id:input.caseId,client_id:linkage.client_id,person_id:linkage.person_id,request_id:linkage.request_id,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:file.length,content_checksum:checksum,object_etag:String(stored.ETag||'').replace(/^"|"$/g,'')||null,status:'uploaded',category:linkage.category,review_status:linkage.review_status,replaces_document_id:linkage.replaces_document_id,version:linkage.version,uploaded_by:principal.id};
       const data=await systemDb('documents',{method:'POST',body:record});
       documentPersisted=true;
-      const processingJob=await enqueueDocumentProcessing(data[0]||record,principal.id);
+      const processing=await enqueueDocumentProcessingDurably(data[0]||record,principal.id);
       if(linkage.replacement)await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(linkage.replacement.id)}&archived_at=is.null`,body:{archived_at:new Date().toISOString()}});
       if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}&case_id=eq.${encodeURIComponent(input.caseId)}`,body:{status:'received',updated_at:new Date().toISOString()}});
       await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id,person_id:record.person_id,request_id:record.request_id,storage:'r2'},principal,req);
-      return json(res,201,{data,storage:'r2',processing:{status:'QUEUED',job_id:processingJob.id},linked:{case_id:record.case_id,client_id:record.client_id,...(record.person_id?{person_id:record.person_id}:{}),...(record.request_id?{request_id:record.request_id}:{})},preview_available:['application/pdf','image/jpeg','image/png','image/webp'].includes(record.content_type),requestId},ch);
-    }catch(error){if(!documentPersisted)await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key})).catch(()=>{});throw error}
+      return json(res,201,{data,storage:'r2',processing,linked:{case_id:record.case_id,client_id:record.client_id,...(record.person_id?{person_id:record.person_id}:{}),...(record.request_id?{request_id:record.request_id}:{})},preview_available:['application/pdf','image/jpeg','image/png','image/webp'].includes(record.content_type),requestId},ch);
+    }catch(error){if(!documentPersisted)await deleteUncommittedObject(key);throw error}
   }
-  if(req.method==='POST'&&u.pathname==='/api/v1/documents/presign'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});if(!Array.isArray(caseRows)||!caseRows.length||!canAccessCase(access,caseRows[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const filename=safeKey(input.fileName).split('/').pop();const key=safeKey(`cases/${input.caseId}/${crypto.randomUUID()}-${filename}`);const uploadUrl=await getSignedUrl(r2,new PutObjectCommand({Bucket:r2Bucket,Key:key,ContentType:input.contentType,ContentLength:input.sizeBytes,Metadata:{case_id:input.caseId}}),{expiresIn:900});return json(res,200,{key,upload_url:uploadUrl,expires_in:900,required_headers:{'content-type':input.contentType},requestId},ch)}
+  if(req.method==='POST'&&u.pathname==='/api/v1/documents/presign'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,32_768);const input=documentInput(b);const caseRows=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});if(!Array.isArray(caseRows)||!caseRows.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const uploadPermission=await documentUploadPermission(access,caseRows[0],b);if(!uploadPermission)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const filename=safeKey(input.fileName).split('/').pop();const key=safeKey(`cases/${input.caseId}/${crypto.randomUUID()}-${filename}`);const uploadUrl=await getSignedUrl(r2,new PutObjectCommand({Bucket:r2Bucket,Key:key,ContentType:input.contentType,ContentLength:input.sizeBytes,Metadata:{case_id:input.caseId}}),{expiresIn:900});return json(res,200,{key,upload_url:uploadUrl,expires_in:900,required_headers:{'content-type':input.contentType},requestId},ch)}
   if(req.method==='POST'&&u.pathname==='/api/v1/documents/confirm'){
     if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
     const b=await readJson(req,32_768),input=documentInput(b),key=safeKey(b.key);
     if(!key.startsWith(`cases/${input.caseId}/`))throw Object.assign(new Error('DOCUMENT_CASE_MISMATCH'),{status:403});
     const cases=await db('cases',{query:`?id=eq.${encodeURIComponent(input.caseId)}&select=*`});
-    if(!cases.length||!canAccessCase(access,cases[0],'documents.manage'))throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
+    if(!cases.length)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});const uploadPermission=await documentUploadPermission(access,cases[0],b);if(!uploadPermission)throw Object.assign(new Error('CASE_NOT_FOUND'),{status:404});
     const verified=await verifiedStoredDocument(key,input,b.content_checksum);
-    const duplicates=await db('documents',{query:`?case_id=eq.${encodeURIComponent(input.caseId)}&content_checksum=eq.${verified.checksum}&archived_at=is.null&select=id`});if(duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409})}
+    const duplicateState=await existingDocumentForUpload(input.caseId,verified.checksum,key);
+    if(duplicateState.sameObject)return json(res,200,{data:duplicateState.sameObject,storage:'r2',idempotent:true,requestId},ch);
+    if(duplicateState.duplicates.length){await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key}));throw Object.assign(new Error('DUPLICATE_DOCUMENT'),{status:409})}
     let documentPersisted=false;
     try{
       const linkage=await canonicalDocumentLinkage(cases[0],b);
       const record={id:crypto.randomUUID(),case_id:input.caseId,object_key:key,file_name:input.fileName,content_type:input.contentType,size_bytes:input.sizeBytes,content_checksum:verified.checksum,object_etag:verified.etag,status:'uploaded',client_id:linkage.client_id,person_id:linkage.person_id,request_id:linkage.request_id,category:linkage.category,review_status:linkage.review_status,replaces_document_id:linkage.replaces_document_id,version:linkage.version,uploaded_by:principal.id};
       const data=await systemDb('documents',{method:'POST',body:record});
       documentPersisted=true;
-      const processingJob=await enqueueDocumentProcessing(data[0]||record,principal.id);
+      const processing=await enqueueDocumentProcessingDurably(data[0]||record,principal.id);
       if(linkage.replacement)await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(linkage.replacement.id)}&archived_at=is.null`,body:{archived_at:new Date().toISOString()}});
       if(record.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${encodeURIComponent(record.request_id)}&case_id=eq.${encodeURIComponent(input.caseId)}`,body:{status:'received',updated_at:new Date().toISOString()}});
       await event(record.case_id,'document_uploaded',{document_id:record.id,file_name:record.file_name,client_id:record.client_id,case_id:record.case_id,person_id:record.person_id,request_id:record.request_id,storage:'r2'},principal,req);
-      return json(res,201,{data,storage:'r2',processing:{status:'QUEUED',job_id:processingJob.id},linked:{case_id:record.case_id,client_id:record.client_id,person_id:record.person_id,request_id:record.request_id},preview_available:['application/pdf','image/jpeg','image/png','image/webp'].includes(record.content_type),requestId},ch);
-    }catch(error){if(!documentPersisted)await r2.send(new DeleteObjectCommand({Bucket:r2Bucket,Key:key})).catch(()=>{});throw error}
+      return json(res,201,{data,storage:'r2',processing,linked:{case_id:record.case_id,client_id:record.client_id,person_id:record.person_id,request_id:record.request_id},preview_available:['application/pdf','image/jpeg','image/png','image/webp'].includes(record.content_type),requestId},ch);
+    }catch(error){if(!documentPersisted)await deleteUncommittedObject(key);throw error}
   }
   if(req.method==='POST'&&u.pathname==='/api/v1/documents/download-url'){if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});const b=await readJson(req,16_384);let rows=[];if(uuid(b.document_id))rows=await db('documents',{query:`?id=eq.${encodeURIComponent(b.document_id)}&select=*`});else if(principal?.authType==='internal'&&b.key)rows=await db('documents',{query:`?object_key=eq.${encodeURIComponent(safeKey(b.key))}&select=*`});else throw Object.assign(new Error('VALID_DOCUMENT_ID_REQUIRED'),{status:400});if(!Array.isArray(rows)||!rows.length)throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});const doc=rows[0];
     // A signed URL is a bearer capability that outlives this request, so the
@@ -2245,21 +2317,29 @@ async function handleRaw(req,res){
     const dlCases=await casesById(access,[doc.case_id]);
     if(!canAccessDocument(access,doc,dlCases.get(String(doc.case_id)),'documents.view'))throw Object.assign(new Error('DOCUMENT_NOT_FOUND'),{status:404});
     const inline=b.disposition==='inline'&&['application/pdf','image/jpeg','image/png','image/webp'].includes(doc.content_type);const disposition=inline?'inline':'attachment';const downloadUrl=await getSignedUrl(r2,new GetObjectCommand({Bucket:r2Bucket,Key:doc.object_key,ResponseContentDisposition:`${disposition}; filename*=UTF-8''${encodeURIComponent(doc.file_name)}`,ResponseContentType:doc.content_type}),{expiresIn:300});await event(doc.case_id,inline?'document_previewed':'document_downloaded',{document_id:doc.id},principal,req);return json(res,200,{download_url:downloadUrl,preview_url:inline?downloadUrl:null,disposition,expires_in:300,requestId},ch)}
+  const retryDocumentMatch=u.pathname.match(/^\/api\/v1\/documents\/([0-9a-f-]{36})\/retry-processing$/i);
+  if(retryDocumentMatch&&req.method==='POST'){
+    const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(retryDocumentMatch[1])}&archived_at=is.null&select=*&limit=1`});if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const document=rows[0],retryCases=await casesById(access,[document.case_id]);if(!canAccessDocument(access,document,retryCases.get(String(document.case_id)),'documents.manage'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
+    if(document.automation_status!=='FAILED')throw Object.assign(new Error('DOCUMENT_PROCESSING_NOT_FAILED'),{status:409});
+    const key=`document-extract:${document.id}:v${Number(document.version||1)}:${document.content_checksum}`,jobs=await systemDb('background_jobs',{query:`?idempotency_key=eq.${encodeURIComponent(key)}&select=*&limit=1`});let job,idempotent=false;
+    if(jobs.length){job=jobs[0];if(['queued','retrying','running'].includes(job.status))idempotent=true;else if(job.status==='failed'||job.status==='canceled'){const updated=await systemDb('background_jobs',{method:'PATCH',query:`?id=eq.${job.id}`,body:{status:'retrying',progress:0,attempt_count:0,available_at:new Date().toISOString(),last_error_code:null,failure_class:null,lease_token:null,leased_by:null,lease_expires_at:null,completed_at:null,updated_at:new Date().toISOString()}});job=updated[0]||{...job,status:'retrying'};}else throw Object.assign(new Error('DOCUMENT_PROCESSING_ALREADY_COMPLETED'),{status:409});}
+    else job=await enqueueBackgroundJob(newJob({jobType:'DOCUMENT_EXTRACT',idempotencyKey:key,caseId:document.case_id,participantId:document.person_id||null,payload:{document_id:document.id,document_version:Number(document.version||1),source_sha256:document.content_checksum},requestedBy:principal.id}));
+    await systemDb('documents',{method:'PATCH',query:`?id=eq.${document.id}`,body:{automation_status:'QUEUED',processing_error:null}});await ensureAutomationTask(document,'Document processing retry in progress','Automated document processing was restarted. Review the resulting extraction or recapture request when it completes.');await event(document.case_id,'document_processing_retried',{document_id:document.id,background_job_id:job.id,case_id:document.case_id,client_id:document.client_id,idempotent},principal,req);wakeBackgroundWorker();return json(res,idempotent?200:202,{data:{document_id:document.id,job_id:job.id,status:job.status,idempotent},requestId},ch);
+  }
   const extractionConfirmMatch=u.pathname.match(/^\/api\/v1\/documents\/([0-9a-f-]{36})\/extractions\/([0-9a-f-]{36})\/confirm$/i);
   if(extractionConfirmMatch&&req.method==='POST'){
     const rows=await db('documents',{query:`?id=eq.${extractionConfirmMatch[1]}&archived_at=is.null&select=*&limit=1`});if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const document=rows[0],cases=await casesById(access,[document.case_id]);if(!canAccessDocument(access,document,cases.get(String(document.case_id)),'documents.review'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
     const body=await readJson(req,32_768);if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});const review=await claimDocumentExtractionById(extractionConfirmMatch[2],{documentId:document.id,errorCode:'DOCUMENT_OCR_REVIEW_EXPIRED'});const accepted=normalizeReviewedIdentityFields(body.fields);let canonical;
     try{canonical=await commitVerifiedIdentityExtraction(review,document.person_id?'person':'client',document.person_id||document.client_id,accepted);}catch(error){await releaseDocumentExtraction(review);throw error}
     const synchronizedForms=await synchronizeVerifiedCanonicalToForms({id:document.case_id,client_id:document.client_id},{subjectType:document.person_id?'person':'client',subjectId:document.person_id||document.client_id,principal});
-    const reviewedAt=new Date().toISOString();await db('documents',{method:'PATCH',query:`?id=eq.${document.id}`,body:{automation_status:'VERIFIED',review_status:'approved',reviewed_by:principal.id,reviewed_at:reviewedAt,reviewer_notes:null,processing_error:null}});if(document.request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${document.request_id}&case_id=eq.${document.case_id}`,body:{status:'approved',reviewed_by:principal.id,reviewer_notes:null,updated_at:reviewedAt}});await db('tasks',{method:'PATCH',query:`?automation_key=eq.${encodeURIComponent(`document:${document.id}:v${Number(document.version||1)}`)}`,body:{status:'completed',completed_at:reviewedAt,updated_by:principal.id,updated_at:reviewedAt}});
     await event(document.case_id,'document_extraction_verified',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:review.id,person_id:document.person_id||null,committed_fields:canonical.committed_fields,synchronized_forms:synchronizedForms,human_confirmed:true,action_source:'STAFF_ASSISTED'},principal,req);return json(res,200,{data:{document_id:document.id,extraction_id:review.id,automation_status:'VERIFIED',committed_fields:canonical.committed_fields,synchronized_forms:synchronizedForms},requestId},ch);
   }
   const documentOcrMatch=u.pathname.match(/^\/api\/v1\/documents\/([0-9a-f-]{36})\/ocr(?:\/(confirm))?$/i);
-  if(documentOcrMatch&&req.method==='GET'&&!documentOcrMatch[2]){const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(documentOcrMatch[1])}&archived_at=is.null&select=*&limit=1`});if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const document=rows[0],ocrCases=await casesById(access,[document.case_id]);if(!canAccessDocument(access,document,ocrCases.get(String(document.case_id)),'documents.manage'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const runs=await db('document_extractions',{query:`?document_id=eq.${document.id}&select=*&order=created_at.desc&limit=50`}),fields=runs.length?await db('document_extracted_fields',{query:`?extraction_id=in.(${runs.map(run=>run.id).join(',')})&select=*`}):[];return json(res,200,{data:runs.map(run=>({...run,fields:fields.filter(field=>field.extraction_id===run.id)})),requestId},ch);}
+  if(documentOcrMatch&&req.method==='GET'&&!documentOcrMatch[2]){const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(documentOcrMatch[1])}&archived_at=is.null&select=*&limit=1`});if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const document=rows[0],ocrCases=await casesById(access,[document.case_id]),ocrCase=ocrCases.get(String(document.case_id));if(!canAccessDocument(access,document,ocrCase,'documents.manage')&&!canAccessDocument(access,document,ocrCase,'documents.review'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const runs=await db('document_extractions',{query:`?document_id=eq.${document.id}&select=*&order=created_at.desc&limit=50`}),fields=runs.length?await db('document_extracted_fields',{query:`?extraction_id=in.(${runs.map(run=>run.id).join(',')})&select=*`}):[];return json(res,200,{data:runs.map(run=>({...run,fields:fields.filter(field=>field.extraction_id===run.id)})),requestId},ch);}
   if(documentOcrMatch&&req.method==='POST'){
+    const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(documentOcrMatch[1])}&archived_at=is.null&select=*&limit=1`});if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const document=rows[0],ocrCases=await casesById(access,[document.case_id]),ocrPermission=documentOcrMatch[2]?'documents.review':'documents.manage';if(!canAccessDocument(access,document,ocrCases.get(String(document.case_id)),ocrPermission))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
+    if(documentOcrMatch[2]){const body=await readJson(req,32_768);if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});const review=await claimDocumentExtraction(body.review_token,principal,{documentId:document.id,errorCode:'DOCUMENT_OCR_REVIEW_EXPIRED'});const patch={category:cleanText(body.category||document.category||'identity',{required:true,max:100}),review_status:'under_review'};if(body.person_id){if(!uuid(body.person_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});const links=await db('case_people',{query:`?case_id=eq.${encodeURIComponent(document.case_id)}&person_id=eq.${encodeURIComponent(body.person_id)}&select=person_id&limit=1`});if(!links.length){await releaseDocumentExtraction(review);throw Object.assign(new Error('DOCUMENT_PERSON_NOT_IN_CASE'),{status:409})}patch.person_id=body.person_id}let updated,canonical;try{const accepted=normalizeReviewedIdentityFields(body.fields);updated=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(document.id)}`,body:patch});canonical=await commitVerifiedIdentityExtraction(review,patch.person_id?'person':'client',patch.person_id||document.client_id,accepted);}catch(error){await releaseDocumentExtraction(review);throw error}await event(document.case_id,'document_ocr_confirmed',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:review.id,person_id:patch.person_id||document.person_id||null,engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,canonical_commit:true,committed_fields:canonical.committed_fields,confirmed_fields:Object.keys(body.fields&&typeof body.fields==='object'?body.fields:{})},principal,req);return json(res,200,{data:{...(updated[0]||updated),review_status:'approved',automation_status:'VERIFIED'},ocr:{engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,canonical_commit:true,committed_fields:canonical.committed_fields,source_document_id:document.id,extraction_id:review.id},requestId},ch)}
     if(!r2||!r2Bucket)throw Object.assign(new Error('R2_NOT_CONFIGURED'),{status:503});
-    const rows=await db('documents',{query:`?id=eq.${encodeURIComponent(documentOcrMatch[1])}&archived_at=is.null&select=*&limit=1`});if(!rows.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);const document=rows[0],ocrCases=await casesById(access,[document.case_id]);if(!canAccessDocument(access,document,ocrCases.get(String(document.case_id)),'documents.manage'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
-    if(documentOcrMatch[2]){const body=await readJson(req,32_768);if(body.confirmed!==true)throw Object.assign(new Error('HUMAN_CONFIRMATION_REQUIRED'),{status:400});const review=await claimDocumentExtraction(body.review_token,principal,{documentId:document.id,errorCode:'DOCUMENT_OCR_REVIEW_EXPIRED'});const patch={category:cleanText(body.category||document.category||'identity',{required:true,max:100}),review_status:'under_review'};if(body.person_id){if(!uuid(body.person_id))throw Object.assign(new Error('INVALID_DOCUMENT_METADATA'),{status:400});const links=await db('case_people',{query:`?case_id=eq.${encodeURIComponent(document.case_id)}&person_id=eq.${encodeURIComponent(body.person_id)}&select=person_id&limit=1`});if(!links.length){await releaseDocumentExtraction(review);throw Object.assign(new Error('DOCUMENT_PERSON_NOT_IN_CASE'),{status:409})}patch.person_id=body.person_id}let updated,canonical;try{const accepted=normalizeReviewedIdentityFields(body.fields);updated=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(document.id)}`,body:patch});canonical=await commitVerifiedIdentityExtraction(review,patch.person_id?'person':'client',patch.person_id||document.client_id,accepted);}catch(error){await releaseDocumentExtraction(review);throw error}await event(document.case_id,'document_ocr_confirmed',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:review.id,person_id:patch.person_id||document.person_id||null,engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,canonical_commit:true,committed_fields:canonical.committed_fields,confirmed_fields:Object.keys(body.fields&&typeof body.fields==='object'?body.fields:{})},principal,req);return json(res,200,{data:updated[0]||updated,ocr:{engine:review.result.engine,mrz_valid:review.result.mrz.valid,human_confirmed:true,canonical_commit:true,committed_fields:canonical.committed_fields,source_document_id:document.id,extraction_id:review.id},requestId},ch)}
     if(!allowedIdentityTypes.has(String(document.content_type||'').toLowerCase()))throw Object.assign(new Error('DOCUMENT_OCR_IMAGE_REQUIRED'),{status:415});const object=await r2.send(new GetObjectCommand({Bucket:r2Bucket,Key:document.object_key})),bytes=Buffer.from(await object.Body.transformToByteArray());let result;try{result=await extractIdentityDocument(bytes)}catch{throw Object.assign(new Error('DOCUMENT_OCR_FAILED'),{status:422})}if(!result.mrz.detected&&!Object.keys(result.fields).length)throw Object.assign(new Error('DOCUMENT_NOT_RECOGNIZED'),{status:422});const persisted=await persistDocumentExtraction(principal,result,{document,sourceSha256:crypto.createHash('sha256').update(bytes).digest('hex')});await event(document.case_id,'document_ocr_review_required',{case_id:document.case_id,client_id:document.client_id,document_id:document.id,extraction_id:persisted.run.id,engine:result.engine,mrz_detected:result.mrz.detected,mrz_valid:result.mrz.valid,human_confirmation_required:true},principal,req);return json(res,200,{review_token:persisted.token,extraction_id:persisted.run.id,expires_in:900,result,source_document_id:document.id,human_confirmation_required:true,requestId},ch);
   }
   const reviewMatch=u.pathname.match(/^\/api\/v1\/documents\/([0-9a-f-]{36})\/review$/i);
@@ -2274,10 +2354,8 @@ async function handleRaw(req,res){
     if(!existingReview.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
     const reviewCases=await casesById(access,[existingReview[0].case_id]);
     if(!canAccessDocument(access,existingReview[0],reviewCases.get(String(existingReview[0].case_id)),'documents.review'))return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
-    const data=await db('documents',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reviewMatch[1])}`,body:patch});
+    const data=await finalizeDocumentReviewState(existingReview[0],{status:body.status,reviewerId:principal.id,notes:patch.reviewer_notes,reviewedAt:patch.reviewed_at});
     if(!data.length)return json(res,404,{error:'DOCUMENT_NOT_FOUND',requestId},ch);
-    if(data[0].request_id)await db('document_requests',{method:'PATCH',query:`?id=eq.${data[0].request_id}&case_id=eq.${data[0].case_id}`,body:{status:body.status==='approved'?'approved':'rejected',reviewed_by:principal.id,reviewer_notes:patch.reviewer_notes,updated_at:patch.reviewed_at}});
-    await db('tasks',{method:'PATCH',query:`?automation_key=eq.${encodeURIComponent(`document:${data[0].id}:v${Number(data[0].version||1)}`)}`,body:body.status==='approved'?{status:'completed',completed_at:patch.reviewed_at,updated_by:principal.id,updated_at:patch.reviewed_at}:{status:'open',completed_at:null,priority:'high',updated_by:principal.id,updated_at:patch.reviewed_at}});
     await event(data[0].case_id,'document_reviewed',{document_id:reviewMatch[1],review_status:body.status,case_id:data[0].case_id,client_id:data[0].client_id},principal,req);
     return json(res,200,{data,requestId},ch);
   }
@@ -2436,12 +2514,11 @@ export function createServer(){
   ensureConfiguredOwnerInvitation()
     .then(result=>{if(result.invited||result.resent)console.log('Configured Owner activation sent')})
     .catch(error=>console.error('owner-invitation-failed',error.message));
-  Promise.all([recoverPendingImportJobs(),recoverPendingDocumentJobs(),recoverCaseServiceWorkflows()])
-    .catch(error=>{if(!isMissingRelation(error))console.error('workflow-recovery-failed',error.message)})
-    .finally(()=>wakeBackgroundWorker());
+  runWorkflowRecoveryCycle()
+    .catch(error=>{if(!isMissingRelation(error))console.error('workflow-recovery-failed',error.message)});
   const server=http.createServer((req,res)=>handle(req,res).catch(err=>respondToError(req,res,err)));
   server.requestTimeout=30_000;server.headersTimeout=35_000;server.keepAliveTimeout=5_000;
-  const workerPoll=setInterval(wakeBackgroundWorker,2_000);workerPoll.unref();server.on('close',()=>clearInterval(workerPoll));
+  const workerPoll=setInterval(wakeBackgroundWorker,2_000),recoveryPoll=setInterval(()=>runWorkflowRecoveryCycle().catch(error=>{if(!isMissingRelation(error))console.error('workflow-recovery-failed',error.message)}),60_000);workerPoll.unref();recoveryPoll.unref();server.on('close',()=>{clearInterval(workerPoll);clearInterval(recoveryPoll)});
   if(productionVerification.enabled)setTimeout(()=>withSystemDatabase(()=>runProductionVerification()).catch(error=>{productionVerification.status='failed';productionVerification.errors.unexpected=error.message}),250).unref();
   return server;
 }

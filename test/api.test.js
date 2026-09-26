@@ -4,6 +4,7 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 import { APP_ORIGIN, INTERNAL_KEY, addUser, backend, browserHeaders, cookieHeader, driver, issueSession, putObject, resetBackend } from './helpers/harness.js';
 import { handle, requiredPermission, respondToError } from '../src/server.js';
@@ -53,10 +54,18 @@ test('readiness verifies the authorization schema independently of owner provisi
   assert.equal(response.status, 503, 'the test tenant has no Owner account');
   assert.equal(response.body.checks.supabase, true);
   assert.equal(response.body.checks.coreSchema, true);
+  assert.equal(response.body.checks.formsSchema, true);
+  assert.equal(response.body.checks.convergenceSchema, true);
   assert.equal(response.body.checks.authorizationSchema, true);
   assert.deepEqual(response.body.authorizationTables, { teams: true, teamMembers: true, accessPolicies: true, recordAccessGrants: true });
   assert.deepEqual(response.body.authorizationTableErrors, {});
   assert.equal(response.body.checks.ownerAccount, false);
+});
+
+test('Railway gates deployment on full readiness rather than liveness', async () => {
+  const configuration = await readFile(new URL('../railway.toml', import.meta.url), 'utf8');
+  assert.match(configuration, /healthcheckPath\s*=\s*"\/ready"/);
+  assert.doesNotMatch(configuration, /healthcheckPath\s*=\s*"\/health"/);
 });
 
 // ---------------------------------------------------------------------------
@@ -377,11 +386,36 @@ test('a PATCH that matches no case reports 404 rather than a phantom success', a
   assert.equal(backend.tables.case_events.filter(row => row.event_type === 'case_updated').length, 0, 'no audit event may be written for a case that does not exist');
 });
 
+test('concurrent workflow transitions commit exactly one decision', async () => {
+  const cookie = await signIn();
+  seedCase({ workflow_stage: 'intake' });
+  const [advance, close] = await Promise.all([
+    request({ method: 'PATCH', path: `/api/v1/cases/${CASE_ID}`, headers: browserHeaders({ cookie }), body: { workflow_stage: 'awaiting_documents' } }),
+    request({ method: 'PATCH', path: `/api/v1/cases/${CASE_ID}`, headers: browserHeaders({ cookie }), body: { workflow_stage: 'closed' } }),
+  ]);
+  assert.deepEqual([advance.status, close.status].sort(), [200, 409]);
+  assert.equal(backend.tables.case_events.filter(row => row.event_type === 'workflow_changed').length, 1);
+});
+
+test('conflicting concurrent document reviews commit exactly one decision', async () => {
+  addUser({ email: 'owner@caseflow.test', roles: ['owner'], fullName: 'Owner' });
+  const cookie = await signIn('owner@caseflow.test');
+  const clientId = crypto.randomUUID(), documentId = crypto.randomUUID();
+  seedCase({ client_id: clientId });
+  backend.tables.documents.push({ id: documentId, case_id: CASE_ID, client_id: clientId, review_status: 'under_review', reviewed_at: null, archived_at: null });
+  const [approve, reject] = await Promise.all([
+    request({ method: 'POST', path: `/api/v1/documents/${documentId}/review`, headers: browserHeaders({ cookie }), body: { status: 'approved' } }),
+    request({ method: 'POST', path: `/api/v1/documents/${documentId}/review`, headers: browserHeaders({ cookie }), body: { status: 'rejected' } }),
+  ]);
+  assert.deepEqual([approve.status, reject.status].sort(), [200, 409]);
+  assert.equal(backend.tables.case_events.filter(row => row.event_type === 'document_reviewed').length, 1);
+});
+
 // ---------------------------------------------------------------------------
 // Error disclosure
 // ---------------------------------------------------------------------------
 
-test('database error payloads never reach the client', async () => {
+test('reconfirming the same stored object is idempotent and never deletes committed bytes', async () => {
   const cookie = await signIn();
   seedCase();
   const key = `cases/${CASE_ID}/${crypto.randomUUID()}-file.pdf`;
@@ -391,15 +425,34 @@ test('database error payloads never reach the client', async () => {
   const first = await request({ method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }), body });
   assert.equal(first.status, 201);
 
-  // Confirming the same immutable bytes twice is rejected before a second
-  // metadata insert. The response remains stable and reveals no DB details.
+  // A client may retry after the first response is lost. That retry must not
+  // delete the object already referenced by the committed document row.
   const duplicate = await request({ method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }), body });
-  assert.ok(duplicate.status >= 400, `expected a failure, got ${duplicate.status}`);
-  assert.equal(duplicate.body.error, 'DUPLICATE_DOCUMENT');
-  assert.equal('details' in duplicate.body, false, 'upstream error payloads must not be forwarded');
-  assert.equal(duplicate.raw.includes('constraint'), false);
-  assert.equal(duplicate.raw.includes('documents_object_key_key'), false);
-  assert.equal(duplicate.raw.includes('23505'), false);
+  assert.equal(duplicate.status, 200, duplicate.raw);
+  assert.equal(duplicate.body.idempotent, true);
+  assert.equal(backend.objects.has(key), true, 'committed R2 bytes must survive a confirm retry');
+  assert.equal(backend.tables.documents.length, 1);
+
+  // A genuinely separate upload of the same bytes is rejected and only its
+  // uncommitted object is removed.
+  const otherKey = `cases/${CASE_ID}/${crypto.randomUUID()}-duplicate.pdf`;
+  putObject(otherKey, { size: 1024, contentType: 'application/pdf' });
+  const other = await request({ method: 'POST', path: '/api/v1/documents/confirm', headers: browserHeaders({ cookie }), body: { ...body, key: otherKey } });
+  assert.equal(other.status, 409);
+  assert.equal(other.body.error, 'DUPLICATE_DOCUMENT');
+  assert.equal(backend.objects.has(otherKey), false);
+  assert.equal(backend.objects.has(key), true);
+  assert.equal('details' in other.body, false, 'upstream error payloads must not be forwarded');
+});
+
+test('authorization-table failure denies non-owner access instead of widening to role defaults', async () => {
+  const cookie = await signIn();
+  seedCase();
+  backend.tables.access_policies = undefined;
+  const response = await request({ path: '/api/v1/cases', headers: browserHeaders({ cookie }) });
+  assert.equal(response.status, 503);
+  assert.equal(response.body.error, 'INTERNAL_ERROR');
+  assert.equal(response.body.data, undefined);
 });
 
 test('malformed identifiers are rejected locally instead of at the database', async () => {
