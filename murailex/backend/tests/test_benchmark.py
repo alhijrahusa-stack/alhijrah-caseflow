@@ -1,5 +1,4 @@
 import pytest
-
 from app.benchmark import (
     BenchmarkItem,
     aggregate_scores,
