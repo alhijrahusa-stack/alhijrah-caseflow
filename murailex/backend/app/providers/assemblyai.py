@@ -1,7 +1,9 @@
-"""AssemblyAI pre-recorded transcription (POST /v2/upload, POST /v2/transcript, GET /v2/transcript/{id}).
+"""AssemblyAI pre-recorded transcription using Universal-3.5 Pro.
 
-Model: Universal-3.5 Pro, requested with speech_models=["universal-3-5-pro"].
-Supports keyterms_prompt for expected terminology enhancement.
+The recording locale is routed by MURAILEX. AssemblyAI receives Arabic/English language
+codes rather than dialect guessing; exact regional routing is handled by providers that
+support the requested locale. Expected terminology is passed as keyterms without changing
+raw transcript output.
 """
 from __future__ import annotations
 
@@ -23,29 +25,32 @@ class AssemblyAI(AsrAdapter):
         return key.get_secret_value()
 
     def parameters(self, context: dict[str, Any] | None = None) -> dict[str, Any]:
-        s = get_settings()
+        settings = get_settings()
         params: dict[str, Any] = {
-            "speech_models": [s.assemblyai_speech_model],
+            "speech_models": [settings.assemblyai_speech_model],
             "speaker_labels": True,
-            "language_detection": True,
+            "language_codes": ["ar", "en"],
         }
-        expected = (context or {}).get("expected_speakers")
-        if expected:
-            params["speakers_expected"] = int(expected)
-        
-        expected_terms = (context or {}).get("expected_terms")
+        expected_speakers = (context or {}).get("expected_speakers")
+        if expected_speakers:
+            params["speakers_expected"] = int(expected_speakers)
+
+        expected_terms = [
+            str(term).strip()
+            for term in ((context or {}).get("expected_terms") or [])
+            if str(term).strip()
+        ]
         if expected_terms:
-            params["keyterms_prompt"] = ", ".join(str(t) for t in expected_terms)
-        
+            params["keyterms_prompt"] = expected_terms[:1000]
         return params
 
     def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
-        s = get_settings()
+        settings = get_settings()
         return ProviderInfo(
             self.name,
-            s.assemblyai_speech_model,
+            settings.assemblyai_speech_model,
             "primary_asr",
-            bool(s.assemblyai_api_key and s.assemblyai_api_key.get_secret_value()),
+            bool(settings.assemblyai_api_key and settings.assemblyai_api_key.get_secret_value()),
             self.parameters(context),
         )
 
@@ -53,38 +58,59 @@ class AssemblyAI(AsrAdapter):
         key = self._key()
         base = get_settings().assemblyai_base_url
         with open(audio_path, "rb") as fh:
-            up = request("POST", f"{base}/v2/upload", self.name, timeout=900, headers={"authorization": key}, content=fh.read())
-        upload_url = up.json().get("upload_url")
+            upload = request(
+                "POST",
+                f"{base}/v2/upload",
+                self.name,
+                timeout=900,
+                headers={"authorization": key},
+                content=fh.read(),
+            )
+        upload_url = upload.json().get("upload_url")
         if not upload_url:
             raise ProviderError("AssemblyAI upload returned no upload_url", retryable=True)
         body = {"audio_url": upload_url, **self.parameters(context)}
-        resp = request("POST", f"{base}/v2/transcript", self.name, headers={"authorization": key}, json=body)
-        tid = resp.json().get("id")
-        if not tid:
+        response = request(
+            "POST",
+            f"{base}/v2/transcript",
+            self.name,
+            headers={"authorization": key},
+            json=body,
+        )
+        transcript_id = response.json().get("id")
+        if not transcript_id:
             raise ProviderError("AssemblyAI returned no transcript id", retryable=True)
-        return str(tid)
+        return str(transcript_id)
 
     def fetch(self, remote_id: str) -> dict[str, Any] | Pending:
         key = self._key()
         base = get_settings().assemblyai_base_url
-        data = request("GET", f"{base}/v2/transcript/{remote_id}", self.name, headers={"authorization": key}).json()
+        data = request(
+            "GET",
+            f"{base}/v2/transcript/{remote_id}",
+            self.name,
+            headers={"authorization": key},
+        ).json()
         status = data.get("status")
         if status == "completed":
             return data
         if status == "error":
-            raise ProviderError(f"AssemblyAI transcription error: {data.get('error')}", retryable=False)
+            raise ProviderError(
+                f"AssemblyAI transcription error: {data.get('error')}",
+                retryable=False,
+            )
         return Pending(str(status))
 
     def normalize(self, raw: Any) -> dict[str, Any]:
         tokens = []
-        for w in raw.get("words") or []:
+        for word in raw.get("words") or []:
             tokens.append(
                 {
-                    "text": w.get("text", ""),
-                    "start_ms": int(w.get("start") or 0),
-                    "end_ms": int(w.get("end") or 0),
-                    "confidence": w.get("confidence"),
-                    "speaker": w.get("speaker"),
+                    "text": word.get("text", ""),
+                    "start_ms": int(word.get("start") or 0),
+                    "end_ms": int(word.get("end") or 0),
+                    "confidence": word.get("confidence"),
+                    "speaker": word.get("speaker"),
                 }
             )
         return {"tokens": tokens, "language": raw.get("language_code")}
