@@ -4,7 +4,10 @@ import os
 import shutil
 import tempfile
 
-TEST_DB = os.environ.get("TEST_DATABASE_URL", "postgresql+psycopg://murailex:murailex@localhost:5432/murailex_test")
+TEST_DB = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+psycopg://murailex:murailex@localhost:5432/murailex_test",
+)
 os.environ.update(
     {
         "ENVIRONMENT": "test",
@@ -26,8 +29,17 @@ os.environ.update(
         "S3_UPLOAD_PART_MIN_SIZE": "1",
     }
 )
-for k in ("AWS_CA_BUNDLE", "ASSEMBLYAI_API_KEY", "GOOGLE_CREDENTIALS_JSON", "PYANNOTE_API_KEY", "OPENAI_API_KEY", "DEEPGRAM_API_KEY", "HTTPS_PROXY", "https_proxy"):
-    os.environ.pop(k, None)
+for key in (
+    "AWS_CA_BUNDLE",
+    "ASSEMBLYAI_API_KEY",
+    "GOOGLE_CREDENTIALS_JSON",
+    "PYANNOTE_API_KEY",
+    "OPENAI_API_KEY",
+    "DEEPGRAM_API_KEY",
+    "HTTPS_PROXY",
+    "https_proxy",
+):
+    os.environ.pop(key, None)
 os.environ["NO_PROXY"] = "127.0.0.1,localhost"
 
 import boto3  # noqa: E402
@@ -45,19 +57,27 @@ FIXTURES = os.path.join(HERE, "fixtures")
 def infrastructure():
     server = ThreadedMotoServer(ip_address="127.0.0.1", port=5055, verbose=False)
     server.start()
-    s3 = boto3.client("s3", endpoint_url="http://127.0.0.1:5055", region_name="us-east-1",
-                      aws_access_key_id="testing", aws_secret_access_key="testing")
+    s3 = boto3.client(
+        "s3",
+        endpoint_url="http://127.0.0.1:5055",
+        region_name="us-east-1",
+        aws_access_key_id="testing",
+        aws_secret_access_key="testing",
+    )
     s3.create_bucket(Bucket="murailex-test", ObjectLockEnabledForBucket=True)
-    s3.put_bucket_versioning(Bucket="murailex-test", VersioningConfiguration={"Status": "Enabled"})
+    s3.put_bucket_versioning(
+        Bucket="murailex-test",
+        VersioningConfiguration={"Status": "Enabled"},
+    )
 
-    eng = create_engine(TEST_DB)
-    with eng.begin() as c:
-        c.execute(text("drop schema public cascade; create schema public;"))
-    eng.dispose()
-    cfg = Config(os.path.join(HERE, "..", "alembic.ini"))
-    cfg.set_main_option("script_location", os.path.join(HERE, "..", "alembic"))
-    cfg.set_main_option("sqlalchemy.url", TEST_DB)
-    command.upgrade(cfg, "head")
+    engine = create_engine(TEST_DB)
+    with engine.begin() as connection:
+        connection.execute(text("drop schema public cascade; create schema public;"))
+    engine.dispose()
+    config = Config(os.path.join(HERE, "..", "alembic.ini"))
+    config.set_main_option("script_location", os.path.join(HERE, "..", "alembic"))
+    config.set_main_option("sqlalchemy.url", TEST_DB)
+    command.upgrade(config, "head")
     yield
     server.stop()
     shutil.rmtree(os.environ["MURAILEX_WORK_DIR"], ignore_errors=True)
@@ -69,8 +89,8 @@ def app_client():
 
     from app.main import create_app
 
-    with TestClient(create_app(), base_url="http://testserver") as c:
-        yield c
+    with TestClient(create_app(), base_url="http://testserver") as client:
+        yield client
 
 
 @pytest.fixture()
@@ -87,40 +107,78 @@ def fixture_providers():
     registry.clear_test_fixtures()
 
 
-def make_user(email: str, role: str = "transcriber", password: str = "correct horse battery staple") -> None:
+def make_user(
+    email: str,
+    role: str = "transcriber",
+    password: str = "correct horse battery staple",
+) -> None:
     from app import audit
     from app.db import session_factory
     from app.models import User
     from app.security import hash_password
 
     with session_factory()() as db:
-        u = User(email=email, display_name=email.split("@")[0], password_hash=hash_password(password), role=role)
-        db.add(u)
+        user = User(
+            email=email,
+            display_name=email.split("@")[0],
+            password_hash=hash_password(password),
+            role=role,
+        )
+        db.add(user)
         db.flush()
         audit.record(db, "user_created", actor_label="test", details={"email": email})
         db.commit()
 
 
 def login(client, email: str, password: str = "correct horse battery staple") -> str:
-    r = client.post("/api/auth/login", json={"email": email, "password": password})
-    assert r.status_code == 200, r.text
-    return r.json()["csrf_token"]
+    response = client.post("/api/auth/login", json={"email": email, "password": password})
+    assert response.status_code == 200, response.text
+    return response.json()["csrf_token"]
 
 
-def upload_file(client, csrf: str, path: str, title: str = "Test recording", mime: str = "audio/wav") -> dict:
+def upload_file(
+    client,
+    csrf: str,
+    path: str,
+    title: str = "Test recording",
+    mime: str = "audio/wav",
+    language_locale: str = "ar-YE",
+    recording_type: str = "interrogation",
+) -> dict:
     data = open(path, "rb").read()
-    r = client.post("/api/uploads", headers={"x-csrf-token": csrf},
-                    json={"filename": os.path.basename(path), "mime_type": mime, "size": len(data), "fingerprint": f"{os.path.basename(path)}:{len(data)}:{title}", "title": title})
-    assert r.status_code == 200, r.text
-    sess = r.json()
-    cs = sess["chunk_size"]
-    for n in range(1, sess["total_parts"] + 1):
-        chunk = data[(n - 1) * cs : n * cs]
-        rr = client.put(f"/api/uploads/{sess['id']}/parts/{n}", content=chunk, headers={"x-csrf-token": csrf, "content-type": "application/octet-stream"})
-        assert rr.status_code == 200, rr.text
-    r = client.post(f"/api/uploads/{sess['id']}/complete", headers={"x-csrf-token": csrf})
-    assert r.status_code == 200, r.text
-    return r.json()["recording"]
+    response = client.post(
+        "/api/uploads",
+        headers={"x-csrf-token": csrf},
+        json={
+            "filename": os.path.basename(path),
+            "mime_type": mime,
+            "size": len(data),
+            "fingerprint": f"{os.path.basename(path)}:{len(data)}:{title}",
+            "title": title,
+            "language_locale": language_locale,
+            "recording_type": recording_type,
+        },
+    )
+    assert response.status_code == 200, response.text
+    session = response.json()
+    chunk_size = session["chunk_size"]
+    for number in range(1, session["total_parts"] + 1):
+        chunk = data[(number - 1) * chunk_size : number * chunk_size]
+        part = client.put(
+            f"/api/uploads/{session['id']}/parts/{number}",
+            content=chunk,
+            headers={
+                "x-csrf-token": csrf,
+                "content-type": "application/octet-stream",
+            },
+        )
+        assert part.status_code == 200, part.text
+    response = client.post(
+        f"/api/uploads/{session['id']}/complete",
+        headers={"x-csrf-token": csrf},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["recording"]
 
 
 def drain_jobs(max_steps: int = 200) -> int:
