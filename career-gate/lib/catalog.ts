@@ -9,6 +9,7 @@ const ShiftSchema = z.object({
   start_time: z.string().nullable().optional(),
   end_time: z.string().nullable().optional(),
   pay: z.string().nullable().optional(),
+  availability: z.string().nullable().optional(),
   active: z.boolean().default(true),
   source: z.string().nullable().optional(),
   last_verified_at: z.string().nullable().optional(),
@@ -58,6 +59,7 @@ export type Option = {
   days: string | null;
   hours: string | null;
   pay: string | null;
+  availability: string | null;
   source: string | null;
   last_verified_at: string | null;
 };
@@ -98,6 +100,7 @@ export function activeOptions(catalog: Catalog): Option[] {
           days: shift.days ?? null,
           hours: hours(shift),
           pay: shift.pay ?? null,
+          availability: shift.availability ?? null,
           source: shift.source ?? site.source ?? catalog.source ?? null,
           last_verified_at: shift.last_verified_at ?? site.last_verified_at ?? null,
         });
@@ -140,3 +143,14 @@ export function resolvePreferences(
   }
   return { ok: true, rows };
 }
+
+/** Deterministic content version of the catalog (FNV-1a 64-bit over canonical JSON). */
+export const catalogVersion: string = (() => {
+  const text = JSON.stringify(catalog);
+  let h = 0xcbf29ce484222325n;
+  for (let i = 0; i < text.length; i++) {
+    h ^= BigInt(text.charCodeAt(i));
+    h = (h * 0x100000001b3n) & 0xffffffffffffffffn;
+  }
+  return `fnv1a64:${h.toString(16).padStart(16, "0")}`;
+})();

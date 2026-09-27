@@ -18,7 +18,7 @@ import { DOC_LABELS, DOC_MAX_BYTES, DOC_TYPES } from "@/lib/domain";
 import { ACCURACY_DISCLAIMER, AUTHORIZATION_TEXT, AUTHORIZATION_VERSION, OFFICE } from "@/lib/office";
 
 type PendingDoc = { id: string; doc_type: (typeof DOC_TYPES)[number]; file: File };
-type Done = { ref: string; status_url: string; failed: { name: string; error: string }[] };
+type Done = { ref: string; failed: { name: string; error: string }[]; notifications: { channel: string; status: string }[] };
 
 const hasCatalog = options.length > 0;
 
@@ -36,6 +36,9 @@ const STEPS: Step[] = [
       ]
     : []),
   { key: "personal", title: "Personal information" },
+  { key: "amazon", title: "Amazon history" },
+  { key: "employment", title: "Employment history" },
+  { key: "availability", title: "Appointment availability" },
   { key: "documents", title: "Documents" },
   { key: "review", title: "Review, authorization & signature" },
 ];
@@ -69,7 +72,10 @@ export function IntakeWizard() {
     primary: prefs.primary.length > 0,
     backup: true,
     pay: true,
-    personal: personalReady(profile) && employmentReady(profile),
+    personal: personalReady(profile),
+    amazon: profile.amazon_worked_before !== "" && profile.amazon_applied_before !== "",
+    employment: employmentReady(profile),
+    availability: profile.appointment_availability.trim().length > 0,
     documents: true,
     review: accepted && accuracy && printedName.trim().length >= 2 && sameName(signature, printedName),
   };
@@ -80,9 +86,8 @@ export function IntakeWizard() {
     try {
       const res = await fetch("/api/intake", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
         body: JSON.stringify({
-          idempotency_key: idempotencyKey,
           state: "MI",
           profile: profilePayload(profile),
           primary: toSelections(prefs.primary),
@@ -105,15 +110,14 @@ export function IntakeWizard() {
       for (const [i, d] of docs.entries()) {
         setSubmitting(`Uploading document ${i + 1} of ${docs.length}…`);
         const form = new FormData();
-        form.set("ref", data.ref);
-        form.set("token", data.upload_token ?? new URL(data.status_url).searchParams.get("t") ?? "");
+        form.set("upload_token", data.upload_token);
         form.set("doc_type", d.doc_type);
         form.set("file", d.file);
         const up = await fetch("/api/intake/documents", { method: "POST", body: form });
         const upData = await up.json().catch(() => null);
         if (!upData?.ok) failed.push({ name: d.file.name, error: upData?.error?.message ?? `Upload failed (${up.status})` });
       }
-      setDone({ ref: data.ref, status_url: data.status_url, failed });
+      setDone({ ref: data.ref, failed, notifications: data.notifications ?? [] });
       window.scrollTo({ top: 0 });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Submission failed");
@@ -130,6 +134,11 @@ export function IntakeWizard() {
           Reference: <strong data-testid="reference" className="font-mono">{done.ref}</strong>
         </p>
         <p>We will contact you regarding the next available step.</p>
+        {done.notifications.some((n) => n.status === "queued") ? (
+          <p className="text-sm text-slate-500" data-testid="confirmation-state">A confirmation message is being sent to the contact details you gave.</p>
+        ) : (
+          <p className="text-sm text-slate-500" data-testid="confirmation-state">No automatic confirmation message was sent. Please keep your reference number.</p>
+        )}
         {done.failed.length > 0 && (
           <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
             <p className="font-medium">These documents did not upload. Please bring or send them to the office:</p>
@@ -138,8 +147,8 @@ export function IntakeWizard() {
             </ul>
           </div>
         )}
-        <p className="text-sm text-slate-500">Save this link — it is the only way to see your status online.</p>
-        <a href={done.status_url} className="inline-flex rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
+        <p className="text-sm text-slate-500">Keep your reference. To check your status, enter it on the status page and we will send a one-time code to the contact you gave us.</p>
+        <a href={`/status?ref=${encodeURIComponent(done.ref)}`} className="inline-flex rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
           Track Status
         </a>
       </section>
@@ -189,7 +198,10 @@ export function IntakeWizard() {
             <PreferenceSummary value={prefs} />
           </>
         )}
-        {current.key === "personal" && <ProfileFields value={profile} onChange={setProfile} />}
+        {current.key === "personal" && <ProfileFields section="personal" value={profile} onChange={setProfile} />}
+        {current.key === "amazon" && <ProfileFields section="amazon" value={profile} onChange={setProfile} />}
+        {current.key === "employment" && <ProfileFields section="employment" value={profile} onChange={setProfile} />}
+        {current.key === "availability" && <ProfileFields section="availability" value={profile} onChange={setProfile} />}
         {current.key === "documents" && (
           <div className="space-y-4">
             <p className="text-sm text-slate-600">Optional. JPEG, PNG, WebP or PDF, up to 4 MB each. Do not upload Amazon passwords.</p>

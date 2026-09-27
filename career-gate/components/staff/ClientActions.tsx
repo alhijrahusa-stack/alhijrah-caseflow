@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAction } from "@/components/forms/useAction";
-import { useHandledBy, useStaff } from "@/components/staff/StaffContext";
+import { useStaff } from "@/components/staff/StaffContext";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
 import {
   CONTACT_LABELS,
   CONTACT_METHODS,
@@ -14,32 +15,21 @@ import {
   DOC_TYPES,
   STATUS_LABELS,
   STATUSES,
+  TRANSITIONS,
   type Status,
 } from "@/lib/domain";
-import { fromLocalInput, todayInOffice } from "@/lib/format";
+import { dateTime, fromLocalInput, todayInOffice } from "@/lib/format";
 
-export type Panel = "document" | "appointment" | "note" | "task" | "contacted" | "status" | "next_step" | "followup";
+export type Panel = "document" | "appointment" | "note" | "task" | "contacted" | "status" | "next_step" | "followup" | "assign";
 
 type FormProps = { clientId: string; onDone: () => void };
-
-/** Wraps a form: requires Handled By, shows errors, closes on success. */
-function useForm(onDone: () => void) {
-  const action = useAction();
-  const { handledBy, missing } = useHandledBy();
-  async function submit(payload: Record<string, unknown>) {
-    if (missing) return action.setError(missing);
-    const r = await action.run({ ...payload, handled_by: handledBy });
-    if (r) onDone();
-    return r;
-  }
-  return { ...action, submit, handledBy, missing };
-}
 
 function Shell({ title, children, error, pending, onCancel, submitLabel, testId }: {
   title: string; children: React.ReactNode; error: string | null; pending: boolean; onCancel: () => void; submitLabel: string; testId: string;
 }) {
   return (
-    <div className="rounded-lg border border-brand-500 bg-white p-4 shadow-sm" data-testid={testId}>
+    <div className="rounded-lg border border-brand-500 bg-white p-4 shadow-sm" data-testid={testId}
+      onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}>
       <h3 className="mb-3 font-semibold">{title}</h3>
       <div className="space-y-3">{children}</div>
       {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
@@ -51,34 +41,65 @@ function Shell({ title, children, error, pending, onCancel, submitLabel, testId 
   );
 }
 
+function useSubmit(onDone: () => void, success: string) {
+  const a = useAction({ successMessage: success });
+  const submit = async (payload: Record<string, unknown>) => {
+    const r = await a.run(payload);
+    if (r) onDone();
+    return r;
+  };
+  return { ...a, submit };
+}
+
 export function AddNoteForm({ clientId, onDone }: FormProps) {
-  const f = useForm(onDone);
+  const f = useSubmit(onDone, "Note added");
   const [note, setNote] = useState("");
   return (
     <form onSubmit={(e) => { e.preventDefault(); f.submit({ action: "add_note", client_id: clientId, note }); }}>
       <Shell title="Add note" testId="form-note" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Add note">
         <label className="label" htmlFor="note_text">Note</label>
         <textarea id="note_text" required rows={4} className="input" value={note} onChange={(e) => setNote(e.target.value)} />
+        <p className="text-xs text-slate-500">Notes cannot be edited later. Add a new note to correct one.</p>
       </Shell>
     </form>
   );
 }
 
+type Slot = { start: string; end: string; resource_key: string };
+
 export function AppointmentForm({ clientId, onDone }: FormProps) {
-  const f = useForm(onDone);
+  const f = useSubmit(onDone, "Appointment saved");
+  const { activeStaff } = useStaff();
   const [type, setType] = useState("Pre-hire appointment");
+  const [resource, setResource] = useState("office");
+  const [duration, setDuration] = useState(30);
   const [when, setWhen] = useState("");
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
+  const [slots, setSlots] = useState<Slot[] | null>(null);
+  const [slotError, setSlotError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let off = false;
+    fetch(`/api/staff/slots?resource=${encodeURIComponent(resource)}&duration=${duration}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (off) return;
+        if (d?.ok) { setSlots(d.slots); setSlotError(null); } else setSlotError(d?.error?.message ?? "Could not load availability");
+      })
+      .catch(() => !off && setSlotError("Could not load availability"));
+    return () => { off = true; };
+  }, [resource, duration]);
+
+  const base = { client_id: clientId, appointment_type: type, location: location || null, notes: notes || null };
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
-      if (!when) return f.setError("Choose a date and time");
-      f.submit({ action: "schedule_appointment", client_id: clientId, appointment_type: type,
-        scheduled_at: fromLocalInput(when).toISOString(), location: location || null, notes: notes || null });
+      if (!when) return f.setError("Choose a suggested slot or enter a date and time");
+      f.submit({ action: "schedule_appointment", ...base, resource_key: resource, duration_minutes: duration, scheduled_at: fromLocalInput(when).toISOString() });
     }}>
       <Shell title="Add appointment" testId="form-appointment" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Save appointment">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <label className="label" htmlFor="appt_type">Appointment type</label>
             <input id="appt_type" list="appt-types" required className="input" value={type} onChange={(e) => setType(e.target.value)} />
@@ -88,10 +109,37 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
             </datalist>
           </div>
           <div>
-            <label className="label" htmlFor="appt_when">Date &amp; time (Michigan time)</label>
-            <input id="appt_when" type="datetime-local" required className="input" value={when} onChange={(e) => setWhen(e.target.value)} />
+            <label className="label" htmlFor="appt_resource">With</label>
+            <select id="appt_resource" className="input" value={resource} onChange={(e) => setResource(e.target.value)}>
+              <option value="office">Office</option>
+              {activeStaff.map((s) => <option key={s.id} value={`staff:${s.id}`}>{s.display_name}</option>)}
+            </select>
           </div>
-          <div className="sm:col-span-2">
+          <div>
+            <label className="label" htmlFor="appt_duration">Minutes</label>
+            <input id="appt_duration" type="number" min={5} max={480} className="input" value={duration} onChange={(e) => setDuration(Number(e.target.value) || 30)} />
+          </div>
+        </div>
+        <div data-testid="slot-suggestions">
+          <p className="label">Next available (office calendar)</p>
+          {slotError && <p className="text-sm text-red-600">{slotError}</p>}
+          {slots && slots.length === 0 && <p className="text-sm text-slate-500">No open slots in the next 3 weeks. Set office hours under Availability, or enter a time below.</p>}
+          <div className="flex flex-wrap gap-2">
+            {slots?.map((s) => (
+              <button key={s.start} type="button" disabled={f.pending} data-testid="slot"
+                className="rounded-md border border-brand-500 px-3 py-1.5 text-sm text-brand-700 hover:bg-brand-50"
+                onClick={() => f.submit({ action: "book_slot", ...base, resource_key: s.resource_key, start: s.start, end: s.end })}>
+                Book {dateTime(s.start)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="appt_when">Or a specific date &amp; time (Michigan time)</label>
+            <input id="appt_when" type="datetime-local" className="input" value={when} onChange={(e) => setWhen(e.target.value)} />
+          </div>
+          <div>
             <label className="label" htmlFor="appt_location">Location</label>
             <input id="appt_location" className="input" value={location} onChange={(e) => setLocation(e.target.value)} />
           </div>
@@ -106,17 +154,16 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
 }
 
 export function TaskForm({ clientId, onDone }: { clientId: string | null; onDone: () => void }) {
-  const f = useForm(onDone);
-  const { staff } = useStaff();
+  const f = useSubmit(onDone, "Task added");
+  const { activeStaff, me } = useStaff();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [assignee, setAssignee] = useState("");
+  const [assignee, setAssignee] = useState(me.id);
   const [due, setDue] = useState("");
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
-      f.submit({ action: "add_task", client_id: clientId, title, description: description || null,
-        assigned_to: assignee || null, due_at: due ? fromLocalInput(due).toISOString() : null });
+      f.submit({ action: "add_task", client_id: clientId, title, description: description || null, assigned_to: assignee || null, due_at: due ? fromLocalInput(due).toISOString() : null });
     }}>
       <Shell title="Add task" testId="form-task" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Add task">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -131,8 +178,7 @@ export function TaskForm({ clientId, onDone }: { clientId: string | null; onDone
           <div>
             <label className="label" htmlFor="task_assignee">Assigned to</label>
             <select id="task_assignee" className="input" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-              <option value="">Same as Handled By</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {activeStaff.map((s) => <option key={s.id} value={s.id}>{s.display_name}</option>)}
             </select>
           </div>
           <div>
@@ -146,7 +192,7 @@ export function TaskForm({ clientId, onDone }: { clientId: string | null; onDone
 }
 
 export function ContactedForm({ clientId, onDone }: FormProps) {
-  const f = useForm(onDone);
+  const f = useSubmit(onDone, "Contact recorded");
   const [method, setMethod] = useState<(typeof CONTACT_METHODS)[number]>("call");
   const [result, setResult] = useState("");
   const [nextAction, setNextAction] = useState("");
@@ -170,7 +216,7 @@ export function ContactedForm({ clientId, onDone }: FormProps) {
           </div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor="contact_result">Result</label>
-            <input id="contact_result" required className="input" placeholder="e.g. Reached client, confirmed documents" value={result} onChange={(e) => setResult(e.target.value)} />
+            <input id="contact_result" required className="input" placeholder="What actually happened" value={result} onChange={(e) => setResult(e.target.value)} />
           </div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor="contact_next">Next action</label>
@@ -183,7 +229,7 @@ export function ContactedForm({ clientId, onDone }: FormProps) {
 }
 
 export function FollowupForm({ clientId, onDone }: FormProps) {
-  const f = useForm(onDone);
+  const f = useSubmit(onDone, "Follow-up added");
   const [due, setDue] = useState("");
   const [reason, setReason] = useState("");
   return (
@@ -204,39 +250,85 @@ export function FollowupForm({ clientId, onDone }: FormProps) {
   );
 }
 
+/** Offers only allowed transitions; admins may override with a mandatory reason. */
 export function StatusForm({ clientId, current, nextStep, onDone }: FormProps & { current: Status; nextStep: string }) {
-  const f = useForm(onDone);
-  const [status, setStatus] = useState<Status>(current);
-  const [step, setStep] = useState(nextStep);
+  const f = useSubmit(onDone, "Status updated");
+  const { isAdmin } = useStaff();
+  const allowed = TRANSITIONS[current];
+  const [override, setOverride] = useState(false);
+  const [status, setStatus] = useState<Status | "">(allowed[0] ?? "");
+  const [step, setStep] = useState(allowed[0] ? DEFAULT_NEXT_STEP[allowed[0]] : nextStep);
+  const [reason, setReason] = useState("");
+  const choices = override ? STATUSES.filter((s) => s !== current) : allowed;
   return (
-    <form onSubmit={(e) => { e.preventDefault(); f.submit({ action: "update_status", client_id: clientId, status, next_step: step }); }}>
-      <Shell title="Change status" testId="form-status" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Save status">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="label" htmlFor="st_status">Status</label>
-            <select id="st_status" className="input" value={status}
-              onChange={(e) => { const s = e.target.value as Status; setStatus(s); setStep(DEFAULT_NEXT_STEP[s]); }}>
-              {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-            </select>
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      if (!status) return;
+      f.submit(override
+        ? { action: "override_status", client_id: clientId, status, next_step: step, reason }
+        : { action: "update_status", client_id: clientId, status, next_step: step });
+    }}>
+      <Shell title="Change status" testId="form-status" error={f.error} pending={f.pending} onCancel={onDone} submitLabel={override ? "Override status" : "Save status"}>
+        <p className="text-sm text-slate-600">Current: <strong>{STATUS_LABELS[current]}</strong></p>
+        {choices.length === 0 ? (
+          <p className="text-sm text-slate-500">No further status changes are allowed from {STATUS_LABELS[current]}.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="st_status">New status</label>
+              <select id="st_status" className="input" value={status}
+                onChange={(e) => { const s = e.target.value as Status; setStatus(s); setStep(DEFAULT_NEXT_STEP[s]); }}>
+                {choices.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="st_next">Next step</label>
+              <input id="st_next" required className="input" value={step} onChange={(e) => setStep(e.target.value)} />
+            </div>
           </div>
+        )}
+        {isAdmin && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={override} onChange={(e) => { setOverride(e.target.checked); setStatus(""); }} />
+            Administrative override (outside the normal workflow)
+          </label>
+        )}
+        {override && (
           <div>
-            <label className="label" htmlFor="st_next">Next step</label>
-            <input id="st_next" required className="input" value={step} onChange={(e) => setStep(e.target.value)} />
+            <label className="label" htmlFor="st_reason">Override reason (required, logged)</label>
+            <input id="st_reason" required className="input" value={reason} onChange={(e) => setReason(e.target.value)} />
           </div>
-        </div>
+        )}
       </Shell>
     </form>
   );
 }
 
 export function NextStepForm({ clientId, nextStep, onDone }: FormProps & { nextStep: string }) {
-  const f = useForm(onDone);
+  const f = useSubmit(onDone, "Next step saved");
   const [step, setStep] = useState(nextStep);
   return (
     <form onSubmit={(e) => { e.preventDefault(); f.submit({ action: "set_next_step", client_id: clientId, next_step: step }); }}>
       <Shell title="Set next step" testId="form-next-step" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Save next step">
-        <label className="label" htmlFor="ns_text">Next step (shown on the client status page)</label>
+        <label className="label" htmlFor="ns_text">Next step (shown to the client)</label>
         <input id="ns_text" required className="input" value={step} onChange={(e) => setStep(e.target.value)} />
+      </Shell>
+    </form>
+  );
+}
+
+export function AssignForm({ clientId, current, onDone }: FormProps & { current: string | null }) {
+  const f = useSubmit(onDone, "Assignment saved");
+  const { activeStaff } = useStaff();
+  const [staffId, setStaffId] = useState(current ?? "");
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); f.submit({ action: "assign_staff", client_id: clientId, staff_id: staffId || null }); }}>
+      <Shell title="Assign staff" testId="form-assign" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Save">
+        <label className="label" htmlFor="assign_sel">Handled by</label>
+        <select id="assign_sel" className="input" value={staffId} onChange={(e) => setStaffId(e.target.value)}>
+          <option value="">Unassigned</option>
+          {activeStaff.map((s) => <option key={s.id} value={s.id}>{s.display_name} ({s.role})</option>)}
+        </select>
       </Shell>
     </form>
   );
@@ -244,7 +336,7 @@ export function NextStepForm({ clientId, nextStep, onDone }: FormProps & { nextS
 
 export function DocumentForm({ clientId, onDone }: FormProps) {
   const router = useRouter();
-  const { handledBy, missing } = useHandledBy();
+  const toast = useToast();
   const [docType, setDocType] = useState<(typeof DOC_TYPES)[number]>("photo_id");
   const [file, setFile] = useState<File | null>(null);
   const [pending, setPending] = useState(false);
@@ -252,20 +344,24 @@ export function DocumentForm({ clientId, onDone }: FormProps) {
   return (
     <form onSubmit={async (e) => {
       e.preventDefault();
-      if (missing) return setError(missing);
       if (!file) return setError("Choose a file");
       if (file.size > DOC_MAX_BYTES) return setError("File is larger than 4 MB");
       setPending(true);
       setError(null);
       const form = new FormData();
       form.set("client_id", clientId);
-      form.set("handled_by", handledBy);
       form.set("doc_type", docType);
       form.set("file", file);
       const res = await fetch("/api/staff/documents", { method: "POST", body: form });
       const data = await res.json().catch(() => null);
       setPending(false);
-      if (!data?.ok) return setError(data?.error?.message ?? `Upload failed (${res.status})`);
+      if (!data?.ok) {
+        const msg = data?.error?.message ?? `Upload failed (${res.status})`;
+        setError(msg);
+        toast("error", msg);
+        return;
+      }
+      toast("success", "Document uploaded; processing queued");
       router.refresh();
       onDone();
     }}>
@@ -280,7 +376,7 @@ export function DocumentForm({ clientId, onDone }: FormProps) {
           <input aria-label="Document file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
             className="text-sm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         </div>
-        <p className="text-xs text-slate-500">JPEG, PNG, WebP or PDF up to 4 MB. Stored privately.</p>
+        <p className="text-xs text-slate-500">JPEG, PNG, WebP or PDF up to 4 MB. Stored privately; the original is never modified.</p>
       </Shell>
     </form>
   );

@@ -1,43 +1,38 @@
-import { sql } from "@/lib/db";
-import { clientIp, err, ok, staffAllowed } from "@/lib/http";
+import { withStaff } from "@/lib/auth";
+import { err, ipHash, ok } from "@/lib/http";
+import { traceIdFrom } from "@/lib/obs";
 import { logActivity } from "@/lib/service";
-import { signedUrl } from "@/lib/storage";
+import { authorize, staffGuard } from "@/lib/staff-api";
+import { signedUrl, StorageNotConfigured } from "@/lib/storage";
 
 export const runtime = "nodejs";
-
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Issues a 10-minute signed URL and records the access. */
+/** Authorized, logged, 10-minute signed URL. ?mode=download forces a download. */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  if (!(await staffAllowed())) return err("unauthorized", "Office access required", 401);
+  const traceId = traceIdFrom(req);
+  const g = await staffGuard(req, traceId, { mutation: false });
+  if (g.response) return g.response;
   const { id } = await ctx.params;
-  if (!UUID.test(id)) return err("not_found", "Document not found", 404);
-  const handledBy = new URL(req.url).searchParams.get("handled_by");
-  if (handledBy && !UUID.test(handledBy)) return err("invalid_staff", "Invalid staff member");
+  if (!UUID.test(id)) return err("not_found", "Document not found", 404, traceId);
+  const authz = await authorize(req, g.session, "view_document", { entity: { table: "documents", id } }, traceId);
+  if (!authz.ok) return authz.response;
+  const mode = new URL(req.url).searchParams.get("mode") === "download" ? "download" : "view";
 
-  const db = sql();
-  const [doc] = await db`select id, client_id, storage_path, file_name from documents where id = ${id}`;
-  if (!doc) return err("not_found", "Document not found", 404);
-  if (handledBy) {
-    const [s] = await db`select id from staff_directory where id = ${handledBy} and active`;
-    if (!s) return err("invalid_staff", "Unknown or inactive staff member");
-  }
-
+  const doc = await withStaff(g.session, async (tx) => (await tx`select id, client_id, storage_path, file_name from documents where id = ${id}`)[0]);
+  if (!doc) return err("not_found", "Document not found", 404, traceId);
   let signed;
   try {
-    signed = await signedUrl(doc.storage_path, doc.file_name);
+    signed = await signedUrl(doc.storage_path, mode === "download" ? doc.file_name : null);
   } catch (e) {
+    if (e instanceof StorageNotConfigured) return err("NOT_CONFIGURED", e.message, 503, traceId);
     console.error(e);
-    return err("storage_error", "Could not create a download link", 502);
+    return err("storage_error", "Could not create a link", 502, traceId);
   }
-
-  await db.begin(async (tx) => {
-    await tx`insert into document_access_log (document_id, client_id, handled_by, ip_address)
-             values (${doc.id}, ${doc.client_id}, ${handledBy}, ${clientIp(req)})`;
-    await logActivity(tx, {
-      clientId: doc.client_id, action: "document_opened", handledBy, entityType: "document", entityId: doc.id,
-    });
+  await withStaff(g.session, async (tx) => {
+    await tx`insert into document_access_log (document_id, client_id, staff_id, ip_address, access_type)
+             values (${doc.id}, ${doc.client_id}, ${g.session.staff.id}, ${ipHash(req)}, ${mode})`;
+    await logActivity(tx, { clientId: doc.client_id, action: "document_opened", actor: { staffId: g.session.staff.id, traceId }, entityType: "document", entityId: doc.id, newValue: { mode } });
   });
-
-  return ok({ url: signed.url, expires_in: signed.expiresIn });
+  return ok({ url: signed.url, expires_in: signed.expiresIn }, 200, traceId);
 }

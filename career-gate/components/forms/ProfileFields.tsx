@@ -1,6 +1,7 @@
 "use client";
 
 import { LANGUAGES } from "@/lib/domain";
+import { AMAZON_HISTORY, isVisible } from "@/lib/intake-schema";
 
 export type YesNo = "" | "yes" | "no";
 
@@ -22,6 +23,8 @@ export type ProfileForm = {
   amazon_worked_to: string;
   amazon_applied_before: YesNo;
   amazon_application_email: string;
+  currently_amazon: YesNo;
+  via_agency: YesNo;
   employment_history: Employment[];
 };
 
@@ -41,6 +44,8 @@ export const emptyProfile: ProfileForm = {
   amazon_worked_to: "",
   amazon_applied_before: "",
   amazon_application_email: "",
+  currently_amazon: "",
+  via_agency: "",
   employment_history: [],
 };
 
@@ -53,14 +58,17 @@ export function profilePayload(p: ProfileForm) {
     ...p,
     amazon_worked_before: yn(p.amazon_worked_before),
     amazon_applied_before: yn(p.amazon_applied_before),
+    currently_amazon: yn(p.currently_amazon),
+    via_agency: yn(p.via_agency),
     employment_history: p.employment_history.map(({ self_employed, ...e }) => ({
       ...e,
-      company: self_employed ? "Self-Employed" : e.company,
+      employment_kind: self_employed ? ("self_employed" as const) : ("company" as const),
+      company: self_employed ? null : e.company,
     })),
   };
 }
 
-type Props = { value: ProfileForm; onChange: (v: ProfileForm) => void; section?: "personal" | "amazon" | "employment" | "all" };
+type Props = { value: ProfileForm; onChange: (v: ProfileForm) => void; section?: "personal" | "amazon" | "employment" | "availability" | "all" };
 
 function Field({ id, label, children, className = "" }: { id: string; label: string; children: React.ReactNode; className?: string }) {
   return (
@@ -130,34 +138,40 @@ export function ProfileFields({ value: v, onChange, section = "all" }: Props) {
                 <input id="zip" className="input" inputMode="numeric" autoComplete="postal-code" value={v.zip} onChange={(e) => set({ zip: e.target.value })} />
               </Field>
             </div>
-            <Field id="appointment_availability" label="When are you available for appointments?" className="sm:col-span-2">
+
+          </div>
+        </section>
+      )}
+
+      {show("availability") && (
+        <section className="space-y-4">
+          {section === "all" && <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Appointment availability</h3>}
+            <Field id="appointment_availability" label="When are you available for appointments?" >
               <textarea id="appointment_availability" rows={2} className="input" placeholder="Days and times" value={v.appointment_availability} onChange={(e) => set({ appointment_availability: e.target.value })} />
             </Field>
-          </div>
         </section>
       )}
 
       {show("amazon") && (
         <section className="space-y-4">
           {section === "all" && <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Amazon history</h3>}
-          <YesNoField id="amazon_worked_before" label="Have you worked at Amazon before?" value={v.amazon_worked_before}
-            onChange={(x) => set({ amazon_worked_before: x, ...(x !== "yes" && { amazon_worked_from: "", amazon_worked_to: "" }) })} />
-          {v.amazon_worked_before === "yes" && (
-            <div className="grid grid-cols-2 gap-4">
-              <Field id="amazon_worked_from" label="From">
-                <input id="amazon_worked_from" type="date" className="input" value={v.amazon_worked_from} onChange={(e) => set({ amazon_worked_from: e.target.value })} />
+          {AMAZON_HISTORY.filter((f) => isVisible(f, v as unknown as Record<string, string>)).map((f) =>
+            f.type === "yes_no" ? (
+              <YesNoField key={f.field_id} id={f.field_id} label={f.label} value={v[f.field_id as keyof ProfileForm] as YesNo}
+                onChange={(x) => {
+                  // Clear dependent answers when their condition no longer holds.
+                  const patch: Partial<ProfileForm> = { [f.field_id]: x } as Partial<ProfileForm>;
+                  for (const dep of AMAZON_HISTORY.filter((d) => d.visible_if?.field_id === f.field_id)) {
+                    if (x !== dep.visible_if!.equals) (patch as Record<string, string>)[dep.field_id] = "";
+                  }
+                  set(patch);
+                }} />
+            ) : (
+              <Field key={f.field_id} id={f.field_id} label={f.label}>
+                <input id={f.field_id} type={f.type} className="input" value={v[f.field_id as keyof ProfileForm] as string}
+                  onChange={(e) => set({ [f.field_id]: e.target.value } as Partial<ProfileForm>)} />
               </Field>
-              <Field id="amazon_worked_to" label="To">
-                <input id="amazon_worked_to" type="date" className="input" value={v.amazon_worked_to} onChange={(e) => set({ amazon_worked_to: e.target.value })} />
-              </Field>
-            </div>
-          )}
-          <YesNoField id="amazon_applied_before" label="Have you submitted an Amazon job application before?" value={v.amazon_applied_before}
-            onChange={(x) => set({ amazon_applied_before: x, ...(x !== "yes" && { amazon_application_email: "" }) })} />
-          {v.amazon_applied_before === "yes" && (
-            <Field id="amazon_application_email" label="Amazon email used (never your password)">
-              <input id="amazon_application_email" type="email" className="input" value={v.amazon_application_email} onChange={(e) => set({ amazon_application_email: e.target.value })} />
-            </Field>
+            ),
           )}
         </section>
       )}

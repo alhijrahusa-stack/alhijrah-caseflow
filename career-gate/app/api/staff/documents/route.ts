@@ -1,29 +1,27 @@
-import { sql } from "@/lib/db";
+import { after } from "next/server";
 import { saveDocument } from "@/lib/documents";
-import { err, ok, staffAllowed } from "@/lib/http";
+import { err, ok } from "@/lib/http";
+import { processJobs } from "@/lib/jobs";
+import { traceIdFrom } from "@/lib/obs";
+import { authorize, staffGuard } from "@/lib/staff-api";
 
 export const runtime = "nodejs";
-
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(req: Request) {
-  if (!(await staffAllowed())) return err("unauthorized", "Office access required", 401);
+  const traceId = traceIdFrom(req);
+  const g = await staffGuard(req, traceId, { mutation: true });
+  if (g.response) return g.response;
   const form = await req.formData().catch(() => null);
-  if (!form) return err("invalid_input", "Expected multipart form data");
+  if (!form) return err("invalid_input", "Expected multipart form data", 400, traceId);
   const clientId = String(form.get("client_id") ?? "");
-  const handledBy = String(form.get("handled_by") ?? "");
   const file = form.get("file");
-  if (!UUID.test(clientId)) return err("invalid_input", "Invalid client");
-  if (!UUID.test(handledBy)) return err("invalid_staff", "Select who is handling this");
-  if (!(file instanceof File)) return err("invalid_input", "No file provided");
-
-  const [row] = await sql()`
-    select (select id from clients where id = ${clientId}) as client,
-           (select id from staff_directory where id = ${handledBy} and active) as staff`;
-  if (!row.client) return err("not_found", "Client not found", 404);
-  if (!row.staff) return err("invalid_staff", "Unknown or inactive staff member");
-
-  const saved = await saveDocument({ clientId, docType: String(form.get("doc_type") ?? ""), file, uploadedBy: handledBy });
-  if (!saved.ok) return err("upload_failed", saved.error, saved.status);
-  return ok({ id: saved.id }, 201);
+  if (!UUID.test(clientId)) return err("invalid_input", "Invalid client", 400, traceId);
+  if (!(file instanceof File)) return err("invalid_input", "No file provided", 400, traceId);
+  const authz = await authorize(req, g.session, "upload_document", { clientId }, traceId);
+  if (!authz.ok) return authz.response;
+  const r = await saveDocument({ clientId, docType: String(form.get("doc_type") ?? ""), file, actor: { staffId: g.session.staff.id, traceId } });
+  if (!r.ok) return err(r.code, r.error, r.status, traceId);
+  after(() => processJobs(5).catch((e) => console.error(e)));
+  return ok({ id: r.id, status: r.status }, 201, traceId);
 }

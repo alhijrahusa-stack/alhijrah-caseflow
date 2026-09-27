@@ -8,7 +8,7 @@
 
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
-  font-family: "IBM Plex Sans", "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-plex), var(--font-plex-arabic), system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .input {

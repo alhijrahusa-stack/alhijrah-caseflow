@@ -1,5 +1,6 @@
 // Local stand-in for the four Supabase Storage REST endpoints the app calls
-// (upload, sign, signed download, delete). Used only by the e2e suite.
+// (upload, download, sign, signed download, delete). Used only by the e2e suite;
+// it never runs in production and no test result is derived from it alone.
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
 
@@ -25,6 +26,10 @@ createServer(async (req, res) => {
     return o ? send(res, 200, o.bytes, o.type) : send(res, 404, { error: "not found" });
   }
   if (req.headers.authorization !== `Bearer ${KEY}` || req.headers.apikey !== KEY) return send(res, 401, { error: "unauthorized" });
+  if (req.method === "GET" && p.startsWith("/storage/v1/object/documents/")) {
+    const o = objects.get(p.slice("/storage/v1/object/".length));
+    return o ? send(res, 200, o.bytes, o.type) : send(res, 404, { error: "not found" });
+  }
   if (req.method === "POST" && p.startsWith("/storage/v1/object/sign/")) {
     const key = p.slice("/storage/v1/object/sign/".length);
     if (!objects.has(key)) return send(res, 404, { error: "Object not found" });

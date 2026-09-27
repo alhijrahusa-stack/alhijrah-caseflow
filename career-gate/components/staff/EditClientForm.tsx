@@ -1,39 +1,28 @@
 "use client";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { fromBool, ProfileFields, profilePayload, type ProfileForm } from "@/components/forms/ProfileFields";
 import { useAction } from "@/components/forms/useAction";
-import { PreferencesCard } from "@/components/staff/ClientFile";
-import { useHandledBy, useStaff } from "@/components/staff/StaffContext";
+import { Preferences } from "@/components/staff/sections/Profile";
+import { useStaff } from "@/components/staff/StaffContext";
 import { Button } from "@/components/ui/Button";
 
-function toForm(c: Record<string, any>, employment: Record<string, any>[]): ProfileForm {
+type R = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+function toForm(c: R, employment: R[]): ProfileForm {
   const s = (v: unknown) => (v == null ? "" : String(v));
   return {
-    full_name: s(c.full_name),
-    phone: s(c.phone),
-    email: s(c.email),
-    date_of_birth: s(c.date_of_birth),
-    preferred_language: c.preferred_language,
-    street: s(c.street),
-    city: s(c.city),
-    state: s(c.state),
-    zip: s(c.zip),
+    full_name: s(c.full_name), phone: s(c.phone), email: s(c.email), date_of_birth: s(c.date_of_birth),
+    preferred_language: c.preferred_language, street: s(c.street), city: s(c.city), state: s(c.state), zip: s(c.zip),
     appointment_availability: s(c.appointment_availability),
-    amazon_worked_before: fromBool(c.amazon_worked_before),
-    amazon_worked_from: s(c.amazon_worked_from),
-    amazon_worked_to: s(c.amazon_worked_to),
-    amazon_applied_before: fromBool(c.amazon_applied_before),
-    amazon_application_email: s(c.amazon_application_email),
+    amazon_worked_before: fromBool(c.amazon_worked_before), amazon_worked_from: s(c.amazon_worked_from), amazon_worked_to: s(c.amazon_worked_to),
+    amazon_applied_before: fromBool(c.amazon_applied_before), amazon_application_email: s(c.amazon_application_email),
+    currently_amazon: fromBool(c.currently_amazon), via_agency: fromBool(c.via_agency),
     employment_history: employment.map((e) => ({
-      company: e.company === "Self-Employed" ? "" : e.company,
-      self_employed: e.company === "Self-Employed",
-      job_title: e.job_title,
-      from_date: s(e.from_date),
-      to_date: s(e.to_date),
+      company: s(e.company), self_employed: e.employment_kind === "self_employed", job_title: e.job_title,
+      from_date: s(e.from_date), to_date: s(e.to_date),
     })),
   };
 }
@@ -47,21 +36,19 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function EditClientForm({ client, employment, preferences }: { client: Record<string, any>; employment: Record<string, any>[]; preferences: Record<string, any>[] }) {
+export function EditClientForm({ client, employment, preferences }: { client: R; employment: R[]; preferences: R[] }) {
   const router = useRouter();
-  const { run, pending, error, setError } = useAction();
-  const { handledBy, missing } = useHandledBy();
-  const { staff } = useStaff();
+  const { run, pending, error } = useAction({ successMessage: null });
+  const { activeStaff, isManager } = useStaff();
   const [profile, setProfile] = useState<ProfileForm>(() => toForm(client, employment));
   const [nextStep, setNextStep] = useState<string>(client.next_step);
-  const [assigned, setAssigned] = useState<string>(client.handled_by ?? "");
+  const [assigned, setAssigned] = useState<string>(client.assigned_staff ?? "");
 
   async function save() {
-    if (missing) return setError(missing);
-    const base = { handled_by: handledBy, client_id: client.id };
+    const base = { client_id: client.id };
     if (!(await run({ ...base, action: "update_client", profile: profilePayload(profile) }))) return;
     if (nextStep.trim() !== client.next_step && !(await run({ ...base, action: "set_next_step", next_step: nextStep }))) return;
-    if (assigned !== (client.handled_by ?? "") && !(await run({ ...base, action: "assign_staff", staff_id: assigned || null }))) return;
+    if (isManager && assigned !== (client.assigned_staff ?? "") && !(await run({ ...base, action: "assign_staff", staff_id: assigned || null }))) return;
     router.push(`/staff/client/${client.id}`);
   }
 
@@ -73,20 +60,23 @@ export function EditClientForm({ client, employment, preferences }: { client: Re
       </div>
       <div className="space-y-6">
         <Section title="Employment history"><ProfileFields section="employment" value={profile} onChange={setProfile} /></Section>
-        <PreferencesCard clientId={client.id} prefs={preferences} />
+        <Section title="Appointment availability"><ProfileFields section="availability" value={profile} onChange={setProfile} /></Section>
+        <Preferences clientId={client.id} prefs={preferences} />
         <Section title="Next step & assignment">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="ec_next">Next step</label>
               <input id="ec_next" className="input" value={nextStep} onChange={(e) => setNextStep(e.target.value)} />
             </div>
-            <div>
-              <label className="label" htmlFor="ec_assigned">Assigned staff</label>
-              <select id="ec_assigned" className="input" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
-                <option value="">Unassigned</option>
-                {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
+            {isManager && (
+              <div>
+                <label className="label" htmlFor="ec_assigned">Handled by</label>
+                <select id="ec_assigned" className="input" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
+                  <option value="">Unassigned</option>
+                  {activeStaff.map((s) => <option key={s.id} value={s.id}>{s.display_name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         </Section>
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}

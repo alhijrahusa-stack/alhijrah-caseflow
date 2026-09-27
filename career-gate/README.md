@@ -1,100 +1,86 @@
 # Career Gate
 
-ALHIJRAH SERVICES LLC — recruitment-office system. Next.js App Router, TypeScript, Tailwind, Supabase Postgres + private Storage, deployed on Vercel.
+ALHIJRAH SERVICES LLC — employment operations platform. Next.js 16 (App Router), TypeScript, Tailwind, Supabase (Postgres + Auth + private Storage + Realtime), pgvector, Vercel.
 
 Office: Alhijrahusa@gmail.com · 313-339-3566 · WhatsApp 313-919-4292
 
-## Routes
+Principle: **the software records facts; it does not create them.** Anything without credentials reports `NOT_CONFIGURED`. No message is marked sent without a provider id, no document is verified without a human reviewer, and no assessment answer is chosen by software.
 
-| Route | Who | Purpose |
+## Areas
+
+| Area | Routes |
+| --- | --- |
+| Public intake | `/apply`: Michigan → City → Site → Job → Primary → Backup → Pay → Personal → Amazon history → Employment → Availability → Documents → Review/Authorization/Signature |
+| Public status | `/status`: reference, phone or email, then a 6-digit code, then a 30-minute HttpOnly session, then `/status/[ref]` |
+| Staff | `/staff/login` (Supabase Auth email code), `/staff`, `/staff/clients`, `/staff/client/[id]`, `/staff/new-client`, `/staff/appointments`, `/staff/tasks`, `/staff/follow-ups`, `/staff/audit-alerts`, `/staff/reports`, `/staff/settings/team`, `/staff/settings/availability` |
+| APIs | `POST /api/intake` (requires `Idempotency-Key`), `POST /api/status/lookup`, `POST /api/status/verify`, `GET /api/status/[ref]`, `POST /api/staff/action`, `GET /api/documents/[id]`, `GET/POST /api/audit/alerts[/id]`, `GET /api/cron/maintenance`, webhooks for Twilio, Meta and Resend |
+
+## Security model
+
+- **Staff auth:** Supabase Auth email OTP. Access and refresh tokens are held in HttpOnly cookies. Middleware verifies the JWT (HS256 secret or project JWKS) and refreshes it when it expires.
+- **RBAC:** `admin`, `manager` and `staff` roles (see `lib/authz.ts`). Staff see and work only on clients assigned to them. Every denial returns 403 and writes a `security_events` row.
+- **RLS:** staff reads and writes run in a transaction as the `authenticated` role, with the verified JWT subject, so the policies in `002_operations_platform.sql` apply to every statement. `anon` has no table access. Server-only tables (OTP, sessions, rate limits, idempotency, jobs) have no policies.
+- **Storage:** private bucket `documents`, under generated paths. Each original is stored with its SHA-256. Access is by 10-minute signed URL, and every view is logged.
+- **Status access:** lookup gives the same response and similar timing whether or not anything matches. Codes are stored as HMAC-SHA256 with `STATUS_OTP_PEPPER`, expire after 5 minutes, and lock after 3 wrong attempts for 15 minutes. Only the session token's hash is stored.
+- **Rate limits (policy, persistent in Postgres):**
+  - intake: 1 accepted per 5 minutes and 5 attempts per hour, per IP
+  - status lookup: 5 per 15 minutes and 20 per hour, per IP
+  - OTP: 5 sends per hour per contact
+  - staff: 100 actions per minute and 1000 per hour
+  - login: 5 failed per 15 minutes
+  - uploads: 10 per hour per client
+- **Headers:** CSP, `frame-ancestors 'none'`, nosniff, Referrer-Policy and Permissions-Policy. State-changing API calls must come from the same origin.
+
+## Workflow rules
+
+- Statuses are the 15 listed in `lib/domain.ts`. The **state machine** (`status_transitions`) is enforced by a database trigger and mirrored on the server. Admins may override with a mandatory reason, which is logged as `status_overridden`.
+- **Scheduling** is deterministic, in America/Detroit: office availability minus appointments and blocked time gives the next 3 slots. The slot is rechecked inside the booking transaction, and a Postgres exclusion constraint prevents double booking per resource.
+- **Audit rules** (`lib/audit.ts`) raise `audit_alerts`; they never change data. Ignoring an alert needs a reason.
+- **Assessments** record only answers the client confirmed. Standard items start as `UNRESOLVED — NEEDS CLIENT CONFIRMATION`. Reference texts are stored separately and are never used as answers.
+
+## Intelligence layer
+
+| Component | Behaviour | Without credentials |
 | --- | --- | --- |
-| `/apply` | Public | Michigan → City → Site → Job → Primary → Backup → Pay → Personal → Documents → Review/Authorization/Signature |
-| `/status/[ref]?t=<token>` | Public | Read-only status: reference, status, next step, appointment, start date, last updated |
-| `/staff` | Office | Dashboard cards (live counts, each opens its records) |
-| `/staff/new-client` | Office | Create a full client file (same model and CG reference as public applications) |
-| `/staff/clients` | Office | Search (reference, name, phone, email) and filters (status, city, appointment date, follow-up due, handled by) |
-| `/staff/client/[id]` | Office | Client File: profile, Amazon and employment history, preferences with pay snapshot, documents, appointments, notes, tasks, contacts, follow-ups, post-hire tracking, activity log, message preview |
-| `/staff/client/[id]/edit` | Office | Edit profile, history, preferences, next step, assigned staff |
-| `/staff/appointments`, `/staff/tasks`, `/staff/follow-ups` | Office | Cross-client work queues |
-| `POST /api/intake` | Public | Validates payload, catalog relationships and consent; creates the client, history, preferences and signed authorization in one transaction; returns reference and status URL |
-| `POST /api/intake/documents` | Public | Applicant uploads, authorized by the status token, for 2 hours after submission |
-| `POST /api/staff/action` | Office | All office mutations, validated server-side, each in a transaction with an activity-log entry |
-| `POST /api/staff/documents` | Office | Office uploads |
-| `GET /api/documents/[id]` | Office | 10-minute signed URL; logs `document_access_log` and `document_opened` |
+| Document intelligence | Decode + quality → Gemini fast model → Zod → reconciliation → escalation model when needed → human review | `NOT_CONFIGURED`; document goes to `needs_review`; nothing is downloaded or sent |
+| Intake agent | Deterministic missing/inconsistent items; the model may only reword the draft | Template draft; marked NOT_CONFIGURED |
+| Semantic search | Redacted notes/tasks/contacts → `text-embedding-3-small` (1536) → pgvector HNSW; RLS on results | Search shows NOT_CONFIGURED; embedding jobs end `not_configured` |
+| Notifications | Only for consented, configured channels; sent only with a provider id; delivery via signed webhooks | Recorded as `not_configured` |
+| Realtime | Staff pages subscribe with the staff JWT (RLS applies); the public page uses session-gated polling | Header shows NOT_CONFIGURED |
 
-## Office access
+Model IDs live only in env (`lib/providers/config.ts`). Admins can run a live availability check on the Team page.
 
-There are no individual staff accounts. Each action records **Handled By** (Yusuf, Salah, Anas from `staff_directory`).
+Background work uses the `jobs` table: SKIP LOCKED claims, a 120-second visibility timeout, exponential backoff and a dead state after `max_attempts`. Jobs run right after the request (`after()`) and in the daily Vercel Cron. Supabase Queues/pgmq is not used.
 
-The `/staff` area and office APIs are closed behind one shared office key (`STAFF_ACCESS_KEY`), entered once per browser. This is not per-user authentication. It keeps client PII and ID documents off the open internet. Without the variable set in production, the office area stays closed.
+## Catalog
 
-## Job catalog
+`data/job-catalog.json` is the only source of site, job, shift, schedule, pay and availability text. It is currently **empty**. Until it is filled:
 
-`data/job-catalog.json` is the only source for sites, jobs, shifts, schedules and pay. It currently lists **no sites**. Until real, verified entries are added:
+- the public form says no openings are listed and still accepts requests;
+- preferences cannot be added.
 
-- `/apply` shows that no openings are listed and still accepts the application, without preferences.
-- Office staff cannot add preferences.
-
-Format (only `active: true` entries are offered; missing facts stay `null` and are shown as not listed):
-
-```json
-{
-  "state": "MI",
-  "source": "where these facts came from",
-  "sites": [
-    {
-      "city": "…", "site_code": "…", "site_name": "…", "address": "…", "active": true,
-      "source": "…", "last_verified_at": "YYYY-MM-DD",
-      "jobs": [
-        {
-          "job_id": "…", "job_title": "…", "employment_type": "…", "active": true,
-          "shifts": [
-            { "shift_code": "…", "days": "…", "start_time": "…", "end_time": "…", "pay": "…", "active": true,
-              "source": "…", "last_verified_at": "YYYY-MM-DD" }
-          ]
-        }
-      ]
-    }
-  ]
-}
-```
-
-Pay is stored as a text snapshot on each preference at selection time, so later catalog edits do not change past selections. Changing the catalog requires a redeploy.
+Every preference stores a snapshot and the catalog content version.
 
 ## Deploy
 
-1. **Supabase**
-   - Run `supabase/migrations/001_initial_schema.sql` in the SQL editor. It creates the tables, the `CG-YYYY-NNNNNN` reference counter, append-only triggers, seeds Yusuf/Salah/Anas, enables RLS with no policies (the Data API roles get nothing), and creates the private `documents` bucket.
-   - Confirm under Storage that `documents` is **not public**.
-2. **Vercel**
-   - Import this repository.
-   - Set **Root Directory** to `career-gate`.
-   - Add the four variables from `.env.example` for Production:
-     - `DATABASE_URL`: the transaction pooler string, port 6543.
-     - `SUPABASE_URL`
-     - `SUPABASE_SERVICE_ROLE_KEY`
-     - `STAFF_ACCESS_KEY`
-   - Deploy.
-3. **Smoke test the deployment** (creates two test clients):
-
-   ```bash
-   BASE_URL=https://<deployment> STAFF_ACCESS_KEY=<key> PW_CHROMIUM="" npx playwright test
-   ```
+1. Supabase:
+   - apply `supabase/migrations/001_initial_schema.sql`, then `002_operations_platform.sql`;
+   - confirm the `documents` bucket is private;
+   - enable the email OTP provider under Auth.
+2. Vercel:
+   - set Root Directory to `career-gate`;
+   - add the variables from `.env.example`;
+   - deploy (the daily cron comes from `vercel.json`).
+3. Sign in at `/staff/login` with `CAREER_GATE_ADMIN_EMAIL`. That account becomes admin. Add real staff emails on the Team page.
 
 ## Checks
 
 ```bash
-npm run typecheck
-npm test           # unit tests
-npm run test:e2e   # Postgres 16 + Storage stand-in + next start + Playwright; CATALOG=real uses the committed catalog
+npm run typecheck && npm run lint && npm test   # unit
+./tests/run-integration.sh                      # PostgreSQL 16 + pgvector, both migrations, 36 invariant tests
+./e2e/run.sh                                    # full build + Playwright (test catalog fixture)
+CATALOG=real ./e2e/run.sh                       # same with the committed catalog
+PERF=1 ./e2e/run.sh                             # adds p50/p95 latency measurement (scripts/measure.mjs)
 ```
 
-The e2e suite runs locally against real Postgres. Supabase Storage is replaced there by `e2e/storage-double.mjs`, which implements the four REST endpoints the app calls. The real Storage path is exercised only by the deployed smoke test.
-
-## Data rules
-
-- No Amazon passwords and no SSNs (full or partial) are collected.
-- The signing time is the database clock. The browser's date is never used.
-- The authorization text, its SHA-256, version, printed name, typed signature and consent are stored immutably.
-- Notes, the activity log, the document access log and authorizations are append-only (enforced by triggers).
-- Messages are never sent automatically. The Client File offers a preview, **Copy Message**, and links that open WhatsApp or email for staff to send. **Mark Contacted** records what was actually done.
+Locally, staff sessions use Supabase-format JWTs signed with a test secret, so JWT verification, RBAC and RLS are exercised for real. Supabase Storage is replaced by `e2e/storage-double.mjs`. The Supabase login round trip, code delivery, AI providers and Realtime need the live services.

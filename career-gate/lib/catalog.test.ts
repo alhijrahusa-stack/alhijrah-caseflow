@@ -55,11 +55,20 @@ describe("profile validation", () => {
   });
 
   it("rejects reversed employment dates", () => {
-    const r = ProfileSchema.safeParse({ ...base, employment_history: [{ company: "X", job_title: "Y", from_date: "2024-01-01", to_date: "2023-01-01" }] });
+    const r = ProfileSchema.safeParse({ ...base, employment_history: [{ employment_kind: "company", company: "X", job_title: "Y", from_date: "2024-01-01", to_date: "2023-01-01" }] });
     expect(r.success).toBe(false);
   });
 
   it("has exactly the fifteen required statuses", () => {
     expect(STATUSES).toHaveLength(15);
+  });
+});
+
+describe("employment history", () => {
+  const base = { full_name: "Test Person", phone: "3135550100" };
+  it("requires a company unless self-employed, and drops company when self-employed", () => {
+    expect(ProfileSchema.safeParse({ ...base, employment_history: [{ employment_kind: "company", job_title: "Picker" }] }).success).toBe(false);
+    const p = ProfileSchema.parse({ ...base, employment_history: [{ employment_kind: "self_employed", company: "ignored", job_title: "Driver" }] });
+    expect(p.employment_history[0].company).toBeNull();
   });
 });

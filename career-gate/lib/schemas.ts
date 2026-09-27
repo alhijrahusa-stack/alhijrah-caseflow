@@ -34,10 +34,16 @@ export const SelectionSchema = z.object({
 
 export const EmploymentSchema = z
   .object({
-    company: trimmed(200).min(1, "Company is required"),
+    employment_kind: z.enum(["company", "self_employed"]).default("company"),
+    company: z.string().trim().max(200).nullable().optional().transform((v) => (v ? v : null)),
     job_title: trimmed(200).min(1, "Job title is required"),
     from_date: optionalDate,
     to_date: optionalDate,
+  })
+  .transform((e) => ({ ...e, company: e.employment_kind === "self_employed" ? null : e.company }))
+  .refine((e) => e.employment_kind === "self_employed" || Boolean(e.company), {
+    message: "Company name is required",
+    path: ["company"],
   })
   .refine((e) => !e.from_date || !e.to_date || e.to_date >= e.from_date, {
     message: "End date is before start date",
@@ -61,6 +67,8 @@ export const ProfileSchema = z
     amazon_worked_from: optionalDate,
     amazon_worked_to: optionalDate,
     amazon_applied_before: z.boolean().nullable().optional().transform((v) => v ?? null),
+    currently_amazon: z.boolean().nullable().optional().transform((v) => v ?? null),
+    via_agency: z.boolean().nullable().optional().transform((v) => v ?? null),
     amazon_application_email: z.email("Invalid Amazon email").max(200).nullable().optional().or(z.literal("")).transform((v) => (v ? v.toLowerCase() : null)),
     employment_history: z.array(EmploymentSchema).max(10).default([]),
   })

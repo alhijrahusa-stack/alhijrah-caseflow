@@ -11,6 +11,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       {children}
       <footer className="mt-10 border-t border-slate-200 pt-4">
         <OfficeContact />
+        <p className="mt-3 text-xs text-slate-500">Career Gate is operated by ALHIJRAH SERVICES LLC. It is not affiliated with or operated by Amazon. Hiring decisions are made by the employer.</p>
       </footer>
     </div>
   );

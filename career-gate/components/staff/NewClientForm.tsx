@@ -6,10 +6,11 @@ import { useAction } from "@/components/forms/useAction";
 import { CityStep, JobStep, PreferenceSummary, ShiftStep, SiteStep } from "@/components/forms/PreferenceSteps";
 import { emptyPrefs, toSelections, type PrefState } from "@/components/forms/preferences";
 import { emptyProfile, ProfileFields, profilePayload, type ProfileForm } from "@/components/forms/ProfileFields";
-import { useHandledBy } from "@/components/staff/StaffContext";
+import { useStaff } from "@/components/staff/StaffContext";
+import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { options } from "@/lib/catalog";
-import { DEFAULT_NEXT_STEP, DOC_LABELS, DOC_MAX_BYTES, DOC_TYPES, STATUS_LABELS, STATUSES, type Status } from "@/lib/domain";
+import { DEFAULT_NEXT_STEP, DOC_LABELS, DOC_MAX_BYTES, DOC_TYPES, ENTRY_STATUSES, STATUS_LABELS, type Status } from "@/lib/domain";
 
 type PendingDoc = { id: string; doc_type: (typeof DOC_TYPES)[number]; file: File };
 
@@ -24,8 +25,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export function NewClientForm() {
   const router = useRouter();
-  const { run, pending, error, setError } = useAction();
-  const { handledBy, missing } = useHandledBy();
+  const { run, pending, error } = useAction({ successMessage: null });
+  const { activeStaff, me } = useStaff();
+  const toast = useToast();
+  const [assigned, setAssigned] = useState(me.role === "staff" ? me.id : "");
+  const [fileError, setFileError] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileForm>(emptyProfile);
   const [prefs, setPrefs] = useState<PrefState>(emptyPrefs);
   const [status, setStatus] = useState<Status>("new_intake");
@@ -37,10 +41,9 @@ export function NewClientForm() {
   const [progress, setProgress] = useState<string | null>(null);
 
   async function save() {
-    if (missing) return setError(missing);
     const res = await run({
       action: "create_client",
-      handled_by: handledBy,
+      assigned_staff: assigned || null,
       profile: profilePayload(profile),
       primary: toSelections(prefs.primary),
       backup: toSelections(prefs.backup),
@@ -56,7 +59,6 @@ export function NewClientForm() {
       setProgress(`Uploading document ${i + 1} of ${docs.length}…`);
       const form = new FormData();
       form.set("client_id", clientId);
-      form.set("handled_by", handledBy);
       form.set("doc_type", d.doc_type);
       form.set("file", d.file);
       const up = await fetch("/api/staff/documents", { method: "POST", body: form });
@@ -64,6 +66,7 @@ export function NewClientForm() {
       if (!data?.ok) failed.push(`${d.file.name}: ${data?.error?.message ?? up.status}`);
     }
     setProgress(null);
+    toast(failed.length ? "warning" : "success", failed.length ? `Client ${res.ref} created; ${failed.length} document(s) failed` : `Client ${res.ref} created`);
     const q = failed.length ? `?upload_failed=${encodeURIComponent(failed.join("; "))}` : "";
     router.push(`/staff/client/${clientId}${q}`);
   }
@@ -74,6 +77,7 @@ export function NewClientForm() {
         <Section title="Personal information"><ProfileFields section="personal" value={profile} onChange={setProfile} /></Section>
         <Section title="Amazon history"><ProfileFields section="amazon" value={profile} onChange={setProfile} /></Section>
         <Section title="Employment history"><ProfileFields section="employment" value={profile} onChange={setProfile} /></Section>
+        <Section title="Appointment availability"><ProfileFields section="availability" value={profile} onChange={setProfile} /></Section>
       </div>
       <div className="space-y-6">
         <Section title="Job preferences">
@@ -104,7 +108,8 @@ export function NewClientForm() {
                 const f = e.target.files?.[0];
                 e.target.value = "";
                 if (!f) return;
-                if (f.size > DOC_MAX_BYTES) return setError(`${f.name} is larger than 4 MB`);
+                if (f.size > DOC_MAX_BYTES) return setFileError(`${f.name} is larger than 4 MB`);
+                setFileError(null);
                 setDocs((d) => [...d, { id: crypto.randomUUID(), doc_type: docType, file: f }]);
               }} />
           </div>
@@ -125,13 +130,20 @@ export function NewClientForm() {
                   if (nextStep === DEFAULT_NEXT_STEP[status]) setNextStep(DEFAULT_NEXT_STEP[s]);
                   setStatus(s);
                 }}>
-                {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                {ENTRY_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
               </select>
             </div>
             <div>
               <label className="label" htmlFor="nc_next">Next step</label>
               <input id="nc_next" className="input" value={nextStep} onChange={(e) => setNextStep(e.target.value)} />
             </div>
+          </div>
+          <div>
+            <label className="label" htmlFor="nc_assigned">Assigned staff (Handled By)</label>
+            <select id="nc_assigned" className="input" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
+              <option value="">Unassigned</option>
+              {activeStaff.map((s) => <option key={s.id} value={s.id}>{s.display_name} ({s.role})</option>)}
+            </select>
           </div>
           <div>
             <label className="label" htmlFor="nc_note">Initial note</label>
@@ -142,7 +154,7 @@ export function NewClientForm() {
             Client agreed to be contacted by phone, WhatsApp or email
           </label>
         </Section>
-        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+        {(error || fileError) && <p role="alert" className="text-sm text-red-600">{error ?? fileError}</p>}
         {progress && <p className="text-sm text-slate-600">{progress}</p>}
         <Button onClick={save} disabled={pending || Boolean(progress)} className="w-full">
           {pending ? "Saving…" : "Create client file"}
