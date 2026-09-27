@@ -186,7 +186,7 @@ def _visual(text: str) -> str:
     return get_display(arabic_reshaper.reshape(text))
 
 
-def _font_runs(text: str, ar_font: str, la_font: str, size: int) -> str:
+def _font_runs(text: str, ar_font: str, la_font: str, size: int | float) -> str:
     from xml.sax.saxutils import escape
 
     from ..pipeline.text import ARABIC_CHAR
