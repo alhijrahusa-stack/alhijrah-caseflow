@@ -29,7 +29,7 @@ class FixtureAsr(AsrAdapter):
         self.role = role
         self.polls: dict[str, int] = {}
 
-    def info(self) -> ProviderInfo:
+    def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         return ProviderInfo(self.name, "fixture", self.role, True, {"fixture": self.fixture})
 
     def submit(self, audio_path: str, context: dict[str, Any]) -> str:
@@ -43,7 +43,7 @@ class FixtureAsr(AsrAdapter):
         fixture, ws, we = remote_id.split("|")
         data = _load(fixture)
         ws_i, we_i = int(ws), int(we)
-        if we_i > 0:  # windowed verification call: return words inside the window, re-based to 0
+        if we_i > 0:
             data = {
                 "words": [
                     {**w, "start": w["start"] - ws_i, "end": w["end"] - ws_i}
@@ -69,7 +69,7 @@ class FixtureDiarization(DiarizationAdapter):
         self.name = "fixture:diarization"
         self.fixture = fixture
 
-    def info(self) -> ProviderInfo:
+    def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         return ProviderInfo(self.name, "fixture", "diarization", True, {"fixture": self.fixture})
 
     def submit(self, audio_path: str, context: dict[str, Any]) -> str:
