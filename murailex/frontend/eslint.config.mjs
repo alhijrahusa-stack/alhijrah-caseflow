@@ -5,11 +5,5 @@ const config = [
   { ignores: [".next/**", "node_modules/**", "public/sw.js", "next-env.d.ts", "playwright-report/**", "test-results/**"] },
   ...next,
   ...ts,
-  {
-    files: ["src/app/page.tsx"],
-    rules: {
-      "react-hooks/set-state-in-effect": "off",
-    },
-  },
 ];
 export default config;

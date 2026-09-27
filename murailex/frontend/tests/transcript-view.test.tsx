@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/player", () => ({ usePlayer: () => ({ timeMs: 0, seek: vi.fn(), playWindow: vi.fn() }) }));
@@ -34,7 +34,6 @@ const content: Content = {
 describe("TranscriptView", () => {
   it("renders verbatim tokens, markers, speaker labels and unresolved disputes", () => {
     render(<TranscriptView recordingId="r" content={content} editable={false} query="" speakerFilter={null} onChanged={() => undefined} />);
-    fireEvent.click(screen.getByRole("button", { name: "النص الكامل" }));
     expect(screen.getByText("والله")).toBeTruthy();
     expect(screen.getByText("okay")).toBeTruthy();
     expect(screen.getByText("[غير مسموع]")).toBeTruthy();
