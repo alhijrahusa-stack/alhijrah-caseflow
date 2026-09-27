@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import uuid
 from typing import Any
 
@@ -38,11 +39,15 @@ def recording_out(r: Recording) -> dict[str, Any]:
 
 def revision_out(rev: TranscriptRevision, users: dict[uuid.UUID, str] | None = None) -> dict[str, Any]:
     users = users or {}
+    content = copy.deepcopy(rev.content)
+    revision_id = str(rev.id)
+    for segment in content.get("segments", []):
+        segment["revision_id"] = revision_id
     return {
-        "id": str(rev.id), "number": rev.number, "status": rev.status, "review_state": rev.review_state, "sha256": rev.sha256,
+        "id": revision_id, "number": rev.number, "status": rev.status, "review_state": rev.review_state, "sha256": rev.sha256,
         "parent_id": str(rev.parent_id) if rev.parent_id else None, "created_at": iso(rev.created_at),
         "locked_at": iso(rev.locked_at), "locked_by": users.get(rev.locked_by) if rev.locked_by else None,
-        "content": rev.content,
+        "content": content,
     }
 
 
