@@ -128,7 +128,7 @@ def enforce_processing_preflight(
         if credential and not os.environ.get(credential):
             reason = "required credential is not configured"
             required.append(credential)
-        elif name in PRIVACY_ENV and not privacy.status(name).get("approved"):
+        elif name in PRIVACY_ENV and privacy.status(name) != "APPROVED":
             reason = "BLOCKED BY DATA POLICY"
             required.append(PRIVACY_ENV[name])
         elif not registry.benchmark_routing_approved():
