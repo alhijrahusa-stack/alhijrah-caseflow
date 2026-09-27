@@ -48,9 +48,10 @@ test("critical path: sign in → upload → process → review → lock → expo
   await page.getByRole("button", { name: "النص الكامل" }).click();
   await expect(page.getByTestId("segment").first()).toBeVisible();
   await expect(page.getByTestId("transcript")).toContainText("والله");
-  await expect(page.getByTestId("transcript")).toContainText("okay");
+  await expect(page.getByTestId("transcript")).toContainText("غير محسوم");
   await expect(page.getByTestId("transcript")).toContainText("[صمت]");
   await expect(page.getByTestId("speaker-label").first()).toContainText("المتحدث");
+  await expect(page.getByTestId("dispute-chip").first()).toBeVisible();
 
   // Mobile/desktop: no horizontal overflow
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
