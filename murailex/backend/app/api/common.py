@@ -30,7 +30,8 @@ def recording_out(r: Recording) -> dict[str, Any]:
         "id": str(r.id), "title": r.title, "source": r.source, "original_filename": r.original_filename,
         "mime_type": r.mime_type, "byte_size": r.byte_size, "sha256": r.sha256, "uploaded_at": iso(r.uploaded_at),
         "duration_ms": r.duration_ms, "status": r.status, "status_detail": r.status_detail,
-        "language_hint": r.language_hint, "language_locale": r.language_hint, "expected_speakers": r.expected_speakers, "media_info": r.media_info,
+        "language_locale": r.language_locale, "recording_type": r.recording_type, "expected_terms": r.expected_terms,
+        "expected_speakers": r.expected_speakers, "media_info": r.media_info,
         "storage_version_id": r.storage_version_id, "owner_id": str(r.owner_id),
     }
 
@@ -38,7 +39,7 @@ def recording_out(r: Recording) -> dict[str, Any]:
 def revision_out(rev: TranscriptRevision, users: dict[uuid.UUID, str] | None = None) -> dict[str, Any]:
     users = users or {}
     return {
-        "id": str(rev.id), "number": rev.number, "status": rev.status, "sha256": rev.sha256,
+        "id": str(rev.id), "number": rev.number, "status": rev.status, "review_state": rev.review_state, "sha256": rev.sha256,
         "parent_id": str(rev.parent_id) if rev.parent_id else None, "created_at": iso(rev.created_at),
         "locked_at": iso(rev.locked_at), "locked_by": users.get(rev.locked_by) if rev.locked_by else None,
         "content": rev.content,
