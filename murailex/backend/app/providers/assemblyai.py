@@ -1,9 +1,8 @@
-"""AssemblyAI pre-recorded transcription using Universal-2 for Arabic.
+"""AssemblyAI pre-recorded transcription using Universal-3.5 Pro.
 
-MURAILEX supplies Arabic/English language codes for code-switch recognition. AssemblyAI
-Universal-2 is used explicitly because current provider documentation supports Arabic on
-Universal-2, while Universal-3 Pro does not support Arabic. Expected terminology is sent
-only as recognition hints and never overwrites evidence text.
+MURAILEX supplies Arabic/English language codes for current native code-switch recognition.
+Expected terminology is sent only as recognition hints and never overwrites evidence text.
+The provider-returned speech_model_used field is preserved for actual-model provenance.
 """
 from __future__ import annotations
 
@@ -41,8 +40,7 @@ class AssemblyAI(AsrAdapter):
             if str(term).strip()
         ]
         if expected_terms:
-            # Universal-2 supports up to 200 keyterms in the current provider contract.
-            params["keyterms_prompt"] = expected_terms[:200]
+            params["keyterms_prompt"] = expected_terms[:1000]
         return params
 
     def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
