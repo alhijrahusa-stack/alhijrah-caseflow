@@ -1,295 +1,274 @@
-"""Summary workspace and export endpoints with revision/SHA binding."""
+"""Revision-bound Result Workspace summaries. Summary generation never mutates transcript data."""
 from __future__ import annotations
 
-import hashlib
-import io
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .. import audit, storage
+from .. import audit
+from ..canonical import canonical_json, sha256_hex
 from ..db import get_db
-from ..exports.professional import render_professional_pdf
-from ..models import ExportRecord, Recording, Summary, TranscriptRevision, User
+from ..models import Recording, Summary, TranscriptRevision
+from ..pipeline import transcript as tx
+from ..pipeline.text import CRITICAL_RISKS
 from ..security import Principal, current_principal, load_recording
-from .common import iso, parse_uuid, recording_out, revision_out
+from .common import iso, parse_uuid
 
 router = APIRouter(prefix="/api")
 
+SUMMARY_TYPES = {"neutral", "defense"}
 
-def _users(db: Session) -> dict[str, str]:
-    return {str(u.id): u.email for u in db.execute(select(User)).scalars()}
+
+def transcript_binding_sha(rec: Recording, rev: TranscriptRevision) -> str:
+    if rev.status == "locked" and rev.sha256:
+        return rev.sha256
+    return sha256_hex(canonical_json({
+        "recording_sha256": rec.sha256,
+        "revision_id": str(rev.id),
+        "revision_number": rev.number,
+        "content": rev.content,
+    }))
+
+
+def summary_out(s: Summary) -> dict[str, Any]:
+    return {
+        "id": str(s.id),
+        "recording_id": str(s.recording_id),
+        "transcript_revision_id": str(s.transcript_revision_id),
+        "transcript_sha256": s.transcript_sha256,
+        "summary_type": s.summary_type,
+        "summary_revision": s.summary_revision,
+        "status": s.status,
+        "content": s.content,
+        "generated_at": iso(s.generated_at),
+        "generation_model": s.generation_model,
+        "created_at": iso(s.created_at),
+    }
+
+
+def _speaker(content: dict[str, Any], sid: str | None) -> str:
+    if not sid:
+        return "[متحدث غير محدد]"
+    info = (content.get("speakers") or {}).get(sid) or {}
+    return str(info.get("verified_name") or info.get("label") or sid)
+
+
+def _exact_text(seg: dict[str, Any]) -> str:
+    if any(i.get("kind") == "dispute" for i in seg.get("items") or []):
+        return ""
+    return " ".join(str(i.get("text") or "").strip() for i in seg.get("items") or [] if str(i.get("text") or "").strip()).strip()
+
+
+def _anchor(rev: TranscriptRevision, content: dict[str, Any], seg: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "quote_anchor_id": f"{rev.id}:{seg['id']}",
+        "segment_id": seg["id"],
+        "transcript_revision_id": str(rev.id),
+        "start_ms": int(seg.get("start_ms") or 0),
+        "end_ms": int(seg.get("end_ms") or 0),
+        "speaker_id": seg.get("speaker"),
+        "speaker": _speaker(content, seg.get("speaker")),
+        "review_state": seg.get("review_state") or ("UNRESOLVED" if any(i.get("kind") == "dispute" for i in seg.get("items") or []) else "CONSENSUS"),
+        "verbatim": _exact_text(seg),
+    }
+
+
+def _critical_pending(content: dict[str, Any]) -> int:
+    reviewed = {"human", "reviewer_accepted_candidate"}
+    n = 0
+    for seg in content.get("segments") or []:
+        for item in seg.get("items") or []:
+            if set(item.get("risks") or []) & CRITICAL_RISKS and item.get("source") not in reviewed:
+                n += 1
+    return n
+
+
+def _neutral(rec: Recording, rev: TranscriptRevision, binding: str) -> dict[str, Any]:
+    content = rev.content or {}
+    segments = content.get("segments") or []
+    anchored = [_anchor(rev, content, s) for s in segments]
+    verified = [a for a in anchored if a["verbatim"]]
+    material = []
+    for seg, a in zip(segments, anchored):
+        risks = sorted({r for i in seg.get("items") or [] for r in (i.get("risks") or [])})
+        if a["verbatim"] and (risks or a["review_state"] == "HUMAN VERIFIED"):
+            material.append({**a, "risk_markers": risks})
+    if not material:
+        material = [{**a, "risk_markers": []} for a in verified[:5]]
+    unresolved = [
+        {**a, "notice": "UNRESOLVED — NOT RELIED UPON AS VERIFIED FACT"}
+        for a in anchored if a["review_state"] in {"UNRESOLVED", "DISPUTED"}
+    ]
+    participants = [
+        {"speaker_id": sid, "display_name": info.get("verified_name") or info.get("label") or sid, "human_verified_name": bool(info.get("verified_name"))}
+        for sid, info in (content.get("speakers") or {}).items()
+    ]
+    return {
+        "summary_type": "neutral",
+        "recording_identification": {
+            "recording_id": str(rec.id),
+            "title": rec.title,
+            "filename": rec.original_filename,
+            "duration_ms": rec.duration_ms,
+            "language_locale": rec.language_locale,
+            "recording_type": rec.recording_type,
+            "original_sha256": rec.sha256,
+        },
+        "participants_speakers": participants,
+        "chronological_timeline": verified,
+        "material_statements": material,
+        "confirmed_inconsistencies_contradictions": [],
+        "unresolved_disputed_matters": unresolved,
+        "integrity_review_status": {
+            "transcript_revision": rev.number,
+            "transcript_revision_id": str(rev.id),
+            "transcript_sha256": binding,
+            "status": rev.status,
+            "unresolved_count": len(unresolved),
+            "critical_items_pending": _critical_pending(content),
+        },
+        "limitations": "Record-grounded extractive summary only. No legal conclusion or fabricated citation is generated.",
+    }
+
+
+def _classification(seg: dict[str, Any]) -> str:
+    risks = {r for i in seg.get("items") or [] for r in (i.get("risks") or [])}
+    if "admission" in risks:
+        return "Admission Cue"
+    if "denial" in risks or "negation" in risks:
+        return "Denial Cue"
+    if "name" in risks:
+        return "Identification"
+    if "money" in risks or "number" in risks:
+        return "Amount / Number"
+    if "date" in risks:
+        return "Date / Time"
+    if "threat" in risks:
+        return "Other Material Evidence"
+    return "Material Statement"
+
+
+def _defense_relevance(classification: str) -> str:
+    return {
+        "Admission Cue": "Review the exact wording, speaker attribution, surrounding context, and whether the statement is complete.",
+        "Denial Cue": "Preserve the exact denial or negation and compare it with other verified statements in the same revision.",
+        "Identification": "Verify identity attribution against the audio and any independently established identity evidence.",
+        "Amount / Number": "Verify the exact number or amount against the audio; numeric differences are treated as material.",
+        "Date / Time": "Review the exact date/time statement for timeline analysis without inferring facts not stated.",
+        "Other Material Evidence": "Review the exact statement and surrounding audio before assigning evidentiary significance.",
+        "Material Statement": "Review the exact statement in context; no legal conclusion is assigned by MURAILEX.",
+    }[classification]
+
+
+def _defense(rec: Recording, rev: TranscriptRevision, binding: str) -> dict[str, Any]:
+    content = rev.content or {}
+    rows: list[dict[str, Any]] = []
+    unresolved: list[dict[str, Any]] = []
+    for seg in content.get("segments") or []:
+        a = _anchor(rev, content, seg)
+        if not a["verbatim"]:
+            unresolved.append({**a, "notice": "UNRESOLVED — NOT RELIED UPON AS VERIFIED FACT"})
+            continue
+        classification = _classification(seg)
+        rows.append({
+            **a,
+            "evidentiary_classification": classification,
+            "defense_relevance": _defense_relevance(classification),
+        })
+    return {
+        "summary_type": "defense",
+        "recording_id": str(rec.id),
+        "transcript_revision_id": str(rev.id),
+        "transcript_sha256": binding,
+        "verbatim_evidence": rows,
+        "analytical_impact": [
+            {
+                "quote_anchor_id": r["quote_anchor_id"],
+                "segment_id": r["segment_id"],
+                "classification": r["evidentiary_classification"],
+                "analysis": r["defense_relevance"],
+            }
+            for r in rows
+        ],
+        "unresolved_disputed_matters": unresolved,
+        "legal_authority": None,
+        "legal_issue_label": "Potential Legal Issue",
+        "limitations": "No jurisdiction-specific legal conclusion or citation is generated without verified legal authority.",
+    }
+
+
+class SummaryIn(BaseModel):
+    summary_type: str = Field(pattern="^(neutral|defense)$")
+    revision_id: str | None = None
+
+
+@router.post("/recordings/{recording_id}/summaries")
+def generate_summary(recording_id: str, body: SummaryIn, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    rec = load_recording(db, p, parse_uuid(recording_id), "export")
+    q = select(TranscriptRevision).where(TranscriptRevision.recording_id == rec.id)
+    if body.revision_id:
+        q = q.where(TranscriptRevision.id == parse_uuid(body.revision_id))
+    rev = db.execute(q.order_by(TranscriptRevision.number.desc()).limit(1)).scalar_one_or_none()
+    if rev is None:
+        raise HTTPException(409, "Transcript revision not found.")
+    binding = transcript_binding_sha(rec, rev)
+    latest_no = db.execute(
+        select(func.max(Summary.summary_revision)).where(
+            Summary.recording_id == rec.id,
+            Summary.transcript_revision_id == rev.id,
+            Summary.summary_type == body.summary_type,
+        )
+    ).scalar_one_or_none() or 0
+    content = _neutral(rec, rev, binding) if body.summary_type == "neutral" else _defense(rec, rev, binding)
+    row = Summary(
+        recording_id=rec.id,
+        transcript_revision_id=rev.id,
+        transcript_sha256=binding,
+        summary_type=body.summary_type,
+        summary_revision=latest_no + 1,
+        status="locked" if rev.status == "locked" else "draft",
+        content=content,
+        generated_at=datetime.now(timezone.utc),
+        generation_model="deterministic-extractive-v1",
+        created_by=p.user.id,
+    )
+    db.add(row)
+    db.flush()
+    audit.record(db, "summary_generated", actor=p.user, recording_id=rec.id, details={
+        "summary_id": str(row.id),
+        "summary_type": row.summary_type,
+        "summary_revision": row.summary_revision,
+        "transcript_revision_id": str(rev.id),
+        "transcript_sha256": binding,
+        "generation_model": row.generation_model,
+    })
+    db.commit()
+    return {"summary": summary_out(row)}
 
 
 @router.get("/recordings/{recording_id}/summaries")
 def list_summaries(recording_id: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
-    """List all summaries for a recording."""
     rec = load_recording(db, p, parse_uuid(recording_id))
-    summaries = db.execute(
-        select(Summary)
-        .where(Summary.recording_id == rec.id)
-        .order_by(Summary.summary_type, Summary.summary_revision.desc())
+    rows = db.execute(
+        select(Summary).where(Summary.recording_id == rec.id).order_by(Summary.generated_at.desc())
     ).scalars()
-    return {
-        "summaries": [
-            {
-                "id": str(s.id),
-                "recording_id": str(s.recording_id),
-                "transcript_revision_id": str(s.transcript_revision_id),
-                "transcript_sha256": s.transcript_sha256,
-                "summary_type": s.summary_type,
-                "summary_revision": s.summary_revision,
-                "status": s.status,
-                "content": s.content,
-                "generated_at": iso(s.generated_at),
-                "generation_model": s.generation_model,
-                "created_at": iso(s.created_at),
-            }
-            for s in summaries
-        ]
-    }
+    return {"summaries": [summary_out(s) for s in rows]}
 
 
 @router.get("/recordings/{recording_id}/summaries/{summary_type}")
-def get_summary(recording_id: str, summary_type: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
-    """Get the latest summary of a specific type."""
+def get_summary(recording_id: str, summary_type: str, revision_id: str | None = None,
+                p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    if summary_type not in SUMMARY_TYPES:
+        raise HTTPException(404, "Summary type not found.")
     rec = load_recording(db, p, parse_uuid(recording_id))
-    summary = db.execute(
-        select(Summary)
-        .where(Summary.recording_id == rec.id, Summary.summary_type == summary_type)
-        .order_by(Summary.summary_revision.desc())
-        .limit(1)
-    ).scalar_one_or_none()
-    if not summary:
-        raise HTTPException(404, f"No {summary_type} summary found.")
-    return {
-        "id": str(summary.id),
-        "recording_id": str(summary.recording_id),
-        "transcript_revision_id": str(summary.transcript_revision_id),
-        "transcript_sha256": summary.transcript_sha256,
-        "summary_type": summary.summary_type,
-        "summary_revision": summary.summary_revision,
-        "status": summary.status,
-        "content": summary.content,
-        "generated_at": iso(summary.generated_at),
-        "generation_model": summary.generation_model,
-        "created_at": iso(summary.created_at),
-    }
-
-
-class ExportIn(BaseModel):
-    format: str = Field(pattern="^(txt|pdf|docx|json|zip)$")
-    revision_id: str | None = None
-    summary_id: str | None = None
-    export_type: str = Field(default="transcript", pattern="^(transcript|summary|complete_case|evidence_package)$")
-
-
-@router.post("/recordings/{recording_id}/exports")
-def create_export(recording_id: str, body: ExportIn, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
-    """Create and return an export with strict revision/SHA binding."""
-    rec = load_recording(db, p, parse_uuid(recording_id))
-    revision_id = parse_uuid(body.revision_id) if body.revision_id else None
-    summary_id = parse_uuid(body.summary_id) if body.summary_id else None
-
-    # Get or default to latest locked revision
+    q = select(Summary).where(Summary.recording_id == rec.id, Summary.summary_type == summary_type)
     if revision_id:
-        rev = db.get(TranscriptRevision, revision_id)
-        if not rev or rev.recording_id != rec.id or rev.status != "locked":
-            raise HTTPException(409, "Revision must be locked for export.")
-    else:
-        rev = db.execute(
-            select(TranscriptRevision)
-            .where(TranscriptRevision.recording_id == rec.id, TranscriptRevision.status == "locked")
-            .order_by(TranscriptRevision.number.desc())
-            .limit(1)
-        ).scalar_one_or_none()
-        if not rev:
-            raise HTTPException(409, "No locked revision available for export.")
-
-    # Validate summary if provided and document_type is summary/complete_case
-    summary = None
-    if summary_id or body.export_type in ("summary", "complete_case"):
-        if summary_id:
-            summary = db.get(Summary, summary_id)
-            if not summary or summary.recording_id != rec.id or summary.transcript_revision_id != rev.id:
-                raise HTTPException(409, "Summary must match the transcript revision.")
-        else:
-            # Default to latest neutral summary for this revision
-            summary = db.execute(
-                select(Summary)
-                .where(
-                    Summary.recording_id == rec.id,
-                    Summary.transcript_revision_id == rev.id,
-                    Summary.summary_type == "neutral",
-                )
-                .order_by(Summary.summary_revision.desc())
-                .limit(1)
-            ).scalar_one_or_none()
-            if not summary and body.export_type in ("summary", "complete_case"):
-                raise HTTPException(409, "No neutral summary found for this revision.")
-
-    # Render PDF
-    if body.format == "pdf":
-        content = rev.content or {}
-        ctx = {
-            "recording": recording_out(rec),
-            "revision": {
-                "id": str(rev.id),
-                "number": rev.number,
-                "status": rev.status,
-                "sha256": rev.sha256,
-                "created_at": iso(rev.created_at),
-                "locked_at": iso(rev.locked_at),
-                "locked_by": rev.locked_by,
-            },
-            "content": content,
-            "engines": content.get("method", {}).get("primary_engines", []),
-        }
-
-        if body.export_type == "transcript":
-            pdf_bytes = render_professional_pdf(ctx)
-        elif body.export_type == "summary":
-            # Summary-only PDF: key passages and critical moments
-            pdf_bytes = _render_summary_pdf(ctx, summary.content if summary else {})
-        elif body.export_type == "complete_case":
-            # Complete case: full transcript + summary + integrity record
-            pdf_bytes = _render_complete_case_pdf(ctx, summary.content if summary else {})
-        else:
-            raise HTTPException(422, f"PDF export for {body.export_type} not supported.")
-
-        # Compute PDF SHA
-        pdf_sha = hashlib.sha256(pdf_bytes).hexdigest()
-        filename = f"{rec.id}-{rev.number}-{body.export_type}.pdf"
-    else:
-        raise HTTPException(501, f"Format {body.format} not yet implemented.")
-
-    # Store export
-    key = f"exports/{rec.id}/{rev.id}/{body.export_type}.{body.format}"
-    storage.put_bytes(key, pdf_bytes if body.format == "pdf" else b"")
-    exp = ExportRecord(
-        recording_id=rec.id,
-        revision_id=rev.id,
-        summary_id=summary.id if summary else None,
-        format=body.format,
-        document_type=body.export_type,
-        storage_key=key,
-        filename=filename,
-        byte_size=len(pdf_bytes) if body.format == "pdf" else 0,
-        sha256=pdf_sha if body.format == "pdf" else "",
-        created_by=p.user.id,
-    )
-    db.add(exp)
-    audit.record(
-        db,
-        "export_created",
-        actor=p.user,
-        recording_id=rec.id,
-        details={
-            "export_id": str(exp.id),
-            "format": body.format,
-            "document_type": body.export_type,
-            "revision_id": str(rev.id),
-            "revision_sha256": rev.sha256,
-            "summary_id": str(summary.id) if summary else None,
-            "pdf_sha256": pdf_sha if body.format == "pdf" else None,
-        },
-    )
-    db.commit()
-
-    return {
-        "export": {
-            "id": str(exp.id),
-            "format": exp.format,
-            "filename": exp.filename,
-            "sha256": exp.sha256,
-            "bytes": exp.byte_size,
-            "download_url": f"/api/exports/{exp.id}/download",
-            "created_at": iso(exp.created_at),
-        }
-    }
-
-
-@router.get("/exports/{export_id}/download")
-def download_export(export_id: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
-    """Download export with access control."""
-    exp = db.get(ExportRecord, parse_uuid(export_id))
-    if not exp:
-        raise HTTPException(404, "Export not found.")
-    rec = load_recording(db, p, exp.recording_id)
-    content = storage.get_bytes(exp.storage_key)
-    return {
-        "data": content.hex() if isinstance(content, bytes) else content,
-        "filename": exp.filename,
-        "content_type": "application/pdf" if exp.format == "pdf" else "application/octet-stream",
-    }
-
-
-def _render_summary_pdf(ctx: dict[str, Any], summary: dict[str, Any]) -> bytes:
-    """Render summary-only PDF: key passages, critical moments, and metadata."""
-    from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import ParagraphStyle
-    from reportlab.lib.units import mm
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-
-    from ..exports import render
-
-    ar_font, la_font = render._register_fonts()
-    rec = ctx["recording"]
-    rev = ctx["revision"]
-
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=22 * mm, rightMargin=22 * mm, topMargin=24 * mm, bottomMargin=22 * mm,
-                            title="MURAILEX SUMMARY", author="ALHIJRAH SERVICES", subject="Forensic audio summary")
-
-    ink = colors.HexColor("#0A0A0F")
-    muted = colors.HexColor("#64748B")
-    indigo = colors.HexColor("#4338CA")
-
-    title = ParagraphStyle("mx-title", fontName=la_font, fontSize=22, leading=26, alignment=TA_CENTER, textColor=ink, spaceAfter=4)
-    subtitle = ParagraphStyle("mx-subtitle", fontName=la_font, fontSize=10, leading=15, alignment=TA_CENTER, textColor=muted)
-    ltr = ParagraphStyle("mx-ltr", fontName=la_font, fontSize=10.5, leading=16.5, alignment=TA_LEFT, textColor=ink)
-
-    story = [
-        Spacer(1, 10 * mm),
-        Paragraph("MURAILEX SUMMARY", title),
-        Paragraph(f"Revision {rev['number']} · {rev['status'].upper()}", subtitle),
-        Spacer(1, 8 * mm),
-    ]
-
-    key_passages = summary.get("key_passages", [])
-    if key_passages:
-        story.append(Paragraph("KEY PASSAGES", ParagraphStyle("h1", parent=title, fontSize=14, spaceBefore=5, spaceAfter=3)))
-        for p in key_passages[:5]:
-            story.append(Paragraph(f"[{render._font_runs(str(p.get('speaker', '')), ar_font, la_font, 9)}]", ltr))
-            story.append(Paragraph(render._font_runs(str(p.get("text", "")), ar_font, la_font, 10), ltr))
-            story.append(Spacer(1, 3 * mm))
-
-    critical = summary.get("critical_moments", [])
-    if critical:
-        story.append(Paragraph("CRITICAL MOMENTS", ParagraphStyle("h2", parent=title, fontSize=12, spaceBefore=5, spaceAfter=3)))
-        for c in critical[:5]:
-            story.append(Paragraph(f"[{render._font_runs(str(c.get('speaker', '')), ar_font, la_font, 9)}]", ltr))
-            story.append(Paragraph(render._font_runs(str(c.get("text", "")), ar_font, la_font, 10), ltr))
-            story.append(Spacer(1, 2.5 * mm))
-
-    story.append(Spacer(1, 6 * mm))
-    story.append(Paragraph(f"Revision SHA-256: {rev['sha256']}", ParagraphStyle("meta", parent=ltr, fontSize=8)))
-    story.append(Paragraph(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}", ParagraphStyle("meta2", parent=ltr, fontSize=8)))
-
-    doc.build(story)
-    return buf.getvalue()
-
-
-def _render_complete_case_pdf(ctx: dict[str, Any], summary: dict[str, Any]) -> bytes:
-    """Render complete case: summary + full transcript + integrity record."""
-    # For now, delegate to professional PDF and append summary metadata
-    base_pdf = render_professional_pdf(ctx)
-    # In production, this would use PyPDF2 or reportlab to append summary pages
-    return base_pdf
-
+        q = q.where(Summary.transcript_revision_id == parse_uuid(revision_id))
+    row = db.execute(q.order_by(Summary.summary_revision.desc()).limit(1)).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "Summary not generated for this revision.")
+    return {"summary": summary_out(row)}
