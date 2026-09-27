@@ -1,6 +1,16 @@
 const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY'];
 
+const ENV_FALLBACKS = {
+  SUPABASE_URL: 'NEXT_PUBLIC_SUPABASE_URL',
+  SUPABASE_ANON_KEY: 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+};
+
 function missingEnvVars() {
+  for (const [key, fallback] of Object.entries(ENV_FALLBACKS)) {
+    if (!process.env[key] && process.env[fallback]) {
+      process.env[key] = process.env[fallback];
+    }
+  }
   return REQUIRED_ENV.filter(key => !process.env[key]);
 }
 
@@ -60,6 +70,9 @@ export const config = { api: { bodyParser: false } };
 export default async function handler(req, res) {
   const missing = missingEnvVars();
   if (missing.length) {
+    console.error('[caseflow] ENV CHECK FAILED — missing:', missing.join(', '),
+      '| present keys matching SUPA*:', Object.keys(process.env).filter(k => k.startsWith('SUPA')).join(', ') || '(none)',
+      '| present keys matching NEXT_PUBLIC_SUPA*:', Object.keys(process.env).filter(k => k.startsWith('NEXT_PUBLIC_SUPA')).join(', ') || '(none)');
     res.setHeader('content-type', 'text/html; charset=utf-8');
     res.setHeader('cache-control', 'no-store');
     res.statusCode = 503;
