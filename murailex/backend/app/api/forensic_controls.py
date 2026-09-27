@@ -90,14 +90,14 @@ def _engine_state(adapter, locale: str) -> dict[str, Any]:
     info = adapter.info(context)
     credential = CREDENTIAL_ENV.get(name)
     credential_present = bool(credential and os.environ.get(credential))
-    privacy_state = privacy.status(name) if name in PRIVACY_ENV else {"approved": True, "status": "NOT APPLICABLE"}
+    privacy_state = privacy.status(name) if name in PRIVACY_ENV else "APPROVED"
     benchmark_ok = registry.benchmark_routing_approved()
     blocker: str | None = None
     required_env: list[str] = []
     if credential and not credential_present:
         blocker = "Required provider credential is not configured."
         required_env.append(credential)
-    elif not privacy_state.get("approved"):
+    elif privacy_state != "APPROVED":
         blocker = "BLOCKED BY DATA POLICY"
         if name in PRIVACY_ENV:
             required_env.append(PRIVACY_ENV[name])
