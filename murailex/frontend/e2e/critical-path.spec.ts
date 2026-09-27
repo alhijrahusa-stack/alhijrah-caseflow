@@ -30,8 +30,11 @@ test("critical path: sign in → upload → process → review → lock → expo
   await expect(page.getByTestId("provider-row").first()).toBeAttached();
   await page.goto("/");
 
-  // A recording locale is mandatory before evidence bytes can enter the pipeline.
-  await page.locator("#language-locale").selectOption("ar-YE");
+  // Recording locale and type are mandatory before evidence bytes can enter the pipeline.
+  const metadataSelects = page.locator("select");
+  await expect(metadataSelects).toHaveCount(2);
+  await metadataSelects.nth(0).selectOption("ar-YE");
+  await metadataSelects.nth(1).selectOption("meeting");
 
   // Upload real audio bytes through the resumable uploader
   await page.getByTestId("file-input").setInputFiles(SAMPLE);
