@@ -69,7 +69,10 @@ class PyannoteAI(DiarizationAdapter):
                     "speaker": str(seg.get("speaker")),
                     "start_ms": int(round(float(seg.get("start", 0)) * 1000)),
                     "end_ms": int(round(float(seg.get("end", 0)) * 1000)),
-                    "confidence": seg.get("confidence"),
+                    "turn_level_confidence": seg.get("turnLevelConfidence"),
+                    "speaker_probability": seg.get("speakerProbability"),
+                    "speech_probability": seg.get("speechProbability"),
+                    "crosstalk_probability": seg.get("crosstalkProbability"),
                 }
             )
         turns.sort(key=lambda t: (t["start_ms"], t["end_ms"]))

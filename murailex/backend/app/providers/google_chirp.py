@@ -49,13 +49,16 @@ class GoogleChirp3(AsrAdapter):
     name = "google_chirp3"
     asynchronous = True
 
+    def __init__(self, language_code: str):
+        self.language_code = language_code
+
     def parameters(self) -> dict[str, Any]:
         s = get_settings()
         return {
             "model": s.google_stt_model,
-            "languageCodes": s.language_codes(),
+            "languageCodes": [self.language_code],
             "location": s.google_stt_location,
-            "features": {"enableWordTimeOffsets": True, "enableWordConfidence": True, "diarizationConfig": {}},
+            "features": {"enableWordTimeOffsets": True},
         }
 
     def info(self) -> ProviderInfo:
@@ -143,8 +146,10 @@ class GoogleChirp3(AsrAdapter):
                             "text": w.get("word", ""),
                             "start_ms": _seconds(w.get("startOffset")),
                             "end_ms": _seconds(w.get("endOffset")),
-                            "confidence": w.get("confidence"),
-                            "speaker": w.get("speakerLabel") or None,
+                            "confidence": None,
+                            "provider_confidence_raw": w.get("confidence"),
+                            "confidence_semantics": "not_reliable_for_chirp3",
+                            "speaker": None,
                         }
                     )
         if errors and not tokens:

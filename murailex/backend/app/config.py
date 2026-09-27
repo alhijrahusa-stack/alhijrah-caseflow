@@ -49,11 +49,11 @@ class Settings(BaseSettings):
 
     pyannote_api_key: SecretStr | None = None
     pyannote_base_url: str = "https://api.pyannote.ai/v1"
-    pyannote_model: str = "precision-2"
+    pyannote_model: str = "precision-3"
 
     openai_api_key: SecretStr | None = None
     openai_base_url: str = "https://api.openai.com/v1"
-    openai_transcribe_model: str = "gpt-4o-transcribe-diarize"
+    openai_transcribe_model: str = "gpt-transcribe"
 
     deepgram_api_key: SecretStr | None = None
     deepgram_base_url: str = "https://api.deepgram.com/v1"

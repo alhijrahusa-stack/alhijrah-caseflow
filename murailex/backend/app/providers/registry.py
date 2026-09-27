@@ -8,6 +8,7 @@ from .google_chirp import GoogleChirp3
 from .openai_stt import OpenAITranscribe
 from .pyannote import PyannoteAI
 
+SUPPORTED_LOCALES = frozenset({"ar-YE", "ar-EG", "ar-SY", "ar-LB", "ar-IQ"})
 _override: dict[str, list] | None = None
 
 
@@ -28,10 +29,19 @@ def clear_test_fixtures() -> None:
     _override = None
 
 
-def primary_asr() -> list[AsrAdapter]:
+def _locale(locale: str) -> str:
+    if locale not in SUPPORTED_LOCALES:
+        raise ValueError(f"Unsupported recording locale: {locale!r}")
+    return locale
+
+
+def primary_asr(locale: str) -> list[AsrAdapter]:
     if _override is not None and fixtures_enabled():
         return _override["primary"]
-    return [AssemblyAI(), GoogleChirp3()]
+    locale = _locale(locale)
+    if locale == "ar-YE":
+        return [AssemblyAI(), GoogleChirp3("ar-YE")]
+    return [DeepgramNova3(locale), GoogleChirp3(locale)]
 
 
 def diarization() -> list[DiarizationAdapter]:
@@ -40,14 +50,17 @@ def diarization() -> list[DiarizationAdapter]:
     return [PyannoteAI()]
 
 
-def verification_asr() -> list[AsrAdapter]:
+def verification_asr(locale: str) -> list[AsrAdapter]:
     if _override is not None and fixtures_enabled():
         return _override["verification"]
-    return [OpenAITranscribe(), DeepgramNova3()]
+    locale = _locale(locale)
+    if locale == "ar-YE":
+        return [OpenAITranscribe(), DeepgramNova3("ar")]
+    return [AssemblyAI(), OpenAITranscribe()]
 
 
 def all_adapters() -> list[AsrAdapter]:
-    return [*primary_asr(), *diarization(), *verification_asr()]
+    return [AssemblyAI(), GoogleChirp3("ar-YE"), DeepgramNova3("ar"), OpenAITranscribe(), PyannoteAI()]
 
 
 def by_name(name: str) -> AsrAdapter:

@@ -11,12 +11,16 @@ from .http import request
 class DeepgramNova3(AsrAdapter):
     name = "deepgram"
 
+    def __init__(self, language: str):
+        if language == "ar-YE":
+            raise ValueError("Deepgram Nova-3 must not be configured with ar-YE; use ar for Yemeni verification.")
+        self.language = language
+
     def query(self) -> dict[str, str]:
         s = get_settings()
         return {
             "model": s.deepgram_model,
-            "language": s.deepgram_language,
-            "diarize_model": "latest",
+            "language": self.language,
             "punctuate": "false",
             "smart_format": "false",
             "numerals": "false",
@@ -26,7 +30,7 @@ class DeepgramNova3(AsrAdapter):
     def info(self) -> ProviderInfo:
         s = get_settings()
         return ProviderInfo(
-            self.name, f"{s.deepgram_model}:{s.deepgram_language}", "verification_asr",
+            self.name, f"{s.deepgram_model}:{self.language}", "asr",
             bool(s.deepgram_api_key and s.deepgram_api_key.get_secret_value()), self.query(),
         )
 

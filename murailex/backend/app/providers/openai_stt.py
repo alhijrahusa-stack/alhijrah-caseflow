@@ -1,4 +1,4 @@
-"""OpenAI transcription for targeted verification (POST /v1/audio/transcriptions, diarized_json)."""
+"""OpenAI gpt-transcribe for independent disputed-region verification."""
 from __future__ import annotations
 
 import os
@@ -19,7 +19,7 @@ class OpenAITranscribe(AsrAdapter):
             s.openai_transcribe_model,
             "verification_asr",
             bool(s.openai_api_key and s.openai_api_key.get_secret_value()),
-            {"response_format": "diarized_json", "chunking_strategy": "auto"},
+            {"timestamp_granularity": "region_native", "languages": ["ar"]},
         )
 
     def transcribe(self, audio_path: str, context: dict[str, Any]) -> Any:
@@ -28,7 +28,7 @@ class OpenAITranscribe(AsrAdapter):
             raise NotConfigured(self.name)
         with open(audio_path, "rb") as fh:
             files = {"file": (os.path.basename(audio_path), fh.read(), "audio/wav")}
-        data = {"model": s.openai_transcribe_model, "response_format": "diarized_json", "chunking_strategy": "auto"}
+        data: list[tuple[str, str]] = [("model", s.openai_transcribe_model), ("languages[]", "ar")]
         resp = request(
             "POST",
             f"{s.openai_base_url}/audio/transcriptions",
@@ -41,24 +41,10 @@ class OpenAITranscribe(AsrAdapter):
         return resp.json()
 
     def normalize(self, raw: Any) -> dict[str, Any]:
-        # Segment-level timestamps only; token times inside a segment are interpolated and flagged.
-        tokens = []
-        for seg in raw.get("segments") or []:
-            words = (seg.get("text") or "").split()
-            if not words:
-                continue
-            start = int(round(float(seg.get("start", 0)) * 1000))
-            end = int(round(float(seg.get("end", 0)) * 1000))
-            step = max(1, (end - start) // len(words))
-            for i, w in enumerate(words):
-                tokens.append(
-                    {
-                        "text": w,
-                        "start_ms": start + i * step,
-                        "end_ms": end if i == len(words) - 1 else start + (i + 1) * step,
-                        "confidence": None,
-                        "speaker": seg.get("speaker"),
-                        "timing": "interpolated_within_segment",
-                    }
-                )
-        return {"tokens": tokens}
+        return {
+            "tokens": [],
+            "text": str(raw.get("text") or "").strip(),
+            "languages": raw.get("languages") or [],
+            "timestamp_granularity": "region_native",
+            "timestamp_source": "provider",
+        }
