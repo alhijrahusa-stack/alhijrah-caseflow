@@ -1,4 +1,5 @@
 import pytest
+
 from app.benchmark import (
     BenchmarkItem,
     aggregate_scores,
@@ -7,7 +8,6 @@ from app.benchmark import (
     score_transcript,
     validate_corpus,
 )
-
 
 SHA_A = "a" * 64
 SHA_B = "b" * 64
