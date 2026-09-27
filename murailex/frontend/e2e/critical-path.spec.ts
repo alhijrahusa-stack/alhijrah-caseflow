@@ -30,6 +30,9 @@ test("critical path: sign in → upload → process → review → lock → expo
   await expect(page.getByTestId("provider-row").first()).toBeAttached();
   await page.goto("/");
 
+  // A recording locale is mandatory before evidence bytes can enter the pipeline.
+  await page.locator("#language-locale").selectOption("ar-YE");
+
   // Upload real audio bytes through the resumable uploader
   await page.getByTestId("file-input").setInputFiles(SAMPLE);
   await page.waitForURL(/\/transcriptions\/[0-9a-f-]+$/, { timeout: 60_000 });
