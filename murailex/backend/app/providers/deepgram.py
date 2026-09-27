@@ -1,4 +1,4 @@
-"""Deepgram Nova-3 (Arabic) for targeted verification (POST /v1/listen)."""
+"""Deepgram Nova-3 (Arabic) for primary or targeted verification transcription."""
 from __future__ import annotations
 
 from typing import Any
@@ -25,13 +25,18 @@ class DeepgramNova3(AsrAdapter):
             "smart_format": "false",
             "numerals": "false",
             "filler_words": "true",
+            # Do not permit legal-audio content to participate in Deepgram's Model Improvement Program.
+            "mip_opt_out": "true",
         }
 
     def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         s = get_settings()
         return ProviderInfo(
-            self.name, f"{s.deepgram_model}:{self.language}", "asr",
-            bool(s.deepgram_api_key and s.deepgram_api_key.get_secret_value()), self.query(),
+            self.name,
+            f"{s.deepgram_model}:{self.language}",
+            "asr",
+            bool(s.deepgram_api_key and s.deepgram_api_key.get_secret_value()),
+            self.query(),
         )
 
     def transcribe(self, audio_path: str, context: dict[str, Any]) -> Any:
@@ -65,4 +70,9 @@ class DeepgramNova3(AsrAdapter):
                         "speaker": None if w.get("speaker") is None else str(w.get("speaker")),
                     }
                 )
-        return {"tokens": tokens}
+        metadata = raw.get("metadata") or {}
+        return {
+            "tokens": tokens,
+            "request_id": metadata.get("request_id"),
+            "model_info": metadata.get("model_info"),
+        }
