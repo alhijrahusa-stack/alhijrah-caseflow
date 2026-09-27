@@ -62,6 +62,7 @@ export async function resumableUpload(
     title: string;
     source: "upload" | "recording";
     storedRecordingId?: string;
+    languageLocale: "ar-YE" | "ar-EG" | "ar-SY" | "ar-LB" | "ar-IQ";
     onProgress?: (fraction: number) => void;
     signal?: AbortSignal;
   },
@@ -70,7 +71,7 @@ export async function resumableUpload(
   const mime = blob.type || "application/octet-stream";
   const session = await api<UploadSessionInfo>("/api/uploads", {
     method: "POST",
-    json: { filename: opts.name, mime_type: mime, size: blob.size, fingerprint, title: opts.title, source: opts.source },
+    json: { filename: opts.name, mime_type: mime, size: blob.size, fingerprint, title: opts.title, source: opts.source, language_hint: opts.languageLocale },
   });
   savePending([
     ...pendingUploads().filter((p) => p.fingerprint !== fingerprint),

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+type ArabicLocale = "ar-YE" | "ar-EG" | "ar-SY" | "ar-LB" | "ar-IQ";
 type SendFn = (blob: Blob, name: string, title: string, source: "upload" | "recording", storedId?: string) => Promise<void>;
 type ReadyState = { ready: boolean; checks?: { database?: { ok: boolean }; storage?: { ok: boolean } } };
 type ProviderState = { providers: { name: string; status: string; role: string }[] };
@@ -34,6 +35,7 @@ export default function HomePage() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [recording, setRecording] = useState(false);
+  const [languageLocale, setLanguageLocale] = useState<ArabicLocale | "">("");
   const [active, setActive] = useState<Active | null>(null);
   const [recent, setRecent] = useState<Recording[]>([]);
   const [stored, setStored] = useState<StoredRecording[]>([]);
@@ -76,6 +78,10 @@ export default function HomePage() {
 
   const send = useCallback(
     async (blob: Blob, name: string, title: string, source: "upload" | "recording", storedId?: string) => {
+      if (!languageLocale) {
+        setActive({ name, progress: 0, error: rtl ? "اختر لهجة التسجيل قبل الرفع." : "Select the recording dialect before upload." });
+        return;
+      }
       setActive({ name, progress: 0 });
       try {
         const rec = await resumableUpload(blob, {
@@ -83,6 +89,7 @@ export default function HomePage() {
           title,
           source,
           storedRecordingId: storedId,
+          languageLocale,
           onProgress: (p) => setActive({ name, progress: p }),
         });
         if (storedId) await recordingsStore.remove(storedId);
@@ -93,7 +100,7 @@ export default function HomePage() {
         setActive({ name, progress: 0, error: e instanceof Error ? e.message : t("upload_failed"), retry });
       }
     },
-    [router, t],
+    [languageLocale, router, rtl, t],
   );
 
   useEffect(() => {
@@ -209,7 +216,25 @@ export default function HomePage() {
                 <span className="text-sm font-bold">{t("record")}</span>
               </span>
             </button>
-            <div className="mt-10 grid w-full gap-3 sm:grid-cols-2">
+            <div className="mt-8 w-full max-w-xl">
+              <label className="mb-2 block text-xs font-semibold text-slate-300" htmlFor="language-locale">
+                {rtl ? "لهجة التسجيل — إلزامي" : "Recording dialect — required"}
+              </label>
+              <select
+                id="language-locale"
+                value={languageLocale}
+                onChange={(e) => setLanguageLocale(e.target.value as ArabicLocale)}
+                className="h-12 w-full rounded-2xl border border-white/[0.10] bg-slate-950/70 px-4 text-sm text-slate-100 outline-none focus:border-indigo-400/60"
+              >
+                <option value="" disabled>{rtl ? "اختر اللهجة" : "Select dialect"}</option>
+                <option value="ar-YE">العربية اليمنية — ar-YE</option>
+                <option value="ar-EG">العربية المصرية — ar-EG</option>
+                <option value="ar-SY">العربية السورية — ar-SY</option>
+                <option value="ar-LB">العربية اللبنانية — ar-LB</option>
+                <option value="ar-IQ">العربية العراقية — ar-IQ</option>
+              </select>
+            </div>
+            <div className="mt-4 grid w-full gap-3 sm:grid-cols-2">
               <Button size="lg" variant="secondary" className="glass-interactive h-16 rounded-[20px]" onClick={() => fileRef.current?.click()}>
                 <UploadCloud className="!size-5 text-cyan-300" /> {t("upload")}
               </Button>
