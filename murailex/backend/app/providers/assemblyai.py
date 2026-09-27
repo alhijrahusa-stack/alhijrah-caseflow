@@ -105,6 +105,13 @@ class AssemblyAI(AsrAdapter):
         return Pending(str(status))
 
     def normalize(self, raw: Any) -> dict[str, Any]:
+        observed_model = raw.get("speech_model_used")
+        expected_model = get_settings().assemblyai_speech_model
+        if observed_model and observed_model != expected_model:
+            raise ProviderError(
+                f"AssemblyAI returned model {observed_model!r}, but {expected_model!r} was required; silent model substitution is forbidden.",
+                retryable=False,
+            )
         tokens = []
         for word in raw.get("words") or []:
             tokens.append(
@@ -119,5 +126,5 @@ class AssemblyAI(AsrAdapter):
         return {
             "tokens": tokens,
             "language": raw.get("language_code"),
-            "speech_model_used": raw.get("speech_model_used"),
+            "speech_model_used": observed_model,
         }
