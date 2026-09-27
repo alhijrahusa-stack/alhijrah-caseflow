@@ -119,16 +119,18 @@ def run_provider_self_test(db: Session, test: ProviderSelfTest) -> None:
     except Wait:
         raise
     except Exception as exc:
-        test = db.get(ProviderSelfTest, test.id)
-        assert test is not None
+        refreshed = db.get(ProviderSelfTest, test.id)
+        assert refreshed is not None
+        test = refreshed
         test.status = "FAILED"
         test.error = f"{type(exc).__name__}: {exc}"[:1000]
         test.completed_at = _now()
         db.commit()
         return
 
-    test = db.get(ProviderSelfTest, test.id)
-    assert test is not None
+    refreshed = db.get(ProviderSelfTest, test.id)
+    assert refreshed is not None
+    test = refreshed
     if run is None:
         test.status = "FAILED"
         test.error = "Provider run did not produce a persisted result."
