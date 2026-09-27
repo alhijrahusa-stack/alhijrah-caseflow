@@ -7,11 +7,10 @@ from typing import Any
 from .text import UNCLEAR_MARKERS
 
 SEGMENT_GAP_MS = 1500
-SCHEMA = "murailex.transcript/1"
+SCHEMA = "murailex.transcript/2"
 
 
 def speaker_map(raw_speakers: list[str | None]) -> dict[str, str]:
-    """Map provider speaker ids to S1..Sn by first appearance (deterministic)."""
     mapping: dict[str, str] = {}
     for s in raw_speakers:
         if s is None or s in mapping:
@@ -26,6 +25,33 @@ def speaker_label(sid: str | None) -> str:
     return f"[المتحدث {sid[1:]}]"
 
 
+def _item_state(item: dict[str, Any]) -> str:
+    if item.get("kind") == "dispute":
+        return "DISPUTED"
+    if item.get("source") in {"human", "reviewer_accepted_candidate"}:
+        return "HUMAN VERIFIED"
+    if "overlap" in set(item.get("risks") or []):
+        return "OVERLAP"
+    if item.get("source") == "consensus":
+        return "CONSENSUS"
+    return "CONSENSUS"
+
+
+def _refresh_segment(seg: dict[str, Any]) -> None:
+    items = seg.get("items") or []
+    states = [_item_state(i) for i in items]
+    if "DISPUTED" in states:
+        state = "UNRESOLVED"
+    elif "HUMAN VERIFIED" in states:
+        state = "HUMAN VERIFIED"
+    elif "OVERLAP" in states:
+        state = "OVERLAP"
+    else:
+        state = "CONSENSUS"
+    seg["review_state"] = state
+    seg["provenance"] = [p for i in items for p in (i.get("provenance") or [])]
+
+
 def build_items(
     columns: list[dict[str, Any]],
     accepted_columns: set[int],
@@ -37,35 +63,35 @@ def build_items(
     for col in columns:
         if col["index"] not in accepted_columns:
             continue
-        items.append(
-            {
-                "kind": "word",
-                "text": col["text"],
-                "start_ms": col["start_ms"],
-                "end_ms": col["end_ms"],
-                "speaker": smap.get(col["speaker_raw"]) if col["speaker_raw"] is not None else None,
-                "risks": col["risks"],
-                "source": "consensus",
-                "provenance": col["provenance"],
-            }
-        )
-    items.extend(region_items)
+        items.append({
+            "kind": "word",
+            "text": col["text"],
+            "start_ms": col["start_ms"],
+            "end_ms": col["end_ms"],
+            "speaker": smap.get(col["speaker_raw"]) if col["speaker_raw"] is not None else None,
+            "risks": col["risks"],
+            "source": "consensus",
+            "review_state": "CONSENSUS",
+            "provenance": col["provenance"],
+        })
+    for item in region_items:
+        item.setdefault("review_state", "DISPUTED" if item.get("kind") == "dispute" else _item_state(item))
+        items.append(item)
     occupied = [(i["start_ms"], i["end_ms"]) for i in items]
     for sil in silences:
         if any(s < sil["end_ms"] and e > sil["start_ms"] for s, e in occupied):
             continue
-        items.append(
-            {
-                "kind": "marker",
-                "text": UNCLEAR_MARKERS["silence"],
-                "start_ms": sil["start_ms"],
-                "end_ms": sil["end_ms"],
-                "speaker": None,
-                "risks": [],
-                "source": "acoustic",
-                "provenance": [{"method": "ffmpeg silencedetect", "noise_db": -35, "min_seconds": 2.0}],
-            }
-        )
+        items.append({
+            "kind": "marker",
+            "text": UNCLEAR_MARKERS["silence"],
+            "start_ms": sil["start_ms"],
+            "end_ms": sil["end_ms"],
+            "speaker": None,
+            "risks": [],
+            "source": "acoustic",
+            "review_state": "CONSENSUS",
+            "provenance": [{"method": "ffmpeg silencedetect", "noise_db": -35, "min_seconds": 2.0}],
+        })
     items.sort(key=lambda i: (i["start_ms"], i["end_ms"]))
     return items
 
@@ -74,7 +100,7 @@ def segment(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     segments: list[dict[str, Any]] = []
     for it in items:
         spk = it["speaker"]
-        standalone = it["kind"] == "marker" and spk is None  # acoustic silence stands alone
+        standalone = it["kind"] == "marker" and spk is None
         if segments and not standalone and not segments[-1].get("_standalone"):
             cur = segments[-1]
             same = spk is None or cur["speaker"] is None or spk == cur["speaker"]
@@ -84,11 +110,27 @@ def segment(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 if cur["speaker"] is None:
                     cur["speaker"] = spk
                 continue
-        segments.append({"speaker": spk, "start_ms": it["start_ms"], "end_ms": it["end_ms"], "items": [it], "_standalone": standalone})
+        segments.append({
+            "speaker": spk,
+            "start_ms": it["start_ms"],
+            "end_ms": it["end_ms"],
+            "items": [it],
+            "_standalone": standalone,
+        })
     for n, seg in enumerate(segments, start=1):
         seg["id"] = f"seg-{n:05d}"
+        seg["revision_id"] = None
         seg.pop("_standalone", None)
+        _refresh_segment(seg)
     return segments
+
+
+def bind_revision(content: dict[str, Any], revision_id: str) -> dict[str, Any]:
+    out = copy.deepcopy(content)
+    for seg in out.get("segments", []):
+        seg["revision_id"] = revision_id
+        _refresh_segment(seg)
+    return out
 
 
 def new_content(recording: dict[str, Any], segments: list[dict[str, Any]], speakers: list[str], method: dict[str, Any]) -> dict[str, Any]:
@@ -128,7 +170,10 @@ def _find_dispute(content: dict[str, Any], dispute_id: str) -> tuple[dict[str, A
 def resolve_dispute(content: dict[str, Any], dispute_id: str, replacement: list[dict[str, Any]]) -> dict[str, Any]:
     out = copy.deepcopy(content)
     seg, i = _find_dispute(out, dispute_id)
+    for item in replacement:
+        item["review_state"] = "HUMAN VERIFIED"
     seg["items"][i : i + 1] = replacement
+    _refresh_segment(seg)
     return out
 
 
@@ -139,18 +184,18 @@ def replace_segment_text(content: dict[str, Any], segment_id: str, text: str, ac
             if any(it["kind"] == "dispute" for it in seg["items"]):
                 raise ValueError("Resolve the open dispute in this segment first.")
             before = segment_text(seg)
-            seg["items"] = [
-                {
-                    "kind": "word",
-                    "text": text,
-                    "start_ms": seg["start_ms"],
-                    "end_ms": seg["end_ms"],
-                    "speaker": seg["speaker"],
-                    "risks": [],
-                    "source": "human",
-                    "provenance": [{"method": "type_exactly_what_i_hear", "by": actor, "replaced": before}],
-                }
-            ]
+            seg["items"] = [{
+                "kind": "word",
+                "text": text,
+                "start_ms": seg["start_ms"],
+                "end_ms": seg["end_ms"],
+                "speaker": seg["speaker"],
+                "risks": [],
+                "source": "human",
+                "review_state": "HUMAN VERIFIED",
+                "provenance": [{"method": "type_exactly_what_i_hear", "by": actor, "replaced": before}],
+            }]
+            _refresh_segment(seg)
             return out, before
     raise KeyError(segment_id)
 
@@ -165,6 +210,7 @@ def set_segment_speaker(content: dict[str, Any], segment_id: str, speaker: str) 
             seg["speaker"] = speaker
             for it in seg["items"]:
                 it["speaker"] = speaker
+            _refresh_segment(seg)
             return out, before
     raise KeyError(segment_id)
 
@@ -183,14 +229,15 @@ def verify_speaker_name(content: dict[str, Any], sid: str, name: str | None, act
     out = copy.deepcopy(content)
     if sid not in out["speakers"]:
         raise KeyError(sid)
-    out["speakers"][sid].update(
-        {"verified_name": name or None, "verified_by": actor if name else None, "verified_at": when if name else None}
-    )
+    out["speakers"][sid].update({
+        "verified_name": name or None,
+        "verified_by": actor if name else None,
+        "verified_at": when if name else None,
+    })
     return out
 
 
 def plain_lines(content: dict[str, Any], *, show_names: bool = True) -> list[tuple[str, str, str]]:
-    """(timestamp, speaker label, text) per segment, for exports."""
     lines = []
     for seg in content["segments"]:
         sid = seg["speaker"]
