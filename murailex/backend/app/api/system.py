@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from .. import audit, storage
 from ..config import get_settings
 from ..db import get_db
-from ..providers import privacy, registry
+from ..providers import capabilities, privacy, registry
 from ..providers import translate as gt
 from ..security import Principal, current_principal, require_admin
 
@@ -125,6 +125,7 @@ def providers(p: Principal = Depends(current_principal)):
                 "last_real_self_test": state["last_real_self_test"],
                 "status": state["status"],
                 "parameters": info.parameters,
+                "capability": capabilities.get(adapter.name),
             }
         )
     rows.append(
@@ -141,6 +142,7 @@ def providers(p: Principal = Depends(current_principal)):
     )
     return {
         "providers": rows,
+        "candidate_capabilities": capabilities.all_capabilities(),
         "note": "READY requires a persisted successful real self-test. Credentials or deployment success alone never imply readiness.",
     }
 
