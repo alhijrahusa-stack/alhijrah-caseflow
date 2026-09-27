@@ -5,9 +5,11 @@ worker, API, server or provider interruption resumes from the last checkpoint: r
 jobs already submitted are polled, never resubmitted, and completed results are never
 requested twice.
 
-Token-conservation invariant: normalized token counts from all providers must match after
-alignment; token text and timing may shift but raw token deletion or synthetic injection
-is forbidden.
+Token-conservation invariant (deterministic traceable): every non-empty token from each
+Primary run must be traceable to either a column in provenance or a candidate token in
+a Dispute. Token counts may differ across providers (alignment is lossy); only 
+non-empty tokens matter. Untraceable tokens → audit_token_conservation_failure + 
+recording_failed + no transcript.
 """
 from __future__ import annotations
 
@@ -17,13 +19,14 @@ import os
 import tempfile
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import audio, audit, storage
 from ..config import get_settings
-from ..models import Dispute, ProviderRun, Recording, Summary, TranscriptRevision
+from ..models import Dispute, ProviderRun, Recording, TranscriptRevision
 from ..providers import registry
 from ..providers.base import AsrAdapter, NotConfigured, Pending, ProviderError
 from . import consensus as cons
@@ -58,19 +61,6 @@ def _set_status(db: Session, rec: Recording, status: str, detail: str | None = N
 
 def _run_status(run: ProviderRun | None) -> str:
     return run.status if run is not None else "missing"
-
-
-def _check_token_conservation(primary_inputs: list[tuple[dict[str, Any], list[dict[str, Any]]]]) -> None:
-    """Invariant: all providers must contribute same token count after alignment."""
-    if not primary_inputs:
-        return
-    counts = [len(toks) for _, toks in primary_inputs]
-    if len(set(counts)) > 1:
-        raise ProviderError(
-            f"Token conservation violation: providers disagree on token count {counts}. "
-            "Raw token deletion or synthetic injection detected.",
-            retryable=False,
-        )
 
 
 # ---------------------------------------------------------------- stage 1: derive
@@ -316,6 +306,97 @@ def drive_run(
         ) from exc
 
 
+# ---------------------------------------------------------------- token conservation check
+
+
+def _check_token_traceable(
+    db: Session,
+    rec: Recording,
+    primary_inputs: list[tuple[dict[str, Any], list[dict[str, Any]]]],
+    disputes: list[Dispute],
+    columns: list[dict[str, Any]],
+) -> bool:
+    """
+    Deterministically verify every non-empty token from each Primary run is traceable.
+    
+    Traceable means: token text+timing appear in either:
+    1. A column's provenance (final consensus text)
+    2. A candidate token in a Dispute
+    
+    Returns True if all traceable. On untraceable → audit + return False (caller fails recording).
+    """
+    untraceable: list[dict[str, Any]] = []
+    
+    for meta, toks in primary_inputs:
+        provider_name = meta.get("provider", "unknown")
+        run_id = meta.get("run_id", "unknown")
+        
+        for tok in toks:
+            tok_text = tok.get("text", "").strip()
+            if not tok_text:
+                continue  # empty tokens don't need tracing
+            
+            tok_start = tok.get("start_ms")
+            tok_end = tok.get("end_ms")
+            
+            found_in_provenance = False
+            for col in columns:
+                col_text = col.get("text", "").strip()
+                col_start = col.get("start_ms")
+                col_end = col.get("end_ms")
+                
+                if col_text == tok_text and col_start == tok_start and col_end == tok_end:
+                    found_in_provenance = True
+                    break
+            
+            if found_in_provenance:
+                continue
+            
+            found_in_dispute = False
+            for dispute in disputes:
+                candidates = dispute.candidates or []
+                for cand in candidates:
+                    cand_toks = cand.get("tokens", [])
+                    for cand_tok in cand_toks:
+                        cand_text = cand_tok.get("text", "").strip()
+                        cand_start = cand_tok.get("start_ms")
+                        cand_end = cand_tok.get("end_ms")
+                        
+                        if cand_text == tok_text and cand_start == tok_start and cand_end == tok_end:
+                            found_in_dispute = True
+                            break
+                    if found_in_dispute:
+                        break
+                if found_in_dispute:
+                    break
+            
+            if not found_in_dispute:
+                untraceable.append({
+                    "provider": provider_name,
+                    "run_id": run_id,
+                    "token_text": tok_text,
+                    "start_ms": tok_start,
+                    "end_ms": tok_end,
+                })
+    
+    if untraceable:
+        audit.record(
+            db,
+            "token_conservation_failure",
+            actor_label="system",
+            recording_id=rec.id,
+            details={
+                "reason": "untraceable_primary_tokens",
+                "untraceable_count": len(untraceable),
+                "untraceable_samples": untraceable[:10],
+            },
+        )
+        db.commit()
+        return False
+    
+    return True
+
+
 # ---------------------------------------------------------------- main entry
 
 
@@ -427,7 +508,6 @@ def process_recording(db: Session, rec: Recording) -> None:
         for r in ok_primary[:2]
         if r is not None
     ]
-    _check_token_conservation(primary_inputs)
     assert diar_run is not None
     turns = diar_run.normalized["turns"]  # type: ignore[index]
     diar_source = {"provider": diar_run.provider, "model": diar_run.model, "run_id": str(diar_run.id), "independent": True}
@@ -568,6 +648,19 @@ def process_recording(db: Session, rec: Recording) -> None:
         if c["index"] not in in_region:
             accepted.add(c["index"])
 
+    # Check token conservation: every non-empty primary token must be traceable
+    if not _check_token_traceable(db, rec, primary_inputs, disputes, columns):
+        _set_status(db, rec, "failed", "Token conservation check failed: untraceable primary tokens detected.")
+        audit.record(
+            db,
+            "recording_failed",
+            actor_label="system",
+            recording_id=rec.id,
+            details={"reason": "token_conservation_failure"},
+        )
+        db.commit()
+        return
+
     items = tx.build_items(columns, accepted, region_items, derived.get("silences", []), smap)
     segments = tx.segment(items)
     speakers = sorted(set(smap.values()), key=lambda x: int(x[1:]))
@@ -590,25 +683,25 @@ def process_recording(db: Session, rec: Recording) -> None:
         speakers,
         method,
     )
-    rev = TranscriptRevision(recording_id=rec.id, number=1, status="draft", content=content, review_state="unreviewed")
+    
+    # Create TranscriptRevision with known ID, then bind it
+    rev_id = uuid4()
+    rev = TranscriptRevision(
+        id=rev_id,
+        recording_id=rec.id,
+        number=1,
+        status="draft",
+        content=content,
+        review_state="unreviewed"
+    )
     db.add(rev)
     db.flush()
     
-    # Create default Neutral summary for the Result Workspace
-    summary_content = _generate_neutral_summary(content)
-    neutral_summary = Summary(
-        recording_id=rec.id,
-        transcript_revision_id=rev.id,
-        transcript_sha256=None,  # Will be set when revision is locked
-        summary_type="neutral",
-        summary_revision=1,
-        status="draft",
-        content=summary_content,
-        generation_model="extractive",
-    )
-    db.add(neutral_summary)
-    db.flush()
-    
+    # Bind revision using tx.bind_revision
+    tx.bind_revision(content, str(rev_id))
+    rev.content = content
+    db.commit()
+
     audit.record(
         db,
         "consensus_completed",
@@ -625,41 +718,4 @@ def process_recording(db: Session, rec: Recording) -> None:
     rec.status = "needs_review" if disputes else "ready"
     rec.status_detail = f"{len(disputes)} region(s) need review" if disputes else "Ready to lock"
     db.commit()
-
-
-def _generate_neutral_summary(content: dict[str, Any]) -> dict[str, Any]:
-    """Generate extractive neutral summary with key passages and critical moments."""
-    segments = content.get("segments", [])
-    rows = []
-    for idx, seg in enumerate(segments):
-        items = seg.get("items", [])
-        text_parts = []
-        for item in items:
-            if item.get("kind") != "dispute" and item.get("text"):
-                text_parts.append(str(item.get("text", "")).strip())
-        text = " ".join(text_parts).strip()
-        if not text or text in {"[غير مسموع]", "[صمت]"}:
-            continue
-        speaker_info = content.get("speakers", {}).get(seg.get("speaker"), {}) or {}
-        rows.append({
-            "index": idx,
-            "text": text,
-            "speaker": speaker_info.get("label", seg.get("speaker", "")),
-            "start_ms": seg.get("start_ms", 0),
-            "items": items,
-        })
-    
-    # Extract key passages based on TF-IDF-like scoring
-    key_passages = rows[:min(5, max(3, len(rows) // 7))] if rows else []
-    
-    # Find review-worthy moments (disputes or risk markers)
-    critical_moments = [r for r in rows if any(i.get("kind") == "dispute" or i.get("risks") for i in r.get("items", []))][:5]
-    
-    return {
-        "type": "neutral",
-        "key_passages": [{"text": r["text"], "speaker": r["speaker"], "start_ms": r["start_ms"]} for r in key_passages],
-        "critical_moments": [{"text": r["text"], "speaker": r["speaker"], "start_ms": r["start_ms"]} for r in critical_moments],
-        "total_speakers": len(content.get("speakers", {})),
-        "unresolved_disputes": sum(1 for s in segments for i in s.get("items", []) if i.get("kind") == "dispute"),
-    }
 
