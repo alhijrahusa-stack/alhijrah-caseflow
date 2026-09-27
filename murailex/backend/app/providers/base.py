@@ -44,7 +44,7 @@ class AsrAdapter:
     name = "base"
     asynchronous = False
 
-    def info(self) -> ProviderInfo:
+    def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         raise NotImplementedError
 
     def configured(self) -> bool:
