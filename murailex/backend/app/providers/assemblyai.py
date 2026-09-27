@@ -9,7 +9,8 @@ from __future__ import annotations
 from typing import Any
 
 from ..config import get_settings
-from .base import AsrAdapter, NotConfigured, Pending, ProviderError, ProviderInfo
+from . import privacy
+from .base import AsrAdapter, DataPolicyBlocked, NotConfigured, Pending, ProviderError, ProviderInfo
 from .http import request
 
 
@@ -45,16 +46,19 @@ class AssemblyAI(AsrAdapter):
 
     def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         settings = get_settings()
+        has_key = bool(settings.assemblyai_api_key and settings.assemblyai_api_key.get_secret_value())
         return ProviderInfo(
             self.name,
             settings.assemblyai_speech_model,
             "primary_asr",
-            bool(settings.assemblyai_api_key and settings.assemblyai_api_key.get_secret_value()),
-            self.parameters(context),
+            has_key and privacy.approved(self.name),
+            {**self.parameters(context), "privacy_gate": privacy.status(self.name)},
         )
 
     def submit(self, audio_path: str, context: dict[str, Any]) -> str:
         key = self._key()
+        if not privacy.approved(self.name):
+            raise DataPolicyBlocked(self.name)
         base = get_settings().assemblyai_base_url
         with open(audio_path, "rb") as fh:
             upload = request(
