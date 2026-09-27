@@ -10,7 +10,8 @@ import urllib.parse
 from typing import Any
 
 from ..config import get_settings
-from .base import AsrAdapter, NotConfigured, Pending, ProviderError, ProviderInfo
+from . import privacy
+from .base import AsrAdapter, DataPolicyBlocked, NotConfigured, Pending, ProviderError, ProviderInfo
 from .http import request
 
 SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
@@ -63,13 +64,21 @@ class GoogleChirp3(AsrAdapter):
 
     def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         s = get_settings()
-        ok = bool(s.google_credentials_json and s.google_credentials_json.get_secret_value() and s.google_stt_gcs_bucket)
-        return ProviderInfo(self.name, s.google_stt_model, "primary_asr", ok, self.parameters())
+        has_config = bool(s.google_credentials_json and s.google_credentials_json.get_secret_value() and s.google_stt_gcs_bucket)
+        return ProviderInfo(
+            self.name,
+            s.google_stt_model,
+            "primary_asr",
+            has_config and privacy.approved(self.name),
+            {**self.parameters(), "privacy_gate": privacy.status(self.name)},
+        )
 
     def submit(self, audio_path: str, context: dict[str, Any]) -> str:
         s = get_settings()
         if not s.google_stt_gcs_bucket:
             raise NotConfigured(self.name)
+        if not privacy.approved(self.name):
+            raise DataPolicyBlocked(self.name)
         token, project = google_token()
         auth = {"Authorization": f"Bearer {token}"}
         obj = f"murailex-working/{context['recording_id']}/{os.path.basename(audio_path)}"
