@@ -1,8 +1,8 @@
 import pytest
 
 from app.benchmark import (
-    aggregate_scores,
     BenchmarkItem,
+    aggregate_scores,
     critical_entity_accuracy,
     rtf,
     score_transcript,
