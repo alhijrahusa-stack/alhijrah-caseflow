@@ -1,67 +1,60 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { PublicStatusView } from "@/components/PublicStatusView";
 import { Button } from "@/components/ui/Button";
+import type { PublicStatus } from "@/lib/public-status";
 
-/** Reference / phone / email → one-time code → secure session. */
+/** Direct public lookup by file number, phone, or email. */
 export function StatusLookup() {
-  const router = useRouter();
   const params = useSearchParams();
   const [identifier, setIdentifier] = useState(params.get("ref") ?? "");
-  const [challenge, setChallenge] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<PublicStatus | null>(null);
 
-  async function post(url: string, body: unknown) {
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
     setPending(true);
     setError(null);
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    setResult(null);
+    const res = await fetch("/api/status/lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier }),
+    });
     const data = await res.json().catch(() => null);
     setPending(false);
     if (!data?.ok) {
       setError(data?.error?.message ?? `Request failed (${res.status})`);
-      return null;
+      return;
     }
-    return data;
+    setResult(data.status as PublicStatus);
   }
 
   return (
-    <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-6">
-      {!challenge ? (
-        <form className="space-y-3" onSubmit={async (e) => {
-          e.preventDefault();
-          const d = await post("/api/status/lookup", { identifier });
-          if (d) { setChallenge(d.challenge_id); setMessage(d.message); }
-        }}>
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <form className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end" onSubmit={submit}>
           <div>
-            <label className="label" htmlFor="identifier">Reference (CG-…), phone or email</label>
-            <input id="identifier" required className="input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="off" />
+            <label className="label" htmlFor="identifier">File number, phone or email</label>
+            <input
+              id="identifier"
+              required
+              className="input h-11"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              autoComplete="off"
+              placeholder="CG-2026-000001, phone or email"
+            />
           </div>
-          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-          <Button type="submit" disabled={pending}>{pending ? "Sending…" : "Send me a code"}</Button>
+          <Button type="submit" disabled={pending}>{pending ? "Checking…" : "Check Status"}</Button>
         </form>
-      ) : (
-        <form className="space-y-3" onSubmit={async (e) => {
-          e.preventDefault();
-          const d = await post("/api/status/verify", { challenge_id: challenge, code });
-          if (d) router.push(`/status/${d.ref}`);
-        }}>
-          <p className="text-sm text-slate-600" data-testid="lookup-message">{message}</p>
-          <div>
-            <label className="label" htmlFor="otp">6-digit code</label>
-            <input id="otp" inputMode="numeric" pattern="\d{6}" maxLength={6} required className="input tracking-widest" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} />
-          </div>
-          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-          <div className="flex gap-2">
-            <Button type="submit" disabled={pending}>{pending ? "Checking…" : "View status"}</Button>
-            <Button variant="ghost" onClick={() => { setChallenge(null); setCode(""); setError(null); }}>Start over</Button>
-          </div>
-          <p className="text-xs text-slate-500">Codes expire after 5 minutes. After 3 wrong codes, wait 15 minutes. No code? Contact the office.</p>
-        </form>
-      )}
-    </section>
+        <p className="mt-3 text-xs text-slate-500">Keep your file number and contact information private. Anyone with matching information can view this status page.</p>
+        {error && <p role="alert" className="mt-3 text-sm font-medium text-red-600">{error}</p>}
+      </section>
+      {result && <PublicStatusView s={result} />}
+    </div>
   );
 }
