@@ -52,6 +52,10 @@ def _set_status(db: Session, rec: Recording, status: str, detail: str | None = N
     db.commit()
 
 
+def _run_status(run: ProviderRun | None) -> str:
+    return run.status if run is not None else "missing"
+
+
 # ---------------------------------------------------------------- stage 1: derive
 
 def ensure_derived(db: Session, rec: Recording) -> dict[str, Any]:
@@ -290,7 +294,7 @@ def process_recording(db: Session, rec: Recording) -> None:
         _set_status(db, rec, "failed", "Mandatory primary ASR engine failed; forensic consensus was not produced.")
         audit.record(db, "processing_failed", actor_label="system", recording_id=rec.id,
                      details={"reason": "mandatory_primary_failed", "language_locale": locale,
-                              "primary_status": {a.name: (runs.get(a.name).status if runs.get(a.name) else "missing") for a in primaries}})
+                              "primary_status": {a.name: _run_status(runs.get(a.name)) for a in primaries}})
         db.commit()
         return
     diar_run = next((runs[d.name] for d in diarizers if runs.get(d.name) and runs[d.name].status == "succeeded"), None)  # type: ignore[union-attr]
