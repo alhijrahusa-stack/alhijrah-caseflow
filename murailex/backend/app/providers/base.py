@@ -17,6 +17,13 @@ class NotConfigured(ProviderError):
         super().__init__(f"{provider} is NOT CONFIGURED", retryable=False)
 
 
+class DataPolicyBlocked(ProviderError):
+    """Fail-closed block before legal audio can leave MURAILEX."""
+
+    def __init__(self, provider: str):
+        super().__init__(f"{provider}: BLOCKED BY DATA POLICY", retryable=False)
+
+
 @dataclass
 class Pending:
     """Returned by fetch() while a remote job is still running."""
