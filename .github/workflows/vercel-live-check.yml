@@ -1,0 +1,44 @@
+name: Vercel production check
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-vercel-production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Vercel deployment and verify live app
+        env:
+          PRODUCTION_URL: https://alhijrah-caseflow.vercel.app
+        run: |
+          set -euo pipefail
+          ok=false
+          for attempt in $(seq 1 60); do
+            status=$(curl --silent --show-error --location \
+              --connect-timeout 10 --max-time 30 \
+              --output /tmp/vercel-root.html \
+              --write-out '%{http_code}' \
+              -H 'cache-control: no-cache' \
+              "$PRODUCTION_URL/?verify=$GITHUB_SHA" || true)
+
+            if [ "$status" = "200" ] \
+              && grep -q '<title>Alhijrah Caseflow</title>' /tmp/vercel-root.html \
+              && grep -q 'ALHIJRAH CASEFLOW' /tmp/vercel-root.html \
+              && ! grep -qi 'required environment variables are missing' /tmp/vercel-root.html \
+              && ! grep -qi 'Setup Required' /tmp/vercel-root.html; then
+              ok=true
+              break
+            fi
+
+            sleep 5
+          done
+
+          test "$ok" = true
+          echo 'LIVE_URL=https://alhijrah-caseflow.vercel.app'
+          echo 'HTTP_STATUS=200'
+          echo 'APP_MARKER=ALHIJRAH CASEFLOW'
+          echo 'ENV_ERROR_PAGE=ABSENT'
