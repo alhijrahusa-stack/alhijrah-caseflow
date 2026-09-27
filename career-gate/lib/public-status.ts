@@ -6,13 +6,19 @@ function statusLabel(value: string): string {
   return STATUS_LABELS[value as Status] ?? value.replace(/_/g, " ");
 }
 
-/** Public-safe projection. Selects only fields the public status page may show. */
+/** Public-safe projection. Home address/city is never used as the job location. */
 export async function publicStatus(clientId: string) {
   const db = sql();
   const [c] = await db`
-    select ref, full_name, split_part(full_name, ' ', 1) as first_name,
-           current_status, next_step, start_date, created_at, updated_at, city, state
-    from clients where id = ${clientId} and deleted_at is null`;
+    select c.ref, c.full_name, split_part(c.full_name, ' ', 1) as first_name,
+           c.current_status, c.next_step, c.start_date, c.created_at, c.updated_at,
+           a.case_number
+    from clients c
+    left join lateral (
+      select case_number from career_gate_applications
+      where client_id = c.id order by created_at desc limit 1
+    ) a on true
+    where c.id = ${clientId} and c.deleted_at is null`;
   if (!c) return null;
 
   const [pref] = await db`
@@ -33,8 +39,12 @@ export async function publicStatus(clientId: string) {
     limit 1`;
 
   const [docSummary] = await db`
-    select count(*)::int as total,
-           count(*) filter (where status in ('needs_reupload', 'rejected'))::int as problem
+    select count(*) filter (
+             where file_name <> 'signature.png' and file_name not like 'client-photo-%'
+           )::int as total,
+           count(*) filter (
+             where file_name <> 'signature.png' and file_name not like 'client-photo-%' and status = 'verified'
+           )::int as verified
     from documents where client_id = ${clientId}`;
 
   const historyRows = await db`
@@ -57,10 +67,8 @@ export async function publicStatus(clientId: string) {
         updated_at: new Date(c.created_at).toISOString(),
       }];
 
-  const fallbackLocation = [c.city, c.state].filter(Boolean).join(", ") || null;
-
   return {
-    ref: c.ref as string,
+    ref: (c.case_number ?? c.ref) as string,
     full_name: c.full_name as string,
     first_name: c.first_name as string,
     filed_at: new Date(c.created_at).toISOString(),
@@ -76,9 +84,7 @@ export async function publicStatus(clientId: string) {
           address: pref.site_address as string | null,
           city: pref.city as string,
         }
-      : fallbackLocation
-        ? { site_code: null, site_name: fallbackLocation, address: null, city: c.city as string | null }
-        : null,
+      : null,
     shift: pref
       ? {
           name: (pref.shift_name ?? pref.shift_code) as string,
@@ -94,23 +100,29 @@ export async function publicStatus(clientId: string) {
         }
       : null,
     documents: {
-      status: Number(docSummary?.total ?? 0) > 0 && Number(docSummary?.problem ?? 0) === 0 ? "Complete" as const : "Missing" as const,
+      status: Number(docSummary?.total ?? 0) > 0 && Number(docSummary?.verified ?? 0) === Number(docSummary?.total ?? 0)
+        ? "Complete" as const
+        : "Missing" as const,
     },
     history,
   };
 }
 
-/** Exact public lookup by Career Gate reference, email, or phone. */
+/** Exact public lookup by ALH/CG case number, email, or phone. */
 export async function publicStatusByIdentifier(identifier: string) {
   const db = sql();
   const raw = identifier.trim();
   if (!raw) return null;
 
   let client: { id: string } | undefined;
-  if (/^CG-\d{4}-\d{6}$/i.test(raw)) {
+  if (/^(CG-\d{4}-\d{6}|ALH-\d{8}-[A-Z0-9]{4})$/i.test(raw)) {
     [client] = await db`
-      select id from clients
-      where upper(ref) = ${raw.toUpperCase()} and deleted_at is null
+      select c.id
+      from clients c
+      left join career_gate_applications a on a.client_id = c.id
+      where c.deleted_at is null
+        and (upper(c.ref) = ${raw.toUpperCase()} or upper(a.case_number) = ${raw.toUpperCase()})
+      order by c.updated_at desc
       limit 1` as unknown as [{ id: string }?];
   } else if (raw.includes("@")) {
     [client] = await db`
