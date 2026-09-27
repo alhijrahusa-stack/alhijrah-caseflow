@@ -4,7 +4,8 @@ from __future__ import annotations
 from typing import Any
 
 from ..config import get_settings
-from .base import AsrAdapter, NotConfigured, ProviderInfo
+from . import privacy
+from .base import AsrAdapter, DataPolicyBlocked, NotConfigured, ProviderInfo
 from .http import request
 
 
@@ -25,24 +26,26 @@ class DeepgramNova3(AsrAdapter):
             "smart_format": "false",
             "numerals": "false",
             "filler_words": "true",
-            # Do not permit legal-audio content to participate in Deepgram's Model Improvement Program.
             "mip_opt_out": "true",
         }
 
     def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         s = get_settings()
+        has_key = bool(s.deepgram_api_key and s.deepgram_api_key.get_secret_value())
         return ProviderInfo(
             self.name,
             f"{s.deepgram_model}:{self.language}",
             "asr",
-            bool(s.deepgram_api_key and s.deepgram_api_key.get_secret_value()),
-            self.query(),
+            has_key and privacy.approved(self.name),
+            {**self.query(), "privacy_gate": privacy.status(self.name)},
         )
 
     def transcribe(self, audio_path: str, context: dict[str, Any]) -> Any:
         s = get_settings()
         if not s.deepgram_api_key or not s.deepgram_api_key.get_secret_value():
             raise NotConfigured(self.name)
+        if not privacy.approved(self.name):
+            raise DataPolicyBlocked(self.name)
         with open(audio_path, "rb") as fh:
             body = fh.read()
         resp = request(
