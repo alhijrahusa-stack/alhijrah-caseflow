@@ -27,7 +27,7 @@ class DeepgramNova3(AsrAdapter):
             "filler_words": "true",
         }
 
-    def info(self) -> ProviderInfo:
+    def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         s = get_settings()
         return ProviderInfo(
             self.name, f"{s.deepgram_model}:{self.language}", "asr",
