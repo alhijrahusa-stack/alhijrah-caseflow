@@ -76,12 +76,14 @@ def _heartbeat(job_id: uuid.UUID, worker_id: str, stop: threading.Event) -> None
 def _handle(db: Session, job: Job) -> None:
     from .forensic_persistence import persist_forensic_state
     from .pipeline.process import process_recording
+    from .processing_preflight import enforce_processing_preflight
     from .translation import run_translation
 
     if job.kind == "process_recording":
         rec = db.get(Recording, job.recording_id)
         if rec is None:
             raise ProviderError("recording missing", retryable=False)
+        enforce_processing_preflight(db, rec, current_job_id=job.id)
         process_recording(db, rec)
         db.refresh(rec)
         persist_forensic_state(db, rec)
