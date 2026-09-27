@@ -23,7 +23,7 @@ jobs:
               --output /tmp/vercel-root.html \
               --write-out '%{http_code}' \
               -H 'cache-control: no-cache' \
-              "$PRODUCTION_URL/?verify=$GITHUB_SHA&attempt=$attempt" || true)
+              "$PRODUCTION_URL/" || true)
 
             title=$(grep -o '<title>[^<]*</title>' /tmp/vercel-root.html | head -1 || true)
             env_error=no
