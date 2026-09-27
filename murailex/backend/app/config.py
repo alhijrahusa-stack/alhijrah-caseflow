@@ -37,8 +37,8 @@ class Settings(BaseSettings):
     # Providers — absent key means NOT CONFIGURED
     assemblyai_api_key: SecretStr | None = None
     assemblyai_base_url: str = "https://api.assemblyai.com"
-    # Current AssemblyAI Arabic support is on Universal-2; Universal-3 Pro does not support Arabic.
-    assemblyai_speech_model: str = "universal-2"
+    # Verified current model id; Arabic is included in Universal-3.5 Pro's native code-switching languages.
+    assemblyai_speech_model: str = "universal-3-5-pro"
 
     google_credentials_json: SecretStr | None = None  # service-account JSON
     google_project_id: str | None = None
