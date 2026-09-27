@@ -1,0 +1,8 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.env.local
+test-results/
+playwright-report/
+data/job-catalog.json.orig

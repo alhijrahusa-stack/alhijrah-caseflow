@@ -1,0 +1,43 @@
+{
+  "schema_version": 2,
+  "state": "MI",
+  "facilities": [
+    { "site_code": "DET1", "facility_type": "Fulfillment Center", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "DTW1", "facility_type": "Fulfillment Center", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "DTW2", "facility_type": "Fulfillment Center", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "DET2", "facility_type": "Fulfillment Center", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "DET3", "facility_type": "Fulfillment Center", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "DET6", "facility_type": "Fulfillment Center", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "GRR1", "facility_type": "Fulfillment Center", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "DTW3", "facility_type": "Sortation Center", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "DTW9", "facility_type": "Sortation Center", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "DTW8", "facility_type": "Sortation Center", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "DTW5", "facility_type": "XL", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "LAN2", "facility_type": "Delivery Station", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" },
+    { "site_code": "SMI1", "facility_type": "Delivery Station", "facility_type_source": "OFFICE_PROVIDED", "verification_status": "NOT_VERIFIED", "current_availability": "NOT_VERIFIED" }
+  ],
+  "shift_patterns": [
+    { "pattern_code": "FHD", "facility_type": "Fulfillment Center", "name": "Front Half Day", "days": "Sunday, Monday, Tuesday, Wednesday", "shift_length": "10-hour day", "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "FHN", "facility_type": "Fulfillment Center", "name": "Front Half Night", "days": "Sunday, Monday, Tuesday, Wednesday", "shift_length": "10-hour night", "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "BHD", "facility_type": "Fulfillment Center", "name": "Back Half Day", "days": "Wednesday, Thursday, Friday, Saturday", "shift_length": "10-hour day", "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "BHN", "facility_type": "Fulfillment Center", "name": "Back Half Night", "days": "Wednesday, Thursday, Friday, Saturday", "shift_length": "10-hour night", "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "DON", "facility_type": "Fulfillment Center", "name": "DON", "days": "Monday, Tuesday, Thursday, Friday", "shift_length": "10-hour day", "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "RT", "facility_type": "Fulfillment Center", "name": "Reduced Time", "days": "Thursday, Friday, Saturday", "shift_length": "12-hour night", "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "FlexFT", "facility_type": "Fulfillment Center", "name": "Flex Full-Time", "days": null, "shift_length": null, "source": "OFFICE_PROVIDED", "note": "No fixed days; self-scheduled from available shifts" },
+    { "pattern_code": "FlexPT", "facility_type": "Fulfillment Center", "name": "Flex Part-Time", "days": null, "shift_length": null, "source": "OFFICE_PROVIDED", "note": "No fixed days; self-scheduled from available shifts" },
+    { "pattern_code": "LH", "facility_type": "Sortation Center", "name": "LH / Weekday", "days": "Monday–Friday", "shift_length": "4–5 hour sort blocks", "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "WKND", "facility_type": "Sortation Center", "name": "Weekend", "days": "Saturday–Sunday", "shift_length": null, "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "FLEX_SORT", "facility_type": "Sortation Center", "name": "Flex Sort", "days": null, "shift_length": null, "source": "OFFICE_PROVIDED", "note": "Flexible blocks based on available volume/shifts" },
+    { "pattern_code": "FHD", "facility_type": "XL", "name": "Front Half Day", "days": "Sunday–Wednesday", "shift_length": null, "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "FHN", "facility_type": "XL", "name": "Front Half Night", "days": "Sunday–Wednesday", "shift_length": null, "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "BHD", "facility_type": "XL", "name": "Back Half Day", "days": "Wednesday–Saturday", "shift_length": null, "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "BHN", "facility_type": "XL", "name": "Back Half Night", "days": "Wednesday–Saturday", "shift_length": null, "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "WKND_XL", "facility_type": "XL", "name": "Weekend XL", "days": "Saturday–Sunday", "shift_length": "10–12 hours where officially offered", "source": "OFFICE_PROVIDED" },
+    { "pattern_code": "MEGA_FH", "facility_type": "Delivery Station", "name": "Megacycle Front Half", "days": "Sunday–Wednesday", "shift_length": null, "source": "OFFICE_PROVIDED", "note": "Store the exact published time (e.g. 1:20 AM – 11:50 AM) only from the official listing" },
+    { "pattern_code": "MEGA_BH", "facility_type": "Delivery Station", "name": "Megacycle Back Half", "days": "Wednesday–Saturday", "shift_length": null, "source": "OFFICE_PROVIDED", "note": "Store the exact published time only from the official listing" },
+    { "pattern_code": "RTS", "facility_type": "Delivery Station", "name": "RTS (evening)", "days": null, "shift_length": null, "source": "OFFICE_PROVIDED", "note": "Store exact published time when present" },
+    { "pattern_code": "MIDDAY", "facility_type": "Delivery Station", "name": "Mid-Day / Stow Down", "days": null, "shift_length": null, "source": "OFFICE_PROVIDED", "note": "Store exact published schedule when present" },
+    { "pattern_code": "DSP", "facility_type": "Delivery Station", "name": "DSP Driver", "days": null, "shift_length": null, "source": "OFFICE_PROVIDED", "note": "Employed by a Delivery Service Partner, not directly by Amazon; kept separate" }
+  ],
+  "openings": []
+}

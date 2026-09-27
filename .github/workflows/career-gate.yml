@@ -1,0 +1,34 @@
+name: Career Gate CI
+
+on:
+  push:
+    paths: ["career-gate/**", ".github/workflows/career-gate.yml"]
+  pull_request:
+    paths: ["career-gate/**", ".github/workflows/career-gate.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    defaults: { run: { working-directory: career-gate } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: career-gate/package-lock.json }
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-16 postgresql-16-pgvector
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - name: Integration (PostgreSQL + migrations)
+        run: ./tests/run-integration.sh
+      - run: npx playwright install --with-deps chromium
+      - name: End-to-end (test catalog fixture)
+        run: ./e2e/run.sh
+        env: { PW_CHROMIUM: "" }
+      - name: End-to-end (committed catalog)
+        run: ./e2e/run.sh
+        env: { PW_CHROMIUM: "", CATALOG: real }
