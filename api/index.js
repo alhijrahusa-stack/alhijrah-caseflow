@@ -1,3 +1,39 @@
+import fs from 'node:fs';
+
+const PUBLIC_ASSETS = Object.freeze({
+  '/': ['../src/public/index.html', 'text/html; charset=utf-8'],
+  '/app.js': ['../src/public/app.js', 'text/javascript; charset=utf-8'],
+  '/app.css': ['../src/public/app.css', 'text/css; charset=utf-8'],
+  '/manifest.webmanifest': ['../src/public/manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
+  '/sw.js': ['../src/public/sw.js', 'text/javascript; charset=utf-8'],
+  '/icon.svg': ['../src/public/icon.svg', 'image/svg+xml'],
+});
+
+function requestPath(req) {
+  return new URL(req.url || '/', `https://${req.headers.host || 'localhost'}`).pathname;
+}
+
+function servePublicAsset(req, res) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+
+  let pathname = requestPath(req);
+  if (pathname === '/api' && String(req.headers.accept || '').includes('text/html')) pathname = '/';
+  const asset = PUBLIC_ASSETS[pathname];
+  if (!asset) return false;
+
+  const [relativePath, contentType] = asset;
+  const fileUrl = new URL(relativePath, import.meta.url);
+  const body = fs.readFileSync(fileUrl);
+  res.statusCode = 200;
+  res.setHeader('content-type', contentType);
+  res.setHeader('cache-control', 'public, max-age=0, must-revalidate');
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.setHeader('content-length', body.length);
+  if (req.method === 'HEAD') res.end();
+  else res.end(body);
+  return true;
+}
+
 function hydrateRuntimeEnv() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -34,6 +70,8 @@ let handlerPromise;
 export const config = { api: { bodyParser: false } };
 
 export default async function handler(req, res) {
+  if (servePublicAsset(req, res)) return;
+
   const runtimeConfig = hydrateRuntimeEnv();
   const missing = Object.entries(runtimeConfig).filter(([, value]) => !value).map(([key]) => key);
   if (missing.length) {
