@@ -1,8 +1,8 @@
 import pytest
 
 from app.benchmark import (
-    BenchmarkItem,
     aggregate_scores,
+    BenchmarkItem,
     critical_entity_accuracy,
     rtf,
     score_transcript,
@@ -45,14 +45,21 @@ def test_known_wer_counts():
 def test_corpus_requires_human_ground_truth_and_both_splits():
     validate_corpus([item("dev", "development", SHA_A), item("eval", "held_out", SHA_B)])
     with pytest.raises(ValueError, match="human ground truth"):
-        validate_corpus([item("dev", "development", SHA_A, human=False), item("eval", "held_out", SHA_B)])
+        validate_corpus(
+            [
+                item("dev", "development", SHA_A, human=False),
+                item("eval", "held_out", SHA_B),
+            ]
+        )
     with pytest.raises(ValueError, match="Both development and held_out"):
         validate_corpus([item("dev", "development", SHA_A)])
 
 
 def test_corpus_rejects_cross_split_audio_leakage():
     with pytest.raises(ValueError, match="Data leakage"):
-        validate_corpus([item("dev", "development", SHA_A), item("eval", "held_out", SHA_A)])
+        validate_corpus(
+            [item("dev", "development", SHA_A), item("eval", "held_out", SHA_A)]
+        )
 
 
 def test_critical_entity_accuracy_is_exact_and_typed():
