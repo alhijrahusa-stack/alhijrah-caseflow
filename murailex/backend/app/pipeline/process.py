@@ -239,18 +239,32 @@ def process_recording(db: Session, rec: Recording) -> None:
     flac = os.path.join(wd, "analysis.flac")
     if not os.path.exists(flac):
         storage.download_to(derived["analysis_flac"]["key"], flac)
-    ctx = {"recording_id": str(rec.id), "expected_speakers": rec.expected_speakers,
-           "derived_sha256": derived["analysis_wav"]["sha256"], "input_sha256": derived["analysis_wav"]["sha256"]}
+    locale = rec.language_hint
+    if registry.fixtures_enabled() and locale not in registry.SUPPORTED_LOCALES:
+        locale = "ar-YE"  # automated fixtures only; Production never receives this fallback
+    if locale not in registry.SUPPORTED_LOCALES:
+        _set_status(db, rec, "failed", "A supported recording locale is required before forensic processing.")
+        audit.record(db, "processing_blocked", actor_label="system", recording_id=rec.id,
+                     details={"reason": "missing_or_invalid_language_locale", "language_locale": locale})
+        db.commit()
+        return
 
-    primaries = registry.primary_asr()
+    ctx = {"recording_id": str(rec.id), "expected_speakers": rec.expected_speakers,
+           "language_locale": locale, "derived_sha256": derived["analysis_wav"]["sha256"],
+           "input_sha256": derived["analysis_wav"]["sha256"]}
+
+    primaries = registry.primary_asr(locale)
     diarizers = registry.diarization()
-    configured = [a for a in primaries if a.info().configured]
-    if not configured:
-        for a in primaries:
-            drive_run(db, rec, a, "primary_asr", analysis, ctx)
-        _set_status(db, rec, "provider_not_configured",
-                    "No primary ASR engine is configured. Configure AssemblyAI and/or Google Chirp 3 under Settings → Advanced.")
-        audit.record(db, "processing_blocked", actor_label="system", recording_id=rec.id, details={"reason": "no primary ASR configured"})
+    verifiers = registry.verification_asr(locale)
+    required = [(a, "primary_asr") for a in primaries] + [(d, "diarization") for d in diarizers] + [(v, "verification_asr") for v in verifiers]
+    missing = [(a, role) for a, role in required if not a.info().configured]
+    if missing:
+        for a, role in missing:
+            drive_run(db, rec, a, role, analysis, ctx, scope="configuration-check")
+        names = [f"{a.name}:{a.info().model}" for a, _ in missing]
+        _set_status(db, rec, "provider_not_configured", "Required forensic provider(s) not configured: " + ", ".join(names))
+        audit.record(db, "processing_blocked", actor_label="system", recording_id=rec.id,
+                     details={"reason": "mandatory_provider_not_configured", "language_locale": locale, "providers": names})
         db.commit()
         return
 
@@ -272,12 +286,20 @@ def process_recording(db: Session, rec: Recording) -> None:
         raise Wait(min(w.seconds for w in waits), "; ".join(str(w) for w in waits))
 
     ok_primary = [runs[a.name] for a in primaries if runs.get(a.name) and runs[a.name].status == "succeeded"]  # type: ignore[union-attr]
-    if not ok_primary:
-        _set_status(db, rec, "failed", "Every configured primary ASR engine failed. See Settings → Advanced for provider errors.")
-        audit.record(db, "processing_failed", actor_label="system", recording_id=rec.id, details={"reason": "all primary engines failed"})
+    if len(ok_primary) != len(primaries):
+        _set_status(db, rec, "failed", "Mandatory primary ASR engine failed; forensic consensus was not produced.")
+        audit.record(db, "processing_failed", actor_label="system", recording_id=rec.id,
+                     details={"reason": "mandatory_primary_failed", "language_locale": locale,
+                              "primary_status": {a.name: (runs.get(a.name).status if runs.get(a.name) else "missing") for a in primaries}})
         db.commit()
         return
     diar_run = next((runs[d.name] for d in diarizers if runs.get(d.name) and runs[d.name].status == "succeeded"), None)  # type: ignore[union-attr]
+    if diarizers and diar_run is None:
+        _set_status(db, rec, "failed", "Mandatory independent diarization failed.")
+        audit.record(db, "processing_failed", actor_label="system", recording_id=rec.id,
+                     details={"reason": "mandatory_diarization_failed", "language_locale": locale})
+        db.commit()
+        return
 
     _set_status(db, rec, "aligning", "Aligning tokens and computing consensus")
     primary_inputs = [
@@ -285,18 +307,12 @@ def process_recording(db: Session, rec: Recording) -> None:
         for r in ok_primary[:2]
         if r is not None
     ]
-    if diar_run is not None:
-        turns = diar_run.normalized["turns"]  # type: ignore[index]
-        diar_source = {"provider": diar_run.provider, "model": diar_run.model, "run_id": str(diar_run.id), "independent": True}
-    else:
-        base = primary_inputs[0][1]
-        turns = [{"speaker": t["speaker"], "start_ms": t["start_ms"], "end_ms": t["end_ms"]} for t in base if t.get("speaker")]
-        diar_source = {"provider": primary_inputs[0][0]["provider"], "run_id": primary_inputs[0][0]["run_id"], "independent": False,
-                       "note": "Independent diarization unavailable; speaker turns taken from the primary ASR engine."}
+    assert diar_run is not None
+    turns = diar_run.normalized["turns"]  # type: ignore[index]
+    diar_source = {"provider": diar_run.provider, "model": diar_run.model, "run_id": str(diar_run.id), "independent": True}
     result = cons.analyze(primary_inputs, turns, s.low_confidence_threshold)
     columns, regions = result["columns"], result["regions"]
 
-    verifiers = [v for v in registry.verification_asr() if v.info().configured]
     if verifiers:
         _set_status(db, rec, "verifying", f"Targeted reprocessing of {sum(1 for r in regions if r['requires_independent_check'])} regions")
     waits = []
@@ -317,6 +333,22 @@ def process_recording(db: Session, rec: Recording) -> None:
                 waits.append(w)
     if waits:
         raise Wait(min(w.seconds for w in waits), "verification pending")
+
+    verifier_failures: list[dict[str, str]] = []
+    for r in regions:
+        if not r["requires_independent_check"]:
+            continue
+        scope = f"region:{r['start_ms']}-{r['end_ms']}"
+        for v in verifiers:
+            vr = _get_run(db, rec, v, "verification_asr", scope)
+            if vr is None or vr.status != "succeeded":
+                verifier_failures.append({"provider": v.name, "scope": scope, "status": vr.status if vr else "missing"})
+    if verifier_failures:
+        _set_status(db, rec, "failed", "Mandatory verification engine failed; forensic transcript was not finalized.")
+        audit.record(db, "processing_failed", actor_label="system", recording_id=rec.id,
+                     details={"reason": "mandatory_verifier_failed", "language_locale": locale, "failures": verifier_failures})
+        db.commit()
+        return
 
     _set_status(db, rec, "building", "Creating disputes and draft transcript")
     raw_speakers = [c["speaker_raw"] for c in columns] + [t["speaker"] for t in turns]
@@ -342,9 +374,16 @@ def process_recording(db: Session, rec: Recording) -> None:
         for v in verifiers:
             vr = _get_run(db, rec, v, "verification_asr", f"region:{r['start_ms']}-{r['end_ms']}")
             if vr is not None and vr.status == "succeeded":
-                toks = (vr.normalized or {}).get("tokens", [])
-                cands.append(cons.candidate({"provider": vr.provider, "model": vr.model, "run_id": str(vr.id)},
-                                            cons.tokens_in_window(toks, r["start_ms"], r["end_ms"]), "verification_asr"))
+                norm = vr.normalized or {}
+                toks = norm.get("tokens", [])
+                cands.append(cons.candidate(
+                    {"provider": vr.provider, "model": vr.model, "run_id": str(vr.id)},
+                    cons.tokens_in_window(toks, r["start_ms"], r["end_ms"]),
+                    "verification_asr",
+                    region_text=norm.get("text"),
+                    region_start_ms=r["start_ms"],
+                    region_end_ms=r["end_ms"],
+                ))
         cons.annotate_agreement(cands)
         winner = cons.auto_resolution(r, cands, s.low_confidence_threshold)
         spk = smap.get(r["speaker_raw"]) if r["speaker_raw"] is not None else None
@@ -376,7 +415,8 @@ def process_recording(db: Session, rec: Recording) -> None:
         "diarization": diar_source,
         "verification_engines": [{"provider": v.name, "model": v.info().model} for v in verifiers],
         "single_engine_mode": result["single_engine"],
-        "low_confidence_threshold": s.low_confidence_threshold,
+        "language_locale": locale,
+        "confidence_policy": "provenance_only_no_acceptance_gate",
         "context_padding_ms": s.context_padding_ms,
         "regions_escalated": len(regions),
         "regions_auto_closed_unanimous": auto_closed,

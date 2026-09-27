@@ -26,7 +26,7 @@ class UploadIn(BaseModel):
     fingerprint: str = Field(min_length=1, max_length=200)
     title: str = Field(default="", max_length=300)
     source: str = Field(default="upload", pattern="^(upload|recording)$")
-    language_hint: str | None = Field(default=None, max_length=20)
+    language_hint: str | None = Field(default=None, pattern=r"^(ar-YE|ar-EG|ar-SY|ar-LB|ar-IQ)$")
     expected_speakers: int | None = Field(default=None, ge=1, le=20)
 
 

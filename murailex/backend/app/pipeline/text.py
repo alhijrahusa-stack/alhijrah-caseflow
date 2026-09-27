@@ -97,7 +97,7 @@ NAME_CUES = _keys("ابو أبو ام أم بن بنت ابن الشيخ شيخ 
 DIGIT_RE = re.compile(r"\d")
 CURRENCY_SYMBOL = re.compile(r"[$€£¥﷼]")
 
-CRITICAL_RISKS = {"number", "money", "date", "name", "admission", "denial", "threat"}
+CRITICAL_RISKS = {"number", "money", "date", "name", "admission", "denial", "threat", "negation", "code_switch", "overlap"}
 
 
 def token_risks(text: str, prev_text: str | None = None, next_text: str | None = None, *, capitalised_is_name: bool = True) -> set[str]:

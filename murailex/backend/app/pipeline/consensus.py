@@ -4,15 +4,12 @@ Rules (documented in the manifest of every export):
 
 1. Two primary engines are aligned token-by-token under a time constraint.
 2. A token is accepted only when both engines produced the same comparison key within
-   the time tolerance and neither reported confidence below the threshold.
-3. Disagreements, one-engine-only tokens, and low-confidence tokens become disputes.
+   the existing deterministic time tolerance and the token is not a critical-risk token.
+3. Disagreements and one-engine-only tokens become disputes.
 4. High-risk tokens (numbers, money, dates, names, admissions, denials, threats,
-   negations, code-switching, overlap) are escalated. Critical categories need
-   independent verification-engine agreement or human review; with only one primary
-   engine every escalated token needs review.
-5. Verification runs over each region ±context. A region is closed automatically only
-   when every available candidate (≥2 engines, including ≥1 verification engine) has the
-   identical comparison-key sequence. Otherwise it stays open for human review.
+   negations, code-switching, overlap) require human review.
+5. Verification runs over each disputed region ±context. Verification candidates are
+   evidence for the reviewer; primary disagreement and critical regions never auto-close.
 6. No candidate is ever chosen by plausibility, grammar, or context.
 """
 from __future__ import annotations
@@ -35,10 +32,6 @@ def _prov(meta: dict[str, Any], tok: Token) -> dict[str, Any]:
         "end_ms": tok["end_ms"],
         "confidence": tok.get("confidence"),
     }
-
-
-def _low(tok: Token | None, threshold: float) -> bool:
-    return tok is not None and tok.get("confidence") is not None and float(tok["confidence"]) < threshold
 
 
 def speaker_at(turns: list[dict[str, Any]], start: int, end: int) -> tuple[str | None, bool]:
@@ -100,8 +93,6 @@ def analyze(
             agree = a is not None and b is not None and match_key(a["text"]) == match_key(b["text"])
             if not agree:
                 reasons.add("engine_disagreement" if (a is not None and b is not None) else "single_engine_token")
-        if _low(a, threshold) or _low(b, threshold):
-            reasons.add("low_confidence")
         provenance = []
         if a is not None:
             provenance.append(_prov(a_meta, a))
@@ -167,16 +158,30 @@ def tokens_in_window(tokens: list[Token], start: int, end: int) -> list[Token]:
     return [t for t in tokens if start <= (t["start_ms"] + t["end_ms"]) / 2 <= end]
 
 
-def candidate(meta: dict[str, Any], tokens: list[Token], role: str) -> dict[str, Any]:
+def candidate(
+    meta: dict[str, Any],
+    tokens: list[Token],
+    role: str,
+    *,
+    region_text: str | None = None,
+    region_start_ms: int | None = None,
+    region_end_ms: int | None = None,
+) -> dict[str, Any]:
     confs = [float(t["confidence"]) for t in tokens if t.get("confidence") is not None]
+    text = " ".join(t["text"] for t in tokens) if tokens else (region_text or "").strip()
+    key = [match_key(t["text"]) for t in tokens]
+    if not key and text:
+        key = [k for word in text.split() if (k := match_key(word))]
     return {
         "provider": meta["provider"],
         "model": meta["model"],
         "run_id": meta["run_id"],
         "role": role,
-        "text": " ".join(t["text"] for t in tokens),
+        "text": text,
         "tokens": tokens,
-        "key": [match_key(t["text"]) for t in tokens],
+        "key": key,
+        "region_start_ms": region_start_ms,
+        "region_end_ms": region_end_ms,
         "mean_confidence": round(sum(confs) / len(confs), 4) if confs else None,
         "min_confidence": round(min(confs), 4) if confs else None,
     }
@@ -188,17 +193,14 @@ def annotate_agreement(cands: list[dict[str, Any]]) -> None:
 
 
 def auto_resolution(region: dict[str, Any], cands: list[dict[str, Any]], threshold: float) -> dict[str, Any] | None:
-    """Return the unanimous candidate when rule 5 permits automatic closure, else None."""
-    if "overlap" in region["reasons"]:
+    """Auto-close only non-critical, non-hard regions with unanimous independent text."""
+    del threshold  # provider confidence is provenance only; it never authorizes acceptance
+    if region.get("critical") or region.get("hard") or "overlap" in region.get("reasons", []):
         return None
     verifiers = [c for c in cands if c["role"] == "verification_asr"]
-    if len(cands) < 2 or not verifiers:
-        return None
-    if any(not c["key"] for c in cands):
+    if len(cands) < 2 or not verifiers or any(not c["key"] for c in cands):
         return None
     first = cands[0]["key"]
     if any(c["key"] != first for c in cands):
-        return None
-    if any(c["min_confidence"] is not None and c["min_confidence"] < threshold for c in cands):
         return None
     return cands[0]

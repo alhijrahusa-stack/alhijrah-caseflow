@@ -27,7 +27,7 @@ from ..models import (
     User,
 )
 from ..pipeline import transcript as tx
-from ..pipeline.text import UNCLEAR_MARKERS
+from ..pipeline.text import CRITICAL_RISKS, UNCLEAR_MARKERS
 from ..security import (
     Principal,
     current_principal,
@@ -344,6 +344,24 @@ def lock(recording_id: str, p: Principal = Depends(current_principal), db: Sessi
     open_rows = db.execute(select(func.count()).select_from(Dispute).where(Dispute.recording_id == rec.id, Dispute.status == "open")).scalar_one()
     if open_ids or open_rows:
         raise HTTPException(409, f"{max(len(open_ids), open_rows)} disputed region(s) must be resolved before locking.")
+    pending_critical = []
+    reviewed_sources = {"human", "reviewer_accepted_candidate"}
+    for seg in rev.content.get("segments", []):
+        for item in seg.get("items", []):
+            risks = set(item.get("risks") or [])
+            if risks & CRITICAL_RISKS and item.get("source") not in reviewed_sources:
+                pending_critical.append({"segment_id": seg.get("id"), "risks": sorted(risks & CRITICAL_RISKS)})
+    if pending_critical:
+        raise HTTPException(409, {"message": "Critical item(s) require human review before locking.", "items": pending_critical[:100]})
+    observed_sha, observed_size = storage.sha256_of_object(rec.storage_key, rec.storage_version_id)
+    if observed_sha != rec.sha256 or observed_size != rec.byte_size:
+        audit.record(db, "integrity_failure", actor=p.user, recording_id=rec.id,
+                     details={"stage": "pre_lock", "expected_sha256": rec.sha256, "observed_sha256": observed_sha,
+                              "expected_bytes": rec.byte_size, "observed_bytes": observed_size})
+        db.commit()
+        raise HTTPException(409, "Original evidence integrity check failed; transcript cannot be locked.")
+    audit.record(db, "pre_lock_integrity_verified", actor=p.user, recording_id=rec.id,
+                 details={"sha256_before": rec.sha256, "sha256_after": observed_sha, "byte_size": observed_size})
     parent_sha = None
     if rev.parent_id:
         parent = db.get(TranscriptRevision, rev.parent_id)
