@@ -39,14 +39,14 @@ class AssemblyAI(AsrAdapter):
         
         return params
 
-    def info(self) -> ProviderInfo:
+    def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         s = get_settings()
         return ProviderInfo(
             self.name,
             s.assemblyai_speech_model,
             "primary_asr",
             bool(s.assemblyai_api_key and s.assemblyai_api_key.get_secret_value()),
-            self.parameters(),
+            self.parameters(context),
         )
 
     def submit(self, audio_path: str, context: dict[str, Any]) -> str:
@@ -88,4 +88,3 @@ class AssemblyAI(AsrAdapter):
                 }
             )
         return {"tokens": tokens, "language": raw.get("language_code")}
-
