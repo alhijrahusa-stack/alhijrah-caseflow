@@ -7,6 +7,7 @@ from evidence text and is used only to compute explicitly labelled normalized me
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -14,14 +15,13 @@ from typing import Any
 
 _ARABIC_DIACRITICS = re.compile(r"[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]")
 _WS = re.compile(r"\s+")
-_PUNCT = re.compile(r"[^\w\s\u0600-\u06ff]", re.UNICODE)
 
 
 def measurement_normalize(text: str) -> str:
     """Conservative comparison-only normalization; never use for canonical evidence."""
     value = text.strip().lower()
     value = _ARABIC_DIACRITICS.sub("", value)
-    value = _PUNCT.sub(" ", value)
+    value = "".join(" " if unicodedata.category(ch).startswith("P") else ch for ch in value)
     return _WS.sub(" ", value).strip()
 
 
