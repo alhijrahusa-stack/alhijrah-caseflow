@@ -61,7 +61,7 @@ class GoogleChirp3(AsrAdapter):
             "features": {"enableWordTimeOffsets": True},
         }
 
-    def info(self) -> ProviderInfo:
+    def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         s = get_settings()
         ok = bool(s.google_credentials_json and s.google_credentials_json.get_secret_value() and s.google_stt_gcs_bucket)
         return ProviderInfo(self.name, s.google_stt_model, "primary_asr", ok, self.parameters())
@@ -117,7 +117,7 @@ class GoogleChirp3(AsrAdapter):
             return Pending("processing")
         if op.get("error"):
             raise ProviderError(f"Google operation error: {op['error'].get('message')}", retryable=False)
-        try:  # remove the provider working copy; the original never left private storage
+        try:
             request(
                 "DELETE",
                 f"https://storage.googleapis.com/storage/v1/b/{s.google_stt_gcs_bucket}/o/{urllib.parse.quote(ref['gcs_object'], safe='')}",
