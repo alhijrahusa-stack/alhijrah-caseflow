@@ -1,0 +1,9 @@
+murailex/
+test/
+.github/
+supabase/
+Dockerfile
+railway.toml
+DEPLOY_STEPS.md
+verify_production.sh
+playwright.config.*
