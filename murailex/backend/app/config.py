@@ -37,7 +37,6 @@ class Settings(BaseSettings):
     # Providers — absent key means NOT CONFIGURED
     assemblyai_api_key: SecretStr | None = None
     assemblyai_base_url: str = "https://api.assemblyai.com"
-    # Verified current model id; Arabic is included in Universal-3.5 Pro's native code-switching languages.
     assemblyai_speech_model: str = "universal-3-5-pro"
 
     google_credentials_json: SecretStr | None = None  # service-account JSON
@@ -68,6 +67,12 @@ class Settings(BaseSettings):
     deepgram_legal_audio_approved: bool = False
     openai_legal_audio_approved: bool = False
     pyannote_legal_audio_approved: bool = False
+
+    # Production routing is fail-closed until a real human-ground-truth benchmark has selected
+    # the exact provider/model/locale matrix. Never set this merely to make processing start.
+    benchmark_routing_approved: bool = False
+    benchmark_dataset_version: str | None = None
+    benchmark_held_out_run_id: str | None = None
 
     provider_poll_seconds: float = 5.0
     provider_retry_base_seconds: float = 5.0
