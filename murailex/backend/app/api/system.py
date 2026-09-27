@@ -21,6 +21,25 @@ def health():
     return {"status": "ok", "service": "murailex-api", "scope": "liveness_only"}
 
 
+def _credentials_present(provider: str) -> bool:
+    settings = get_settings()
+    if provider == "assemblyai":
+        return bool(settings.assemblyai_api_key and settings.assemblyai_api_key.get_secret_value())
+    if provider == "google_chirp3":
+        return bool(
+            settings.google_credentials_json
+            and settings.google_credentials_json.get_secret_value()
+            and settings.google_stt_gcs_bucket
+        )
+    if provider == "deepgram":
+        return bool(settings.deepgram_api_key and settings.deepgram_api_key.get_secret_value())
+    if provider == "openai":
+        return bool(settings.openai_api_key and settings.openai_api_key.get_secret_value())
+    if provider == "pyannoteai":
+        return bool(settings.pyannote_api_key and settings.pyannote_api_key.get_secret_value())
+    return False
+
+
 def _provider_readiness() -> dict[str, dict]:
     """Fail-closed provider state without sending audio or fabricating a self-test.
 
@@ -30,17 +49,18 @@ def _provider_readiness() -> dict[str, dict]:
     rows: dict[str, dict] = {}
     for adapter in registry.all_adapters():
         info = adapter.info()
+        credentials = _credentials_present(adapter.name)
         gate = privacy.status(adapter.name)
-        if gate != "APPROVED":
-            status = "BLOCKED"
-        elif info.configured:
-            status = "UNVERIFIED"
-        else:
+        if not credentials:
             status = "NOT CONFIGURED"
+        elif gate != "APPROVED":
+            status = "BLOCKED"
+        else:
+            status = "UNVERIFIED"
         rows[adapter.name] = {
             "model": info.model,
             "role": info.role,
-            "configured": bool(info.configured),
+            "configured": credentials,
             "privacy_gate": gate,
             "last_real_self_test": None,
             "status": status,
@@ -100,7 +120,7 @@ def providers(p: Principal = Depends(current_principal)):
                 "name": info.name,
                 "model": info.model,
                 "role": info.role,
-                "configured": bool(info.configured),
+                "configured": state["configured"],
                 "privacy_gate": state["privacy_gate"],
                 "last_real_self_test": state["last_real_self_test"],
                 "status": state["status"],
