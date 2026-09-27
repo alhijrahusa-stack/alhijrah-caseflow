@@ -61,6 +61,14 @@ class Settings(BaseSettings):
     deepgram_model: str = "nova-3"
     deepgram_language: str = "ar"
 
+    # Legal-audio privacy gates are fail-closed. Set true only after the actual account/project
+    # controls and contractual data policy have been reviewed for the intended legal recordings.
+    assemblyai_legal_audio_approved: bool = False
+    google_legal_audio_approved: bool = False
+    deepgram_legal_audio_approved: bool = False
+    openai_legal_audio_approved: bool = False
+    pyannote_legal_audio_approved: bool = False
+
     provider_poll_seconds: float = 5.0
     provider_retry_base_seconds: float = 5.0
     provider_timeout_seconds: float = 6 * 3600
