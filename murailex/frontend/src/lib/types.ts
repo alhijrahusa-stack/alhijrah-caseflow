@@ -12,6 +12,10 @@ export type Recording = {
   duration_ms: number | null;
   status: string;
   status_detail: string | null;
+  language_locale: string | null;
+  recording_type: string | null;
+  expected_terms: string[] | null;
+  expected_speakers: number | null;
   open_disputes?: number;
   storage_version_id?: string | null;
   media_info?: Record<string, unknown> | null;
@@ -49,12 +53,33 @@ export type Revision = {
   id: string;
   number: number;
   status: "draft" | "locked";
+  review_state: "unreviewed" | "in_review" | "reviewed";
   sha256: string | null;
   parent_id: string | null;
   created_at: string;
   locked_at: string | null;
   locked_by: string | null;
   content?: Content;
+};
+
+export type Summary = {
+  id: string;
+  recording_id: string;
+  transcript_revision_id: string;
+  transcript_sha256: string | null;
+  summary_type: "neutral" | "defense" | "prosecution";
+  summary_revision: number;
+  status: "draft" | "locked";
+  content: {
+    type: string;
+    key_passages: Array<{ text: string; speaker: string; start_ms: number }>;
+    critical_moments: Array<{ text: string; speaker: string; start_ms: number }>;
+    total_speakers: number;
+    unresolved_disputes: number;
+  };
+  generated_at: string;
+  generation_model: string;
+  created_at: string;
 };
 
 export type Candidate = {
@@ -111,3 +136,4 @@ export type Translation = {
 };
 
 export type ExportInfo = { id: string; format: string; filename: string; sha256: string; bytes: number; download_url: string; created_at?: string };
+

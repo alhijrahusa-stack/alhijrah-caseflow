@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 
 from . import audit
-from .api import auth, exports, recordings, system, uploads
+from .api import auth, exports, recordings, summaries, system, uploads
 from .config import get_settings
 from .db import session_factory
 from .models import User
@@ -77,7 +77,7 @@ def create_app() -> FastAPI:
         log.error("unhandled %s on %s", type(exc).__name__, request.url.path)
         return JSONResponse({"detail": "Internal error."}, status_code=500)
 
-    for r in (system.router, auth.router, uploads.router, recordings.router, exports.router):
+    for r in (system.router, auth.router, uploads.router, recordings.router, exports.router, summaries.router):
         app.include_router(r)
 
     @app.on_event("startup")
@@ -88,3 +88,4 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+

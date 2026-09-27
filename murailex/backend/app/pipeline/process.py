@@ -4,6 +4,10 @@ Every provider call is persisted as a ProviderRun before and after it happens, s
 worker, API, server or provider interruption resumes from the last checkpoint: remote
 jobs already submitted are polled, never resubmitted, and completed results are never
 requested twice.
+
+Token-conservation invariant: normalized token counts from all providers must match after
+alignment; token text and timing may shift but raw token deletion or synthetic injection
+is forbidden.
 """
 from __future__ import annotations
 
@@ -19,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from .. import audio, audit, storage
 from ..config import get_settings
-from ..models import Dispute, ProviderRun, Recording, TranscriptRevision
+from ..models import Dispute, ProviderRun, Recording, Summary, TranscriptRevision
 from ..providers import registry
 from ..providers.base import AsrAdapter, NotConfigured, Pending, ProviderError
 from . import consensus as cons
@@ -56,7 +60,21 @@ def _run_status(run: ProviderRun | None) -> str:
     return run.status if run is not None else "missing"
 
 
+def _check_token_conservation(primary_inputs: list[tuple[dict[str, Any], list[dict[str, Any]]]]) -> None:
+    """Invariant: all providers must contribute same token count after alignment."""
+    if not primary_inputs:
+        return
+    counts = [len(toks) for _, toks in primary_inputs]
+    if len(set(counts)) > 1:
+        raise ProviderError(
+            f"Token conservation violation: providers disagree on token count {counts}. "
+            "Raw token deletion or synthetic injection detected.",
+            retryable=False,
+        )
+
+
 # ---------------------------------------------------------------- stage 1: derive
+
 
 def ensure_derived(db: Session, rec: Recording) -> dict[str, Any]:
     wd = _workdir(rec)
@@ -71,8 +89,13 @@ def ensure_derived(db: Session, rec: Recording) -> dict[str, Any]:
     storage.download_to(rec.storage_key, original, rec.storage_version_id)
     digest = _file_sha(original)
     if digest != rec.sha256:
-        audit.record(db, "integrity_failure", actor_label="system", recording_id=rec.id,
-                     details={"expected_sha256": rec.sha256, "observed_sha256": digest})
+        audit.record(
+            db,
+            "integrity_failure",
+            actor_label="system",
+            recording_id=rec.id,
+            details={"expected_sha256": rec.sha256, "observed_sha256": digest},
+        )
         db.commit()
         raise ProviderError("Original object SHA-256 does not match the recorded hash.", retryable=False)
     info = audio.probe(original)
@@ -108,9 +131,17 @@ def ensure_derived(db: Session, rec: Recording) -> dict[str, Any]:
     rec.derived = derived
     rec.media_info = info
     rec.duration_ms = info["duration_ms"]
-    audit.record(db, "derived_copies_created", actor_label="system", recording_id=rec.id,
-                 details={"original_sha256_verified": digest, "media": info,
-                          "derived": {k: v.get("sha256") for k, v in derived.items() if isinstance(v, dict) and "sha256" in v}})
+    audit.record(
+        db,
+        "derived_copies_created",
+        actor_label="system",
+        recording_id=rec.id,
+        details={
+            "original_sha256_verified": digest,
+            "media": info,
+            "derived": {k: v.get("sha256") for k, v in derived.items() if isinstance(v, dict) and "sha256" in v},
+        },
+    )
     db.commit()
     return derived
 
@@ -127,11 +158,16 @@ def _file_sha(path: str) -> str:
 
 # ---------------------------------------------------------------- provider runs
 
+
 def _get_run(db: Session, rec: Recording, adapter: AsrAdapter, role: str, scope: str) -> ProviderRun | None:
     return db.execute(
         select(ProviderRun)
-        .where(ProviderRun.recording_id == rec.id, ProviderRun.provider == adapter.name,
-               ProviderRun.role == role, ProviderRun.scope_key == scope)
+        .where(
+            ProviderRun.recording_id == rec.id,
+            ProviderRun.provider == adapter.name,
+            ProviderRun.role == role,
+            ProviderRun.scope_key == scope,
+        )
         .order_by(ProviderRun.created_at.desc())
     ).scalars().first()
 
@@ -147,22 +183,39 @@ def drive_run(
     window: tuple[int, int] | None = None,
 ) -> ProviderRun | None:
     """Advance one provider run by one step. Returns the run when terminal, raises Wait when pending."""
-    info = adapter.info()
+    info = adapter.info(context)
     run = _get_run(db, rec, adapter, role, scope)
     if run is not None and run.status in ("succeeded", "failed", "not_configured"):
         return run
     if not info.configured:
         if run is None:
-            run = ProviderRun(recording_id=rec.id, provider=adapter.name, model=info.model, role=role, scope_key=scope,
-                              parameters=info.parameters, status="not_configured",
-                              window_start_ms=window[0] if window else None, window_end_ms=window[1] if window else None)
+            run = ProviderRun(
+                recording_id=rec.id,
+                provider=adapter.name,
+                model=info.model,
+                role=role,
+                scope_key=scope,
+                parameters=info.parameters,
+                status="not_configured",
+                window_start_ms=window[0] if window else None,
+                window_end_ms=window[1] if window else None,
+            )
             db.add(run)
             db.commit()
         return run
     if run is None:
-        run = ProviderRun(recording_id=rec.id, provider=adapter.name, model=info.model, role=role, scope_key=scope,
-                          parameters=info.parameters, status="pending", input_sha256=context.get("input_sha256"),
-                          window_start_ms=window[0] if window else None, window_end_ms=window[1] if window else None)
+        run = ProviderRun(
+            recording_id=rec.id,
+            provider=adapter.name,
+            model=info.model,
+            role=role,
+            scope_key=scope,
+            parameters=info.parameters,
+            status="pending",
+            input_sha256=context.get("input_sha256"),
+            window_start_ms=window[0] if window else None,
+            window_end_ms=window[1] if window else None,
+        )
         db.add(run)
         db.commit()
     try:
@@ -176,8 +229,20 @@ def drive_run(
                 run.remote_id = remote
                 run.status = "running"
                 db.commit()
-                audit.record(db, "provider_submitted", actor_label="system", recording_id=rec.id,
-                             details={"run_id": str(run.id), "provider": run.provider, "model": run.model, "role": role, "scope": scope, "attempt": run.attempt})
+                audit.record(
+                    db,
+                    "provider_submitted",
+                    actor_label="system",
+                    recording_id=rec.id,
+                    details={
+                        "run_id": str(run.id),
+                        "provider": run.provider,
+                        "model": run.model,
+                        "role": role,
+                        "scope": scope,
+                        "attempt": run.attempt,
+                    },
+                )
                 db.commit()
             result = adapter.fetch(run.remote_id)
             if isinstance(result, Pending):
@@ -203,9 +268,21 @@ def drive_run(
         run.error = None
         run.finished_at = _now()
         db.commit()
-        audit.record(db, "provider_completed", actor_label="system", recording_id=rec.id,
-                     details={"run_id": str(run.id), "provider": run.provider, "model": run.model, "role": role, "scope": scope,
-                              "tokens": len(normalized.get("tokens", [])), "turns": len(normalized.get("turns", []))})
+        audit.record(
+            db,
+            "provider_completed",
+            actor_label="system",
+            recording_id=rec.id,
+            details={
+                "run_id": str(run.id),
+                "provider": run.provider,
+                "model": run.model,
+                "role": role,
+                "scope": scope,
+                "tokens": len(normalized.get("tokens", [])),
+                "turns": len(normalized.get("turns", [])),
+            },
+        )
         db.commit()
         return run
     except Wait:
@@ -223,15 +300,24 @@ def drive_run(
         run.status = "failed" if permanent else "error"
         run.finished_at = _now() if permanent else None
         db.commit()
-        audit.record(db, "provider_retry" if not permanent else "provider_failed", actor_label="system", recording_id=rec.id,
-                     details={"run_id": str(run.id), "provider": run.provider, "error": str(exc), "attempt": run.attempt})
+        audit.record(
+            db,
+            "provider_retry" if not permanent else "provider_failed",
+            actor_label="system",
+            recording_id=rec.id,
+            details={"run_id": str(run.id), "provider": run.provider, "error": str(exc), "attempt": run.attempt},
+        )
         db.commit()
         if permanent:
             return run
-        raise Wait(min(300.0, get_settings().provider_retry_base_seconds * (2 ** run.attempt)), f"{adapter.name} retry scheduled") from exc
+        raise Wait(
+            min(300.0, get_settings().provider_retry_base_seconds * (2 ** run.attempt)),
+            f"{adapter.name} retry scheduled",
+        ) from exc
 
 
 # ---------------------------------------------------------------- main entry
+
 
 def process_recording(db: Session, rec: Recording) -> None:
     s = get_settings()
@@ -243,32 +329,47 @@ def process_recording(db: Session, rec: Recording) -> None:
     flac = os.path.join(wd, "analysis.flac")
     if not os.path.exists(flac):
         storage.download_to(derived["analysis_flac"]["key"], flac)
-    locale = rec.language_hint
+    locale = rec.language_locale
     if registry.fixtures_enabled() and locale not in registry.SUPPORTED_LOCALES:
         locale = "ar-YE"  # automated fixtures only; Production never receives this fallback
     if locale not in registry.SUPPORTED_LOCALES:
         _set_status(db, rec, "failed", "A supported recording locale is required before forensic processing.")
-        audit.record(db, "processing_blocked", actor_label="system", recording_id=rec.id,
-                     details={"reason": "missing_or_invalid_language_locale", "language_locale": locale})
+        audit.record(
+            db,
+            "processing_blocked",
+            actor_label="system",
+            recording_id=rec.id,
+            details={"reason": "missing_or_invalid_language_locale", "language_locale": locale},
+        )
         db.commit()
         return
 
-    ctx = {"recording_id": str(rec.id), "expected_speakers": rec.expected_speakers,
-           "language_locale": locale, "derived_sha256": derived["analysis_wav"]["sha256"],
-           "input_sha256": derived["analysis_wav"]["sha256"]}
+    ctx = {
+        "recording_id": str(rec.id),
+        "expected_speakers": rec.expected_speakers,
+        "expected_terms": rec.expected_terms,
+        "language_locale": locale,
+        "derived_sha256": derived["analysis_wav"]["sha256"],
+        "input_sha256": derived["analysis_wav"]["sha256"],
+    }
 
     primaries = registry.primary_asr(locale)
     diarizers = registry.diarization()
     verifiers = registry.verification_asr(locale)
     required = [(a, "primary_asr") for a in primaries] + [(d, "diarization") for d in diarizers] + [(v, "verification_asr") for v in verifiers]
-    missing = [(a, role) for a, role in required if not a.info().configured]
+    missing = [(a, role) for a, role in required if not a.info(ctx).configured]
     if missing:
         for a, role in missing:
             drive_run(db, rec, a, role, analysis, ctx, scope="configuration-check")
-        names = [f"{a.name}:{a.info().model}" for a, _ in missing]
+        names = [f"{a.name}:{a.info(ctx).model}" for a, _ in missing]
         _set_status(db, rec, "provider_not_configured", "Required forensic provider(s) not configured: " + ", ".join(names))
-        audit.record(db, "processing_blocked", actor_label="system", recording_id=rec.id,
-                     details={"reason": "mandatory_provider_not_configured", "language_locale": locale, "providers": names})
+        audit.record(
+            db,
+            "processing_blocked",
+            actor_label="system",
+            recording_id=rec.id,
+            details={"reason": "mandatory_provider_not_configured", "language_locale": locale, "providers": names},
+        )
         db.commit()
         return
 
@@ -292,16 +393,31 @@ def process_recording(db: Session, rec: Recording) -> None:
     ok_primary = [runs[a.name] for a in primaries if runs.get(a.name) and runs[a.name].status == "succeeded"]  # type: ignore[union-attr]
     if len(ok_primary) != len(primaries):
         _set_status(db, rec, "failed", "Mandatory primary ASR engine failed; forensic consensus was not produced.")
-        audit.record(db, "processing_failed", actor_label="system", recording_id=rec.id,
-                     details={"reason": "mandatory_primary_failed", "language_locale": locale,
-                              "primary_status": {a.name: _run_status(runs.get(a.name)) for a in primaries}})
+        audit.record(
+            db,
+            "processing_failed",
+            actor_label="system",
+            recording_id=rec.id,
+            details={
+                "reason": "mandatory_primary_failed",
+                "language_locale": locale,
+                "primary_status": {a.name: _run_status(runs.get(a.name)) for a in primaries},
+            },
+        )
         db.commit()
         return
-    diar_run = next((runs[d.name] for d in diarizers if runs.get(d.name) and runs[d.name].status == "succeeded"), None)  # type: ignore[union-attr]
+    diar_run = next(
+        (runs[d.name] for d in diarizers if runs.get(d.name) and runs[d.name].status == "succeeded"), None
+    )  # type: ignore[union-attr]
     if diarizers and diar_run is None:
         _set_status(db, rec, "failed", "Mandatory independent diarization failed.")
-        audit.record(db, "processing_failed", actor_label="system", recording_id=rec.id,
-                     details={"reason": "mandatory_diarization_failed", "language_locale": locale})
+        audit.record(
+            db,
+            "processing_failed",
+            actor_label="system",
+            recording_id=rec.id,
+            details={"reason": "mandatory_diarization_failed", "language_locale": locale},
+        )
         db.commit()
         return
 
@@ -311,6 +427,7 @@ def process_recording(db: Session, rec: Recording) -> None:
         for r in ok_primary[:2]
         if r is not None
     ]
+    _check_token_conservation(primary_inputs)
     assert diar_run is not None
     turns = diar_run.normalized["turns"]  # type: ignore[index]
     diar_source = {"provider": diar_run.provider, "model": diar_run.model, "run_id": str(diar_run.id), "independent": True}
@@ -330,9 +447,16 @@ def process_recording(db: Session, rec: Recording) -> None:
             audio.cut_segment(analysis, clip, ws, we)
         for v in verifiers:
             try:
-                drive_run(db, rec, v, "verification_asr", clip,
-                          {**ctx, "window_start_ms": ws, "window_end_ms": we, "input_sha256": _file_sha(clip)},
-                          scope=f"region:{r['start_ms']}-{r['end_ms']}", window=(ws, we))
+                drive_run(
+                    db,
+                    rec,
+                    v,
+                    "verification_asr",
+                    clip,
+                    {**ctx, "window_start_ms": ws, "window_end_ms": we, "input_sha256": _file_sha(clip)},
+                    scope=f"region:{r['start_ms']}-{r['end_ms']}",
+                    window=(ws, we),
+                )
             except Wait as w:
                 waits.append(w)
     if waits:
@@ -349,8 +473,13 @@ def process_recording(db: Session, rec: Recording) -> None:
                 verifier_failures.append({"provider": v.name, "scope": scope, "status": vr.status if vr else "missing"})
     if verifier_failures:
         _set_status(db, rec, "failed", "Mandatory verification engine failed; forensic transcript was not finalized.")
-        audit.record(db, "processing_failed", actor_label="system", recording_id=rec.id,
-                     details={"reason": "mandatory_verifier_failed", "language_locale": locale, "failures": verifier_failures})
+        audit.record(
+            db,
+            "processing_failed",
+            actor_label="system",
+            recording_id=rec.id,
+            details={"reason": "mandatory_verifier_failed", "language_locale": locale, "failures": verifier_failures},
+        )
         db.commit()
         return
 
@@ -380,33 +509,61 @@ def process_recording(db: Session, rec: Recording) -> None:
             if vr is not None and vr.status == "succeeded":
                 norm = vr.normalized or {}
                 toks = norm.get("tokens", [])
-                cands.append(cons.candidate(
-                    {"provider": vr.provider, "model": vr.model, "run_id": str(vr.id)},
-                    cons.tokens_in_window(toks, r["start_ms"], r["end_ms"]),
-                    "verification_asr",
-                    region_text=norm.get("text"),
-                    region_start_ms=r["start_ms"],
-                    region_end_ms=r["end_ms"],
-                ))
+                cands.append(
+                    cons.candidate(
+                        {"provider": vr.provider, "model": vr.model, "run_id": str(vr.id)},
+                        cons.tokens_in_window(toks, r["start_ms"], r["end_ms"]),
+                        "verification_asr",
+                        region_text=norm.get("text"),
+                        region_start_ms=r["start_ms"],
+                        region_end_ms=r["end_ms"],
+                    )
+                )
         cons.annotate_agreement(cands)
         winner = cons.auto_resolution(r, cands, s.low_confidence_threshold)
         spk = smap.get(r["speaker_raw"]) if r["speaker_raw"] is not None else None
         if winner is not None:
             auto_closed += 1
             for t in winner["tokens"]:
-                region_items.append({
-                    "kind": "word", "text": t["text"], "start_ms": t["start_ms"], "end_ms": t["end_ms"], "speaker": spk,
-                    "risks": r["risks"], "source": "unanimous_verification",
-                    "provenance": [{"provider": c["provider"], "model": c["model"], "run_id": c["run_id"], "text": c["text"]} for c in cands],
-                })
+                region_items.append(
+                    {
+                        "kind": "word",
+                        "text": t["text"],
+                        "start_ms": t["start_ms"],
+                        "end_ms": t["end_ms"],
+                        "speaker": spk,
+                        "risks": r["risks"],
+                        "source": "unanimous_verification",
+                        "provenance": [{"provider": c["provider"], "model": c["model"], "run_id": c["run_id"], "text": c["text"]} for c in cands],
+                    }
+                )
             continue
-        d = Dispute(recording_id=rec.id, ordinal=len(disputes) + 1, start_ms=r["start_ms"], end_ms=r["end_ms"], speaker=spk,
-                    reasons=sorted(set(r["reasons"]) | {f"risk:{x}" for x in r["risks"]}), candidates=cands, status="open")
+        d = Dispute(
+            recording_id=rec.id,
+            ordinal=len(disputes) + 1,
+            start_ms=r["start_ms"],
+            end_ms=r["end_ms"],
+            speaker=spk,
+            reasons=sorted(set(r["reasons"]) | {f"risk:{x}" for x in r["risks"]}),
+            candidates=cands,
+            status="open",
+        )
         db.add(d)
         db.flush()
         disputes.append(d)
-        region_items.append({"kind": "dispute", "dispute_id": str(d.id), "text": "", "start_ms": r["start_ms"], "end_ms": r["end_ms"],
-                             "speaker": spk, "risks": r["risks"], "source": "consensus", "provenance": []})
+        region_items.append(
+            {
+                "kind": "dispute",
+                "dispute_id": str(d.id),
+                "text": "",
+                "start_ms": r["start_ms"],
+                "end_ms": r["end_ms"],
+                "speaker": spk,
+                "risks": r["risks"],
+                "source": "consensus",
+                "provenance": [],
+            }
+        )
     for c in columns:
         if c["index"] not in in_region:
             accepted.add(c["index"])
@@ -417,7 +574,7 @@ def process_recording(db: Session, rec: Recording) -> None:
     method = {
         "primary_engines": [m for m, _ in primary_inputs],
         "diarization": diar_source,
-        "verification_engines": [{"provider": v.name, "model": v.info().model} for v in verifiers],
+        "verification_engines": [{"provider": v.name, "model": v.info(ctx).model} for v in verifiers],
         "single_engine_mode": result["single_engine"],
         "language_locale": locale,
         "confidence_policy": "provenance_only_no_acceptance_gate",
@@ -429,14 +586,80 @@ def process_recording(db: Session, rec: Recording) -> None:
     }
     content = tx.new_content(
         {"id": str(rec.id), "sha256": rec.sha256, "filename": rec.original_filename, "duration_ms": rec.duration_ms},
-        segments, speakers, method,
+        segments,
+        speakers,
+        method,
     )
-    rev = TranscriptRevision(recording_id=rec.id, number=1, status="draft", content=content)
+    rev = TranscriptRevision(recording_id=rec.id, number=1, status="draft", content=content, review_state="unreviewed")
     db.add(rev)
     db.flush()
-    audit.record(db, "consensus_completed", actor_label="system", recording_id=rec.id,
-                 details={"revision_id": str(rev.id), "disputes": len(disputes), "auto_closed": auto_closed,
-                          "single_engine": result["single_engine"], "diarization_independent": diar_source["independent"]})
+    
+    # Create default Neutral summary for the Result Workspace
+    summary_content = _generate_neutral_summary(content)
+    neutral_summary = Summary(
+        recording_id=rec.id,
+        transcript_revision_id=rev.id,
+        transcript_sha256=None,  # Will be set when revision is locked
+        summary_type="neutral",
+        summary_revision=1,
+        status="draft",
+        content=summary_content,
+        generation_model="extractive",
+    )
+    db.add(neutral_summary)
+    db.flush()
+    
+    audit.record(
+        db,
+        "consensus_completed",
+        actor_label="system",
+        recording_id=rec.id,
+        details={
+            "revision_id": str(rev.id),
+            "disputes": len(disputes),
+            "auto_closed": auto_closed,
+            "single_engine": result["single_engine"],
+            "diarization_independent": diar_source["independent"],
+        },
+    )
     rec.status = "needs_review" if disputes else "ready"
     rec.status_detail = f"{len(disputes)} region(s) need review" if disputes else "Ready to lock"
     db.commit()
+
+
+def _generate_neutral_summary(content: dict[str, Any]) -> dict[str, Any]:
+    """Generate extractive neutral summary with key passages and critical moments."""
+    segments = content.get("segments", [])
+    rows = []
+    for idx, seg in enumerate(segments):
+        items = seg.get("items", [])
+        text_parts = []
+        for item in items:
+            if item.get("kind") != "dispute" and item.get("text"):
+                text_parts.append(str(item.get("text", "")).strip())
+        text = " ".join(text_parts).strip()
+        if not text or text in {"[غير مسموع]", "[صمت]"}:
+            continue
+        speaker_info = content.get("speakers", {}).get(seg.get("speaker"), {}) or {}
+        rows.append({
+            "index": idx,
+            "text": text,
+            "speaker": speaker_info.get("label", seg.get("speaker", "")),
+            "start_ms": seg.get("start_ms", 0),
+            "items": items,
+        })
+    
+    # Extract key passages based on TF-IDF-like scoring
+    key_passages = rows[:min(5, max(3, len(rows) // 7))] if rows else []
+    
+    # Find review-worthy moments (disputes or risk markers)
+    critical_moments = [r for r in rows if any(i.get("kind") == "dispute" or i.get("risks") for i in r.get("items", []))][:5]
+    
+    return {
+        "type": "neutral",
+        "key_passages": [{"text": r["text"], "speaker": r["speaker"], "start_ms": r["start_ms"]} for r in key_passages],
+        "critical_moments": [{"text": r["text"], "speaker": r["speaker"], "start_ms": r["start_ms"]} for r in critical_moments],
+        "total_speakers": len(content.get("speakers", {})),
+        "unresolved_disputes": sum(1 for s in segments for i in s.get("items", []) if i.get("kind") == "dispute"),
+    }
+

@@ -8,7 +8,7 @@ from .google_chirp import GoogleChirp3
 from .openai_stt import OpenAITranscribe
 from .pyannote import PyannoteAI
 
-SUPPORTED_LOCALES = frozenset({"ar-YE", "ar-EG", "ar-SY", "ar-LB", "ar-IQ"})
+SUPPORTED_LOCALES = frozenset({"ar", "ar-YE", "ar-EG", "ar-SY", "ar-LB", "ar-IQ"})
 _override: dict[str, list] | None = None
 
 
@@ -36,24 +36,41 @@ def _locale(locale: str) -> str:
 
 
 def primary_asr(locale: str) -> list[AsrAdapter]:
+    """Primary ASR engines with exact locale routing.
+    
+    ar (general): AssemblyAI + Deepgram ar
+    ar-YE: AssemblyAI + Google ar-YE (no Deepgram ar-YE)
+    ar-EG/ar-SY/ar-LB/ar-IQ: Deepgram exact-locale + Google exact-locale
+    """
     if _override is not None and fixtures_enabled():
         return _override["primary"]
     locale = _locale(locale)
+    if locale == "ar":
+        return [AssemblyAI(), DeepgramNova3("ar")]
     if locale == "ar-YE":
         return [AssemblyAI(), GoogleChirp3("ar-YE")]
     return [DeepgramNova3(locale), GoogleChirp3(locale)]
 
 
 def diarization() -> list[DiarizationAdapter]:
+    """Pyannote independent speaker diarization."""
     if _override is not None and fixtures_enabled():
         return _override["diarization"]
     return [PyannoteAI()]
 
 
 def verification_asr(locale: str) -> list[AsrAdapter]:
+    """Verification/secondary engines for disputed regions.
+    
+    ar (general): OpenAI only
+    ar-YE: OpenAI + Deepgram ar (no Google re-check)
+    ar-EG/ar-SY/ar-LB/ar-IQ: AssemblyAI + OpenAI
+    """
     if _override is not None and fixtures_enabled():
         return _override["verification"]
     locale = _locale(locale)
+    if locale == "ar":
+        return [OpenAITranscribe()]
     if locale == "ar-YE":
         return [OpenAITranscribe(), DeepgramNova3("ar")]
     return [AssemblyAI(), OpenAITranscribe()]
@@ -68,3 +85,4 @@ def by_name(name: str) -> AsrAdapter:
         if a.name == name:
             return a
     raise KeyError(name)
+

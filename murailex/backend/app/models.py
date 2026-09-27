@@ -73,7 +73,9 @@ class Recording(Base):
     duration_ms: Mapped[int | None] = mapped_column(BigInteger)
     media_info: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     derived: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    language_hint: Mapped[str | None] = mapped_column(String(20))
+    language_locale: Mapped[str | None] = mapped_column(String(20))
+    recording_type: Mapped[str | None] = mapped_column(String(40))
+    expected_terms: Mapped[list[str] | None] = mapped_column(JSONB)
     expected_speakers: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(40), nullable=False, default="queued")
     status_detail: Mapped[str | None] = mapped_column(Text)
@@ -104,7 +106,9 @@ class UploadSession(Base):
     storage_key: Mapped[str] = mapped_column(Text, nullable=False)
     s3_upload_id: Mapped[str] = mapped_column(Text, nullable=False)
     parts: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
-    language_hint: Mapped[str | None] = mapped_column(String(20))
+    language_locale: Mapped[str | None] = mapped_column(String(20))
+    recording_type: Mapped[str | None] = mapped_column(String(40))
+    expected_terms: Mapped[list[str] | None] = mapped_column(JSONB)
     expected_speakers: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")
     recording_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("recordings.id"))
@@ -177,12 +181,31 @@ class TranscriptRevision(Base):
     number: Mapped[int] = mapped_column(Integer, nullable=False)
     parent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("transcript_revisions.id"))
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    review_state: Mapped[str] = mapped_column(String(20), nullable=False, default="unreviewed")  # unreviewed | in_review | reviewed
     content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     sha256: Mapped[str | None] = mapped_column(String(64))
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     locked_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Summary(Base):
+    """Independent revision-bound summary document with full binding and generation tracking."""
+    __tablename__ = "summaries"
+    __table_args__ = (UniqueConstraint("recording_id", "transcript_revision_id", "summary_type"),)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_id)
+    recording_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("recordings.id"), nullable=False)
+    transcript_revision_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("transcript_revisions.id"), nullable=False)
+    transcript_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    summary_type: Mapped[str] = mapped_column(String(40), nullable=False)  # neutral | defense | prosecution
+    summary_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")  # draft | locked
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    generation_model: Mapped[str] = mapped_column(String(100), nullable=False, default="extractive")
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Translation(Base):
@@ -209,7 +232,9 @@ class ExportRecord(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_id)
     recording_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("recordings.id"), nullable=False)
     revision_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("transcript_revisions.id"), nullable=False)
+    summary_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("summaries.id"))
     format: Mapped[str] = mapped_column(String(20), nullable=False)
+    document_type: Mapped[str] = mapped_column(String(40), nullable=False, default="transcript")  # transcript | summary | complete_case | evidence_package
     storage_key: Mapped[str] = mapped_column(Text, nullable=False)
     filename: Mapped[str] = mapped_column(String(300), nullable=False)
     byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -241,8 +266,10 @@ __all__ = [
     "ProviderRun",
     "Recording",
     "RecordingAccess",
+    "Summary",
     "TranscriptRevision",
     "Translation",
     "UploadSession",
     "User",
 ]
+

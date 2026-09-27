@@ -26,7 +26,9 @@ class UploadIn(BaseModel):
     fingerprint: str = Field(min_length=1, max_length=200)
     title: str = Field(default="", max_length=300)
     source: str = Field(default="upload", pattern="^(upload|recording)$")
-    language_hint: str | None = Field(default=None, pattern=r"^(ar-YE|ar-EG|ar-SY|ar-LB|ar-IQ)$")
+    language_locale: str | None = Field(default=None, pattern=r"^(ar|ar-YE|ar-EG|ar-SY|ar-LB|ar-IQ)$")
+    recording_type: str | None = Field(default=None, max_length=40)
+    expected_terms: list[str] | None = Field(default=None, max_items=50)
     expected_speakers: int | None = Field(default=None, ge=1, le=20)
 
 
@@ -52,8 +54,12 @@ def create_upload(body: UploadIn, p: Principal = Depends(current_principal), db:
     if not (body.mime_type.startswith("audio/") or body.mime_type in ("video/mp4", "video/webm", "video/3gpp", "video/quicktime", "application/octet-stream")):
         raise HTTPException(415, "Unsupported MIME type.")
     existing = db.execute(
-        select(UploadSession).where(UploadSession.owner_id == p.user.id, UploadSession.fingerprint == body.fingerprint,
-                                    UploadSession.status == "open", UploadSession.total_size == body.size)
+        select(UploadSession).where(
+            UploadSession.owner_id == p.user.id,
+            UploadSession.fingerprint == body.fingerprint,
+            UploadSession.status == "open",
+            UploadSession.total_size == body.size,
+        )
     ).scalar_one_or_none()
     if existing is not None:
         return _session_out(existing)  # resume
@@ -61,10 +67,22 @@ def create_upload(body: UploadIn, p: Principal = Depends(current_principal), db:
     key = f"originals/{p.user.id}/{uid}/original{ext}"
     upload_id = storage.start_multipart(key, body.mime_type)
     sess = UploadSession(
-        id=uid, owner_id=p.user.id, title=body.title or os.path.splitext(body.filename)[0], source=body.source,
-        filename=body.filename, declared_mime=body.mime_type, total_size=body.size, chunk_size=s.upload_chunk_bytes,
-        fingerprint=body.fingerprint, storage_key=key, s3_upload_id=upload_id, parts={},
-        language_hint=body.language_hint, expected_speakers=body.expected_speakers,
+        id=uid,
+        owner_id=p.user.id,
+        title=body.title or os.path.splitext(body.filename)[0],
+        source=body.source,
+        filename=body.filename,
+        declared_mime=body.mime_type,
+        total_size=body.size,
+        chunk_size=s.upload_chunk_bytes,
+        fingerprint=body.fingerprint,
+        storage_key=key,
+        s3_upload_id=upload_id,
+        parts={},
+        language_locale=body.language_locale,
+        recording_type=body.recording_type,
+        expected_terms=body.expected_terms,
+        expected_speakers=body.expected_speakers,
     )
     db.add(sess)
     db.commit()
@@ -138,19 +156,47 @@ def complete_upload(upload_id: str, p: Principal = Depends(current_principal), d
     uploaded_at = datetime.now(timezone.utc)
     sniffed = sess.parts["1"].get("sniffed_mime")
     rec = Recording(
-        owner_id=p.user.id, title=sess.title, source=sess.source, original_filename=sess.filename,
-        mime_type=sniffed or sess.declared_mime, byte_size=size, sha256=digest, storage_key=sess.storage_key,
-        storage_version_id=version_id, uploaded_at=uploaded_at, language_hint=sess.language_hint,
-        expected_speakers=sess.expected_speakers, status="queued", status_detail="Queued for processing",
+        owner_id=p.user.id,
+        title=sess.title,
+        source=sess.source,
+        original_filename=sess.filename,
+        mime_type=sniffed or sess.declared_mime,
+        byte_size=size,
+        sha256=digest,
+        storage_key=sess.storage_key,
+        storage_version_id=version_id,
+        uploaded_at=uploaded_at,
+        language_locale=sess.language_locale,
+        recording_type=sess.recording_type,
+        expected_terms=sess.expected_terms,
+        expected_speakers=sess.expected_speakers,
+        status="queued",
+        status_detail="Queued for processing",
     )
     db.add(rec)
     db.flush()
     sess.status = "complete"
     sess.recording_id = rec.id
-    audit.record(db, "upload", actor=p.user, recording_id=rec.id, details={
-        "filename": sess.filename, "declared_mime": sess.declared_mime, "detected_mime": sniffed, "byte_size": size,
-        "storage_key": sess.storage_key, "storage_version_id": version_id, "source": sess.source,
-        "uploaded_at_utc": uploaded_at.isoformat(), "parts": len(sess.parts)})
+    audit.record(
+        db,
+        "upload",
+        actor=p.user,
+        recording_id=rec.id,
+        details={
+            "filename": sess.filename,
+            "declared_mime": sess.declared_mime,
+            "detected_mime": sniffed,
+            "byte_size": size,
+            "storage_key": sess.storage_key,
+            "storage_version_id": version_id,
+            "source": sess.source,
+            "language_locale": sess.language_locale,
+            "recording_type": sess.recording_type,
+            "expected_terms": sess.expected_terms,
+            "uploaded_at_utc": uploaded_at.isoformat(),
+            "parts": len(sess.parts),
+        },
+    )
     audit.record(db, "hash_created", actor_label="system", recording_id=rec.id, details={"algorithm": "SHA-256", "sha256": digest, "byte_size": size})
     jobs.enqueue(db, "process_recording", rec.id)
     db.commit()
@@ -166,3 +212,4 @@ def abort_upload(upload_id: str, p: Principal = Depends(current_principal), db: 
     sess.status = "aborted"
     db.commit()
     return {"ok": True}
+

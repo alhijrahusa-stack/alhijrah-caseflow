@@ -1,6 +1,7 @@
 """AssemblyAI pre-recorded transcription (POST /v2/upload, POST /v2/transcript, GET /v2/transcript/{id}).
 
 Model: Universal-3.5 Pro, requested with speech_models=["universal-3-5-pro"].
+Supports keyterms_prompt for expected terminology enhancement.
 """
 from __future__ import annotations
 
@@ -31,6 +32,11 @@ class AssemblyAI(AsrAdapter):
         expected = (context or {}).get("expected_speakers")
         if expected:
             params["speakers_expected"] = int(expected)
+        
+        expected_terms = (context or {}).get("expected_terms")
+        if expected_terms:
+            params["keyterms_prompt"] = ", ".join(str(t) for t in expected_terms)
+        
         return params
 
     def info(self) -> ProviderInfo:
@@ -82,3 +88,4 @@ class AssemblyAI(AsrAdapter):
                 }
             )
         return {"tokens": tokens, "language": raw.get("language_code")}
+
