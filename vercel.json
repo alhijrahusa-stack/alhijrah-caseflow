@@ -7,8 +7,7 @@
     "api/index.js": {
       "includeFiles": "src/**",
       "maxDuration": 30,
-      "memory": 1024,
-      "runtime": "nodejs22.x"
+      "memory": 1024
     }
   },
   "rewrites": [
