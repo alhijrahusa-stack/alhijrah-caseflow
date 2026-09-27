@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local end-to-end run: PostgreSQL (+pgvector) with both migrations, the
+# Local end-to-end run: PostgreSQL (+pgvector) with all migrations, the
 # Storage stand-in, `next start`, then Playwright.
 # Usage: e2e/run.sh | CATALOG=real e2e/run.sh | SKIP_BUILD=1 e2e/run.sh
 set -euo pipefail
@@ -33,7 +33,7 @@ as_pg "$PGBIN/initdb -D $PGDIR/data -A trust -E UTF8 >/dev/null && $PGBIN/pg_ctl
 sleep 2
 P="psql -h 127.0.0.1 -p $PGPORT -U postgres -v ON_ERROR_STOP=1 -q"
 $P -c "create database careergate"
-$P -d careergate -f e2e/supabase-stub.sql -f supabase/migrations/001_initial_schema.sql -f supabase/migrations/002_operations_platform.sql -f e2e/seed.sql 2>&1 | grep -v "wal_level\|HINT" || true
+$P -d careergate -f e2e/supabase-stub.sql $(for m in supabase/migrations/*.sql; do printf -- "-f %s " "$m"; done) -f e2e/seed.sql 2>&1 | grep -v "wal_level\|HINT" || true
 
 if [[ -z "${SKIP_BUILD:-}" ]]; then
   cp data/job-catalog.json data/job-catalog.json.orig

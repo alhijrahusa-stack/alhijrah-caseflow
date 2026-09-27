@@ -7,8 +7,16 @@ import { normalizePhone, ProfileSchema } from "./schemas";
 const opts = activeOptions(fixture as never);
 
 describe("catalog", () => {
-  it("lists only active site → job → shift combinations", () => {
+  it("lists only AVAILABLE official openings at known facilities (closed, unverified, unknown-site excluded)", () => {
     expect(opts.map((o) => o.key).sort()).toEqual(["TST1|J-A|S1", "TST1|J-A|S2", "TST2|J-B|S9"]);
+  });
+
+  it("carries provenance on every option", () => {
+    for (const o of opts) {
+      expect(o.source).toBe("AMAZON_OFFICIAL");
+      expect(o.source_url).toMatch(/^https:\/\/(www\.)?amazon\.jobs\//);
+      expect(o.last_verified_at).toBeTruthy();
+    }
   });
 
   it("keeps catalog facts verbatim and leaves missing facts null", () => {
@@ -33,8 +41,9 @@ describe("catalog", () => {
 
   it("rejects cross-site job combinations, inactive shifts and duplicates", () => {
     expect(resolvePreferences([{ site_code: "TST2", job_id: "J-A", shift_code: "S1" }], [], opts).ok).toBe(false);
-    expect(resolvePreferences([{ site_code: "TST1", job_id: "J-A", shift_code: "S3" }], [], opts).ok).toBe(false);
+    expect(resolvePreferences([{ site_code: "TST1", job_id: "J-CLOSED", shift_code: "S3" }], [], opts).ok).toBe(false);
     expect(resolvePreferences([{ site_code: "TST3", job_id: "J-C", shift_code: "S1" }], [], opts).ok).toBe(false);
+    expect(resolvePreferences([{ site_code: "UNKNOWN", job_id: "J-D", shift_code: "S1" }], [], opts).ok).toBe(false);
     const dup = { site_code: "TST1", job_id: "J-A", shift_code: "S1" };
     expect(resolvePreferences([dup], [dup], opts).ok).toBe(false);
   });
@@ -57,6 +66,23 @@ describe("profile validation", () => {
   it("rejects reversed employment dates", () => {
     const r = ProfileSchema.safeParse({ ...base, employment_history: [{ employment_kind: "company", company: "X", job_title: "Y", from_date: "2024-01-01", to_date: "2023-01-01" }] });
     expect(r.success).toBe(false);
+  });
+
+  it("schema rejects published pay without provenance, non-Amazon sources, and unknown opening states", async () => {
+    const { parseCatalog } = await import("./catalog");
+    const committed = await import("@/data/job-catalog.json");
+    expect(parseCatalog(committed.default).success).toBe(true);
+    expect(parseCatalog(fixture).success).toBe(true);
+    const clone = () => JSON.parse(JSON.stringify(fixture));
+    const noPaySource = clone();
+    delete noPaySource.openings[0].shifts[0].pay.pay_source_url;
+    expect(parseCatalog(noPaySource).success).toBe(false);
+    const thirdParty = clone();
+    thirdParty.openings[0].source_domain = "indeed.com";
+    expect(parseCatalog(thirdParty).success).toBe(false);
+    const badState = clone();
+    badState.openings[0].status = "OPEN_MAYBE";
+    expect(parseCatalog(badState).success).toBe(false);
   });
 
   it("has exactly the fifteen required statuses", () => {

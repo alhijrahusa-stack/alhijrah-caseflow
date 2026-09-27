@@ -1,49 +1,45 @@
 {
+  "schema_version": 2,
   "state": "MI",
-  "source": "E2E TEST FIXTURE — not real data",
-  "sites": [
+  "facilities": [
+    { "site_code": "TST1", "facility_type": "Test Facility", "facility_name": "Test Site One", "city": "Testville", "address": "1 Test Way", "verification_status": "VERIFIED", "source_url": "https://www.amazon.jobs/en/jobs/TEST-FIXTURE", "last_verified_at": "2026-01-01T00:00:00Z", "current_availability": "AVAILABLE" },
+    { "site_code": "TST2", "facility_type": "Test Facility", "facility_name": "Test Site Two", "city": "Othertown", "verification_status": "VERIFIED", "source_url": "https://www.amazon.jobs/en/jobs/TEST-FIXTURE", "last_verified_at": "2026-01-01T00:00:00Z", "current_availability": "AVAILABLE" },
+    { "site_code": "TST3", "facility_type": "Test Facility", "facility_name": "Inactive Site", "city": "Inactiveville", "verification_status": "VERIFIED", "source_url": "https://www.amazon.jobs/en/jobs/TEST-FIXTURE", "last_verified_at": "2026-01-01T00:00:00Z", "current_availability": "NO_CURRENT_VERIFIED_OPENING" }
+  ],
+  "shift_patterns": [],
+  "openings": [
     {
-      "city": "Testville",
-      "site_code": "TST1",
-      "site_name": "Test Site One",
-      "address": "1 Test Way",
-      "active": true,
-      "last_verified_at": "2026-01-01",
-      "jobs": [
-        {
-          "job_id": "J-A",
-          "job_title": "Test Job A",
-          "employment_type": "Full-time",
-          "active": true,
-          "shifts": [
-            { "shift_code": "S1", "days": "Mon-Thu", "start_time": "07:00", "end_time": "17:30", "pay": "$1.11/hr (fixture)", "active": true },
-            { "shift_code": "S2", "days": "Fri-Sun", "start_time": "18:00", "end_time": "04:30", "pay": "$2.22/hr (fixture)", "active": true },
-            { "shift_code": "S3", "days": "Mon", "start_time": "00:00", "end_time": "01:00", "pay": "$9.99/hr (fixture)", "active": false }
-          ]
-        }
+      "source": "AMAZON_OFFICIAL", "source_domain": "www.amazon.jobs", "source_url": "https://www.amazon.jobs/en/jobs/TEST-FIXTURE-A", "source_job_id": "J-A",
+      "source_retrieved_at": "2026-01-01T00:00:00Z", "last_verified_at": "2026-01-01T00:00:00Z",
+      "job_id": "J-A", "site_code": "TST1", "title": "Test Job A", "employment_type": "Full-time", "status": "AVAILABLE",
+      "shifts": [
+        { "shift_code": "S1", "days": "Mon-Thu", "start_time": "07:00", "end_time": "17:30", "pay": { "pay_status": "PUBLISHED", "display_pay": "$1.11/hr (fixture)", "pay_source_url": "https://www.amazon.jobs/en/jobs/TEST-FIXTURE-A", "pay_verified_at": "2026-01-01T00:00:00Z" } },
+        { "shift_code": "S2", "days": "Fri-Sun", "start_time": "18:00", "end_time": "04:30", "pay": { "pay_status": "PUBLISHED", "display_pay": "$2.22/hr (fixture)", "pay_source_url": "https://www.amazon.jobs/en/jobs/TEST-FIXTURE-A", "pay_verified_at": "2026-01-01T00:00:00Z" } }
       ]
     },
     {
-      "city": "Othertown",
-      "site_code": "TST2",
-      "site_name": "Test Site Two",
-      "address": null,
-      "active": true,
-      "jobs": [
-        {
-          "job_id": "J-B",
-          "job_title": "Test Job B",
-          "active": true,
-          "shifts": [{ "shift_code": "S9", "days": null, "start_time": null, "end_time": null, "pay": null, "active": true }]
-        }
-      ]
+      "source": "AMAZON_OFFICIAL", "source_domain": "www.amazon.jobs", "source_url": "https://www.amazon.jobs/en/jobs/TEST-FIXTURE-CLOSED", "source_job_id": "J-CLOSED",
+      "source_retrieved_at": "2026-01-01T00:00:00Z", "last_verified_at": "2026-01-01T00:00:00Z",
+      "job_id": "J-CLOSED", "site_code": "TST1", "title": "Closed Job", "status": "CLOSED",
+      "shifts": [{ "shift_code": "S3", "days": "Mon", "pay": { "pay_status": "PUBLISHED", "display_pay": "$9.99/hr (fixture)", "pay_source_url": "https://www.amazon.jobs/en/jobs/TEST-FIXTURE-CLOSED", "pay_verified_at": "2026-01-01T00:00:00Z" } }]
     },
     {
-      "city": "Inactiveville",
-      "site_code": "TST3",
-      "site_name": "Inactive Site",
-      "active": false,
-      "jobs": [{ "job_id": "J-C", "job_title": "Hidden", "shifts": [{ "shift_code": "S1", "pay": "$0", "active": true }] }]
+      "source": "AMAZON_OFFICIAL", "source_domain": "www.amazon.jobs", "source_url": "https://www.amazon.jobs/en/jobs/TEST-FIXTURE-B", "source_job_id": "J-B",
+      "source_retrieved_at": "2026-01-01T00:00:00Z", "last_verified_at": "2026-01-01T00:00:00Z",
+      "job_id": "J-B", "site_code": "TST2", "title": "Test Job B", "status": "AVAILABLE",
+      "shifts": [{ "shift_code": "S9", "pay": { "pay_status": "NOT_PUBLISHED" } }]
+    },
+    {
+      "source": "AMAZON_OFFICIAL", "source_domain": "www.amazon.jobs", "source_url": "https://www.amazon.jobs/en/jobs/TEST-FIXTURE-C", "source_job_id": "J-C",
+      "source_retrieved_at": "2026-01-01T00:00:00Z", "last_verified_at": "2026-01-01T00:00:00Z",
+      "job_id": "J-C", "site_code": "TST3", "title": "Not Verified Job", "status": "NOT_VERIFIED",
+      "shifts": [{ "shift_code": "S1", "pay": { "pay_status": "NOT_PUBLISHED" } }]
+    },
+    {
+      "source": "AMAZON_OFFICIAL", "source_domain": "www.amazon.jobs", "source_url": "https://www.amazon.jobs/en/jobs/TEST-FIXTURE-D", "source_job_id": "J-D",
+      "source_retrieved_at": "2026-01-01T00:00:00Z", "last_verified_at": "2026-01-01T00:00:00Z",
+      "job_id": "J-D", "site_code": "UNKNOWN", "title": "Unknown Site Job", "status": "AVAILABLE",
+      "shifts": [{ "shift_code": "S1", "pay": { "pay_status": "NOT_PUBLISHED" } }]
     }
   ]
 }

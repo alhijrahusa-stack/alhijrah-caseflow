@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fresh PostgreSQL (with pgvector), both migrations, then the integration suite.
+# Fresh PostgreSQL (with pgvector), all migrations, then the integration suite.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PGBIN=${PGBIN:-$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)}
@@ -13,7 +13,7 @@ as_pg "$PGBIN/initdb -D $PGDIR/data -A trust -E UTF8 >/dev/null && $PGBIN/pg_ctl
 sleep 2
 P="psql -h 127.0.0.1 -p $PGPORT -U postgres -v ON_ERROR_STOP=1 -q"
 $P -c "create database careergate"
-$P -d careergate -f e2e/supabase-stub.sql -f supabase/migrations/001_initial_schema.sql -f supabase/migrations/002_operations_platform.sql 2>&1 | grep -v "wal_level\|HINT" || true
+$P -d careergate -f e2e/supabase-stub.sql $(for m in supabase/migrations/*.sql; do printf -- "-f %s " "$m"; done) 2>&1 | grep -v "wal_level\|HINT" || true
 $P -d careergate -c "select 1 from public.status_transitions limit 1" >/dev/null
 echo "migrations applied"
 DATABASE_URL="postgres://postgres@127.0.0.1:$PGPORT/careergate" \

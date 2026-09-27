@@ -119,11 +119,12 @@ export async function insertPreference(tx: Tx, clientId: string, r: PrefRow) {
     insert into client_preferences (
       client_id, rank, preference_order, city, site_code, site_name, site_address, job_id, job_title,
       employment_type, shift_code, days, hours, pay_snapshot, availability_snapshot, catalog_source,
-      catalog_verified_at, catalog_version
+      catalog_verified_at, catalog_version, amazon_job_id, shift_name, source_url, source_verified_at, pay_detail
     ) values (
       ${clientId}, ${r.rank}, ${r.preference_order}, ${r.city}, ${r.site_code}, ${r.site_name}, ${r.site_address},
       ${r.job_id}, ${r.job_title}, ${r.employment_type}, ${r.shift_code}, ${r.days}, ${r.hours}, ${r.pay},
-      ${r.availability}, ${r.source}, ${r.last_verified_at}, ${catalogVersion}
+      ${r.availability}, ${r.source}, ${r.last_verified_at}, ${catalogVersion}, ${r.job_id}, ${r.shift_name},
+      ${r.source_url}, ${r.last_verified_at}, ${tx.json(r.pay_detail as never)}
     ) returning id`;
   return row.id as string;
 }

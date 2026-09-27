@@ -9,7 +9,7 @@ type P = { value: PrefState; onChange: (v: PrefState) => void };
 const set = (p: P, patch: Partial<PrefState>) => p.onChange(prune({ ...p.value, ...patch }));
 
 export const shiftLabel = (o: Option) =>
-  `${o.shift_code}${o.days ? ` · ${o.days}` : ""}${o.hours ? ` · ${o.hours}` : ""}`;
+  `${o.shift_name ? `${o.shift_name} (${o.shift_code})` : o.shift_code}${o.days ? ` · ${o.days}` : ""}${o.hours ? ` · ${o.hours}` : ""}`;
 
 export function CityStep(p: P) {
   return (
@@ -52,7 +52,7 @@ export function ShiftStep(p: P & { rank: "primary" | "backup" }) {
       choices={shiftsFor(p.value).map((o) => ({
         value: o.key,
         label: `${o.job_title} — ${shiftLabel(o)}`,
-        hint: `${o.site_name}${o.pay ? ` · Pay: ${o.pay}` : " · Pay not listed in catalog"}`,
+        hint: `${o.site_name} · Amazon job ${o.job_id}${o.pay ? ` · Pay: ${o.pay}` : " · Pay: NOT_PUBLISHED"}${o.pay_detail.shift_differential ? ` · Differential: ${o.pay_detail.shift_differential}` : ""}`,
       }))}
     />
   );
@@ -77,7 +77,7 @@ export function PreferenceSummary({ value }: { value: PrefState }) {
               <span className="block font-medium">{o.job_title} — {shiftLabel(o)}</span>
               <span className="block text-slate-500">{o.site_name} ({o.site_code}), {o.city}</span>
             </span>
-            <span className="whitespace-nowrap font-medium">{o.pay ?? "Pay not listed"}</span>
+            <span className="whitespace-nowrap font-medium">{o.pay ?? "Pay not published"}</span>
           </li>
         );
       })}

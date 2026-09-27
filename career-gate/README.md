@@ -54,12 +54,19 @@ Background work uses the `jobs` table: SKIP LOCKED claims, a 120-second visibili
 
 ## Catalog
 
-`data/job-catalog.json` is the only source of site, job, shift, schedule, pay and availability text. It is currently **empty**. Until it is filled:
+`data/job-catalog.json` (schema v2, validated by `lib/catalog.ts`) is the only catalog. It has three separate parts:
 
-- the public form says no openings are listed and still accepts requests;
-- preferences cannot be added.
+- **facilities** — the facility master. A site stays listed even when it has no opening.
+  - The 13 Michigan codes supplied by the office (DET1, DTW1, DTW2, DET2, DET3, DET6, GRR1, DTW3, DTW9, DTW8, DTW5, LAN2, SMI1) are recorded as `NOT_VERIFIED`, with facility types marked `OFFICE_PROVIDED`.
+  - They are never offered to applicants until an official opening is verified.
+- **shift_patterns** — the office-provided operational patterns (FHD/FHN/BHD/BHN/DON/RT/Flex, sortation, XL, delivery station, DSP kept separate).
+  - These are reference only and never selectable.
+  - Exact times come only from official listings.
+- **openings** — current Amazon openings from `amazon.jobs` or `hiring.amazon.com` only. Each carries `source_domain`, `source_url`, `source_job_id`, `source_retrieved_at`, `last_verified_at`, a status (`AVAILABLE | CLOSED | NOT_FOUND | NOT_VERIFIED`) and its shifts.
+  - Each shift records pay as `pay_status` (`PUBLISHED | NOT_PUBLISHED`), `pay_type`, `base_pay_min/max`, `shift_differential`, `surge_pay`, `sign_on_bonus`, `display_pay`, `currency`, `pay_source_url` and `pay_verified_at`.
+  - The schema rejects published pay without a source and URL, sources outside those two domains, and unknown statuses.
 
-Every preference stores a snapshot and the catalog content version.
+Only `AVAILABLE` openings at a facility with a known city are selectable, and the server re-validates every submitted site, job and shift. Each preference freezes a snapshot: site, job, shift, schedule, the pay exactly as published with full detail, the Amazon job ID, the source URL, the verification time and the catalog version. Later catalog changes never alter a submitted application.
 
 ## Deploy
 

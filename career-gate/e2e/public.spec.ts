@@ -62,6 +62,7 @@ test.describe.serial("public intake and status access", () => {
 
     // Shifts only for the selected job; inactive shift hidden.
     await expect(page.getByText(/S3/)).toHaveCount(0);
+    await expect(page.getByText(/Closed Job|Not Verified Job|Unknown Site Job/)).toHaveCount(0);
     await page.getByText(/Test Job A — S2/).click();
     await page.getByText(/Test Job A — S1/).click();
     await page.getByRole("button", { name: "Next" }).click();
@@ -133,7 +134,9 @@ test.describe.serial("public intake and status access", () => {
     const clients = await db()`select id, source, current_status from clients where ref = ${ref}`;
     expect(clients).toHaveLength(1);
     expect(clients[0]).toMatchObject({ source: "public_intake", current_status: "new_intake" });
-    const prefs = await db()`select rank, preference_order, shift_code, pay_snapshot, catalog_version from client_preferences where client_id = ${clients[0].id} order by preference_order`;
+    const prefs = await db()`select rank, preference_order, shift_code, pay_snapshot, catalog_version, amazon_job_id, source_url, source_verified_at, pay_detail from client_preferences where client_id = ${clients[0].id} order by preference_order`;
+    expect(prefs[0]).toMatchObject({ amazon_job_id: "J-A", source_url: "https://www.amazon.jobs/en/jobs/TEST-FIXTURE-A", source_verified_at: "2026-01-01T00:00:00Z" });
+    expect(prefs[0].pay_detail).toMatchObject({ pay_status: "PUBLISHED", display_pay: "$2.22/hr (fixture)" });
     expect(prefs.map((p) => [p.rank, p.preference_order, p.shift_code, p.pay_snapshot])).toEqual([
       ["primary", 1, "S2", "$2.22/hr (fixture)"], ["primary", 2, "S1", "$1.11/hr (fixture)"],
     ]);
@@ -170,6 +173,10 @@ test.describe.serial("public intake and status access", () => {
     test.skip(!FIXTURE_CATALOG, "needs the test catalog");
     const bad = (extra: Record<string, unknown>) => submitIntake(request, intakeBody(`TEST Bad ${RUN}`, extra));
     expect((await bad({ primary: [{ site_code: "TST2", job_id: "J-A", shift_code: "S1" }] })).json.error.code).toBe("invalid_preferences");
+    // Closed, not-verified and unknown-site openings can never be submitted as current.
+    expect((await bad({ primary: [{ site_code: "TST1", job_id: "J-CLOSED", shift_code: "S3" }] })).json.error.code).toBe("invalid_preferences");
+    expect((await bad({ primary: [{ site_code: "TST3", job_id: "J-C", shift_code: "S1" }] })).json.error.code).toBe("invalid_preferences");
+    expect((await bad({ primary: [{ site_code: "UNKNOWN", job_id: "J-D", shift_code: "S1" }] })).json.error.code).toBe("invalid_preferences");
     expect((await bad({ primary: [{ site_code: "TST1", job_id: "J-A", shift_code: "S3" }] })).json.error.code).toBe("invalid_preferences");
     expect((await bad({ primary: [{ site_code: "TST1", job_id: "J-A", shift_code: "S1" }], backup: [{ site_code: "TST1", job_id: "J-A", shift_code: "S1" }] })).json.error.code).toBe("invalid_preferences");
     expect((await bad({ authorization: { version: "2026-09-26.1", accepted: false, accuracy_acknowledged: true, printed_name: "A B", signature: "A B" } })).res.status()).toBe(400);

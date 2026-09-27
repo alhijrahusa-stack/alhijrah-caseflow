@@ -125,12 +125,13 @@ export function Preferences({ clientId, prefs }: { clientId: string; prefs: Row[
                       <td className="font-semibold">{p.preference_order}</td>
                       <td>{p.city}</td>
                       <td>{p.site_name} <span className="text-slate-400">({p.site_code})</span>{p.site_address && <span className="block text-xs text-slate-500">{p.site_address}</span>}</td>
-                      <td>{p.job_title}{p.employment_type && <span className="block text-xs text-slate-500">{p.employment_type}</span>}</td>
+                      <td>{p.job_title}{p.employment_type && <span className="block text-xs text-slate-500">{p.employment_type}</span>}
+                        {p.source_url && <a href={p.source_url} target="_blank" rel="noopener noreferrer" className="block text-xs text-brand-700 hover:underline">Amazon job {p.amazon_job_id}</a>}</td>
                       <td>{p.shift_code}</td>
                       <td>{p.days ?? "—"}</td>
                       <td>{p.hours ?? "—"}</td>
-                      <td className="font-medium" data-testid="pay-snapshot">{p.pay_snapshot ?? "Not listed"}</td>
-                      <td className="text-xs text-slate-500">{p.availability_snapshot ?? "—"}<span className="block">{p.catalog_version}</span></td>
+                      <td className="font-medium" data-testid="pay-snapshot">{p.pay_snapshot ?? "NOT_PUBLISHED"}{p.pay_detail?.shift_differential && <span className="block text-xs text-slate-500">Differential: {p.pay_detail.shift_differential}</span>}</td>
+                      <td className="text-xs text-slate-500">{p.availability_snapshot ?? "—"}<span className="block">Verified {p.source_verified_at ?? "—"}</span><span className="block">{p.catalog_version}</span></td>
                       {isManager && <td><SmallBtn disabled={a.pending} onClick={() => a.go({ action: "remove_preference", client_id: clientId, preference_id: p.id })}>Remove</SmallBtn></td>}
                     </tr>
                   ))}
