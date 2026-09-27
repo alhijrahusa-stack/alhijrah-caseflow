@@ -8,6 +8,10 @@ def tok(text: str, start: int = 0, end: int = 300):
     return {"text": text, "start_ms": start, "end_ms": end, "confidence": 0.99, "speaker": None}
 
 
+def test_supported_locales_are_exactly_the_five_forensic_locales():
+    assert registry.SUPPORTED_LOCALES == frozenset({"ar-YE", "ar-EG", "ar-SY", "ar-LB", "ar-IQ"})
+
+
 def test_exact_five_locale_routing():
     ye_primary = registry.primary_asr("ar-YE")
     assert [p.name for p in ye_primary] == ["assemblyai", "google_chirp3"]
