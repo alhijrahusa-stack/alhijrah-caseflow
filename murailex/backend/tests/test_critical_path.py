@@ -62,7 +62,13 @@ def test_provider_not_configured_is_explicit(app_client, users):
     r = app_client.get(f"/api/recordings/{rec['id']}").json()
     assert r["recording"]["status"] == "provider_not_configured"
     statuses = {run["provider"]: run["status"] for run in r["provider_runs"]}
-    assert statuses == {"assemblyai": "not_configured", "google_chirp3": "not_configured"}
+    assert statuses == {
+        "assemblyai": "not_configured",
+        "google_chirp3": "not_configured",
+        "openai": "not_configured",
+        "deepgram": "not_configured",
+        "pyannoteai": "not_configured",
+    }
     assert app_client.get(f"/api/recordings/{rec['id']}/transcript").json()["revision"] is None
 
 
@@ -102,8 +108,9 @@ def test_full_critical_path(app_client, users, fixture_providers):
     assert content["speakers"]["S1"]["label"] == "[المتحدث 1]"
     texts = [it["text"] for s in content["segments"] for it in s["items"] if it["kind"] != "dispute"]
     assert "[صمت]" in texts  # acoustic silence between 8 s and 11 s
-    assert "والله" in texts and "okay" in texts  # agreed tokens incl. code-switch preserved verbatim
-    assert "سالم" in texts  # name region closed by unanimous engines incl. verifier
+    assert "والله" in texts
+    assert "okay" not in texts  # code-switch is a mandatory human-review risk
+    assert "سالم" not in texts  # names are mandatory human-review risks
     words = [it for s in content["segments"] for it in s["items"] if it["kind"] == "word"]
     assert all(it["provenance"] for it in words)
 
@@ -111,6 +118,7 @@ def test_full_critical_path(app_client, users, fixture_providers):
     assert len(disputes) >= 2
     reasons = {r for d in disputes for r in d["reasons"]}
     assert "engine_disagreement" in reasons and "risk:number" in reasons and "overlap" in reasons
+    assert "risk:code_switch" in reasons and "risk:name" in reasons
     number = next(d for d in disputes if "risk:number" in d["reasons"])
     cand_texts = {c["provider"]: c["text"] for c in number["candidates"]}
     assert "خمسة" in cand_texts["fixture:engine_a"] and "خمسين" in cand_texts["fixture:engine_b"]
@@ -293,12 +301,11 @@ def test_provider_failure_is_retried_then_recorded(app_client, users):
         runs = {r["provider"]: r for r in d["provider_runs"] if r["role"] == "primary_asr"}
         assert runs["fixture:flaky"]["status"] == "succeeded" and runs["fixture:flaky"]["attempt"] == 2
         assert runs["fixture:broken"]["status"] == "failed"
-        # single surviving engine => single-engine mode, every escalation reviewed
-        t = app_client.get(f"/api/recordings/{rec['id']}/transcript").json()["revision"]
-        assert t["content"]["method"]["single_engine_mode"] is True
-        assert d["recording"]["status"] == "needs_review"
+        # a mandatory primary failure blocks forensic consensus and transcript creation
+        assert d["recording"]["status"] == "failed"
+        assert app_client.get(f"/api/recordings/{rec['id']}/transcript").json()["revision"] is None
         ev = {e["action"] for e in app_client.get(f"/api/recordings/{rec['id']}/audit").json()["events"]}
-        assert "provider_retry" in ev and "provider_failed" in ev
+        assert "provider_retry" in ev and "provider_failed" in ev and "processing_failed" in ev
     finally:
         registry.clear_test_fixtures()
 
