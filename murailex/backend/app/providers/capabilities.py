@@ -1,8 +1,9 @@
 """Verified provider capability registry.
 
-This registry records only provider capabilities verified against first-party documentation.
-It is descriptive evidence for routing/readiness; it does not mark a provider READY. Runtime
-readiness still requires a real successful request and persistence in MURAILEX.
+Only capabilities supported by current first-party documentation are stated as facts.
+Unknown, account-specific, or corpus-dependent capabilities remain UNVERIFIED. This registry
+is descriptive evidence for routing/readiness; it does not select a benchmark winner and
+never marks a provider READY.
 """
 from __future__ import annotations
 
@@ -22,16 +23,16 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "code_switch_support": True,
         "keyterm_or_context_support": True,
         "diarization_support": True,
-        "api_status": "production",
-        "ga_or_preview": "provider production API",
+        "api_status": "available",
+        "ga_or_preview": "UNVERIFIED",
         "pricing_reference": "https://www.assemblyai.com/pricing/",
         "verified_source": [
             "https://www.assemblyai.com/products/speech-to-text",
-            "https://www.assemblyai.com/blog/multilingual-transcription",
+            "https://www.assemblyai.com/blog/u3-pro-may-updates",
             "https://www.assemblyai.com/pricing/",
         ],
         "verified_at": VERIFIED_AT,
-        "notes": "Arabic is one of the current native code-switching languages for Universal-3.5 Pro; actual speech_model_used must be preserved.",
+        "notes": "Regional Arabic locale codes are not claimed. Actual provider-returned model metadata must be preserved.",
     },
     "google_chirp3": {
         "provider": "Google Cloud Speech-to-Text V2",
@@ -41,17 +42,18 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "supported_locales": ["ar-EG", "ar-YE", "ar-SY", "ar-LB", "ar-IQ"],
         "word_timestamps": True,
         "segment_timestamps": True,
-        "code_switch_support": False,
+        "code_switch_support": "UNVERIFIED for the exact MURAILEX Arabic routing",
         "keyterm_or_context_support": True,
-        "diarization_support": True,
-        "api_status": "production API; listed Arabic locales are Preview",
+        "diarization_support": "NOT SUPPORTED for the listed Arabic locales in the current Chirp 3 diarization language table",
+        "api_status": "available",
         "ga_or_preview": "Preview for listed Arabic locales",
         "pricing_reference": "https://cloud.google.com/speech-to-text/pricing",
         "verified_source": [
             "https://docs.cloud.google.com/speech-to-text/docs/models/chirp-3",
+            "https://docs.cloud.google.com/speech-to-text/docs/speech-to-text-supported-languages",
         ],
         "verified_at": VERIFIED_AT,
-        "notes": "MURAILEX uses exact user-selected regional locale. Google documents listed Arabic locale launch readiness as Preview.",
+        "notes": "Word timestamps are available in Recognize/BatchRecognize. Word-level confidence is not treated as a calibrated confidence score.",
     },
     "deepgram": {
         "provider": "Deepgram",
@@ -61,18 +63,20 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "supported_locales": ["ar", "ar-EG", "ar-SY", "ar-LB", "ar-IQ"],
         "word_timestamps": True,
         "segment_timestamps": True,
-        "code_switch_support": True,
+        "code_switch_support": "UNVERIFIED for Arabic-English on the MURAILEX legal corpus",
         "keyterm_or_context_support": True,
         "diarization_support": True,
-        "api_status": "production",
-        "ga_or_preview": "production",
+        "api_status": "available",
+        "ga_or_preview": "UNVERIFIED",
         "pricing_reference": "https://deepgram.com/pricing",
         "verified_source": [
             "https://developers.deepgram.com/docs/models-languages-overview",
+            "https://developers.deepgram.com/docs/keyterm",
+            "https://developers.deepgram.com/changelog/2026/1/27",
             "https://developers.deepgram.com/trust-security/your-data",
         ],
         "verified_at": VERIFIED_AT,
-        "notes": "Nova-3 does not list ar-YE; MURAILEX must not silently map Yemeni Arabic to another regional locale. mip_opt_out=true is required for legal-audio requests.",
+        "notes": "Nova-3 documents Arabic general and ar-EG/ar-SY/ar-LB/ar-IQ, but not ar-YE; ar-YE substitution is forbidden.",
     },
     "openai": {
         "provider": "OpenAI",
@@ -80,20 +84,20 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "model_version": "provider-managed",
         "supported_languages": ["ar", "en"],
         "supported_locales": ["ar"],
-        "word_timestamps": False,
-        "segment_timestamps": False,
-        "code_switch_support": True,
-        "keyterm_or_context_support": True,
+        "word_timestamps": "UNVERIFIED for gpt-transcribe; MURAILEX does not synthesize them",
+        "segment_timestamps": "MURAILEX region boundaries only; not claimed as model-native segment timestamps",
+        "code_switch_support": "UNVERIFIED for the MURAILEX legal corpus",
+        "keyterm_or_context_support": "UNVERIFIED for the exact production request path",
         "diarization_support": False,
-        "api_status": "production",
-        "ga_or_preview": "production",
-        "pricing_reference": "https://developers.openai.com/api/docs/models/gpt-transcribe",
+        "api_status": "available",
+        "ga_or_preview": "UNVERIFIED",
+        "pricing_reference": "https://developers.openai.com/api/docs/pricing",
         "verified_source": [
             "https://developers.openai.com/api/docs/guides/speech-to-text",
             "https://developers.openai.com/api/docs/models/gpt-transcribe",
         ],
         "verified_at": VERIFIED_AT,
-        "notes": "gpt-transcribe is used only as independent region-level verification because current file transcription documentation directs word timestamps to whisper-1.",
+        "notes": "Used only as independent region-level verification. No fabricated word timestamps or dialect claims.",
     },
     "pyannoteai": {
         "provider": "pyannoteAI",
@@ -103,18 +107,36 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "supported_locales": ["language-agnostic"],
         "word_timestamps": False,
         "segment_timestamps": True,
-        "code_switch_support": True,
+        "code_switch_support": "not applicable to acoustic speaker diarization",
         "keyterm_or_context_support": False,
         "diarization_support": True,
-        "api_status": "production",
-        "ga_or_preview": "production",
-        "pricing_reference": "https://www.pyannote.ai/pricing",
+        "api_status": "available when account/API access is configured",
+        "ga_or_preview": "UNVERIFIED",
+        "pricing_reference": "UNVERIFIED",
         "verified_source": [
             "https://www.pyannote.ai/changelog/precision-3",
             "https://www.pyannote.ai/precision-3",
         ],
         "verified_at": VERIFIED_AT,
-        "notes": "Precision-3 is acoustic/language-agnostic speaker diarization; automatic speaker labels are not real-person identity.",
+        "notes": "Automatic speaker labels are not real-person identity. Active-account capability/privacy remain separately gated.",
+    },
+    "audar": {
+        "provider": "Audar",
+        "model": "Audar-ASR-V1-Turbo",
+        "model_version": "UNVERIFIED",
+        "supported_languages": "UNVERIFIED",
+        "supported_locales": "UNVERIFIED",
+        "word_timestamps": "UNVERIFIED",
+        "segment_timestamps": "UNVERIFIED",
+        "code_switch_support": "UNVERIFIED",
+        "keyterm_or_context_support": "UNVERIFIED",
+        "diarization_support": "UNVERIFIED",
+        "api_status": "UNVERIFIED",
+        "ga_or_preview": "UNVERIFIED",
+        "pricing_reference": "UNVERIFIED",
+        "verified_source": [],
+        "verified_at": None,
+        "notes": "Not eligible for production routing until current first-party documentation and a real benchmark are available.",
     },
 }
 
