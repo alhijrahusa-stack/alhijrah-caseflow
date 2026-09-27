@@ -4,8 +4,8 @@ const connect = ["'self'", supabase && supabase.origin, supabase && `wss://${sup
 
 const csp = [
   "default-src 'self'",
-  // Next.js injects inline bootstrap scripts; no third-party script origins are allowed.
-  "script-src 'self' 'unsafe-inline'",
+  // The approved public Career Gate receipt uses html2canvas from cdnjs.
+  "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   "img-src 'self' data: blob:",
@@ -28,7 +28,7 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Frame-Options", value: "DENY" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
         ],
       },
     ];
