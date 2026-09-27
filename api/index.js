@@ -1,32 +1,40 @@
 const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY'];
 
-const ENV_FALLBACKS = {
-  SUPABASE_URL: 'NEXT_PUBLIC_SUPABASE_URL',
-  SUPABASE_ANON_KEY: 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
-};
+function getRuntimeConfig() {
+  const config = {
+    SUPABASE_URL: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    OWNER_EMAIL: process.env.OWNER_EMAIL,
+    APP_BASE_URL: process.env.APP_BASE_URL,
+    INTERNAL_API_KEY: process.env.INTERNAL_API_KEY,
+    R2_BUCKET: process.env.R2_BUCKET,
+    R2_ENDPOINT: process.env.R2_ENDPOINT,
+    R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
+    R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    AI_PROVIDER: process.env.AI_PROVIDER,
+    AI_PROVIDER_URL: process.env.AI_PROVIDER_URL,
+    AI_PROVIDER_MODEL: process.env.AI_PROVIDER_MODEL,
+    AI_PROVIDER_API_KEY: process.env.AI_PROVIDER_API_KEY,
+  };
 
-function getRuntimeEnv() {
-  const runtimeProcess = Reflect.get(globalThis, 'process');
-  const env = runtimeProcess && Reflect.get(runtimeProcess, 'env');
-  return env && typeof env === 'object' ? env : {};
-}
-
-function readEnv(env, key) {
-  const value = Reflect.get(env, key);
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-function missingEnvVars(env) {
-  for (const [key, fallback] of Object.entries(ENV_FALLBACKS)) {
-    if (!readEnv(env, key)) {
-      const fallbackValue = readEnv(env, fallback);
-      if (fallbackValue) Reflect.set(env, key, fallbackValue);
-    }
+  if (!process.env.SUPABASE_URL && config.SUPABASE_URL) {
+    process.env.SUPABASE_URL = config.SUPABASE_URL;
   }
-  return REQUIRED_ENV.filter(key => !readEnv(env, key));
+  if (!process.env.SUPABASE_ANON_KEY && config.SUPABASE_ANON_KEY) {
+    process.env.SUPABASE_ANON_KEY = config.SUPABASE_ANON_KEY;
+  }
+
+  return config;
 }
 
-function configPage(env, missing) {
+function missingEnvVars(config) {
+  return REQUIRED_ENV.filter(key => !config[key]);
+}
+
+function configPage(config, missing) {
   const checked = REQUIRED_ENV.map(key => {
     const ok = !missing.includes(key);
     return `<li style="margin:6px 0;color:${ok ? '#16a34a' : '#dc2626'}">${ok ? '&#10003;' : '&#10007;'} <code>${key}</code></li>`;
@@ -37,7 +45,7 @@ function configPage(env, missing) {
     'RESEND_API_KEY', 'RESEND_FROM_EMAIL',
     'AI_PROVIDER', 'AI_PROVIDER_URL', 'AI_PROVIDER_MODEL', 'AI_PROVIDER_API_KEY',
   ].map(key => {
-    const ok = Boolean(readEnv(env, key));
+    const ok = Boolean(config[key]);
     return `<li style="margin:4px 0;color:${ok ? '#16a34a' : '#9ca3af'}">${ok ? '&#10003;' : '&#9675;'} <code>${key}</code></li>`;
   }).join('');
   return `<!DOCTYPE html>
@@ -80,17 +88,14 @@ let handlerPromise;
 export const config = { api: { bodyParser: false } };
 
 export default async function handler(req, res) {
-  const env = getRuntimeEnv();
-  const missing = missingEnvVars(env);
+  const runtimeConfig = getRuntimeConfig();
+  const missing = missingEnvVars(runtimeConfig);
   if (missing.length) {
-    const envKeys = Object.keys(env);
-    console.error('[caseflow] ENV CHECK FAILED — missing:', missing.join(', '),
-      '| present keys matching SUPA*:', envKeys.filter(k => k.startsWith('SUPA')).join(', ') || '(none)',
-      '| present keys matching NEXT_PUBLIC_SUPA*:', envKeys.filter(k => k.startsWith('NEXT_PUBLIC_SUPA')).join(', ') || '(none)');
+    console.error('[caseflow] ENV CHECK FAILED — missing:', missing.join(', '));
     res.setHeader('content-type', 'text/html; charset=utf-8');
     res.setHeader('cache-control', 'no-store');
     res.statusCode = 503;
-    res.end(configPage(env, missing));
+    res.end(configPage(runtimeConfig, missing));
     return;
   }
   if (!handlerPromise) {
