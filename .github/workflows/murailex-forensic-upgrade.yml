@@ -21,11 +21,34 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Apply forensic upgrade
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: murailex/frontend/package-lock.json
+      - name: Apply surgical MURAILEX upgrade
         run: python .github/scripts/murailex_forensic_upgrade.py
       - name: Compile backend
         run: python -m compileall -q murailex/backend/app
-      - name: Commit production code
+      - name: Install backend test dependencies
+        working-directory: murailex/backend
+        run: pip install -r requirements-dev.txt
+      - name: Backend tests
+        working-directory: murailex/backend
+        run: pytest -q
+      - name: Install frontend dependencies
+        working-directory: murailex/frontend
+        run: npm ci
+      - name: Frontend typecheck
+        working-directory: murailex/frontend
+        run: npm run typecheck
+      - name: Frontend tests
+        working-directory: murailex/frontend
+        run: npm test -- --run
+      - name: Frontend production build
+        working-directory: murailex/frontend
+        run: npm run build
+      - name: Commit validated production code
         run: |
           if git diff --quiet -- murailex; then
             echo 'No application changes produced' >&2
@@ -34,5 +57,5 @@ jobs:
           git config user.name 'ALHIJRAH VISA & IMMIGRATION SERVICES LLC'
           git config user.email 'alhijrahusa@gmail.com'
           git add murailex
-          git commit -m 'feat(murailex): enforce five-locale forensic ASR pipeline'
+          git commit -m 'feat(murailex): complete forensic transcript and result workspace upgrade'
           git push origin HEAD:murailex/futuristic-upgrade
