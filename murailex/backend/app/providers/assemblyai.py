@@ -1,9 +1,9 @@
-"""AssemblyAI pre-recorded transcription using Universal-3.5 Pro.
+"""AssemblyAI pre-recorded transcription using Universal-2 for Arabic.
 
-The recording locale is routed by MURAILEX. AssemblyAI receives Arabic/English language
-codes rather than dialect guessing; exact regional routing is handled by providers that
-support the requested locale. Expected terminology is passed as keyterms without changing
-raw transcript output.
+MURAILEX supplies Arabic/English language codes for code-switch recognition. AssemblyAI
+Universal-2 is used explicitly because current provider documentation supports Arabic on
+Universal-2, while Universal-3 Pro does not support Arabic. Expected terminology is sent
+only as recognition hints and never overwrites evidence text.
 """
 from __future__ import annotations
 
@@ -41,7 +41,8 @@ class AssemblyAI(AsrAdapter):
             if str(term).strip()
         ]
         if expected_terms:
-            params["keyterms_prompt"] = expected_terms[:1000]
+            # Universal-2 supports up to 200 keyterms in the current provider contract.
+            params["keyterms_prompt"] = expected_terms[:200]
         return params
 
     def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
@@ -113,4 +114,8 @@ class AssemblyAI(AsrAdapter):
                     "speaker": word.get("speaker"),
                 }
             )
-        return {"tokens": tokens, "language": raw.get("language_code")}
+        return {
+            "tokens": tokens,
+            "language": raw.get("language_code"),
+            "speech_model_used": raw.get("speech_model_used"),
+        }
