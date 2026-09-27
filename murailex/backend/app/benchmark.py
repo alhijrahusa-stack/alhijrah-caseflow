@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 _ARABIC_DIACRITICS = re.compile(r"[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]")
 _WS = re.compile(r"\s+")
@@ -38,8 +39,7 @@ def _distance(reference: list[str], hypothesis: list[str]) -> tuple[int, int, in
     for i in range(1, rows):
         for j in range(1, cols):
             if reference[i - 1] == hypothesis[j - 1]:
-                prev = dp[i - 1][j - 1]
-                dp[i][j] = prev
+                dp[i][j] = dp[i - 1][j - 1]
                 continue
             sub = dp[i - 1][j - 1]
             delete = dp[i - 1][j]
@@ -88,8 +88,11 @@ def score_transcript(reference: str, hypothesis: str) -> dict[str, Any]:
     }
 
 
-def critical_entity_accuracy(reference: list[dict[str, str]], hypothesis: list[dict[str, str]]) -> dict[str, Any]:
+def critical_entity_accuracy(
+    reference: list[dict[str, str]], hypothesis: list[dict[str, str]]
+) -> dict[str, Any]:
     """Exact typed entity accuracy. Inputs must be human-annotated/reference-extracted records."""
+
     def key(row: dict[str, str]) -> tuple[str, str]:
         return (str(row["type"]).strip(), str(row["text"]).strip())
 
@@ -102,16 +105,27 @@ def critical_entity_accuracy(reference: list[dict[str, str]], hypothesis: list[d
     by_type: dict[str, dict[str, int | float]] = {}
     for entity_type in sorted({item[0] for item in ref}):
         type_total = sum(count for (kind, _), count in ref.items() if kind == entity_type)
-        type_matched = sum(min(count, hyp[(kind, text)]) for (kind, text), count in ref.items() if kind == entity_type)
+        type_matched = sum(
+            min(count, hyp[(kind, text)])
+            for (kind, text), count in ref.items()
+            if kind == entity_type
+        )
         by_type[entity_type] = {
             "matched": type_matched,
             "reference": type_total,
             "accuracy": type_matched / type_total,
         }
-    return {"matched": matched, "reference": total, "accuracy": matched / total, "by_type": by_type}
+    return {
+        "matched": matched,
+        "reference": total,
+        "accuracy": matched / total,
+        "by_type": by_type,
+    }
 
 
-def rtf(processing_seconds: float, audio_seconds: float, measurement_type: str) -> dict[str, float | str]:
+def rtf(
+    processing_seconds: float, audio_seconds: float, measurement_type: str
+) -> dict[str, float | str]:
     if audio_seconds <= 0:
         raise ValueError("audio_seconds must be greater than zero")
     if processing_seconds < 0:
@@ -169,13 +183,22 @@ def aggregate_scores(scores: list[dict[str, Any]]) -> dict[str, Any]:
         raise ValueError("No benchmark scores supplied.")
     out: dict[str, Any] = {}
     for metric in ("raw_wer", "normalized_wer", "raw_cer", "normalized_cer"):
-        totals = {"substitutions": 0, "deletions": 0, "insertions": 0, "reference_units": 0, "errors": 0}
+        totals = {
+            "substitutions": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference_units": 0,
+            "errors": 0,
+        }
         for row in scores:
             part = row[metric]
             for key in totals:
                 totals[key] += int(part[key])
         if totals["reference_units"] <= 0:
             raise ValueError(f"{metric} has zero reference units.")
-        out[metric] = {**totals, "rate": totals["errors"] / totals["reference_units"]}
+        out[metric] = {
+            **totals,
+            "rate": totals["errors"] / totals["reference_units"],
+        }
     out["normalization_scope"] = "measurement_only"
     return out
