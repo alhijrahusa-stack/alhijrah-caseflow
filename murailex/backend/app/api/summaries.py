@@ -13,7 +13,6 @@ from .. import audit
 from ..canonical import canonical_json, sha256_hex
 from ..db import get_db
 from ..models import Recording, Summary, TranscriptRevision
-from ..pipeline import transcript as tx
 from ..pipeline.text import CRITICAL_RISKS
 from ..security import Principal, current_principal, load_recording
 from .common import iso, parse_uuid
@@ -26,12 +25,16 @@ SUMMARY_TYPES = {"neutral", "defense"}
 def transcript_binding_sha(rec: Recording, rev: TranscriptRevision) -> str:
     if rev.status == "locked" and rev.sha256:
         return rev.sha256
-    return sha256_hex(canonical_json({
-        "recording_sha256": rec.sha256,
-        "revision_id": str(rev.id),
-        "revision_number": rev.number,
-        "content": rev.content,
-    }))
+    return sha256_hex(
+        canonical_json(
+            {
+                "recording_sha256": rec.sha256,
+                "revision_id": str(rev.id),
+                "revision_number": rev.number,
+                "content": rev.content,
+            }
+        )
+    )
 
 
 def summary_out(s: Summary) -> dict[str, Any]:
@@ -60,7 +63,11 @@ def _speaker(content: dict[str, Any], sid: str | None) -> str:
 def _exact_text(seg: dict[str, Any]) -> str:
     if any(i.get("kind") == "dispute" for i in seg.get("items") or []):
         return ""
-    return " ".join(str(i.get("text") or "").strip() for i in seg.get("items") or [] if str(i.get("text") or "").strip()).strip()
+    return " ".join(
+        str(i.get("text") or "").strip()
+        for i in seg.get("items") or []
+        if str(i.get("text") or "").strip()
+    ).strip()
 
 
 def _anchor(rev: TranscriptRevision, content: dict[str, Any], seg: dict[str, Any]) -> dict[str, Any]:
@@ -72,7 +79,12 @@ def _anchor(rev: TranscriptRevision, content: dict[str, Any], seg: dict[str, Any
         "end_ms": int(seg.get("end_ms") or 0),
         "speaker_id": seg.get("speaker"),
         "speaker": _speaker(content, seg.get("speaker")),
-        "review_state": seg.get("review_state") or ("UNRESOLVED" if any(i.get("kind") == "dispute" for i in seg.get("items") or []) else "CONSENSUS"),
+        "review_state": seg.get("review_state")
+        or (
+            "UNRESOLVED"
+            if any(i.get("kind") == "dispute" for i in seg.get("items") or [])
+            else "CONSENSUS"
+        ),
         "verbatim": _exact_text(seg),
     }
 
@@ -93,7 +105,7 @@ def _neutral(rec: Recording, rev: TranscriptRevision, binding: str) -> dict[str,
     anchored = [_anchor(rev, content, s) for s in segments]
     verified = [a for a in anchored if a["verbatim"]]
     material = []
-    for seg, a in zip(segments, anchored):
+    for seg, a in zip(segments, anchored, strict=True):
         risks = sorted({r for i in seg.get("items") or [] for r in (i.get("risks") or [])})
         if a["verbatim"] and (risks or a["review_state"] == "HUMAN VERIFIED"):
             material.append({**a, "risk_markers": risks})
@@ -101,10 +113,15 @@ def _neutral(rec: Recording, rev: TranscriptRevision, binding: str) -> dict[str,
         material = [{**a, "risk_markers": []} for a in verified[:5]]
     unresolved = [
         {**a, "notice": "UNRESOLVED — NOT RELIED UPON AS VERIFIED FACT"}
-        for a in anchored if a["review_state"] in {"UNRESOLVED", "DISPUTED"}
+        for a in anchored
+        if a["review_state"] in {"UNRESOLVED", "DISPUTED"}
     ]
     participants = [
-        {"speaker_id": sid, "display_name": info.get("verified_name") or info.get("label") or sid, "human_verified_name": bool(info.get("verified_name"))}
+        {
+            "speaker_id": sid,
+            "display_name": info.get("verified_name") or info.get("label") or sid,
+            "human_verified_name": bool(info.get("verified_name")),
+        }
         for sid, info in (content.get("speakers") or {}).items()
     ]
     return {
@@ -154,13 +171,27 @@ def _classification(seg: dict[str, Any]) -> str:
 
 def _defense_relevance(classification: str) -> str:
     return {
-        "Admission Cue": "Review the exact wording, speaker attribution, surrounding context, and whether the statement is complete.",
-        "Denial Cue": "Preserve the exact denial or negation and compare it with other verified statements in the same revision.",
-        "Identification": "Verify identity attribution against the audio and any independently established identity evidence.",
-        "Amount / Number": "Verify the exact number or amount against the audio; numeric differences are treated as material.",
-        "Date / Time": "Review the exact date/time statement for timeline analysis without inferring facts not stated.",
-        "Other Material Evidence": "Review the exact statement and surrounding audio before assigning evidentiary significance.",
-        "Material Statement": "Review the exact statement in context; no legal conclusion is assigned by MURAILEX.",
+        "Admission Cue": (
+            "Review the exact wording, speaker attribution, surrounding context, and whether the statement is complete."
+        ),
+        "Denial Cue": (
+            "Preserve the exact denial or negation and compare it with other verified statements in the same revision."
+        ),
+        "Identification": (
+            "Verify identity attribution against the audio and any independently established identity evidence."
+        ),
+        "Amount / Number": (
+            "Verify the exact number or amount against the audio; numeric differences are treated as material."
+        ),
+        "Date / Time": (
+            "Review the exact date/time statement for timeline analysis without inferring facts not stated."
+        ),
+        "Other Material Evidence": (
+            "Review the exact statement and surrounding audio before assigning evidentiary significance."
+        ),
+        "Material Statement": (
+            "Review the exact statement in context; no legal conclusion is assigned by MURAILEX."
+        ),
     }[classification]
 
 
@@ -174,11 +205,13 @@ def _defense(rec: Recording, rev: TranscriptRevision, binding: str) -> dict[str,
             unresolved.append({**a, "notice": "UNRESOLVED — NOT RELIED UPON AS VERIFIED FACT"})
             continue
         classification = _classification(seg)
-        rows.append({
-            **a,
-            "evidentiary_classification": classification,
-            "defense_relevance": _defense_relevance(classification),
-        })
+        rows.append(
+            {
+                **a,
+                "evidentiary_classification": classification,
+                "defense_relevance": _defense_relevance(classification),
+            }
+        )
     return {
         "summary_type": "defense",
         "recording_id": str(rec.id),
@@ -207,7 +240,12 @@ class SummaryIn(BaseModel):
 
 
 @router.post("/recordings/{recording_id}/summaries")
-def generate_summary(recording_id: str, body: SummaryIn, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+def generate_summary(
+    recording_id: str,
+    body: SummaryIn,
+    p: Principal = Depends(current_principal),
+    db: Session = Depends(get_db),
+):
     rec = load_recording(db, p, parse_uuid(recording_id), "export")
     q = select(TranscriptRevision).where(TranscriptRevision.recording_id == rec.id)
     if body.revision_id:
@@ -216,13 +254,16 @@ def generate_summary(recording_id: str, body: SummaryIn, p: Principal = Depends(
     if rev is None:
         raise HTTPException(409, "Transcript revision not found.")
     binding = transcript_binding_sha(rec, rev)
-    latest_no = db.execute(
-        select(func.max(Summary.summary_revision)).where(
-            Summary.recording_id == rec.id,
-            Summary.transcript_revision_id == rev.id,
-            Summary.summary_type == body.summary_type,
-        )
-    ).scalar_one_or_none() or 0
+    latest_no = (
+        db.execute(
+            select(func.max(Summary.summary_revision)).where(
+                Summary.recording_id == rec.id,
+                Summary.transcript_revision_id == rev.id,
+                Summary.summary_type == body.summary_type,
+            )
+        ).scalar_one_or_none()
+        or 0
+    )
     content = _neutral(rec, rev, binding) if body.summary_type == "neutral" else _defense(rec, rev, binding)
     row = Summary(
         recording_id=rec.id,
@@ -238,20 +279,30 @@ def generate_summary(recording_id: str, body: SummaryIn, p: Principal = Depends(
     )
     db.add(row)
     db.flush()
-    audit.record(db, "summary_generated", actor=p.user, recording_id=rec.id, details={
-        "summary_id": str(row.id),
-        "summary_type": row.summary_type,
-        "summary_revision": row.summary_revision,
-        "transcript_revision_id": str(rev.id),
-        "transcript_sha256": binding,
-        "generation_model": row.generation_model,
-    })
+    audit.record(
+        db,
+        "summary_generated",
+        actor=p.user,
+        recording_id=rec.id,
+        details={
+            "summary_id": str(row.id),
+            "summary_type": row.summary_type,
+            "summary_revision": row.summary_revision,
+            "transcript_revision_id": str(rev.id),
+            "transcript_sha256": binding,
+            "generation_model": row.generation_model,
+        },
+    )
     db.commit()
     return {"summary": summary_out(row)}
 
 
 @router.get("/recordings/{recording_id}/summaries")
-def list_summaries(recording_id: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+def list_summaries(
+    recording_id: str,
+    p: Principal = Depends(current_principal),
+    db: Session = Depends(get_db),
+):
     rec = load_recording(db, p, parse_uuid(recording_id))
     rows = db.execute(
         select(Summary).where(Summary.recording_id == rec.id).order_by(Summary.generated_at.desc())
@@ -260,8 +311,13 @@ def list_summaries(recording_id: str, p: Principal = Depends(current_principal),
 
 
 @router.get("/recordings/{recording_id}/summaries/{summary_type}")
-def get_summary(recording_id: str, summary_type: str, revision_id: str | None = None,
-                p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+def get_summary(
+    recording_id: str,
+    summary_type: str,
+    revision_id: str | None = None,
+    p: Principal = Depends(current_principal),
+    db: Session = Depends(get_db),
+):
     if summary_type not in SUMMARY_TYPES:
         raise HTTPException(404, "Summary type not found.")
     rec = load_recording(db, p, parse_uuid(recording_id))
