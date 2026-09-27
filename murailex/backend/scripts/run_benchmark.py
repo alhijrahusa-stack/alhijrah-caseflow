@@ -9,6 +9,9 @@ Input JSON schema:
   "model": "...",
   "locale": "ar-YE",
   "split": "development" | "held_out",
+  "parameters": {},
+  "environment": {},
+  "audio_hours": 1.25,
   "items": [
     {
       "item_id": "...",
@@ -24,23 +27,75 @@ Input JSON schema:
   ]
 }
 
-This script scores one split at a time. Corpus split validation across development and held-out
-is performed separately by app.benchmark.validate_corpus before model selection/final reporting.
+This script scores one split at a time. It never generates ground truth. --persist writes the
+measured result to benchmark_runs only after migrations have created the forensic schema.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sqlalchemy import text
+
 from app.benchmark import aggregate_scores, critical_entity_accuracy, score_transcript
+
+
+def _persist(result: dict, payload: dict) -> str:
+    from app.db import session_factory
+
+    run_id = str(uuid.uuid4())
+    metrics = result["metrics"]
+    entity = result["critical_entity_accuracy"]
+    with session_factory()() as db:
+        db.execute(
+            text(
+                """
+                INSERT INTO benchmark_runs (
+                    id, dataset_version, split, commit_sha, provider, model, locale,
+                    parameters, sample_count, audio_hours, raw_wer, normalized_wer,
+                    raw_cer, normalized_cer, critical_entity_accuracy, der, der_protocol,
+                    service_rtf, inference_rtf, end_to_end_rtf, environment,
+                    ground_truth_status, executed_at
+                ) VALUES (
+                    CAST(:id AS uuid), :dataset_version, :split, :commit_sha, :provider, :model, :locale,
+                    CAST(:parameters AS jsonb), :sample_count, :audio_hours, :raw_wer, :normalized_wer,
+                    :raw_cer, :normalized_cer, CAST(:critical_entity_accuracy AS jsonb), NULL, NULL,
+                    NULL, NULL, NULL, CAST(:environment AS jsonb), 'HUMAN VERIFIED', CAST(:executed_at AS timestamptz)
+                )
+                """
+            ),
+            {
+                "id": run_id,
+                "dataset_version": result["dataset_version"],
+                "split": result["split"],
+                "commit_sha": result["commit_sha"],
+                "provider": result["provider"],
+                "model": result["model"],
+                "locale": result["locale"],
+                "parameters": json.dumps(payload.get("parameters") or {}, ensure_ascii=False, sort_keys=True),
+                "sample_count": result["sample_count"],
+                "audio_hours": payload.get("audio_hours"),
+                "raw_wer": metrics["raw_wer"]["rate"],
+                "normalized_wer": metrics["normalized_wer"]["rate"],
+                "raw_cer": metrics["raw_cer"]["rate"],
+                "normalized_cer": metrics["normalized_cer"]["rate"],
+                "critical_entity_accuracy": json.dumps(entity if isinstance(entity, dict) else None, ensure_ascii=False, sort_keys=True),
+                "environment": json.dumps(payload.get("environment") or {}, ensure_ascii=False, sort_keys=True),
+                "executed_at": result["executed_at"],
+            },
+        )
+        db.commit()
+    return run_id
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("input", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--persist", action="store_true")
     args = parser.parse_args()
 
     payload = json.loads(args.input.read_text(encoding="utf-8"))
@@ -93,6 +148,8 @@ def main() -> int:
             else "NOT MEASURED"
         ),
     }
+    if args.persist:
+        result["benchmark_run_id"] = _persist(result, payload)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0
 
