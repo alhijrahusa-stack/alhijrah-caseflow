@@ -117,7 +117,7 @@ export default function HomePage() {
   }, [load]);
 
   const configured = useMemo(
-    () => providers?.providers.filter((provider) => provider.status === "CONFIGURED").length ?? 0,
+    () => providers?.providers.filter((provider) => provider.status === "READY").length ?? 0,
     [providers],
   );
   const providerTotal = providers?.providers.length ?? 0;
@@ -273,8 +273,8 @@ export default function HomePage() {
               </div>
               <div className="mt-0.5 truncate text-[11px] text-slate-500">
                 {rtl
-                  ? `قاعدة البيانات · التخزين · ${configured} من ${providerTotal || "—"} محركات مهيأة`
-                  : `Database · Storage · ${configured} of ${providerTotal || "—"} engines configured`}
+                  ? `قاعدة البيانات · التخزين · ${configured} من ${providerTotal || "—"} محركات جاهزة`
+                  : `Database · Storage · ${configured} of ${providerTotal || "—"} engines ready`}
               </div>
             </div>
           </div>
@@ -287,7 +287,7 @@ export default function HomePage() {
                 <span
                   key={`${provider.name}-${provider.role}`}
                   className={`rounded-full border px-2.5 py-1 text-[10px] ${
-                    provider.status === "CONFIGURED"
+                    provider.status === "READY"
                       ? "border-emerald-400/15 bg-emerald-400/[0.06] text-emerald-300"
                       : "border-amber-400/15 bg-amber-400/[0.05] text-amber-300"
                   }`}

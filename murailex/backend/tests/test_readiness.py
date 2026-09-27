@@ -1,10 +1,12 @@
 from app.api.system import _provider_readiness
+from app.providers import registry
 
 
 def test_provider_readiness_never_treats_missing_credentials_as_ready():
     rows = _provider_readiness()
     assert rows
-    assert all(row["status"] == "NOT CONFIGURED" for row in rows.values())
+    assert all(row["status"] == "NOT_CONFIGURED" for row in rows.values())
+    assert all(row["status"] in registry.ENGINE_STATUSES for row in rows.values())
     assert all(row["last_real_self_test"] is None for row in rows.values())
 
 

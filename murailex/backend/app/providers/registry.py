@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+from dataclasses import asdict, dataclass
 from typing import Any, cast
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from ..config import get_settings
+from ..forensic_models import ProviderSelfTest
+from . import privacy
 from .assemblyai import AssemblyAI
 from .base import AsrAdapter, DiarizationAdapter, Pending, ProviderInfo
 from .deepgram import DeepgramNova3
@@ -11,11 +18,38 @@ from .openai_stt import OpenAITranscribe
 from .pyannote import PyannoteAI
 
 SUPPORTED_LOCALES = frozenset({"ar", "ar-YE", "ar-EG", "ar-SY", "ar-LB", "ar-IQ"})
+ENGINE_STATUSES = frozenset({"READY", "NOT_CONFIGURED", "FAILED", "BLOCKED"})
 _override: dict[str, list] | None = None
+
+_CREDENTIAL_ENV: dict[str, tuple[str, ...]] = {
+    "assemblyai": ("ASSEMBLYAI_API_KEY",),
+    "google_chirp3": ("GOOGLE_CREDENTIALS_JSON", "GOOGLE_STT_GCS_BUCKET"),
+    "deepgram": ("DEEPGRAM_API_KEY",),
+    "openai": ("OPENAI_API_KEY",),
+    "pyannoteai": ("PYANNOTE_API_KEY",),
+}
+_PRIVACY_ENV: dict[str, str] = {
+    "assemblyai": "ASSEMBLYAI_LEGAL_AUDIO_APPROVED",
+    "google_chirp3": "GOOGLE_LEGAL_AUDIO_APPROVED",
+    "deepgram": "DEEPGRAM_LEGAL_AUDIO_APPROVED",
+    "openai": "OPENAI_LEGAL_AUDIO_APPROVED",
+    "pyannoteai": "PYANNOTE_LEGAL_AUDIO_APPROVED",
+}
+
+
+@dataclass(frozen=True)
+class EngineSpec:
+    internal_id: str
+    provider: str
+    model: str
+    role: str
+    locale: str
+    params: dict[str, Any]
+    credential: str
 
 
 class _BenchmarkBlocked(AsrAdapter):
-    """Adapter facade that prevents any provider call before benchmark approval."""
+    """Adapter facade that prevents provider calls before benchmark approval."""
 
     def __init__(self, inner: AsrAdapter):
         self.inner = inner
@@ -77,11 +111,7 @@ def install_test_fixtures(
     global _override
     if not fixtures_enabled():
         raise RuntimeError("Fixture providers are available only in the automated test environment.")
-    _override = {
-        "primary": primary,
-        "diarization": diarization,
-        "verification": verification,
-    }
+    _override = {"primary": primary, "diarization": diarization, "verification": verification}
 
 
 def clear_test_fixtures() -> None:
@@ -96,7 +126,6 @@ def _locale(locale: str) -> str:
 
 
 def primary_asr(locale: str) -> list[AsrAdapter]:
-    """Return candidate primaries only after the benchmark gate authorizes production routing."""
     if _override is not None and fixtures_enabled():
         return _override["primary"]
     locale = _locale(locale)
@@ -110,7 +139,6 @@ def primary_asr(locale: str) -> list[AsrAdapter]:
 
 
 def diarization() -> list[DiarizationAdapter]:
-    """Return independent diarization only after the benchmark gate authorizes routing."""
     if _override is not None and fixtures_enabled():
         return _override["diarization"]
     gated = _gate([PyannoteAI()])
@@ -118,7 +146,6 @@ def diarization() -> list[DiarizationAdapter]:
 
 
 def verification_asr(locale: str) -> list[AsrAdapter]:
-    """Return independent verification candidates only after benchmark routing approval."""
     if _override is not None and fixtures_enabled():
         return _override["verification"]
     locale = _locale(locale)
@@ -132,13 +159,7 @@ def verification_asr(locale: str) -> list[AsrAdapter]:
 
 
 def all_adapters() -> list[AsrAdapter | DiarizationAdapter]:
-    return [
-        AssemblyAI(),
-        GoogleChirp3("ar-YE"),
-        DeepgramNova3("ar"),
-        OpenAITranscribe(),
-        PyannoteAI(),
-    ]
+    return [AssemblyAI(), GoogleChirp3("ar-YE"), DeepgramNova3("ar"), OpenAITranscribe(), PyannoteAI()]
 
 
 def by_name(name: str) -> AsrAdapter | DiarizationAdapter:
@@ -146,3 +167,173 @@ def by_name(name: str) -> AsrAdapter | DiarizationAdapter:
         if adapter.name == name:
             return adapter
     raise KeyError(name)
+
+
+def routed_adapters(locale: str) -> list[tuple[AsrAdapter | DiarizationAdapter, str]]:
+    locale = _locale(locale)
+    return (
+        [(adapter, "primary_asr") for adapter in primary_asr(locale)]
+        + [(adapter, "diarization") for adapter in diarization()]
+        + [(adapter, "verification_asr") for adapter in verification_asr(locale)]
+    )
+
+
+def _raw_credential(provider: str) -> str | None:
+    settings = get_settings()
+    secret = None
+    if provider == "assemblyai":
+        secret = settings.assemblyai_api_key
+    elif provider == "google_chirp3":
+        secret = settings.google_credentials_json
+    elif provider == "deepgram":
+        secret = settings.deepgram_api_key
+    elif provider == "openai":
+        secret = settings.openai_api_key
+    elif provider == "pyannoteai":
+        secret = settings.pyannote_api_key
+    if secret is None:
+        return None
+    value = secret.get_secret_value()
+    return value or None
+
+
+def credential_fingerprint(provider: str) -> str | None:
+    value = _raw_credential(provider)
+    if value is None:
+        return None
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def missing_credential_environment(provider: str) -> list[str]:
+    settings = get_settings()
+    missing: list[str] = []
+    if _raw_credential(provider) is None:
+        primary = _CREDENTIAL_ENV.get(provider, ())
+        if primary:
+            missing.append(primary[0])
+    if provider == "google_chirp3" and not settings.google_stt_gcs_bucket:
+        missing.append("GOOGLE_STT_GCS_BUCKET")
+    return missing
+
+
+def engine_spec(adapter: AsrAdapter | DiarizationAdapter, role: str, locale: str) -> EngineSpec:
+    locale = _locale(locale)
+    context = {"language_locale": locale, "expected_terms": None, "expected_speakers": None}
+    info = adapter.info(context)
+    credential_vars = _CREDENTIAL_ENV.get(adapter.name, ())
+    return EngineSpec(
+        internal_id=f"{role}:{adapter.name}:{info.model}:{locale}",
+        provider=adapter.name,
+        model=info.model,
+        role=role,
+        locale=locale,
+        params=dict(info.parameters),
+        credential=credential_vars[0] if credential_vars else "",
+    )
+
+
+def engine_definitions(locale: str) -> list[dict[str, Any]]:
+    return [asdict(engine_spec(adapter, role, locale)) for adapter, role in routed_adapters(locale)]
+
+
+def _latest_self_test(db: Session | None, spec: EngineSpec) -> ProviderSelfTest | None:
+    if db is None:
+        return None
+    return db.execute(
+        select(ProviderSelfTest)
+        .where(
+            ProviderSelfTest.provider == spec.provider,
+            ProviderSelfTest.model == spec.model,
+            ProviderSelfTest.locale == spec.locale,
+            ProviderSelfTest.role == spec.role,
+        )
+        .order_by(ProviderSelfTest.started_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def engine_state(
+    db: Session | None,
+    adapter: AsrAdapter | DiarizationAdapter,
+    role: str,
+    locale: str,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    spec = engine_spec(adapter, role, locale)
+    info = adapter.info(context or {"language_locale": locale, "expected_terms": None, "expected_speakers": None})
+    required: list[str] = []
+    blocker: str | None = None
+    status = "BLOCKED"
+
+    missing = missing_credential_environment(spec.provider)
+    if missing:
+        status = "NOT_CONFIGURED"
+        blocker = "Required provider credential or provider storage configuration is not configured."
+        required.extend(missing)
+    elif privacy.status(spec.provider) != "APPROVED":
+        status = "BLOCKED"
+        blocker = "Provider legal-audio data policy is not approved."
+        privacy_var = _PRIVACY_ENV.get(spec.provider)
+        if privacy_var:
+            required.append(privacy_var)
+    elif get_settings().environment != "test" and not benchmark_routing_approved():
+        status = "BLOCKED"
+        blocker = "Human-ground-truth benchmark routing is not approved."
+        required.extend(["BENCHMARK_ROUTING_APPROVED", "BENCHMARK_DATASET_VERSION", "BENCHMARK_HELD_OUT_RUN_ID"])
+    elif not info.configured:
+        status = "NOT_CONFIGURED"
+        blocker = "Provider adapter is not configured for the exact engine route."
+    else:
+        latest = _latest_self_test(db, spec)
+        if latest is None:
+            status = "BLOCKED"
+            blocker = "A real provider self-test has not passed for this exact engine route."
+        elif latest.status == "READY":
+            meta = latest.response_metadata or {}
+            fingerprint = credential_fingerprint(spec.provider)
+            if (
+                latest.provider_run_id
+                and latest.completed_at
+                and meta.get("actual_persisted_model") == spec.model
+                and meta.get("credential_fingerprint") == fingerprint
+            ):
+                status = "READY"
+            else:
+                status = "FAILED"
+                blocker = "Persisted READY evidence does not match the exact model or current credential."
+        elif latest.status in ENGINE_STATUSES:
+            status = latest.status
+            blocker = latest.error or f"Latest real provider self-test status is {latest.status}."
+        else:
+            status = "FAILED"
+            blocker = f"Invalid persisted provider self-test status: {latest.status}."
+
+    latest = _latest_self_test(db, spec)
+    last_test = None
+    if latest is not None:
+        last_test = {
+            "id": str(latest.id),
+            "status": latest.status,
+            "completed_at": latest.completed_at.isoformat() if latest.completed_at else None,
+            "provider_run_id": str(latest.provider_run_id) if latest.provider_run_id else None,
+        }
+    return {
+        **asdict(spec),
+        "name": spec.provider,
+        "status": status,
+        "blocker": blocker,
+        "required_environment_variables": sorted(set(required)),
+        "last_real_self_test": last_test,
+    }
+
+
+def engine_states(db: Session | None, locale: str) -> list[dict[str, Any]]:
+    locale = _locale(locale)
+    return [engine_state(db, adapter, role, locale) for adapter, role in routed_adapters(locale)]
+
+
+def registry_states(db: Session | None) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for locale in sorted(SUPPORTED_LOCALES):
+        rows.extend(engine_states(db, locale))
+    return rows

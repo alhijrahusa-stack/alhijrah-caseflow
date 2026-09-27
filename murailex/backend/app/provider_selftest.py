@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from datetime import datetime, timezone
 from typing import Any
 
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from . import audit, storage
 from .forensic_models import ProviderSelfTest
-from .models import ProviderRun, Recording
+from .models import Recording
 from .pipeline.process import Wait, drive_run, ensure_derived
 from .providers import registry
 from .providers.base import AsrAdapter, DiarizationAdapter, ProviderError
@@ -19,18 +20,16 @@ def _now() -> datetime:
 
 
 def routed_adapters(locale: str) -> list[tuple[AsrAdapter | DiarizationAdapter, str]]:
-    return (
-        [(adapter, "primary_asr") for adapter in registry.primary_asr(locale)]
-        + [(adapter, "diarization") for adapter in registry.diarization()]
-        + [(adapter, "verification_asr") for adapter in registry.verification_asr(locale)]
-    )
+    return registry.routed_adapters(locale)
 
 
 def _selected_adapter(test: ProviderSelfTest, locale: str) -> AsrAdapter | DiarizationAdapter:
     matches = [
         adapter
         for adapter, role in routed_adapters(locale)
-        if adapter.name == test.provider and role == test.role and adapter.info({"language_locale": locale}).model == test.model
+        if adapter.name == test.provider
+        and role == test.role
+        and adapter.info({"language_locale": locale}).model == test.model
     ]
     if len(matches) != 1:
         raise ProviderError("Self-test route no longer matches the active engine registry.", retryable=False)
@@ -42,9 +41,13 @@ def _validate_normalized(role: str, normalized: dict[str, Any] | None) -> dict[s
     token_count = len(normalized.get("tokens") or [])
     turn_count = len(normalized.get("turns") or [])
     if role in {"primary_asr", "verification_asr"} and token_count == 0:
-        raise ProviderError("Real self-test response parsed successfully but contained no ASR tokens.", retryable=False)
+        raise ProviderError(
+            "Real self-test response parsed successfully but contained no ASR tokens.", retryable=False
+        )
     if role == "diarization" and turn_count == 0:
-        raise ProviderError("Real self-test response parsed successfully but contained no diarization turns.", retryable=False)
+        raise ProviderError(
+            "Real self-test response parsed successfully but contained no diarization turns.", retryable=False
+        )
     return {"token_count": token_count, "turn_count": turn_count}
 
 
@@ -74,13 +77,17 @@ def run_provider_self_test(db: Session, test: ProviderSelfTest) -> None:
     )
     if not info.configured:
         test.status = "BLOCKED"
-        test.error = str(info.parameters.get("benchmark_gate") or "Provider is not configured for this exact route.")
+        test.error = str(
+            info.parameters.get("benchmark_gate") or "Provider is not configured for this exact route."
+        )
         test.completed_at = _now()
         db.commit()
         return
 
     derived = ensure_derived(db, rec)
-    work_dir = os.path.join(os.environ.get("MURAILEX_WORK_DIR", "/tmp/murailex-work"), str(rec.id))
+    root = os.environ.get("MURAILEX_WORK_DIR") or os.path.join(tempfile.gettempdir(), "murailex-work")
+    work_dir = os.path.join(root, str(rec.id))
+    os.makedirs(work_dir, exist_ok=True)
     analysis_wav = os.path.join(work_dir, "analysis.wav")
     analysis_flac = os.path.join(work_dir, "analysis.flac")
     if not os.path.exists(analysis_wav):
@@ -88,7 +95,9 @@ def run_provider_self_test(db: Session, test: ProviderSelfTest) -> None:
     if not os.path.exists(analysis_flac):
         storage.download_to(derived["analysis_flac"]["key"], analysis_flac)
     audio_path = analysis_flac if adapter.name == "google_chirp3" else analysis_wav
-    input_sha = derived["analysis_flac" if adapter.name == "google_chirp3" else "analysis_wav"]["sha256"]
+    input_sha = derived[
+        "analysis_flac" if adapter.name == "google_chirp3" else "analysis_wav"
+    ]["sha256"]
     context = {
         "recording_id": str(rec.id),
         "language_locale": locale,
@@ -138,12 +147,15 @@ def run_provider_self_test(db: Session, test: ProviderSelfTest) -> None:
         test.status = "READY"
         test.error = None
         if run.started_at and run.finished_at:
-            test.latency_ms = max(0, int((run.finished_at - run.started_at).total_seconds() * 1000))
+            test.latency_ms = max(
+                0, int((run.finished_at - run.started_at).total_seconds() * 1000)
+            )
         test.response_metadata = {
             "provider_run_id": str(run.id),
             "actual_persisted_model": run.model,
             "requested_locale": locale,
             "parameters": run.parameters,
+            "credential_fingerprint": registry.credential_fingerprint(adapter.name),
             **parsed,
         }
     else:

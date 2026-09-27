@@ -11,7 +11,17 @@ import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
 import type { User } from "@/lib/types";
 
-type Provider = { name: string; model: string; role: string; status: string };
+type Provider = {
+  internal_id: string;
+  provider: string;
+  name: string;
+  model: string;
+  role: string;
+  locale: string;
+  status: "READY" | "NOT_CONFIGURED" | "FAILED" | "BLOCKED";
+  blocker?: string | null;
+  required_environment_variables?: string[];
+};
 
 export default function SettingsPage() {
   const { t, lang, setLang } = useI18n();
@@ -95,10 +105,18 @@ export default function SettingsPage() {
             <div className="muted mb-2 text-xs">{t("providers")}</div>
             <div className="space-y-1.5" dir="ltr">
               {providers.map((p) => (
-                <div key={p.name} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border hairline px-3 py-2 text-xs" data-testid="provider-row">
-                  <span className="font-medium">{p.name}</span>
-                  <span className="muted">{p.model} · {p.role}</span>
-                  <Badge tone={p.status === "CONFIGURED" ? "ok" : "danger"}>{p.status}</Badge>
+                <div key={p.internal_id} className="rounded-2xl border hairline px-3 py-2 text-xs" data-testid="provider-row">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">{p.provider}</span>
+                    <span className="muted">{p.model} · {p.role} · {p.locale}</span>
+                    <Badge tone={p.status === "READY" ? "ok" : "danger"}>{p.status}</Badge>
+                  </div>
+                  {p.blocker ? <div className="mt-1.5 text-amber-300">{p.blocker}</div> : null}
+                  {p.required_environment_variables?.length ? (
+                    <div className="mt-1 font-mono text-[10px] text-slate-500">
+                      Requires: {p.required_environment_variables.join(", ")}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

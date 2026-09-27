@@ -31,8 +31,38 @@ def now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def enqueue(db: Session, kind: str, recording_id: uuid.UUID | None, payload: dict[str, Any] | None = None) -> Job:
-    job = Job(kind=kind, recording_id=recording_id, payload=payload or {}, status="queued", run_after=now())
+def enqueue(
+    db: Session,
+    kind: str,
+    recording_id: uuid.UUID | None,
+    payload: dict[str, Any] | None = None,
+) -> Job:
+    if kind == "process_recording" and recording_id is not None:
+        locked_recording = db.execute(
+            select(Recording.id).where(Recording.id == recording_id).with_for_update()
+        ).scalar_one_or_none()
+        if locked_recording is None:
+            raise ProviderError("recording missing", retryable=False)
+        active = db.execute(
+            select(Job)
+            .where(
+                Job.recording_id == recording_id,
+                Job.kind == "process_recording",
+                Job.status.in_(["queued", "running"]),
+            )
+            .order_by(Job.created_at)
+            .limit(1)
+        ).scalar_one_or_none()
+        if active is not None:
+            return active
+
+    job = Job(
+        kind=kind,
+        recording_id=recording_id,
+        payload=payload or {},
+        status="queued",
+        run_after=now(),
+    )
     db.add(job)
     db.flush()
     return job
@@ -87,6 +117,17 @@ def _handle(db: Session, job: Job) -> None:
         process_recording(db, rec)
         db.refresh(rec)
         persist_forensic_state(db, rec)
+    elif job.kind == "provider_self_test":
+        from .forensic_models import ProviderSelfTest
+        from .provider_selftest import run_provider_self_test
+
+        test_id = job.payload.get("self_test_id")
+        if not isinstance(test_id, str):
+            raise ProviderError("provider self-test id missing", retryable=False)
+        test = db.get(ProviderSelfTest, uuid.UUID(test_id))
+        if test is None:
+            raise ProviderError("provider self-test missing", retryable=False)
+        run_provider_self_test(db, test)
     elif job.kind == "translate":
         tr = db.get(Translation, uuid.UUID(job.payload["translation_id"]))
         if tr is None:
@@ -125,7 +166,7 @@ def run_one(worker_id: str) -> bool:
                 job = db.get(Job, job_id)
                 assert job is not None
                 job.status = "queued"
-                job.attempts = max(0, job.attempts - 1)  # waiting on a provider is not a failed attempt
+                job.attempts = max(0, job.attempts - 1)
                 job.run_after = now() + timedelta(seconds=w.seconds)
                 job.locked_by = None
                 job.last_error = None
@@ -150,13 +191,28 @@ def run_one(worker_id: str) -> bool:
                         if rec is not None:
                             rec.status = "failed"
                             rec.status_detail = msg[:500]
+                    if job.kind == "provider_self_test":
+                        from .forensic_models import ProviderSelfTest
+
+                        test_id = job.payload.get("self_test_id")
+                        if isinstance(test_id, str):
+                            test = db.get(ProviderSelfTest, uuid.UUID(test_id))
+                            if test is not None and test.status != "READY":
+                                test.status = "FAILED"
+                                test.error = msg[:1000]
+                                test.completed_at = now()
                     if job.kind == "translate":
                         tr = db.get(Translation, uuid.UUID(job.payload["translation_id"]))
                         if tr is not None and tr.status != "succeeded":
                             tr.status = "failed"
                             tr.error = msg[:500]
-                    audit.record(db, "job_failed", actor_label="system", recording_id=job.recording_id,
-                                 details={"job_id": str(job.id), "kind": job.kind, "error": msg[:500]})
+                    audit.record(
+                        db,
+                        "job_failed",
+                        actor_label="system",
+                        recording_id=job.recording_id,
+                        details={"job_id": str(job.id), "kind": job.kind, "error": msg[:500]},
+                    )
                 db.commit()
     finally:
         stop.set()
