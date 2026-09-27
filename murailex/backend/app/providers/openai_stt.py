@@ -12,7 +12,7 @@ from .http import request
 class OpenAITranscribe(AsrAdapter):
     name = "openai"
 
-    def info(self) -> ProviderInfo:
+    def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         s = get_settings()
         return ProviderInfo(
             self.name,
