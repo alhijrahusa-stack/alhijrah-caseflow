@@ -1,0 +1,38 @@
+name: MURAILEX forensic production upgrade
+
+on:
+  push:
+    branches:
+      - murailex/futuristic-upgrade
+    paths:
+      - .github/scripts/murailex_forensic_upgrade.py
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: murailex/futuristic-upgrade
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply forensic upgrade
+        run: python .github/scripts/murailex_forensic_upgrade.py
+      - name: Compile backend
+        run: python -m compileall -q murailex/backend/app
+      - name: Commit production code
+        run: |
+          if git diff --quiet -- murailex; then
+            echo 'No application changes produced' >&2
+            exit 1
+          fi
+          git config user.name 'ALHIJRAH VISA & IMMIGRATION SERVICES LLC'
+          git config user.email 'alhijrahusa@gmail.com'
+          git add murailex
+          git commit -m 'feat(murailex): enforce five-locale forensic ASR pipeline'
+          git push origin HEAD:murailex/futuristic-upgrade
