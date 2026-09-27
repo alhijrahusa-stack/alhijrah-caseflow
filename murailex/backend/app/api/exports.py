@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .. import audit, storage
 from ..canonical import sha256_hex
 from ..db import get_db
-from ..exports import render
+from ..exports import professional, render
 from ..models import (
     AuditEvent,
     Dispute,
@@ -109,7 +109,13 @@ def create_export(recording_id: str, body: ExportIn, p: Principal = Depends(curr
     elif body.format == "docx":
         data, filename = render.render_docx(ctx, translation), f"{base}.docx"
     elif body.format == "pdf":
-        data, filename = render.render_pdf(ctx, translation), f"{base}.pdf"
+        if translation is None:
+            data = professional.render_professional_pdf(ctx)
+            filename = f"MURAILEX Forensic Audio Report - {_safe(rec.title)} r{rev.number}.pdf"
+            details["layout"] = "professional_forensic_report"
+            details["summary"] = "extractive_from_locked_transcript"
+        else:
+            data, filename = render.render_pdf(ctx, translation), f"{base}.pdf"
     else:
         data = render.render_json(ctx) if translation is None else __import__("json").dumps(translation, ensure_ascii=False, indent=2).encode()
         filename = f"{base}.json"
