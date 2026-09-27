@@ -30,10 +30,10 @@ class PyannoteAI(DiarizationAdapter):
             p["numSpeakers"] = int(context["expected_speakers"])
         return p
 
-    def info(self) -> ProviderInfo:
+    def info(self, context: dict[str, Any] | None = None) -> ProviderInfo:
         s = get_settings()
         return ProviderInfo(
-            self.name, s.pyannote_model, "diarization", bool(s.pyannote_api_key and s.pyannote_api_key.get_secret_value()), self.parameters()
+            self.name, s.pyannote_model, "diarization", bool(s.pyannote_api_key and s.pyannote_api_key.get_secret_value()), self.parameters(context)
         )
 
     def submit(self, audio_path: str, context: dict[str, Any]) -> str:
