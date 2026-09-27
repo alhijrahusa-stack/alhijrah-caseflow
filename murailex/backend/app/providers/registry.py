@@ -13,15 +13,23 @@ _override: dict[str, list] | None = None
 
 
 def fixtures_enabled() -> bool:
-    s = get_settings()
-    return s.environment == "test" and s.test_fixture_providers
+    settings = get_settings()
+    return settings.environment == "test" and settings.test_fixture_providers
 
 
-def install_test_fixtures(primary: list[AsrAdapter], diarization: list[DiarizationAdapter], verification: list[AsrAdapter]) -> None:
+def install_test_fixtures(
+    primary: list[AsrAdapter],
+    diarization: list[DiarizationAdapter],
+    verification: list[AsrAdapter],
+) -> None:
     global _override
     if not fixtures_enabled():
         raise RuntimeError("Fixture providers are available only in the automated test environment.")
-    _override = {"primary": primary, "diarization": diarization, "verification": verification}
+    _override = {
+        "primary": primary,
+        "diarization": diarization,
+        "verification": verification,
+    }
 
 
 def clear_test_fixtures() -> None:
@@ -36,12 +44,7 @@ def _locale(locale: str) -> str:
 
 
 def primary_asr(locale: str) -> list[AsrAdapter]:
-    """Primary ASR engines with exact locale routing.
-    
-    ar (general): AssemblyAI + Deepgram ar
-    ar-YE: AssemblyAI + Google ar-YE (no Deepgram ar-YE)
-    ar-EG/ar-SY/ar-LB/ar-IQ: Deepgram exact-locale + Google exact-locale
-    """
+    """Return the two Primary engines for the exact user-selected locale."""
     if _override is not None and fixtures_enabled():
         return _override["primary"]
     locale = _locale(locale)
@@ -53,19 +56,14 @@ def primary_asr(locale: str) -> list[AsrAdapter]:
 
 
 def diarization() -> list[DiarizationAdapter]:
-    """Pyannote independent speaker diarization."""
+    """Return independent speaker diarization."""
     if _override is not None and fixtures_enabled():
         return _override["diarization"]
     return [PyannoteAI()]
 
 
 def verification_asr(locale: str) -> list[AsrAdapter]:
-    """Verification/secondary engines for disputed regions.
-    
-    ar (general): OpenAI only
-    ar-YE: OpenAI + Deepgram ar (no Google re-check)
-    ar-EG/ar-SY/ar-LB/ar-IQ: AssemblyAI + OpenAI
-    """
+    """Return independent verification engines for disputed/critical regions."""
     if _override is not None and fixtures_enabled():
         return _override["verification"]
     locale = _locale(locale)
@@ -76,13 +74,18 @@ def verification_asr(locale: str) -> list[AsrAdapter]:
     return [AssemblyAI(), OpenAITranscribe()]
 
 
-def all_adapters() -> list[AsrAdapter]:
-    return [AssemblyAI(), GoogleChirp3("ar-YE"), DeepgramNova3("ar"), OpenAITranscribe(), PyannoteAI()]
+def all_adapters() -> list[AsrAdapter | DiarizationAdapter]:
+    return [
+        AssemblyAI(),
+        GoogleChirp3("ar-YE"),
+        DeepgramNova3("ar"),
+        OpenAITranscribe(),
+        PyannoteAI(),
+    ]
 
 
-def by_name(name: str) -> AsrAdapter:
-    for a in all_adapters():
-        if a.name == name:
-            return a
+def by_name(name: str) -> AsrAdapter | DiarizationAdapter:
+    for adapter in all_adapters():
+        if adapter.name == name:
+            return adapter
     raise KeyError(name)
-
