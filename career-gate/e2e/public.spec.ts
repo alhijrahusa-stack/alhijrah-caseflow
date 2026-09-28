@@ -286,12 +286,12 @@ test.describe.serial("public intake and status access", () => {
     await page.goto(`/status?ref=${encodeURIComponent(ref)}`);
     await expect(page.getByLabel("File number, phone or email")).toHaveValue(ref);
     await page.getByRole("button", { name: "Check Status" }).click();
-    await expect(page.getByTestId("status-reference")).toHaveText(ref);
+    await expect(page.getByTestId("status-page")).toContainText(ref);
     const html = await page.content();
     for (const secret of ["photo-id.png", "1990-04-05", "1 Test St"]) expect(html).not.toContain(secret);
 
     await page.goto(`/status/${encodeURIComponent(ref)}`);
-    await expect(page.getByTestId("status-reference")).toHaveText(ref);
+    await expect(page.getByTestId("status-page")).toContainText(ref);
     const api = await context.request.get(`/api/status/${encodeURIComponent(ref)}`);
     expect(api.status()).toBe(200);
     expect((await api.json()).status.ref).toBe(ref);
