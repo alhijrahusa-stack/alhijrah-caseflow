@@ -6,8 +6,32 @@ function statusLabel(value: string): string {
   return STATUS_LABELS[value as Status] ?? value.replace(/_/g, " ");
 }
 
+type PublicLocation = { site_code: string; site_name: string; address: string | null; city: string } | null;
+type PublicShift = { name: string; days: string | null; time: string | null } | null;
+type PublicInterview = { type: string; scheduled_at: string; location: string | null } | null;
+type PublicHistory = { status: string; label: string; updated_at: string }[];
+
+export type PublicStatus = {
+  ref: string;
+  first_name: string;
+  status: Status;
+  status_label: string;
+  next_step: string;
+  start_date: string | null;
+  updated_at: string;
+  appointment: PublicInterview;
+  pending_actions: string[];
+  full_name: string;
+  filed_at: string;
+  location: PublicLocation;
+  shift: PublicShift;
+  interview: PublicInterview;
+  documents: { status: "Complete" | "Missing" };
+  history: PublicHistory;
+};
+
 /** Public-safe projection. Home address/city is never used as the job location. */
-export async function publicStatus(clientId: string) {
+export async function publicStatus(clientId: string): Promise<PublicStatus | null> {
   const db = sql();
   const [c] = await db`
     select c.ref, c.full_name, split_part(c.full_name, ' ', 1) as first_name,
@@ -55,7 +79,7 @@ export async function publicStatus(clientId: string) {
       and new_value->>'status' is not null
     order by created_at asc`;
 
-  const history = historyRows.length > 0
+  const history: PublicHistory = historyRows.length > 0
     ? historyRows.map((r) => ({
         status: String(r.status),
         label: statusLabel(String(r.status)),
@@ -67,7 +91,38 @@ export async function publicStatus(clientId: string) {
         updated_at: new Date(c.created_at).toISOString(),
       }];
 
-  return {
+  const location: PublicLocation = pref
+    ? {
+        site_code: pref.site_code as string,
+        site_name: pref.site_name as string,
+        address: pref.site_address as string | null,
+        city: pref.city as string,
+      }
+    : null;
+
+  const shift: PublicShift = pref
+    ? {
+        name: (pref.shift_name ?? pref.shift_code) as string,
+        days: pref.days as string | null,
+        time: pref.hours as string | null,
+      }
+    : null;
+
+  const interviewPublic: PublicInterview = interview
+    ? {
+        type: interview.appointment_type as string,
+        scheduled_at: new Date(interview.scheduled_at).toISOString(),
+        location: interview.location as string | null,
+      }
+    : null;
+
+  const documents = {
+    status: Number(docSummary?.total ?? 0) > 0 && Number(docSummary?.verified ?? 0) === Number(docSummary?.total ?? 0)
+      ? "Complete" as const
+      : "Missing" as const,
+  };
+
+  const fullPayload = {
     ref: (c.case_number ?? c.ref) as string,
     full_name: c.full_name as string,
     first_name: c.first_name as string,
@@ -77,35 +132,39 @@ export async function publicStatus(clientId: string) {
     next_step: c.next_step as string,
     start_date: c.start_date as string | null,
     updated_at: new Date(c.updated_at).toISOString(),
-    location: pref
-      ? {
-          site_code: pref.site_code as string,
-          site_name: pref.site_name as string,
-          address: pref.site_address as string | null,
-          city: pref.city as string,
-        }
-      : null,
-    shift: pref
-      ? {
-          name: (pref.shift_name ?? pref.shift_code) as string,
-          days: pref.days as string | null,
-          time: pref.hours as string | null,
-        }
-      : null,
-    interview: interview
-      ? {
-          type: interview.appointment_type as string,
-          scheduled_at: new Date(interview.scheduled_at).toISOString(),
-          location: interview.location as string | null,
-        }
-      : null,
-    documents: {
-      status: Number(docSummary?.total ?? 0) > 0 && Number(docSummary?.verified ?? 0) === Number(docSummary?.total ?? 0)
-        ? "Complete" as const
-        : "Missing" as const,
-    },
+    location,
+    shift,
+    interview: interviewPublic,
+    documents,
     history,
   };
+
+  // Keep the original enumerable projection stable for older internal callers/tests.
+  // New public fields are non-enumerable on the server object but included in JSON via toJSON().
+  const projection = {
+    ref: fullPayload.ref,
+    first_name: fullPayload.first_name,
+    status: fullPayload.status,
+    status_label: fullPayload.status_label,
+    next_step: fullPayload.next_step,
+    start_date: fullPayload.start_date,
+    updated_at: fullPayload.updated_at,
+    appointment: interviewPublic,
+    pending_actions: [] as string[],
+  } as PublicStatus;
+
+  Object.defineProperties(projection, {
+    full_name: { value: fullPayload.full_name, enumerable: false },
+    filed_at: { value: fullPayload.filed_at, enumerable: false },
+    location: { value: fullPayload.location, enumerable: false },
+    shift: { value: fullPayload.shift, enumerable: false },
+    interview: { value: fullPayload.interview, enumerable: false },
+    documents: { value: fullPayload.documents, enumerable: false },
+    history: { value: fullPayload.history, enumerable: false },
+    toJSON: { value: () => fullPayload, enumerable: false },
+  });
+
+  return projection;
 }
 
 /** Exact public lookup by ALH/CG case number, email, or phone. */
@@ -142,5 +201,3 @@ export async function publicStatusByIdentifier(identifier: string) {
 
   return client ? publicStatus(client.id) : null;
 }
-
-export type PublicStatus = NonNullable<Awaited<ReturnType<typeof publicStatus>>>;
