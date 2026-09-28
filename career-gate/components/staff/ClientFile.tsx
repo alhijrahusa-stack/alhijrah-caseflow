@@ -27,13 +27,26 @@ export type ClientFileData = {
 export type ClientPanel = Panel;
 type ClientTab = "profile" | "preferences" | "documents" | "appointments" | "work" | "activity";
 
+const panelTab: Record<Panel, ClientTab> = {
+  document: "documents",
+  appointment: "appointments",
+  note: "work",
+  task: "work",
+  contacted: "work",
+  status: "profile",
+  next_step: "profile",
+  followup: "work",
+  assign: "profile",
+};
+
 export function ClientFile({ data, initialPanel = null }: { data: ClientFileData; initialPanel?: ClientPanel | null }) {
   const { client: c } = data;
   const { isManager, isAdmin } = useStaff();
   const [panel, setPanel] = useState<Panel | null>(initialPanel);
-  const [tab, setTab] = useState<ClientTab>("profile");
+  const [tab, setTab] = useState<ClientTab>(initialPanel ? panelTab[initialPanel] : "profile");
   const close = () => setPanel(null);
   const openPanel = (p: Panel) => () => {
+    setTab(panelTab[p]);
     setPanel(p);
     setTimeout(() => document.getElementById("action-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
@@ -122,7 +135,7 @@ export function ClientFile({ data, initialPanel = null }: { data: ClientFileData
       {tab === "profile" && (
         <div className="grid gap-4 xl:grid-cols-3">
           <div className="space-y-4 xl:col-span-2">
-            <Card title="Status Timeline"><StatusTimeline created={{ at: c.created_at, status: createdStatus }} events={statusEvents} current={c.current_status} /></Card>
+            <Card title="Status Timeline" id="status-timeline"><StatusTimeline created={{ at: c.created_at, status: createdStatus }} events={statusEvents} current={c.current_status} /></Card>
             <EmploymentHistory rows={data.employment} editHref={`/staff/client/${c.id}/edit`} />
             <PostHire clientId={c.id} items={data.postHire} startDate={c.start_date} />
           </div>
