@@ -82,8 +82,11 @@ test.describe.serial("office workflow", () => {
     await page.waitForURL(`**/staff/client/${clientId}`);
     await expect(page.getByTestId("section-amazon-history")).toContainText("Via third-party agency");
     await page.getByTestId("quick-actions").getByRole("button", { name: "Assign Staff" }).click();
-    await page.getByTestId("form-assign").getByLabel("Handled by").selectOption({ label: "TEST Staff (staff)" });
-    await page.getByTestId("form-assign").getByRole("button", { name: "Save" }).click();
+    const assign = page.getByTestId("form-assign");
+    await expect(assign).toBeVisible();
+    await assign.locator(".staff-picker-trigger").click();
+    await assign.getByRole("option", { name: /TEST Staff/ }).click();
+    await assign.getByRole("button", { name: "Save" }).click();
     await expect(page.getByTestId("assigned-name")).toHaveText("TEST Staff");
   });
 
