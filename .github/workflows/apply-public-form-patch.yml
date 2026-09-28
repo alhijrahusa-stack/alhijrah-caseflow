@@ -1,5 +1,6 @@
 name: Apply public form reliability patch
 
+# One-shot branch-only patch runner. The generated HTML commit does not match this workflow path.
 on:
   push:
     branches: [career-gate-production-upgrade-v2-20260928]
