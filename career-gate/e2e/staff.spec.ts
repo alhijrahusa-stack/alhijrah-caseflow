@@ -98,6 +98,7 @@ test.describe.serial("office workflow", () => {
     await expect(page.getByTestId("document-row")).toHaveCount(1);
     await expect.poll(async () => (await db()`select status from documents where client_id = ${clientId}`)[0]?.status, { timeout: 15_000 }).toBe("needs_review");
     await page.reload();
+    await page.getByRole("button", { name: /Documents/ }).click();
     await expect(page.getByTestId("extraction-state")).toContainText("NOT_CONFIGURED");
     await expect(page.getByTestId("document-row").locator("img")).toHaveJSProperty("complete", true);
 
@@ -109,6 +110,7 @@ test.describe.serial("office workflow", () => {
     expect(log.n).toBe(1);
 
     await page.reload();
+    await page.getByRole("button", { name: /Documents/ }).click();
     await page.getByTestId("document-row").getByRole("button", { name: "Verify" }).click();
     await expect(page.getByTestId("document-status")).toHaveText("Verified");
     const [doc] = await db()`select status, reviewed_by, reviewed_at, sha256 from documents where client_id = ${clientId}`;
