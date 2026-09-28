@@ -1,9 +1,10 @@
 import { parseCsv, parseXlsx } from "@/lib/intake-file";
+import { fetchGoogleSheetCsv } from "@/lib/google-sheets";
 import { ActionError } from "@/lib/service";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { staffGuard } from "@/lib/staff-api";
-import { fetchGoogleSheet, importRows, rowsFromImageOrPdf } from "@/lib/universal-intake";
+import { importRows, rowsFromImageOrPdf } from "@/lib/universal-intake";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -38,9 +39,9 @@ export async function POST(req: Request) {
     let source: string;
 
     if (sheetUrl) {
-      const csv = await fetchGoogleSheet(sheetUrl);
+      const csv = await fetchGoogleSheetCsv(sheetUrl);
       rows = parseCsv(csv);
-      source = "google_sheets";
+      source = "google_sheets_api";
     } else {
       if (!file) return err("invalid_input", "File is required", 400, traceId);
       if (file.size > MAX_FILE_BYTES) return err("file_too_large", "File exceeds the 10 MB import limit", 413, traceId);
