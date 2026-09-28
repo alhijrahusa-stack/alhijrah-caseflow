@@ -17,6 +17,7 @@ import { Documents } from "@/components/staff/sections/Documents";
 import { Activity, Alerts, Assessments, IntakeAgent, Messages } from "@/components/staff/sections/Insight";
 import { AmazonHistory, ClientInfo, EmploymentHistory, Preferences } from "@/components/staff/sections/Profile";
 import { Appointments, Contacts, Followups, Notes, PostHire, Tasks } from "@/components/staff/sections/Work";
+import type { ClientAccountSummary } from "@/lib/client-account";
 import type { Status } from "@/lib/domain";
 
 export type ClientFileData = {
@@ -39,7 +40,19 @@ const panelTab: Record<Panel, ClientTab> = {
   assign: "profile",
 };
 
-export function ClientFile({ data, initialPanel = null }: { data: ClientFileData; initialPanel?: ClientPanel | null }) {
+function pipelineLabel(value: unknown) {
+  return String(value ?? "portal_intake").replace(/_/g, " ");
+}
+
+export function ClientFile({
+  data,
+  account = null,
+  initialPanel = null,
+}: {
+  data: ClientFileData;
+  account?: ClientAccountSummary;
+  initialPanel?: ClientPanel | null;
+}) {
   const { client: c } = data;
   const { isManager, isAdmin } = useStaff();
   const [panel, setPanel] = useState<Panel | null>(initialPanel);
@@ -80,14 +93,19 @@ export function ClientFile({ data, initialPanel = null }: { data: ClientFileData
           <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/[.055] text-sm font-semibold text-slate-200">{String(c.full_name).trim().slice(0, 1).toUpperCase()}</div>
           <div className="min-w-0">
             <h1 className="truncate text-xl font-semibold" data-testid="client-name">{c.full_name}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2"><span className="font-mono text-xs text-slate-500" data-testid="client-ref">{c.ref}</span><StatusBadge status={c.current_status} /></div>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="font-mono text-xs text-slate-500" data-testid="client-ref">{c.ref}</span>
+              <StatusBadge status={c.current_status} />
+              <span className="rounded-full border border-indigo-400/20 bg-indigo-400/[.07] px-2 py-1 text-[9px] capitalize text-indigo-200">{pipelineLabel(c.pipeline_stage)}</span>
+              {account?.payment_status === "paid" && <span className="rounded-full border border-emerald-400/25 bg-emerald-400/[.08] px-2 py-1 text-[9px] font-semibold text-emerald-300">Paid · ${account.fee_amount.toFixed(2)}</span>}
+            </div>
           </div>
           <span className="text-xs text-slate-500">Handled by: <span data-testid="assigned-name">{c.assigned_name ?? "Unassigned"}</span></span>
           {c.deleted_at && <span className="rounded bg-red-950/50 px-2 py-1 text-xs text-red-300">Deleted: {c.delete_reason}</span>}
           <span className="ml-auto"><RealtimeRefresher clientId={c.id} /></span>
         </div>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className={`mt-4 grid gap-4 ${account ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
           <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
             <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Current Status</p>
             <div className="mt-2" data-testid="current-status"><StatusBadge status={c.current_status} /></div>
@@ -96,6 +114,19 @@ export function ClientFile({ data, initialPanel = null }: { data: ClientFileData
             <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Next Step</p>
             <div className="mt-1 text-sm" data-testid="next-step"><InlineField clientId={c.id} field="next_step" label="Next step" value={c.next_step} /></div>
           </div>
+          {account && (
+            <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Account</p>
+                {isManager && <Link href="/staff/accounting" className="text-[9px] text-cyan-300 hover:text-cyan-200">Open accounting</Link>}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className={`rounded-full border px-2 py-1 text-[9px] font-semibold capitalize ${account.payment_status === "paid" ? "border-emerald-400/25 bg-emerald-400/[.08] text-emerald-300" : account.payment_status === "refunded" ? "border-red-400/25 bg-red-400/[.08] text-red-300" : "border-amber-400/25 bg-amber-400/[.08] text-amber-300"}`}>{account.payment_status}</span>
+                <strong className="text-sm text-slate-200">${account.fee_amount.toFixed(2)}</strong>
+                {account.payment_date && <span className="text-[9px] text-slate-500">{account.payment_date}</span>}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
