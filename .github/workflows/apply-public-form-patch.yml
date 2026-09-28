@@ -26,8 +26,8 @@ jobs:
           from pathlib import Path
           p = Path("career-gate/scripts/patch-public-form.mjs")
           s = p.read_text()
-          old = r"/function save\\(\\)\\{.*?\\}\\nfunction restore\\(\\)\\{.*?\\}\\nfunction showReceipt/s,"
-          new = r"/function save\\(\\)\\{.*?\\}function restore\\(\\)\\{.*?\\}function showReceipt/s,"
+          old = r"/function save\(\)\{.*?\}\nfunction restore\(\)\{.*?\}\nfunction showReceipt/s,"
+          new = r"/function save\(\)\{.*?\}function restore\(\)\{.*?\}function showReceipt/s,"
           if old not in s:
               raise SystemExit("draft patch anchor not found")
           p.write_text(s.replace(old, new))
