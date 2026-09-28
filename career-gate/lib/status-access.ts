@@ -18,7 +18,7 @@ export type LookupKind = "reference" | "email" | "phone";
 
 export function classify(identifier: string): { kind: LookupKind; value: string } | null {
   const v = identifier.trim();
-  if (/^CG-\d{4}-\d{6}$/i.test(v)) return { kind: "reference", value: v.toUpperCase() };
+  if (/^(CG-\d{4}-\d{6}|ALH-\d{8}-[A-Z0-9]{4})$/i.test(v)) return { kind: "reference", value: v.toUpperCase() };
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return { kind: "email", value: v.toLowerCase() };
   const p = normalizePhone(v);
   return p ? { kind: "phone", value: p } : null;
@@ -43,10 +43,22 @@ export async function startLookup(identifier: string, ipHash: string, traceId: s
   if (c) {
     const rows =
       c.kind === "reference"
-        ? await db`select id, phone, email from clients where ref = ${c.value} and deleted_at is null`
+        ? await db`
+            select c.id, c.phone, c.email
+            from clients c
+            where c.deleted_at is null
+              and (
+                upper(c.ref) = ${c.value}
+                or exists (
+                  select 1 from career_gate_applications a
+                  where a.client_id = c.id and upper(a.case_number) = ${c.value}
+                )
+              )
+            order by c.updated_at desc
+            limit 1`
         : c.kind === "email"
           ? await db`select id, phone, email from clients where lower(email) = ${c.value} and deleted_at is null order by created_at desc limit 1`
-          : await db`select id, phone, email from clients where phone = ${c.value} and deleted_at is null order by created_at desc limit 1`;
+          : await db`select id, phone, email from clients where regexp_replace(phone, '\\D', '', 'g') = ${c.value.replace(/\D/g, "")} and deleted_at is null order by created_at desc limit 1`;
     client = rows[0] as typeof client;
   }
 
@@ -64,7 +76,6 @@ export async function startLookup(identifier: string, ipHash: string, traceId: s
     insert into otp_requests (client_id, contact_type, contact_value_hash, delivery_status, expires_at, ip_hash)
     values (${client.id}, ${channel}, ${contactHash}, 'not_configured', ${expires}, ${ipHash}) returning id`;
   const challengeId = row.id as string;
-  // 5 codes per hour per contact; over the limit nothing is sent (same public response).
   if (!(await hit("otp_send_hour", contactHash))) {
     await db`update otp_requests set delivery_status = 'failed' where id = ${challengeId}`;
     return { challengeId, delivery: "rate_limited" as const, contactHash };
