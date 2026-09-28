@@ -28,8 +28,11 @@ export type OperationsClient = {
   site_name: string | null;
   site_address: string | null;
   shift_code: string | null;
+  shift_name: string | null;
   shift_days: string | null;
   shift_hours: string | null;
+  shift_period: "morning" | "evening" | "unspecified" | null;
+  auto_dispatched_at: string | null;
   pay_snapshot: string | null;
   payment_status: string | null;
   fee_amount: number | null;
@@ -83,12 +86,13 @@ export async function pipelineData(session: StaffSession) {
         select c.id,c.ref,c.full_name,c.phone,c.email,c.pipeline_stage,c.current_status,c.next_step,
                c.assigned_staff,c.created_at,c.updated_at,
                s.display_name assigned_name,s.staff_code,
-               p.site_code,p.site_name,p.site_address,p.shift_code,p.days shift_days,p.hours shift_hours,p.pay_snapshot,
+               p.site_code,p.site_name,p.site_address,p.shift_code,p.shift_name,p.days shift_days,p.hours shift_hours,
+               p.shift_period,p.auto_dispatched_at,p.pay_snapshot,
                a.payment_status,a.fee_amount
         from clients c
         left join staff s on s.id=c.assigned_staff
         left join lateral (
-          select site_code,site_name,site_address,shift_code,days,hours,pay_snapshot
+          select site_code,site_name,site_address,shift_code,shift_name,days,hours,shift_period,auto_dispatched_at,pay_snapshot
           from client_preferences p
           where p.client_id=c.id
           order by case p.rank when 'primary' then 0 else 1 end,p.preference_order

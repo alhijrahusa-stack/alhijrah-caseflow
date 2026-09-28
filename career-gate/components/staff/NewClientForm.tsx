@@ -54,22 +54,25 @@ export function NewClientForm() {
   const [draftState, setDraftState] = useState<"idle" | "restored" | "saved">("idle");
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as Draft;
-      if (!draft?.profile || !draft?.prefs) return;
-      setProfile(draft.profile);
-      setPrefs(draft.prefs);
-      setStatus(draft.status);
-      setNextStep(draft.nextStep);
-      setNote(draft.note);
-      setConsent(draft.consent);
-      setAssigned(draft.assigned);
-      setDraftState("restored");
-    } catch {
-      sessionStorage.removeItem(DRAFT_KEY);
-    }
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = sessionStorage.getItem(DRAFT_KEY);
+        if (!raw) return;
+        const draft = JSON.parse(raw) as Draft;
+        if (!draft?.profile || !draft?.prefs) return;
+        setProfile(draft.profile);
+        setPrefs(draft.prefs);
+        setStatus(draft.status);
+        setNextStep(draft.nextStep);
+        setNote(draft.note);
+        setConsent(draft.consent);
+        setAssigned(draft.assigned);
+        setDraftState("restored");
+      } catch {
+        sessionStorage.removeItem(DRAFT_KEY);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -79,7 +82,7 @@ export function NewClientForm() {
         sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
         setDraftState("saved");
       } catch {
-        // Temporary browser draft is non-authoritative; server save remains authoritative.
+        return;
       }
     }, 450);
     return () => window.clearTimeout(timer);

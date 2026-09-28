@@ -144,7 +144,10 @@ export function DistributionPanel({
             <thead>
               <tr><th><input type="checkbox" aria-label="Select visible clients" checked={filtered.length > 0 && filtered.every((c) => selected.has(c.id))} onChange={(e) => {
                 const next = new Set(selected);
-                for (const client of filtered) e.target.checked ? next.add(client.id) : next.delete(client.id);
+                for (const client of filtered) {
+                  if (e.target.checked) next.add(client.id);
+                  else next.delete(client.id);
+                }
                 setSelected(next);
               }} /></th><th>Client</th><th>File</th><th>Stage</th><th>Current owner</th><th /></tr>
             </thead>
@@ -153,7 +156,8 @@ export function DistributionPanel({
                 <tr key={client.id}>
                   <td><input type="checkbox" aria-label={`Select ${client.full_name}`} checked={selected.has(client.id)} onChange={(e) => {
                     const next = new Set(selected);
-                    e.target.checked ? next.add(client.id) : next.delete(client.id);
+                    if (e.target.checked) next.add(client.id);
+                    else next.delete(client.id);
                     setSelected(next);
                   }} /></td>
                   <td><strong>{client.full_name}</strong><span>{client.phone}</span></td>

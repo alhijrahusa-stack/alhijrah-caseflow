@@ -42,23 +42,32 @@ export function QuickClientSearch() {
   useEffect(() => {
     const term = q.trim();
     if (term.length < 2) {
-      setResults([]);
-      return;
+      const timer = window.setTimeout(() => {
+        setResults([]);
+        setOpen(false);
+        setLoading(false);
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
     const controller = new AbortController();
-    const timer = setTimeout(async () => {
+    const timer = window.setTimeout(async () => {
       setLoading(true);
       try {
         const res = await fetch(`/api/staff/search?q=${encodeURIComponent(term)}`, { signal: controller.signal });
         const data = await res.json().catch(() => null);
         setResults(data?.ok ? data.results : []);
         setOpen(true);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setResults([]);
+          setOpen(true);
+        }
       } finally {
         setLoading(false);
       }
     }, 180);
     return () => {
-      clearTimeout(timer);
+      window.clearTimeout(timer);
       controller.abort();
     };
   }, [q]);
