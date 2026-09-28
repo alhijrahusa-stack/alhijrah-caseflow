@@ -84,38 +84,34 @@ function normalizeRows<T>(rows: unknown) {
   return rows as T[];
 }
 
+function normalizeClient(row: OperationsClient): OperationsClient {
+  return { ...row, fee_amount: row.fee_amount == null ? null : Number(row.fee_amount) };
+}
+
+export async function operationsClient(session: StaffSession, clientId: string) {
+  return withStaff(session, async (tx) => {
+    const [row] = await tx`
+      select *
+      from career_gate_operations_clients
+      where id=${clientId}
+      limit 1`;
+    return row ? normalizeClient(row as unknown as OperationsClient) : null;
+  });
+}
+
 export async function pipelineData(session: StaffSession) {
   return withStaff(session, async (tx) => {
     const [stages, clients] = await Promise.all([
       tx`select key,position,label_en,label_ar,color,terminal from pipeline_stages order by position`,
       tx`
-        select c.id,c.ref,c.full_name,c.phone,c.email,c.pipeline_stage,c.current_status,c.next_step,
-               c.assigned_staff,c.created_at,c.updated_at,
-               s.display_name assigned_name,s.staff_code,
-               p.site_code,p.site_name,p.site_address,p.shift_code,p.shift_name,p.days shift_days,p.hours shift_hours,
-               p.shift_period,p.dispatch_mode,p.auto_dispatched_at,p.manual_dispatch_at,p.manual_dispatch_by,p.pay_snapshot,
-               a.payment_status,a.fee_amount
-        from clients c
-        left join staff s on s.id=c.assigned_staff
-        left join lateral (
-          select site_code,site_name,site_address,shift_code,shift_name,days,hours,shift_period,dispatch_mode,
-                 auto_dispatched_at,manual_dispatch_at,manual_dispatch_by,pay_snapshot
-          from client_preferences p
-          where p.client_id=c.id
-          order by case p.rank when 'primary' then 0 else 1 end,p.preference_order
-          limit 1
-        ) p on true
-        left join client_accounts a on a.client_id=c.id
-        where c.deleted_at is null
-        order by c.updated_at desc
+        select *
+        from career_gate_operations_clients
+        order by updated_at desc
         limit 1000`,
     ]);
     return {
       stages: normalizeRows<PipelineStage>(stages),
-      clients: normalizeRows<OperationsClient>(clients).map((c) => ({
-        ...c,
-        fee_amount: c.fee_amount == null ? null : Number(c.fee_amount),
-      })),
+      clients: normalizeRows<OperationsClient>(clients).map(normalizeClient),
     };
   });
 }
