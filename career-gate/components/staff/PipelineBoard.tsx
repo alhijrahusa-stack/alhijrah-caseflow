@@ -5,14 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OperationsClient, PipelineStage } from "@/lib/operations";
 
-function shiftPeriod(hours: string | null) {
-  if (!hours) return "Unspecified";
-  const m = hours.match(/\b([01]?\d|2[0-3]):[0-5]\d\b/);
-  if (!m) return "Unspecified";
-  const hour = Number(m[1]);
-  if (hour < 12) return "Morning";
-  if (hour < 17) return "Afternoon";
-  return "Evening";
+function legacyShiftPeriod(hours: string | null) {
+  if (!hours) return "unspecified" as const;
+  const meridiem = hours.match(/([0-9]{1,2}):[0-9]{2}\s*(ص|م|AM|PM|am|pm)?/);
+  if (!meridiem) return "unspecified" as const;
+  const hour = Number(meridiem[1]);
+  const marker = (meridiem[2] ?? "").toLowerCase();
+  if (marker === "م" || marker === "pm") return "evening" as const;
+  if (marker === "ص" || marker === "am") return "morning" as const;
+  return hour < 12 ? "morning" as const : "evening" as const;
 }
 
 async function operation(body: Record<string, unknown>) {
@@ -70,6 +71,59 @@ function ClientCard({ client, stages, onMove, busy }: {
   );
 }
 
+type LocationGroup = {
+  key: string;
+  siteCode: string;
+  siteName: string;
+  siteAddress: string | null;
+  morning: OperationsClient[];
+  evening: OperationsClient[];
+  unspecified: OperationsClient[];
+};
+
+function DispatchClient({ client }: { client: OperationsClient }) {
+  return (
+    <Link href={`/staff/client/${client.id}`} className="ops-dispatch-client">
+      <div className="ops-dispatch-client-head">
+        <div>
+          <strong>{client.full_name}</strong>
+          <code>{client.ref}</code>
+        </div>
+        {client.auto_dispatched_at && <span className="ops-auto-badge">Auto-Dispatched</span>}
+      </div>
+      <div className="ops-dispatch-meta">
+        <span>{client.shift_code ?? "—"}</span>
+        <span dir="rtl">{client.shift_days ?? "—"}</span>
+        <span>{client.shift_hours ?? "—"}</span>
+      </div>
+      <div className="ops-dispatch-footer">
+        <span>{client.assigned_name ?? "Unassigned"}</span>
+        {client.payment_status === "paid" && <b>Paid ${Number(client.fee_amount ?? 0).toFixed(0)}</b>}
+      </div>
+    </Link>
+  );
+}
+
+function DispatchLane({ title, subtitle, clients, tone }: {
+  title: string;
+  subtitle: string;
+  clients: OperationsClient[];
+  tone: "morning" | "evening" | "unspecified";
+}) {
+  return (
+    <section className="ops-dispatch-lane" data-tone={tone}>
+      <header>
+        <div><strong>{title}</strong><span>{subtitle}</span></div>
+        <b>{clients.length}</b>
+      </header>
+      <div className="ops-dispatch-list">
+        {clients.map((client) => <DispatchClient key={client.id} client={client} />)}
+        {!clients.length && <div className="ops-dispatch-empty">No clients in this shift.</div>}
+      </div>
+    </section>
+  );
+}
+
 export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; clients: OperationsClient[] }) {
   const router = useRouter();
   const [rows, setRows] = useState(clients);
@@ -77,7 +131,10 @@ export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; cl
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"pipeline" | "location">("pipeline");
 
-  useEffect(() => setRows(clients), [clients]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setRows(clients), 0);
+    return () => window.clearTimeout(timer);
+  }, [clients]);
 
   async function move(client: OperationsClient, nextStage: string) {
     if (nextStage === client.pipeline_stage) return;
@@ -96,16 +153,24 @@ export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; cl
     }
   }
 
-  const shiftGroups = useMemo(() => {
-    const map = new Map<string, OperationsClient[]>();
+  const locations = useMemo<LocationGroup[]>(() => {
+    const map = new Map<string, LocationGroup>();
     for (const client of rows) {
-      const period = shiftPeriod(client.shift_hours);
-      const key = `${client.site_name ?? client.site_code ?? "No location"} · ${period}`;
-      const group = map.get(key) ?? [];
-      group.push(client);
-      map.set(key, group);
+      const key = client.site_code ?? "no-location";
+      const current = map.get(key) ?? {
+        key,
+        siteCode: client.site_code ?? "NO SITE",
+        siteName: client.site_name ?? "Location not selected",
+        siteAddress: client.site_address,
+        morning: [],
+        evening: [],
+        unspecified: [],
+      };
+      const period = client.shift_period ?? legacyShiftPeriod(client.shift_hours);
+      current[period].push(client);
+      map.set(key, current);
     }
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+    return [...map.values()].sort((a, b) => `${a.siteName} ${a.siteCode}`.localeCompare(`${b.siteName} ${b.siteCode}`));
   }, [rows]);
 
   return (
@@ -154,20 +219,29 @@ export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; cl
           })}
         </div>
       ) : (
-        <div className="ops-shift-grid">
-          {shiftGroups.map(([name, group]) => (
-            <section key={name} className="ops-glass-card">
-              <div className="ops-shift-head"><h2>{name}</h2><span>{group.length} clients</span></div>
-              <div className="ops-shift-list">
-                {group.map((client) => (
-                  <Link href={`/staff/client/${client.id}`} key={client.id} className="ops-shift-row">
-                    <div><strong>{client.full_name}</strong><code>{client.ref}</code></div>
-                    <div><span>{client.shift_days ?? "—"}</span><span>{client.shift_hours ?? "—"}</span></div>
-                  </Link>
-                ))}
+        <div className="ops-location-stack" data-testid="location-dispatcher">
+          {locations.map((location) => (
+            <article key={location.key} className="ops-location-board">
+              <header className="ops-location-head">
+                <div>
+                  <p className="ops-kicker">AMAZON LOCATION</p>
+                  <h2>{location.siteName}</h2>
+                  <span>{location.siteCode}{location.siteAddress ? ` · ${location.siteAddress}` : ""}</span>
+                </div>
+                <div className="ops-location-total"><strong>{location.morning.length + location.evening.length + location.unspecified.length}</strong><span>clients</span></div>
+              </header>
+              <div className="ops-location-lanes">
+                <DispatchLane title="Morning" subtitle="القائمة الصباحية" clients={location.morning} tone="morning" />
+                <DispatchLane title="Evening" subtitle="القائمة المسائية" clients={location.evening} tone="evening" />
               </div>
-            </section>
+              {location.unspecified.length > 0 && (
+                <div className="ops-location-unclassified">
+                  <DispatchLane title="Needs classification" subtitle="الشفت غير محدد" clients={location.unspecified} tone="unspecified" />
+                </div>
+              )}
+            </article>
           ))}
+          {!locations.length && <div className="ops-glass-card ops-empty-large">No clients are available for location dispatch.</div>}
         </div>
       )}
     </div>
