@@ -55,18 +55,21 @@ export function EditClientForm({ client, employment, preferences }: { client: R;
   const draftKey = `career-gate:client-draft:${client.id}`;
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(draftKey);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as Draft;
-      if (!draft?.profile || typeof draft.nextStep !== "string" || typeof draft.assigned !== "string") return;
-      setProfile(draft.profile);
-      setNextStep(draft.nextStep);
-      setAssigned(draft.assigned);
-      setDraftState("restored");
-    } catch {
-      sessionStorage.removeItem(draftKey);
-    }
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = sessionStorage.getItem(draftKey);
+        if (!raw) return;
+        const draft = JSON.parse(raw) as Draft;
+        if (!draft?.profile || typeof draft.nextStep !== "string" || typeof draft.assigned !== "string") return;
+        setProfile(draft.profile);
+        setNextStep(draft.nextStep);
+        setAssigned(draft.assigned);
+        setDraftState("restored");
+      } catch {
+        sessionStorage.removeItem(draftKey);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [draftKey]);
 
   useEffect(() => {
@@ -76,7 +79,7 @@ export function EditClientForm({ client, employment, preferences }: { client: R;
         sessionStorage.setItem(draftKey, JSON.stringify(draft));
         setDraftState("saved");
       } catch {
-        // Session storage is a convenience only; server save remains authoritative.
+        return;
       }
     }, 450);
     return () => window.clearTimeout(timer);
