@@ -30,6 +30,16 @@ export const ipHash = (req: Request) => hashIdentifier(`ip:${clientIp(req)}`);
 /** Postgres errors become typed API errors instead of opaque 500s. */
 export function dbErrorResponse(e: unknown, traceId?: string) {
   const pg = e as { code?: string; message?: string; constraint_name?: string };
+  if (pg?.code === "P0001" && pg.message?.startsWith("duplicate_client_identity|")) {
+    const [, identity, ref, stage, owner] = pg.message.split("|");
+    const field = identity === "email" ? "البريد الإلكتروني" : "رقم الهاتف";
+    return err(
+      "duplicate_client",
+      `تنبيه النظام: ${field} مسجل مسبقاً في الملف ${ref}. القسم الحالي: ${stage.replace(/_/g, " ")}. الموظف المسؤول: ${owner}. افتح الملف الحالي أو اطلب نقل الملكية بدلاً من إنشاء نسخة جديدة.`,
+      409,
+      traceId,
+    );
+  }
   if (pg?.code === "P0001" && pg.message?.startsWith("invalid_status_transition")) {
     return err("invalid_transition", "That status change is not allowed from the current status", 409, traceId);
   }
