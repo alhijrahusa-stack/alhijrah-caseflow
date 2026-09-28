@@ -18,11 +18,11 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
   const [staff, counts] = await Promise.all([staffDirectory(session), dashboardCounts(session)]);
-  const mgmt = session.staff.role !== "staff";
-  const alertCount = mgmt ? Number(counts.audit_alerts ?? 0) : 0;
+  const superAdmin = session.staff.role === "super_admin";
+  const alertCount = Number(counts.audit_alerts ?? 0);
 
   return (
-    <StaffProvider me={{ id: session.staff.id, display_name: session.staff.display_name, role: session.staff.role }} staff={staff}>
+    <StaffProvider me={{ id: session.staff.id, display_name: session.staff.display_name, role: session.staff.role, access_scope: session.staff.access_scope }} staff={staff}>
       <div className="staff-shell">
         <header className="staff-topbar sticky top-0 z-30">
           <div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-2 px-4 py-3 lg:px-6">
@@ -39,21 +39,20 @@ export default async function StaffLayout({ children }: { children: React.ReactN
             <nav className="hidden items-center gap-1 lg:flex" aria-label="Staff operations">
               <Link className="staff-nav-link" href="/staff">Dashboard</Link>
               <Link className="staff-nav-link" data-tone="gold" href="/staff/pipeline">Pipeline</Link>
-              {mgmt && <Link className="staff-nav-link" href="/staff/accounting">Accounting</Link>}
-              {mgmt && <Link className="staff-nav-link" href="/staff/distribution">Distribution</Link>}
-              {mgmt && <Link className="staff-nav-link" href="/staff/import">Import</Link>}
+              <Link className="staff-nav-link" href="/staff/accounting">Accounting</Link>
+              <Link className="staff-nav-link" href="/staff/distribution">Distribution</Link>
+              <Link className="staff-nav-link" href="/staff/import">Import</Link>
+              {superAdmin && <Link className="staff-nav-link" href="/staff/settings/team">Team & Access</Link>}
             </nav>
 
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
               <QuickClientSearch />
               <CommandPalette />
               <RealtimeRefresher />
-              {mgmt && (
-                <Link href="/staff/audit-alerts" className="relative rounded-xl border border-white/[.07] px-3 py-2 text-xs text-slate-400 hover:bg-white/[.04] hover:text-slate-100" aria-label="Audit alerts">
-                  Alerts
-                  {alertCount > 0 && <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 font-mono text-[9px] text-white">{alertCount}</span>}
-                </Link>
-              )}
+              <Link href="/staff/audit-alerts" className="relative rounded-xl border border-white/[.07] px-3 py-2 text-xs text-slate-400 hover:bg-white/[.04] hover:text-slate-100" aria-label="Audit alerts">
+                Alerts
+                {alertCount > 0 && <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 font-mono text-[9px] text-white">{alertCount}</span>}
+              </Link>
               <span className="hidden items-center gap-2 rounded-xl border border-white/[.07] bg-white/[.025] px-3 py-2 text-xs sm:flex" data-testid="me">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
                 <span className="max-w-32 truncate text-slate-200">{session.staff.display_name}</span>
@@ -66,9 +65,10 @@ export default async function StaffLayout({ children }: { children: React.ReactN
             <nav className="flex w-full items-center gap-1 overflow-x-auto lg:hidden" aria-label="Staff operations mobile">
               <Link className="staff-nav-link" href="/staff">Dashboard</Link>
               <Link className="staff-nav-link" data-tone="gold" href="/staff/pipeline">Pipeline</Link>
-              {mgmt && <Link className="staff-nav-link" href="/staff/accounting">Accounting</Link>}
-              {mgmt && <Link className="staff-nav-link" href="/staff/distribution">Distribution</Link>}
-              {mgmt && <Link className="staff-nav-link" href="/staff/import">Import</Link>}
+              <Link className="staff-nav-link" href="/staff/accounting">Accounting</Link>
+              <Link className="staff-nav-link" href="/staff/distribution">Distribution</Link>
+              <Link className="staff-nav-link" href="/staff/import">Import</Link>
+              {superAdmin && <Link className="staff-nav-link" href="/staff/settings/team">Team & Access</Link>}
             </nav>
           </div>
         </header>
