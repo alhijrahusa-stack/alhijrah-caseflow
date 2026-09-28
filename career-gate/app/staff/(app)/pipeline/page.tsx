@@ -9,5 +9,6 @@ export default async function PipelinePage() {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
   const data = await pipelineData(session);
-  return <PipelineBoard stages={data.stages} clients={data.clients} />;
+  const canManage = session.staff.role === "admin" || session.staff.role === "manager";
+  return <PipelineBoard stages={data.stages} clients={data.clients} canManage={canManage} />;
 }
