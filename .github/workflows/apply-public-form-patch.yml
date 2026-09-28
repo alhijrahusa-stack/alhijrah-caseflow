@@ -20,25 +20,32 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply deterministic patch
+      - name: Correct affected public-form selectors
         run: |
           python - <<'PY'
           from pathlib import Path
-          p = Path("career-gate/scripts/patch-public-form.mjs")
+          p = Path("career-gate/public/career-gate.html")
           s = p.read_text()
-          old = r"/function save\(\)\{.*?\}\nfunction restore\(\)\{.*?\}\nfunction showReceipt/s,"
-          new = r"/function save\(\).*?function showReceipt/s,"
-          if old not in s:
-              raise SystemExit("draft patch anchor not found")
-          p.write_text(s.replace(old, new))
+          replacements = {
+              "$('[data-next]').forEach": "$$('[data-next]').forEach",
+              "$('[data-prev]').forEach": "$$('[data-prev]').forEach",
+              "$('[data-step]').forEach": "$$('[data-step]').forEach",
+          }
+          for old, new in replacements.items():
+              if s.count(old) != 1:
+                  raise SystemExit(f"expected exactly one selector anchor: {old}; found {s.count(old)}")
+              s = s.replace(old, new)
+          p.write_text(s)
           PY
-          node career-gate/scripts/patch-public-form.mjs
       - name: Validate and commit
         run: |
           git diff --check
           test -n "$(git status --porcelain -- career-gate/public/career-gate.html)"
+          grep -Fq "\$\$('[data-next]').forEach" career-gate/public/career-gate.html
+          grep -Fq "debounce(()=>void save(),1500)" career-gate/public/career-gate.html
+          grep -Fq "fd.set('upload_id',uploadIdFor(file))" career-gate/public/career-gate.html
           git config user.name "ALHIJRAH VISA & IMMIGRATION SERVICES LLC"
           git config user.email "alhijrahusa@gmail.com"
           git add career-gate/public/career-gate.html
-          git commit -m "Harden current public form draft and upload recovery"
+          git commit -m "Correct public form navigation selectors"
           git push origin HEAD:career-gate-production-upgrade-v2-20260928
