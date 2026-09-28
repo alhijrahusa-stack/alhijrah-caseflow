@@ -1,0 +1,32 @@
+name: Apply public form reliability patch
+
+on:
+  push:
+    branches: [career-gate-production-upgrade-v2-20260928]
+    paths:
+      - .github/workflows/apply-public-form-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: career-gate-production-upgrade-v2-20260928
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply deterministic patch
+        run: node career-gate/scripts/patch-public-form.mjs
+      - name: Validate and commit
+        run: |
+          git diff --check
+          test -n "$(git status --porcelain -- career-gate/public/career-gate.html)"
+          git config user.name "ALHIJRAH VISA & IMMIGRATION SERVICES LLC"
+          git config user.email "alhijrahusa@gmail.com"
+          git add career-gate/public/career-gate.html
+          git commit -m "Harden current public form draft and upload recovery"
+          git push origin HEAD:career-gate-production-upgrade-v2-20260928
