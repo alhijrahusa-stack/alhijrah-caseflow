@@ -39,18 +39,6 @@ export async function POST(req: Request) {
     uploadKey: uploadId,
     actor: { staffId: null, traceId },
   });
-  if (!result.ok) {
-    console.error(JSON.stringify({
-      event: "public_document_upload_failed",
-      trace_id: traceId,
-      code: result.code,
-      status: result.status,
-      doc_type: String(form.get("doc_type") ?? ""),
-      file_name: file.name.slice(0, 200),
-      file_size: file.size,
-      mime_type: file.type,
-    }));
-    return err(result.code, result.error, result.status, traceId);
-  }
+  if (!result.ok) return err(result.code, result.error, result.status, traceId);
   return ok({ id: result.id, status: result.status, replayed: result.replayed }, result.replayed ? 200 : 201, traceId);
 }
