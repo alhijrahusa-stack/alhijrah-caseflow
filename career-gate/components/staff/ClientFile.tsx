@@ -24,11 +24,14 @@ export type ClientFileData = {
   tasks: Row[]; contacts: Row[]; followups: Row[]; postHire: Row[]; assessments: Row[]; activity: Row[]; authorization: Row | null;
   notifications: Row[]; alerts: Row[]; agentRun: Row | null; references: Row[];
 };
+export type ClientPanel = Panel;
+type ClientTab = "profile" | "preferences" | "documents" | "appointments" | "work" | "activity";
 
-export function ClientFile({ data }: { data: ClientFileData }) {
+export function ClientFile({ data, initialPanel = null }: { data: ClientFileData; initialPanel?: ClientPanel | null }) {
   const { client: c } = data;
   const { isManager, isAdmin } = useStaff();
-  const [panel, setPanel] = useState<Panel | null>(null);
+  const [panel, setPanel] = useState<Panel | null>(initialPanel);
+  const [tab, setTab] = useState<ClientTab>("profile");
   const close = () => setPanel(null);
   const openPanel = (p: Panel) => () => {
     setPanel(p);
@@ -48,28 +51,58 @@ export function ClientFile({ data }: { data: ClientFileData }) {
   const createdEvent = data.activity.find((l) => l.action === "client_created");
   const createdStatus = (createdEvent?.new_value?.status as Status) ?? (statusEvents[0]?.from ?? c.current_status);
 
+  const tabs: { id: ClientTab; label: string; count?: number }[] = [
+    { id: "profile", label: "Profile" },
+    { id: "preferences", label: "Job Preferences", count: data.preferences.length },
+    { id: "documents", label: "Documents", count: data.documents.length },
+    { id: "appointments", label: "Appointments", count: data.appointments.length },
+    { id: "work", label: "Notes / Tasks / Contacts", count: data.notes.length + data.tasks.length + data.contacts.length },
+    { id: "activity", label: "Activity Log", count: data.activity.length },
+  ];
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold" data-testid="client-name">{c.full_name}</h1>
-        <span className="font-mono text-sm text-slate-500" data-testid="client-ref">{c.ref}</span>
-        <StatusBadge status={c.current_status} />
-        <span className="text-xs text-slate-500">Handled by: <span data-testid="assigned-name">{c.assigned_name ?? "Unassigned"}</span></span>
-        {c.deleted_at && <span className="rounded bg-red-100 px-2 text-xs text-red-800">Deleted: {c.delete_reason}</span>}
-        <span className="ml-auto"><RealtimeRefresher clientId={c.id} /></span>
+    <div className="mx-auto max-w-[1600px] space-y-4">
+      <div className="staff-glass-strong rounded-2xl p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/[.055] text-sm font-semibold text-slate-200">{String(c.full_name).trim().slice(0, 1).toUpperCase()}</div>
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold" data-testid="client-name">{c.full_name}</h1>
+            <div className="mt-1 flex flex-wrap items-center gap-2"><span className="font-mono text-xs text-slate-500" data-testid="client-ref">{c.ref}</span><StatusBadge status={c.current_status} /></div>
+          </div>
+          <span className="text-xs text-slate-500">Handled by: <span data-testid="assigned-name">{c.assigned_name ?? "Unassigned"}</span></span>
+          {c.deleted_at && <span className="rounded bg-red-950/50 px-2 py-1 text-xs text-red-300">Deleted: {c.delete_reason}</span>}
+          <span className="ml-auto"><RealtimeRefresher clientId={c.id} /></span>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
+            <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Current Status</p>
+            <div className="mt-2" data-testid="current-status"><StatusBadge status={c.current_status} /></div>
+          </div>
+          <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
+            <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Next Step</p>
+            <div className="mt-1 text-sm" data-testid="next-step"><InlineField clientId={c.id} field="next_step" label="Next step" value={c.next_step} /></div>
+          </div>
+        </div>
       </div>
 
-      <div className="sticky top-[57px] z-20 -mx-4 flex flex-wrap gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-2 backdrop-blur lg:-mx-6 lg:px-6" data-testid="quick-actions">
-        <Link href={`/staff/client/${c.id}/edit`} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50">Edit Client</Link>
+      <div className="flex gap-1 overflow-x-auto rounded-2xl border border-white/[.06] bg-white/[.018] p-1.5" aria-label="Client file sections">
+        {tabs.map((item) => (
+          <button key={item.id} type="button" className="staff-tab whitespace-nowrap rounded-xl px-3 py-2 text-xs font-medium" data-active={tab === item.id} onClick={() => setTab(item.id)}>
+            {item.label}{item.count != null && <span className="ml-1.5 font-mono text-[9px] text-slate-600">{item.count}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="sticky top-[72px] z-20 -mx-4 flex flex-wrap gap-2 border-y border-white/[.06] bg-[#08090D]/95 px-4 py-2 backdrop-blur lg:-mx-6 lg:px-6" data-testid="quick-actions">
+        <Link href={`/staff/client/${c.id}/edit`} className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5">Correct Data</Link>
         {quick.filter(([, , allowed]) => allowed).map(([p, label]) => (
           <button key={p} type="button" onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
-            className={`rounded-md border px-3 py-1.5 text-sm transition-colors duration-200 ${panel === p ? "border-brand-600 bg-brand-50 text-brand-700" : "border-slate-300 bg-white hover:bg-slate-50"}`}>
+            className={`rounded-xl border px-3 py-1.5 text-xs ${panel === p ? "border-indigo-400/50 bg-indigo-500/10 text-indigo-200" : "border-white/10 text-slate-300 hover:bg-white/5"}`}>
             {label}
           </button>
         ))}
-        <Link href={`/staff/client/${c.id}/status-preview`} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50" data-testid="open-status-page">
-          Open Status Page
-        </Link>
+        <Link href={`/staff/client/${c.id}/status-preview`} className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5" data-testid="open-status-page">Open Status Page</Link>
       </div>
 
       <div id="action-panel">
@@ -84,45 +117,40 @@ export function ClientFile({ data }: { data: ClientFileData }) {
         {panel === "assign" && <AssignForm clientId={c.id} current={c.assigned_staff} onDone={close} />}
       </div>
 
-      {isManager && <Alerts alerts={data.alerts} />}
+      {isManager && data.alerts.length > 0 && <Alerts alerts={data.alerts} />}
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="space-y-4 xl:col-span-2">
-          <Card title="Current Status & Next Step" id="status">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Current Status</p>
-                  <p className="mt-1 font-semibold" data-testid="current-status"><StatusBadge status={c.current_status} /></p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Next Step</p>
-                  <div className="mt-1" data-testid="next-step"><InlineField clientId={c.id} field="next_step" label="Next step" value={c.next_step} /></div>
-                </div>
-              </div>
-              <StatusTimeline created={{ at: c.created_at, status: createdStatus }} events={statusEvents} current={c.current_status} />
-            </div>
-          </Card>
-          <Preferences clientId={c.id} prefs={data.preferences} />
-          <Documents docs={data.documents} extractions={data.extractions} onAdd={openPanel("document")} />
-          <Appointments appts={data.appointments} onAdd={isManager ? openPanel("appointment") : null} />
-          <Assessments clientId={c.id} items={data.assessments} references={data.references} />
-          <Tasks tasks={data.tasks} onAdd={openPanel("task")} />
-          <Followups followups={data.followups} onAdd={openPanel("followup")} />
-          <PostHire clientId={c.id} items={data.postHire} startDate={c.start_date} />
+      {tab === "profile" && (
+        <div className="grid gap-4 xl:grid-cols-3">
+          <div className="space-y-4 xl:col-span-2">
+            <Card title="Status Timeline"><StatusTimeline created={{ at: c.created_at, status: createdStatus }} events={statusEvents} current={c.current_status} /></Card>
+            <EmploymentHistory rows={data.employment} editHref={`/staff/client/${c.id}/edit`} />
+            <PostHire clientId={c.id} items={data.postHire} startDate={c.start_date} />
+          </div>
+          <div className="space-y-4"><ClientInfo c={c} authorization={data.authorization} /><AmazonHistory c={c} /></div>
         </div>
+      )}
+
+      {tab === "preferences" && <Preferences clientId={c.id} prefs={data.preferences} />}
+
+      {tab === "documents" && (
         <div className="space-y-4">
-          <ClientInfo c={c} authorization={data.authorization} />
-          <AmazonHistory c={c} />
-          <EmploymentHistory rows={data.employment} editHref={`/staff/client/${c.id}/edit`} />
-          <IntakeAgent clientId={c.id} run={data.agentRun} />
-          <Messages c={c} notifications={data.notifications} onContacted={openPanel("contacted")} />
-          <Notes notes={data.notes} onAdd={openPanel("note")} />
-          <Contacts contacts={data.contacts} onAdd={openPanel("contacted")} />
-          <Activity activity={data.activity} />
-          {isAdmin && !c.deleted_at && <SoftDelete clientId={c.id} />}
+          <Documents docs={data.documents} extractions={data.extractions} onAdd={openPanel("document")} />
+          <Assessments clientId={c.id} items={data.assessments} references={data.references} />
         </div>
-      </div>
+      )}
+
+      {tab === "appointments" && <Appointments appts={data.appointments} onAdd={isManager ? openPanel("appointment") : null} />}
+
+      {tab === "work" && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <div className="space-y-4"><Notes notes={data.notes} onAdd={openPanel("note")} /><Tasks tasks={data.tasks} onAdd={openPanel("task")} /><Followups followups={data.followups} onAdd={openPanel("followup")} /></div>
+          <div className="space-y-4"><Contacts contacts={data.contacts} onAdd={openPanel("contacted")} /><Messages c={c} notifications={data.notifications} onContacted={openPanel("contacted")} /><IntakeAgent clientId={c.id} run={data.agentRun} /></div>
+        </div>
+      )}
+
+      {tab === "activity" && (
+        <div className="space-y-4"><Activity activity={data.activity} />{isAdmin && !c.deleted_at && <SoftDelete clientId={c.id} />}</div>
+      )}
     </div>
   );
 }
