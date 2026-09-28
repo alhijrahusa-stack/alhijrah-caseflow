@@ -41,6 +41,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               <Link className="staff-nav-link" data-tone="gold" href="/staff/pipeline">Pipeline</Link>
               {mgmt && <Link className="staff-nav-link" href="/staff/accounting">Accounting</Link>}
               {mgmt && <Link className="staff-nav-link" href="/staff/distribution">Distribution</Link>}
+              {mgmt && <Link className="staff-nav-link" href="/staff/import">Import</Link>}
             </nav>
 
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
@@ -67,6 +68,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               <Link className="staff-nav-link" data-tone="gold" href="/staff/pipeline">Pipeline</Link>
               {mgmt && <Link className="staff-nav-link" href="/staff/accounting">Accounting</Link>}
               {mgmt && <Link className="staff-nav-link" href="/staff/distribution">Distribution</Link>}
+              {mgmt && <Link className="staff-nav-link" href="/staff/import">Import</Link>}
             </nav>
           </div>
         </header>
