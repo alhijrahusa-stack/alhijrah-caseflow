@@ -219,7 +219,7 @@ function LoginForm() {
 
                   {error && <p className="cg-auth-error" role="alert">{error}</p>}
 
-                  <button className="cg-auth-submit" type="submit" disabled={pending}>
+                  <button aria-label="Send sign-in code" className="cg-auth-submit" type="submit" disabled={pending}>
                     <span>{pending ? "جارٍ الإرسال…" : "إرسال رمز الدخول"}</span>
                     <SendIcon />
                   </button>
