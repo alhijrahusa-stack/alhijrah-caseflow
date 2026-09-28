@@ -20,9 +20,13 @@ async function fillIdentity(page: Page, lastName: string, phone: string, email: 
 
 async function chooseWork(page: Page) {
   await page.locator('[data-next="2"]').click();
-  await page.locator('input[name="workType"][value="Full-Time"]').check({ force: true });
+  const workType = page.locator("#workTypeDeck label.shift-card").filter({ hasText: "Full-Time" });
+  await workType.click();
+  await expect(page.locator('input[name="workType"][value="Full-Time"]')).toBeChecked();
   await expect(page.locator("#shiftSelector")).toBeVisible();
-  await page.locator('input[name="shift"][value="FHD"]').check({ force: true });
+  const shift = page.locator("#shiftDeck label.shift-card").filter({ hasText: "FHD" }).first();
+  await shift.click();
+  await expect(page.locator('input[name="shift"][value="FHD"]')).toBeChecked();
   await page.locator("#employmentStatus").selectOption({ label: "Unemployed" });
   await page.locator("#hasExperience").selectOption({ label: "No" });
   await page.locator("#englishLevel").selectOption({ label: "Good" });
