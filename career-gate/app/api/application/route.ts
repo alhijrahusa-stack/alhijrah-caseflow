@@ -74,6 +74,9 @@ const Payload = z.object({
 }).passthrough();
 
 type Intake = z.infer<typeof Payload>;
+type ClientRow = { id: string; ref: string; created_at: Date };
+
+class IdentityConflictError extends Error {}
 
 function makeCaseNumber() {
   const now = new Date();
@@ -120,6 +123,66 @@ async function insertApplication(tx: Tx, clientId: string, d: Intake) {
   throw new Error("Could not allocate a unique case number");
 }
 
+async function upsertOperationalClient(tx: Tx, d: Intake, digits: string): Promise<{ client: ClientRow; reused: boolean }> {
+  const email = d.email.trim().toLowerCase();
+  const fullName = `${d.firstName} ${d.lastName}`.trim();
+  const street = [d.address1, d.address2].filter(Boolean).join(", ") || null;
+
+  // Serialize identity decisions with the same advisory keys used by the DB duplicate guard.
+  await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-email:${email}`}, 0))`;
+  await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-phone:${digits}`}, 0))`;
+
+  const matches = await tx`
+    select id, ref, created_at
+    from clients
+    where deleted_at is null
+      and (
+        lower(trim(coalesce(email, ''))) = ${email}
+        or regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = ${digits}
+      )
+    order by created_at
+    for update`;
+
+  if (matches.length > 1) {
+    throw new IdentityConflictError("The submitted email and phone belong to different existing client files.");
+  }
+
+  if (matches.length === 1) {
+    const existing = matches[0] as ClientRow;
+    const [client] = await tx`
+      update clients set
+        full_name = ${fullName},
+        phone = ${digits},
+        email = ${email},
+        date_of_birth = ${dateOrNull(d.dob)},
+        preferred_language = 'ar',
+        street = ${street},
+        city = ${nullable(d.city)},
+        state = ${nullable(d.state)},
+        zip = ${nullable(d.zip)},
+        communication_consent = true,
+        current_status = 'new_intake',
+        next_step = ${DEFAULT_NEXT_STEP.new_intake},
+        start_date = ${dateOrNull(d.startDate)},
+        updated_at = now()
+      where id = ${existing.id}
+      returning id, ref, created_at`;
+    return { client: client as ClientRow, reused: true };
+  }
+
+  const [client] = await tx`
+    insert into clients (
+      source, full_name, phone, email, date_of_birth, preferred_language, street, city, state, zip,
+      communication_consent, current_status, next_step, start_date
+    ) values (
+      'public_intake', ${fullName}, ${digits}, ${email}, ${dateOrNull(d.dob)}, 'ar',
+      ${street}, ${nullable(d.city)}, ${nullable(d.state)}, ${nullable(d.zip)},
+      true, 'new_intake', ${DEFAULT_NEXT_STEP.new_intake}, ${dateOrNull(d.startDate)}
+    )
+    returning id, ref, created_at`;
+  return { client: client as ClientRow, reused: false };
+}
+
 export async function POST(req: Request) {
   const traceId = traceIdFrom(req);
   const raw = await req.json().catch(() => undefined);
@@ -147,20 +210,8 @@ export async function POST(req: Request) {
       if (claim.kind === "conflict") return { kind: "conflict" as const };
       if (claim.kind === "replay") return { kind: "replay" as const, status: claim.status, body: claim.body as Record<string, unknown> };
 
-      const fullName = `${d.firstName} ${d.lastName}`.trim();
-      const street = [d.address1, d.address2].filter(Boolean).join(", ") || null;
-      const [client] = await tx`
-        insert into clients (
-          source, full_name, phone, email, date_of_birth, preferred_language, street, city, state, zip,
-          communication_consent, current_status, next_step, start_date
-        ) values (
-          'public_intake', ${fullName}, ${digits}, ${d.email.toLowerCase()}, ${dateOrNull(d.dob)}, 'ar',
-          ${street}, ${nullable(d.city)}, ${nullable(d.state)}, ${nullable(d.zip)},
-          true, 'new_intake', ${DEFAULT_NEXT_STEP.new_intake}, ${dateOrNull(d.startDate)}
-        )
-        returning id, ref, created_at`;
-
-      const app = await insertApplication(tx, client.id as string, d);
+      const { client, reused } = await upsertOperationalClient(tx, d, digits);
+      const app = await insertApplication(tx, client.id, d);
 
       await tx`
         insert into client_preferences (
@@ -176,12 +227,18 @@ export async function POST(req: Request) {
         )`;
 
       await logActivity(tx, {
-        clientId: client.id as string,
-        action: "client_created",
+        clientId: client.id,
+        action: reused ? "client_updated" : "client_created",
         actor: { staffId: null, traceId },
         entityType: "application",
         entityId: app.id,
-        newValue: { ref: client.ref, case_number: app.case_number, status: "new_intake", source: "career_gate_html" },
+        newValue: {
+          ref: client.ref,
+          case_number: app.case_number,
+          status: "new_intake",
+          source: "career_gate_html",
+          existing_client: reused,
+        },
       });
 
       const body = {
@@ -190,6 +247,7 @@ export async function POST(req: Request) {
         trackingUrl: `/career-gate.html?track=1&case=${encodeURIComponent(app.case_number)}`,
         submittedAt: new Date(app.created_at).toISOString(),
         client_id: client.id,
+        existing_client: reused,
       };
       await completeKey(tx, OPERATION, d.uid, 201, body);
       return { kind: "new" as const, status: 201, body };
@@ -215,6 +273,12 @@ export async function POST(req: Request) {
     }, { status: out.kind === "new" ? 201 : 200 });
   } catch (e) {
     console.error(e);
+    if (e instanceof IdentityConflictError) {
+      return NextResponse.json({
+        ok: false,
+        message: "This email and phone are linked to different client files. Contact the office to resolve the client record before submitting.",
+      }, { status: 409 });
+    }
     return NextResponse.json({ ok: false, message: "Could not submit the application." }, { status: 500 });
   }
 }
