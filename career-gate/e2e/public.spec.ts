@@ -122,7 +122,7 @@ test.describe.serial("public intake and status access", () => {
     expect(prefs).toHaveLength(1);
     expect(prefs[0]).toMatchObject({ rank: "primary", preference_order: 1, shift_code: "FHD" });
 
-    const docs = await db()`select file_name,status,sha256,upload_confirmed_at from documents where client_id=${apps[0].client_id} order by created_at`;
+    const docs = await db()`select file_name,status,sha256,upload_confirmed_at from documents where client_id=${apps[0].client_id} order by uploaded_at`;
     expect(docs.length).toBeGreaterThanOrEqual(2);
     expect(docs.some((d) => d.file_name === "photo-id.png")).toBe(true);
     expect(docs.every((d) => Boolean(d.upload_confirmed_at))).toBe(true);
@@ -196,7 +196,7 @@ test.describe.serial("public intake and status access", () => {
       where lower(c.email)=lower(${email})`;
     expect(after).toHaveLength(1);
     expect(after[0].id).toBe(first[0].id);
-    const docs = await db()`select file_name,upload_key from documents where client_id=${after[0].client_id} order by created_at`;
+    const docs = await db()`select file_name,upload_key from documents where client_id=${after[0].client_id} order by uploaded_at`;
     expect(docs.filter((d) => d.file_name === "retry-id.png")).toHaveLength(1);
     expect(docs.filter((d) => d.file_name === "signature.png")).toHaveLength(1);
 
