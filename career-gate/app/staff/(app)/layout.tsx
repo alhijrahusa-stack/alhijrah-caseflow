@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CommandPalette } from "@/components/staff/CommandPalette";
+import { QuickClientSearch } from "@/components/staff/QuickClientSearch";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { SignOutButton } from "@/components/staff/SignOutButton";
 import { StaffProvider } from "@/components/staff/StaffContext";
 import { getStaffSession } from "@/lib/auth";
 import { OFFICE } from "@/lib/office";
 import { dashboardCounts, staffDirectory } from "@/lib/queries";
+import "../operations.css";
+import "../extras.css";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +24,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     <StaffProvider me={{ id: session.staff.id, display_name: session.staff.display_name, role: session.staff.role }} staff={staff}>
       <div className="staff-shell">
         <header className="staff-topbar sticky top-0 z-30">
-          <div className="mx-auto flex max-w-[1700px] items-center gap-4 px-4 py-3 lg:px-6">
-            <Link href="/staff" className="min-w-0">
+          <div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-2 px-4 py-3 lg:px-6">
+            <Link href="/staff" className="mr-2 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-indigo-400 shadow-[0_0_18px_rgba(99,102,241,.7)]" />
                 <strong className="tracking-[.08em] text-slate-100">CAREER GATE</strong>
@@ -32,7 +35,15 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               </p>
             </Link>
 
-            <div className="ml-auto flex items-center gap-2">
+            <nav className="hidden items-center gap-1 lg:flex" aria-label="Staff operations">
+              <Link className="staff-nav-link" href="/staff">Dashboard</Link>
+              <Link className="staff-nav-link" data-tone="gold" href="/staff/pipeline">Pipeline</Link>
+              {mgmt && <Link className="staff-nav-link" href="/staff/accounting">Accounting</Link>}
+              {mgmt && <Link className="staff-nav-link" href="/staff/distribution">Distribution</Link>}
+            </nav>
+
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
+              <QuickClientSearch />
               <CommandPalette />
               <RealtimeRefresher />
               {mgmt && (
@@ -49,6 +60,13 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               <Link href="/staff?tab=settings" className="rounded-xl border border-white/[.07] px-3 py-2 text-xs text-slate-400 hover:bg-white/[.04] hover:text-slate-100">Settings</Link>
               <SignOutButton />
             </div>
+
+            <nav className="flex w-full items-center gap-1 overflow-x-auto lg:hidden" aria-label="Staff operations mobile">
+              <Link className="staff-nav-link" href="/staff">Dashboard</Link>
+              <Link className="staff-nav-link" data-tone="gold" href="/staff/pipeline">Pipeline</Link>
+              {mgmt && <Link className="staff-nav-link" href="/staff/accounting">Accounting</Link>}
+              {mgmt && <Link className="staff-nav-link" href="/staff/distribution">Distribution</Link>}
+            </nav>
           </div>
         </header>
         <main className="px-4 py-5 lg:px-6">{children}</main>
