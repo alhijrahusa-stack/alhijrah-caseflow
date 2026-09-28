@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import type { APIRequestContext, BrowserContext } from "@playwright/test";
 import { SignJWT } from "jose";
 import postgres from "postgres";
@@ -44,7 +44,7 @@ export async function signIn(context: BrowserContext, baseURL: string, role: Rol
 
 export const uniqueIp = () => `10.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
 
-/** Seeds a known code for a challenge (delivery providers are NOT_CONFIGURED locally). */
+/** Seeds a known code for legacy status-engine integration tests only. */
 export async function seedOtp(challengeId: string, code: string) {
   const [r] = await db()`select client_id from otp_requests where id = ${challengeId}`;
   if (!r?.client_id) return false;
@@ -53,10 +53,16 @@ export async function seedOtp(challengeId: string, code: string) {
   return true;
 }
 
+function phoneFor(name: string) {
+  const raw = createHash("sha256").update(`${RUN}:${name}`).digest().readUInt32BE(0);
+  const subscriber = 1_000_000 + (raw % 9_000_000);
+  return `313${subscriber}`;
+}
+
 export function intakeBody(name: string, extra: Record<string, unknown> = {}) {
   return {
     state: "MI",
-    profile: { full_name: name, phone: "3135550177", email: `${name.replace(/\W/g, "").toLowerCase()}@test.invalid`, employment_history: [] },
+    profile: { full_name: name, phone: phoneFor(name), email: `${name.replace(/\W/g, "").toLowerCase()}@test.invalid`, employment_history: [] },
     primary: FIXTURE_CATALOG ? [{ site_code: "TST1", job_id: "J-A", shift_code: "S1" }] : [],
     backup: [],
     communication_consent: true,
