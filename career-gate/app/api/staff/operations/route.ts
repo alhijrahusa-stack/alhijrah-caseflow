@@ -46,10 +46,6 @@ const Input = z.discriminatedUnion("operation", [
   }),
 ]);
 
-function management(role: string) {
-  return role === "admin" || role === "manager";
-}
-
 export async function POST(req: Request) {
   const traceId = traceIdFrom(req);
   const guard = await staffGuard(req, traceId, { mutation: true });
@@ -74,7 +70,6 @@ export async function POST(req: Request) {
       }
 
       if (input.operation === "set_dispatch") {
-        if (!management(session.staff.role)) throw new Error("FORBIDDEN");
         if (input.mode === "manual" && !input.shift_period) throw new Error("DISPATCH_PERIOD_REQUIRED");
         const [before] = await tx`
           select p.id,p.shift_period,p.dispatch_mode,p.manual_dispatch_at,p.manual_dispatch_by
@@ -121,7 +116,6 @@ export async function POST(req: Request) {
       }
 
       if (input.operation === "update_payment") {
-        if (!management(session.staff.role)) throw new Error("FORBIDDEN");
         if (input.payment_status === "paid" && (!input.payment_method || !input.payment_date)) throw new Error("PAYMENT_FIELDS_REQUIRED");
         if (input.receipt_document_id) {
           const [doc] = await tx`select id from documents where id=${input.receipt_document_id} and client_id=${input.client_id}`;
@@ -146,7 +140,6 @@ export async function POST(req: Request) {
       }
 
       if (input.operation === "bulk_assign") {
-        if (!management(session.staff.role)) throw new Error("FORBIDDEN");
         if (input.staff_id) {
           const [staff] = await tx`select id from staff where id=${input.staff_id} and active`;
           if (!staff) throw new Error("STAFF_NOT_FOUND");
@@ -163,12 +156,12 @@ export async function POST(req: Request) {
       }
 
       if (input.operation === "set_round_robin") {
-        if (session.staff.role !== "admin") throw new Error("FORBIDDEN");
+        if (session.staff.role !== "super_admin") throw new Error("FORBIDDEN");
         await tx`update assignment_settings set round_robin_enabled=${input.enabled},updated_by=${session.staff.id},updated_at=now() where singleton=true`;
         return { enabled: input.enabled };
       }
 
-      if (session.staff.role !== "admin") throw new Error("FORBIDDEN");
+      if (session.staff.role !== "super_admin") throw new Error("FORBIDDEN");
       const [row] = await tx`
         update staff
         set commission_type=${input.commission_type},commission_value=${input.commission_value},
@@ -181,7 +174,7 @@ export async function POST(req: Request) {
     return ok(result, 200, traceId);
   } catch (error) {
     const message = error instanceof Error ? error.message : "operation_failed";
-    if (message === "FORBIDDEN") return err("forbidden", "This action requires management access", 403, traceId);
+    if (message === "FORBIDDEN") return err("forbidden", "Super Admin access required", 403, traceId);
     if (message === "CLIENT_NOT_ACCESSIBLE") return err("not_found", "Client not found or not accessible", 404, traceId);
     if (message === "STALE_STAGE") return err("stale_stage", "This client was moved by another staff member. Refresh before moving it again.", 409, traceId);
     if (message === "PREFERENCE_NOT_FOUND") return err("preference_not_found", "No job preference is available for dispatch", 404, traceId);
