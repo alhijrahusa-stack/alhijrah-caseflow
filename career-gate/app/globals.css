@@ -4,11 +4,24 @@
 
 :root {
   color-scheme: light;
+  --cg-base: #08090D;
+  --cg-glass: rgba(255,255,255,0.03);
+  --cg-glass-strong: rgba(255,255,255,0.055);
+  --cg-border: rgba(255,255,255,0.08);
+  --cg-border-strong: rgba(255,255,255,0.13);
+  --cg-text: #F1F5F9;
+  --cg-muted: #94A3B8;
+  --cg-faint: #64748B;
+  --cg-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
-  font-family: var(--font-plex), var(--font-plex-arabic), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-inter), var(--font-plex-arabic), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+code, kbd, pre, .font-mono {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .input {
@@ -28,4 +41,135 @@ body {
 }
 .table td {
   @apply border-b border-slate-100 px-3 py-2 align-top;
+}
+
+/* Career Gate staff application */
+.staff-shell {
+  min-height: 100vh;
+  color-scheme: dark;
+  color: var(--cg-text);
+  background:
+    radial-gradient(circle at 15% -10%, rgba(99,102,241,.10), transparent 34rem),
+    radial-gradient(circle at 88% 8%, rgba(34,211,238,.06), transparent 30rem),
+    var(--cg-base);
+}
+
+.staff-shell a,
+.staff-shell button,
+.staff-shell input,
+.staff-shell select,
+.staff-shell textarea {
+  transition-duration: 150ms;
+  transition-timing-function: var(--cg-ease);
+}
+
+.staff-shell .staff-topbar {
+  border-bottom: 1px solid var(--cg-border);
+  background: rgba(8,9,13,.86);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.staff-shell .staff-glass {
+  border: 1px solid var(--cg-border);
+  background: var(--cg-glass);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+}
+
+.staff-shell .staff-glass-strong {
+  border: 1px solid var(--cg-border-strong);
+  background: var(--cg-glass-strong);
+  box-shadow: 0 18px 55px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.03);
+}
+
+.staff-shell .staff-tab {
+  border: 1px solid transparent;
+  color: var(--cg-muted);
+  background: transparent;
+}
+
+.staff-shell .staff-tab:hover {
+  color: var(--cg-text);
+  background: rgba(255,255,255,.035);
+}
+
+.staff-shell .staff-tab[data-active="true"] {
+  color: #fff;
+  border-color: rgba(99,102,241,.34);
+  background: rgba(99,102,241,.12);
+}
+
+.staff-shell .staff-kpi {
+  border: 1px solid var(--cg-border);
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.018));
+}
+
+.staff-shell .staff-client-card {
+  border: 1px solid var(--cg-border);
+  background: rgba(255,255,255,.025);
+  transition: transform 250ms var(--cg-ease), border-color 250ms var(--cg-ease), background 250ms var(--cg-ease);
+}
+
+.staff-shell .staff-client-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(148,163,184,.28);
+  background: rgba(255,255,255,.045);
+}
+
+.staff-shell .staff-sidepanel {
+  border-left: 1px solid var(--cg-border-strong);
+  background: rgba(10,11,16,.97);
+  box-shadow: -30px 0 80px rgba(0,0,0,.36);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.staff-shell .staff-bottom-bar {
+  border: 1px solid var(--cg-border-strong);
+  background: rgba(14,15,21,.92);
+  box-shadow: 0 18px 60px rgba(0,0,0,.34);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.staff-shell .input {
+  border-color: var(--cg-border-strong);
+  background: rgba(255,255,255,.045);
+  color: var(--cg-text);
+  box-shadow: none;
+}
+.staff-shell .input::placeholder { color: #64748B; }
+.staff-shell .input:focus {
+  border-color: rgba(99,102,241,.72);
+  box-shadow: 0 0 0 3px rgba(99,102,241,.13);
+}
+.staff-shell .label { color: #CBD5E1; }
+.staff-shell .table th {
+  border-color: var(--cg-border);
+  background: rgba(255,255,255,.025);
+  color: var(--cg-muted);
+}
+.staff-shell .table td { border-color: var(--cg-border); }
+
+/* Existing staff screens inherit the same dark shell without changing their behavior. */
+.staff-shell .bg-white { background-color: rgba(255,255,255,.03) !important; }
+.staff-shell .bg-slate-50 { background-color: rgba(255,255,255,.018) !important; }
+.staff-shell .bg-slate-50\/95 { background-color: rgba(8,9,13,.95) !important; }
+.staff-shell .border-slate-100,
+.staff-shell .border-slate-200,
+.staff-shell .border-slate-300 { border-color: var(--cg-border) !important; }
+.staff-shell .text-slate-900,
+.staff-shell .text-slate-800,
+.staff-shell .text-slate-700 { color: var(--cg-text) !important; }
+.staff-shell .text-slate-600,
+.staff-shell .text-slate-500,
+.staff-shell .text-slate-400 { color: var(--cg-muted) !important; }
+.staff-shell .hover\:bg-slate-50:hover { background-color: rgba(255,255,255,.055) !important; }
+.staff-shell .hover\:text-slate-900:hover { color: #fff !important; }
+
+@media (max-width: 767px) {
+  .staff-shell .staff-sidepanel {
+    border-left: 0;
+    border-top: 1px solid var(--cg-border-strong);
+  }
 }
