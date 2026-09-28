@@ -4,13 +4,18 @@ import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const TABLES = ["clients", "appointments", "tasks", "followups", "notes", "documents", "audit_alerts"];
+const TABLES = [
+  "clients",
+  "client_preferences",
+  "client_accounts",
+  "appointments",
+  "tasks",
+  "followups",
+  "notes",
+  "documents",
+  "audit_alerts",
+];
 
-/**
- * Subscribes to Postgres changes with the staff member's own JWT. Supabase
- * Realtime applies RLS, so only rows this user may read are delivered. On a
- * change the page's server data is refreshed (no client-side row copies).
- */
 export function RealtimeRefresher({ clientId }: { clientId?: string }) {
   const router = useRouter();
   const [state, setState] = useState<"connecting" | "live" | "NOT_CONFIGURED" | "error">("connecting");
