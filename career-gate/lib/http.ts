@@ -31,11 +31,9 @@ export const ipHash = (req: Request) => hashIdentifier(`ip:${clientIp(req)}`);
 export function dbErrorResponse(e: unknown, traceId?: string) {
   const pg = e as { code?: string; message?: string; constraint_name?: string };
   if (pg?.code === "P0001" && pg.message?.startsWith("duplicate_client_identity|")) {
-    const [, identity, ref, stage, owner] = pg.message.split("|");
-    const field = identity === "email" ? "البريد الإلكتروني" : "رقم الهاتف";
     return err(
       "duplicate_client",
-      `تنبيه النظام: ${field} مسجل مسبقاً في الملف ${ref}. القسم الحالي: ${stage.replace(/_/g, " ")}. الموظف المسؤول: ${owner}. افتح الملف الحالي أو اطلب نقل الملكية بدلاً من إنشاء نسخة جديدة.`,
+      "A client already exists with this phone number or email. Search the existing file instead of creating a duplicate.",
       409,
       traceId,
     );
