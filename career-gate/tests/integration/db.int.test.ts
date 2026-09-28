@@ -21,6 +21,8 @@ const db = sql();
 const trace = "int-test";
 type Role = "admin" | "manager" | "staff";
 const sessions: Record<string, StaffSession> = {};
+let clientPhoneSequence = 1000;
+const nextClientPhone = () => `313555${String(++clientPhoneSequence).padStart(4, "0")}`;
 const PNG = Buffer.from(
   "89504e470d0a1a0a0000000d4948445200000004000000040802000000269309290000000970485973000003e8000003e801b57b526b0000000f49444154089963f88f041888e30000db902fd1ecba04730000000049454e44ae426082",
   "hex",
@@ -37,13 +39,12 @@ async function makeClient(name: string, opts: { assigned?: string; status?: stri
   return db.begin((tx) =>
     insertClient(tx, {
       source: "staff_manual",
-      profile: ProfileSchema.parse({ full_name: name, phone: "3135550100", email: opts.email === undefined ? `${name.replace(/\W/g, "").toLowerCase()}@test.invalid` : opts.email, date_of_birth: "1990-04-05", employment_history: [] }),
+      profile: ProfileSchema.parse({ full_name: name, phone: nextClientPhone(), email: opts.email === undefined ? `${name.replace(/\W/g, "").toLowerCase()}@test.invalid` : opts.email, date_of_birth: "1990-04-05", employment_history: [] }),
       primary: [], backup: [], status: (opts.status ?? "new_intake") as never, nextStep: null,
       assignedStaff: opts.assigned ?? null, createdBy: null, communicationConsent: true,
     }, { staffId: null, traceId: trace }));
 }
 
-// Mirrors /api/staff/action: the action and its queued follow-up jobs run in one RLS-scoped transaction.
 const act = (key: string, a: Parameters<typeof runAction>[1]) =>
   withStaff(sessions[key], async (tx) => {
     const semantic: { source: "note" | "task" | "contact" | "followup"; id: string }[] = [];
@@ -128,7 +129,6 @@ describe("admin bootstrap", () => {
     await db`insert into auth.users (id, email) values (${strangerId}, 'stranger@test.invalid')`;
     expect(await resolveStaffForAuthUser({ id: strangerId, email: "stranger@test.invalid" })).toBeNull();
     vi.unstubAllEnvs();
-    // Without the variable no account is ever promoted or created.
     const otherId = randomUUID();
     await db`insert into auth.users (id, email) values (${otherId}, 'boss2@test.invalid')`;
     expect(await resolveStaffForAuthUser({ id: otherId, email: "boss2@test.invalid" })).toBeNull();
@@ -184,7 +184,6 @@ describe("scheduling and collision prevention", () => {
     await act("manager", { action: "schedule_appointment", client_id: A.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null });
     await expect(act("manager", { action: "schedule_appointment", client_id: B.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null }))
       .rejects.toMatchObject({ code: "23P01" });
-    // A different resource at the same time is fine.
     await act("manager", { action: "schedule_appointment", client_id: B.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: `staff:${sessions.staff2.staff.id}`, location: null, notes: null });
   });
 });
@@ -320,7 +319,7 @@ describe("audit agent", () => {
     const [al] = await db`select id, rule, status from audit_alerts where client_id = ${C.id} and rule = 'ready_for_first_day_without_start_date'`;
     expect(al.status).toBe("open");
     const [{ status: clientStatus }] = await db`select current_status as status from clients where id = ${C.id}`;
-    expect(clientStatus).toBe("ready_for_first_day"); // no silent correction
+    expect(clientStatus).toBe("ready_for_first_day");
 
     await act("manager", { action: "ignore_alert", alert_id: al.id, reason: "Known" });
     await runAudit(C.id, trace);
