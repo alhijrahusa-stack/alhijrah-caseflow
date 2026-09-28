@@ -49,10 +49,13 @@ test.describe.serial("office workflow", () => {
   });
 
   test("client file: preferences with pay snapshot, NOT_CONFIGURED truth labels", async () => {
+    await page.getByRole("button", { name: /Job Preferences/ }).click();
     if (FIXTURE_CATALOG) await expect(page.getByTestId("pay-snapshot").first()).toHaveText("$1.11/hr (fixture)");
     else await expect(page.getByTestId("section-preferences")).toContainText("no active openings");
     await expect(page.getByTestId("realtime-state").first()).toContainText("NOT_CONFIGURED");
+    await page.getByRole("button", { name: /Notes \/ Tasks \/ Contacts/ }).click();
     await expect(page.getByTestId("notification-status").first()).toHaveText("NOT_CONFIGURED");
+    await page.getByRole("button", { name: "Profile" }).click();
   });
 
   test("inline editing saves only on server success and rolls back on failure", async () => {
@@ -318,7 +321,6 @@ test.describe("role security", () => {
     const before = (await db()`select count(*)::int as n from security_events where event = 'access_denied'`)[0].n;
     expect((await staffAction(request, "staff", { action: "add_note", client_id: c.id, note: "x" })).status).toBe(403);
     expect((await staffAction(request, "staff", { action: "create_staff", display_name: "X", role: "admin" })).status).toBe(403);
-    // A document on a client assigned to this staff member: viewing is allowed, final review is not.
     const r2 = await submitIntake(request, intakeBody(`TEST Assigned ${RUN}`));
     const [mineC] = await db()`select id from clients where ref = ${r2.json.ref}`;
     expect((await staffAction(request, "admin", { action: "assign_staff", client_id: mineC.id, staff_id: await staffId("staff") })).status).toBe(200);
@@ -336,7 +338,6 @@ test.describe("role security", () => {
     const after = (await db()`select count(*)::int as n from security_events where event = 'access_denied'`)[0].n;
     expect(after - before).toBeGreaterThanOrEqual(3);
 
-    // Assigned client: permitted work succeeds.
     const [mine] = await db()`select id from clients where assigned_staff = ${await staffId("staff")} limit 1`;
     const allowed = await staffAction(request, "staff", { action: "add_note", client_id: mine.id, note: "Staff note" });
     expect(allowed.status, JSON.stringify(allowed.json)).toBe(200);
@@ -348,7 +349,7 @@ test.describe("role security", () => {
     const created = await staffAction(request, "admin", { action: "create_staff", display_name: `TEST New ${RUN}`, email: null, role: "staff" });
     expect(created.status).toBe(200);
     const invite = await staffAction(request, "admin", { action: "invite_staff", staff_id: created.json.staff_id });
-    expect(invite.status).toBe(409); // no real email → cannot invite (never fabricated)
+    expect(invite.status).toBe(409);
   });
 
   test("cross-origin mutations and bad cron secrets are rejected", async ({ request }) => {
