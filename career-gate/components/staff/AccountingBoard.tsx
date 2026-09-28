@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { DOC_MAX_BYTES } from "@/lib/domain";
 import type { AccountingRow, OperationsStaff } from "@/lib/operations";
 
 type PaymentStatus = "pending" | "paid" | "refunded";
@@ -25,11 +26,15 @@ function AccountEditor({ row }: { row: AccountingRow }) {
   const [method, setMethod] = useState<PaymentMethod | "">(row.payment_method ?? "");
   const [date, setDate] = useState(row.payment_date ?? "");
   const [receiptId, setReceiptId] = useState(row.receipt_document_id ?? "");
+  const [receiptName, setReceiptName] = useState<string | null>(row.receipt_document_id ? "Receipt attached" : null);
+  const [dragActive, setDragActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function upload(file: File) {
+    if (file.size > DOC_MAX_BYTES) throw new Error("Receipt is larger than 4 MB");
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf") throw new Error("Receipt must be an image or PDF");
     const form = new FormData();
     form.set("client_id", row.client_id);
     form.set("doc_type", "other");
@@ -38,7 +43,23 @@ function AccountEditor({ row }: { row: AccountingRow }) {
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.ok) throw new Error(data?.error?.message ?? `Upload failed (${res.status})`);
     setReceiptId(String(data.id));
+    setReceiptName(file.name);
     setMessage("Receipt attached");
+  }
+
+  async function handleReceipt(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await upload(file);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setBusy(false);
+      setDragActive(false);
+    }
   }
 
   async function save() {
@@ -78,20 +99,33 @@ function AccountEditor({ row }: { row: AccountingRow }) {
         <option value="card">Card</option>
       </select>
       <input className="ops-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      <label className="ops-upload">
+      <label
+        className="ops-upload ops-receipt-drop"
+        data-dragging={dragActive}
+        onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setDragActive(true); }}
+        onDragLeave={(e) => { e.preventDefault(); if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragActive(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragActive(false);
+          void handleReceipt(e.dataTransfer.files?.[0]);
+        }}
+      >
         <input
           type="file"
           accept="image/*,application/pdf"
-          onChange={async (e) => {
+          disabled={busy}
+          onChange={(e) => {
             const file = e.target.files?.[0];
-            if (!file) return;
-            setBusy(true);
-            setError(null);
-            try { await upload(file); } catch (err) { setError(err instanceof Error ? err.message : "Upload failed"); }
-            finally { setBusy(false); }
+            e.target.value = "";
+            void handleReceipt(file);
           }}
         />
-        {receiptId ? "Receipt attached" : "Attach receipt"}
+        <span className="ops-receipt-icon" aria-hidden="true">⇧</span>
+        <span className="ops-receipt-copy">
+          <strong>{receiptName ?? "Drop receipt here"}</strong>
+          <small>{receiptId ? "Attached · replace by dropping another file" : "Image or PDF · max 4 MB"}</small>
+        </span>
       </label>
       <button type="button" className="ops-primary-button" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
       {message && <span className="ops-success">{message}</span>}
