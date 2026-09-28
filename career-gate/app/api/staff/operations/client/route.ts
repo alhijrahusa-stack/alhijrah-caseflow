@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   const traceId = traceIdFrom(req);
-  const guard = await staffGuard(req, traceId);
+  const guard = await staffGuard(req, traceId, { mutation: false });
   if (guard.response) return guard.response;
   const raw = new URL(req.url).searchParams.get("client_id");
   const parsed = z.uuid().safeParse(raw);
