@@ -76,7 +76,7 @@ test.describe.serial("office workflow", () => {
   });
 
   test("edit client and assign staff", async () => {
-    await page.getByRole("link", { name: "Edit Client", exact: true }).click();
+    await page.getByRole("link", { name: "Correct Data", exact: true }).click();
     await page.locator('input[name="via_agency"][value="yes"]').check();
     await page.getByRole("button", { name: "Save changes" }).click();
     await page.waitForURL(`**/staff/client/${clientId}`);
@@ -128,7 +128,6 @@ test.describe.serial("office workflow", () => {
     await expect(page.getByTestId("appointment-row")).toHaveCount(1);
     await expect(page.getByTestId("appointment-row")).toContainText(`Office Room ${RUN}`);
 
-    // The same slot for another client is refused (transactional recheck + exclusion constraint).
     const [appt] = await db()`select scheduled_at, ends_at from appointments where client_id = ${clientId}`;
     const other = await submitIntake(request, intakeBody(`TEST Collide ${RUN}`));
     const [oc] = await db()`select id from clients where ref = ${other.json.ref}`;
