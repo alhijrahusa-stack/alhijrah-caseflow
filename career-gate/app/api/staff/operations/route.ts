@@ -19,7 +19,7 @@ const stage = z.enum([
 const dispatchPeriod = z.enum(["morning", "evening", "night", "needs_manual_review"]);
 
 const Input = z.discriminatedUnion("operation", [
-  z.object({ operation: z.literal("move_stage"), client_id: id, stage }),
+  z.object({ operation: z.literal("move_stage"), client_id: id, stage, expected_stage: stage }),
   z.object({
     operation: z.literal("set_dispatch"),
     client_id: id,
@@ -64,12 +64,13 @@ export async function POST(req: Request) {
       if (input.operation === "move_stage") {
         const [before] = await tx`select id,pipeline_stage from clients where id=${input.client_id} and deleted_at is null for update`;
         if (!before) throw new Error("CLIENT_NOT_ACCESSIBLE");
-        if (before.pipeline_stage === input.stage) return { changed: false };
+        if (before.pipeline_stage !== input.expected_stage) throw new Error("STALE_STAGE");
+        if (before.pipeline_stage === input.stage) return { changed: false, stage: before.pipeline_stage };
         await tx`update clients set pipeline_stage=${input.stage} where id=${input.client_id}`;
         await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
                  values(${input.client_id},'pipeline_stage_changed',${session.staff.id},'client',${input.client_id},
                         ${tx.json({ pipeline_stage: before.pipeline_stage })},${tx.json({ pipeline_stage: input.stage })},${traceId})`;
-        return { changed: true };
+        return { changed: true, stage: input.stage };
       }
 
       if (input.operation === "set_dispatch") {
@@ -182,6 +183,7 @@ export async function POST(req: Request) {
     const message = error instanceof Error ? error.message : "operation_failed";
     if (message === "FORBIDDEN") return err("forbidden", "This action requires management access", 403, traceId);
     if (message === "CLIENT_NOT_ACCESSIBLE") return err("not_found", "Client not found or not accessible", 404, traceId);
+    if (message === "STALE_STAGE") return err("stale_stage", "This client was moved by another staff member. Refresh before moving it again.", 409, traceId);
     if (message === "PREFERENCE_NOT_FOUND") return err("preference_not_found", "No job preference is available for dispatch", 404, traceId);
     if (message === "DISPATCH_PERIOD_REQUIRED") return err("dispatch_period_required", "Manual dispatch requires a target period", 400, traceId);
     if (message === "PAYMENT_FIELDS_REQUIRED") return err("invalid_payment", "Paid requires payment method and payment date", 400, traceId);
