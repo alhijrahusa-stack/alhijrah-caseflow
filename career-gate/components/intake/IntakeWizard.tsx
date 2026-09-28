@@ -147,7 +147,7 @@ export function IntakeWizard() {
             </ul>
           </div>
         )}
-        <p className="text-sm text-slate-500">Keep your reference. To check your status, enter it on the status page and we will send a one-time code to the contact you gave us.</p>
+        <p className="text-sm text-slate-500">Keep your reference number. You can check your status directly at any time using your file number, phone number, or email.</p>
         <a href={`/status?ref=${encodeURIComponent(done.ref)}`} className="inline-flex rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
           Track Status
         </a>
