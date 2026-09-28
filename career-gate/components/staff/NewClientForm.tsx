@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAction } from "@/components/forms/useAction";
 import { CityStep, JobStep, PreferenceSummary, ShiftStep, SiteStep } from "@/components/forms/PreferenceSteps";
 import { emptyPrefs, toSelections, type PrefState } from "@/components/forms/preferences";
 import { emptyProfile, ProfileFields, profilePayload, type ProfileForm } from "@/components/forms/ProfileFields";
+import { StaffPicker } from "@/components/staff/StaffPicker";
 import { useStaff } from "@/components/staff/StaffContext";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
@@ -13,11 +14,22 @@ import { options } from "@/lib/catalog";
 import { DEFAULT_NEXT_STEP, DOC_LABELS, DOC_MAX_BYTES, DOC_TYPES, ENTRY_STATUSES, STATUS_LABELS, type Status } from "@/lib/domain";
 
 type PendingDoc = { id: string; doc_type: (typeof DOC_TYPES)[number]; file: File };
+type Draft = {
+  profile: ProfileForm;
+  prefs: PrefState;
+  status: Status;
+  nextStep: string;
+  note: string;
+  consent: boolean;
+  assigned: string;
+};
+
+const DRAFT_KEY = "career-gate:new-client-draft";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white">
-      <h2 className="border-b border-slate-100 px-5 py-3 text-sm font-semibold">{title}</h2>
+    <section className="rounded-2xl border border-white/[.08] bg-white/[.028] shadow-[inset_0_1px_0_rgba(255,255,255,.025),0_18px_48px_rgba(0,0,0,.12)] backdrop-blur-xl">
+      <h2 className="border-b border-white/[.06] px-5 py-3 text-sm font-semibold text-slate-200">{title}</h2>
       <div className="space-y-4 p-5">{children}</div>
     </section>
   );
@@ -39,6 +51,39 @@ export function NewClientForm() {
   const [docs, setDocs] = useState<PendingDoc[]>([]);
   const [docType, setDocType] = useState<(typeof DOC_TYPES)[number]>("photo_id");
   const [progress, setProgress] = useState<string | null>(null);
+  const [draftState, setDraftState] = useState<"idle" | "restored" | "saved">("idle");
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as Draft;
+      if (!draft?.profile || !draft?.prefs) return;
+      setProfile(draft.profile);
+      setPrefs(draft.prefs);
+      setStatus(draft.status);
+      setNextStep(draft.nextStep);
+      setNote(draft.note);
+      setConsent(draft.consent);
+      setAssigned(draft.assigned);
+      setDraftState("restored");
+    } catch {
+      sessionStorage.removeItem(DRAFT_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const draft: Draft = { profile, prefs, status, nextStep, note, consent, assigned };
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        setDraftState("saved");
+      } catch {
+        // Temporary browser draft is non-authoritative; server save remains authoritative.
+      }
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [profile, prefs, status, nextStep, note, consent, assigned]);
 
   async function save() {
     const res = await run({
@@ -66,6 +111,7 @@ export function NewClientForm() {
       if (!data?.ok) failed.push(`${d.file.name}: ${data?.error?.message ?? up.status}`);
     }
     setProgress(null);
+    sessionStorage.removeItem(DRAFT_KEY);
     toast(failed.length ? "warning" : "success", failed.length ? `Client ${res.ref} created; ${failed.length} document(s) failed` : `Client ${res.ref} created`);
     const q = failed.length ? `?upload_failed=${encodeURIComponent(failed.join("; "))}` : "";
     router.push(`/staff/client/${clientId}${q}`);
@@ -103,7 +149,7 @@ export function NewClientForm() {
             <select aria-label="Document type" className="input w-56" value={docType} onChange={(e) => setDocType(e.target.value as typeof docType)}>
               {DOC_TYPES.map((t) => <option key={t} value={t}>{DOC_LABELS[t]}</option>)}
             </select>
-            <input aria-label="Choose file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="text-sm"
+            <input aria-label="Choose file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="text-sm text-slate-400 file:mr-3 file:rounded-lg file:border file:border-white/[.08] file:bg-white/[.04] file:px-3 file:py-2 file:text-xs file:text-slate-300"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = "";
@@ -114,9 +160,9 @@ export function NewClientForm() {
               }} />
           </div>
           {docs.map((d) => (
-            <p key={d.id} className="flex justify-between text-sm">
+            <p key={d.id} className="flex justify-between text-sm text-slate-300">
               <span>{DOC_LABELS[d.doc_type]} — {d.file.name}</span>
-              <button type="button" className="text-red-600" onClick={() => setDocs((x) => x.filter((y) => y.id !== d.id))}>Remove</button>
+              <button type="button" className="text-red-400" onClick={() => setDocs((x) => x.filter((y) => y.id !== d.id))}>Remove</button>
             </p>
           ))}
         </Section>
@@ -139,23 +185,23 @@ export function NewClientForm() {
             </div>
           </div>
           <div>
-            <label className="label" htmlFor="nc_assigned">Assigned staff (Handled By)</label>
-            <select id="nc_assigned" className="input" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
-              <option value="">Unassigned</option>
-              {activeStaff.map((s) => <option key={s.id} value={s.id}>{s.display_name} ({s.role})</option>)}
-            </select>
+            <label className="label">Assigned staff (Handled By)</label>
+            <StaffPicker value={assigned} staff={activeStaff} onChange={setAssigned} disabled={pending} />
           </div>
           <div>
             <label className="label" htmlFor="nc_note">Initial note</label>
             <textarea id="nc_note" rows={3} className="input" value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
             Client agreed to be contacted by phone, WhatsApp or email
           </label>
+          <p className="text-[10px] text-slate-600" aria-live="polite">
+            {draftState === "restored" ? "Temporary browser draft restored." : draftState === "saved" ? "Temporary browser draft saved." : ""}
+          </p>
         </Section>
-        {(error || fileError) && <p role="alert" className="text-sm text-red-600">{error ?? fileError}</p>}
-        {progress && <p className="text-sm text-slate-600">{progress}</p>}
+        {(error || fileError) && <p role="alert" className="text-sm text-red-400">{error ?? fileError}</p>}
+        {progress && <p className="text-sm text-slate-400">{progress}</p>}
         <Button onClick={save} disabled={pending || Boolean(progress)} className="w-full">
           {pending ? "Saving…" : "Create client file"}
         </Button>
