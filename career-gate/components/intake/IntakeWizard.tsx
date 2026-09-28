@@ -93,6 +93,10 @@ function uploadLabel(state: UploadState) {
   return state.replaceAll("_", " ");
 }
 
+function documentMetadata(rows: PendingDoc[]): DraftSnapshot["docMeta"] {
+  return rows.map(({ id, doc_type, state, error, serverId }) => ({ id, doc_type, state, error, serverId }));
+}
+
 export function IntakeWizard() {
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [step, setStep] = useState(0);
@@ -116,6 +120,32 @@ export function IntakeWizard() {
   const [draftReady, setDraftReady] = useState(false);
   const revisionRef = useRef<number | null>(null);
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+
+  function snapshot(nextFlowState = flowState, nextApplication = application): DraftSnapshot {
+    return {
+      idempotencyKey,
+      step,
+      stateCode,
+      prefs,
+      profile,
+      docMeta: documentMetadata(docs),
+      consent,
+      accepted,
+      accuracy,
+      printedName,
+      signature,
+      flowState: nextFlowState,
+      application: nextApplication,
+    };
+  }
+
+  async function persistDraft(next: DraftSnapshot) {
+    const write = saveChainRef.current.then(async () => {
+      revisionRef.current = await saveIntakeDraft(next, revisionRef.current);
+    });
+    saveChainRef.current = write.catch(() => undefined);
+    await write;
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -160,24 +190,7 @@ export function IntakeWizard() {
   useEffect(() => {
     if (!draftReady || done) return;
     const timer = window.setTimeout(() => {
-      const snapshot: DraftSnapshot = {
-        idempotencyKey,
-        step,
-        stateCode,
-        prefs,
-        profile,
-        docMeta: docs.map(({ file: _file, ...meta }) => meta),
-        consent,
-        accepted,
-        accuracy,
-        printedName,
-        signature,
-        flowState,
-        application,
-      };
-      saveChainRef.current = saveChainRef.current.then(async () => {
-        revisionRef.current = await saveIntakeDraft(snapshot, revisionRef.current);
-      }).catch((e) => {
+      void persistDraft(snapshot()).catch((e) => {
         setDraftNotice(e instanceof Error ? e.message : "Could not save the local draft.");
       });
     }, 1500);
@@ -222,6 +235,7 @@ export function IntakeWizard() {
   async function createOrReplayApplication(): Promise<ApplicationState> {
     setFlowState("SUBMISSION_PENDING");
     setSubmitting(application ? "Renewing secure upload access…" : "Submitting application…");
+    await persistDraft(snapshot("SUBMISSION_PENDING", application));
     const res = await fetch("/api/intake", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
@@ -236,6 +250,7 @@ export function IntakeWizard() {
     };
     setApplication(next);
     setFlowState("APPLICATION_CREATED");
+    await persistDraft(snapshot("APPLICATION_CREATED", next));
     return next;
   }
 
@@ -276,15 +291,12 @@ export function IntakeWizard() {
     return allOk;
   }
 
-  async function completeIfReady(app: ApplicationState) {
-    const pending = docs.filter((d) => d.state !== "UPLOADED");
-    if (pending.length > 0) return false;
+  async function completeApplication(app: ApplicationState) {
     setFlowState("COMPLETED");
     setDone({ ref: app.ref, notifications: app.notifications });
     await clearIntakeDraft().catch((e) => setDraftNotice(e instanceof Error ? e.message : "Could not clear the completed local draft."));
     revisionRef.current = null;
     window.scrollTo({ top: 0, behavior: "smooth" });
-    return true;
   }
 
   async function submit() {
@@ -293,7 +305,7 @@ export function IntakeWizard() {
       const app = await createOrReplayApplication();
       const targets = docs.filter((d) => d.state !== "UPLOADED");
       const uploaded = await uploadPending(targets, app, false);
-      if (uploaded) await completeIfReady(app);
+      if (uploaded) await completeApplication(app);
       else setError("Your application was saved, but one or more selected documents did not finish uploading. Retry the failed documents below; the application will not be submitted again.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Submission failed");
@@ -309,7 +321,7 @@ export function IntakeWizard() {
       const app = await createOrReplayApplication();
       const targets = docs.filter((d) => d.state !== "UPLOADED");
       const uploaded = await uploadPending(targets, app, true);
-      if (uploaded) await completeIfReady(app);
+      if (uploaded) await completeApplication(app);
       else setError("Some documents still could not be uploaded. Your application remains saved and the failed documents remain available for another retry.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Document retry failed");
@@ -319,6 +331,7 @@ export function IntakeWizard() {
   }
 
   async function addFile(file: File) {
+    if (submitting) return;
     if (file.size > DOC_MAX_BYTES) {
       setError(`${file.name} is larger than 4 MB`);
       return;
@@ -338,6 +351,7 @@ export function IntakeWizard() {
   }
 
   async function removeFile(id: string) {
+    if (submitting) return;
     const doc = docs.find((d) => d.id === id);
     if (!doc || doc.state === "UPLOADING" || doc.state === "UPLOADED") return;
     try {
@@ -436,7 +450,7 @@ export function IntakeWizard() {
             <div className="flex flex-wrap items-end gap-3">
               <div className="min-w-52 flex-1">
                 <label className="label" htmlFor="doc_type">Document type</label>
-                <select id="doc_type" className="input" value={docType} onChange={(e) => setDocType(e.target.value as typeof docType)}>
+                <select id="doc_type" className="input" value={docType} onChange={(e) => setDocType(e.target.value as typeof docType)} disabled={Boolean(submitting)}>
                   {DOC_TYPES.map((t) => <option key={t} value={t}>{DOC_LABELS[t]}</option>)}
                 </select>
               </div>
@@ -447,6 +461,7 @@ export function IntakeWizard() {
                   type="file"
                   accept="image/jpeg,image/png,image/webp,application/pdf"
                   className="sr-only"
+                  disabled={Boolean(submitting)}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     e.target.value = "";
@@ -468,7 +483,7 @@ export function IntakeWizard() {
                       {doc.error && <p className="mt-1 text-xs text-red-600">{doc.error}</p>}
                     </div>
                     {doc.state !== "UPLOADED" && doc.state !== "UPLOADING" && (
-                      <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => void removeFile(doc.id)}>Remove</button>
+                      <button type="button" disabled={Boolean(submitting)} className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50" onClick={() => void removeFile(doc.id)}>Remove</button>
                     )}
                   </li>
                 ))}
