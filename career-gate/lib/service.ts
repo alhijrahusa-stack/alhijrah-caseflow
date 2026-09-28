@@ -72,12 +72,44 @@ export type NewClientInput = {
   communicationConsent: boolean;
 };
 
+async function existingIdentity(tx: Tx, profile: Profile) {
+  const email = profile.email?.trim().toLowerCase() || null;
+  const phone = profile.phone.replace(/\D/g, "");
+  const [row] = await tx`
+    select c.id,c.ref,c.pipeline_stage,c.assigned_staff,s.display_name as owner
+    from clients c
+    left join staff s on s.id=c.assigned_staff
+    where c.deleted_at is null and (
+      (${email}::text is not null and lower(trim(coalesce(c.email,'')))=${email})
+      or regexp_replace(coalesce(c.phone,''),'\D','','g')=${phone}
+    )
+    order by c.created_at
+    limit 1`;
+  return row ?? null;
+}
+
 /** Inserts the client, history and preferences in the caller's transaction. */
 export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) {
   const prefs = resolvePreferences(input.primary, input.backup);
   if (!prefs.ok) throw new ActionError("invalid_preferences", prefs.error);
 
   const p = input.profile;
+  const duplicate = await existingIdentity(tx, p);
+  if (duplicate) {
+    if (actor.staffId) {
+      throw new ActionError(
+        "duplicate_client",
+        `تنبيه النظام: الملف ${duplicate.ref} مسجل حالياً في قسم ${String(duplicate.pipeline_stage).replace(/_/g, " ")} ويتبع الموظف ${duplicate.owner ?? "Unassigned"}. افتح الملف الحالي أو اطلب نقل الملكية بدلاً من إنشاء نسخة جديدة.`,
+        409,
+      );
+    }
+    throw new ActionError(
+      "duplicate_application",
+      "An application already exists for this phone number or email. Use Track Status or contact the office instead of submitting another application.",
+      409,
+    );
+  }
+
   const [client] = await tx`
     insert into clients (
       source, full_name, phone, email, date_of_birth, preferred_language,
