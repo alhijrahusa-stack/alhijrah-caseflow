@@ -67,7 +67,8 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
       for (const table of TABLES) {
         const filter = clientId ? (table === "clients" ? `id=eq.${clientId}` : `client_id=eq.${clientId}`) : undefined;
         channel.on("postgres_changes", { event: "*", schema: "public", table, ...(filter ? { filter } : {}) }, (payload) => {
-          const row = payload.new && Object.keys(payload.new).length > 0 ? payload.new : payload.old;
+          const rawRow = payload.new && Object.keys(payload.new).length > 0 ? payload.new : payload.old;
+          const row = rawRow as Record<string, unknown>;
           const affectedClient = table === "clients" ? row.id : row.client_id;
           dispatchChange({
             table,
