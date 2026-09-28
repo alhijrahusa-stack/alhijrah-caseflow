@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { ClientFile, type ClientFileData, type ClientPanel } from "@/components/staff/ClientFile";
 import { getStaffSession } from "@/lib/auth";
 import { clientScope } from "@/lib/authz";
+import { clientAccountSummary } from "@/lib/client-account";
 import { clientFile } from "@/lib/queries";
 import { securityEvent } from "@/lib/ratelimit";
 
@@ -26,9 +27,9 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
     }
     notFound();
   }
-  const data = await clientFile(session, id);
+  const [data, account] = await Promise.all([clientFile(session, id), clientAccountSummary(session, id)]);
   if (!data) notFound();
   const requested = (await searchParams).action as ClientPanel | undefined;
   const initialPanel = requested && PANELS.has(requested) ? requested : null;
-  return <ClientFile data={JSON.parse(JSON.stringify(data)) as ClientFileData} initialPanel={initialPanel} />;
+  return <ClientFile data={JSON.parse(JSON.stringify(data)) as ClientFileData} account={account} initialPanel={initialPanel} />;
 }
