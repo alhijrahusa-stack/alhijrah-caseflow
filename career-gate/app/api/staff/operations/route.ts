@@ -16,9 +16,16 @@ const stage = z.enum([
   "interview_rejected",
   "post_interview_completion",
 ]);
+const dispatchPeriod = z.enum(["morning", "evening", "night", "needs_manual_review"]);
 
 const Input = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("move_stage"), client_id: id, stage }),
+  z.object({
+    operation: z.literal("set_dispatch"),
+    client_id: id,
+    mode: z.enum(["auto", "manual"]),
+    shift_period: dispatchPeriod.nullable().optional(),
+  }),
   z.object({ operation: z.literal("request_transfer"), client_id: id, requested_owner: id.nullable().optional(), reason: z.string().trim().max(500).nullable().optional() }),
   z.object({
     operation: z.literal("update_payment"),
@@ -63,6 +70,38 @@ export async function POST(req: Request) {
                  values(${input.client_id},'pipeline_stage_changed',${session.staff.id},'client',${input.client_id},
                         ${tx.json({ pipeline_stage: before.pipeline_stage })},${tx.json({ pipeline_stage: input.stage })},${traceId})`;
         return { changed: true };
+      }
+
+      if (input.operation === "set_dispatch") {
+        if (!management(session.staff.role)) throw new Error("FORBIDDEN");
+        if (input.mode === "manual" && !input.shift_period) throw new Error("DISPATCH_PERIOD_REQUIRED");
+        const [before] = await tx`
+          select p.id,p.shift_period,p.dispatch_mode,p.manual_dispatch_at,p.manual_dispatch_by
+          from client_preferences p
+          join clients c on c.id=p.client_id
+          where p.client_id=${input.client_id} and c.deleted_at is null
+          order by case p.rank when 'primary' then 0 else 1 end,p.preference_order,p.created_at
+          limit 1
+          for update of p`;
+        if (!before) throw new Error("PREFERENCE_NOT_FOUND");
+
+        const [after] = input.mode === "manual"
+          ? await tx`
+              update client_preferences
+              set dispatch_mode='manual',shift_period=${input.shift_period!},manual_dispatch_at=now(),manual_dispatch_by=${session.staff.id}
+              where id=${before.id}
+              returning id,shift_period,dispatch_mode,auto_dispatched_at,manual_dispatch_at,manual_dispatch_by`
+          : await tx`
+              update client_preferences
+              set dispatch_mode='auto',manual_dispatch_at=null,manual_dispatch_by=null
+              where id=${before.id}
+              returning id,shift_period,dispatch_mode,auto_dispatched_at,manual_dispatch_at,manual_dispatch_by`;
+
+        await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
+                 values(${input.client_id},'client_updated',${session.staff.id},'client_preference',${before.id},
+                        ${tx.json({ shift_period: before.shift_period, dispatch_mode: before.dispatch_mode, manual_dispatch_at: before.manual_dispatch_at, manual_dispatch_by: before.manual_dispatch_by })},
+                        ${tx.json({ shift_period: after.shift_period, dispatch_mode: after.dispatch_mode, manual_dispatch_at: after.manual_dispatch_at, manual_dispatch_by: after.manual_dispatch_by })},${traceId})`;
+        return { changed: true, dispatch: after };
       }
 
       if (input.operation === "request_transfer") {
@@ -143,6 +182,8 @@ export async function POST(req: Request) {
     const message = error instanceof Error ? error.message : "operation_failed";
     if (message === "FORBIDDEN") return err("forbidden", "This action requires management access", 403, traceId);
     if (message === "CLIENT_NOT_ACCESSIBLE") return err("not_found", "Client not found or not accessible", 404, traceId);
+    if (message === "PREFERENCE_NOT_FOUND") return err("preference_not_found", "No job preference is available for dispatch", 404, traceId);
+    if (message === "DISPATCH_PERIOD_REQUIRED") return err("dispatch_period_required", "Manual dispatch requires a target period", 400, traceId);
     if (message === "PAYMENT_FIELDS_REQUIRED") return err("invalid_payment", "Paid requires payment method and payment date", 400, traceId);
     if (message === "INVALID_RECEIPT") return err("invalid_receipt", "Receipt must belong to this client", 400, traceId);
     if (message === "ACCOUNT_NOT_FOUND") return err("account_not_found", "Accounting record not found", 404, traceId);
