@@ -9,6 +9,7 @@ import { getStaffSession } from "@/lib/auth";
 import { OFFICE } from "@/lib/office";
 import { dashboardCounts, staffDirectory } from "@/lib/queries";
 import "../operations.css";
+import "../dispatcher.css";
 import "../extras.css";
 
 export const dynamic = "force-dynamic";
