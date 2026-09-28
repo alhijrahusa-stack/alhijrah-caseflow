@@ -381,7 +381,7 @@ describe("integrity", () => {
   it("a failed transaction leaves no half-created client and no consumed reference", async () => {
     const [{ last_value: before }] = await db`select last_value from client_ref_counters`;
     await expect(db.begin(async (tx) => {
-      await insertClient(tx, { source: "public_intake", profile: ProfileSchema.parse({ full_name: "TEST Rollback", phone: "3135550100", employment_history: [] }), primary: [], backup: [], status: "new_intake", nextStep: null, assignedStaff: null, createdBy: null, communicationConsent: false }, { staffId: null, traceId: trace });
+      await insertClient(tx, { source: "public_intake", profile: ProfileSchema.parse({ full_name: "TEST Rollback", phone: "3135550199", employment_history: [] }), primary: [], backup: [], status: "new_intake", nextStep: null, assignedStaff: null, createdBy: null, communicationConsent: false }, { staffId: null, traceId: trace });
       throw new Error("simulated DB write failure");
     })).rejects.toThrow("simulated");
     expect((await db`select count(*)::int as n from clients where full_name = 'TEST Rollback'`)[0].n).toBe(0);
