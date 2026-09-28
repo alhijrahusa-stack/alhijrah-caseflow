@@ -2,11 +2,12 @@ import { z } from "zod";
 import { err, ipHash, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { hit, securityEvent } from "@/lib/ratelimit";
-import { publicStatusByIdentifier } from "@/lib/public-status";
+import { startLookup } from "@/lib/status-access";
 
 export const runtime = "nodejs";
 
-/** Direct public status lookup by file number, phone, or email. */
+const GENERIC = "If the information matches a Career Gate file, a verification code has been sent to the contact information already on file.";
+
 export async function POST(req: Request) {
   const traceId = traceIdFrom(req);
   const parsed = z.object({ identifier: z.string().trim().min(3).max(200) }).safeParse(await req.json().catch(() => undefined));
@@ -20,7 +21,6 @@ export async function POST(req: Request) {
     return err("rate_limited", "Too many lookups. Try again later.", 429, traceId);
   }
 
-  const status = await publicStatusByIdentifier(parsed.data.identifier);
-  if (!status) return err("not_found", "No file found for that information", 404, traceId);
-  return ok({ ref: status.ref, status }, 200, traceId);
+  const lookup = await startLookup(parsed.data.identifier, ip, traceId);
+  return ok({ challenge_id: lookup.challengeId, message: GENERIC }, 200, traceId);
 }
