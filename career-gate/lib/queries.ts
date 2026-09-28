@@ -7,8 +7,19 @@ const OPEN_APPT = ["scheduled", "confirmed", "rescheduled"];
 
 export async function staffDirectory(s: StaffSession) {
   return withStaff(s, async (tx) =>
-    (await tx`select id, display_name, email, role, active, auth_user_id is not null as linked from staff order by active desc, display_name`) as unknown as {
-      id: string; display_name: string; email: string | null; role: string; active: boolean; linked: boolean;
+    (await tx`select id, display_name, email, role, active, auth_user_id is not null as linked,
+                     staff_code, commission_type, commission_value, eligible_for_round_robin
+              from staff order by active desc, staff_code nulls last, display_name`) as unknown as {
+      id: string;
+      display_name: string;
+      email: string | null;
+      role: string;
+      active: boolean;
+      linked: boolean;
+      staff_code: string | null;
+      commission_type: "fixed" | "percent";
+      commission_value: number;
+      eligible_for_round_robin: boolean;
     }[]);
 }
 
@@ -195,7 +206,7 @@ export async function auditAlerts(s: StaffSession, status: string) {
 
 export async function availability(s: StaffSession) {
   return withStaff(s, async (tx) => ({
-    windows: await tx`select * from office_availability order by resource_key, weekday, start_time`,
+    windows: await tx`select * from office_availability order by resource_key, weekday,start_time`,
     blocked: await tx`select b.*, s.display_name as created_by_name from blocked_periods b left join staff s on s.id = b.created_by
                       where b.ends_at >= now() order by b.starts_at`,
   }));
