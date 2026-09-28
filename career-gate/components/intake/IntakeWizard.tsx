@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MultiSelect } from "@/components/forms/MultiSelect";
 import { CityStep, JobStep, PreferenceSummary, ShiftStep, SiteStep } from "@/components/forms/PreferenceSteps";
 import { emptyPrefs, toSelections, type PrefState } from "@/components/forms/preferences";
@@ -121,31 +121,29 @@ export function IntakeWizard() {
   const revisionRef = useRef<number | null>(null);
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
 
-  function snapshot(nextFlowState = flowState, nextApplication = application): DraftSnapshot {
-    return {
-      idempotencyKey,
-      step,
-      stateCode,
-      prefs,
-      profile,
-      docMeta: documentMetadata(docs),
-      consent,
-      accepted,
-      accuracy,
-      printedName,
-      signature,
-      flowState: nextFlowState,
-      application: nextApplication,
-    };
-  }
+  const snapshot = useCallback((nextFlowState: FlowState = flowState, nextApplication: ApplicationState | null = application): DraftSnapshot => ({
+    idempotencyKey,
+    step,
+    stateCode,
+    prefs,
+    profile,
+    docMeta: documentMetadata(docs),
+    consent,
+    accepted,
+    accuracy,
+    printedName,
+    signature,
+    flowState: nextFlowState,
+    application: nextApplication,
+  }), [accepted, accuracy, application, consent, docs, flowState, idempotencyKey, prefs, printedName, profile, signature, stateCode, step]);
 
-  async function persistDraft(next: DraftSnapshot) {
+  const persistDraft = useCallback(async (next: DraftSnapshot) => {
     const write = saveChainRef.current.then(async () => {
       revisionRef.current = await saveIntakeDraft(next, revisionRef.current);
     });
     saveChainRef.current = write.catch(() => undefined);
     await write;
-  }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,7 +193,7 @@ export function IntakeWizard() {
       });
     }, 1500);
     return () => window.clearTimeout(timer);
-  }, [accepted, accuracy, application, consent, docs, done, draftReady, flowState, idempotencyKey, prefs, printedName, profile, signature, stateCode, step]);
+  }, [done, draftReady, persistDraft, snapshot]);
 
   const current = STEPS[step];
   const ready: Record<string, boolean> = {
