@@ -91,6 +91,11 @@ test.describe.serial("public intake and status access", () => {
   test("current public Career Gate form submits, uploads documents, and persists the application", async ({ browser, baseURL }) => {
     const context = await browser.newContext({ baseURL, extraHTTPHeaders: { "x-forwarded-for": uniqueIp() } });
     const page = await context.newPage();
+    const responses: string[] = [];
+    page.on("response", (response) => {
+      const path = new URL(response.url()).pathname;
+      if (path === "/api/application" || path === "/api/intake/documents") responses.push(`${path}:${response.status()}`);
+    });
     await openPublicForm(page);
     await fillIdentity(page, `Public-${RUN}`, "313-555-0142", `public.${RUN}@test.invalid`);
     await chooseWork(page);
@@ -100,7 +105,17 @@ test.describe.serial("public intake and status access", () => {
     await signAndConsent(page);
 
     await page.locator("#submitBtn").click();
-    await expect(page.locator("#receiptScreen")).toHaveClass(/active/);
+    try {
+      await expect(page.locator("#receiptScreen")).toHaveClass(/active/);
+    } catch (error) {
+      console.log("PUBLIC_SUBMIT_DIAG", JSON.stringify({
+        flow: await page.locator("#statusView").innerText(),
+        button: await page.locator("#submitBtn").innerText(),
+        toasts: await page.locator("#toasts").innerText(),
+        responses,
+      }));
+      throw error;
+    }
     await expect(page.getByText("تم استلام الطلب بنجاح")).toBeVisible();
     ref = (await page.locator("#receiptCase").innerText()).trim();
     expect(ref).toMatch(/^ALH-\d{8}-[A-Z0-9]{4}$/);
