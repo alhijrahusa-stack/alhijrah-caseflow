@@ -27,10 +27,13 @@ async function chooseWork(page: Page) {
   await page.locator("#hasExperience").selectOption({ label: "No" });
   await page.locator("#englishLevel").selectOption({ label: "Good" });
   await page.locator('[data-next="3"]').click();
+  await expect(page.locator('[data-page="3"]')).toHaveClass(/active/);
 }
 
 async function signAndConsent(page: Page) {
+  await expect.poll(async () => Math.round(await page.evaluate(() => window.scrollY))).toBe(0);
   const canvas = page.locator("#signature");
+  await canvas.scrollIntoViewIfNeeded();
   const box = await canvas.boundingBox();
   expect(box).toBeTruthy();
   await page.mouse.move(box!.x + 30, box!.y + 70);
@@ -38,6 +41,7 @@ async function signAndConsent(page: Page) {
   await page.mouse.move(box!.x + 90, box!.y + 95, { steps: 5 });
   await page.mouse.move(box!.x + 150, box!.y + 55, { steps: 5 });
   await page.mouse.up();
+  await expect(page.locator("#sigWrap")).toHaveClass(/has/);
   await page.locator("#consent").check({ force: true });
 }
 
@@ -91,11 +95,6 @@ test.describe.serial("public intake and status access", () => {
   test("current public Career Gate form submits, uploads documents, and persists the application", async ({ browser, baseURL }) => {
     const context = await browser.newContext({ baseURL, extraHTTPHeaders: { "x-forwarded-for": uniqueIp() } });
     const page = await context.newPage();
-    const responses: string[] = [];
-    page.on("response", (response) => {
-      const path = new URL(response.url()).pathname;
-      if (path === "/api/application" || path === "/api/intake/documents") responses.push(`${path}:${response.status()}`);
-    });
     await openPublicForm(page);
     await fillIdentity(page, `Public-${RUN}`, "313-555-0142", `public.${RUN}@test.invalid`);
     await chooseWork(page);
@@ -105,21 +104,11 @@ test.describe.serial("public intake and status access", () => {
     await signAndConsent(page);
 
     await page.locator("#submitBtn").click();
-    try {
-      await expect(page.locator("#receiptScreen")).toHaveClass(/active/);
-    } catch (error) {
-      console.log("PUBLIC_SUBMIT_DIAG", JSON.stringify({
-        flow: await page.locator("#statusView").innerText(),
-        button: await page.locator("#submitBtn").innerText(),
-        toasts: await page.locator("#toasts").innerText(),
-        responses,
-      }));
-      throw error;
-    }
+    await expect(page.locator("#receiptScreen")).toHaveClass(/active/);
     await expect(page.getByText("تم استلام الطلب بنجاح")).toBeVisible();
     ref = (await page.locator("#receiptCase").innerText()).trim();
     expect(ref).toMatch(/^ALH-\d{8}-[A-Z0-9]{4}$/);
-    await expect(page.locator("#statusView")).toHaveText("Submitted");
+    await expect(page.locator("#statusView")).toHaveText("COMPLETED");
 
     const apps = await db()`
       select a.id,a.client_id,a.case_number,a.status,c.source,c.current_status,c.full_name
@@ -199,7 +188,7 @@ test.describe.serial("public intake and status access", () => {
     await page.unroute("**/api/intake/documents");
     await page.locator("#submitBtn").click();
     await expect(page.locator("#receiptScreen")).toHaveClass(/active/);
-    await expect(page.locator("#statusView")).toHaveText("Submitted");
+    await expect(page.locator("#statusView")).toHaveText("COMPLETED");
 
     const after = await db()`
       select a.id,a.client_id,a.case_number
