@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { DispatchPeriod, OperationsClient, PipelineStage } from "@/lib/operations";
 
@@ -77,6 +78,10 @@ const PERIODS: Array<{ value: DispatchPeriod; label: string }> = [
   { value: "night", label: "Night" },
   { value: "needs_manual_review", label: "Needs manual review" },
 ];
+
+const PIPELINE_REALTIME_TABLES = new Set(["clients", "client_preferences", "client_accounts"]);
+
+type RealtimeDetail = { table: string; clientId: string | null; eventType: string };
 
 function DispatchClient({ client, canManage, busy, onDispatch }: {
   client: OperationsClient;
@@ -165,6 +170,7 @@ export function PipelineBoard({ stages, clients, canManage = false }: {
   clients: OperationsClient[];
   canManage?: boolean;
 }) {
+  const router = useRouter();
   const [rows, setRows] = useState(clients);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -179,6 +185,43 @@ export function PipelineBoard({ stages, clients, canManage = false }: {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [busyId, clients]);
+
+  useEffect(() => {
+    const onRealtime = (raw: Event) => {
+      const event = raw as CustomEvent<RealtimeDetail>;
+      const detail = event.detail;
+      if (!detail?.clientId || !PIPELINE_REALTIME_TABLES.has(detail.table)) return;
+      event.preventDefault();
+      if (detail.clientId === busyId) return;
+      void (async () => {
+        const response = await fetch(`/api/staff/operations/client?client_id=${encodeURIComponent(detail.clientId!)}`, { cache: "no-store" });
+        const payload = await response.json().catch(() => null);
+        if (response.status === 404) {
+          setRows((current) => current.filter((row) => row.id !== detail.clientId));
+          return;
+        }
+        if (!response.ok || !payload?.ok || !payload.client) {
+          router.refresh();
+          return;
+        }
+        setRows((current) => {
+          const index = current.findIndex((row) => row.id === payload.client.id);
+          if (index < 0) return [payload.client as OperationsClient, ...current];
+          return current.map((row) => row.id === payload.client.id ? payload.client as OperationsClient : row);
+        });
+      })();
+    };
+    const onReconnect = (raw: Event) => {
+      raw.preventDefault();
+      router.refresh();
+    };
+    window.addEventListener("career-gate:realtime", onRealtime);
+    window.addEventListener("career-gate:realtime-reconnect", onReconnect);
+    return () => {
+      window.removeEventListener("career-gate:realtime", onRealtime);
+      window.removeEventListener("career-gate:realtime-reconnect", onReconnect);
+    };
+  }, [busyId, router]);
 
   async function move(client: OperationsClient, nextStage: string) {
     if (nextStage === client.pipeline_stage || busyId === client.id) return;
