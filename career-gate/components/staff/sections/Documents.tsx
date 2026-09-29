@@ -19,7 +19,9 @@ const STATUS_TONE: Record<DocStatus, string> = {
 const RECON_TONE: Record<string, string> = { MATCH: "text-green-700", FORMAT_VARIANCE: "text-amber-700", MISMATCH: "text-red-700", UNVERIFIED: "text-slate-500" };
 
 function Trust({ ex }: { ex: Row | undefined }) {
-  if (!ex) return <p className="text-xs text-slate-500">Automated extraction: not run yet.</p>;
+  if (!ex) {
+    return <p className="text-xs text-slate-500" data-testid="extraction-state">Automated extraction: PENDING</p>;
+  }
   if (ex.status === "not_configured") {
     return <p className="text-xs text-slate-500" data-testid="extraction-state">Automated extraction: NOT_CONFIGURED (no document vision provider). Human review required.</p>;
   }
