@@ -230,6 +230,8 @@ test.describe.serial("office workflow", () => {
 
     await page.reload();
     await page.getByRole("button", { name: /Activity Log/ }).click();
+    await expect(page).toHaveURL(/[?&]tab=activity(?:&|$)/);
+    await expect(page.getByTestId("activity-row").first()).toBeVisible();
     const actions = await page.getByTestId("activity-row").evaluateAll((els) => els.map((e) => e.getAttribute("data-action")));
     for (const a of [
       "client_created", "client_updated", "staff_assigned", "document_uploaded", "document_processed", "document_opened",
