@@ -54,7 +54,27 @@
   z-index: 1;
 }
 
+.staff-nav-strip {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-top: 1px solid rgba(255,255,255,.045);
+  padding-top: 8px;
+}
+.staff-nav-strip::-webkit-scrollbar { display: none; }
+.staff-nav-divider {
+  width: 1px;
+  height: 20px;
+  flex: 0 0 auto;
+  margin: 0 3px;
+  background: linear-gradient(to bottom, transparent, rgba(216,181,106,.25), transparent);
+}
+
 .staff-nav-link {
+  white-space: nowrap;
   border: 1px solid transparent;
   border-radius: 12px;
   padding: 8px 12px;
@@ -74,6 +94,11 @@
   color: #e8cf91;
   border-color: rgba(216,181,106,.16);
   background: rgba(216,181,106,.045);
+}
+.staff-nav-link[data-tone="cyan"] {
+  color: #9edfff;
+  border-color: rgba(83,200,255,.13);
+  background: rgba(83,200,255,.035);
 }
 
 .staff-glass,
@@ -201,6 +226,154 @@
   color: #eef4fb;
 }
 
+/* Executive convergence layer for legacy staff pages. */
+.staff-shell main {
+  width: 100%;
+  max-width: 1800px;
+  margin-inline: auto;
+}
+.staff-shell main h1 {
+  color: #f7f9fc;
+  letter-spacing: -.025em;
+  text-shadow: 0 8px 30px rgba(0,0,0,.24);
+}
+.staff-shell main h1::after {
+  content: "";
+  display: block;
+  width: 42px;
+  height: 2px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--exec-gold), var(--exec-cyan));
+  box-shadow: 0 0 18px rgba(83,200,255,.12);
+}
+.staff-shell main h2,
+.staff-shell main h3 { color: #e9f0f8; }
+
+.staff-shell main .bg-white,
+.staff-shell main .bg-slate-50,
+.staff-shell main section.border-slate-200,
+.staff-shell main form.border-slate-200 {
+  border-color: var(--exec-line) !important;
+  background:
+    linear-gradient(155deg, rgba(255,255,255,.045), rgba(255,255,255,.012)),
+    rgba(8, 18, 31, .82) !important;
+  color: #eaf1f8 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 20px 60px rgba(0,0,0,.16);
+  backdrop-filter: blur(18px) saturate(120%);
+}
+.staff-shell main .border-slate-200,
+.staff-shell main .border-slate-300 { border-color: var(--exec-line) !important; }
+.staff-shell main .text-slate-900,
+.staff-shell main .text-slate-800,
+.staff-shell main .text-slate-700 { color: #dfe9f4 !important; }
+.staff-shell main .text-slate-600,
+.staff-shell main .text-slate-500 { color: #93a5ba !important; }
+.staff-shell main .text-slate-400 { color: #74879d !important; }
+.staff-shell main .text-brand-700,
+.staff-shell main .text-brand-600 { color: #79cfff !important; }
+.staff-shell main .text-red-600 { color: #ff8b95 !important; }
+.staff-shell main .bg-red-50 { background: rgba(127,29,29,.14) !important; }
+.staff-shell main .border-red-200 { border-color: rgba(248,113,113,.24) !important; }
+
+.staff-shell main .table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #dbe6f1;
+}
+.staff-shell main .table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(216,181,106,.15);
+  background: rgba(7,17,30,.95);
+  color: #8fa4ba;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+  backdrop-filter: blur(16px);
+}
+.staff-shell main .table tbody td {
+  padding: 13px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  color: #d8e3ee;
+  vertical-align: middle;
+}
+.staff-shell main .table tbody tr {
+  transition: background .18s ease, transform .18s ease;
+}
+.staff-shell main .table tbody tr:hover {
+  background: linear-gradient(90deg, rgba(79,140,255,.055), rgba(216,181,106,.025));
+}
+.staff-shell main .overflow-x-auto.border {
+  border-radius: 18px !important;
+  box-shadow: 0 24px 70px rgba(0,0,0,.18);
+}
+
+.staff-shell main form[role="search"],
+.staff-shell main form.border {
+  border-radius: 18px !important;
+  padding: 15px !important;
+}
+.staff-shell main label { color: #9caec0; }
+.staff-shell main input,
+.staff-shell main select,
+.staff-shell main textarea,
+.staff-shell main .input {
+  border: 1px solid rgba(135,166,202,.18) !important;
+  border-radius: 11px !important;
+  background: linear-gradient(180deg, rgba(15,28,46,.96), rgba(8,17,29,.98)) !important;
+  color: #edf4fb !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+}
+.staff-shell main input::placeholder,
+.staff-shell main textarea::placeholder { color: #61758c; }
+.staff-shell main select option { color: #eef4fb; background: #0b1727; }
+
+.staff-shell main button.bg-slate-800,
+.staff-shell main .bg-brand-600 {
+  border: 1px solid rgba(100,165,255,.3) !important;
+  border-radius: 11px !important;
+  background: linear-gradient(180deg, rgba(54,122,255,.88), rgba(35,82,185,.88)) !important;
+  color: #fff !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.15), 0 10px 28px rgba(30,84,194,.16);
+}
+.staff-shell main button.bg-slate-800:hover,
+.staff-shell main .bg-brand-600:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.staff-shell main nav[aria-label="Views"] {
+  gap: 4px !important;
+  padding: 4px;
+  border: 1px solid rgba(135,166,202,.12);
+  border-radius: 12px;
+  background: rgba(7,16,28,.66);
+}
+.staff-shell main nav[aria-label="Views"] a {
+  border-radius: 9px;
+  padding: 7px 10px;
+  text-decoration: none;
+}
+.staff-shell main nav[aria-label="Views"] a.font-semibold {
+  background: rgba(79,140,255,.14);
+  box-shadow: inset 0 0 0 1px rgba(79,140,255,.18);
+}
+
+.staff-shell main code {
+  color: #90d7ff;
+  background: rgba(83,200,255,.045);
+  border-radius: 6px;
+}
+.staff-shell main details {
+  border-color: var(--exec-line) !important;
+  background: rgba(8,18,31,.76);
+}
+
 .staff-shell ::selection {
   color: #07101c;
   background: #f0d798;
@@ -212,6 +385,7 @@
 
 @media (max-width: 760px) {
   .staff-topbar > div { padding-inline: 12px; }
+  .staff-nav-strip { padding-bottom: 2px; }
   .staff-kpi { min-height: 92px; }
   .staff-bottom-bar {
     width: calc(100% - 24px);
@@ -219,6 +393,8 @@
     justify-content: flex-start;
   }
   .ops-location-lanes-four { grid-template-columns: minmax(260px, 1fr); }
+  .staff-shell main .table thead th,
+  .staff-shell main .table tbody td { padding: 11px 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
