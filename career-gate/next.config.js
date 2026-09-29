@@ -19,6 +19,15 @@ const csp = [
 const nextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["sharp"],
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "rvhhtgbkktlqqcetymqs.supabase.co",
+        pathname: "/storage/v1/object/public/company-logos/**",
+      },
+    ],
+  },
   async headers() {
     return [
       {

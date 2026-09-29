@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CommandPalette } from "@/components/staff/CommandPalette";
@@ -95,9 +96,12 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               className="staff-brand-link group mr-4 flex min-w-0 items-center gap-3.5"
             >
               <div className="staff-brand-mark">
-                <img
+                <Image
                   src="https://rvhhtgbkktlqqcetymqs.supabase.co/storage/v1/object/public/company-logos/Carrer%20Logo.jpg"
                   alt=""
+                  width={38}
+                  height={38}
+                  sizes="38px"
                   className="h-[38px] w-[38px] object-contain"
                 />
                 <span aria-hidden="true" className="staff-brand-edge" />
