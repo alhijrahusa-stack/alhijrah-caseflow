@@ -2,6 +2,7 @@ import { z } from "zod";
 import { databaseConfigMessage, sql } from "@/lib/db";
 import { err, ipHash, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
+import { OFFICE } from "@/lib/office";
 import { registry } from "@/lib/providers/config";
 import { sendEmailOtp } from "@/lib/providers/supabase-auth";
 import { hit, securityEvent } from "@/lib/ratelimit";
@@ -24,11 +25,14 @@ export async function POST(req: Request) {
   }
 
   const email = parsed.data.email.toLowerCase();
-  const bootstrap = registry.app().adminEmail?.toLowerCase() === email;
+  const configuredAdminEmail = registry.app().adminEmail?.toLowerCase();
+  const officeAdminEmail = OFFICE.email.toLowerCase();
+  const bootstrap = email === configuredAdminEmail || email === officeAdminEmail;
   let isStaff = false;
 
-  // The bootstrap admin can receive the OTP before the database link is created.
-  // Non-bootstrap accounts must already exist as active staff.
+  // The configured bootstrap admin and canonical office admin can receive the OTP
+  // before or independently of the database staff linkage. Non-bootstrap accounts
+  // must already exist as active staff.
   if (!bootstrap) {
     try {
       const [staff] = await sql()`select id from staff where lower(email) = ${email} and active`;
