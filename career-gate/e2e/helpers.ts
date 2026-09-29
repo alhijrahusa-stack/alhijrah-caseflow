@@ -8,6 +8,7 @@ import postgres from "postgres";
 // verification, RBAC and RLS. The Supabase login round trip itself needs the
 // live project and is not covered here.
 export const STAFF = {
+  superadmin: "00000000-0000-4000-8000-00000000a000",
   admin: "00000000-0000-4000-8000-00000000a001",
   manager: "00000000-0000-4000-8000-00000000a002",
   staff: "00000000-0000-4000-8000-00000000a003",

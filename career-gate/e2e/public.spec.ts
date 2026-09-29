@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { db, FIXTURE_CATALOG, intakeBody, PNG, RUN, submitIntake, uniqueIp } from "./helpers";
+import { db, FIXTURE_CATALOG, intakeBody, PNG, RUN, seedOtp, submitIntake, uniqueIp } from "./helpers";
 
 async function openPublicForm(page: Page) {
   await page.goto("/apply");
@@ -261,7 +261,7 @@ test.describe.serial("public intake and status access", () => {
     expect(second.res.status()).toBe(429);
   });
 
-  test("direct status lookup works by reference, email and phone without OTP and stays public-safe", async ({ browser, baseURL, request }) => {
+  test("status lookup is non-enumerating and requires a verified OTP session", async ({ browser, baseURL, request }) => {
     expect(ref).toMatch(/^ALH-\d{8}-[A-Z0-9]{4}$/);
     const [client] = await db()`
       select c.full_name,c.email,c.phone
@@ -274,31 +274,43 @@ test.describe.serial("public intake and status access", () => {
       return { status: response.status(), json: await response.json() };
     };
 
-    for (const identifier of [ref, client.email, client.phone]) {
+    for (const identifier of [ref, client.email, client.phone, "ALH-19990101-XXXX"]) {
       const result = await lookup(String(identifier));
       expect(result.status).toBe(200);
-      expect(result.json.status.ref).toBe(ref);
+      expect(result.json.challenge_id).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(result.json.status).toBeUndefined();
+      expect(result.json.message).toContain("If a matching Career Gate file was found");
     }
-    expect((await lookup("ALH-19990101-XXXX")).status).toBe(404);
 
     const context = await browser.newContext({ baseURL, extraHTTPHeaders: { "x-forwarded-for": uniqueIp() } });
     const page = await context.newPage();
-    await page.goto(`/status?ref=${encodeURIComponent(ref)}`);
+    const blocked = await context.request.get(`/api/status/${encodeURIComponent(ref)}`);
+    expect(blocked.status()).toBe(401);
+
+    await page.goto(`/status/${encodeURIComponent(ref)}`);
+    await page.waitForURL(/\/status\?ref=/);
     await expect(page.getByLabel("File number, phone or email")).toHaveValue(ref);
-    await page.getByRole("button", { name: "Check Status" }).click();
+    const [challengeResponse] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/api/status/lookup") && r.request().method() === "POST"),
+      page.getByRole("button", { name: "Send verification code" }).click(),
+    ]);
+    const challengeJson = await challengeResponse.json();
+    expect(challengeJson.status).toBeUndefined();
+    expect(await seedOtp(challengeJson.challenge_id, "654321")).toBe(true);
+    await page.getByLabel("Verification code").fill("654321");
+    await page.getByRole("button", { name: "Verify code" }).click();
+    await page.waitForURL(`**/status/${encodeURIComponent(ref)}`);
     await expect(page.getByTestId("status-page")).toContainText(ref);
     const html = await page.content();
     for (const secret of ["photo-id.png", "1990-04-05", "1 Test St"]) expect(html).not.toContain(secret);
 
-    await page.goto(`/status/${encodeURIComponent(ref)}`);
-    await expect(page.getByTestId("status-page")).toContainText(ref);
     const api = await context.request.get(`/api/status/${encodeURIComponent(ref)}`);
     expect(api.status()).toBe(200);
     expect((await api.json()).status.ref).toBe(ref);
     await context.close();
 
     const limitedIp = uniqueIp();
-    for (let i = 0; i < 5; i++) await lookup(ref, limitedIp);
+    for (let i = 0; i < 5; i++) expect((await lookup(ref, limitedIp)).status).toBe(200);
     expect((await lookup(ref, limitedIp)).status).toBe(429);
   });
 });
