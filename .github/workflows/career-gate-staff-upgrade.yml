@@ -1,0 +1,41 @@
+name: Career Gate Staff Upgrade Acceptance
+
+on:
+  push:
+    paths:
+      - "career-gate/**"
+      - ".github/workflows/career-gate-staff-upgrade.yml"
+  pull_request:
+    paths:
+      - "career-gate/**"
+      - ".github/workflows/career-gate-staff-upgrade.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: career-gate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: career-gate/package-lock.json
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-16 postgresql-16-pgvector
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - name: Integration
+        run: ./tests/run-integration.sh
+      - run: npx playwright install --with-deps chromium
+      - name: Staff upgrade end-to-end acceptance
+        run: ./e2e/run.sh e2e/executive-upgrade.spec.ts
+        env:
+          PW_CHROMIUM: ""
