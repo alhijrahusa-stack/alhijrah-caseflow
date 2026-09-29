@@ -15,6 +15,7 @@ import {
   DOC_MAX_BYTES,
   DOC_TYPES,
   STATUS_LABELS,
+  STATUSES,
   TRANSITIONS,
   type Status,
 } from "@/lib/domain";
@@ -255,20 +256,27 @@ export function FollowupForm({ clientId, onDone }: FormProps) {
 
 export function StatusForm({ clientId, current, nextStep, onDone }: FormProps & { current: Status; nextStep: string }) {
   const f = useSubmit(onDone, "Status updated");
-  const choices = TRANSITIONS[current];
+  const { isAdmin } = useStaff();
+  const allowed = TRANSITIONS[current];
+  const choices = isAdmin ? STATUSES.filter((s) => s !== current) : allowed;
   const initial = choices[0] ?? "";
   const [status, setStatus] = useState<Status | "">(initial);
   const [step, setStep] = useState(initial ? DEFAULT_NEXT_STEP[initial] : nextStep);
+  const [reason, setReason] = useState("");
+  const requiresOverride = Boolean(status && isAdmin && !allowed.some((s) => s === status));
 
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
       if (!status) return;
-      f.submit({ action: "update_status", client_id: clientId, status, next_step: step });
+      f.submit(requiresOverride
+        ? { action: "override_status", client_id: clientId, status, next_step: step, reason }
+        : { action: "update_status", client_id: clientId, status, next_step: step });
     }}>
-      <Shell title="Change status" testId="form-status" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Save status">
+      <Shell title="Change status" testId="form-status" error={f.error} pending={f.pending} onCancel={onDone} submitLabel={requiresOverride ? "Apply administrative status" : "Save status"}>
         <div className="rounded-xl border border-white/[.07] bg-white/[.025] px-3 py-2 text-xs text-slate-400">
           Current: <strong className="text-slate-200">{STATUS_LABELS[current]}</strong>
+          {isAdmin && <span className="ml-2 text-amber-300/70">All statuses available</span>}
         </div>
         {choices.length === 0 ? (
           <p className="text-sm text-slate-500">No further status changes are allowed from {STATUS_LABELS[current]}.</p>
@@ -277,7 +285,7 @@ export function StatusForm({ clientId, current, nextStep, onDone }: FormProps & 
             <div>
               <label className="label" htmlFor="st_status">New status</label>
               <select id="st_status" className="input" value={status}
-                onChange={(e) => { const s = e.target.value as Status; setStatus(s); setStep(DEFAULT_NEXT_STEP[s]); }}>
+                onChange={(e) => { const s = e.target.value as Status; setStatus(s); setStep(DEFAULT_NEXT_STEP[s]); setReason(""); }}>
                 {choices.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
               </select>
             </div>
@@ -285,6 +293,13 @@ export function StatusForm({ clientId, current, nextStep, onDone }: FormProps & 
               <label className="label" htmlFor="st_next">Next step</label>
               <input id="st_next" required className="input" value={step} onChange={(e) => setStep(e.target.value)} />
             </div>
+          </div>
+        )}
+        {requiresOverride && (
+          <div className="rounded-xl border border-amber-300/15 bg-amber-300/[.035] p-3">
+            <p className="mb-2 text-xs text-amber-100/70">This status is outside the normal transition path. The reason is required and will be recorded in the activity log.</p>
+            <label className="label" htmlFor="st_reason">Administrative reason</label>
+            <input id="st_reason" required className="input" value={reason} onChange={(e) => setReason(e.target.value)} />
           </div>
         )}
       </Shell>

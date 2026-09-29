@@ -8,7 +8,7 @@ function statusLabel(value: string): string {
 
 type PublicLocation = { site_code: string; site_name: string; address: string | null; city: string } | null;
 type PublicShift = { name: string; days: string | null; time: string | null } | null;
-type PublicAppointment = { type: string; scheduled_at: string; location: string | null } | null;
+type PublicInterview = { type: string; scheduled_at: string; location: string | null } | null;
 type PublicHistory = { status: string; label: string; updated_at: string }[];
 
 export type PublicStatus = {
@@ -19,26 +19,16 @@ export type PublicStatus = {
   next_step: string;
   start_date: string | null;
   updated_at: string;
-  appointment: PublicAppointment;
+  appointment: PublicInterview;
   pending_actions: string[];
   full_name: string;
   filed_at: string;
   location: PublicLocation;
   shift: PublicShift;
-  interview: PublicAppointment;
+  interview: PublicInterview;
   documents: { status: "Complete" | "Missing" };
   history: PublicHistory;
 };
-
-function publicAppointment(row: Record<string, unknown> | undefined): PublicAppointment {
-  return row
-    ? {
-        type: row.appointment_type as string,
-        scheduled_at: new Date(row.scheduled_at as string).toISOString(),
-        location: row.location as string | null,
-      }
-    : null;
-}
 
 /** Public-safe projection. Home address/city is never used as the job location. */
 export async function publicStatus(clientId: string): Promise<PublicStatus | null> {
@@ -60,15 +50,6 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
     from client_preferences
     where client_id = ${clientId}
     order by case rank when 'primary' then 0 else 1 end, preference_order, created_at
-    limit 1`;
-
-  const [appointment] = await db`
-    select appointment_type, scheduled_at, location, timezone
-    from appointments
-    where client_id = ${clientId}
-      and status in ('scheduled', 'confirmed', 'rescheduled')
-      and ends_at >= now()
-    order by scheduled_at
     limit 1`;
 
   const [interview] = await db`
@@ -127,8 +108,13 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
       }
     : null;
 
-  const appointmentPublic = publicAppointment(appointment);
-  const interviewPublic = publicAppointment(interview);
+  const interviewPublic: PublicInterview = interview
+    ? {
+        type: interview.appointment_type as string,
+        scheduled_at: new Date(interview.scheduled_at).toISOString(),
+        location: interview.location as string | null,
+      }
+    : null;
 
   const documents = {
     status: Number(docSummary?.total ?? 0) > 0 && Number(docSummary?.verified ?? 0) === Number(docSummary?.total ?? 0)
@@ -148,11 +134,9 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
     updated_at: new Date(c.updated_at).toISOString(),
     location,
     shift,
-    appointment: appointmentPublic,
     interview: interviewPublic,
     documents,
     history,
-    pending_actions: [] as string[],
   };
 
   // Keep the original enumerable projection stable for older internal callers/tests.
@@ -165,7 +149,7 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
     next_step: fullPayload.next_step,
     start_date: fullPayload.start_date,
     updated_at: fullPayload.updated_at,
-    appointment: appointmentPublic,
+    appointment: interviewPublic,
     pending_actions: [] as string[],
   } as PublicStatus;
 

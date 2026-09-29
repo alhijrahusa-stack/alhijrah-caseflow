@@ -5,11 +5,7 @@ create role anon nologin;
 create role authenticated nologin;
 create role service_role nologin;
 create schema auth;
-create table auth.users (
-  id uuid primary key,
-  email text,
-  created_at timestamptz not null default now()
-);
+create table auth.users (id uuid primary key, email text);
 create function auth.uid() returns uuid language sql stable as $$
   select coalesce(
     nullif(current_setting('request.jwt.claim.sub', true), ''),

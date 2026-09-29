@@ -3,82 +3,50 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
-type RowStatus = "VALID" | "IMPORTED" | "DUPLICATE" | "REJECTED";
-type ResultRow = {
-  row: number;
-  status: RowStatus;
-  ok?: boolean;
-  ref?: string;
-  client_id?: string;
-  existing_ref?: string;
-  full_name?: string;
-  phone?: string;
-  email?: string | null;
-  site_code?: string | null;
-  shift_code?: string | null;
-  staff_code?: string | null;
-  code?: string;
-  message?: string;
-};
-type PreviewResult = { mode: "preview"; source: string; total: number; valid: number; duplicates: number; rejected: number; results: ResultRow[] };
-type ImportResult = { mode: "import"; source: string; total: number; created: number; duplicates: number; failed: number; results: ResultRow[] };
-type IntakeResponse = PreviewResult | ImportResult;
+type ResultRow = { row: number; ok: boolean; ref?: string; client_id?: string; code?: string; message?: string };
+type ImportResult = { source: string; total: number; created: number; failed: number; results: ResultRow[] };
 
 const ACCEPT = ".csv,.xlsx,.pdf,.jpg,.jpeg,.png,.webp,text/csv,application/pdf,image/jpeg,image/png,image/webp,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
-function statusClass(status: RowStatus) {
-  if (status === "VALID" || status === "IMPORTED") return "border-emerald-400/20 bg-emerald-400/[.06] text-emerald-300";
-  if (status === "DUPLICATE") return "border-amber-400/20 bg-amber-400/[.06] text-amber-300";
-  return "border-red-400/20 bg-red-400/[.06] text-red-300";
-}
 
 export function UniversalIntakePanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [sheetUrl, setSheetUrl] = useState("");
   const [dragging, setDragging] = useState(false);
-  const [busy, setBusy] = useState<"preview" | "import" | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<IntakeResponse | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
 
   const ready = Boolean(file) !== Boolean(sheetUrl.trim());
-  const canImport = result?.mode === "preview" && result.valid > 0;
-  const summary = useMemo(() => {
-    if (!result) return [];
-    return result.mode === "preview"
-      ? [["Rows", result.total], ["Valid", result.valid], ["Duplicates", result.duplicates], ["Rejected", result.rejected]] as const
-      : [["Rows", result.total], ["Imported", result.created], ["Duplicates", result.duplicates], ["Rejected", result.failed]] as const;
-  }, [result]);
+  const summary = useMemo(() => result ? [
+    ["Rows", result.total], ["Created", result.created], ["Failed", result.failed], ["Source", result.source],
+  ] as const : [], [result]);
 
-  async function submit(mode: "preview" | "import") {
-    if (!ready || busy || (mode === "import" && !canImport)) return;
-    setBusy(mode);
+  async function submit() {
+    if (!ready || busy) return;
+    setBusy(true);
     setError(null);
+    setResult(null);
     try {
       const form = new FormData();
-      form.set("mode", mode);
       if (file) form.set("file", file);
       else form.set("google_sheet_url", sheetUrl.trim());
       const res = await fetch("/api/staff/universal-intake", { method: "POST", body: form });
       const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) throw new Error(data?.error?.message ?? `${mode === "preview" ? "Preview" : "Import"} failed (${res.status})`);
-      setResult(data as IntakeResponse);
+      if (!res.ok || !data?.ok) throw new Error(data?.error?.message ?? `Import failed (${res.status})`);
+      setResult(data as ImportResult);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
-  }
-
-  function resetResult() {
-    setResult(null);
-    setError(null);
   }
 
   function selectFile(next: File | null) {
     setFile(next);
     if (next) setSheetUrl("");
-    resetResult();
+    setResult(null);
+    setError(null);
   }
 
   return (
@@ -87,7 +55,7 @@ export function UniversalIntakePanel() {
         <div>
           <p className="ops-kicker">CAREER GATE · UNIVERSAL INTAKE</p>
           <h1>Import Applications</h1>
-          <p>Parse → Validate → Normalize → Preview → Detect Duplicates → Confirm → Batch Import → Verify</p>
+          <p>CSV · Excel XLSX · Google Sheets · PDF · Images</p>
         </div>
       </header>
 
@@ -104,13 +72,13 @@ export function UniversalIntakePanel() {
           }}
         >
           <input ref={inputRef} className="hidden" type="file" accept={ACCEPT} onChange={(e) => selectFile(e.target.files?.[0] ?? null)} />
-          <p className="text-sm font-semibold text-slate-100">Drag &amp; drop a source file</p>
+          <p className="text-sm font-semibold text-slate-100">Drag & drop a source file</p>
           <p className="mt-1 text-xs text-slate-500">Maximum 10 MB · up to 1,000 spreadsheet rows</p>
-          <button type="button" className="ops-primary-button mt-4" disabled={Boolean(busy)} onClick={() => inputRef.current?.click()}>Choose file</button>
+          <button type="button" className="ops-primary-button mt-4" onClick={() => inputRef.current?.click()}>Choose file</button>
           {file && (
             <div className="mx-auto mt-4 max-w-xl rounded-xl border border-emerald-400/20 bg-emerald-400/[.05] px-4 py-3 text-left text-xs text-emerald-200">
               <strong>{file.name}</strong> · {(file.size / 1024 / 1024).toFixed(2)} MB
-              <button type="button" disabled={Boolean(busy)} className="ml-3 text-slate-400 underline" onClick={() => selectFile(null)}>Remove</button>
+              <button type="button" className="ml-3 text-slate-400 underline" onClick={() => selectFile(null)}>Remove</button>
             </div>
           )}
         </div>
@@ -124,52 +92,34 @@ export function UniversalIntakePanel() {
             className="ops-input w-full"
             placeholder="https://docs.google.com/spreadsheets/d/..."
             value={sheetUrl}
-            disabled={Boolean(busy)}
-            onChange={(e) => { setSheetUrl(e.target.value); if (e.target.value.trim()) setFile(null); resetResult(); }}
+            onChange={(e) => { setSheetUrl(e.target.value); if (e.target.value.trim()) setFile(null); setResult(null); setError(null); }}
           />
-          <p className="mt-1 text-[11px] text-slate-600">Google Sheets is read through the configured official Google API integration; credentials remain server-side.</p>
+          <p className="mt-1 text-[11px] text-slate-600">The sheet must be accessible through the provided link. Only visible source values are imported.</p>
         </div>
 
         <div className="rounded-xl border border-amber-400/15 bg-amber-400/[.04] p-4 text-xs text-slate-400">
-          <strong className="text-amber-200">Deterministic import:</strong> unknown columns or ambiguous Amazon location/job/shift values are rejected instead of guessed. Existing phone/email identities are marked DUPLICATE before confirmation.
+          <strong className="text-amber-200">Required per client:</strong> full name + 10-digit U.S. phone. Auto-dispatch occurs only when the imported Amazon location/job/shift resolves to exactly one active catalog option. No guessed values are inserted.
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <button type="button" className="ops-primary-button" disabled={!ready || Boolean(busy)} onClick={() => void submit("preview")}>
-            {busy === "preview" ? "Validating…" : "Preview & validate"}
-          </button>
-          {canImport && (
-            <button type="button" className="ops-primary-button" disabled={Boolean(busy)} onClick={() => void submit("import")}>
-              {busy === "import" ? "Importing…" : `Confirm import (${result.valid})`}
-            </button>
-          )}
-        </div>
+        <button type="button" className="ops-primary-button" disabled={!ready || busy} onClick={submit}>{busy ? "Importing…" : "Import applications"}</button>
         {error && <div className="rounded-xl border border-red-400/20 bg-red-400/[.05] p-3 text-sm text-red-300">{error}</div>}
       </section>
 
       {result && (
-        <section className="ops-glass-card space-y-4" data-testid="import-result">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="ops-kicker">{result.mode === "preview" ? "PREVIEW" : "IMPORT VERIFIED"}</p>
-              <h2 className="text-lg font-semibold text-slate-100">{result.source}</h2>
-            </div>
-          </div>
+        <section className="ops-glass-card space-y-4">
           <div className="ops-metric-grid">
             {summary.map(([label, value]) => <div key={label} className="ops-metric"><span>{label}</span><strong>{value}</strong></div>)}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-xs">
-              <thead className="text-slate-500"><tr className="border-b border-white/[.07]"><th className="p-3">Source row</th><th className="p-3">Status</th><th className="p-3">Client</th><th className="p-3">Location / Shift</th><th className="p-3">File</th><th className="p-3">Details</th></tr></thead>
+            <table className="w-full min-w-[760px] text-left text-xs">
+              <thead className="text-slate-500"><tr className="border-b border-white/[.07]"><th className="p-3">Source row</th><th className="p-3">Result</th><th className="p-3">File</th><th className="p-3">Details</th></tr></thead>
               <tbody>
                 {result.results.map((row, i) => (
                   <tr key={`${row.row}-${i}`} className="border-b border-white/[.05]">
                     <td className="p-3 font-mono text-slate-500">{row.row}</td>
-                    <td className="p-3"><span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${statusClass(row.status)}`}>{row.status}</span></td>
-                    <td className="p-3 text-slate-300"><div>{row.full_name ?? "—"}</div><div className="text-slate-600">{row.phone ?? row.email ?? ""}</div></td>
-                    <td className="p-3 text-slate-400">{[row.site_code, row.shift_code].filter(Boolean).join(" · ") || "—"}</td>
-                    <td className="p-3">{row.client_id ? <Link className="text-cyan-300 hover:text-cyan-200" href={`/staff/client/${row.client_id}`}>{row.ref}</Link> : row.existing_ref ?? "—"}</td>
-                    <td className="p-3 text-slate-400">{row.message ?? (row.status === "VALID" ? "Ready to import" : row.status === "IMPORTED" ? "Imported and verified" : row.code ?? "—")}</td>
+                    <td className="p-3"><span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${row.ok ? "border-emerald-400/20 bg-emerald-400/[.06] text-emerald-300" : "border-red-400/20 bg-red-400/[.06] text-red-300"}`}>{row.ok ? "CREATED" : "NOT IMPORTED"}</span></td>
+                    <td className="p-3">{row.ok && row.client_id ? <Link className="text-cyan-300 hover:text-cyan-200" href={`/staff/client/${row.client_id}`}>{row.ref}</Link> : "—"}</td>
+                    <td className="p-3 text-slate-400">{row.ok ? "Imported" : `${row.code ?? "error"}: ${row.message ?? "Import failed"}`}</td>
                   </tr>
                 ))}
               </tbody>

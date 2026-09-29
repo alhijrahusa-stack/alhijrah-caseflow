@@ -19,8 +19,7 @@ import { sessionClient, startLookup, verifyCode } from "@/lib/status-access";
 
 const db = sql();
 const trace = "int-test";
-type Role = "super_admin" | "admin" | "manager" | "staff";
-type AccessScope = "full" | "assigned_only";
+type Role = "admin" | "manager" | "staff";
 const sessions: Record<string, StaffSession> = {};
 let clientPhoneSequence = 1000;
 const nextClientPhone = () => `313555${String(++clientPhoneSequence).padStart(4, "0")}`;
@@ -29,12 +28,10 @@ const PNG = Buffer.from(
   "hex",
 );
 
-async function makeStaff(key: string, role: Role, accessScope: AccessScope = "full") {
+async function makeStaff(key: string, role: Role) {
   const authId = randomUUID();
   await db`insert into auth.users (id, email) values (${authId}, ${`${key}@test.invalid`})`;
-  const [s] = await db`insert into staff (display_name, email, role, auth_user_id, access_scope)
-    values (${`TEST ${key}`}, ${`${key}@test.invalid`}, ${role}, ${authId}, ${accessScope})
-    returning id, display_name, email, role, access_scope`;
+  const [s] = await db`insert into staff (display_name, email, role, auth_user_id) values (${`TEST ${key}`}, ${`${key}@test.invalid`}, ${role}, ${authId}) returning id, display_name, email, role`;
   sessions[key] = { authUserId: authId, staff: s as StaffSession["staff"] };
 }
 
@@ -60,12 +57,10 @@ let A: { id: string; ref: string };
 let B: { id: string; ref: string };
 
 beforeAll(async () => {
-  await makeStaff("superadmin", "super_admin");
   await makeStaff("admin", "admin");
   await makeStaff("manager", "manager");
   await makeStaff("staff1", "staff");
   await makeStaff("staff2", "staff");
-  await makeStaff("restricted", "staff", "assigned_only");
   A = await makeClient("TEST Alpha Client", { assigned: sessions.staff1.staff.id });
   B = await makeClient("TEST Beta Client");
 });
@@ -77,25 +72,21 @@ afterAll(async () => {
 describe("row-level security (as authenticated role)", () => {
   const visible = async (key: string) => (await withStaff(sessions[key], (tx) => tx`select id from clients where id in (${A.id}, ${B.id})`)).map((r) => r.id).sort();
 
-  it("full-scope staff, manager and admin see all live clients; assigned-only staff stays scoped", async () => {
-    expect((await visible("staff1")).length).toBe(2);
-    expect((await visible("staff2")).length).toBe(2);
+  it("staff sees only assigned clients; manager and admin see all", async () => {
+    expect(await visible("staff1")).toEqual([A.id]);
+    expect(await visible("staff2")).toEqual([]);
     expect((await visible("manager")).length).toBe(2);
     expect((await visible("admin")).length).toBe(2);
-    expect(await visible("restricted")).toEqual([]);
   });
 
-  it("full-scope staff can create clients through RLS", async () => {
+  it("managers create clients through RLS (INSERT … RETURNING sees the new row); staff cannot", async () => {
     const r = await act("manager", { action: "create_client", profile: ProfileSchema.parse({ full_name: "TEST RLS Create", phone: "3135550100", employment_history: [] }), primary: [], backup: [], status: "new_intake", next_step: null, initial_note: "TEST first note", assigned_staff: null, communication_consent: false });
     expect(r.ref).toMatch(/^CG-\d{4}-\d{6}$/);
-    const rows = await withStaff(sessions.staff1, (tx) => tx`insert into clients (source, full_name, phone, next_step) values ('staff_manual', 'TEST Full Scope Create', '3135550198', 'x') returning id`);
-    expect(rows).toHaveLength(1);
+    await expect(withStaff(sessions.staff1, (tx) => tx`insert into clients (source, full_name, phone, next_step) values ('staff_manual', 'X', '3135550100', 'x')`)).rejects.toMatchObject({ code: "42501" });
   });
 
-  it("full-scope staff can work across live clients while assigned-only staff cannot", async () => {
-    const rows = await withStaff(sessions.staff1, (tx) => tx`insert into notes (client_id, note, staff_id) values (${B.id}, 'full-scope', ${sessions.staff1.staff.id}) returning id`);
-    expect(rows).toHaveLength(1);
-    await expect(withStaff(sessions.restricted, (tx) => tx`insert into notes (client_id, note, staff_id) values (${B.id}, 'restricted', ${sessions.restricted.staff.id})`)).rejects.toMatchObject({ code: "42501" });
+  it("staff cannot write to an unassigned client's records", async () => {
+    await expect(withStaff(sessions.staff1, (tx) => tx`insert into notes (client_id, note, staff_id) values (${B.id}, 'x', ${sessions.staff1.staff.id})`)).rejects.toMatchObject({ code: "42501" });
   });
 
   it("anon has no table access", async () => {
@@ -107,27 +98,23 @@ describe("row-level security (as authenticated role)", () => {
     expect(rows).toMatchObject({ code: "42501" });
   });
 
-  it("soft-deleted clients are hidden from non-super-admin staff", async () => {
+  it("soft-deleted clients are hidden from managers but not admins", async () => {
     const C = await makeClient("TEST Deleted Client");
-    await act("superadmin", { action: "soft_delete_client", client_id: C.id, reason: "test" });
+    await act("admin", { action: "soft_delete_client", client_id: C.id, reason: "test" });
     const m = await withStaff(sessions.manager, (tx) => tx`select id from clients where id = ${C.id}`);
     const a = await withStaff(sessions.admin, (tx) => tx`select id from clients where id = ${C.id}`);
-    const s = await withStaff(sessions.superadmin, (tx) => tx`select id from clients where id = ${C.id}`);
     expect(m.length).toBe(0);
-    expect(a.length).toBe(0);
-    expect(s.length).toBe(1);
+    expect(a.length).toBe(1);
   });
 });
 
-describe("staff auth linking", () => {
-  it("links only pre-approved active staff records by email and refuses strangers", async () => {
+describe("admin bootstrap", () => {
+  it("links the configured admin email as admin, links known staff by email, and refuses strangers", async () => {
     const { resolveStaffForAuthUser } = await import("@/lib/auth");
-    const [preapproved] = await db`insert into staff (display_name, email, role, access_scope)
-      values ('TEST Preapproved Admin', 'boss@test.invalid', 'admin', 'full') returning id`;
+    vi.stubEnv("CAREER_GATE_ADMIN_EMAIL", "boss@test.invalid");
     const bossId = randomUUID();
     await db`insert into auth.users (id, email) values (${bossId}, 'boss@test.invalid')`;
     const created = await resolveStaffForAuthUser({ id: bossId, email: "Boss@test.invalid" });
-    expect(created).toBe(preapproved.id);
     const [boss] = await db`select role, auth_user_id from staff where id = ${created}`;
     expect(boss).toMatchObject({ role: "admin", auth_user_id: bossId });
 
@@ -141,6 +128,7 @@ describe("staff auth linking", () => {
     const strangerId = randomUUID();
     await db`insert into auth.users (id, email) values (${strangerId}, 'stranger@test.invalid')`;
     expect(await resolveStaffForAuthUser({ id: strangerId, email: "stranger@test.invalid" })).toBeNull();
+    vi.unstubAllEnvs();
     const otherId = randomUUID();
     await db`insert into auth.users (id, email) values (${otherId}, 'boss2@test.invalid')`;
     expect(await resolveStaffForAuthUser({ id: otherId, email: "boss2@test.invalid" })).toBeNull();
@@ -160,8 +148,8 @@ describe("status state machine", () => {
     expect(log.new_value.status).toBe("needs_review");
   });
 
-  it("super-admin override needs a reason and is logged as an override", async () => {
-    await act("superadmin", { action: "override_status", client_id: B.id, status: "ready_for_first_day", reason: "Test override", next_step: null });
+  it("admin override needs a reason and is logged as an override", async () => {
+    await act("admin", { action: "override_status", client_id: B.id, status: "ready_for_first_day", reason: "Test override", next_step: null });
     const [c] = await db`select current_status from clients where id = ${B.id}`;
     expect(c.current_status).toBe("ready_for_first_day");
     const [log] = await db`select new_value from activity_log where client_id = ${B.id} and action = 'status_overridden'`;
@@ -326,7 +314,7 @@ describe("OTP status access", () => {
 describe("audit agent", () => {
   it("raises alerts, honours ignore, and auto-closes when the condition clears", async () => {
     const C = await makeClient("TEST Audit Client");
-    await act("superadmin", { action: "override_status", client_id: C.id, status: "ready_for_first_day", reason: "test", next_step: null });
+    await act("admin", { action: "override_status", client_id: C.id, status: "ready_for_first_day", reason: "test", next_step: null });
     await runAudit(C.id, trace);
     const [al] = await db`select id, rule, status from audit_alerts where client_id = ${C.id} and rule = 'ready_for_first_day_without_start_date'`;
     expect(al.status).toBe("open");
@@ -338,7 +326,7 @@ describe("audit agent", () => {
     const open = await db`select 1 from audit_alerts where client_id = ${C.id} and rule = 'ready_for_first_day_without_start_date' and status = 'open'`;
     expect(open.length).toBe(0);
 
-    await act("superadmin", { action: "override_status", client_id: C.id, status: "i9_available", reason: "test", next_step: null });
+    await act("admin", { action: "override_status", client_id: C.id, status: "i9_available", reason: "test", next_step: null });
     await runAudit(C.id, trace);
     const [i9] = await db`select id from audit_alerts where client_id = ${C.id} and rule = 'i9_available_without_required_prior_steps' and status = 'open'`;
     expect(i9).toBeTruthy();
@@ -424,16 +412,18 @@ describe("integrity", () => {
     expect(rows.every((r) => r.status === "unresolved")).toBe(true);
   });
 
-  it("the last active super admin cannot be demoted or disabled", async () => {
-    await expect(act("superadmin", { action: "disable_staff", staff_id: sessions.superadmin.staff.id })).rejects.toMatchObject({ code: "P0001" });
+  it("the last active admin cannot be demoted or disabled", async () => {
+    const admins = await db`select id from staff where role = 'admin' and active`;
+    for (const a of admins.slice(1)) await db`update staff set role = 'manager' where id = ${a.id}`;
+    await expect(act("admin", { action: "disable_staff", staff_id: sessions.admin.staff.id })).rejects.toMatchObject({ code: "last_admin" });
   });
 
-  it("vector search works on the semantic index and respects assigned-only RLS", async () => {
+  it("vector search works on the semantic index and respects RLS (schema check with a synthetic vector)", async () => {
     const v = `[${Array.from({ length: 1536 }, (_, i) => (i === 0 ? 1 : 0)).join(",")}]`;
     await db`insert into semantic_index (client_id, source_type, source_id, content_redacted, embedding, model)
              values (${A.id}, 'note', ${randomUUID()}, 'TEST schema row', ${v}::vector, 'schema-test')`;
     const own = await withStaff(sessions.staff1, (tx) => tx`select client_id from semantic_index order by embedding <=> ${v}::vector limit 5`);
-    const other = await withStaff(sessions.restricted, (tx) => tx`select client_id from semantic_index order by embedding <=> ${v}::vector limit 5`);
+    const other = await withStaff(sessions.staff2, (tx) => tx`select client_id from semantic_index order by embedding <=> ${v}::vector limit 5`);
     expect(own.map((r) => r.client_id)).toContain(A.id);
     expect(other.length).toBe(0);
   });

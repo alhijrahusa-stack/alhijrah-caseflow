@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { StaffDashboard } from "@/components/staff/StaffDashboard";
 import { getStaffSession } from "@/lib/auth";
@@ -16,32 +15,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const requested = params.tab as Tab | undefined;
   const initialTab: Tab = requested && TABS.has(requested) ? requested : "today";
   const data = await staffDashboard(session);
-  const serialized = JSON.parse(JSON.stringify(data));
 
   return (
-    <>
-      <div className="mx-auto mb-3 flex max-w-[1600px] justify-end gap-2">
-        <Link
-          href="/staff/clients?status=new_intake"
-          data-testid="card-new_intake"
-          className="staff-kpi inline-flex min-w-40 items-center justify-between gap-4 rounded-2xl px-4 py-3 transition hover:border-slate-400/30 hover:bg-white/[.04]"
-        >
-          <span className="text-xs text-slate-400">New Intake</span>
-          <span data-testid="count-new_intake" className="font-mono text-lg font-semibold text-slate-100">{data.attention.new_clients}</span>
-        </Link>
-        <Link
-          href="/staff/clients?status=ready_to_apply"
-          data-testid="card-ready_to_apply"
-          className="staff-kpi inline-flex min-w-40 items-center justify-center rounded-2xl px-4 py-3 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/25 hover:bg-cyan-300/[.04]"
-        >
-          Ready to Apply
-        </Link>
-      </div>
-      <StaffDashboard
-        data={serialized}
-        initialTab={initialTab}
-        meRole={session.staff.role}
-      />
-    </>
+    <StaffDashboard
+      data={JSON.parse(JSON.stringify(data))}
+      initialTab={initialTab}
+      meRole={session.staff.role}
+    />
   );
 }

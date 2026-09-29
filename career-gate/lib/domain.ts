@@ -160,7 +160,7 @@ export const POST_HIRE_STATUS_LABELS: Record<(typeof POST_HIRE_STATUSES)[number]
 
 export const LANGUAGES = { en: "English", ar: "العربية", es: "Español" } as const;
 
-export const ROLES = ["super_admin", "admin", "manager", "staff"] as const;
+export const ROLES = ["admin", "manager", "staff"] as const;
 export type Role = (typeof ROLES)[number];
 
 export const ASSESSMENT_STATUSES = ["pending", "in_progress", "completed", "unresolved", "not_required"] as const;

@@ -39,7 +39,7 @@ if [[ -z "${SKIP_BUILD:-}" ]]; then
   cp data/job-catalog.json data/job-catalog.json.orig
   # CATALOG=real builds with the committed catalog instead of the fixture.
   [[ "${CATALOG:-fixture}" == "real" ]] || cp e2e/fixtures/job-catalog.test.json data/job-catalog.json
-  rm -rf .next && npx next build >/tmp/cg-build.log 2>&1 || { tail -80 /tmp/cg-build.log; exit 1; }
+  rm -rf .next && npx next build >/tmp/cg-build.log 2>&1 || { tail -40 /tmp/cg-build.log; exit 1; }
   mv data/job-catalog.json.orig data/job-catalog.json
 fi
 
@@ -47,15 +47,5 @@ node e2e/storage-double.mjs & STORE_PID=$!
 NODE_ENV=production setsid npx next start -p "$PORT" >/tmp/cg-server.log 2>&1 & NEXT_PID=$!
 for _ in $(seq 1 60); do curl -sf -o /dev/null "http://127.0.0.1:$PORT/apply" && break; sleep 0.5; done
 
-set +e
 BASE_URL="http://127.0.0.1:$PORT" npx playwright test "$@"
-PW_STATUS=$?
-set -e
-if [[ $PW_STATUS -ne 0 ]]; then
-  echo "----- Career Gate server log (last 200 lines) -----" >&2
-  tail -200 /tmp/cg-server.log >&2 || true
-  echo "----- Career Gate PostgreSQL log (last 120 lines) -----" >&2
-  tail -120 "$PGDIR/log" >&2 || true
-  exit "$PW_STATUS"
-fi
 if [[ -n "${PERF:-}" ]]; then BASE_URL="http://127.0.0.1:$PORT" node scripts/measure.mjs; fi

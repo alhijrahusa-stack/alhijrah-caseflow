@@ -22,10 +22,8 @@ export async function POST(req: Request) {
     const msg = r.code === "locked" ? "Too many wrong codes. Try again in 15 minutes." : r.code === "expired" ? "This code expired. Request a new one." : "The code is not valid.";
     return err(r.code === "invalid" ? "invalid_code" : r.code, msg, r.code === "locked" ? 429 : 400, traceId);
   }
-  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
-  const secure = forwardedProto ? forwardedProto === "https" : new URL(req.url).protocol === "https:";
   (await cookies()).set(STATUS_COOKIE, r.token, {
-    httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: SESSION_TTL_SECONDS,
+    httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: SESSION_TTL_SECONDS,
   });
   return ok({ ref: r.ref }, 200, traceId);
 }

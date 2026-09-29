@@ -7,14 +7,12 @@ export type StaffMember = {
   display_name: string;
   role: string;
   active: boolean;
-  access_scope?: "full" | "assigned_only";
   staff_code?: string | null;
-  legacy_code?: string | null;
   commission_type?: "fixed" | "percent";
   commission_value?: number;
   eligible_for_round_robin?: boolean;
 };
-export type Me = { id: string; display_name: string; role: "super_admin" | "admin" | "manager" | "staff"; access_scope: "full" | "assigned_only" };
+export type Me = { id: string; display_name: string; role: "admin" | "manager" | "staff" };
 
 const Ctx = createContext<{ me: Me; staff: StaffMember[] } | null>(null);
 
@@ -28,8 +26,7 @@ export function useStaff() {
   return {
     ...v,
     activeStaff: v.staff.filter((s) => s.active),
-    isManager: true,
-    isAdmin: v.me.role === "super_admin" || v.me.role === "admin",
-    isSuperAdmin: v.me.role === "super_admin",
+    isManager: v.me.role === "admin" || v.me.role === "manager",
+    isAdmin: v.me.role === "admin",
   };
 }

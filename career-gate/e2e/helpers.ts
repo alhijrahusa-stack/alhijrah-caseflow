@@ -8,7 +8,6 @@ import postgres from "postgres";
 // verification, RBAC and RLS. The Supabase login round trip itself needs the
 // live project and is not covered here.
 export const STAFF = {
-  superadmin: "00000000-0000-4000-8000-00000000a000",
   admin: "00000000-0000-4000-8000-00000000a001",
   manager: "00000000-0000-4000-8000-00000000a002",
   staff: "00000000-0000-4000-8000-00000000a003",
@@ -24,9 +23,6 @@ export const PNG = Buffer.from(
 );
 
 let sqlClient: postgres.Sql | null = null;
-let intakeSequence = 1000;
-const parsedWorkerIndex = Number.parseInt(process.env.TEST_WORKER_INDEX ?? "0", 10);
-const workerIndex = Number.isInteger(parsedWorkerIndex) && parsedWorkerIndex >= 0 && parsedWorkerIndex < 1000 ? parsedWorkerIndex : 0;
 export const db = () => (sqlClient ??= postgres(process.env.DATABASE_URL!, { max: 2, prepare: false, types: { date: { to: 1082, from: [1082], serialize: (x: string) => x, parse: (x: string) => x } } }));
 
 export async function accessToken(role: Role) {
@@ -58,15 +54,13 @@ export async function seedOtp(challengeId: string, code: string) {
 }
 
 export function intakeBody(name: string, extra: Record<string, unknown> = {}) {
-  intakeSequence += 1;
-  const phone = `313${String(workerIndex).padStart(3, "0")}${String(intakeSequence).slice(-4).padStart(4, "0")}`;
   return {
     state: "MI",
-    profile: { full_name: name, phone, email: `${name.replace(/\W/g, "").toLowerCase()}@test.invalid`, employment_history: [] },
+    profile: { full_name: name, phone: "3135550177", email: `${name.replace(/\W/g, "").toLowerCase()}@test.invalid`, employment_history: [] },
     primary: FIXTURE_CATALOG ? [{ site_code: "TST1", job_id: "J-A", shift_code: "S1" }] : [],
     backup: [],
     communication_consent: true,
-    authorization: { version: "2026-09-28.1", accepted: true, accuracy_acknowledged: true, printed_name: name, signature: name },
+    authorization: { version: "2026-09-26.1", accepted: true, accuracy_acknowledged: true, printed_name: name, signature: name },
     ...extra,
   };
 }

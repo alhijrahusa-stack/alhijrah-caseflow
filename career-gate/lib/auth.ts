@@ -5,11 +5,9 @@ import { sql } from "@/lib/db";
 import type { Role } from "@/lib/domain";
 import { ACCESS_COOKIE, REFRESH_COOKIE, verifyAccessToken } from "@/lib/jwt";
 
-export type AccessScope = "full" | "assigned_only";
-
 export type StaffSession = {
   authUserId: string;
-  staff: { id: string; display_name: string; email: string | null; role: Role; access_scope: AccessScope };
+  staff: { id: string; display_name: string; email: string | null; role: Role };
 };
 
 export type Tx = postgres.TransactionSql;
@@ -18,7 +16,7 @@ export async function staffFromAccessToken(token: string | undefined): Promise<S
   const claims = await verifyAccessToken(token);
   if (!claims) return null;
   const [staff] = await sql()`
-    select id, display_name, email, role, access_scope from staff where auth_user_id = ${claims.sub} and active`;
+    select id, display_name, email, role from staff where auth_user_id = ${claims.sub} and active`;
   if (!staff) return null;
   return { authUserId: claims.sub, staff: staff as StaffSession["staff"] };
 }
@@ -62,20 +60,31 @@ export async function clearSessionCookies() {
   jar.delete(REFRESH_COOKIE);
 }
 
-/** Links a verified Supabase Auth user only to a pre-approved active staff record. */
+/**
+ * Links a verified Supabase Auth user to a staff record: by auth id, then by
+ * email. The CAREER_GATE_ADMIN_EMAIL account is linked (or created) as admin.
+ * Returns null when the user is not staff.
+ */
 export async function resolveStaffForAuthUser(user: { id: string; email: string }) {
   const email = user.email.trim().toLowerCase();
+  const adminEmail = process.env.CAREER_GATE_ADMIN_EMAIL?.trim().toLowerCase() || null;
   return sql().begin(async (tx) => {
-    const [byId] = await tx`select id, active from staff where auth_user_id = ${user.id}`;
-    if (byId) return byId.active ? (byId.id as string) : null;
-
-    const [byEmail] = await tx`
-      select id from staff
-      where lower(email) = ${email} and active and auth_user_id is null
-      for update`;
-    if (!byEmail) return null;
-
-    await tx`update staff set auth_user_id = ${user.id} where id = ${byEmail.id} and auth_user_id is null`;
-    return byEmail.id as string;
+    const [byId] = await tx`select id, active, role from staff where auth_user_id = ${user.id}`;
+    if (byId) {
+      if (adminEmail === email && byId.role !== "admin") await tx`update staff set role = 'admin' where id = ${byId.id}`;
+      return byId.active ? (byId.id as string) : null;
+    }
+    const [byEmail] = await tx`select id, active from staff where lower(email) = ${email} and auth_user_id is null for update`;
+    if (byEmail) {
+      await tx`update staff set auth_user_id = ${user.id}, role = case when ${adminEmail === email} then 'admin' else role end
+               where id = ${byEmail.id}`;
+      return byEmail.active ? (byEmail.id as string) : null;
+    }
+    if (adminEmail && adminEmail === email) {
+      const [created] = await tx`
+        insert into staff (display_name, email, role, auth_user_id) values (${email}, ${email}, 'admin', ${user.id}) returning id`;
+      return created.id as string;
+    }
+    return null;
   });
 }
