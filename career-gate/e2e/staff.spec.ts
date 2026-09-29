@@ -181,10 +181,14 @@ test.describe.serial("office workflow", () => {
     await expect(page.getByTestId("followup-status").filter({ hasText: "completed" })).toHaveCount(1);
   });
 
-  test("status engine: only allowed transitions, next step, timeline", async () => {
+  test("status engine: admin choices include normal transitions and auditable overrides", async () => {
     await page.getByTestId("quick-actions").getByRole("button", { name: "Change Status" }).click();
     const options = await page.getByTestId("form-status").getByLabel("New status").locator("option").allInnerTexts();
-    expect(options).toEqual(["Needs Review", "Ready to Apply", "Cancelled"]);
+    expect(options).toEqual([
+      "Needs Review", "Ready to Apply", "Application in Progress", "Assessment Required", "Shift Selected",
+      "Appointment Required", "Appointment Scheduled", "Pre-Hire Completed", "Screening Pending", "I-9 Available",
+      "Post-Hire Tasks", "Ready for First Day", "Completed", "Cancelled",
+    ]);
     await page.getByTestId("form-status").getByLabel("New status").selectOption("ready_to_apply");
     await page.getByTestId("form-status").getByRole("button", { name: "Save status" }).click();
     await expect(page.getByTestId("current-status")).toContainText("Ready to Apply");
