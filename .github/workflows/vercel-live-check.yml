@@ -28,15 +28,18 @@ jobs:
             title=$(grep -o '<title>[^<]*</title>' /tmp/vercel-root.html | head -1 || true)
             env_error=no
             startup_error=no
+            stale_static=no
             grep -qi 'required environment variables are missing\|Setup Required' /tmp/vercel-root.html && env_error=yes || true
             grep -qi 'Startup Error' /tmp/vercel-root.html && startup_error=yes || true
-            echo "attempt=$attempt status=$status title=${title:-none} env_error=$env_error startup_error=$startup_error"
+            grep -qi 'html2canvas.min.js' /tmp/vercel-root.html && stale_static=yes || true
+            echo "attempt=$attempt status=$status title=${title:-none} env_error=$env_error startup_error=$startup_error stale_static=$stale_static"
 
             if [ "$status" = "200" ] \
-              && grep -q '<title>Alhijrah Caseflow</title>' /tmp/vercel-root.html \
-              && grep -q 'ALHIJRAH CASEFLOW' /tmp/vercel-root.html \
+              && grep -q '<title>Apply · Career Gate</title>' /tmp/vercel-root.html \
+              && grep -q 'Employment request' /tmp/vercel-root.html \
               && [ "$env_error" = "no" ] \
-              && [ "$startup_error" = "no" ]; then
+              && [ "$startup_error" = "no" ] \
+              && [ "$stale_static" = "no" ]; then
               ok=true
               break
             fi
@@ -54,5 +57,6 @@ jobs:
 
           echo 'LIVE_URL=https://alhijrah-caseflow.vercel.app'
           echo 'HTTP_STATUS=200'
-          echo 'APP_MARKER=ALHIJRAH CASEFLOW'
+          echo 'APP_MARKER=Employment request'
           echo 'ENV_ERROR_PAGE=ABSENT'
+          echo 'STALE_STATIC_APP=ABSENT'

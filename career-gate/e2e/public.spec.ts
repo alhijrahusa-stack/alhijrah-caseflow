@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { db, FIXTURE_CATALOG, intakeBody, PNG, RUN, seedOtp, submitIntake, uniqueIp } from "./helpers";
+import { db, FIXTURE_CATALOG, intakeBody, PNG, RUN, submitIntake, uniqueIp } from "./helpers";
 
 test.describe.serial("public intake and status access", () => {
   let ref = "";
@@ -10,7 +10,7 @@ test.describe.serial("public intake and status access", () => {
     const page = await context.newPage();
     await page.goto("/apply");
     await expect(page.getByText("No job openings are listed right now")).toBeVisible();
-    await page.getByRole("group").getByText("Michigan", { exact: true }).click();
+    await page.getByRole("checkbox", { name: /Michigan/ }).check();
     await page.getByRole("button", { name: "Next" }).click();
     await expect(page.getByRole("heading", { level: 2, name: "Personal information" })).toBeVisible();
     await page.getByLabel("Full name").fill(`TEST NoCatalog ${RUN}`);
@@ -38,39 +38,34 @@ test.describe.serial("public intake and status access", () => {
     const context = await browser.newContext({ baseURL, extraHTTPHeaders: { "x-forwarded-for": uniqueIp() } });
     const page = await context.newPage();
     await page.goto("/apply");
-    await page.getByRole("group").getByText("Michigan", { exact: true }).click();
+    await page.getByRole("checkbox", { name: /Michigan/ }).check();
     await page.getByRole("button", { name: "Next" }).click();
 
-    // City → sites filtered to the selected city only.
     await page.getByText("Testville", { exact: true }).click();
     await page.getByRole("button", { name: "Next" }).click();
     await expect(page.getByText("Test Site One (TST1)")).toBeVisible();
     await expect(page.getByText("Test Site Two (TST2)")).toHaveCount(0);
     await expect(page.getByText(/Inactive Site/)).toHaveCount(0);
     await page.getByRole("button", { name: "Back" }).click();
-    await page.getByText("Othertown", { exact: true }).click(); // multi-select cities
+    await page.getByText("Othertown", { exact: true }).click();
     await page.getByRole("button", { name: "Next" }).click();
     await page.getByText("Test Site One (TST1)").click();
-    await page.getByText("Test Site Two (TST2)").click(); // multi-select sites
+    await page.getByText("Test Site Two (TST2)").click();
     await page.getByRole("button", { name: "Next" }).click();
 
-    // Jobs only for the selected sites.
     await expect(page.getByText("Test Job A")).toBeVisible();
     await expect(page.getByText("Test Job B")).toBeVisible();
     await page.getByText("Test Job A").click();
     await page.getByRole("button", { name: "Next" }).click();
 
-    // Shifts only for the selected job; inactive shift hidden.
     await expect(page.getByText(/S3/)).toHaveCount(0);
     await expect(page.getByText(/Closed Job|Not Verified Job|Unknown Site Job/)).toHaveCount(0);
     await page.getByText(/Test Job A — S2/).click();
     await page.getByText(/Test Job A — S1/).click();
     await page.getByRole("button", { name: "Next" }).click();
-    // Backup cannot repeat a primary choice.
     await expect(page.locator('fieldset input[type="checkbox"]:disabled')).toHaveCount(2);
     await page.getByRole("button", { name: "Next" }).click();
 
-    // Pay comes from the catalog.
     await expect(page.getByText("$2.22/hr (fixture)")).toBeVisible();
     await expect(page.getByText("$1.11/hr (fixture)")).toBeVisible();
     await page.getByRole("button", { name: "Next" }).click();
@@ -84,7 +79,6 @@ test.describe.serial("public intake and status access", () => {
     await page.getByLabel("ZIP").fill("48126");
     await page.getByRole("button", { name: "Next" }).click();
 
-    // Amazon history: conditional fields appear only on "Yes".
     await expect(page.getByLabel("From", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Next" })).toBeDisabled();
     await page.locator('input[name="amazon_worked_before"][value="yes"]').check();
@@ -126,11 +120,10 @@ test.describe.serial("public intake and status access", () => {
     await expect(result).toContainText("We will contact you regarding the next available step.");
     ref = (await page.getByTestId("reference").innerText()).trim();
     expect(ref).toMatch(/^CG-\d{4}-\d{6}$/);
-    await expect(result.getByRole("alert")).toHaveCount(0); // document uploaded
+    await expect(result.getByRole("alert")).toHaveCount(0);
     await expect(page.getByTestId("confirmation-state")).toContainText("No automatic confirmation message was sent");
     await expect(page.getByRole("link", { name: "Track Status" })).toHaveAttribute("href", `/status?ref=${ref}`);
 
-    // Database: exactly one client, ordered preferences with pay snapshots, signed authorization, truthful notifications.
     const clients = await db()`select id, source, current_status from clients where ref = ${ref}`;
     expect(clients).toHaveLength(1);
     expect(clients[0]).toMatchObject({ source: "public_intake", current_status: "new_intake" });
@@ -171,9 +164,9 @@ test.describe.serial("public intake and status access", () => {
 
   test("server re-validates catalog relations, consent and signature", async ({ request }) => {
     test.skip(!FIXTURE_CATALOG, "needs the test catalog");
-    const bad = (extra: Record<string, unknown>) => submitIntake(request, intakeBody(`TEST Bad ${RUN}`, extra));
+    let serial = 0;
+    const bad = (extra: Record<string, unknown>) => submitIntake(request, intakeBody(`TEST Bad ${RUN} ${serial++}`, extra));
     expect((await bad({ primary: [{ site_code: "TST2", job_id: "J-A", shift_code: "S1" }] })).json.error.code).toBe("invalid_preferences");
-    // Closed, not-verified and unknown-site openings can never be submitted as current.
     expect((await bad({ primary: [{ site_code: "TST1", job_id: "J-CLOSED", shift_code: "S3" }] })).json.error.code).toBe("invalid_preferences");
     expect((await bad({ primary: [{ site_code: "TST3", job_id: "J-C", shift_code: "S1" }] })).json.error.code).toBe("invalid_preferences");
     expect((await bad({ primary: [{ site_code: "UNKNOWN", job_id: "J-D", shift_code: "S1" }] })).json.error.code).toBe("invalid_preferences");
@@ -190,67 +183,61 @@ test.describe.serial("public intake and status access", () => {
     expect(second.res.status()).toBe(429);
   });
 
-  test("status lookup gives the same response for any identifier; OTP gates the page", async ({ browser, baseURL, request }) => {
-    const ip = uniqueIp();
-    const look = async (identifier: string) => {
+  test("status lookup is direct by file, email or phone and the status page is public", async ({ browser, baseURL, request }) => {
+    const look = async (identifier: string, ip = uniqueIp()) => {
       const r = await request.post("/api/status/lookup", { data: { identifier }, headers: { "x-forwarded-for": ip } });
       return { status: r.status(), json: await r.json() };
     };
-    const [valid, invalid] = [await look(ref), await look("CG-1999-000001")];
+
+    const valid = await look(ref);
     expect(valid.status).toBe(200);
-    expect(invalid.status).toBe(200);
-    expect(valid.json.message).toBe(invalid.json.message);
-    const [vEmail, iEmail] = [await look(FIXTURE_CATALOG ? `public.${RUN}@test.invalid` : "someone@test.invalid"), await look("nobody@test.invalid")];
-    expect(vEmail.json.message).toBe(iEmail.json.message);
-    expect((await look("(313) 555-0142")).json.message).toBe(valid.json.message);
-    // 6th lookup in 15 minutes from one IP is refused.
-    expect((await look("(313) 555-0000")).status).toBe(429);
+    expect(valid.json.status.ref).toBe(ref);
+    expect(valid.json.status.status_label).toBe("New Intake");
 
-    // Without a session the status page and API reveal nothing.
-    const anon = await browser.newContext({ baseURL });
-    const p0 = await anon.newPage();
-    await p0.goto(`/status/${ref}`);
-    await expect(p0.getByTestId("status-locked")).toBeVisible();
-    expect((await anon.request.get(`/api/status/${ref}`)).status()).toBe(401);
+    const invalid = await look("CG-1999-000001");
+    expect(invalid.status).toBe(404);
+    expect(invalid.json.error.code).toBe("not_found");
 
-    // Code delivery is NOT_CONFIGURED locally, so a known code is seeded for the real challenge.
+    const phone = await look("(313) 555-0142");
+    expect(phone.status).toBe(200);
+    expect(phone.json.status.ref).toBe(ref);
+
+    if (FIXTURE_CATALOG) {
+      const email = await look(`public.${RUN}@test.invalid`);
+      expect(email.status).toBe(200);
+      expect(email.json.status.ref).toBe(ref);
+    }
+
     const ctx = await browser.newContext({ baseURL, extraHTTPHeaders: { "x-forwarded-for": uniqueIp() } });
     const page = await ctx.newPage();
-    await page.goto(`/status?ref=${ref}`);
-    await expect(page.getByLabel(/Reference/)).toHaveValue(ref);
-    const lookupResp = page.waitForResponse("**/api/status/lookup");
-    await page.getByRole("button", { name: "Send me a code" }).click();
-    const { challenge_id } = await (await lookupResp).json();
-    expect(await seedOtp(challenge_id, "246810")).toBe(true);
-    await page.getByLabel("6-digit code").fill("111111");
-    await page.getByRole("button", { name: "View status" }).click();
-    await expect(page.locator("p[role=alert]")).toContainText("not valid");
-    await page.getByLabel("6-digit code").fill("246810");
-    await page.getByRole("button", { name: "View status" }).click();
-    await page.waitForURL(`**/status/${ref}`);
+    await page.goto(`/status?ref=${encodeURIComponent(ref)}`);
+    await expect(page.getByLabel("File number, phone or email")).toHaveValue(ref);
+    await page.getByRole("button", { name: "Check Status" }).click();
     await expect(page.getByTestId("status-reference")).toHaveText(ref);
     await expect(page.getByTestId("status-current-status")).toHaveText("New Intake");
+
     const html = await page.content();
     for (const secret of [`amz.${RUN}`, "photo-id.png", "5550142", "Example Logistics", "1990-04-05"]) expect(html, secret).not.toContain(secret);
-    const cookies = await ctx.cookies();
-    const sess = cookies.find((c) => c.name === "cg_status");
-    expect(sess?.httpOnly).toBe(true);
-    expect(page.url()).not.toContain(sess!.value);
-    // The session is bound to this client only.
-    await page.goto(`/status/CG-1999-000001`);
-    await expect(page.getByTestId("status-locked")).toBeVisible();
+
+    await page.goto(`/status/${encodeURIComponent(ref)}`);
+    await expect(page.getByTestId("status-page")).toBeVisible();
+    await expect(page.getByTestId("status-reference")).toHaveText(ref);
+    const api = await ctx.request.get(`/api/status/${encodeURIComponent(ref)}`);
+    expect(api.status()).toBe(200);
+    expect((await api.json()).status.ref).toBe(ref);
+
+    await page.goto("/status/CG-1999-000001");
+    await expect(page.getByTestId("status-not-found")).toBeVisible();
     await ctx.close();
-    await anon.close();
   });
 
-  test("OTP lockout after three wrong codes", async ({ request }) => {
-    const r = await request.post("/api/status/lookup", { data: { identifier: ref }, headers: { "x-forwarded-for": uniqueIp() } });
-    const { challenge_id } = await r.json();
-    await seedOtp(challenge_id, "135791");
-    const verify = (code: string) => request.post("/api/status/verify", { data: { challenge_id, code }, headers: { "x-forwarded-for": uniqueIp() } });
-    expect((await verify("000000")).status()).toBe(400);
-    expect((await verify("000001")).status()).toBe(400);
-    expect((await verify("000002")).status()).toBe(429);
-    expect((await verify("135791")).status()).toBe(429);
+  test("status lookup rate limit rejects the sixth lookup in 15 minutes", async ({ request }) => {
+    const ip = uniqueIp();
+    for (let i = 0; i < 5; i++) {
+      const r = await request.post("/api/status/lookup", { data: { identifier: `CG-1999-${String(i + 1).padStart(6, "0")}` }, headers: { "x-forwarded-for": ip } });
+      expect(r.status()).toBe(404);
+    }
+    const blocked = await request.post("/api/status/lookup", { data: { identifier: "CG-1999-999999" }, headers: { "x-forwarded-for": ip } });
+    expect(blocked.status()).toBe(429);
   });
 });
