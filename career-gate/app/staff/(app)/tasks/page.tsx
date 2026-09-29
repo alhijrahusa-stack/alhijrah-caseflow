@@ -16,27 +16,35 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const assignee = staff.some((s) => s.id === sp.assignee) ? sp.assignee : undefined;
   const rows = JSON.parse(JSON.stringify(await taskList(session, view, assignee)));
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <h1 className="text-2xl font-semibold">Tasks</h1>
+    <div className="ops-page space-y-4">
+      <header className="ops-hero">
+        <div>
+          <p className="ops-kicker">CAREER GATE · TASK CONTROL</p>
+          <h1>Tasks</h1>
+          <p>{rows.length} {view === "open" ? "open" : "completed / cancelled"} task{rows.length === 1 ? "" : "s"}</p>
+        </div>
+        <div><NewTaskButton /></div>
+      </header>
+
+      <section className="ops-glass-card flex flex-wrap items-center gap-3">
         <nav className="flex gap-3 text-sm" aria-label="Views">
           <Link href="/staff/tasks" className={view === "open" ? "font-semibold text-brand-700" : "text-slate-500"}>Open</Link>
           <Link href="/staff/tasks?view=closed" className={view === "closed" ? "font-semibold text-brand-700" : "text-slate-500"}>Completed / cancelled</Link>
         </nav>
-        <form className="flex gap-2">
+        <form className="ml-auto flex gap-2">
           <input type="hidden" name="view" value={view} />
-          <select name="assignee" defaultValue={assignee ?? ""} className="input w-40" aria-label="Assigned to">
+          <select name="assignee" defaultValue={assignee ?? ""} className="input w-44" aria-label="Assigned to">
             <option value="">Everyone</option>
             {staff.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.display_name}</option>)}
           </select>
-          <button className="rounded-md bg-slate-800 px-3 text-sm text-white">Filter</button>
+          <button className="ops-primary-button">Filter</button>
         </form>
-        <div className="ml-auto"><NewTaskButton /></div>
-      </div>
+      </section>
+
       {rows.length === 0 ? (
         <EmptyState title={view === "open" ? "No open tasks" : "No completed tasks"} text="Tasks added to client files or the office appear here." />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="ops-glass-card overflow-x-auto p-0">
           <table className="table">
             <thead><tr><th>Task</th><th>Client</th><th>Assigned</th><th>Due</th><th>Status</th><th /></tr></thead>
             <tbody>
