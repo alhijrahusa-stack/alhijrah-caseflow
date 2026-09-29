@@ -222,15 +222,8 @@ revoke execute on function public.cg_can_access_client_row(uuid,timestamptz) fro
 revoke execute on function public.cg_staff_id() from public, anon;
 revoke execute on function public.cg_staff_role() from public, anon;
 revoke execute on function public.enqueue_job(text,text,jsonb,text,text,integer,timestamptz) from public, anon;
-revoke execute on function public.escalate_stale_applications() from public, anon;
-revoke execute on function public.expire_stale_jobs() from public, anon;
-revoke execute on function public.hide_dormant_profiles() from public, anon;
-revoke execute on function public.match_candidates(uuid,integer) from public, anon;
-revoke execute on function public.match_jobs(uuid,integer) from public, anon;
 revoke execute on function public.next_client_ref() from public, anon;
 revoke execute on function public.next_staff_code() from public, anon;
-revoke execute on function public.prune_otp_logs() from public, anon;
-revoke execute on function public.record_delivery_status(text,text,text,timestamptz,bytea,text,text) from public, anon;
 
 grant execute on function public.cg_busy_intervals(text,timestamptz,timestamptz) to authenticated;
 grant execute on function public.cg_can_access_client(uuid) to authenticated;
@@ -238,13 +231,36 @@ grant execute on function public.cg_can_access_client_row(uuid,timestamptz) to a
 grant execute on function public.cg_staff_id() to authenticated;
 grant execute on function public.cg_staff_role() to authenticated;
 grant execute on function public.enqueue_job(text,text,jsonb,text,text,integer,timestamptz) to authenticated;
-grant execute on function public.match_candidates(uuid,integer) to authenticated;
-grant execute on function public.match_jobs(uuid,integer) to authenticated;
 grant execute on function public.next_client_ref() to authenticated;
 grant execute on function public.next_staff_code() to authenticated;
 
-grant execute on function public.escalate_stale_applications() to service_role;
-grant execute on function public.expire_stale_jobs() to service_role;
-grant execute on function public.hide_dormant_profiles() to service_role;
-grant execute on function public.prune_otp_logs() to service_role;
-grant execute on function public.record_delivery_status(text,text,text,timestamptz,bytea,text,text) to service_role;
+-- Retained legacy SECURITY DEFINER functions exist in the live database but are
+-- not part of every clean reconstruction. Harden them only when present.
+do $$
+declare
+  r record;
+begin
+  for r in
+    select p.oid::regprocedure as signature, p.proname
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in (
+        'escalate_stale_applications',
+        'expire_stale_jobs',
+        'hide_dormant_profiles',
+        'match_candidates',
+        'match_jobs',
+        'prune_otp_logs',
+        'record_delivery_status'
+      )
+  loop
+    execute format('revoke execute on function %s from public, anon', r.signature);
+    if r.proname in ('match_candidates', 'match_jobs') then
+      execute format('grant execute on function %s to authenticated', r.signature);
+    else
+      execute format('grant execute on function %s to service_role', r.signature);
+    end if;
+  end loop;
+end;
+$$;
