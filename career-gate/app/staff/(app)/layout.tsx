@@ -29,14 +29,70 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         <header className="staff-topbar sticky top-0 z-30">
           <div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-2 px-4 py-3 lg:px-6">
             <Link href="/staff" className="mr-2 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-indigo-400 shadow-[0_0_18px_rgba(99,102,241,.7)]" />
-                <strong className="tracking-[.08em] text-slate-100">CAREER GATE</strong>
-              </div>
-              <p className="mt-1 hidden truncate text-[10px] uppercase tracking-[.13em] text-slate-600 sm:block">
-                {OFFICE.company} · {OFFICE.location}
-              </p>
-            </Link>
+              <Link  
+  href="/staff"  
+  aria-label="Career Gate — بوابة التوظيف"  
+  className="group mr-4 flex min-w-0 items-center gap-3.5"  
+>  
+  <div  
+    className="  
+      relative flex h-[52px] w-[52px] shrink-0 items-center justify-center  
+      overflow-hidden rounded-[15px]  
+      border border-white/[0.10]  
+      bg-[linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.025))]  
+      shadow-[0_12px_32px_rgba(0,0,0,.28),inset_0_1px_0_rgba(255,255,255,.10)]  
+      transition-all duration-200  
+      group-hover:border-amber-300/25  
+      group-hover:bg-white/[0.055]  
+    "  
+  >  
+    <img  
+      src="https://rvhhtgbkktlqqcetymqs.supabase.co/storage/v1/object/public/company-logos/Carrer%20Logo.jpg"  
+      alt=""  
+      className="h-[38px] w-[38px] object-contain"  
+    />  <span  
+  aria-hidden="true"  
+  className="  
+    pointer-events-none absolute inset-x-2 bottom-0 h-px  
+    bg-gradient-to-r from-transparent via-amber-300/55 to-transparent  
+  "  
+/>
+
+  </div>    <div className="min-w-0">  
+    <div className="flex items-center gap-2.5">  
+      <strong  
+        className="  
+          truncate text-[13px] font-semibold  
+          tracking-[0.18em] text-slate-100  
+        "  
+      >  
+        CAREER GATE  
+      </strong>  <span  
+    aria-hidden="true"  
+    className="h-1 w-1 shrink-0 rounded-full bg-amber-300/80"  
+  />  
+</div>  
+
+<div  
+  dir="rtl"  
+  className="mt-1 flex min-w-0 items-center gap-2"  
+>  
+  <span className="whitespace-nowrap text-[12px] font-semibold text-slate-200">  
+    بوابة التوظيف  
+  </span>  
+
+  <span  
+    aria-hidden="true"  
+    className="h-3 w-px shrink-0 bg-white/[0.12]"  
+  />  
+
+  <span className="truncate text-[10px] font-medium tracking-[0.01em] text-slate-500">  
+    مكتب الهجرة — عبدالله المريسي  
+  </span>  
+</div>
+
+  </div>  
+</Link>
 
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
               <QuickClientSearch />
