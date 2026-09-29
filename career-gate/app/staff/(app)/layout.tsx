@@ -37,14 +37,6 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               </p>
             </Link>
 
-            <nav className="hidden items-center gap-1 lg:flex" aria-label="Staff operations">
-              <Link className="staff-nav-link" href="/staff">Dashboard</Link>
-              <Link className="staff-nav-link" data-tone="gold" href="/staff/pipeline">Pipeline</Link>
-              {mgmt && <Link className="staff-nav-link" href="/staff/accounting">Accounting</Link>}
-              {mgmt && <Link className="staff-nav-link" href="/staff/distribution">Distribution</Link>}
-              {mgmt && <Link className="staff-nav-link" href="/staff/import">Import</Link>}
-            </nav>
-
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
               <QuickClientSearch />
               <CommandPalette />
@@ -64,12 +56,20 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               <SignOutButton />
             </div>
 
-            <nav className="flex w-full items-center gap-1 overflow-x-auto lg:hidden" aria-label="Staff operations mobile">
+            <nav className="staff-nav-strip" aria-label="Staff operations">
               <Link className="staff-nav-link" href="/staff">Dashboard</Link>
               <Link className="staff-nav-link" data-tone="gold" href="/staff/pipeline">Pipeline</Link>
-              {mgmt && <Link className="staff-nav-link" href="/staff/accounting">Accounting</Link>}
-              {mgmt && <Link className="staff-nav-link" href="/staff/distribution">Distribution</Link>}
-              {mgmt && <Link className="staff-nav-link" href="/staff/import">Import</Link>}
+              <Link className="staff-nav-link" href="/staff/clients">Clients</Link>
+              <Link className="staff-nav-link" href="/staff/appointments">Appointments</Link>
+              <Link className="staff-nav-link" href="/staff/tasks">Tasks</Link>
+              <Link className="staff-nav-link" href="/staff/follow-ups">Follow-Ups</Link>
+              {mgmt && <Link className="staff-nav-link" href="/staff/reports">Reports</Link>}
+              {mgmt && <span className="staff-nav-divider" aria-hidden="true" />}
+              {mgmt && <Link className="staff-nav-link" data-tone="cyan" href="/staff/accounting">Accounting</Link>}
+              {mgmt && <Link className="staff-nav-link" data-tone="cyan" href="/staff/distribution">Distribution</Link>}
+              {mgmt && <Link className="staff-nav-link" data-tone="cyan" href="/staff/import">Import</Link>}
+              {mgmt && <span className="staff-nav-divider" aria-hidden="true" />}
+              {mgmt && <Link className="staff-nav-link" href="/staff/new-client">New Client</Link>}
             </nav>
           </div>
         </header>
