@@ -19,57 +19,175 @@ export function ExecutiveTactileFeedback() {
   useEffect(() => {
     let audioContext: AudioContext | null = null;
 
-    async function playClick() {
+    async function ensureAudioContext() {
+      audioContext ??= new AudioContext();
+
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+
+      return audioContext;
+    }
+
+    async function playExecutiveClick() {
       try {
-        audioContext ??= new AudioContext();
-        if (audioContext.state === "suspended") await audioContext.resume();
+        const ctx = await ensureAudioContext();
+        const now = ctx.currentTime;
 
-        const now = audioContext.currentTime;
-        const oscillator = audioContext.createOscillator();
-        const gain = audioContext.createGain();
+        /*
+         * Mechanical body:
+         * low-frequency downward pulse gives physical mass.
+         */
+        const bodyOscillator = ctx.createOscillator();
+        const bodyGain = ctx.createGain();
 
-        oscillator.type = "sine";
-        oscillator.frequency.setValueAtTime(190, now);
-        oscillator.frequency.exponentialRampToValueAtTime(48, now + 0.022);
+        bodyOscillator.type = "sine";
 
-        gain.gain.setValueAtTime(0.022, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.024);
+        bodyOscillator.frequency.setValueAtTime(
+          190,
+          now,
+        );
 
-        oscillator.connect(gain);
-        gain.connect(audioContext.destination);
-        oscillator.start(now);
-        oscillator.stop(now + 0.024);
+        bodyOscillator.frequency.exponentialRampToValueAtTime(
+          48,
+          now + 0.024,
+        );
 
-        oscillator.addEventListener(
+        bodyGain.gain.setValueAtTime(
+          0.021,
+          now,
+        );
+
+        bodyGain.gain.exponentialRampToValueAtTime(
+          0.0001,
+          now + 0.026,
+        );
+
+        bodyOscillator.connect(bodyGain);
+        bodyGain.connect(ctx.destination);
+
+        /*
+         * Metallic edge:
+         * extremely short high-frequency transient.
+         */
+        const edgeOscillator = ctx.createOscillator();
+        const edgeGain = ctx.createGain();
+
+        edgeOscillator.type = "triangle";
+
+        edgeOscillator.frequency.setValueAtTime(
+          680,
+          now,
+        );
+
+        edgeOscillator.frequency.exponentialRampToValueAtTime(
+          240,
+          now + 0.012,
+        );
+
+        edgeGain.gain.setValueAtTime(
+          0.0045,
+          now,
+        );
+
+        edgeGain.gain.exponentialRampToValueAtTime(
+          0.0001,
+          now + 0.014,
+        );
+
+        edgeOscillator.connect(edgeGain);
+        edgeGain.connect(ctx.destination);
+
+        bodyOscillator.start(now);
+        edgeOscillator.start(now);
+
+        bodyOscillator.stop(now + 0.027);
+        edgeOscillator.stop(now + 0.015);
+
+        bodyOscillator.addEventListener(
           "ended",
           () => {
-            oscillator.disconnect();
-            gain.disconnect();
+            bodyOscillator.disconnect();
+            bodyGain.disconnect();
+          },
+          { once: true },
+        );
+
+        edgeOscillator.addEventListener(
+          "ended",
+          () => {
+            edgeOscillator.disconnect();
+            edgeGain.disconnect();
           },
           { once: true },
         );
       } catch {
-        // Audio feedback is progressive enhancement only; UI actions must never depend on it.
+        /*
+         * Progressive enhancement only.
+         * No business action may depend on audio.
+         */
       }
     }
 
-    function handlePointerDown(event: PointerEvent) {
-      if (event.button !== 0) return;
-      if (!(event.target instanceof Element)) return;
+    function handlePointerDown(
+      event: PointerEvent,
+    ) {
+      if (event.button !== 0) {
+        return;
+      }
 
-      const target = event.target.closest<HTMLElement>(TACTILE_TARGETS);
-      if (!target) return;
-      if (target.dataset.tactile === "off") return;
-      if (target.matches(":disabled") || target.getAttribute("aria-disabled") === "true") return;
+      if (!(event.target instanceof Element)) {
+        return;
+      }
 
-      void playClick();
+      const target =
+        event.target.closest<HTMLElement>(
+          TACTILE_TARGETS,
+        );
+
+      if (!target) {
+        return;
+      }
+
+      /*
+       * Explicit opt-out.
+       */
+      if (target.dataset.tactile === "off") {
+        return;
+      }
+
+      /*
+       * Never play feedback on unavailable actions.
+       */
+      if (
+        target.matches(":disabled") ||
+        target.getAttribute("aria-disabled") === "true"
+      ) {
+        return;
+      }
+
+      void playExecutiveClick();
     }
 
-    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener(
+      "pointerdown",
+      handlePointerDown,
+      true,
+    );
 
     return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true);
-      if (audioContext && audioContext.state !== "closed") void audioContext.close();
+      document.removeEventListener(
+        "pointerdown",
+        handlePointerDown,
+        true,
+      );
+
+      if (
+        audioContext &&
+        audioContext.state !== "closed"
+      ) {
+        void audioContext.close();
+      }
     };
   }, []);
 
