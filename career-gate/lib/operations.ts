@@ -10,6 +10,8 @@ export type PipelineStage = {
   terminal: boolean;
 };
 
+export type DispatchPeriod = "morning" | "evening" | "night" | "needs_manual_review" | "unspecified";
+
 export type OperationsClient = {
   id: string;
   ref: string;
@@ -31,7 +33,7 @@ export type OperationsClient = {
   shift_name: string | null;
   shift_days: string | null;
   shift_hours: string | null;
-  shift_period: "morning" | "evening" | "unspecified" | null;
+  shift_period: DispatchPeriod | null;
   auto_dispatched_at: string | null;
   pay_snapshot: string | null;
   payment_status: string | null;
