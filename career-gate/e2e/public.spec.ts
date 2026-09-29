@@ -100,8 +100,9 @@ test.describe.serial("public intake and status access", () => {
     await page.goto(`/status?ref=${ref}`);
     await expect(page.getByLabel("File number, phone or email")).toHaveValue(ref);
     await page.getByRole("button", { name: "Check Status" }).click();
-    await expect(page.getByTestId("status-page")).toBeVisible();
-    await expect(page.getByText(ref, { exact: true })).toBeVisible();
-    await expect(page.getByText("New Intake", { exact: true })).toBeVisible();
+    const statusPage = page.getByTestId("status-page");
+    await expect(statusPage).toBeVisible();
+    await expect(statusPage.getByText(ref, { exact: true })).toBeVisible();
+    await expect(statusPage.getByRole("definition").filter({ hasText: "New Intake" })).toBeVisible();
   });
 });
