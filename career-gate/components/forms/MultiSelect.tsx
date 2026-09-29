@@ -20,7 +20,7 @@ export function MultiSelect({
 }) {
   if (!choices.length) return <p className="text-sm text-slate-500">No options available for the current selection.</p>;
   return (
-    <fieldset className="grid gap-2">
+    <fieldset className="grid gap-2" role="group" aria-label={name}>
       <legend className="sr-only">{name}</legend>
       {choices.map((c) => {
         const checked = value.includes(c.value);

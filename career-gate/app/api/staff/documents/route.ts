@@ -20,8 +20,23 @@ export async function POST(req: Request) {
   if (!(file instanceof File)) return err("invalid_input", "No file provided", 400, traceId);
   const authz = await authorize(req, g.session, "upload_document", { clientId }, traceId);
   if (!authz.ok) return authz.response;
-  const r = await saveDocument({ clientId, docType: String(form.get("doc_type") ?? ""), file, actor: { staffId: g.session.staff.id, traceId } });
+  const r = await saveDocument({
+    clientId,
+    docType: String(form.get("doc_type") ?? ""),
+    file,
+    actor: { staffId: g.session.staff.id, traceId },
+  });
   if (!r.ok) return err(r.code, r.error, r.status, traceId);
-  after(() => processJobs(5).catch((e) => console.error(e)));
+
+  after(() =>
+    processJobs(1).catch((error) =>
+      console.error("staff document processing failed", {
+        traceId,
+        documentId: r.id,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    ),
+  );
+
   return ok({ id: r.id, status: r.status }, 201, traceId);
 }

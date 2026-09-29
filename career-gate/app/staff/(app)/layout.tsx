@@ -1,6 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CommandPalette } from "@/components/staff/CommandPalette";
+import { ExecutiveTactileFX } from "@/components/staff/ExecutiveTactileFX";
 import { QuickClientSearch } from "@/components/staff/QuickClientSearch";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { SignOutButton } from "@/components/staff/SignOutButton";
@@ -13,6 +15,8 @@ import "../dispatcher.css";
 import "../extras.css";
 import "../executive-upgrade.css";
 import "../recent-clients-titanium.css";
+import "../executive-tactile-v2.css";
+import "../interaction-layer-fix.css";
 
 export const dynamic = "force-dynamic";
 
@@ -25,17 +29,21 @@ export default async function StaffLayout({ children }: { children: React.ReactN
 
   return (
     <StaffProvider me={{ id: session.staff.id, display_name: session.staff.display_name, role: session.staff.role }} staff={staff}>
+      <ExecutiveTactileFX />
       <div className="staff-shell">
         <header className="staff-topbar sticky top-0 z-30">
           <div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-2 px-4 py-3 lg:px-6">
-            <Link href="/staff" className="mr-2 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-indigo-400 shadow-[0_0_18px_rgba(99,102,241,.7)]" />
-                <strong className="tracking-[.08em] text-slate-100">CAREER GATE</strong>
-              </div>
-              <p className="mt-1 hidden truncate text-[10px] uppercase tracking-[.13em] text-slate-600 sm:block">
-                {OFFICE.company} · {OFFICE.location}
-              </p>
+            <Link href="/staff" className="staff-brand-lockup mr-2 min-w-0" data-executive-tactile="true">
+              <span className="staff-brand-mark" aria-hidden="true">
+                <Image src="/brand/career-gate.webp" alt="" width={44} height={44} priority />
+              </span>
+              <span className="staff-brand-office" aria-hidden="true">
+                <Image src="/brand/alhijrah-services.webp" alt="" width={36} height={36} priority />
+              </span>
+              <span className="staff-brand-copy min-w-0">
+                <strong className="block truncate text-slate-100">CAREER GATE</strong>
+                <p className="truncate">{OFFICE.company} · {OFFICE.location}</p>
+              </span>
             </Link>
 
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
@@ -43,18 +51,20 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               <CommandPalette />
               <RealtimeRefresher />
               {mgmt && (
-                <Link href="/staff/audit-alerts" className="relative rounded-xl border border-white/[.07] px-3 py-2 text-xs text-slate-400 hover:bg-white/[.04] hover:text-slate-100" aria-label="Audit alerts">
+                <Link href="/staff/audit-alerts" className="relative rounded-xl border border-white/[.07] px-3 py-2 text-xs text-slate-400 hover:bg-white/[.04] hover:text-slate-100" aria-label="Audit alerts" data-executive-tactile="true">
                   Alerts
                   {alertCount > 0 && <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 font-mono text-[9px] text-white">{alertCount}</span>}
                 </Link>
               )}
-              <span className="hidden items-center gap-2 rounded-xl border border-white/[.07] bg-white/[.025] px-3 py-2 text-xs sm:flex" data-testid="me">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <span className="max-w-32 truncate text-slate-200">{session.staff.display_name}</span>
-                <span className="text-[9px] uppercase tracking-wide text-slate-600">{session.staff.role}</span>
-              </span>
-              <Link href="/staff?tab=settings" className="rounded-xl border border-white/[.07] px-3 py-2 text-xs text-slate-400 hover:bg-white/[.04] hover:text-slate-100">Settings</Link>
-              <SignOutButton />
+              <div className="staff-session-cluster">
+                <span className="staff-session-chip hidden sm:flex" data-testid="me">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.7)]" />
+                  <span className="max-w-32 truncate text-xs text-slate-200">{session.staff.display_name}</span>
+                  <span className="text-[9px] uppercase tracking-wide text-slate-500">{session.staff.role}</span>
+                </span>
+                <Link href="/staff?tab=settings" className="staff-session-link" data-executive-tactile="true">Executive Profile</Link>
+                <div data-executive-tactile="true"><SignOutButton /></div>
+              </div>
             </div>
 
             <nav className="staff-nav-strip" aria-label="Staff operations">
@@ -66,11 +76,11 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               <Link className="staff-nav-link" href="/staff/follow-ups">Follow-Ups</Link>
               {mgmt && <Link className="staff-nav-link" href="/staff/reports">Reports</Link>}
               {mgmt && <span className="staff-nav-divider" aria-hidden="true" />}
-              {mgmt && <Link className="staff-nav-link" data-tone="cyan" href="/staff/accounting">Accounting</Link>}
-              {mgmt && <Link className="staff-nav-link" data-tone="cyan" href="/staff/distribution">Distribution</Link>}
-              {mgmt && <Link className="staff-nav-link" data-tone="cyan" href="/staff/import">Import</Link>}
+              {mgmt && <Link className="staff-nav-link" data-tone="gold" data-executive-tactile="true" href="/staff/accounting">Accounting</Link>}
+              {mgmt && <Link className="staff-nav-link" data-tone="cyan" data-executive-tactile="true" href="/staff/distribution">Distribution</Link>}
+              {mgmt && <Link className="staff-nav-link" data-tone="violet" data-executive-tactile="true" href="/staff/import">Import</Link>}
               {mgmt && <span className="staff-nav-divider" aria-hidden="true" />}
-              {mgmt && <Link className="staff-nav-link" href="/staff/new-client">New Client</Link>}
+              {mgmt && <Link className="staff-nav-link" data-tone="green" data-executive-tactile="true" href="/staff/new-client">New Client</Link>}
             </nav>
           </div>
         </header>

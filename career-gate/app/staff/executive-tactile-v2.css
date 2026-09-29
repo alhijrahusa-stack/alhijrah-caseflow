@@ -1,0 +1,212 @@
+/* Career Gate — Executive Tactile UI v2
+   Presentation-only override. No business logic, API, data, or authorization changes. */
+
+.staff-shell {
+  --tactile-gold: #c5a059;
+  --tactile-gold-soft: #e2c27c;
+  --tactile-titanium: #9fb0c6;
+  --tactile-cyan: #58d8ff;
+  --tactile-violet: #9e8cff;
+  --tactile-emerald: #4fd1a5;
+  --tactile-amber: #f5b94c;
+}
+
+/* Brand rail */
+.staff-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 240px;
+}
+.staff-brand-mark,
+.staff-brand-office {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: linear-gradient(180deg, rgba(29,43,67,.98), rgba(9,15,27,.98));
+  border: 1px solid rgba(197,160,89,.32);
+  box-shadow: 0 8px 22px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.14);
+}
+.staff-brand-mark { width: 44px; height: 44px; border-radius: 13px; }
+.staff-brand-office { width: 36px; height: 36px; border-radius: 50%; }
+.staff-brand-mark img,
+.staff-brand-office img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.staff-brand-copy strong { font-size: 14px; letter-spacing: .12em; }
+.staff-brand-copy p { margin: 3px 0 0; font-size: 9px; letter-spacing: .13em; color: #75869b; text-transform: uppercase; }
+
+/* Four executive operation keys */
+.staff-nav-link[href="/staff/accounting"],
+.staff-nav-link[href="/staff/distribution"],
+.staff-nav-link[href="/staff/import"],
+.staff-nav-link[href="/staff/new-client"] {
+  position: relative;
+  min-height: 38px;
+  padding: 9px 14px 9px 34px;
+  border-color: rgba(197,160,89,.26);
+  background: linear-gradient(180deg, #18243b 0%, #111a2b 52%, #0a0f1a 100%);
+  box-shadow: 0 5px 14px rgba(0,0,0,.34), inset 0 1px 1px rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.48);
+  color: #eaf0f7;
+  font-size: 12px;
+  font-weight: 720;
+  letter-spacing: .015em;
+  transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease, color .14s ease;
+}
+.staff-nav-link[href="/staff/accounting"]::before,
+.staff-nav-link[href="/staff/distribution"]::before,
+.staff-nav-link[href="/staff/import"]::before,
+.staff-nav-link[href="/staff/new-client"]::before {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  filter: drop-shadow(0 0 7px currentColor);
+}
+.staff-nav-link[href="/staff/accounting"] { color: #f3cf7a; }
+.staff-nav-link[href="/staff/accounting"]::before { content: "◈"; color: #f1c96f; }
+.staff-nav-link[href="/staff/distribution"] { color: #8fe9ff; }
+.staff-nav-link[href="/staff/distribution"]::before { content: "◆"; color: #55d8ff; }
+.staff-nav-link[href="/staff/import"] { color: #a9a1ff; }
+.staff-nav-link[href="/staff/import"]::before { content: "⬇"; color: #9e8cff; }
+.staff-nav-link[href="/staff/new-client"] { color: #91f0c9; }
+.staff-nav-link[href="/staff/new-client"]::before { content: "+"; color: #4fd1a5; font-weight: 900; }
+.staff-nav-link[href="/staff/accounting"]:hover,
+.staff-nav-link[href="/staff/distribution"]:hover,
+.staff-nav-link[href="/staff/import"]:hover,
+.staff-nav-link[href="/staff/new-client"]:hover {
+  transform: translateY(-1px);
+  border-color: rgba(226,194,124,.58);
+  box-shadow: 0 8px 18px rgba(0,0,0,.4), inset 0 1px 1px rgba(255,255,255,.22), 0 0 18px rgba(88,216,255,.06);
+}
+.staff-nav-link[href="/staff/accounting"]:active,
+.staff-nav-link[href="/staff/distribution"]:active,
+.staff-nav-link[href="/staff/import"]:active,
+.staff-nav-link[href="/staff/new-client"]:active {
+  transform: translateY(3px);
+  box-shadow: inset 0 4px 8px rgba(0,0,0,.74), inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+/* Candidate Pipeline — larger, balanced client typography */
+.ops-client-card {
+  border-color: rgba(159,176,198,.16);
+  border-radius: 16px;
+  padding: 14px;
+  background: linear-gradient(155deg, rgba(19,30,47,.93), rgba(7,13,22,.88));
+  box-shadow: 0 10px 28px rgba(0,0,0,.17), inset 0 1px 0 rgba(255,255,255,.055);
+}
+.ops-client-head h3 { font-size: 14px; font-weight: 760; line-height: 1.25; letter-spacing: -.01em; }
+.ops-client-head code { font-size: 10px; color: #7890aa; }
+.ops-client-meta { margin-top: 11px; gap: 6px; }
+.ops-client-meta span { font-size: 10px; padding: 4px 7px; border-radius: 8px; }
+.ops-next { font-size: 10.5px; line-height: 1.5; }
+.ops-next span { font-size: 8.5px; }
+.ops-client-actions a { font-size: 10.5px; font-weight: 700; }
+.ops-client-actions .ops-select { font-size: 10.5px; }
+.ops-column-head strong { font-size: 12px; }
+.ops-column-head span:not(.ops-stage-dot) { font-size: 10.5px; }
+
+/* Staff & Task Distribution — stronger readable rows/cards */
+.ops-staff-card {
+  border-color: rgba(159,176,198,.18);
+  background: linear-gradient(150deg, rgba(29,45,68,.72), rgba(8,14,24,.76));
+  box-shadow: 0 12px 30px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.07);
+}
+.ops-staff-card code { font-size: 9.5px; }
+.ops-staff-card strong { font-size: 13px; font-weight: 760; }
+.ops-staff-card > span { font-size: 15px; }
+.ops-staff-card small { font-size: 9.5px; }
+.ops-distribution-table-wrap .ops-table th { font-size: 10px; letter-spacing: .07em; }
+.ops-distribution-table-wrap .ops-table td { padding-top: 13px; padding-bottom: 13px; font-size: 11px; }
+.ops-distribution-table-wrap .ops-table td strong { font-size: 12.5px; font-weight: 740; color: #f2f6fb; }
+.ops-distribution-table-wrap .ops-table td span { font-size: 10px; color: #8fa3b8; }
+.ops-distribution-table-wrap .ops-table td code { font-size: 10px; color: #86dfff; }
+
+/* Reports — executive glass hierarchy */
+.ops-page .ops-glass-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(151,188,231,.16);
+  background:
+    radial-gradient(circle at 88% 0%, rgba(88,216,255,.06), transparent 34%),
+    linear-gradient(145deg, rgba(22,34,52,.78), rgba(7,12,21,.82));
+  box-shadow: 0 18px 44px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.07);
+  backdrop-filter: blur(24px) saturate(118%);
+}
+.ops-page .ops-glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 12% auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(226,194,124,.62), transparent);
+  pointer-events: none;
+}
+.ops-page .ops-glass-card h2 { font-size: 13px; letter-spacing: .01em; color: #f5f8fc; }
+.ops-page .ops-glass-card .table tr { border-color: rgba(255,255,255,.055); }
+.ops-page .ops-glass-card .table td { padding-top: 10px; padding-bottom: 10px; font-size: 11px; }
+
+/* Dashboard + major actions — tactile hardware treatment */
+.ops-primary-button,
+.ops-segmented button,
+.ops-client-actions a,
+.ops-table a,
+.staff-topbar a[href="/staff/audit-alerts"],
+.staff-topbar a[href="/staff?tab=settings"] {
+  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease, filter .14s ease;
+}
+.ops-primary-button {
+  min-height: 40px;
+  border-radius: 12px;
+  border-color: rgba(197,160,89,.34);
+  background: linear-gradient(180deg, #218ff4 0%, #155fdc 62%, #1149bd 100%);
+  box-shadow: 0 9px 24px rgba(17,89,219,.22), inset 0 1px 1px rgba(255,255,255,.28), inset 0 -1px 0 rgba(0,0,0,.28);
+  font-size: 11px;
+  font-weight: 740;
+}
+.ops-primary-button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(17,89,219,.28), 0 0 18px rgba(88,216,255,.12), inset 0 1px 1px rgba(255,255,255,.30); }
+.ops-primary-button:active:not(:disabled) { transform: translateY(4px); box-shadow: inset 0 5px 9px rgba(0,0,0,.58), 0 0 12px rgba(88,216,255,.16); }
+.ops-segmented button:active,
+.ops-client-actions a:active,
+.ops-table a:active { transform: translateY(3px); }
+
+/* Executive session controls using existing real routes/actions only */
+.staff-session-cluster { display: flex; align-items: center; gap: 8px; }
+.staff-session-chip,
+.staff-session-link {
+  min-height: 36px;
+  border: 1px solid rgba(197,160,89,.22);
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgba(24,36,59,.96), rgba(10,15,26,.96));
+  box-shadow: 0 5px 14px rgba(0,0,0,.28), inset 0 1px 1px rgba(255,255,255,.12);
+}
+.staff-session-chip { display: flex; align-items: center; gap: 7px; padding: 7px 10px; }
+.staff-session-link { display: inline-flex; align-items: center; padding: 7px 11px; color: #cbd5e1; font-size: 10.5px; }
+.staff-session-link:hover { border-color: rgba(197,160,89,.50); color: #fff; transform: translateY(-1px); }
+.staff-session-link:active { transform: translateY(3px); box-shadow: inset 0 4px 8px rgba(0,0,0,.65); }
+
+/* Arabic/English legibility */
+.staff-shell { text-rendering: geometricPrecision; }
+.staff-shell [dir="rtl"],
+.staff-shell :lang(ar) { letter-spacing: 0; }
+.ops-hero p:not(.ops-kicker) { font-size: 13px; line-height: 1.7; }
+
+@media (max-width: 900px) {
+  .staff-brand-office { display: none; }
+  .staff-brand-lockup { min-width: auto; }
+  .staff-nav-link[href="/staff/accounting"],
+  .staff-nav-link[href="/staff/distribution"],
+  .staff-nav-link[href="/staff/import"],
+  .staff-nav-link[href="/staff/new-client"] { font-size: 11px; padding-inline-end: 11px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-nav-link,
+  .ops-primary-button,
+  .ops-client-card,
+  .staff-session-link { transition: none !important; transform: none !important; }
+}

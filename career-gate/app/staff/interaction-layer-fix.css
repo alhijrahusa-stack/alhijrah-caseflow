@@ -1,0 +1,119 @@
+/* Client-file action overlays must remain above later glass/blur stacking contexts. */
+[data-testid="form-assign"] {
+  position: relative;
+  z-index: 100;
+  overflow: visible;
+}
+
+[data-testid="form-assign"] .staff-picker {
+  position: relative;
+  z-index: 110;
+}
+
+[data-testid="form-assign"] .staff-picker-menu {
+  z-index: 120;
+}
+
+/* Final executive-theme stability layer: readable scale, RTL-safe flow, no geometry jumps. */
+.staff-shell {
+  overflow-x: clip;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+.staff-shell img {
+  max-width: 100%;
+}
+
+.staff-brand-mark,
+.staff-brand-office {
+  aspect-ratio: 1 / 1;
+}
+
+.staff-brand-copy,
+.staff-session-cluster,
+.staff-nav-strip,
+.ops-client-head,
+.ops-client-meta,
+.ops-client-actions,
+.ops-distribution-table-wrap {
+  min-width: 0;
+}
+
+.staff-brand-copy p {
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.ops-client-head h3 {
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.ops-client-head code,
+.ops-client-meta span,
+.ops-next,
+.ops-client-actions a,
+.ops-client-actions .ops-select {
+  font-size: 11px;
+}
+
+.ops-staff-card code,
+.ops-staff-card small,
+.ops-distribution-table-wrap .ops-table th,
+.ops-distribution-table-wrap .ops-table td span,
+.ops-distribution-table-wrap .ops-table td code {
+  font-size: 10.5px;
+}
+
+.ops-staff-card strong,
+.ops-distribution-table-wrap .ops-table td strong {
+  font-size: 13px;
+}
+
+.ops-distribution-table-wrap .ops-table td,
+.staff-session-link {
+  font-size: 11.5px;
+}
+
+.staff-shell [dir="rtl"],
+.staff-shell :lang(ar) {
+  direction: rtl;
+  text-align: start;
+  letter-spacing: 0 !important;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.staff-shell [dir="rtl"] .staff-nav-strip,
+.staff-shell [dir="rtl"] .staff-session-cluster,
+.staff-shell [dir="rtl"] .ops-client-actions,
+.staff-shell :lang(ar) .staff-nav-strip,
+.staff-shell :lang(ar) .staff-session-cluster,
+.staff-shell :lang(ar) .ops-client-actions {
+  direction: rtl;
+}
+
+.staff-shell code,
+.staff-shell [data-testid*="count"],
+.staff-shell [data-testid*="status"] {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .ops-client-head h3 { font-size: 14px; }
+  .ops-client-head code,
+  .ops-client-meta span,
+  .ops-next,
+  .ops-client-actions a,
+  .ops-client-actions .ops-select { font-size: 10.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-shell *,
+  .staff-shell *::before,
+  .staff-shell *::after {
+    scroll-behavior: auto !important;
+  }
+}
