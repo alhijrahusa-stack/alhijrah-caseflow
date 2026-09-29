@@ -1,0 +1,15 @@
+/* Client-file action overlays must remain above later glass/blur stacking contexts. */
+[data-testid="form-assign"] {
+  position: relative;
+  z-index: 100;
+  overflow: visible;
+}
+
+[data-testid="form-assign"] .staff-picker {
+  position: relative;
+  z-index: 110;
+}
+
+[data-testid="form-assign"] .staff-picker-menu {
+  z-index: 120;
+}
