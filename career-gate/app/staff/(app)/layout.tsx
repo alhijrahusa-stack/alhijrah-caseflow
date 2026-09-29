@@ -11,6 +11,7 @@ import { dashboardCounts, staffDirectory } from "@/lib/queries";
 import "../operations.css";
 import "../dispatcher.css";
 import "../extras.css";
+import "../executive-upgrade.css";
 
 export const dynamic = "force-dynamic";
 
