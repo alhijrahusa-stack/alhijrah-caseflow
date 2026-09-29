@@ -1,15 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+
 import { CommandPalette } from "@/components/staff/CommandPalette";
 import { ExecutiveTactileFeedback } from "@/components/staff/ExecutiveTactileFeedback";
 import { QuickClientSearch } from "@/components/staff/QuickClientSearch";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { SignOutButton } from "@/components/staff/SignOutButton";
 import { StaffProvider } from "@/components/staff/StaffContext";
+
 import { getStaffSession } from "@/lib/auth";
 import { OFFICE } from "@/lib/office";
 import { dashboardCounts, staffDirectory } from "@/lib/queries";
+
 import "../operations.css";
 import "../dispatcher.css";
 import "../extras.css";
@@ -19,7 +22,11 @@ import "../executive-tactile.css";
 
 export const dynamic = "force-dynamic";
 
-type NavIconName = "accounting" | "distribution" | "import" | "new-client";
+type NavIconName =
+  | "accounting"
+  | "distribution"
+  | "import"
+  | "new-client";
 
 function NavIcon({ name }: { name: NavIconName }) {
   return (
@@ -39,6 +46,7 @@ function NavIcon({ name }: { name: NavIconName }) {
           <path d="M3.5 10h17M7 14h3" />
         </>
       )}
+
       {name === "distribution" && (
         <>
           <circle cx="6" cy="7" r="2.5" />
@@ -47,6 +55,7 @@ function NavIcon({ name }: { name: NavIconName }) {
           <path d="M8.5 7h7M8.1 8.8l2.6 5.4M15.9 8.8l-2.6 5.4" />
         </>
       )}
+
       {name === "import" && (
         <>
           <path d="M12 3v11" />
@@ -54,6 +63,7 @@ function NavIcon({ name }: { name: NavIconName }) {
           <path d="M5 17.5v1A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5v-1" />
         </>
       )}
+
       {name === "new-client" && (
         <>
           <circle cx="9" cy="8" r="3" />
@@ -64,17 +74,38 @@ function NavIcon({ name }: { name: NavIconName }) {
   );
 }
 
-export default async function StaffLayout({ children }: { children: React.ReactNode }) {
+export default async function StaffLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  /*
+   * Existing authoritative session guard.
+   * Do not duplicate or replace this guard in the visual layer.
+   */
   const session = await getStaffSession();
-  if (!session) redirect("/staff/login");
 
+  if (!session) {
+    redirect("/staff/login");
+  }
+
+  /*
+   * Existing authoritative data sources.
+   * Presentation changes must never create a parallel state.
+   */
   const [staff, counts] = await Promise.all([
     staffDirectory(session),
     dashboardCounts(session),
   ]);
 
+  /*
+   * Existing authorization-derived UI guard.
+   */
   const mgmt = session.staff.role !== "staff";
-  const alertCount = mgmt ? Number(counts.audit_alerts ?? 0) : 0;
+
+  const alertCount = mgmt
+    ? Number(counts.audit_alerts ?? 0)
+    : 0;
 
   return (
     <StaffProvider
@@ -85,11 +116,20 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       }}
       staff={staff}
     >
+      {/*
+       * Progressive-enhancement layer only.
+       * Does not intercept actions or replace navigation behavior.
+       */}
       <ExecutiveTactileFeedback />
 
       <div className="staff-shell">
         <header className="staff-topbar sticky top-0 z-30">
           <div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-2 px-4 py-3 lg:px-6">
+
+            {/* =========================================================
+                INSTITUTIONAL IDENTITY
+               ========================================================= */}
+
             <Link
               href="/staff"
               aria-label="Career Gate — بوابة التوظيف"
@@ -102,22 +142,49 @@ export default async function StaffLayout({ children }: { children: React.ReactN
                   width={38}
                   height={38}
                   sizes="38px"
+                  priority
                   className="h-[38px] w-[38px] object-contain"
                 />
-                <span aria-hidden="true" className="staff-brand-edge" />
-                <span aria-hidden="true" className="staff-brand-sheen" />
+
+                <span
+                  aria-hidden="true"
+                  className="staff-brand-edge"
+                />
+
+                <span
+                  aria-hidden="true"
+                  className="staff-brand-sheen"
+                />
               </div>
 
               <div className="min-w-0 leading-none">
                 <div className="flex items-center gap-2.5">
-                  <strong className="staff-brand-title">CAREER GATE</strong>
-                  <span aria-hidden="true" className="staff-brand-status" />
+                  <strong className="staff-brand-title">
+                    CAREER GATE
+                  </strong>
+
+                  <span
+                    aria-hidden="true"
+                    className="staff-brand-status"
+                  />
                 </div>
 
-                <div dir="rtl" className="mt-1.5 flex min-w-0 items-center gap-2">
-                  <span className="staff-brand-ar">بوابة التوظيف</span>
-                  <span aria-hidden="true" className="h-3 w-px shrink-0 bg-white/[0.12]" />
-                  <span className="staff-brand-office">مكتب الهجرة — عبدالله المريسي</span>
+                <div
+                  dir="rtl"
+                  className="mt-1.5 flex min-w-0 items-center gap-2"
+                >
+                  <span className="staff-brand-ar">
+                    بوابة التوظيف
+                  </span>
+
+                  <span
+                    aria-hidden="true"
+                    className="h-3 w-px shrink-0 bg-white/[0.12]"
+                  />
+
+                  <span className="staff-brand-office">
+                    مكتب الهجرة — عبدالله المريسي
+                  </span>
                 </div>
 
                 <p className="staff-brand-meta">
@@ -125,6 +192,10 @@ export default async function StaffLayout({ children }: { children: React.ReactN
                 </p>
               </div>
             </Link>
+
+            {/* =========================================================
+                GLOBAL STAFF CONTROLS
+               ========================================================= */}
 
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
               <QuickClientSearch />
@@ -137,29 +208,61 @@ export default async function StaffLayout({ children }: { children: React.ReactN
                   className="executive-control executive-control-alert relative"
                   aria-label="Audit alerts"
                 >
-                  Alerts
+                  <span>Alerts</span>
+
                   {alertCount > 0 && (
-                    <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 font-mono text-[9px] text-white">
+                    <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 font-mono text-[9px] font-bold text-white shadow-[0_0_9px_rgba(239,68,68,.35)]">
                       {alertCount}
                     </span>
                   )}
                 </Link>
               )}
 
-              <div className="executive-session-cluster" role="group" aria-label="Profile and session management">
-                <span className="executive-user-chip" data-testid="me">
+              {/* =======================================================
+                  PROFILE & SESSION MANAGEMENT
+                 ======================================================= */}
+
+              <div
+                className="executive-session-cluster"
+                role="group"
+                aria-label="Profile and session management"
+              >
+                <span
+                  className="executive-user-chip"
+                  data-testid="me"
+                >
                   <span className="executive-user-dot" />
-                  <span className="max-w-32 truncate">{session.staff.display_name}</span>
-                  <span className="executive-role-badge">{session.staff.role}</span>
+
+                  <span className="max-w-32 truncate">
+                    {session.staff.display_name}
+                  </span>
+
+                  <span className="executive-role-badge">
+                    {session.staff.role}
+                  </span>
                 </span>
 
-                <Link href="/staff?tab=settings" className="executive-control">
-                  Settings
+                <Link
+                  href="/staff?tab=settings"
+                  className="executive-control executive-control-profile"
+                  aria-label="Executive Profile and Settings"
+                >
+                  <span className="executive-control-copy">
+                    <strong>Executive Profile</strong>
+                    <small>Settings</small>
+                  </span>
                 </Link>
 
                 {session.staff.role === "admin" && (
-                  <Link href="/staff/settings/team" className="executive-control">
-                    Roles
+                  <Link
+                    href="/staff/settings/team"
+                    className="executive-control executive-control-role"
+                    aria-label="Role and Permissions"
+                  >
+                    <span className="executive-control-copy">
+                      <strong>Role &amp; Permissions</strong>
+                      <small>Access Control</small>
+                    </span>
                   </Link>
                 )}
 
@@ -167,40 +270,127 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               </div>
             </div>
 
-            <nav className="staff-nav-strip" aria-label="Staff operations">
-              <Link className="staff-nav-link" href="/staff">Dashboard</Link>
-              <Link className="staff-nav-link" data-tone="blue" href="/staff/pipeline">Pipeline</Link>
-              <Link className="staff-nav-link" href="/staff/clients">Clients</Link>
-              <Link className="staff-nav-link" href="/staff/appointments">Appointments</Link>
-              <Link className="staff-nav-link" href="/staff/tasks">Tasks</Link>
-              <Link className="staff-nav-link" href="/staff/follow-ups">Follow-Ups</Link>
-              {mgmt && <Link className="staff-nav-link" href="/staff/reports">Reports</Link>}
+            {/* =========================================================
+                STAFF OPERATIONS NAVIGATION
+               ========================================================= */}
 
-              {mgmt && <span className="staff-nav-divider" aria-hidden="true" />}
+            <nav
+              className="staff-nav-strip"
+              aria-label="Staff operations"
+            >
+              <Link
+                className="staff-nav-link"
+                href="/staff"
+              >
+                Dashboard
+              </Link>
+
+              <Link
+                className="staff-nav-link"
+                data-tone="blue"
+                href="/staff/pipeline"
+              >
+                Pipeline
+              </Link>
+
+              <Link
+                className="staff-nav-link"
+                href="/staff/clients"
+              >
+                Clients
+              </Link>
+
+              <Link
+                className="staff-nav-link"
+                href="/staff/appointments"
+              >
+                Appointments
+              </Link>
+
+              <Link
+                className="staff-nav-link"
+                href="/staff/tasks"
+              >
+                Tasks
+              </Link>
+
+              <Link
+                className="staff-nav-link"
+                href="/staff/follow-ups"
+              >
+                Follow-Ups
+              </Link>
 
               {mgmt && (
-                <Link className="staff-nav-link staff-nav-priority" data-tone="gold" href="/staff/accounting">
+                <Link
+                  className="staff-nav-link"
+                  href="/staff/reports"
+                >
+                  Reports
+                </Link>
+              )}
+
+              {mgmt && (
+                <span
+                  className="staff-nav-divider"
+                  aria-hidden="true"
+                />
+              )}
+
+              {/* ACCOUNTING */}
+
+              {mgmt && (
+                <Link
+                  className="staff-nav-link staff-nav-priority"
+                  data-tone="gold"
+                  href="/staff/accounting"
+                >
                   <NavIcon name="accounting" />
                   <span>Accounting</span>
                 </Link>
               )}
+
+              {/* DISTRIBUTION */}
+
               {mgmt && (
-                <Link className="staff-nav-link staff-nav-priority" data-tone="cyan" href="/staff/distribution">
+                <Link
+                  className="staff-nav-link staff-nav-priority"
+                  data-tone="cyan"
+                  href="/staff/distribution"
+                >
                   <NavIcon name="distribution" />
                   <span>Distribution</span>
                 </Link>
               )}
+
+              {/* IMPORT */}
+
               {mgmt && (
-                <Link className="staff-nav-link staff-nav-priority" data-tone="violet" href="/staff/import">
+                <Link
+                  className="staff-nav-link staff-nav-priority"
+                  data-tone="violet"
+                  href="/staff/import"
+                >
                   <NavIcon name="import" />
                   <span>Import</span>
                 </Link>
               )}
 
-              {mgmt && <span className="staff-nav-divider" aria-hidden="true" />}
+              {mgmt && (
+                <span
+                  className="staff-nav-divider"
+                  aria-hidden="true"
+                />
+              )}
+
+              {/* NEW CLIENT */}
 
               {mgmt && (
-                <Link className="staff-nav-link staff-nav-priority" data-tone="emerald" href="/staff/new-client">
+                <Link
+                  className="staff-nav-link staff-nav-priority"
+                  data-tone="emerald"
+                  href="/staff/new-client"
+                >
                   <NavIcon name="new-client" />
                   <span>New Client</span>
                 </Link>
@@ -209,7 +399,9 @@ export default async function StaffLayout({ children }: { children: React.ReactN
           </div>
         </header>
 
-        <main className="px-4 py-5 lg:px-6">{children}</main>
+        <main className="px-4 py-5 lg:px-6">
+          {children}
+        </main>
       </div>
     </StaffProvider>
   );
