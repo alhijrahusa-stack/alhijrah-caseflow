@@ -1,5 +1,6 @@
--- Career Gate staff identity, access policy, roster migration, RLS alignment,
--- and least-privilege EXECUTE grants. In-place only; no table rebuilds.
+-- Career Gate staff identity/access hardening and RLS alignment.
+-- In-place only: preserve existing production staff names, emails, auth links,
+-- staff codes, assignments, and history. Staff codes remain display/audit identity.
 
 alter table public.staff add column if not exists legacy_code text;
 alter table public.staff add column if not exists access_scope text not null default 'full';
@@ -17,80 +18,21 @@ create unique index if not exists staff_email_ci_unique
 create unique index if not exists staff_legacy_code_unique
   on public.staff (legacy_code) where legacy_code is not null;
 
--- Production roster: stable UUIDs preserve every existing FK/history link.
--- Detach the existing alhijrahusa@gmail.com auth identity from Abdullah before
--- assigning that email/auth identity to Yusuf.
+-- Preserve the existing roster and authentication ownership. Promote the
+-- existing system owner in place so super-admin-only policy has one authority
+-- without reassigning any email, auth user, staff code, or foreign key.
 update public.staff
-set display_name = 'عبدالله عبدالحكيم المريسي',
-    email = 'careergate.official@gmail.com',
-    role = 'super_admin',
-    active = true,
-    auth_user_id = null,
-    staff_code = 'AHS-SA-0101',
-    legacy_code = 'AHS-SA-101',
+set role = 'super_admin',
     access_scope = 'full',
+    legacy_code = coalesce(legacy_code, staff_code),
     updated_at = now()
 where id = 'af25f228-3ffc-452d-8f3b-b83267fb173f'::uuid;
 
 update public.staff
-set display_name = 'صلاح عبدالحكيم',
-    email = 'salahkiarry2025@gmail.com',
-    role = 'admin',
-    active = true,
-    staff_code = 'AHS-AD-0102',
-    legacy_code = 'AHS-AD-102',
-    access_scope = 'full',
+set access_scope = 'full',
+    legacy_code = coalesce(legacy_code, staff_code),
     updated_at = now()
-where id = 'b774e907-2083-43f7-b6b1-2b0b2b6a032c'::uuid;
-
-update public.staff
-set display_name = 'محمد عبدالحكيم',
-    email = 'abunoran92@gmail.com',
-    role = 'staff',
-    active = true,
-    staff_code = 'AHS-CG-0103',
-    legacy_code = 'AHS-CG-103',
-    access_scope = 'full',
-    updated_at = now()
-where id = '5f169d76-dc80-4485-9b95-9542913ed63a'::uuid;
-
-update public.staff
-set display_name = 'يوسف عبدالحكيم',
-    email = 'alhijrahusa@gmail.com',
-    role = 'staff',
-    active = true,
-    auth_user_id = (
-      select u.id from auth.users u
-      where lower(u.email) = 'alhijrahusa@gmail.com'
-      order by u.created_at limit 1
-    ),
-    staff_code = 'AHS-CG-0104',
-    legacy_code = 'AHS-CG-104',
-    access_scope = 'full',
-    updated_at = now()
-where id = '89f42ff9-154c-4b3d-9843-e19701bb4a58'::uuid;
-
-update public.staff
-set display_name = 'أنس عبدالحكيم',
-    email = 'abwmyasalmrysy570@gmail.com',
-    role = 'staff',
-    active = true,
-    staff_code = 'AHS-CG-0105',
-    legacy_code = 'AHS-CG-105',
-    access_scope = 'full',
-    updated_at = now()
-where id = '46170ffd-640d-4c78-a782-2202b7b6a6ee'::uuid;
-
-update public.staff
-set display_name = 'فاطمة عبدالحكيم',
-    email = 'abdullahayz93@gmail.com',
-    role = 'staff',
-    active = true,
-    staff_code = 'AHS-CG-0106',
-    legacy_code = 'AHS-CG-106',
-    access_scope = 'full',
-    updated_at = now()
-where id = '3ac5ce29-b210-4a0f-9b3c-07bb195cadd7'::uuid;
+where id <> 'af25f228-3ffc-452d-8f3b-b83267fb173f'::uuid;
 
 create or replace function public.cg_staff_id()
 returns uuid language sql stable security definer set search_path=public as $$
