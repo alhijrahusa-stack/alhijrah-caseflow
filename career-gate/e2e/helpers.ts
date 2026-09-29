@@ -60,7 +60,7 @@ export function intakeBody(name: string, extra: Record<string, unknown> = {}) {
     primary: FIXTURE_CATALOG ? [{ site_code: "TST1", job_id: "J-A", shift_code: "S1" }] : [],
     backup: [],
     communication_consent: true,
-    authorization: { version: "2026-09-26.1", accepted: true, accuracy_acknowledged: true, printed_name: name, signature: name },
+    authorization: { version: "2026-09-28.1", accepted: true, accuracy_acknowledged: true, printed_name: name, signature: name },
     ...extra,
   };
 }
