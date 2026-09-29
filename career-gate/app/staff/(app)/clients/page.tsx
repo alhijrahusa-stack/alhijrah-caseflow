@@ -35,9 +35,17 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const filtered = Boolean(filters.q || filters.status || filters.city || filters.assigned || filters.appointment_date || filters.followup);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Clients</h1>
-      <form className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3" role="search">
+    <div className="ops-page space-y-4">
+      <header className="ops-hero">
+        <div>
+          <p className="ops-kicker">CAREER GATE · CLIENT OPERATIONS</p>
+          <h1>Clients</h1>
+          <p>{total} active client file{total === 1 ? "" : "s"} · searchable operational record</p>
+        </div>
+        {session.staff.role !== "staff" && <Link href="/staff/new-client" className="ops-primary-button">+ New Client</Link>}
+      </header>
+
+      <form className="ops-glass-card flex flex-wrap items-end gap-2" role="search">
         <input name="q" defaultValue={filters.q} placeholder="Reference, name, phone or email" className="input w-64" aria-label="Search" />
         <select name="status" defaultValue={filters.status ?? ""} className="input w-52" aria-label="Status">
           <option value="">All statuses</option>
@@ -58,18 +66,18 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         <label className="flex items-center gap-1 text-sm">
           <input type="checkbox" name="followup" value="due" defaultChecked={filters.followup === "due"} /> Follow-up due
         </label>
-        <button className="rounded-md bg-slate-800 px-4 py-2 text-sm text-white">Apply</button>
-        <Link href="/staff/clients" className="px-2 py-2 text-sm text-slate-500">Clear</Link>
+        <button className="ops-primary-button">Apply</button>
+        <Link href="/staff/clients" className="px-3 py-2 text-sm text-slate-500">Clear</Link>
       </form>
 
       {rows.length === 0 ? (
         <EmptyState
           title={filtered ? "No clients match these filters" : "No clients yet"}
           text={filtered ? "Change or clear the filters to see more clients." : "Applications from /apply and files created by the office appear here."}
-          action={session.staff.role !== "staff" ? <Link href="/staff/new-client" className="rounded-md bg-brand-600 px-3 py-1.5 text-sm text-white">+ New Client</Link> : undefined}
+          action={session.staff.role !== "staff" ? <Link href="/staff/new-client" className="ops-primary-button">+ New Client</Link> : undefined}
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="ops-glass-card overflow-x-auto p-0">
           <table className="table">
             <thead>
               <tr>
@@ -79,7 +87,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             </thead>
             <tbody>
               {rows.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50">
+                <tr key={c.id}>
                   <td className="whitespace-nowrap font-mono text-xs"><Link href={`/staff/client/${c.id}`} className="text-brand-700 hover:underline">{c.ref}</Link></td>
                   <td><Link href={`/staff/client/${c.id}`} className="font-medium text-brand-700 hover:underline">{c.full_name}</Link></td>
                   <td className="whitespace-nowrap">{formatPhone(c.phone)}</td>
