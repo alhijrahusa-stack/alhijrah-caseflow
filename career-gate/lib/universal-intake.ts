@@ -1,8 +1,10 @@
 import "server-only";
+import { createOpenAI } from "@ai-sdk/openai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 import { options, type Option, type Selection } from "@/lib/catalog";
 import { withStaff, type StaffSession } from "@/lib/auth";
-import { geminiExtract } from "@/lib/providers/gemini";
+import { registry } from "@/lib/providers/config";
 import { ProfileSchema, StatusSchema, issuesMessage } from "@/lib/schemas";
 import { ActionError, insertClient } from "@/lib/service";
 import type { IntakeRow } from "@/lib/intake-file";
@@ -334,34 +336,6 @@ export async function importRows(session: StaffSession, rows: IntakeRow[], sourc
   };
 }
 
-const OCR_SCHEMA = {
-  type: "OBJECT",
-  properties: {
-    clients: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: {
-          full_name: { type: "STRING", nullable: true },
-          phone: { type: "STRING", nullable: true },
-          email: { type: "STRING", nullable: true },
-          date_of_birth: { type: "STRING", nullable: true },
-          preferred_language: { type: "STRING", nullable: true },
-          street: { type: "STRING", nullable: true },
-          city: { type: "STRING", nullable: true },
-          state: { type: "STRING", nullable: true },
-          zip: { type: "STRING", nullable: true },
-          site_code: { type: "STRING", nullable: true },
-          job_id: { type: "STRING", nullable: true },
-          shift_code: { type: "STRING", nullable: true },
-        },
-        required: ["full_name", "phone", "email", "date_of_birth", "preferred_language", "street", "city", "state", "zip", "site_code", "job_id", "shift_code"],
-      },
-    },
-  },
-  required: ["clients"],
-};
-
 const OcrResult = z.object({
   clients: z.array(z.object({
     full_name: z.string().nullable(), phone: z.string().nullable(), email: z.string().nullable(), date_of_birth: z.string().nullable(),
@@ -373,19 +347,24 @@ const OcrResult = z.object({
 const OCR_PROMPT = `Extract client application rows from this file. Return only values visibly present in the source. Do not infer, repair, guess, or complete missing data. One source row or application equals one clients item. Dates must be copied as YYYY-MM-DD only when the source supports that exact date. For Amazon assignment fields, return site_code, job_id, and shift_code only when those exact codes are visibly present. Otherwise return null.`;
 
 export async function rowsFromImageOrPdf(bytes: Uint8Array, mimeType: string) {
-  let lastMessage = "Document extraction failed";
-  for (const model of ["fast", "escalation"] as const) {
-    const result = await geminiExtract({ model, mimeType, data: bytes, prompt: OCR_PROMPT, responseSchema: OCR_SCHEMA });
-    if (!result.ok) {
-      lastMessage = result.message;
-      if (result.code === "NOT_CONFIGURED") throw new ActionError("ocr_not_configured", result.message, 503);
-      continue;
-    }
-    let json: unknown;
-    try { json = JSON.parse(result.text); } catch { lastMessage = "OCR provider returned invalid JSON"; continue; }
-    const parsed = OcrResult.safeParse(json);
-    if (!parsed.success) { lastMessage = parsed.error.issues[0]?.message ?? "OCR output failed validation"; continue; }
-    return parsed.data.clients.map((c) => ({
+  const cfg = registry.documentVision();
+  if (!cfg.apiKey || !cfg.model) throw new ActionError("ocr_not_configured", "Document vision is NOT_CONFIGURED", 503);
+
+  const openai = createOpenAI({ apiKey: cfg.apiKey });
+  const binary = Buffer.from(bytes);
+  const media = mimeType === "application/pdf"
+    ? ({ type: "file", data: binary, mediaType: "application/pdf" } as const)
+    : ({ type: "image", image: binary, mediaType: mimeType } as const);
+
+  try {
+    const result = await generateText({
+      model: openai(cfg.model),
+      output: Output.object({ schema: OcrResult }),
+      temperature: 0,
+      abortSignal: AbortSignal.timeout(45_000),
+      messages: [{ role: "user", content: [{ type: "text", text: OCR_PROMPT }, media] }],
+    });
+    return result.output.clients.map((c) => ({
       full_name: c.full_name,
       phone: c.phone,
       email: c.email,
@@ -399,6 +378,7 @@ export async function rowsFromImageOrPdf(bytes: Uint8Array, mimeType: string) {
       job_id: c.job_id,
       shift_code: c.shift_code,
     })) satisfies IntakeRow[];
+  } catch (error) {
+    throw new ActionError("ocr_failed", error instanceof Error ? error.message : "Document extraction failed", 422);
   }
-  throw new ActionError("ocr_failed", lastMessage, 422);
 }
