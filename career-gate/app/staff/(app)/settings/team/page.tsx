@@ -7,13 +7,20 @@ import { staffDirectory } from "@/lib/queries";
 export default async function TeamPage() {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
-  if (session.staff.role !== "admin") return <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" data-testid="forbidden">403 — Admin only.</p>;
+  if (session.staff.role !== "admin") return <p className="ops-error" data-testid="forbidden">403 — Admin only.</p>;
   const staff = await staffDirectory(session);
+  const active = staff.filter((member) => member.active).length;
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Team</h1>
-      <TeamSettings staff={staff} meId={session.staff.id} />
-      <Integrations />
+    <div className="ops-page space-y-4">
+      <header className="ops-hero">
+        <div>
+          <p className="ops-kicker">CAREER GATE · ADMINISTRATION</p>
+          <h1>Team</h1>
+          <p>{active} active staff member{active === 1 ? "" : "s"} · roles, availability and integrations</p>
+        </div>
+      </header>
+      <section className="ops-glass-card"><TeamSettings staff={staff} meId={session.staff.id} /></section>
+      <section className="ops-glass-card"><Integrations /></section>
     </div>
   );
 }
