@@ -202,6 +202,8 @@ test.describe.serial("office workflow", () => {
   });
 
   test("assessments stay UNRESOLVED until the client confirms", async () => {
+    await page.getByRole("button", { name: /Documents/ }).click();
+    await expect(page.getByTestId("documents-tab-content")).toBeVisible();
     await page.getByTestId("section-assessments").getByRole("button", { name: "+ Add standard items" }).click();
     await expect(page.getByTestId("assessment-item_10")).toContainText("UNRESOLVED — NEEDS CLIENT CONFIRMATION");
     await page.getByTestId("assessment-education").getByRole("button", { name: "Update" }).click();
@@ -215,16 +217,19 @@ test.describe.serial("office workflow", () => {
   });
 
   test("post-hire start date, intake agent, activity log", async () => {
+    await page.getByRole("button", { name: "Profile", exact: true }).click();
     const row = page.getByTestId("post-hire-start_date");
     await row.getByLabel("Start Date status").selectOption("confirmed");
     await row.getByLabel("Start date", { exact: true }).fill("2030-01-15");
     await row.getByRole("button", { name: "Save" }).click();
     await expect(page.getByTestId("post-hire-start_date")).toContainText("TEST Admin");
 
+    await page.getByRole("button", { name: /Notes \/ Tasks \/ Contacts/ }).click();
     await page.getByTestId("section-intake-agent").getByRole("button", { name: "Run check" }).click();
     await expect(page.getByTestId("intake-agent-output")).toContainText("agent model NOT_CONFIGURED");
 
     await page.reload();
+    await page.getByRole("button", { name: /Activity Log/ }).click();
     const actions = await page.getByTestId("activity-row").evaluateAll((els) => els.map((e) => e.getAttribute("data-action")));
     for (const a of [
       "client_created", "client_updated", "staff_assigned", "document_uploaded", "document_processed", "document_opened",
@@ -284,7 +289,9 @@ test.describe.serial("office workflow", () => {
     expect(officeRef).toMatch(/^CG-\d{4}-\d{6}$/);
     expect(officeRef).not.toBe(ref);
     await expect(p.getByTestId("current-status")).toContainText("Needs Review");
+    await p.getByRole("button", { name: /Notes \/ Tasks \/ Contacts/ }).click();
     await expect(p.getByTestId("note-row")).toContainText(`Walk-in ${RUN}`);
+    await p.getByRole("button", { name: /Documents/ }).click();
     await expect(p.getByTestId("document-row")).toHaveCount(1);
     await p.getByTestId("quick-actions").getByRole("button", { name: "Change Status" }).click();
     await p.getByTestId("form-status").getByLabel("New status").selectOption("ready_to_apply");
