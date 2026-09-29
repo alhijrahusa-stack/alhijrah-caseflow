@@ -1,0 +1,581 @@
+/* Career Gate — Executive Tactile UI refinement layer.
+   Presentation-only: no business logic, auth, API, database, RLS, or state-machine behavior. */
+
+.staff-shell {
+  --tactile-gold: #c5a059;
+  --tactile-gold-soft: #e8c982;
+  --tactile-titanium: #91a2b7;
+  --tactile-cyan: #69d7ff;
+  --tactile-violet: #b8a8ff;
+  --tactile-emerald: #6ee7b7;
+  --tactile-press-shadow: inset 0 4px 9px rgba(0, 0, 0, .72), inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+/* Institutional brand block */
+.staff-brand-link {
+  text-decoration: none;
+}
+
+.staff-brand-mark {
+  position: relative;
+  display: flex;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(197, 160, 89, .28);
+  border-radius: 15px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.085), rgba(255,255,255,.02)),
+    linear-gradient(180deg, rgba(27,40,63,.92), rgba(8,15,27,.96));
+  box-shadow:
+    0 12px 32px rgba(0,0,0,.28),
+    inset 0 1px 0 rgba(255,255,255,.11),
+    inset 0 -1px 0 rgba(197,160,89,.06);
+  transition: transform .18s cubic-bezier(.16,1,.3,1), border-color .18s ease, box-shadow .18s ease;
+}
+
+.staff-brand-link:hover .staff-brand-mark {
+  transform: translateY(-1px);
+  border-color: rgba(197, 160, 89, .5);
+  box-shadow:
+    0 15px 38px rgba(0,0,0,.32),
+    0 0 28px rgba(197,160,89,.06),
+    inset 0 1px 0 rgba(255,255,255,.14);
+}
+
+.staff-brand-edge {
+  pointer-events: none;
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(232,201,130,.7), transparent);
+}
+
+.staff-brand-sheen {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.075), transparent 42%);
+}
+
+.staff-brand-title {
+  display: block;
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 8px 24px rgba(0,0,0,.3);
+}
+
+.staff-brand-status {
+  width: 4px;
+  height: 4px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(232, 201, 130, .92);
+  box-shadow: 0 0 9px rgba(232,201,130,.38);
+}
+
+.staff-brand-ar {
+  flex: 0 0 auto;
+  color: #e7edf5;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.staff-brand-office {
+  overflow: hidden;
+  color: #8999ad;
+  font-size: 10.5px;
+  font-weight: 560;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-brand-meta {
+  margin-top: 6px;
+  overflow: hidden;
+  color: #586b82;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: .11em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Profile & session controls — existing session behavior only. */
+.executive-session-cluster {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px;
+  border: 1px solid rgba(197,160,89,.12);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(18,29,47,.76), rgba(7,14,25,.82));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.045), 0 8px 24px rgba(0,0,0,.16);
+}
+
+.executive-user-chip {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 9px;
+  border-right: 1px solid rgba(255,255,255,.06);
+  color: #dce5ef;
+  font-size: 11px;
+}
+
+.executive-user-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #34d399;
+  box-shadow: 0 0 10px rgba(52,211,153,.4);
+}
+
+.executive-role-badge {
+  border: 1px solid rgba(197,160,89,.16);
+  border-radius: 999px;
+  padding: 3px 6px;
+  color: #aebdce;
+  background: rgba(197,160,89,.035);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.executive-control,
+.executive-session-cluster button {
+  min-height: 34px;
+  border: 1px solid rgba(197,160,89,.18) !important;
+  border-radius: 10px !important;
+  padding: 8px 10px !important;
+  color: #aebed0 !important;
+  background: linear-gradient(180deg, rgba(28,42,66,.82), rgba(10,17,29,.9)) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.09) !important;
+  font-size: 10.5px !important;
+  font-weight: 650 !important;
+  line-height: 1 !important;
+  text-decoration: none;
+  transition: transform .12s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, background .16s ease !important;
+}
+
+.executive-control:hover,
+.executive-session-cluster button:hover {
+  color: #f8fafc !important;
+  border-color: rgba(197,160,89,.42) !important;
+  background: linear-gradient(180deg, rgba(34,50,77,.9), rgba(12,20,34,.96)) !important;
+  transform: translateY(-1px);
+}
+
+.executive-control-alert {
+  color: #d7e2ee !important;
+}
+
+.executive-session-cluster button:last-child {
+  color: #f3b2b7 !important;
+  border-color: rgba(248,113,113,.2) !important;
+}
+
+.executive-session-cluster button:last-child:hover {
+  color: #fecaca !important;
+  border-color: rgba(248,113,113,.45) !important;
+  background: linear-gradient(180deg, rgba(64,27,36,.72), rgba(25,12,18,.92)) !important;
+}
+
+/* High-priority navigation: larger typography and distinct icon color. */
+.staff-nav-link {
+  min-height: 34px;
+}
+
+.staff-nav-link[data-tone="blue"] {
+  color: #9cc5ff;
+  border-color: rgba(79,140,255,.14);
+  background: rgba(79,140,255,.035);
+}
+
+.staff-nav-priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .015em;
+}
+
+.staff-nav-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.2));
+}
+
+.staff-nav-link[data-tone="gold"] {
+  color: #e7c979;
+  border-color: rgba(197,160,89,.22);
+  background: rgba(197,160,89,.055);
+}
+.staff-nav-link[data-tone="gold"] .staff-nav-icon { color: #f1cf79; }
+
+.staff-nav-link[data-tone="cyan"] {
+  color: #9ce8ff;
+  border-color: rgba(83,200,255,.18);
+  background: rgba(83,200,255,.045);
+}
+.staff-nav-link[data-tone="cyan"] .staff-nav-icon { color: #64dcff; }
+
+.staff-nav-link[data-tone="violet"] {
+  color: #c8bcff;
+  border-color: rgba(139,92,246,.2);
+  background: rgba(139,92,246,.05);
+}
+.staff-nav-link[data-tone="violet"] .staff-nav-icon { color: #ad97ff; }
+
+.staff-nav-link[data-tone="emerald"] {
+  color: #99f1cf;
+  border-color: rgba(16,185,129,.2);
+  background: rgba(16,185,129,.05);
+}
+.staff-nav-link[data-tone="emerald"] .staff-nav-icon { color: #5ee6b6; }
+
+/* Physical/tactile response. No action behavior is replaced or intercepted. */
+.staff-nav-link,
+.executive-control,
+.executive-session-cluster button,
+.ops-primary-button,
+.ops-segmented button,
+.staff-bottom-bar a,
+.staff-bottom-bar button,
+.staff-sidepanel a,
+.staff-sidepanel button {
+  transform-origin: center;
+  will-change: transform;
+}
+
+.staff-nav-link:active,
+.executive-control:active,
+.executive-session-cluster button:active,
+.ops-primary-button:active:not(:disabled),
+.ops-segmented button:active:not(:disabled),
+.staff-bottom-bar a:active,
+.staff-bottom-bar button:active:not(:disabled),
+.staff-sidepanel a:active,
+.staff-sidepanel button:active:not(:disabled) {
+  transform: translateY(3px) scale(.995) !important;
+  box-shadow: var(--tactile-press-shadow) !important;
+  filter: brightness(.96);
+}
+
+.ops-primary-button {
+  min-height: 39px;
+  border-color: rgba(197,160,89,.28);
+  border-radius: 11px;
+  background: linear-gradient(180deg, #235fbe, #173d85);
+  box-shadow:
+    0 5px 14px rgba(0,0,0,.34),
+    0 11px 28px rgba(24,77,177,.13),
+    inset 0 1px 0 rgba(255,255,255,.18),
+    inset 0 -1px 0 rgba(197,160,89,.08);
+  font-size: 11.5px;
+  letter-spacing: .015em;
+}
+
+.ops-primary-button:hover:not(:disabled) {
+  border-color: rgba(197,160,89,.48);
+  box-shadow:
+    0 7px 18px rgba(0,0,0,.36),
+    0 12px 32px rgba(197,160,89,.08),
+    inset 0 1px 0 rgba(255,255,255,.2);
+}
+
+/* Dashboard typography and surface refinement. */
+.staff-client-card {
+  border-radius: 18px;
+  box-shadow:
+    0 16px 42px rgba(0,0,0,.18),
+    inset 0 1px 0 rgba(255,255,255,.05),
+    inset 0 -1px 0 rgba(197,160,89,.025);
+}
+
+.staff-client-card h3 {
+  font-size: 14px !important;
+  font-weight: 720 !important;
+  letter-spacing: -.01em;
+}
+
+.staff-client-card code {
+  font-size: 10.5px !important;
+}
+
+.staff-client-card p {
+  font-size: 12px !important;
+  line-height: 1.55;
+}
+
+.staff-client-card button {
+  min-height: 34px;
+  border-color: rgba(197,160,89,.16) !important;
+  background: linear-gradient(180deg, rgba(27,40,62,.72), rgba(10,17,29,.82));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.065), 0 5px 14px rgba(0,0,0,.18);
+}
+
+.staff-kpi {
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(197,160,89,.045), transparent 12rem),
+    linear-gradient(155deg, rgba(255,255,255,.052), rgba(255,255,255,.016)),
+    rgba(8,18,31,.78);
+}
+
+.staff-kpi p:first-child {
+  font-size: 11px !important;
+  font-weight: 600;
+  letter-spacing: .015em;
+}
+
+.staff-glass > summary {
+  min-height: 48px;
+  font-size: 13px !important;
+  font-weight: 680 !important;
+}
+
+.staff-tab {
+  min-height: 40px;
+  font-size: 13px !important;
+}
+
+/* Candidate Pipeline — larger, balanced client-card typography. */
+.ops-kanban .ops-column-head strong {
+  font-size: 12.5px;
+  font-weight: 720;
+}
+
+.ops-kanban .ops-column-head span:not(.ops-stage-dot) {
+  font-size: 10.5px;
+}
+
+.ops-kanban .ops-client-card {
+  border-radius: 15px;
+  padding: 13px;
+  background:
+    linear-gradient(160deg, rgba(255,255,255,.035), rgba(255,255,255,.01)),
+    rgba(6,13,23,.72);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 10px 28px rgba(0,0,0,.12);
+}
+
+.ops-kanban .ops-client-head h3 {
+  font-size: 13.5px;
+  font-weight: 720;
+  letter-spacing: -.01em;
+}
+
+.ops-kanban .ops-client-head code {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.ops-kanban .ops-client-meta span {
+  padding: 4px 6px;
+  font-size: 9.5px;
+  line-height: 1.25;
+}
+
+.ops-kanban .ops-next {
+  margin: 10px 0;
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+.ops-kanban .ops-next span,
+.ops-kanban .ops-client-actions a {
+  font-size: 9.5px;
+}
+
+.ops-kanban .ops-select {
+  min-height: 34px;
+  font-size: 10.5px;
+}
+
+/* Location/shift client cards — same information, stronger hierarchy. */
+.ops-dispatch-lane > header strong {
+  font-size: 12.5px;
+  font-weight: 720;
+}
+
+.ops-dispatch-lane > header span {
+  font-size: 10px;
+}
+
+.ops-dispatch-client {
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.ops-dispatch-client-head strong {
+  font-size: 13px;
+  font-weight: 720;
+  letter-spacing: -.01em;
+}
+
+.ops-dispatch-client-head code {
+  margin-top: 3px;
+  font-size: 9.5px;
+}
+
+.ops-auto-badge {
+  font-size: 8px;
+}
+
+.ops-dispatch-meta span,
+.ops-dispatch-footer span,
+.ops-dispatch-footer b {
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
+/* Staff & Task Distribution — denser enterprise typography without changing actions. */
+.ops-staff-card {
+  border-radius: 17px;
+  padding: 15px 16px;
+}
+
+.ops-staff-card code { font-size: 9.5px; }
+.ops-staff-card strong { font-size: 12.5px; font-weight: 720; }
+.ops-staff-card > span { font-size: 14px; }
+.ops-staff-card small { font-size: 9.5px; line-height: 1.4; }
+
+.ops-distribution-table-wrap .ops-table thead th,
+.staff-shell main .table thead th {
+  font-size: 10.5px;
+}
+
+.ops-distribution-table-wrap .ops-table tbody td,
+.staff-shell main .table tbody td {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ops-distribution-table-wrap .ops-table tbody td strong {
+  color: #eef4fb;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.ops-distribution-table-wrap .ops-table tbody td span {
+  font-size: 10.5px;
+}
+
+.ops-distribution-table-wrap .ops-table tbody td a {
+  color: #8bd7ff;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+/* Glass-card uplift used by Reports and operational pages. */
+.ops-glass-card {
+  border-color: rgba(197,160,89,.13);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(83,200,255,.035), transparent 17rem),
+    linear-gradient(155deg, rgba(255,255,255,.052), rgba(255,255,255,.014)),
+    rgba(8,18,31,.78);
+  box-shadow:
+    0 18px 56px rgba(0,0,0,.18),
+    inset 0 1px 0 rgba(255,255,255,.05),
+    inset 0 -1px 0 rgba(197,160,89,.025);
+}
+
+.ops-glass-card h2 {
+  font-size: 13px !important;
+  font-weight: 720 !important;
+  letter-spacing: -.005em;
+}
+
+.ops-glass-card .table tbody tr:last-child td {
+  border-bottom-color: transparent;
+}
+
+.ops-hero {
+  border-color: rgba(197,160,89,.18);
+  background:
+    radial-gradient(circle at 94% 0%, rgba(83,200,255,.095), transparent 24rem),
+    radial-gradient(circle at 4% 95%, rgba(197,160,89,.07), transparent 22rem),
+    linear-gradient(145deg, rgba(21,34,54,.78), rgba(7,13,23,.88));
+}
+
+.ops-hero h1 {
+  font-size: clamp(1.55rem, 2vw, 2.1rem);
+}
+
+.ops-hero p:not(.ops-kicker) {
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* Micro-polish for Arabic text inside operational surfaces. */
+.staff-shell [dir="rtl"] {
+  letter-spacing: 0;
+}
+
+.ops-hero [dir="rtl"],
+.ops-dispatch-lane [dir="rtl"],
+.staff-client-card [dir="rtl"] {
+  font-size: 1.04em;
+}
+
+@media (min-width: 900px) {
+  .executive-user-chip { display: flex; }
+}
+
+@media (max-width: 760px) {
+  .staff-brand-mark {
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+  }
+
+  .staff-brand-mark img {
+    width: 34px;
+    height: 34px;
+  }
+
+  .staff-brand-office,
+  .staff-brand-meta {
+    display: none;
+  }
+
+  .staff-brand-title { font-size: 12px; }
+  .staff-brand-ar { font-size: 11.5px; }
+  .executive-session-cluster { width: 100%; justify-content: flex-end; }
+  .staff-nav-priority { font-size: 11.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-brand-mark,
+  .staff-nav-link,
+  .executive-control,
+  .executive-session-cluster button,
+  .ops-primary-button,
+  .ops-segmented button,
+  .staff-bottom-bar a,
+  .staff-bottom-bar button,
+  .staff-sidepanel a,
+  .staff-sidepanel button {
+    transform: none !important;
+  }
+}
