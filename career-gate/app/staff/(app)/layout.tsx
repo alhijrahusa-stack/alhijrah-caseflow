@@ -16,6 +16,7 @@ import "../extras.css";
 import "../executive-upgrade.css";
 import "../recent-clients-titanium.css";
 import "../executive-tactile-v2.css";
+import "../interaction-layer-fix.css";
 
 export const dynamic = "force-dynamic";
 
