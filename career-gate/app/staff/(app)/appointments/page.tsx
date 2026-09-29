@@ -15,18 +15,21 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const view = VIEWS.some(([k]) => k === v) ? v! : "upcoming";
   const rows = JSON.parse(JSON.stringify(await appointmentList(session, view)));
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <h1 className="text-2xl font-semibold">Appointments</h1>
+    <div className="ops-page space-y-4">
+      <header className="ops-hero">
+        <div>
+          <p className="ops-kicker">CAREER GATE · SCHEDULING</p>
+          <h1>Appointments</h1>
+          <p>{rows.length} appointment{rows.length === 1 ? "" : "s"} in this view · internal office calendar</p>
+        </div>
         <nav className="flex gap-3 text-sm" aria-label="Views">
           {VIEWS.map(([k, l]) => <Link key={k} href={`/staff/appointments?view=${k}`} aria-current={k === view ? "page" : undefined} className={k === view ? "font-semibold text-brand-700" : "text-slate-500"}>{l}</Link>)}
         </nav>
-        <p className="ml-auto text-sm text-slate-500">Book appointments from a Client File (Add Appointment). Internal calendar only.</p>
-      </div>
+      </header>
       {rows.length === 0 ? (
         <EmptyState title="No appointments in this view" text="Open a client file and use Add Appointment to book the next free slot." action={<Link href="/staff/clients" className="text-sm text-brand-700 hover:underline">Go to clients</Link>} />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="ops-glass-card overflow-x-auto p-0">
           <table className="table">
             <thead><tr><th>When</th><th>Client</th><th>Type</th><th>Location</th><th>Status</th><th>Booked by</th><th /></tr></thead>
             <tbody>
