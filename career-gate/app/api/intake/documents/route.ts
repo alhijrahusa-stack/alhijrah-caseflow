@@ -35,7 +35,15 @@ export async function POST(req: Request) {
   });
   if (!r.ok) return err(r.code, r.error, r.status, traceId);
 
-  after(() => processJobs(5).catch((e) => console.error("public document processing failed", { traceId, documentId: r.id, error: e })));
+  after(() =>
+    processJobs(1).catch((error) =>
+      console.error("public document processing failed", {
+        traceId,
+        documentId: r.id,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    ),
+  );
 
   return ok({ id: r.id, status: r.status }, 201, traceId);
 }
