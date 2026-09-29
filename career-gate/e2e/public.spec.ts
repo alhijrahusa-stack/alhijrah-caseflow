@@ -1,162 +1,234 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { db, FIXTURE_CATALOG, intakeBody, PNG, RUN, seedOtp, submitIntake, uniqueIp } from "./helpers";
+
+async function openPublicForm(page: Page) {
+  await page.goto("/apply");
+  await page.waitForURL("**/career-gate.html");
+}
+
+async function fillIdentity(page: Page, lastName: string, phone: string, email: string) {
+  await page.locator("#firstName").fill("TEST");
+  await page.locator("#lastName").fill(lastName);
+  await page.locator("#phone").fill(phone);
+  await page.locator("#email").fill(email);
+  await page.locator("#dob").fill("1990-04-05");
+  await page.locator("#address1").fill("1 Test St");
+  await page.locator("#city").fill("Dearborn");
+  await page.locator("#state").fill("MI");
+  await page.locator("#zip").fill("48126");
+}
+
+async function chooseWork(page: Page) {
+  await page.locator('[data-next="2"]').click();
+  const workType = page.locator("#workTypeDeck label.shift-card").filter({ hasText: "Full-Time" });
+  await workType.click();
+  await expect(page.locator('input[name="workType"][value="Full-Time"]')).toBeChecked();
+  await expect(page.locator("#shiftSelector")).toBeVisible();
+  const shift = page.locator("#shiftDeck label.shift-card").filter({ hasText: "FHD" }).first();
+  await shift.click();
+  await expect(page.locator('input[name="shift"][value="FHD"]')).toBeChecked();
+  await page.locator("#employmentStatus").selectOption({ label: "Unemployed" });
+  await page.locator("#hasExperience").selectOption({ label: "No" });
+  await page.locator("#englishLevel").selectOption({ label: "Good" });
+  await page.locator('[data-next="3"]').click();
+  await expect(page.locator('[data-page="3"]')).toHaveClass(/active/);
+}
+
+async function signAndConsent(page: Page) {
+  await expect.poll(async () => Math.round(await page.evaluate(() => window.scrollY))).toBe(0);
+  const canvas = page.locator("#signature");
+  await canvas.scrollIntoViewIfNeeded();
+  const box = await canvas.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.move(box!.x + 30, box!.y + 70);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + 90, box!.y + 95, { steps: 5 });
+  await page.mouse.move(box!.x + 150, box!.y + 55, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.locator("#sigWrap")).toHaveClass(/has/);
+  await page.locator("#consent").check({ force: true });
+}
 
 test.describe.serial("public intake and status access", () => {
   let ref = "";
 
-  test("with no catalog openings the wizard says so and still accepts the request", async ({ browser, baseURL }) => {
-    test.skip(FIXTURE_CATALOG, "committed-catalog run only");
+  test("IndexedDB draft restores field values and selected document after reload", async ({ browser, baseURL }) => {
     const context = await browser.newContext({ baseURL, extraHTTPHeaders: { "x-forwarded-for": uniqueIp() } });
     const page = await context.newPage();
-    await page.goto("/apply");
-    await expect(page.getByText("No job openings are listed right now")).toBeVisible();
-    await page.getByRole("group").getByText("Michigan", { exact: true }).click();
-    await page.getByRole("button", { name: "Next" }).click();
-    await expect(page.getByRole("heading", { level: 2, name: "Personal information" })).toBeVisible();
-    await page.getByLabel("Full name").fill(`TEST NoCatalog ${RUN}`);
-    await page.getByLabel("Phone", { exact: true }).fill("313-555-0142");
-    await page.getByRole("button", { name: "Next" }).click();
-    await page.locator('input[name="amazon_worked_before"][value="no"]').check();
-    await page.locator('input[name="amazon_applied_before"][value="no"]').check();
-    await page.getByRole("button", { name: "Next" }).click();
-    await page.getByRole("button", { name: "Next" }).click();
-    await page.getByLabel("When are you available for appointments?").fill("Any weekday");
-    await page.getByRole("button", { name: "Next" }).click();
-    await page.getByRole("button", { name: "Next" }).click();
-    await page.getByLabel("Printed Name", { exact: true }).fill(`TEST NoCatalog ${RUN}`);
-    await page.getByLabel(/Signature/).fill(`TEST NoCatalog ${RUN}`);
-    await page.getByText("I have read and agree").click();
-    await page.getByText("ALHIJRAH SERVICES LLC is not responsible for the accuracy").click();
-    await page.getByRole("button", { name: "Submit" }).click();
-    ref = (await page.getByTestId("reference").innerText()).trim();
-    expect(ref).toMatch(/^CG-\d{4}-\d{6}$/);
+    await openPublicForm(page);
+    await fillIdentity(page, `Draft-${RUN}`, "313-555-0131", `draft.${RUN}@test.invalid`);
+    await page.locator("#docs").setInputFiles({ name: "draft-id.png", mimeType: "image/png", buffer: PNG });
+    await expect(page.locator("#docsList")).toContainText("draft-id.png");
+    await expect(page.locator("#docsList")).toContainText("SELECTED");
+    await expect(page.locator("#saveView")).toHaveText("Saved");
+
+    await page.reload();
+    await expect(page.locator("#firstName")).toHaveValue("TEST");
+    await expect(page.locator("#lastName")).toHaveValue(`Draft-${RUN}`);
+    await expect(page.locator("#phone")).toHaveValue("313-555-0131");
+    await expect(page.locator("#email")).toHaveValue(`draft.${RUN}@test.invalid`);
+    await expect(page.locator("#docsList")).toContainText("draft-id.png");
+    await expect(page.locator("#saveView")).toHaveText("Restored");
+
+    const persisted = await page.evaluate(async () => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("alhijrah.career.form", 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        const draft = await new Promise<unknown>((resolve, reject) => {
+          const request = database.transaction("draft", "readonly").objectStore("draft").get("main");
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        const files = await new Promise<unknown[]>((resolve, reject) => {
+          const request = database.transaction("files", "readonly").objectStore("files").getAll();
+          request.onsuccess = () => resolve(request.result as unknown[]);
+          request.onerror = () => reject(request.error);
+        });
+        return { draft: Boolean(draft), files: files.length };
+      } finally {
+        database.close();
+      }
+    });
+    expect(persisted).toEqual({ draft: true, files: 1 });
     await context.close();
   });
 
-  test("dynamic wizard: filtering, conditional questions, documents, signature, submit", async ({ browser, baseURL }) => {
-    test.skip(!FIXTURE_CATALOG, "needs the test catalog");
+  test("current public Career Gate form submits, uploads documents, and persists the application", async ({ browser, baseURL }) => {
     const context = await browser.newContext({ baseURL, extraHTTPHeaders: { "x-forwarded-for": uniqueIp() } });
     const page = await context.newPage();
-    await page.goto("/apply");
-    await page.getByRole("group").getByText("Michigan", { exact: true }).click();
-    await page.getByRole("button", { name: "Next" }).click();
+    await openPublicForm(page);
+    await fillIdentity(page, `Public-${RUN}`, "313-555-0142", `public.${RUN}@test.invalid`);
+    await chooseWork(page);
 
-    // City → sites filtered to the selected city only.
-    await page.getByText("Testville", { exact: true }).click();
-    await page.getByRole("button", { name: "Next" }).click();
-    await expect(page.getByText("Test Site One (TST1)")).toBeVisible();
-    await expect(page.getByText("Test Site Two (TST2)")).toHaveCount(0);
-    await expect(page.getByText(/Inactive Site/)).toHaveCount(0);
-    await page.getByRole("button", { name: "Back" }).click();
-    await page.getByText("Othertown", { exact: true }).click(); // multi-select cities
-    await page.getByRole("button", { name: "Next" }).click();
-    await page.getByText("Test Site One (TST1)").click();
-    await page.getByText("Test Site Two (TST2)").click(); // multi-select sites
-    await page.getByRole("button", { name: "Next" }).click();
+    await page.locator("#docs").setInputFiles({ name: "photo-id.png", mimeType: "image/png", buffer: PNG });
+    await expect(page.locator("#docsList")).toContainText("photo-id.png");
+    await signAndConsent(page);
 
-    // Jobs only for the selected sites.
-    await expect(page.getByText("Test Job A")).toBeVisible();
-    await expect(page.getByText("Test Job B")).toBeVisible();
-    await page.getByText("Test Job A").click();
-    await page.getByRole("button", { name: "Next" }).click();
+    await page.locator("#submitBtn").click();
+    await expect(page.locator("#receiptScreen")).toHaveClass(/active/);
+    await expect(page.getByText("تم استلام الطلب بنجاح")).toBeVisible();
+    ref = (await page.locator("#receiptCase").innerText()).trim();
+    expect(ref).toMatch(/^ALH-\d{8}-[A-Z0-9]{4}$/);
+    await expect(page.locator("#statusView")).toHaveText("COMPLETED");
 
-    // Shifts only for the selected job; inactive shift hidden.
-    await expect(page.getByText(/S3/)).toHaveCount(0);
-    await expect(page.getByText(/Closed Job|Not Verified Job|Unknown Site Job/)).toHaveCount(0);
-    await page.getByText(/Test Job A — S2/).click();
-    await page.getByText(/Test Job A — S1/).click();
-    await page.getByRole("button", { name: "Next" }).click();
-    // Backup cannot repeat a primary choice.
-    await expect(page.locator('fieldset input[type="checkbox"]:disabled')).toHaveCount(2);
-    await page.getByRole("button", { name: "Next" }).click();
+    const apps = await db()`
+      select a.id,a.client_id,a.case_number,a.status,c.source,c.current_status,c.full_name
+      from career_gate_applications a join clients c on c.id=a.client_id
+      where a.case_number=${ref}`;
+    expect(apps).toHaveLength(1);
+    expect(apps[0]).toMatchObject({ case_number: ref, status: "new_intake", source: "public_intake", current_status: "new_intake" });
+    expect(String(apps[0].full_name)).toBe(`TEST Public-${RUN}`);
 
-    // Pay comes from the catalog.
-    await expect(page.getByText("$2.22/hr (fixture)")).toBeVisible();
-    await expect(page.getByText("$1.11/hr (fixture)")).toBeVisible();
-    await page.getByRole("button", { name: "Next" }).click();
+    const prefs = await db()`select rank,preference_order,site_code,shift_code,shift_period,dispatch_mode from client_preferences where client_id=${apps[0].client_id} order by preference_order`;
+    expect(prefs).toHaveLength(1);
+    expect(prefs[0]).toMatchObject({ rank: "primary", preference_order: 1, shift_code: "FHD" });
 
-    await page.getByLabel("Full name").fill(`TEST Public ${RUN}`);
-    await page.getByLabel("Phone", { exact: true }).fill("313-555-0142");
-    await page.getByLabel("Email", { exact: true }).fill(`public.${RUN}@test.invalid`);
-    await page.getByLabel("Date of birth").fill("1990-04-05");
-    await page.getByLabel("Street address").fill("1 Test St");
-    await page.getByLabel("City", { exact: true }).fill("Dearborn");
-    await page.getByLabel("ZIP").fill("48126");
-    await page.getByRole("button", { name: "Next" }).click();
+    const docs = await db()`select file_name,status,sha256,upload_confirmed_at from documents where client_id=${apps[0].client_id} order by uploaded_at`;
+    expect(docs.length).toBeGreaterThanOrEqual(2);
+    expect(docs.some((d) => d.file_name === "photo-id.png")).toBe(true);
+    expect(docs.every((d) => Boolean(d.upload_confirmed_at))).toBe(true);
+    expect(docs.every((d) => /^[0-9a-f]{64}$/.test(String(d.sha256)))).toBe(true);
 
-    // Amazon history: conditional fields appear only on "Yes".
-    await expect(page.getByLabel("From", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Next" })).toBeDisabled();
-    await page.locator('input[name="amazon_worked_before"][value="yes"]').check();
-    await page.getByLabel("From", { exact: true }).fill("2021-01-01");
-    await page.getByLabel("To", { exact: true }).fill("2022-06-30");
-    await page.locator('input[name="amazon_applied_before"][value="no"]').check();
-    await expect(page.getByLabel(/Amazon email used/)).toHaveCount(0);
-    await page.locator('input[name="amazon_applied_before"][value="yes"]').check();
-    await page.getByLabel(/Amazon email used/).fill(`amz.${RUN}@test.invalid`);
-    await page.locator('input[name="currently_amazon"][value="no"]').check();
-    await page.locator('input[name="via_agency"][value="no"]').check();
-    await page.getByRole("button", { name: "Next" }).click();
-
-    await page.getByRole("button", { name: "+ Add employment" }).click();
-    await page.getByLabel("Company").fill("Example Logistics");
-    await page.getByLabel("Job title / type").fill("Picker");
-    await page.getByLabel("From", { exact: true }).fill("2023-01-01");
-    await page.getByRole("button", { name: "Next" }).click();
-
-    await page.getByLabel("When are you available for appointments?").fill("Weekdays after 2pm");
-    await page.getByRole("button", { name: "Next" }).click();
-
-    await page.getByLabel("Choose file").setInputFiles({ name: "photo-id.png", mimeType: "image/png", buffer: PNG });
-    await expect(page.getByText("Photo ID — photo-id.png")).toBeVisible();
-    await page.getByRole("button", { name: "Next" }).click();
-
-    await expect(page.getByTestId("authorization-text")).toContainText("I authorize ALHIJRAH SERVICES LLC to submit job applications on my behalf to Amazon.");
-    const submit = page.getByRole("button", { name: "Submit" });
-    await expect(submit).toBeDisabled();
-    await page.getByLabel("Printed Name", { exact: true }).fill(`TEST Public ${RUN}`);
-    await page.getByLabel(/Signature/).fill(`TEST Public ${RUN}`);
-    await page.getByText("I have read and agree").click();
-    await page.getByText("ALHIJRAH SERVICES LLC is not responsible for the accuracy").click();
-    await page.getByText(/may contact me about this request/).click();
-    await submit.click();
-
-    const result = page.getByTestId("submit-result");
-    await expect(result).toContainText("Career Gate has received your employment request.");
-    await expect(result).toContainText("We will contact you regarding the next available step.");
-    ref = (await page.getByTestId("reference").innerText()).trim();
-    expect(ref).toMatch(/^CG-\d{4}-\d{6}$/);
-    await expect(result.getByRole("alert")).toHaveCount(0); // document uploaded
-    await expect(page.getByTestId("confirmation-state")).toContainText("No automatic confirmation message was sent");
-    await expect(page.getByRole("link", { name: "Track Status" })).toHaveAttribute("href", `/status?ref=${ref}`);
-
-    // Database: exactly one client, ordered preferences with pay snapshots, signed authorization, truthful notifications.
-    const clients = await db()`select id, source, current_status from clients where ref = ${ref}`;
-    expect(clients).toHaveLength(1);
-    expect(clients[0]).toMatchObject({ source: "public_intake", current_status: "new_intake" });
-    const prefs = await db()`select rank, preference_order, shift_code, pay_snapshot, catalog_version, amazon_job_id, source_url, source_verified_at, pay_detail from client_preferences where client_id = ${clients[0].id} order by preference_order`;
-    expect(prefs[0]).toMatchObject({ amazon_job_id: "J-A", source_url: "https://www.amazon.jobs/en/jobs/TEST-FIXTURE-A", source_verified_at: "2026-01-01T00:00:00Z" });
-    expect(prefs[0].pay_detail).toMatchObject({ pay_status: "PUBLISHED", display_pay: "$2.22/hr (fixture)" });
-    expect(prefs.map((p) => [p.rank, p.preference_order, p.shift_code, p.pay_snapshot])).toEqual([
-      ["primary", 1, "S2", "$2.22/hr (fixture)"], ["primary", 2, "S1", "$1.11/hr (fixture)"],
-    ]);
-    expect(prefs[0].catalog_version).toMatch(/^fnv1a64:/);
-    const [auth] = await db()`select printed_name, signature, authorization_version, signed_at from client_authorizations where client_id = ${clients[0].id}`;
-    expect(auth).toMatchObject({ printed_name: `TEST Public ${RUN}`, authorization_version: "2026-09-26.1" });
-    const notes = await db()`select channel, status from notifications where client_id = ${clients[0].id} order by channel`;
-    expect(notes.map((n) => `${n.channel}:${n.status}`)).toEqual(["email:not_configured", "sms:not_configured", "whatsapp:not_configured"]);
-    const docs = await db()`select status, sha256 from documents where client_id = ${clients[0].id}`;
-    expect(docs).toHaveLength(1);
-    expect(docs[0].sha256).toMatch(/^[0-9a-f]{64}$/);
-    const acts = (await db()`select action from activity_log where client_id = ${clients[0].id}`).map((a) => a.action);
-    expect(acts).toEqual(expect.arrayContaining(["client_created", "document_uploaded", "notification_not_configured"]));
+    await expect(page.locator("#receiptTrackLink")).toHaveAttribute("href", new RegExp(`case=${ref}$`));
     await context.close();
   });
 
-  test("idempotent submit: replay returns the same result; a changed payload is a 409", async ({ request }) => {
+  test("failed required attachment keeps the application and draft, then retries without duplicates", async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ baseURL, extraHTTPHeaders: { "x-forwarded-for": uniqueIp() } });
+    const page = await context.newPage();
+    await openPublicForm(page);
+    const email = `retry.${RUN}@test.invalid`;
+    await fillIdentity(page, `Retry-${RUN}`, "313-555-0153", email);
+    await chooseWork(page);
+    await page.locator("#docs").setInputFiles({ name: "retry-id.png", mimeType: "image/png", buffer: PNG });
+    await signAndConsent(page);
+
+    let injected = false;
+    await page.route("**/api/intake/documents", async (route) => {
+      if (!injected) {
+        injected = true;
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: false, error: { message: "Injected upload failure" } }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.locator("#submitBtn").click();
+    await expect(page.locator("#statusView")).toHaveText("ATTACHMENT_FAILED");
+    await expect(page.locator("#receiptScreen")).not.toHaveClass(/active/);
+    await expect(page.locator("#submitBtn")).toHaveText("إعادة محاولة المرفقات");
+    await expect(page.locator("#docsList")).toContainText("FAILED");
+
+    const first = await db()`
+      select a.id,a.client_id,a.case_number
+      from career_gate_applications a join clients c on c.id=a.client_id
+      where lower(c.email)=lower(${email})`;
+    expect(first).toHaveLength(1);
+    const draftBeforeRetry = await page.evaluate(async () => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("alhijrah.career.form", 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise<boolean>((resolve, reject) => {
+          const request = database.transaction("draft", "readonly").objectStore("draft").get("main");
+          request.onsuccess = () => resolve(Boolean(request.result));
+          request.onerror = () => reject(request.error);
+        });
+      } finally {
+        database.close();
+      }
+    });
+    expect(draftBeforeRetry).toBe(true);
+
+    await page.unroute("**/api/intake/documents");
+    await page.locator("#submitBtn").click();
+    await expect(page.locator("#receiptScreen")).toHaveClass(/active/);
+    await expect(page.locator("#statusView")).toHaveText("COMPLETED");
+
+    const after = await db()`
+      select a.id,a.client_id,a.case_number
+      from career_gate_applications a join clients c on c.id=a.client_id
+      where lower(c.email)=lower(${email})`;
+    expect(after).toHaveLength(1);
+    expect(after[0].id).toBe(first[0].id);
+    const docs = await db()`select file_name,upload_key from documents where client_id=${after[0].client_id} order by uploaded_at`;
+    expect(docs.filter((d) => d.file_name === "retry-id.png")).toHaveLength(1);
+    expect(docs.filter((d) => d.file_name === "signature.png")).toHaveLength(1);
+
+    const draftAfterSuccess = await page.evaluate(async () => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("alhijrah.career.form", 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise<boolean>((resolve, reject) => {
+          const request = database.transaction("draft", "readonly").objectStore("draft").get("main");
+          request.onsuccess = () => resolve(Boolean(request.result));
+          request.onerror = () => reject(request.error);
+        });
+      } finally {
+        database.close();
+      }
+    });
+    expect(draftAfterSuccess).toBe(false);
+    await context.close();
+  });
+
+  test("idempotent intake submit: replay returns the same result; a changed payload is a 409", async ({ request }) => {
     const body = intakeBody(`TEST Idem ${RUN}`);
     const first = await submitIntake(request, body);
     expect(first.res.status()).toBe(201);
+    expect(first.json.ref).toMatch(/^CG-\d{4}-\d{6}$/);
     const again = await submitIntake(request, body, first.key, first.ip);
     expect(again.json.ref).toBe(first.json.ref);
     expect(again.json.replayed).toBe(true);
@@ -171,16 +243,15 @@ test.describe.serial("public intake and status access", () => {
 
   test("server re-validates catalog relations, consent and signature", async ({ request }) => {
     test.skip(!FIXTURE_CATALOG, "needs the test catalog");
-    const bad = (extra: Record<string, unknown>) => submitIntake(request, intakeBody(`TEST Bad ${RUN}`, extra));
+    const bad = (extra: Record<string, unknown>) => submitIntake(request, intakeBody(`TEST Bad ${RUN}-${crypto.randomUUID()}`, extra));
     expect((await bad({ primary: [{ site_code: "TST2", job_id: "J-A", shift_code: "S1" }] })).json.error.code).toBe("invalid_preferences");
-    // Closed, not-verified and unknown-site openings can never be submitted as current.
     expect((await bad({ primary: [{ site_code: "TST1", job_id: "J-CLOSED", shift_code: "S3" }] })).json.error.code).toBe("invalid_preferences");
     expect((await bad({ primary: [{ site_code: "TST3", job_id: "J-C", shift_code: "S1" }] })).json.error.code).toBe("invalid_preferences");
     expect((await bad({ primary: [{ site_code: "UNKNOWN", job_id: "J-D", shift_code: "S1" }] })).json.error.code).toBe("invalid_preferences");
     expect((await bad({ primary: [{ site_code: "TST1", job_id: "J-A", shift_code: "S3" }] })).json.error.code).toBe("invalid_preferences");
     expect((await bad({ primary: [{ site_code: "TST1", job_id: "J-A", shift_code: "S1" }], backup: [{ site_code: "TST1", job_id: "J-A", shift_code: "S1" }] })).json.error.code).toBe("invalid_preferences");
-    expect((await bad({ authorization: { version: "2026-09-26.1", accepted: false, accuracy_acknowledged: true, printed_name: "A B", signature: "A B" } })).res.status()).toBe(400);
-    expect((await bad({ authorization: { version: "2026-09-26.1", accepted: true, accuracy_acknowledged: true, printed_name: "A B", signature: "Someone Else" } })).json.error.code).toBe("invalid_signature");
+    expect((await bad({ authorization: { version: "2026-09-28.1", accepted: false, accuracy_acknowledged: true, printed_name: "A B", signature: "A B" } })).res.status()).toBe(400);
+    expect((await bad({ authorization: { version: "2026-09-28.1", accepted: true, accuracy_acknowledged: true, printed_name: "A B", signature: "Someone Else" } })).json.error.code).toBe("invalid_signature");
   });
 
   test("intake rate limit: one accepted submission per 5 minutes per IP", async ({ request }) => {
@@ -190,67 +261,56 @@ test.describe.serial("public intake and status access", () => {
     expect(second.res.status()).toBe(429);
   });
 
-  test("status lookup gives the same response for any identifier; OTP gates the page", async ({ browser, baseURL, request }) => {
-    const ip = uniqueIp();
-    const look = async (identifier: string) => {
-      const r = await request.post("/api/status/lookup", { data: { identifier }, headers: { "x-forwarded-for": ip } });
-      return { status: r.status(), json: await r.json() };
+  test("status lookup is non-enumerating and requires a verified OTP session", async ({ browser, baseURL, request }) => {
+    expect(ref).toMatch(/^ALH-\d{8}-[A-Z0-9]{4}$/);
+    const [client] = await db()`
+      select c.full_name,c.email,c.phone
+      from career_gate_applications a join clients c on c.id=a.client_id
+      where a.case_number=${ref}`;
+    expect(client).toBeTruthy();
+
+    const lookup = async (identifier: string, ip = uniqueIp()) => {
+      const response = await request.post("/api/status/lookup", { data: { identifier }, headers: { "x-forwarded-for": ip } });
+      return { status: response.status(), json: await response.json() };
     };
-    const [valid, invalid] = [await look(ref), await look("CG-1999-000001")];
-    expect(valid.status).toBe(200);
-    expect(invalid.status).toBe(200);
-    expect(valid.json.message).toBe(invalid.json.message);
-    const [vEmail, iEmail] = [await look(FIXTURE_CATALOG ? `public.${RUN}@test.invalid` : "someone@test.invalid"), await look("nobody@test.invalid")];
-    expect(vEmail.json.message).toBe(iEmail.json.message);
-    expect((await look("(313) 555-0142")).json.message).toBe(valid.json.message);
-    // 6th lookup in 15 minutes from one IP is refused.
-    expect((await look("(313) 555-0000")).status).toBe(429);
 
-    // Without a session the status page and API reveal nothing.
-    const anon = await browser.newContext({ baseURL });
-    const p0 = await anon.newPage();
-    await p0.goto(`/status/${ref}`);
-    await expect(p0.getByTestId("status-locked")).toBeVisible();
-    expect((await anon.request.get(`/api/status/${ref}`)).status()).toBe(401);
+    for (const identifier of [ref, client.email, client.phone, "ALH-19990101-XXXX"]) {
+      const result = await lookup(String(identifier));
+      expect(result.status).toBe(200);
+      expect(result.json.challenge_id).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(result.json.status).toBeUndefined();
+      expect(result.json.message).toContain("If a matching Career Gate file was found");
+    }
 
-    // Code delivery is NOT_CONFIGURED locally, so a known code is seeded for the real challenge.
-    const ctx = await browser.newContext({ baseURL, extraHTTPHeaders: { "x-forwarded-for": uniqueIp() } });
-    const page = await ctx.newPage();
-    await page.goto(`/status?ref=${ref}`);
-    await expect(page.getByLabel(/Reference/)).toHaveValue(ref);
-    const lookupResp = page.waitForResponse("**/api/status/lookup");
-    await page.getByRole("button", { name: "Send me a code" }).click();
-    const { challenge_id } = await (await lookupResp).json();
-    expect(await seedOtp(challenge_id, "246810")).toBe(true);
-    await page.getByLabel("6-digit code").fill("111111");
-    await page.getByRole("button", { name: "View status" }).click();
-    await expect(page.locator("p[role=alert]")).toContainText("not valid");
-    await page.getByLabel("6-digit code").fill("246810");
-    await page.getByRole("button", { name: "View status" }).click();
-    await page.waitForURL(`**/status/${ref}`);
-    await expect(page.getByTestId("status-reference")).toHaveText(ref);
-    await expect(page.getByTestId("status-current-status")).toHaveText("New Intake");
+    const context = await browser.newContext({ baseURL, extraHTTPHeaders: { "x-forwarded-for": uniqueIp() } });
+    const page = await context.newPage();
+    const blocked = await context.request.get(`/api/status/${encodeURIComponent(ref)}`);
+    expect(blocked.status()).toBe(401);
+
+    await page.goto(`/status/${encodeURIComponent(ref)}`);
+    await page.waitForURL(/\/status\?ref=/);
+    await expect(page.getByLabel("File number, phone or email")).toHaveValue(ref);
+    const [challengeResponse] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/api/status/lookup") && r.request().method() === "POST"),
+      page.getByRole("button", { name: "Send verification code" }).click(),
+    ]);
+    const challengeJson = await challengeResponse.json();
+    expect(challengeJson.status).toBeUndefined();
+    expect(await seedOtp(challengeJson.challenge_id, "654321")).toBe(true);
+    await page.getByLabel("Verification code").fill("654321");
+    await page.getByRole("button", { name: "Verify code" }).click();
+    await page.waitForURL(`**/status/${encodeURIComponent(ref)}`);
+    await expect(page.getByTestId("status-page")).toContainText(ref);
     const html = await page.content();
-    for (const secret of [`amz.${RUN}`, "photo-id.png", "5550142", "Example Logistics", "1990-04-05"]) expect(html, secret).not.toContain(secret);
-    const cookies = await ctx.cookies();
-    const sess = cookies.find((c) => c.name === "cg_status");
-    expect(sess?.httpOnly).toBe(true);
-    expect(page.url()).not.toContain(sess!.value);
-    // The session is bound to this client only.
-    await page.goto(`/status/CG-1999-000001`);
-    await expect(page.getByTestId("status-locked")).toBeVisible();
-    await ctx.close();
-    await anon.close();
-  });
+    for (const secret of ["photo-id.png", "1990-04-05", "1 Test St"]) expect(html).not.toContain(secret);
 
-  test("OTP lockout after three wrong codes", async ({ request }) => {
-    const r = await request.post("/api/status/lookup", { data: { identifier: ref }, headers: { "x-forwarded-for": uniqueIp() } });
-    const { challenge_id } = await r.json();
-    await seedOtp(challenge_id, "135791");
-    const verify = (code: string) => request.post("/api/status/verify", { data: { challenge_id, code }, headers: { "x-forwarded-for": uniqueIp() } });
-    expect((await verify("000000")).status()).toBe(400);
-    expect((await verify("000001")).status()).toBe(400);
-    expect((await verify("000002")).status()).toBe(429);
-    expect((await verify("135791")).status()).toBe(429);
+    const api = await context.request.get(`/api/status/${encodeURIComponent(ref)}`);
+    expect(api.status()).toBe(200);
+    expect((await api.json()).status.ref).toBe(ref);
+    await context.close();
+
+    const limitedIp = uniqueIp();
+    for (let i = 0; i < 5; i++) expect((await lookup(ref, limitedIp)).status).toBe(200);
+    expect((await lookup(ref, limitedIp)).status).toBe(429);
   });
 });

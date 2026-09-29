@@ -2,11 +2,25 @@ import type { ButtonHTMLAttributes } from "react";
 
 type Variant = "primary" | "secondary" | "danger" | "ghost";
 
+const base =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-[14px] font-semibold " +
+  "transform-gpu transition-[transform,filter,box-shadow,border-color,background-color,color] duration-150 ease-out " +
+  "hover:-translate-y-px active:translate-y-0 active:scale-[.985] " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40 " +
+  "disabled:pointer-events-none disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none";
+
 const styles: Record<Variant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-500/50",
-  secondary: "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50",
-  danger: "bg-red-600 text-white hover:bg-red-700 disabled:bg-red-600/50",
-  ghost: "text-slate-600 hover:bg-slate-100",
+  primary:
+    "border border-cyan-300/30 bg-gradient-to-b from-blue-500 to-blue-700 text-white " +
+    "shadow-[0_10px_28px_rgba(37,99,235,.24),inset_0_1px_0_rgba(255,255,255,.18)] hover:brightness-105",
+  secondary:
+    "border border-white/10 bg-white/[.035] text-slate-200 " +
+    "hover:border-cyan-300/20 hover:bg-cyan-300/[.045] hover:shadow-[0_8px_24px_rgba(34,211,238,.06)]",
+  danger:
+    "border border-red-300/25 bg-gradient-to-b from-red-500 to-red-700 text-white " +
+    "shadow-[0_10px_28px_rgba(220,38,38,.18)] hover:brightness-105",
+  ghost:
+    "border border-transparent text-slate-300 hover:border-cyan-300/15 hover:bg-white/[.04] hover:text-white",
 };
 
 export function Button({
@@ -15,11 +29,5 @@ export function Button({
   type = "button",
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
-  return (
-    <button
-      type={type}
-      className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed ${styles[variant]} ${className}`}
-      {...props}
-    />
-  );
+  return <button type={type} className={`${base} ${styles[variant]} ${className}`} {...props} />;
 }

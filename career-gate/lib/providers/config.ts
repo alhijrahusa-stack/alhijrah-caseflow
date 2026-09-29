@@ -14,9 +14,8 @@ export const registry = {
     jwtSecret: env("SUPABASE_JWT_SECRET"),
   }),
   documentVision: () => ({
-    apiKey: env("GOOGLE_GEMINI_API_KEY"),
-    fastModel: env("DOCUMENT_VISION_FAST_MODEL"),
-    escalationModel: env("DOCUMENT_VISION_ESCALATION_MODEL"),
+    apiKey: env("OPENAI_API_KEY"),
+    model: env("DOCUMENT_VISION_MODEL"),
   }),
   openai: () => ({
     apiKey: env("OPENAI_API_KEY"),
@@ -59,8 +58,8 @@ export function providerStates() {
     supabase_auth: st(Boolean(s.url && s.anonKey && (s.jwtSecret || s.url))),
     supabase_storage: st(Boolean(s.url && s.serviceKey)),
     realtime: st(Boolean(s.url && s.anonKey)),
-    document_vision_fast: st(Boolean(v.apiKey && v.fastModel)),
-    document_vision_escalation: st(Boolean(v.apiKey && v.escalationModel)),
+    document_vision_fast: st(Boolean(v.apiKey && v.model)),
+    document_vision_escalation: st(Boolean(v.apiKey && v.model)),
     agent_llm: st(Boolean(o.apiKey && o.agentModel)),
     embeddings: st(Boolean(o.apiKey && o.embeddingModel && o.embeddingDimensions === EMBEDDING_COLUMN_DIMENSIONS)),
     whatsapp_meta: st(Boolean(w.token && w.phoneId && w.apiVersion && w.templateLang)),

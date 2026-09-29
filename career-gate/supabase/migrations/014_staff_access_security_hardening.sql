@@ -1,0 +1,208 @@
+-- Career Gate staff identity/access hardening and RLS alignment.
+-- In-place only: preserve existing production staff names, emails, auth links,
+-- staff codes, assignments, and history. Staff codes remain display/audit identity.
+
+alter table public.staff add column if not exists legacy_code text;
+alter table public.staff add column if not exists access_scope text not null default 'full';
+
+alter table public.staff drop constraint if exists staff_role_check;
+alter table public.staff add constraint staff_role_check
+  check (role in ('super_admin','admin','manager','staff'));
+
+alter table public.staff drop constraint if exists staff_access_scope_check;
+alter table public.staff add constraint staff_access_scope_check
+  check (access_scope in ('full','assigned_only'));
+
+create unique index if not exists staff_email_ci_unique
+  on public.staff (lower(email)) where email is not null;
+create unique index if not exists staff_legacy_code_unique
+  on public.staff (legacy_code) where legacy_code is not null;
+
+-- Preserve the existing roster and authentication ownership. Promote the
+-- existing system owner in place so super-admin-only policy has one authority
+-- without reassigning any email, auth user, staff code, or foreign key.
+update public.staff
+set role = 'super_admin',
+    access_scope = 'full',
+    legacy_code = coalesce(legacy_code, staff_code),
+    updated_at = now()
+where id = 'af25f228-3ffc-452d-8f3b-b83267fb173f'::uuid;
+
+update public.staff
+set access_scope = 'full',
+    legacy_code = coalesce(legacy_code, staff_code),
+    updated_at = now()
+where id <> 'af25f228-3ffc-452d-8f3b-b83267fb173f'::uuid;
+
+create or replace function public.cg_staff_id()
+returns uuid language sql stable security definer set search_path=public as $$
+  select id from public.staff where auth_user_id = auth.uid() and active;
+$$;
+
+create or replace function public.cg_staff_role()
+returns text language sql stable security definer set search_path=public as $$
+  select role from public.staff where auth_user_id = auth.uid() and active;
+$$;
+
+create or replace function public.cg_can_access_client(cid uuid)
+returns boolean language sql stable security definer set search_path=public as $$
+  select exists (
+    select 1
+    from public.clients c, public.staff s
+    where c.id = cid
+      and s.auth_user_id = auth.uid()
+      and s.active
+      and (
+        s.role = 'super_admin'
+        or (
+          c.deleted_at is null
+          and (s.access_scope = 'full' or c.assigned_staff = s.id)
+        )
+      )
+  );
+$$;
+
+create or replace function public.cg_can_access_client_row(p_assigned uuid, p_deleted_at timestamptz)
+returns boolean language sql stable security definer set search_path=public as $$
+  select exists (
+    select 1 from public.staff s
+    where s.auth_user_id = auth.uid()
+      and s.active
+      and (
+        s.role = 'super_admin'
+        or (
+          p_deleted_at is null
+          and (s.access_scope = 'full' or p_assigned = s.id)
+        )
+      )
+  );
+$$;
+
+-- Current policy: every active staff member has full operational capability.
+-- access_scope lets Super Admin reduce a user to assigned-client-only later.
+drop policy if exists clients_insert on public.clients;
+create policy clients_insert on public.clients for insert to authenticated
+  with check (public.cg_staff_id() is not null);
+
+drop policy if exists clients_update on public.clients;
+create policy clients_update on public.clients for update to authenticated
+  using (public.cg_can_access_client_row(assigned_staff, deleted_at))
+  with check (
+    public.cg_can_access_client_row(assigned_staff, deleted_at)
+    or public.cg_staff_role() = 'super_admin'
+  );
+
+drop policy if exists audit_alerts_scope on public.audit_alerts;
+create policy audit_alerts_scope on public.audit_alerts for all to authenticated
+  using (public.cg_can_access_client(client_id))
+  with check (public.cg_can_access_client(client_id));
+
+drop policy if exists blocked_periods_write on public.blocked_periods;
+create policy blocked_periods_write on public.blocked_periods for all to authenticated
+  using (public.cg_staff_id() is not null)
+  with check (public.cg_staff_id() is not null);
+
+drop policy if exists office_availability_write on public.office_availability;
+create policy office_availability_write on public.office_availability for all to authenticated
+  using (public.cg_staff_id() is not null)
+  with check (public.cg_staff_id() is not null);
+
+drop policy if exists accounts_insert on public.client_accounts;
+create policy accounts_insert on public.client_accounts for insert to authenticated
+  with check (public.cg_staff_id() is not null);
+
+drop policy if exists accounts_update on public.client_accounts;
+create policy accounts_update on public.client_accounts for update to authenticated
+  using (public.cg_staff_id() is not null)
+  with check (public.cg_staff_id() is not null);
+
+drop policy if exists transfer_read on public.ownership_transfer_requests;
+create policy transfer_read on public.ownership_transfer_requests for select to authenticated
+  using (public.cg_staff_id() is not null);
+
+drop policy if exists transfer_update on public.ownership_transfer_requests;
+create policy transfer_update on public.ownership_transfer_requests for update to authenticated
+  using (public.cg_staff_id() is not null)
+  with check (public.cg_staff_id() is not null);
+
+drop policy if exists assignment_settings_update on public.assignment_settings;
+create policy assignment_settings_update on public.assignment_settings for update to authenticated
+  using (public.cg_staff_role() = 'super_admin')
+  with check (public.cg_staff_role() = 'super_admin');
+
+drop policy if exists staff_admin_insert on public.staff;
+create policy staff_admin_insert on public.staff for insert to authenticated
+  with check (public.cg_staff_role() = 'super_admin');
+
+drop policy if exists staff_admin_update on public.staff;
+create policy staff_admin_update on public.staff for update to authenticated
+  using (public.cg_staff_role() = 'super_admin')
+  with check (public.cg_staff_role() = 'super_admin');
+
+create table if not exists public.staff_security_audit (
+  id bigint generated always as identity primary key,
+  actor_staff_id uuid not null references public.staff(id),
+  target_staff_id uuid not null references public.staff(id),
+  action text not null,
+  old_value jsonb,
+  new_value jsonb,
+  created_at timestamptz not null default now()
+);
+alter table public.staff_security_audit enable row level security;
+drop policy if exists staff_security_audit_super_admin on public.staff_security_audit;
+create policy staff_security_audit_super_admin on public.staff_security_audit for all to authenticated
+  using (public.cg_staff_role() = 'super_admin')
+  with check (public.cg_staff_role() = 'super_admin');
+grant select, insert on public.staff_security_audit to authenticated;
+
+-- SECURITY DEFINER functions are private by default. Grant only callers that
+-- require them; anonymous users cannot invoke privileged internal RPCs.
+revoke execute on function public.assign_client_round_robin() from public, anon;
+revoke execute on function public.cg_busy_intervals(text,timestamptz,timestamptz) from public, anon;
+revoke execute on function public.cg_can_access_client(uuid) from public, anon;
+revoke execute on function public.cg_can_access_client_row(uuid,timestamptz) from public, anon;
+revoke execute on function public.cg_staff_id() from public, anon;
+revoke execute on function public.cg_staff_role() from public, anon;
+revoke execute on function public.enqueue_job(text,text,jsonb,text,text,integer,timestamptz) from public, anon;
+revoke execute on function public.next_client_ref() from public, anon;
+revoke execute on function public.next_staff_code() from public, anon;
+
+grant execute on function public.cg_busy_intervals(text,timestamptz,timestamptz) to authenticated;
+grant execute on function public.cg_can_access_client(uuid) to authenticated;
+grant execute on function public.cg_can_access_client_row(uuid,timestamptz) to authenticated;
+grant execute on function public.cg_staff_id() to authenticated;
+grant execute on function public.cg_staff_role() to authenticated;
+grant execute on function public.enqueue_job(text,text,jsonb,text,text,integer,timestamptz) to authenticated;
+grant execute on function public.next_client_ref() to authenticated;
+grant execute on function public.next_staff_code() to authenticated;
+
+-- Retained legacy SECURITY DEFINER functions exist in the live database but are
+-- not part of every clean reconstruction. Harden them only when present.
+do $$
+declare
+  r record;
+begin
+  for r in
+    select p.oid::regprocedure as signature, p.proname
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in (
+        'escalate_stale_applications',
+        'expire_stale_jobs',
+        'hide_dormant_profiles',
+        'match_candidates',
+        'match_jobs',
+        'prune_otp_logs',
+        'record_delivery_status'
+      )
+  loop
+    execute format('revoke execute on function %s from public, anon', r.signature);
+    if r.proname in ('match_candidates', 'match_jobs') then
+      execute format('grant execute on function %s to authenticated', r.signature);
+    else
+      execute format('grant execute on function %s to service_role', r.signature);
+    end if;
+  end loop;
+end;
+$$;

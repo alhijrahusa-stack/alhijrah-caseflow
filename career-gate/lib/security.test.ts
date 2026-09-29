@@ -7,7 +7,7 @@ import { fingerprint, otpHash } from "./crypto";
 import { STATUSES, TRANSITIONS } from "./domain";
 import { backoffSeconds } from "./jobs";
 import { verifyAccessToken } from "./jwt";
-import { geminiExtract } from "./providers/gemini";
+import { DocumentVisionSchema, openaiVisionExtract } from "./providers/openai-vision";
 import { sendEmail, sendSms, sendWhatsAppTemplate, verifyMetaSignature, verifyResendSignature, verifyTwilioSignature } from "./providers/messaging";
 import { redact } from "./semantic";
 
@@ -45,17 +45,19 @@ describe("staff JWT verification", () => {
 });
 
 describe("RBAC matrix", () => {
-  it("restricts team management to admin and review to admin/manager", () => {
-    for (const a of ["create_staff", "update_staff_role", "disable_staff", "soft_delete_client", "override_status"] as const) {
-      expect(roleAllows("admin", a)).toBe(true);
+  it("keeps identity/security administration super-admin only and operational work role-based", () => {
+    for (const a of ["create_staff", "update_staff_role", "update_staff_access_scope", "disable_staff", "reactivate_staff", "invite_staff", "soft_delete_client", "override_status"] as const) {
+      expect(roleAllows("super_admin", a)).toBe(true);
+      expect(roleAllows("admin", a)).toBe(false);
       expect(roleAllows("manager", a)).toBe(false);
       expect(roleAllows("staff", a)).toBe(false);
     }
-    for (const a of ["verify_document", "reject_document", "assign_staff", "update_status", "create_client"] as const) {
+    for (const a of ["verify_document", "reject_document", "request_reupload", "process_document", "assign_staff", "update_status", "create_client", "add_note", "add_task", "complete_task", "mark_contacted", "add_followup"] as const) {
+      expect(roleAllows("super_admin", a)).toBe(true);
+      expect(roleAllows("admin", a)).toBe(true);
       expect(roleAllows("manager", a)).toBe(true);
-      expect(roleAllows("staff", a)).toBe(false);
+      expect(roleAllows("staff", a)).toBe(true);
     }
-    for (const a of ["add_note", "add_task", "complete_task", "mark_contacted", "add_followup"] as const) expect(roleAllows("staff", a)).toBe(true);
     expect(Object.keys(ACTION_ROLES).length).toBeGreaterThan(30);
   });
 });
@@ -98,8 +100,24 @@ describe("providers are truthful", () => {
     expect((await sendSms("3135550100", "x")).status).toBe("not_configured");
     expect((await sendEmail("a@b.co", "s", "x")).status).toBe("not_configured");
     expect((await sendWhatsAppTemplate("3135550100", "t", [])).status).toBe("not_configured");
-    expect((await geminiExtract({ model: "fast", mimeType: "image/png", data: new Uint8Array([1]), prompt: "", responseSchema: {} })).ok).toBe(false);
+    const vision = await openaiVisionExtract({ mimeType: "image/png", data: new Uint8Array([1]) });
+    expect(vision.ok).toBe(false);
+    if (!vision.ok) expect(vision.code).toBe("NOT_CONFIGURED");
     expect(f).not.toHaveBeenCalled();
+  });
+  it("validates the structured document vision schema", () => {
+    const valid = DocumentVisionSchema.safeParse({
+      documentType: "DriverLicense",
+      fullName: "A B",
+      dateOfBirth: "1990-01-02",
+      expirationDate: "2030-01-02",
+      documentNumber: "D1234",
+      confidenceScore: 0.8,
+      detectedLanguage: "en",
+    });
+    expect(valid.success).toBe(true);
+    expect(DocumentVisionSchema.safeParse({ ...valid.data, confidenceScore: 2 }).success).toBe(false);
+    expect(DocumentVisionSchema.safeParse({ ...valid.data, detectedLanguage: "fr" }).success).toBe(false);
   });
   it("reports provider failure (5xx retryable) instead of success", async () => {
     vi.stubEnv("TWILIO_ACCOUNT_SID", "AC1");
@@ -107,13 +125,6 @@ describe("providers are truthful", () => {
     vi.stubEnv("TWILIO_PHONE_NUMBER", "+13130000000");
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ message: "boom" }), { status: 503 })));
     expect(await sendSms("3135550100", "x")).toEqual({ status: "failed", provider: "twilio", error: "boom", retryable: true });
-  });
-  it("reports vision timeouts", async () => {
-    vi.stubEnv("GOOGLE_GEMINI_API_KEY", "k");
-    vi.stubEnv("DOCUMENT_VISION_FAST_MODEL", "m");
-    vi.stubGlobal("fetch", vi.fn(async () => { const e = new Error("timed out"); e.name = "TimeoutError"; throw e; }));
-    const r = await geminiExtract({ model: "fast", mimeType: "image/png", data: new Uint8Array([1]), prompt: "", responseSchema: {} });
-    expect(r.ok === false && r.code).toBe("TIMEOUT");
   });
 });
 

@@ -18,7 +18,7 @@ export type LookupKind = "reference" | "email" | "phone";
 
 export function classify(identifier: string): { kind: LookupKind; value: string } | null {
   const v = identifier.trim();
-  if (/^CG-\d{4}-\d{6}$/i.test(v)) return { kind: "reference", value: v.toUpperCase() };
+  if (/^(CG-\d{4}-\d{6}|ALH-\d{8}-[A-Z0-9]{4})$/i.test(v)) return { kind: "reference", value: v.toUpperCase() };
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return { kind: "email", value: v.toLowerCase() };
   const p = normalizePhone(v);
   return p ? { kind: "phone", value: p } : null;
@@ -43,10 +43,22 @@ export async function startLookup(identifier: string, ipHash: string, traceId: s
   if (c) {
     const rows =
       c.kind === "reference"
-        ? await db`select id, phone, email from clients where ref = ${c.value} and deleted_at is null`
+        ? await db`
+            select c.id, c.phone, c.email
+            from clients c
+            where c.deleted_at is null
+              and (
+                upper(c.ref) = ${c.value}
+                or exists (
+                  select 1 from career_gate_applications a
+                  where a.client_id = c.id and upper(a.case_number) = ${c.value}
+                )
+              )
+            order by c.updated_at desc
+            limit 1`
         : c.kind === "email"
           ? await db`select id, phone, email from clients where lower(email) = ${c.value} and deleted_at is null order by created_at desc limit 1`
-          : await db`select id, phone, email from clients where phone = ${c.value} and deleted_at is null order by created_at desc limit 1`;
+          : await db`select id, phone, email from clients where regexp_replace(phone, '\\D', '', 'g') = ${c.value.replace(/\D/g, "")} and deleted_at is null order by created_at desc limit 1`;
     client = rows[0] as typeof client;
   }
 
@@ -64,7 +76,6 @@ export async function startLookup(identifier: string, ipHash: string, traceId: s
     insert into otp_requests (client_id, contact_type, contact_value_hash, delivery_status, expires_at, ip_hash)
     values (${client.id}, ${channel}, ${contactHash}, 'not_configured', ${expires}, ${ipHash}) returning id`;
   const challengeId = row.id as string;
-  // 5 codes per hour per contact; over the limit nothing is sent (same public response).
   if (!(await hit("otp_send_hour", contactHash))) {
     await db`update otp_requests set delivery_status = 'failed' where id = ${challengeId}`;
     return { challengeId, delivery: "rate_limited" as const, contactHash };
@@ -103,20 +114,38 @@ export async function verifyCode(challengeId: string, code: string, ipHash: stri
     const token = newSessionToken();
     await tx`insert into status_sessions (client_id, token_hash, expires_at, ip_hash)
              values (${r.client_id}, ${sessionTokenHash(token)}, ${new Date(Date.now() + SESSION_TTL_SECONDS * 1000)}, ${ipHash})`;
-    const [c] = await tx`select ref from clients where id = ${r.client_id}`;
+    const [c] = await tx`
+      select coalesce(
+        (select a.case_number from career_gate_applications a where a.client_id = c.id order by a.created_at desc limit 1),
+        c.ref
+      ) as public_ref
+      from clients c
+      where c.id = ${r.client_id}`;
     await logActivity(tx, { clientId: r.client_id, action: "status_otp_verified", actor: { staffId: null, traceId }, entityType: "otp_request", entityId: challengeId });
-    return { ok: true, ref: c.ref as string, token } as const;
+    return { ok: true, ref: c.public_ref as string, token } as const;
   });
 }
 
-/** Returns the client id bound to the caller's status session for this ref, or null. */
+/** Returns the client id bound to the caller's status session for this public ref, or null. */
 export async function sessionClient(ref: string, token: string | undefined) {
   if (!token) return null;
   const db = sql();
+  const normalized = ref.trim().toUpperCase();
   const [s] = await db`
-    select s.id, s.client_id from status_sessions s join clients c on c.id = s.client_id
-    where s.token_hash = ${sessionTokenHash(token)} and s.revoked_at is null and s.expires_at > now()
-      and c.ref = ${ref} and c.deleted_at is null`;
+    select s.id, s.client_id
+    from status_sessions s
+    join clients c on c.id = s.client_id
+    where s.token_hash = ${sessionTokenHash(token)}
+      and s.revoked_at is null
+      and s.expires_at > now()
+      and c.deleted_at is null
+      and (
+        upper(c.ref) = ${normalized}
+        or exists (
+          select 1 from career_gate_applications a
+          where a.client_id = c.id and upper(a.case_number) = ${normalized}
+        )
+      )`;
   if (!s) return null;
   await db`update status_sessions set last_access = now() where id = ${s.id}`;
   return s.client_id as string;

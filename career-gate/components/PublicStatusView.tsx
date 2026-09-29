@@ -1,20 +1,21 @@
 import { OfficeContact } from "@/components/OfficeContact";
 import type { PublicStatus } from "@/lib/public-status";
-import { dateOfInstant, dateTime, timeOnly } from "@/lib/format";
+import { dateOfInstant, dateOnly, dateTime, timeOnly } from "@/lib/format";
 
 export function PublicStatusView({ s }: { s: PublicStatus }) {
   const location = s.location ? [s.location.site_name, s.location.address].filter(Boolean).join(" — ") : "—";
-  const rows: [string, string][] = [
-    ["Client Name", s.full_name],
-    ["File Number", s.ref],
-    ["Date Filed", dateOfInstant(s.filed_at)],
-    ["Location", location],
-    ["Shift Days", s.shift?.days ?? "—"],
-    ["Shift Time", s.shift?.time ?? "—"],
-    ["Current Status", s.status_label],
-    ["Next Step", s.next_step],
-    ["Documents", s.documents.status],
-    ["Last Updated", dateTime(s.updated_at)],
+  const rows: { label: string; value: string; testId?: string }[] = [
+    { label: "Client Name", value: s.full_name },
+    { label: "File Number", value: s.ref },
+    { label: "Date Filed", value: dateOfInstant(s.filed_at) },
+    { label: "Location", value: location },
+    { label: "Shift Days", value: s.shift?.days ?? "—" },
+    { label: "Shift Time", value: s.shift?.time ?? "—" },
+    { label: "Current Status", value: s.status_label, testId: "status-current-status" },
+    { label: "Next Step", value: s.next_step, testId: "status-next-step" },
+    { label: "Start Date", value: dateOnly(s.start_date), testId: "status-start-date" },
+    { label: "Documents", value: s.documents.status },
+    { label: "Last Updated", value: dateTime(s.updated_at) },
   ];
 
   return (
@@ -24,14 +25,25 @@ export function PublicStatusView({ s }: { s: PublicStatus }) {
         <p className="mt-1 text-sm text-slate-500">Career Gate file status</p>
       </div>
       <dl className="grid grid-cols-3 gap-y-3 text-sm">
-        {rows.map(([k, v]) => (
-          <div key={k} className="contents">
-            <dt className="text-slate-500">{k}</dt>
-            <dd className="col-span-2 font-medium">{v}</dd>
+        {rows.map(({ label, value, testId }) => (
+          <div key={label} className="contents">
+            <dt className="text-slate-500">{label}</dt>
+            <dd className="col-span-2 font-medium" data-testid={testId}>{value}</dd>
           </div>
         ))}
       </dl>
-      {s.interview && (
+      {s.appointment && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4" data-testid="status-appointment">
+          <h2 className="text-sm font-semibold">Appointment</h2>
+          <dl className="mt-3 grid grid-cols-3 gap-y-2 text-sm">
+            <dt className="text-slate-500">Type</dt><dd className="col-span-2 font-medium">{s.appointment.type}</dd>
+            <dt className="text-slate-500">Date</dt><dd className="col-span-2 font-medium">{dateOfInstant(s.appointment.scheduled_at)}</dd>
+            <dt className="text-slate-500">Time</dt><dd className="col-span-2 font-medium">{timeOnly(s.appointment.scheduled_at)}</dd>
+            <dt className="text-slate-500">Location</dt><dd className="col-span-2 font-medium" data-testid="status-appointment-location">{s.appointment.location ?? "—"}</dd>
+          </dl>
+        </div>
+      )}
+      {s.interview && s.interview.scheduled_at !== s.appointment?.scheduled_at && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
           <h2 className="text-sm font-semibold">Interview</h2>
           <dl className="mt-3 grid grid-cols-3 gap-y-2 text-sm">

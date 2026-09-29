@@ -49,10 +49,13 @@ test.describe.serial("office workflow", () => {
   });
 
   test("client file: preferences with pay snapshot, NOT_CONFIGURED truth labels", async () => {
+    await page.getByRole("button", { name: /Job Preferences/ }).click();
     if (FIXTURE_CATALOG) await expect(page.getByTestId("pay-snapshot").first()).toHaveText("$1.11/hr (fixture)");
     else await expect(page.getByTestId("section-preferences")).toContainText("no active openings");
     await expect(page.getByTestId("realtime-state").first()).toContainText("NOT_CONFIGURED");
+    await page.getByRole("button", { name: /Notes \/ Tasks \/ Contacts/ }).click();
     await expect(page.getByTestId("notification-status").first()).toHaveText("NOT_CONFIGURED");
+    await page.getByRole("button", { name: "Profile" }).click();
   });
 
   test("inline editing saves only on server success and rolls back on failure", async () => {
@@ -73,14 +76,17 @@ test.describe.serial("office workflow", () => {
   });
 
   test("edit client and assign staff", async () => {
-    await page.getByRole("link", { name: "Edit Client", exact: true }).click();
+    await page.getByRole("link", { name: "Correct Data", exact: true }).click();
     await page.locator('input[name="via_agency"][value="yes"]').check();
     await page.getByRole("button", { name: "Save changes" }).click();
     await page.waitForURL(`**/staff/client/${clientId}`);
     await expect(page.getByTestId("section-amazon-history")).toContainText("Via third-party agency");
     await page.getByTestId("quick-actions").getByRole("button", { name: "Assign Staff" }).click();
-    await page.getByTestId("form-assign").getByLabel("Handled by").selectOption({ label: "TEST Staff (staff)" });
-    await page.getByTestId("form-assign").getByRole("button", { name: "Save" }).click();
+    const assign = page.getByTestId("form-assign");
+    await expect(assign).toBeVisible();
+    await assign.locator(".staff-picker-trigger").click();
+    await assign.getByRole("option", { name: /TEST Staff/ }).click();
+    await assign.getByRole("button", { name: "Save" }).click();
     await expect(page.getByTestId("assigned-name")).toHaveText("TEST Staff");
   });
 
@@ -92,6 +98,7 @@ test.describe.serial("office workflow", () => {
     await expect(page.getByTestId("document-row")).toHaveCount(1);
     await expect.poll(async () => (await db()`select status from documents where client_id = ${clientId}`)[0]?.status, { timeout: 15_000 }).toBe("needs_review");
     await page.reload();
+    await page.getByRole("button", { name: /Documents/ }).click();
     await expect(page.getByTestId("extraction-state")).toContainText("NOT_CONFIGURED");
     await expect(page.getByTestId("document-row").locator("img")).toHaveJSProperty("complete", true);
 
@@ -103,6 +110,7 @@ test.describe.serial("office workflow", () => {
     expect(log.n).toBe(1);
 
     await page.reload();
+    await page.getByRole("button", { name: /Documents/ }).click();
     await page.getByTestId("document-row").getByRole("button", { name: "Verify" }).click();
     await expect(page.getByTestId("document-status")).toHaveText("Verified");
     const [doc] = await db()`select status, reviewed_by, reviewed_at, sha256 from documents where client_id = ${clientId}`;
@@ -125,7 +133,6 @@ test.describe.serial("office workflow", () => {
     await expect(page.getByTestId("appointment-row")).toHaveCount(1);
     await expect(page.getByTestId("appointment-row")).toContainText(`Office Room ${RUN}`);
 
-    // The same slot for another client is refused (transactional recheck + exclusion constraint).
     const [appt] = await db()`select scheduled_at, ends_at from appointments where client_id = ${clientId}`;
     const other = await submitIntake(request, intakeBody(`TEST Collide ${RUN}`));
     const [oc] = await db()`select id from clients where ref = ${other.json.ref}`;
@@ -191,6 +198,7 @@ test.describe.serial("office workflow", () => {
   });
 
   test("assessments stay UNRESOLVED until the client confirms", async () => {
+    await page.getByRole("button", { name: /Documents/ }).click();
     await page.getByTestId("section-assessments").getByRole("button", { name: "+ Add standard items" }).click();
     await expect(page.getByTestId("assessment-item_10")).toContainText("UNRESOLVED — NEEDS CLIENT CONFIRMATION");
     await page.getByTestId("assessment-education").getByRole("button", { name: "Update" }).click();
@@ -201,6 +209,7 @@ test.describe.serial("office workflow", () => {
     await page.getByTestId("assessment-education").getByLabel("Source").selectOption("client_confirmed");
     await page.getByTestId("assessment-education").getByRole("button", { name: "Save" }).click();
     await expect(page.getByTestId("assessment-education")).toContainText("High school diploma");
+    await page.getByRole("button", { name: "Profile" }).click();
   });
 
   test("post-hire start date, intake agent, activity log", async () => {
@@ -210,10 +219,12 @@ test.describe.serial("office workflow", () => {
     await row.getByRole("button", { name: "Save" }).click();
     await expect(page.getByTestId("post-hire-start_date")).toContainText("TEST Admin");
 
+    await page.getByRole("button", { name: /Notes \/ Tasks \/ Contacts/ }).click();
     await page.getByTestId("section-intake-agent").getByRole("button", { name: "Run check" }).click();
     await expect(page.getByTestId("intake-agent-output")).toContainText("agent model NOT_CONFIGURED");
 
     await page.reload();
+    await page.getByRole("button", { name: "Activity Log" }).click();
     const actions = await page.getByTestId("activity-row").evaluateAll((els) => els.map((e) => e.getAttribute("data-action")));
     for (const a of [
       "client_created", "client_updated", "staff_assigned", "document_uploaded", "document_processed", "document_opened",
@@ -238,17 +249,17 @@ test.describe.serial("office workflow", () => {
   test("audit alert: known inconsistency raises an alert without changing data", async ({ request }) => {
     const r = await submitIntake(request, intakeBody(`TEST Audit ${RUN}`));
     const [c] = await db()`select id from clients where ref = ${r.json.ref}`;
-    const o = await staffAction(request, "admin", { action: "override_status", client_id: c.id, status: "appointment_scheduled", reason: "e2e audit test" });
+    const o = await staffAction(request, "superadmin", { action: "override_status", client_id: c.id, status: "appointment_scheduled", reason: "e2e audit test" });
     expect(o.status).toBe(200);
     await expect.poll(async () => (await db()`select count(*)::int as n from audit_alerts where client_id = ${c.id} and rule = 'appointment_scheduled_without_appointment' and status = 'open'`)[0].n, { timeout: 10_000 }).toBe(1);
     await page.goto("/staff/audit-alerts");
-    const row = page.locator(`[data-rule="appointment_scheduled_without_appointment"]`).filter({ hasText: r.json.ref });
-    await expect(row).toBeVisible();
+    const alertRow = page.locator(`[data-rule="appointment_scheduled_without_appointment"]`).filter({ hasText: r.json.ref });
+    await expect(alertRow).toBeVisible();
     const [{ current_status }] = await db()`select current_status from clients where id = ${c.id}`;
     expect(current_status).toBe("appointment_scheduled");
-    await row.getByRole("button", { name: "Ignore" }).click();
-    await row.getByLabel("Ignore reason").fill("Appointment booked by phone; record pending");
-    await row.getByRole("button", { name: "Save" }).click();
+    await alertRow.getByRole("button", { name: "Ignore" }).click();
+    await alertRow.getByLabel("Ignore reason").fill("Appointment booked by phone; record pending");
+    await alertRow.getByRole("button", { name: "Save" }).click();
     await expect(page.getByTestId("toast-success")).toBeVisible();
   });
 
@@ -272,8 +283,11 @@ test.describe.serial("office workflow", () => {
     expect(officeRef).toMatch(/^CG-\d{4}-\d{6}$/);
     expect(officeRef).not.toBe(ref);
     await expect(p.getByTestId("current-status")).toContainText("Needs Review");
+    await p.getByRole("button", { name: /Notes \/ Tasks \/ Contacts/ }).click();
     await expect(p.getByTestId("note-row")).toContainText(`Walk-in ${RUN}`);
+    await p.getByRole("button", { name: /Documents/ }).click();
     await expect(p.getByTestId("document-row")).toHaveCount(1);
+    await p.getByRole("button", { name: "Profile" }).click();
     await p.getByTestId("quick-actions").getByRole("button", { name: "Change Status" }).click();
     await p.getByTestId("form-status").getByLabel("New status").selectOption("ready_to_apply");
     await p.getByTestId("form-status").getByRole("button", { name: "Save status" }).click();
@@ -281,9 +295,9 @@ test.describe.serial("office workflow", () => {
     await p.goto("/staff");
     await p.getByTestId("card-ready_to_apply").click();
     await expect(p.getByRole("link", { name: officeRef })).toBeVisible();
-    const [row] = await db()`select source, created_by from clients where ref = ${officeRef}`;
-    expect(row.source).toBe("staff_manual");
-    expect(row.created_by).toBe(await staffId("manager"));
+    const [clientRow] = await db()`select source, created_by from clients where ref = ${officeRef}`;
+    expect(clientRow.source).toBe("staff_manual");
+    expect(clientRow.created_by).toBe(await staffId("manager"));
     await ctx.close();
   });
 });
@@ -304,8 +318,8 @@ test.describe("role security", () => {
     expect((await request.get("/api/staff/search?q=te", { headers: { cookie: "cg_at=eyJhbGciOiJIUzI1NiJ9.e30.x" } })).status()).toBe(401);
   });
 
-  test("staff: no team management, no unassigned clients, no document review; denials are logged", async ({ browser, baseURL, request }) => {
-    const r = await submitIntake(request, intakeBody(`TEST Unassigned ${RUN}`));
+  test("full-scope staff has operational access but cannot manage team policy", async ({ browser, baseURL, request }) => {
+    const r = await submitIntake(request, intakeBody(`TEST Full Scope ${RUN}`));
     const [c] = await db()`select id from clients where ref = ${r.json.ref}`;
     const ctx = await browser.newContext({ baseURL });
     await signIn(ctx, baseURL!, "staff");
@@ -313,42 +327,38 @@ test.describe("role security", () => {
     await p.goto("/staff/settings/team");
     await expect(p.getByTestId("forbidden")).toBeVisible();
     await p.goto(`/staff/client/${c.id}`);
-    await expect(p.getByTestId("forbidden")).toContainText("403");
+    await expect(p.getByTestId("client-name")).toContainText(`TEST Full Scope ${RUN}`);
 
     const before = (await db()`select count(*)::int as n from security_events where event = 'access_denied'`)[0].n;
-    expect((await staffAction(request, "staff", { action: "add_note", client_id: c.id, note: "x" })).status).toBe(403);
+    expect((await staffAction(request, "staff", { action: "add_note", client_id: c.id, note: "Full-scope staff note" })).status).toBe(200);
     expect((await staffAction(request, "staff", { action: "create_staff", display_name: "X", role: "admin" })).status).toBe(403);
-    // A document on a client assigned to this staff member: viewing is allowed, final review is not.
-    const r2 = await submitIntake(request, intakeBody(`TEST Assigned ${RUN}`));
-    const [mineC] = await db()`select id from clients where ref = ${r2.json.ref}`;
-    expect((await staffAction(request, "admin", { action: "assign_staff", client_id: mineC.id, staff_id: await staffId("staff") })).status).toBe(200);
+
     const up = await request.post("/api/staff/documents", {
-      multipart: { client_id: mineC.id, doc_type: "photo_id", file: { name: "id.png", mimeType: "image/png", buffer: PNG } },
-      headers: { cookie: `cg_at=${await accessToken("admin")}` },
+      multipart: { client_id: c.id, doc_type: "photo_id", file: { name: "id.png", mimeType: "image/png", buffer: PNG } },
+      headers: { cookie: `cg_at=${await accessToken("staff")}` },
     });
     expect(up.status()).toBe(201);
     const { id: docId } = await up.json();
     await expect.poll(async () => (await db()`select status from documents where id = ${docId}`)[0].status, { timeout: 15_000 }).not.toBe("pending");
-    expect((await staffAction(request, "staff", { action: "verify_document", document_id: docId })).status).toBe(403);
+    expect((await staffAction(request, "staff", { action: "verify_document", document_id: docId })).status).toBe(200);
+    const [verified] = await db()`select status, reviewed_by from documents where id = ${docId}`;
+    expect(verified.status).toBe("verified");
+    expect(verified.reviewed_by).toBe(await staffId("staff"));
     const view = await request.get(`/api/documents/${docId}`, { headers: { cookie: `cg_at=${await accessToken("staff")}` } });
     expect(view.status()).toBe(200);
     expect((await view.json()).expires_in).toBe(600);
     const after = (await db()`select count(*)::int as n from security_events where event = 'access_denied'`)[0].n;
-    expect(after - before).toBeGreaterThanOrEqual(3);
-
-    // Assigned client: permitted work succeeds.
-    const [mine] = await db()`select id from clients where assigned_staff = ${await staffId("staff")} limit 1`;
-    const allowed = await staffAction(request, "staff", { action: "add_note", client_id: mine.id, note: "Staff note" });
-    expect(allowed.status, JSON.stringify(allowed.json)).toBe(200);
+    expect(after - before).toBeGreaterThanOrEqual(1);
     await ctx.close();
   });
 
-  test("manager: operations allowed, team management refused; admin manages team", async ({ request }) => {
+  test("manager and admin cannot manage team; super admin can", async ({ request }) => {
     expect((await staffAction(request, "manager", { action: "update_staff_role", staff_id: await staffId("staff"), role: "manager" })).status).toBe(403);
-    const created = await staffAction(request, "admin", { action: "create_staff", display_name: `TEST New ${RUN}`, email: null, role: "staff" });
+    expect((await staffAction(request, "admin", { action: "create_staff", display_name: `TEST Admin Denied ${RUN}`, email: null, role: "staff" })).status).toBe(403);
+    const created = await staffAction(request, "superadmin", { action: "create_staff", display_name: `TEST New ${RUN}`, email: null, role: "staff" });
     expect(created.status).toBe(200);
-    const invite = await staffAction(request, "admin", { action: "invite_staff", staff_id: created.json.staff_id });
-    expect(invite.status).toBe(409); // no real email → cannot invite (never fabricated)
+    const invite = await staffAction(request, "superadmin", { action: "invite_staff", staff_id: created.json.staff_id });
+    expect(invite.status).toBe(409);
   });
 
   test("cross-origin mutations and bad cron secrets are rejected", async ({ request }) => {

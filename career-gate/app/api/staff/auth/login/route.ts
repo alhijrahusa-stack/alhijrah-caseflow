@@ -7,7 +7,7 @@ import { sendEmailOtp } from "@/lib/providers/supabase-auth";
 import { hit, securityEvent } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
-const GENERIC = "If this email belongs to Career Gate staff, a sign-in code has been sent.";
+const GENERIC = "If this email belongs to active Career Gate staff, a sign-in code has been sent.";
 
 export async function POST(req: Request) {
   const traceId = traceIdFrom(req);
@@ -24,23 +24,17 @@ export async function POST(req: Request) {
   }
 
   const email = parsed.data.email.toLowerCase();
-  const bootstrap = registry.app().adminEmail?.toLowerCase() === email;
   let isStaff = false;
-
-  // The bootstrap admin can receive the OTP before the database link is created.
-  // Non-bootstrap accounts must already exist as active staff.
-  if (!bootstrap) {
-    try {
-      const [staff] = await sql()`select id from staff where lower(email) = ${email} and active`;
-      isStaff = Boolean(staff);
-    } catch (error) {
-      const message = databaseConfigMessage(error);
-      if (message) return err("DATABASE_NOT_READY", message, 503, traceId);
-      throw error;
-    }
+  try {
+    const [staff] = await sql()`select id from staff where lower(email) = ${email} and active`;
+    isStaff = Boolean(staff);
+  } catch (error) {
+    const message = databaseConfigMessage(error);
+    if (message) return err("DATABASE_NOT_READY", message, 503, traceId);
+    throw error;
   }
 
-  if (bootstrap || isStaff) {
+  if (isStaff) {
     const r = await sendEmailOtp(email, true);
     if (!r.ok) {
       if (r.code === "NOT_CONFIGURED") return err("NOT_CONFIGURED", r.message, 503, traceId);
