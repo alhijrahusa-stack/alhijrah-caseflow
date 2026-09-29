@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   AddNoteForm, AppointmentForm, AssignForm, ContactedForm, DocumentForm, FollowupForm, NextStepForm, type Panel, StatusForm, TaskForm,
@@ -26,8 +27,9 @@ export type ClientFileData = {
   notifications: Row[]; alerts: Row[]; agentRun: Row | null; references: Row[];
 };
 export type ClientPanel = Panel;
-type ClientTab = "profile" | "preferences" | "documents" | "appointments" | "work" | "activity";
+export type ClientTab = "profile" | "preferences" | "documents" | "appointments" | "work" | "activity";
 
+const CLIENT_TABS = new Set<ClientTab>(["profile", "preferences", "documents", "appointments", "work", "activity"]);
 const panelTab: Record<Panel, ClientTab> = {
   document: "documents",
   appointment: "appointments",
@@ -44,22 +46,46 @@ function pipelineLabel(value: unknown) {
   return String(value ?? "portal_intake").replace(/_/g, " ");
 }
 
+function validTab(value: string | null): value is ClientTab {
+  return Boolean(value && CLIENT_TABS.has(value as ClientTab));
+}
+
 export function ClientFile({
   data,
   account = null,
   initialPanel = null,
+  initialTab = null,
 }: {
   data: ClientFileData;
   account?: ClientAccountSummary;
   initialPanel?: ClientPanel | null;
+  initialTab?: ClientTab | null;
 }) {
   const { client: c } = data;
   const { isManager, isAdmin } = useStaff();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [panel, setPanel] = useState<Panel | null>(initialPanel);
-  const [tab, setTab] = useState<ClientTab>(initialPanel ? panelTab[initialPanel] : "profile");
+
+  const urlTab = searchParams.get("tab");
+  const tab: ClientTab = validTab(urlTab)
+    ? urlTab
+    : initialPanel
+      ? panelTab[initialPanel]
+      : initialTab ?? "profile";
+
+  const replaceTab = (nextTab: ClientTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", nextTab);
+    params.delete("action");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
   const close = () => setPanel(null);
   const openPanel = (p: Panel) => () => {
-    setTab(panelTab[p]);
+    replaceTab(panelTab[p]);
     setPanel(p);
     setTimeout(() => document.getElementById("action-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
@@ -132,7 +158,7 @@ export function ClientFile({
 
       <div className="flex gap-1 overflow-x-auto rounded-2xl border border-white/[.06] bg-white/[.018] p-1.5" aria-label="Client file sections">
         {tabs.map((item) => (
-          <button key={item.id} type="button" className="staff-tab whitespace-nowrap rounded-xl px-3 py-2 text-xs font-medium" data-active={tab === item.id} onClick={() => setTab(item.id)}>
+          <button key={item.id} type="button" className="staff-tab whitespace-nowrap rounded-xl px-3 py-2 text-xs font-medium" data-active={tab === item.id} onClick={() => replaceTab(item.id)}>
             {item.label}{item.count != null && <span className="ml-1.5 font-mono text-[9px] text-slate-600">{item.count}</span>}
           </button>
         ))}
@@ -177,7 +203,7 @@ export function ClientFile({
       {tab === "preferences" && <Preferences clientId={c.id} prefs={data.preferences} />}
 
       {tab === "documents" && (
-        <div className="space-y-4">
+        <div className="space-y-4" data-testid="documents-tab-content">
           <Documents docs={data.documents} extractions={data.extractions} onAdd={openPanel("document")} />
           <Assessments clientId={c.id} items={data.assessments} references={data.references} />
         </div>
