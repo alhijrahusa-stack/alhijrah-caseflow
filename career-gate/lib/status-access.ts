@@ -114,20 +114,38 @@ export async function verifyCode(challengeId: string, code: string, ipHash: stri
     const token = newSessionToken();
     await tx`insert into status_sessions (client_id, token_hash, expires_at, ip_hash)
              values (${r.client_id}, ${sessionTokenHash(token)}, ${new Date(Date.now() + SESSION_TTL_SECONDS * 1000)}, ${ipHash})`;
-    const [c] = await tx`select ref from clients where id = ${r.client_id}`;
+    const [c] = await tx`
+      select coalesce(
+        (select a.case_number from career_gate_applications a where a.client_id = c.id order by a.created_at desc limit 1),
+        c.ref
+      ) as public_ref
+      from clients c
+      where c.id = ${r.client_id}`;
     await logActivity(tx, { clientId: r.client_id, action: "status_otp_verified", actor: { staffId: null, traceId }, entityType: "otp_request", entityId: challengeId });
-    return { ok: true, ref: c.ref as string, token } as const;
+    return { ok: true, ref: c.public_ref as string, token } as const;
   });
 }
 
-/** Returns the client id bound to the caller's status session for this ref, or null. */
+/** Returns the client id bound to the caller's status session for this public ref, or null. */
 export async function sessionClient(ref: string, token: string | undefined) {
   if (!token) return null;
   const db = sql();
+  const normalized = ref.trim().toUpperCase();
   const [s] = await db`
-    select s.id, s.client_id from status_sessions s join clients c on c.id = s.client_id
-    where s.token_hash = ${sessionTokenHash(token)} and s.revoked_at is null and s.expires_at > now()
-      and c.ref = ${ref} and c.deleted_at is null`;
+    select s.id, s.client_id
+    from status_sessions s
+    join clients c on c.id = s.client_id
+    where s.token_hash = ${sessionTokenHash(token)}
+      and s.revoked_at is null
+      and s.expires_at > now()
+      and c.deleted_at is null
+      and (
+        upper(c.ref) = ${normalized}
+        or exists (
+          select 1 from career_gate_applications a
+          where a.client_id = c.id and upper(a.case_number) = ${normalized}
+        )
+      )`;
   if (!s) return null;
   await db`update status_sessions set last_access = now() where id = ${s.id}`;
   return s.client_id as string;
