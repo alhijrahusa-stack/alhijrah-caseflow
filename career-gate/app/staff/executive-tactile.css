@@ -1,260 +1,785 @@
-/* Career Gate — Executive Tactile UI refinement layer.
-   Presentation-only: no business logic, auth, API, database, RLS, or state-machine behavior. */
+/*
+ * ============================================================================
+ * CAREER GATE — VERSION 3
+ * NEO-EXECUTIVE INSTITUTIONAL OPERATING UI
+ * Production Interface Layer
+ * ============================================================================
+ *
+ * PURPOSE
+ * - Institutional executive visual system
+ * - High-density staff operations
+ * - Tactile interaction feedback
+ * - Realtime / network / mutation visual states
+ * - Error-recovery presentation
+ * - AI review-risk presentation
+ * - Arabic / English operational typography
+ * - Accessibility and reduced-motion safety
+ * - Responsive desktop / tablet / mobile behavior
+ *
+ * PRESENTATION ONLY.
+ *
+ * NEVER place inside this layer:
+ * - authentication logic
+ * - authorization / RBAC
+ * - RLS logic
+ * - state transitions
+ * - business rules
+ * - API behavior
+ * - database behavior
+ * - mutation guards
+ * - idempotency logic
+ * - optimistic mutation execution
+ * - WebSocket implementation
+ * - offline mutation execution
+ * - AI confidence calculation
+ *
+ * Those remain authoritative server/application responsibilities.
+ */
+
+
+/* ============================================================================
+   01. EXECUTIVE DESIGN TOKENS
+   ============================================================================ */
 
 .staff-shell {
-  --tactile-gold: #c5a059;
-  --tactile-gold-soft: #e8c982;
-  --tactile-titanium: #91a2b7;
-  --tactile-cyan: #69d7ff;
-  --tactile-violet: #b8a8ff;
-  --tactile-emerald: #6ee7b7;
-  --tactile-press-shadow: inset 0 4px 9px rgba(0, 0, 0, .72), inset 0 1px 0 rgba(255,255,255,.035);
+  color-scheme: dark;
+
+  /* Institutional metals */
+  --exec-gold: #c5a059;
+  --exec-gold-soft: #e8c982;
+  --exec-gold-bright: #f1cf79;
+
+  --exec-titanium: #91a2b7;
+  --exec-titanium-soft: #b4c0cf;
+
+  /* Functional accents */
+  --exec-cyan: #69d7ff;
+  --exec-blue: #8ebcff;
+  --exec-violet: #b8a8ff;
+  --exec-emerald: #6ee7b7;
+  --exec-red: #f3b2b7;
+  --exec-amber: #f4d27d;
+
+  /* Surfaces */
+  --exec-surface-1: rgba(21, 34, 54, 0.92);
+  --exec-surface-2: rgba(10, 18, 31, 0.94);
+  --exec-surface-3: rgba(5, 11, 20, 0.97);
+
+  --exec-surface-soft: rgba(255, 255, 255, 0.035);
+  --exec-surface-hover: rgba(255, 255, 255, 0.055);
+
+  /* Text */
+  --exec-text-strong: #f8fafc;
+  --exec-text-primary: #e7edf5;
+  --exec-text-secondary: #aebdce;
+  --exec-text-muted: #8999ad;
+  --exec-text-faint: #586b82;
+
+  /* Edges */
+  --exec-edge: rgba(255, 255, 255, 0.09);
+  --exec-edge-soft: rgba(255, 255, 255, 0.055);
+  --exec-gold-edge: rgba(197, 160, 89, 0.22);
+  --exec-gold-edge-strong: rgba(197, 160, 89, 0.5);
+
+  /* Radius */
+  --exec-radius-xs: 8px;
+  --exec-radius-sm: 10px;
+  --exec-radius-md: 12px;
+  --exec-radius-lg: 15px;
+  --exec-radius-xl: 18px;
+  --exec-radius-2xl: 20px;
+
+  /* Motion */
+  --exec-motion-fast: 120ms;
+  --exec-motion-normal: 180ms;
+  --exec-motion-slow: 240ms;
+
+  --exec-ease:
+    cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Mechanical depth */
+  --exec-press-depth: 3px;
+  --exec-primary-press-depth: 4px;
+
+  --exec-press-shadow:
+    inset 0 4px 9px rgba(0, 0, 0, 0.72),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+
+  /* Focus */
+  --exec-focus:
+    rgba(232, 201, 130, 0.72);
+
+  /* Status */
+  --exec-success: #34d399;
+  --exec-warning: #f6c453;
+  --exec-danger: #f87171;
+  --exec-info: #69d7ff;
+  --exec-offline: #94a3b8;
+
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Institutional brand block */
+
+/* ============================================================================
+   02. GLOBAL OPERATIONAL QUALITY
+   ============================================================================ */
+
+.staff-shell *,
+.staff-shell *::before,
+.staff-shell *::after {
+  box-sizing: border-box;
+}
+
+.staff-shell button,
+.staff-shell a,
+.staff-shell input,
+.staff-shell select,
+.staff-shell textarea {
+  font: inherit;
+}
+
+.staff-shell button,
+.staff-shell a,
+.staff-shell [role="button"] {
+  touch-action: manipulation;
+}
+
+.staff-shell code,
+.staff-shell [data-numeric],
+.staff-shell .staff-kpi,
+.staff-shell table {
+  font-variant-numeric:
+    tabular-nums;
+}
+
+.staff-shell code,
+.staff-shell td,
+.staff-shell th {
+  overflow-wrap: anywhere;
+}
+
+.staff-shell [dir="rtl"] {
+  text-align: start;
+  letter-spacing: 0;
+}
+
+
+/* ============================================================================
+   03. INSTITUTIONAL BRAND
+   ============================================================================ */
+
 .staff-brand-link {
   text-decoration: none;
+  isolation: isolate;
 }
 
 .staff-brand-mark {
   position: relative;
+
   display: flex;
+
   width: 52px;
   height: 52px;
+
   flex: 0 0 auto;
+
   align-items: center;
   justify-content: center;
+
   overflow: hidden;
-  border: 1px solid rgba(197, 160, 89, .28);
-  border-radius: 15px;
+
+  border:
+    1px solid rgba(197, 160, 89, 0.28);
+
+  border-radius:
+    15px;
+
   background:
-    linear-gradient(145deg, rgba(255,255,255,.085), rgba(255,255,255,.02)),
-    linear-gradient(180deg, rgba(27,40,63,.92), rgba(8,15,27,.96));
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.085),
+      rgba(255, 255, 255, 0.02)
+    ),
+    linear-gradient(
+      180deg,
+      rgba(27, 40, 63, 0.92),
+      rgba(8, 15, 27, 0.96)
+    );
+
   box-shadow:
-    0 12px 32px rgba(0,0,0,.28),
-    inset 0 1px 0 rgba(255,255,255,.11),
-    inset 0 -1px 0 rgba(197,160,89,.06);
-  transition: transform .18s cubic-bezier(.16,1,.3,1), border-color .18s ease, box-shadow .18s ease;
+    0 12px 32px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.11),
+    inset 0 -1px 0 rgba(197, 160, 89, 0.06);
+
+  transition:
+    transform var(--exec-motion-normal) var(--exec-ease),
+    border-color var(--exec-motion-normal) ease,
+    box-shadow var(--exec-motion-normal) ease,
+    background var(--exec-motion-normal) ease;
 }
 
-.staff-brand-link:hover .staff-brand-mark {
-  transform: translateY(-1px);
-  border-color: rgba(197, 160, 89, .5);
+.staff-brand-link:active .staff-brand-mark {
+  transform:
+    translateY(2px)
+    scale(0.995);
+
   box-shadow:
-    0 15px 38px rgba(0,0,0,.32),
-    0 0 28px rgba(197,160,89,.06),
-    inset 0 1px 0 rgba(255,255,255,.14);
+    inset 0 3px 7px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.staff-brand-mark img {
+  display: block;
+
+  max-width: 100%;
+  max-height: 100%;
+
+  object-fit: contain;
 }
 
 .staff-brand-edge {
   pointer-events: none;
+
   position: absolute;
+
   right: 8px;
   bottom: 0;
   left: 8px;
+
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(232,201,130,.7), transparent);
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(232, 201, 130, 0.7),
+      transparent
+    );
 }
 
 .staff-brand-sheen {
   pointer-events: none;
+
   position: absolute;
+
   inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,.075), transparent 42%);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.075),
+      transparent 42%
+    );
 }
 
 .staff-brand-title {
   display: block;
+
   overflow: hidden;
-  color: #f8fafc;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: .18em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-shadow: 0 8px 24px rgba(0,0,0,.3);
+
+  color:
+    var(--exec-text-strong);
+
+  font-size:
+    13.5px;
+
+  font-weight:
+    720;
+
+  letter-spacing:
+    0.18em;
+
+  line-height:
+    1.1;
+
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
+
+  text-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .staff-brand-status {
   width: 4px;
   height: 4px;
+
   flex: 0 0 auto;
-  border-radius: 999px;
-  background: rgba(232, 201, 130, .92);
-  box-shadow: 0 0 9px rgba(232,201,130,.38);
+
+  border-radius:
+    999px;
+
+  background:
+    rgba(232, 201, 130, 0.92);
+
+  box-shadow:
+    0 0 9px rgba(232, 201, 130, 0.38);
 }
 
 .staff-brand-ar {
   flex: 0 0 auto;
-  color: #e7edf5;
-  font-size: 12.5px;
-  font-weight: 700;
-  line-height: 1;
+
+  color:
+    var(--exec-text-primary);
+
+  font-size:
+    13px;
+
+  font-weight:
+    700;
+
+  line-height:
+    1.15;
 }
 
 .staff-brand-office {
   overflow: hidden;
-  color: #8999ad;
-  font-size: 10.5px;
-  font-weight: 560;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+
+  color:
+    var(--exec-text-muted);
+
+  font-size:
+    10.5px;
+
+  font-weight:
+    560;
+
+  line-height:
+    1.15;
+
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
 }
 
 .staff-brand-meta {
-  margin-top: 6px;
-  overflow: hidden;
-  color: #586b82;
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: .11em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
+  margin-top:
+    6px;
+
+  overflow:
+    hidden;
+
+  color:
+    var(--exec-text-faint);
+
+  font-size:
+    9px;
+
+  font-weight:
+    600;
+
+  line-height:
+    1;
+
+  letter-spacing:
+    0.11em;
+
+  text-overflow:
+    ellipsis;
+
+  text-transform:
+    uppercase;
+
+  white-space:
+    nowrap;
 }
 
-/* Profile & session controls — existing session behavior only. */
+
+/* ============================================================================
+   04. PROFILE & EXECUTIVE SESSION MANAGEMENT
+   ============================================================================ */
+
 .executive-session-cluster {
   display: flex;
+
   align-items: center;
+
   gap: 5px;
+
   padding: 4px;
-  border: 1px solid rgba(197,160,89,.12);
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(18,29,47,.76), rgba(7,14,25,.82));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.045), 0 8px 24px rgba(0,0,0,.16);
+
+  border:
+    1px solid rgba(197, 160, 89, 0.12);
+
+  border-radius:
+    14px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(18, 29, 47, 0.76),
+      rgba(7, 14, 25, 0.82)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 8px 24px rgba(0, 0, 0, 0.16);
 }
 
 .executive-user-chip {
-  display: none;
-  align-items: center;
-  gap: 7px;
-  min-height: 34px;
-  padding: 0 9px;
-  border-right: 1px solid rgba(255,255,255,.06);
-  color: #dce5ef;
-  font-size: 11px;
+  display:
+    none;
+
+  align-items:
+    center;
+
+  gap:
+    7px;
+
+  min-height:
+    36px;
+
+  padding:
+    0 10px;
+
+  border-right:
+    1px solid rgba(255, 255, 255, 0.06);
+
+  color:
+    #dce5ef;
+
+  font-size:
+    11px;
 }
 
 .executive-user-dot {
-  width: 7px;
-  height: 7px;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background: #34d399;
-  box-shadow: 0 0 10px rgba(52,211,153,.4);
+  width:
+    7px;
+
+  height:
+    7px;
+
+  flex:
+    0 0 auto;
+
+  border-radius:
+    999px;
+
+  background:
+    var(--exec-success);
+
+  box-shadow:
+    0 0 10px rgba(52, 211, 153, 0.4);
 }
 
 .executive-role-badge {
-  border: 1px solid rgba(197,160,89,.16);
-  border-radius: 999px;
-  padding: 3px 6px;
-  color: #aebdce;
-  background: rgba(197,160,89,.035);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: .07em;
-  text-transform: uppercase;
+  border:
+    1px solid rgba(197, 160, 89, 0.16);
+
+  border-radius:
+    999px;
+
+  padding:
+    3px 6px;
+
+  color:
+    var(--exec-text-secondary);
+
+  background:
+    rgba(197, 160, 89, 0.035);
+
+  font-size:
+    8px;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0.07em;
+
+  text-transform:
+    uppercase;
 }
 
 .executive-control,
 .executive-session-cluster button {
-  min-height: 34px;
-  border: 1px solid rgba(197,160,89,.18) !important;
-  border-radius: 10px !important;
-  padding: 8px 10px !important;
-  color: #aebed0 !important;
-  background: linear-gradient(180deg, rgba(28,42,66,.82), rgba(10,17,29,.9)) !important;
-  box-shadow: 0 4px 12px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.09) !important;
-  font-size: 10.5px !important;
-  font-weight: 650 !important;
-  line-height: 1 !important;
-  text-decoration: none;
-  transition: transform .12s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, background .16s ease !important;
+  min-height:
+    36px;
+
+  border:
+    1px solid rgba(197, 160, 89, 0.18) !important;
+
+  border-radius:
+    11px !important;
+
+  padding:
+    8px 11px !important;
+
+  color:
+    #aebed0 !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(28, 42, 66, 0.86),
+      rgba(10, 17, 29, 0.94)
+    ) !important;
+
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(197, 160, 89, 0.04) !important;
+
+  font-size:
+    10.75px !important;
+
+  font-weight:
+    650 !important;
+
+  line-height:
+    1 !important;
+
+  text-decoration:
+    none;
+
+  user-select:
+    none;
+
+  transition:
+    transform var(--exec-motion-fast) ease,
+    border-color var(--exec-motion-normal) ease,
+    color var(--exec-motion-normal) ease,
+    box-shadow var(--exec-motion-normal) ease,
+    background var(--exec-motion-normal) ease !important;
 }
 
-.executive-control:hover,
-.executive-session-cluster button:hover {
-  color: #f8fafc !important;
-  border-color: rgba(197,160,89,.42) !important;
-  background: linear-gradient(180deg, rgba(34,50,77,.9), rgba(12,20,34,.96)) !important;
-  transform: translateY(-1px);
+.executive-control-copy {
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  gap:
+    2px;
+
+  align-items:
+    flex-start;
+
+  white-space:
+    nowrap;
+}
+
+.executive-control-copy strong {
+  color:
+    inherit;
+
+  font-size:
+    10.5px;
+
+  font-weight:
+    700;
+
+  line-height:
+    1;
+}
+
+.executive-control-copy small {
+  color:
+    #66798f;
+
+  font-size:
+    7.75px;
+
+  font-weight:
+    650;
+
+  line-height:
+    1;
+
+  letter-spacing:
+    0.035em;
+
+  text-transform:
+    uppercase;
 }
 
 .executive-control-alert {
-  color: #d7e2ee !important;
+  color:
+    #d7e2ee !important;
 }
 
 .executive-session-cluster button:last-child {
-  color: #f3b2b7 !important;
-  border-color: rgba(248,113,113,.2) !important;
+  color:
+    #f3b2b7 !important;
+
+  border-color:
+    rgba(248, 113, 113, 0.2) !important;
 }
 
-.executive-session-cluster button:last-child:hover {
-  color: #fecaca !important;
-  border-color: rgba(248,113,113,.45) !important;
-  background: linear-gradient(180deg, rgba(64,27,36,.72), rgba(25,12,18,.92)) !important;
+
+/* ============================================================================
+   05. KEYBOARD ACCESSIBILITY / FOCUS
+   ============================================================================ */
+
+.executive-control:focus-visible,
+.executive-session-cluster button:focus-visible,
+.staff-nav-link:focus-visible,
+.ops-primary-button:focus-visible,
+.ops-segmented button:focus-visible,
+.staff-bottom-bar a:focus-visible,
+.staff-bottom-bar button:focus-visible,
+.staff-sidepanel a:focus-visible,
+.staff-sidepanel button:focus-visible {
+  outline:
+    2px solid var(--exec-focus);
+
+  outline-offset:
+    2px;
 }
 
-/* High-priority navigation: larger typography and distinct icon color. */
+
+/* ============================================================================
+   06. STAFF NAVIGATION
+   ============================================================================ */
+
 .staff-nav-link {
-  min-height: 34px;
-}
-
-.staff-nav-link[data-tone="blue"] {
-  color: #9cc5ff;
-  border-color: rgba(79,140,255,.14);
-  background: rgba(79,140,255,.035);
+  min-height:
+    35px;
 }
 
 .staff-nav-priority {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .015em;
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  gap:
+    7px;
+
+  padding:
+    8px 12px;
+
+  font-size:
+    12.75px;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0.012em;
 }
 
 .staff-nav-icon {
-  width: 15px;
-  height: 15px;
-  flex: 0 0 auto;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,.2));
+  width:
+    16px;
+
+  height:
+    16px;
+
+  flex:
+    0 0 auto;
+
+  filter:
+    drop-shadow(
+      0 2px 6px rgba(0, 0, 0, 0.2)
+    );
 }
+
+
+/* BLUE */
+
+.staff-nav-link[data-tone="blue"] {
+  color:
+    #9cc5ff;
+
+  border-color:
+    rgba(79, 140, 255, 0.14);
+
+  background:
+    rgba(79, 140, 255, 0.035);
+}
+
+
+/* ACCOUNTING */
 
 .staff-nav-link[data-tone="gold"] {
-  color: #e7c979;
-  border-color: rgba(197,160,89,.22);
-  background: rgba(197,160,89,.055);
+  color:
+    #e7c979;
+
+  border-color:
+    rgba(197, 160, 89, 0.24);
+
+  background:
+    rgba(197, 160, 89, 0.055);
 }
-.staff-nav-link[data-tone="gold"] .staff-nav-icon { color: #f1cf79; }
+
+.staff-nav-link[data-tone="gold"]
+.staff-nav-icon {
+  color:
+    #f1cf79;
+}
+
+
+/* DISTRIBUTION */
 
 .staff-nav-link[data-tone="cyan"] {
-  color: #9ce8ff;
-  border-color: rgba(83,200,255,.18);
-  background: rgba(83,200,255,.045);
+  color:
+    #9ce8ff;
+
+  border-color:
+    rgba(83, 200, 255, 0.2);
+
+  background:
+    rgba(83, 200, 255, 0.045);
 }
-.staff-nav-link[data-tone="cyan"] .staff-nav-icon { color: #64dcff; }
+
+.staff-nav-link[data-tone="cyan"]
+.staff-nav-icon {
+  color:
+    #64dcff;
+}
+
+
+/* IMPORT */
 
 .staff-nav-link[data-tone="violet"] {
-  color: #c8bcff;
-  border-color: rgba(139,92,246,.2);
-  background: rgba(139,92,246,.05);
+  color:
+    #c8bcff;
+
+  border-color:
+    rgba(139, 92, 246, 0.22);
+
+  background:
+    rgba(139, 92, 246, 0.05);
 }
-.staff-nav-link[data-tone="violet"] .staff-nav-icon { color: #ad97ff; }
+
+.staff-nav-link[data-tone="violet"]
+.staff-nav-icon {
+  color:
+    #ad97ff;
+}
+
+
+/* NEW CLIENT */
 
 .staff-nav-link[data-tone="emerald"] {
-  color: #99f1cf;
-  border-color: rgba(16,185,129,.2);
-  background: rgba(16,185,129,.05);
-}
-.staff-nav-link[data-tone="emerald"] .staff-nav-icon { color: #5ee6b6; }
+  color:
+    #99f1cf;
 
-/* Physical/tactile response. No action behavior is replaced or intercepted. */
+  border-color:
+    rgba(16, 185, 129, 0.22);
+
+  background:
+    rgba(16, 185, 129, 0.05);
+}
+
+.staff-nav-link[data-tone="emerald"]
+.staff-nav-icon {
+  color:
+    #5ee6b6;
+}
+
+
+/* ============================================================================
+   07. TACTILE PHYSICS
+   ============================================================================ */
+
 .staff-nav-link,
 .executive-control,
 .executive-session-cluster button,
@@ -264,306 +789,1594 @@
 .staff-bottom-bar button,
 .staff-sidepanel a,
 .staff-sidepanel button {
-  transform-origin: center;
-  will-change: transform;
+  transform-origin:
+    center;
+
+  backface-visibility:
+    hidden;
+
+  user-select:
+    none;
 }
 
 .staff-nav-link:active,
 .executive-control:active,
 .executive-session-cluster button:active,
-.ops-primary-button:active:not(:disabled),
 .ops-segmented button:active:not(:disabled),
 .staff-bottom-bar a:active,
 .staff-bottom-bar button:active:not(:disabled),
 .staff-sidepanel a:active,
 .staff-sidepanel button:active:not(:disabled) {
-  transform: translateY(3px) scale(.995) !important;
-  box-shadow: var(--tactile-press-shadow) !important;
-  filter: brightness(.96);
+  transform:
+    translateY(var(--exec-press-depth))
+    scale(0.995) !important;
+
+  box-shadow:
+    var(--exec-press-shadow) !important;
+
+  filter:
+    brightness(0.96);
+}
+
+
+/*
+ * Heavy / decision button:
+ * full 4px mechanical travel.
+ */
+
+.ops-primary-button:active:not(:disabled) {
+  transform:
+    translateY(var(--exec-primary-press-depth))
+    scale(0.992) !important;
+
+  box-shadow:
+    inset 0 5px 10px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+
+  filter:
+    brightness(0.95);
 }
 
 .ops-primary-button {
-  min-height: 39px;
-  border-color: rgba(197,160,89,.28);
-  border-radius: 11px;
-  background: linear-gradient(180deg, #235fbe, #173d85);
+  min-height:
+    40px;
+
+  border-color:
+    rgba(197, 160, 89, 0.3);
+
+  border-radius:
+    12px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #235fbe,
+      #173d85
+    );
+
   box-shadow:
-    0 5px 14px rgba(0,0,0,.34),
-    0 11px 28px rgba(24,77,177,.13),
-    inset 0 1px 0 rgba(255,255,255,.18),
-    inset 0 -1px 0 rgba(197,160,89,.08);
-  font-size: 11.5px;
-  letter-spacing: .015em;
+    0 5px 14px rgba(0, 0, 0, 0.34),
+    0 11px 28px rgba(24, 77, 177, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(197, 160, 89, 0.08);
+
+  font-size:
+    11.75px;
+
+  letter-spacing:
+    0.012em;
+
+  transition:
+    transform var(--exec-motion-fast) ease,
+    border-color var(--exec-motion-normal) ease,
+    box-shadow var(--exec-motion-normal) ease,
+    filter var(--exec-motion-normal) ease;
 }
 
-.ops-primary-button:hover:not(:disabled) {
-  border-color: rgba(197,160,89,.48);
+
+/* ============================================================================
+   08. DISABLED / BUSY / MUTATION SAFETY PRESENTATION
+   ============================================================================ */
+
+.staff-shell button:disabled,
+.staff-shell [aria-disabled="true"] {
+  cursor:
+    not-allowed !important;
+
+  opacity:
+    0.52;
+
+  transform:
+    none !important;
+
+  filter:
+    saturate(0.72);
+
   box-shadow:
-    0 7px 18px rgba(0,0,0,.36),
-    0 12px 32px rgba(197,160,89,.08),
-    inset 0 1px 0 rgba(255,255,255,.2);
+    none;
 }
 
-/* Dashboard typography and surface refinement. */
+.staff-shell [aria-busy="true"],
+.staff-shell [data-mutation-state="pending"] {
+  cursor:
+    progress;
+}
+
+.staff-shell [data-mutation-state="pending"] {
+  position:
+    relative;
+
+  opacity:
+    0.78;
+}
+
+.staff-shell [data-mutation-state="synced"] {
+  border-color:
+    rgba(52, 211, 153, 0.28) !important;
+}
+
+.staff-shell [data-mutation-state="failed"] {
+  border-color:
+    rgba(248, 113, 113, 0.48) !important;
+
+  box-shadow:
+    0 0 0 1px rgba(248, 113, 113, 0.08),
+    0 10px 28px rgba(0, 0, 0, 0.2);
+}
+
+
+/* ============================================================================
+   09. DASHBOARD
+   ============================================================================ */
+
 .staff-client-card {
-  border-radius: 18px;
+  border-radius:
+    18px;
+
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.035),
+      rgba(255, 255, 255, 0.012)
+    ),
+    rgba(7, 15, 27, 0.78);
+
   box-shadow:
-    0 16px 42px rgba(0,0,0,.18),
-    inset 0 1px 0 rgba(255,255,255,.05),
-    inset 0 -1px 0 rgba(197,160,89,.025);
+    0 16px 42px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(197, 160, 89, 0.025);
+
+  transition:
+    border-color var(--exec-motion-normal) ease,
+    box-shadow var(--exec-motion-normal) ease,
+    transform var(--exec-motion-normal) ease;
 }
 
 .staff-client-card h3 {
-  font-size: 14px !important;
-  font-weight: 720 !important;
-  letter-spacing: -.01em;
+  font-size:
+    14.5px !important;
+
+  font-weight:
+    720 !important;
+
+  letter-spacing:
+    -0.01em;
 }
 
 .staff-client-card code {
-  font-size: 10.5px !important;
+  font-size:
+    10.5px !important;
 }
 
 .staff-client-card p {
-  font-size: 12px !important;
-  line-height: 1.55;
+  font-size:
+    12.25px !important;
+
+  line-height:
+    1.56;
 }
 
 .staff-client-card button {
-  min-height: 34px;
-  border-color: rgba(197,160,89,.16) !important;
-  background: linear-gradient(180deg, rgba(27,40,62,.72), rgba(10,17,29,.82));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.065), 0 5px 14px rgba(0,0,0,.18);
+  min-height:
+    35px;
+
+  border-color:
+    rgba(197, 160, 89, 0.16) !important;
+
+  border-radius:
+    10px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(27, 40, 62, 0.72),
+      rgba(10, 17, 29, 0.82)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.065),
+    0 5px 14px rgba(0, 0, 0, 0.18);
 }
 
 .staff-kpi {
-  border-radius: 20px;
+  border-radius:
+    20px;
+
   background:
-    radial-gradient(circle at 90% 0%, rgba(197,160,89,.045), transparent 12rem),
-    linear-gradient(155deg, rgba(255,255,255,.052), rgba(255,255,255,.016)),
-    rgba(8,18,31,.78);
+    radial-gradient(
+      circle at 90% 0%,
+      rgba(197, 160, 89, 0.045),
+      transparent 12rem
+    ),
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.052),
+      rgba(255, 255, 255, 0.016)
+    ),
+    rgba(8, 18, 31, 0.78);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 15px 38px rgba(0, 0, 0, 0.12);
 }
 
 .staff-kpi p:first-child {
-  font-size: 11px !important;
-  font-weight: 600;
-  letter-spacing: .015em;
+  font-size:
+    11px !important;
+
+  font-weight:
+    650;
+
+  letter-spacing:
+    0.012em;
 }
 
 .staff-glass > summary {
-  min-height: 48px;
-  font-size: 13px !important;
-  font-weight: 680 !important;
+  min-height:
+    48px;
+
+  font-size:
+    13px !important;
+
+  font-weight:
+    680 !important;
 }
 
 .staff-tab {
-  min-height: 40px;
-  font-size: 13px !important;
+  min-height:
+    40px;
+
+  font-size:
+    13px !important;
 }
 
-/* Candidate Pipeline — larger, balanced client-card typography. */
-.ops-kanban .ops-column-head strong {
-  font-size: 12.5px;
-  font-weight: 720;
+
+/* ============================================================================
+   10. CANDIDATE PIPELINE
+   ============================================================================ */
+
+.ops-kanban
+.ops-column-head strong {
+  font-size:
+    13px;
+
+  font-weight:
+    720;
 }
 
-.ops-kanban .ops-column-head span:not(.ops-stage-dot) {
-  font-size: 10.5px;
+.ops-kanban
+.ops-column-head span:not(.ops-stage-dot) {
+  font-size:
+    10.75px;
 }
 
-.ops-kanban .ops-client-card {
-  border-radius: 15px;
-  padding: 13px;
+.ops-kanban
+.ops-client-card {
+  border-radius:
+    15px;
+
+  padding:
+    13px;
+
   background:
-    linear-gradient(160deg, rgba(255,255,255,.035), rgba(255,255,255,.01)),
-    rgba(6,13,23,.72);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 10px 28px rgba(0,0,0,.12);
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.04),
+      rgba(255, 255, 255, 0.01)
+    ),
+    rgba(6, 13, 23, 0.74);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 10px 28px rgba(0, 0, 0, 0.13);
 }
 
-.ops-kanban .ops-client-head h3 {
-  font-size: 13.5px;
-  font-weight: 720;
-  letter-spacing: -.01em;
+.ops-kanban
+.ops-client-head h3 {
+  font-size:
+    14px;
+
+  font-weight:
+    720;
+
+  letter-spacing:
+    -0.01em;
 }
 
-.ops-kanban .ops-client-head code {
-  margin-top: 4px;
-  font-size: 10px;
+.ops-kanban
+.ops-client-head code {
+  margin-top:
+    4px;
+
+  font-size:
+    10.25px;
 }
 
-.ops-kanban .ops-client-meta span {
-  padding: 4px 6px;
-  font-size: 9.5px;
-  line-height: 1.25;
+.ops-kanban
+.ops-client-meta span {
+  padding:
+    4px 6px;
+
+  font-size:
+    9.75px;
+
+  line-height:
+    1.3;
 }
 
-.ops-kanban .ops-next {
-  margin: 10px 0;
-  font-size: 10.5px;
-  line-height: 1.55;
+.ops-kanban
+.ops-next {
+  margin:
+    10px 0;
+
+  font-size:
+    10.75px;
+
+  line-height:
+    1.56;
 }
 
-.ops-kanban .ops-next span,
-.ops-kanban .ops-client-actions a {
-  font-size: 9.5px;
+.ops-kanban
+.ops-next span,
+.ops-kanban
+.ops-client-actions a {
+  font-size:
+    9.75px;
 }
 
-.ops-kanban .ops-select {
-  min-height: 34px;
-  font-size: 10.5px;
+.ops-kanban
+.ops-select {
+  min-height:
+    35px;
+
+  font-size:
+    10.75px;
 }
 
-/* Location/shift client cards — same information, stronger hierarchy. */
-.ops-dispatch-lane > header strong {
-  font-size: 12.5px;
-  font-weight: 720;
+
+/* ============================================================================
+   11. STAFF TASK & DISTRIBUTION
+   ============================================================================ */
+
+.ops-dispatch-lane
+> header strong {
+  font-size:
+    13px;
+
+  font-weight:
+    720;
 }
 
-.ops-dispatch-lane > header span {
-  font-size: 10px;
+.ops-dispatch-lane
+> header span {
+  font-size:
+    10.25px;
 }
 
 .ops-dispatch-client {
-  border-radius: 14px;
-  padding: 12px;
+  border-radius:
+    15px;
+
+  padding:
+    13px;
+
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.03),
+      rgba(255, 255, 255, 0.008)
+    );
 }
 
 .ops-dispatch-client-head strong {
-  font-size: 13px;
-  font-weight: 720;
-  letter-spacing: -.01em;
+  font-size:
+    13.5px;
+
+  font-weight:
+    720;
+
+  letter-spacing:
+    -0.01em;
 }
 
 .ops-dispatch-client-head code {
-  margin-top: 3px;
-  font-size: 9.5px;
+  margin-top:
+    3px;
+
+  font-size:
+    9.75px;
 }
 
 .ops-auto-badge {
-  font-size: 8px;
+  font-size:
+    8.25px;
 }
 
 .ops-dispatch-meta span,
 .ops-dispatch-footer span,
 .ops-dispatch-footer b {
-  font-size: 9.5px;
-  line-height: 1.35;
+  font-size:
+    9.75px;
+
+  line-height:
+    1.4;
 }
 
-/* Staff & Task Distribution — denser enterprise typography without changing actions. */
 .ops-staff-card {
-  border-radius: 17px;
-  padding: 15px 16px;
-}
+  border-radius:
+    17px;
 
-.ops-staff-card code { font-size: 9.5px; }
-.ops-staff-card strong { font-size: 12.5px; font-weight: 720; }
-.ops-staff-card > span { font-size: 14px; }
-.ops-staff-card small { font-size: 9.5px; line-height: 1.4; }
+  padding:
+    15px 16px;
 
-.ops-distribution-table-wrap .ops-table thead th,
-.staff-shell main .table thead th {
-  font-size: 10.5px;
-}
-
-.ops-distribution-table-wrap .ops-table tbody td,
-.staff-shell main .table tbody td {
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.ops-distribution-table-wrap .ops-table tbody td strong {
-  color: #eef4fb;
-  font-size: 12.5px;
-  font-weight: 700;
-}
-
-.ops-distribution-table-wrap .ops-table tbody td span {
-  font-size: 10.5px;
-}
-
-.ops-distribution-table-wrap .ops-table tbody td a {
-  color: #8bd7ff;
-  font-size: 11px;
-  font-weight: 650;
-}
-
-/* Glass-card uplift used by Reports and operational pages. */
-.ops-glass-card {
-  border-color: rgba(197,160,89,.13);
   background:
-    radial-gradient(circle at 92% 0%, rgba(83,200,255,.035), transparent 17rem),
-    linear-gradient(155deg, rgba(255,255,255,.052), rgba(255,255,255,.014)),
-    rgba(8,18,31,.78);
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.035),
+      rgba(255, 255, 255, 0.01)
+    );
+}
+
+.ops-staff-card code {
+  font-size:
+    9.75px;
+}
+
+.ops-staff-card strong {
+  font-size:
+    13px;
+
+  font-weight:
+    720;
+}
+
+.ops-staff-card > span {
+  font-size:
+    14px;
+}
+
+.ops-staff-card small {
+  font-size:
+    9.75px;
+
+  line-height:
+    1.45;
+}
+
+.ops-distribution-table-wrap
+.ops-table thead th,
+.staff-shell main
+.table thead th {
+  font-size:
+    10.75px;
+}
+
+.ops-distribution-table-wrap
+.ops-table tbody td,
+.staff-shell main
+.table tbody td {
+  font-size:
+    12.25px;
+
+  line-height:
+    1.48;
+}
+
+.ops-distribution-table-wrap
+.ops-table tbody td strong {
+  color:
+    #eef4fb;
+
+  font-size:
+    13px;
+
+  font-weight:
+    700;
+}
+
+.ops-distribution-table-wrap
+.ops-table tbody td span {
+  font-size:
+    10.75px;
+}
+
+.ops-distribution-table-wrap
+.ops-table tbody td a {
+  color:
+    #8bd7ff;
+
+  font-size:
+    11.25px;
+
+  font-weight:
+    650;
+}
+
+
+/* ============================================================================
+   12. REPORTS / MANAGEMENT INTELLIGENCE
+   ============================================================================ */
+
+.ops-glass-card {
+  position:
+    relative;
+
+  overflow:
+    hidden;
+
+  isolation:
+    isolate;
+
+  border-color:
+    rgba(197, 160, 89, 0.15);
+
+  border-radius:
+    18px;
+
+  background:
+    radial-gradient(
+      circle at 92% 0%,
+      rgba(83, 200, 255, 0.04),
+      transparent 17rem
+    ),
+    radial-gradient(
+      circle at 0% 100%,
+      rgba(197, 160, 89, 0.035),
+      transparent 15rem
+    ),
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.052),
+      rgba(255, 255, 255, 0.014)
+    ),
+    rgba(8, 18, 31, 0.8);
+
   box-shadow:
-    0 18px 56px rgba(0,0,0,.18),
-    inset 0 1px 0 rgba(255,255,255,.05),
-    inset 0 -1px 0 rgba(197,160,89,.025);
+    0 18px 56px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    inset 0 -1px 0 rgba(197, 160, 89, 0.03);
+
+  transition:
+    border-color var(--exec-motion-normal) ease,
+    box-shadow var(--exec-motion-normal) ease,
+    transform var(--exec-motion-normal) ease;
+}
+
+.ops-glass-card::before {
+  content:
+    "";
+
+  pointer-events:
+    none;
+
+  position:
+    absolute;
+
+  inset:
+    0 14px auto 14px;
+
+  height:
+    1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(232, 201, 130, 0.2),
+      transparent
+    );
 }
 
 .ops-glass-card h2 {
-  font-size: 13px !important;
-  font-weight: 720 !important;
-  letter-spacing: -.005em;
+  font-size:
+    13.5px !important;
+
+  font-weight:
+    720 !important;
+
+  letter-spacing:
+    -0.005em;
 }
 
-.ops-glass-card .table tbody tr:last-child td {
-  border-bottom-color: transparent;
+.ops-glass-card
+.table tbody tr:last-child td {
+  border-bottom-color:
+    transparent;
 }
+
+
+/* ============================================================================
+   13. EXECUTIVE HERO
+   ============================================================================ */
 
 .ops-hero {
-  border-color: rgba(197,160,89,.18);
+  border-color:
+    rgba(197, 160, 89, 0.2);
+
   background:
-    radial-gradient(circle at 94% 0%, rgba(83,200,255,.095), transparent 24rem),
-    radial-gradient(circle at 4% 95%, rgba(197,160,89,.07), transparent 22rem),
-    linear-gradient(145deg, rgba(21,34,54,.78), rgba(7,13,23,.88));
+    radial-gradient(
+      circle at 94% 0%,
+      rgba(83, 200, 255, 0.095),
+      transparent 24rem
+    ),
+    radial-gradient(
+      circle at 4% 95%,
+      rgba(197, 160, 89, 0.07),
+      transparent 22rem
+    ),
+    linear-gradient(
+      145deg,
+      rgba(21, 34, 54, 0.8),
+      rgba(7, 13, 23, 0.9)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 22px 58px rgba(0, 0, 0, 0.16);
 }
 
 .ops-hero h1 {
-  font-size: clamp(1.55rem, 2vw, 2.1rem);
+  font-size:
+    clamp(
+      1.55rem,
+      2vw,
+      2.1rem
+    );
+
+  text-wrap:
+    balance;
 }
 
 .ops-hero p:not(.ops-kicker) {
-  font-size: 12.5px;
-  line-height: 1.55;
+  font-size:
+    12.5px;
+
+  line-height:
+    1.56;
 }
 
-/* Micro-polish for Arabic text inside operational surfaces. */
+
+/* ============================================================================
+   14. REALTIME / CONNECTION HEALTH
+   Presentation contract only.
+   Application code owns the actual connection state.
+   ============================================================================ */
+
+.exec-sync-state {
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  gap:
+    6px;
+
+  min-height:
+    26px;
+
+  padding:
+    4px 8px;
+
+  border:
+    1px solid var(--exec-edge);
+
+  border-radius:
+    999px;
+
+  color:
+    var(--exec-text-secondary);
+
+  background:
+    rgba(255, 255, 255, 0.025);
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0.055em;
+
+  text-transform:
+    uppercase;
+}
+
+.exec-sync-state::before {
+  content:
+    "";
+
+  width:
+    6px;
+
+  height:
+    6px;
+
+  flex:
+    0 0 auto;
+
+  border-radius:
+    999px;
+
+  background:
+    var(--exec-offline);
+}
+
+.exec-sync-state[data-sync-state="live"] {
+  color:
+    #9ff0d0;
+
+  border-color:
+    rgba(52, 211, 153, 0.2);
+
+  background:
+    rgba(52, 211, 153, 0.045);
+}
+
+.exec-sync-state[data-sync-state="live"]::before {
+  background:
+    var(--exec-success);
+
+  box-shadow:
+    0 0 10px rgba(52, 211, 153, 0.4);
+}
+
+.exec-sync-state[data-sync-state="reconnecting"] {
+  color:
+    #f8d98a;
+
+  border-color:
+    rgba(246, 196, 83, 0.25);
+
+  background:
+    rgba(246, 196, 83, 0.05);
+}
+
+.exec-sync-state[data-sync-state="reconnecting"]::before {
+  background:
+    var(--exec-warning);
+}
+
+.exec-sync-state[data-sync-state="degraded"] {
+  color:
+    #ffce8a;
+
+  border-color:
+    rgba(251, 146, 60, 0.28);
+
+  background:
+    rgba(251, 146, 60, 0.05);
+}
+
+.exec-sync-state[data-sync-state="degraded"]::before {
+  background:
+    #fb923c;
+}
+
+.exec-sync-state[data-sync-state="offline"] {
+  color:
+    #cbd5e1;
+
+  border-color:
+    rgba(148, 163, 184, 0.2);
+
+  background:
+    rgba(148, 163, 184, 0.045);
+}
+
+.exec-sync-state[data-sync-state="offline"]::before {
+  background:
+    var(--exec-offline);
+}
+
+
+/* ============================================================================
+   15. STALE DATA SAFETY
+   ============================================================================ */
+
+[data-data-state="stale"] {
+  position:
+    relative;
+}
+
+[data-data-state="stale"]::after {
+  content:
+    "STALE";
+
+  position:
+    absolute;
+
+  top:
+    8px;
+
+  right:
+    8px;
+
+  padding:
+    3px 6px;
+
+  border:
+    1px solid rgba(246, 196, 83, 0.24);
+
+  border-radius:
+    999px;
+
+  color:
+    #f8d98a;
+
+  background:
+    rgba(53, 39, 11, 0.72);
+
+  font-size:
+    7px;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.08em;
+
+  pointer-events:
+    none;
+}
+
+
+/* ============================================================================
+   16. ERROR CONTAINMENT / RECOVERY UI
+   Presentation for Next.js route Error Boundaries.
+   ============================================================================ */
+
+.executive-error-boundary {
+  position:
+    relative;
+
+  display:
+    grid;
+
+  gap:
+    14px;
+
+  width:
+    min(100%, 760px);
+
+  margin:
+    24px auto;
+
+  padding:
+    22px;
+
+  border:
+    1px solid rgba(248, 113, 113, 0.22);
+
+  border-radius:
+    18px;
+
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(248, 113, 113, 0.055),
+      transparent 18rem
+    ),
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.035),
+      rgba(255, 255, 255, 0.012)
+    ),
+    rgba(10, 16, 27, 0.94);
+
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.executive-error-boundary h2 {
+  margin:
+    0;
+
+  color:
+    #fee2e2;
+
+  font-size:
+    16px;
+
+  font-weight:
+    760;
+}
+
+.executive-error-boundary p {
+  margin:
+    0;
+
+  color:
+    #b9c5d4;
+
+  font-size:
+    12px;
+
+  line-height:
+    1.6;
+}
+
+.executive-error-reference {
+  width:
+    fit-content;
+
+  padding:
+    5px 8px;
+
+  border:
+    1px solid rgba(255, 255, 255, 0.07);
+
+  border-radius:
+    8px;
+
+  color:
+    #93a4b8;
+
+  background:
+    rgba(0, 0, 0, 0.18);
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-size:
+    9px;
+}
+
+.executive-recovery-button {
+  width:
+    fit-content;
+
+  min-height:
+    40px;
+
+  padding:
+    9px 14px;
+
+  border:
+    1px solid rgba(197, 160, 89, 0.3);
+
+  border-radius:
+    11px;
+
+  color:
+    #f8fafc;
+
+  background:
+    linear-gradient(
+      180deg,
+      #235fbe,
+      #173d85
+    );
+
+  box-shadow:
+    0 5px 14px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+
+  font-size:
+    11px;
+
+  font-weight:
+    700;
+}
+
+
+/* ============================================================================
+   17. AI / DOCUMENT REVIEW RISK MATRIX
+   IMPORTANT:
+   This is NOT fabricated AI confidence.
+   It displays application-provided review classifications only.
+   ============================================================================ */
+
+.exec-review-risk {
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  gap:
+    6px;
+
+  min-height:
+    26px;
+
+  padding:
+    4px 8px;
+
+  border:
+    1px solid var(--exec-edge);
+
+  border-radius:
+    999px;
+
+  font-size:
+    8.5px;
+
+  font-weight:
+    760;
+
+  letter-spacing:
+    0.045em;
+
+  text-transform:
+    uppercase;
+}
+
+.exec-review-risk::before {
+  content:
+    "";
+
+  width:
+    6px;
+
+  height:
+    6px;
+
+  flex:
+    0 0 auto;
+
+  border-radius:
+    999px;
+}
+
+.exec-review-risk[data-review-risk="low"] {
+  color:
+    #9ff0d0;
+
+  border-color:
+    rgba(52, 211, 153, 0.22);
+
+  background:
+    rgba(52, 211, 153, 0.05);
+}
+
+.exec-review-risk[data-review-risk="low"]::before {
+  background:
+    #34d399;
+}
+
+.exec-review-risk[data-review-risk="attention"] {
+  color:
+    #f8d98a;
+
+  border-color:
+    rgba(246, 196, 83, 0.24);
+
+  background:
+    rgba(246, 196, 83, 0.05);
+}
+
+.exec-review-risk[data-review-risk="attention"]::before {
+  background:
+    #f6c453;
+}
+
+.exec-review-risk[data-review-risk="high"] {
+  color:
+    #fecaca;
+
+  border-color:
+    rgba(248, 113, 113, 0.28);
+
+  background:
+    rgba(248, 113, 113, 0.055);
+}
+
+.exec-review-risk[data-review-risk="high"]::before {
+  background:
+    #f87171;
+}
+
+.exec-review-risk[data-review-risk="unverified"] {
+  color:
+    #c1ccda;
+
+  border-color:
+    rgba(145, 162, 183, 0.22);
+
+  background:
+    rgba(145, 162, 183, 0.045);
+}
+
+.exec-review-risk[data-review-risk="unverified"]::before {
+  background:
+    #91a2b7;
+}
+
+
+/* ============================================================================
+   18. FIELD-LEVEL REVIEW HEATMAP
+   ============================================================================ */
+
+.exec-review-field {
+  border-left:
+    2px solid transparent;
+
+  transition:
+    border-color var(--exec-motion-normal) ease,
+    background var(--exec-motion-normal) ease;
+}
+
+.exec-review-field[data-review-risk="low"] {
+  border-left-color:
+    rgba(52, 211, 153, 0.58);
+
+  background:
+    rgba(52, 211, 153, 0.025);
+}
+
+.exec-review-field[data-review-risk="attention"] {
+  border-left-color:
+    rgba(246, 196, 83, 0.64);
+
+  background:
+    rgba(246, 196, 83, 0.025);
+}
+
+.exec-review-field[data-review-risk="high"] {
+  border-left-color:
+    rgba(248, 113, 113, 0.7);
+
+  background:
+    rgba(248, 113, 113, 0.035);
+}
+
+.exec-review-field[data-review-risk="unverified"] {
+  border-left-color:
+    rgba(145, 162, 183, 0.5);
+
+  background:
+    rgba(145, 162, 183, 0.025);
+}
+
+
+/* ============================================================================
+   19. PROCESSING STATE
+   ============================================================================ */
+
+.exec-processing-state {
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  gap:
+    7px;
+
+  color:
+    #b8c7d8;
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0.045em;
+}
+
+.exec-processing-state::before {
+  content:
+    "";
+
+  width:
+    7px;
+
+  height:
+    7px;
+
+  border:
+    1px solid rgba(105, 215, 255, 0.35);
+
+  border-top-color:
+    var(--exec-cyan);
+
+  border-radius:
+    999px;
+
+  animation:
+    exec-spin 800ms linear infinite;
+}
+
+@keyframes exec-spin {
+  to {
+    transform:
+      rotate(360deg);
+  }
+}
+
+
+/* ============================================================================
+   20. EXECUTIVE POWER-USER HOTKEY PRESENTATION
+   ============================================================================ */
+
+.exec-key {
+  display:
+    inline-flex;
+
+  min-width:
+    22px;
+
+  min-height:
+    20px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    2px 6px;
+
+  border:
+    1px solid rgba(255, 255, 255, 0.1);
+
+  border-bottom-color:
+    rgba(197, 160, 89, 0.22);
+
+  border-radius:
+    6px;
+
+  color:
+    #aebed0;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(35, 48, 70, 0.86),
+      rgba(12, 20, 33, 0.94)
+    );
+
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-size:
+    8px;
+
+  font-weight:
+    700;
+
+  line-height:
+    1;
+}
+
+
+/* ============================================================================
+   21. ARABIC TYPOGRAPHY
+   ============================================================================ */
+
 .staff-shell [dir="rtl"] {
-  letter-spacing: 0;
+  letter-spacing:
+    0;
 }
 
 .ops-hero [dir="rtl"],
 .ops-dispatch-lane [dir="rtl"],
-.staff-client-card [dir="rtl"] {
-  font-size: 1.04em;
+.staff-client-card [dir="rtl"],
+.ops-client-card [dir="rtl"] {
+  font-size:
+    1.045em;
 }
 
+.staff-shell [lang="ar"],
+.staff-shell [dir="rtl"] {
+  line-height:
+    1.62;
+}
+
+.staff-shell [dir="rtl"] code,
+.staff-shell [dir="rtl"] [data-reference] {
+  direction:
+    ltr;
+
+  unicode-bidi:
+    isolate;
+}
+
+
+/* ============================================================================
+   22. HOVER CAPABILITIES
+   Avoid sticky hover behavior on touch devices.
+   ============================================================================ */
+
+@media (hover: hover) and (pointer: fine) {
+  .staff-brand-link:hover
+  .staff-brand-mark {
+    transform:
+      translateY(-1px);
+
+    border-color:
+      rgba(197, 160, 89, 0.5);
+
+    box-shadow:
+      0 15px 38px rgba(0, 0, 0, 0.32),
+      0 0 28px rgba(197, 160, 89, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+
+  .executive-control:hover,
+  .executive-session-cluster button:hover {
+    color:
+      #f8fafc !important;
+
+    border-color:
+      rgba(197, 160, 89, 0.42) !important;
+
+    background:
+      linear-gradient(
+        180deg,
+        rgba(34, 50, 77, 0.92),
+        rgba(12, 20, 34, 0.97)
+      ) !important;
+
+    transform:
+      translateY(-1px);
+
+    box-shadow:
+      0 7px 18px rgba(0, 0, 0, 0.34),
+      0 0 20px rgba(197, 160, 89, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+  }
+
+  .executive-control-profile:hover
+  .executive-control-copy small,
+  .executive-control-role:hover
+  .executive-control-copy small {
+    color:
+      #b6c6d7;
+  }
+
+  .executive-session-cluster
+  button:last-child:hover {
+    color:
+      #fecaca !important;
+
+    border-color:
+      rgba(248, 113, 113, 0.45) !important;
+
+    background:
+      linear-gradient(
+        180deg,
+        rgba(64, 27, 36, 0.72),
+        rgba(25, 12, 18, 0.92)
+      ) !important;
+  }
+
+  .ops-primary-button:hover:not(:disabled) {
+    border-color:
+      rgba(197, 160, 89, 0.5);
+
+    box-shadow:
+      0 7px 18px rgba(0, 0, 0, 0.36),
+      0 12px 32px rgba(197, 160, 89, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .staff-client-card:hover {
+    border-color:
+      rgba(197, 160, 89, 0.16);
+
+    box-shadow:
+      0 19px 48px rgba(0, 0, 0, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.065);
+  }
+
+  .ops-glass-card:hover {
+    border-color:
+      rgba(197, 160, 89, 0.24);
+
+    box-shadow:
+      0 22px 62px rgba(0, 0, 0, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 0 32px rgba(83, 200, 255, 0.025);
+  }
+}
+
+
+/* ============================================================================
+   23. COARSE POINTER / TOUCH TARGET SAFETY
+   ============================================================================ */
+
+@media (pointer: coarse) {
+  .staff-nav-link,
+  .executive-control,
+  .executive-session-cluster button,
+  .ops-primary-button,
+  .ops-segmented button,
+  .staff-bottom-bar a,
+  .staff-bottom-bar button,
+  .staff-sidepanel a,
+  .staff-sidepanel button {
+    min-height:
+      44px;
+  }
+}
+
+
+/* ============================================================================
+   24. RESPONSIVE
+   ============================================================================ */
+
 @media (min-width: 900px) {
-  .executive-user-chip { display: flex; }
+  .executive-user-chip {
+    display:
+      flex;
+  }
+}
+
+@media (max-width: 1080px) {
+  .executive-control-copy small {
+    display:
+      none;
+  }
 }
 
 @media (max-width: 760px) {
   .staff-brand-mark {
-    width: 46px;
-    height: 46px;
-    border-radius: 13px;
+    width:
+      46px;
+
+    height:
+      46px;
+
+    border-radius:
+      13px;
   }
 
   .staff-brand-mark img {
-    width: 34px;
-    height: 34px;
+    width:
+      34px;
+
+    height:
+      34px;
   }
 
   .staff-brand-office,
   .staff-brand-meta {
-    display: none;
+    display:
+      none;
   }
 
-  .staff-brand-title { font-size: 12px; }
-  .staff-brand-ar { font-size: 11.5px; }
-  .executive-session-cluster { width: 100%; justify-content: flex-end; }
-  .staff-nav-priority { font-size: 11.5px; }
+  .staff-brand-title {
+    font-size:
+      12px;
+  }
+
+  .staff-brand-ar {
+    font-size:
+      11.75px;
+  }
+
+  .executive-session-cluster {
+    width:
+      100%;
+
+    justify-content:
+      flex-end;
+  }
+
+  .staff-nav-priority {
+    font-size:
+      11.75px;
+  }
+
+  .executive-error-boundary {
+    margin:
+      14px;
+
+    padding:
+      18px;
+  }
 }
+
+
+/* ============================================================================
+   25. HIGH-CONTRAST USER PREFERENCE
+   ============================================================================ */
+
+@media (prefers-contrast: more) {
+  .staff-shell {
+    --exec-edge:
+      rgba(255, 255, 255, 0.18);
+
+    --exec-gold-edge:
+      rgba(232, 201, 130, 0.42);
+
+    --exec-text-muted:
+      #aab8c9;
+
+    --exec-text-faint:
+      #8798ac;
+  }
+
+  .staff-client-card,
+  .ops-glass-card,
+  .executive-session-cluster {
+    border-color:
+      rgba(255, 255, 255, 0.16);
+  }
+}
+
+
+/* ============================================================================
+   26. WINDOWS / OS FORCED COLORS
+   ============================================================================ */
+
+@media (forced-colors: active) {
+  .staff-brand-mark,
+  .executive-session-cluster,
+  .executive-control,
+  .staff-nav-link,
+  .ops-primary-button,
+  .staff-client-card,
+  .ops-glass-card,
+  .executive-error-boundary,
+  .exec-sync-state,
+  .exec-review-risk {
+    border:
+      1px solid CanvasText;
+
+    background:
+      Canvas;
+
+    color:
+      CanvasText;
+
+    box-shadow:
+      none;
+  }
+
+  .executive-control:focus-visible,
+  .staff-nav-link:focus-visible,
+  .ops-primary-button:focus-visible {
+    outline:
+      2px solid Highlight;
+  }
+}
+
+
+/* ============================================================================
+   27. ACCESSIBILITY / MOTION CONTROL
+   ============================================================================ */
 
 @media (prefers-reduced-motion: reduce) {
   .staff-brand-mark,
@@ -575,7 +2388,48 @@
   .staff-bottom-bar a,
   .staff-bottom-bar button,
   .staff-sidepanel a,
-  .staff-sidepanel button {
-    transform: none !important;
+  .staff-sidepanel button,
+  .staff-client-card,
+  .ops-glass-card,
+  .exec-review-field {
+    transition:
+      none !important;
+
+    transform:
+      none !important;
+  }
+
+  .exec-processing-state::before {
+    animation:
+      none;
+  }
+}
+
+
+/* ============================================================================
+   28. PRINT / DOCUMENT REVIEW FALLBACK
+   ============================================================================ */
+
+@media print {
+  .executive-session-cluster,
+  .staff-bottom-bar,
+  .staff-sidepanel,
+  .exec-key {
+    display:
+      none !important;
+  }
+
+  .staff-shell,
+  .staff-client-card,
+  .ops-glass-card,
+  .ops-hero {
+    color:
+      #000 !important;
+
+    background:
+      #fff !important;
+
+    box-shadow:
+      none !important;
   }
 }
