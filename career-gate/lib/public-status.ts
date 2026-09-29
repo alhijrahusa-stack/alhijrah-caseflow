@@ -58,7 +58,6 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
     where client_id = ${clientId}
       and status in ('scheduled', 'confirmed', 'rescheduled')
       and ends_at >= now()
-      and lower(appointment_type) like '%interview%'
     order by scheduled_at
     limit 1`;
 
