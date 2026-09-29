@@ -1,0 +1,160 @@
+.staff-shell .staff-client-card {
+  --titanium-edge: rgba(226, 232, 240, .18);
+  --titanium-edge-hot: rgba(248, 250, 252, .34);
+  --titanium-gold: rgba(216, 181, 106, .58);
+  --titanium-gold-soft: rgba(216, 181, 106, .16);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: var(--titanium-edge) !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.034), rgba(255,255,255,.008) 32%, transparent 62%),
+    linear-gradient(105deg, rgba(100,116,139,.11), rgba(15,23,42,.05) 31%, rgba(148,163,184,.045) 58%, rgba(2,6,23,.12)),
+    linear-gradient(180deg, rgba(14,24,39,.94), rgba(7,13,23,.96)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.085),
+    inset 0 -1px 0 rgba(0,0,0,.44),
+    inset 1px 0 0 rgba(216,181,106,.08),
+    0 8px 22px rgba(0,0,0,.16) !important;
+  transition:
+    transform .14s cubic-bezier(.2,.8,.2,1),
+    border-color .14s ease,
+    box-shadow .14s ease,
+    background-color .14s ease;
+}
+
+.staff-shell .staff-client-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent 0 2%, rgba(248,250,252,.10) 8%, transparent 19% 78%, rgba(216,181,106,.055) 91%, transparent 100%);
+  opacity: .52;
+}
+
+.staff-shell .staff-client-card::after {
+  content: "";
+  position: absolute;
+  inset-block: 9px;
+  inset-inline-start: 0;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, var(--titanium-gold), transparent);
+  box-shadow: 0 0 10px rgba(216,181,106,.10);
+  opacity: .74;
+  pointer-events: none;
+}
+
+.staff-shell .staff-client-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--titanium-edge-hot) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.13),
+    inset 0 -1px 0 rgba(0,0,0,.48),
+    inset 2px 0 0 rgba(216,181,106,.24),
+    0 13px 30px rgba(0,0,0,.21),
+    0 0 0 1px rgba(216,181,106,.025) !important;
+}
+
+.staff-shell .staff-client-card:focus-visible {
+  outline: none;
+  border-color: rgba(125,211,252,.48) !important;
+  box-shadow:
+    0 0 0 3px rgba(34,211,238,.085),
+    inset 0 1px 0 rgba(255,255,255,.11),
+    inset 2px 0 0 rgba(216,181,106,.22),
+    0 13px 30px rgba(0,0,0,.2) !important;
+}
+
+.staff-shell .staff-client-card:active {
+  transform: translateY(1px) scale(.997);
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,.24),
+    inset 0 1px 0 rgba(255,255,255,.045),
+    0 4px 12px rgba(0,0,0,.14) !important;
+}
+
+.staff-shell .staff-client-card.staff-card-new {
+  border-color: rgba(216,181,106,.28) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.09),
+    inset 2px 0 0 rgba(216,181,106,.52),
+    0 9px 24px rgba(0,0,0,.17) !important;
+}
+
+.staff-shell .staff-client-card.staff-card-attention {
+  border-color: rgba(248,113,113,.20) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.085),
+    inset 2px 0 0 rgba(248,113,113,.48),
+    0 9px 24px rgba(0,0,0,.17) !important;
+}
+
+.staff-shell .staff-client-open {
+  position: relative;
+  overflow: hidden;
+  min-height: 38px;
+  border: 1px solid rgba(216,181,106,.34);
+  border-radius: 999px;
+  padding-inline: 15px;
+  color: #f8fafc;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.018) 46%, rgba(0,0,0,.08)),
+    linear-gradient(180deg, rgba(18,34,54,.96), rgba(7,15,27,.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.13),
+    inset 0 -1px 0 rgba(0,0,0,.48),
+    0 5px 14px rgba(0,0,0,.16);
+  font-weight: 680;
+  letter-spacing: .01em;
+  transition: transform .13s cubic-bezier(.2,.8,.2,1), border-color .13s ease, box-shadow .13s ease;
+}
+
+.staff-shell .staff-client-open::after {
+  content: "";
+  position: absolute;
+  inset: 1px 10px auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(248,250,252,.52), transparent);
+  opacity: .72;
+}
+
+.staff-shell .staff-client-open:hover {
+  transform: translateY(-1px);
+  border-color: rgba(240,215,152,.58);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.024) 46%, rgba(0,0,0,.09)),
+    linear-gradient(180deg, rgba(21,39,61,.98), rgba(8,16,29,.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 -1px 0 rgba(0,0,0,.5),
+    0 7px 18px rgba(0,0,0,.2),
+    0 0 16px rgba(216,181,106,.045);
+}
+
+.staff-shell .staff-client-open:active {
+  transform: translateY(1px) scale(.992);
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,.28),
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 3px 8px rgba(0,0,0,.13);
+}
+
+.staff-shell .staff-card-status {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.045);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-shell .staff-client-card,
+  .staff-shell .staff-client-open {
+    transition: none;
+  }
+  .staff-shell .staff-client-card:hover,
+  .staff-shell .staff-client-card:active,
+  .staff-shell .staff-client-open:hover,
+  .staff-shell .staff-client-open:active {
+    transform: none;
+  }
+}
