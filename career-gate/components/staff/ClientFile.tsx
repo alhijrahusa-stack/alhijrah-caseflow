@@ -139,7 +139,7 @@ export function ClientFile({
       </div>
 
       <div className="sticky top-[72px] z-20 -mx-4 flex flex-wrap gap-2 border-y border-white/[.06] bg-[#08090D]/95 px-4 py-2 backdrop-blur lg:-mx-6 lg:px-6" data-testid="quick-actions">
-        <Link href={`/staff/client/${c.id}/edit`} className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5">Correct Data</Link>
+        <Link href={`/staff/client/${c.id}/edit`} aria-label="Edit Client" className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5">Correct Data</Link>
         {quick.filter(([, , allowed]) => allowed).map(([p, label]) => (
           <button key={p} type="button" onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
             className={`rounded-xl border px-3 py-1.5 text-xs ${panel === p ? "border-indigo-400/50 bg-indigo-500/10 text-indigo-200" : "border-white/10 text-slate-300 hover:bg-white/5"}`}>
