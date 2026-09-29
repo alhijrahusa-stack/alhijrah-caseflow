@@ -12,6 +12,7 @@ import "../operations.css";
 import "../dispatcher.css";
 import "../extras.css";
 import "../executive-upgrade.css";
+import "../recent-clients-titanium.css";
 
 export const dynamic = "force-dynamic";
 
