@@ -283,8 +283,11 @@ test.describe.serial("office workflow", () => {
     expect(officeRef).toMatch(/^CG-\d{4}-\d{6}$/);
     expect(officeRef).not.toBe(ref);
     await expect(p.getByTestId("current-status")).toContainText("Needs Review");
+    await p.getByRole("button", { name: /Notes \/ Tasks \/ Contacts/ }).click();
     await expect(p.getByTestId("note-row")).toContainText(`Walk-in ${RUN}`);
+    await p.getByRole("button", { name: /Documents/ }).click();
     await expect(p.getByTestId("document-row")).toHaveCount(1);
+    await p.getByRole("button", { name: "Profile" }).click();
     await p.getByTestId("quick-actions").getByRole("button", { name: "Change Status" }).click();
     await p.getByTestId("form-status").getByLabel("New status").selectOption("ready_to_apply");
     await p.getByTestId("form-status").getByRole("button", { name: "Save status" }).click();
