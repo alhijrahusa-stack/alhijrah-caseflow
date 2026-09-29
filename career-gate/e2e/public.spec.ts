@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { db, FIXTURE_CATALOG, intakeBody, RUN, seedOtp, submitIntake, uniqueIp } from "./helpers";
+import { db, FIXTURE_CATALOG, intakeBody, RUN, submitIntake, uniqueIp } from "./helpers";
 
 test.describe.serial("public intake and status access", () => {
   let ref = "";
@@ -13,31 +13,23 @@ test.describe.serial("public intake and status access", () => {
   test("intake API accepts a current request and persists canonical data", async ({ request }) => {
     const name = `TEST Public ${RUN}`;
     const body = intakeBody(name);
-    body.profile = {
-      ...body.profile,
-      phone: "3135550142",
-      email: `public.${RUN}@test.invalid`,
-    };
+    body.profile = { ...body.profile, phone: "3135550142", email: `public.${RUN}@test.invalid` };
     if (FIXTURE_CATALOG) {
       body.primary = [
         { site_code: "TST1", job_id: "J-A", shift_code: "S2" },
         { site_code: "TST1", job_id: "J-A", shift_code: "S1" },
       ];
     }
-
     const submitted = await submitIntake(request, body);
     expect(submitted.res.status()).toBe(201);
     expect(submitted.json.ok).toBe(true);
     ref = String(submitted.json.ref ?? "");
     expect(ref).toMatch(/^CG-\d{4}-\d{6}$/);
-
     const clients = await db()`select id, source, current_status from clients where ref = ${ref}`;
     expect(clients).toHaveLength(1);
     expect(clients[0]).toMatchObject({ source: "public_intake", current_status: "new_intake" });
-
     const [auth] = await db()`select printed_name, authorization_version from client_authorizations where client_id = ${clients[0].id}`;
     expect(auth).toMatchObject({ printed_name: name, authorization_version: "2026-09-28.1" });
-
     if (FIXTURE_CATALOG) {
       const prefs = await db()`select rank, preference_order, shift_code, pay_snapshot, amazon_job_id, source_url, source_verified_at, pay_detail from client_preferences where client_id = ${clients[0].id} order by preference_order`;
       expect(prefs.map((p) => [p.rank, p.preference_order, p.shift_code, p.pay_snapshot])).toEqual([
@@ -85,61 +77,31 @@ test.describe.serial("public intake and status access", () => {
     expect(second.res.status()).toBe(429);
   });
 
-  test("status lookup gives the same response for any identifier; OTP gates the page", async ({ browser, baseURL, request }) => {
+  test("direct public status lookup returns current file data and 404 for unknown identifiers", async ({ page, request }) => {
     const ip = uniqueIp();
-    const look = async (identifier: string) => {
-      const r = await request.post("/api/status/lookup", { data: { identifier }, headers: { "x-forwarded-for": ip } });
-      return { status: r.status(), json: await r.json() };
+    const lookup = async (identifier: string) => {
+      const response = await request.post("/api/status/lookup", { data: { identifier }, headers: { "x-forwarded-for": ip } });
+      return { status: response.status(), json: await response.json() };
     };
-    const [valid, invalid] = [await look(ref), await look("CG-1999-000001")];
+    const valid = await lookup(ref);
     expect(valid.status).toBe(200);
-    expect(invalid.status).toBe(200);
-    expect(valid.json.message).toBe(invalid.json.message);
-    const [vEmail, iEmail] = [await look(`public.${RUN}@test.invalid`), await look("nobody@test.invalid")];
-    expect(vEmail.json.message).toBe(iEmail.json.message);
-    expect((await look("(313) 555-0142")).json.message).toBe(valid.json.message);
-    expect((await look("(313) 555-0000")).status).toBe(429);
+    expect(valid.json.ok).toBe(true);
+    expect(valid.json.ref).toBe(ref);
+    const byEmail = await lookup(`public.${RUN}@test.invalid`);
+    expect(byEmail.status).toBe(200);
+    expect(byEmail.json.ref).toBe(ref);
+    const byPhone = await lookup("(313) 555-0142");
+    expect(byPhone.status).toBe(200);
+    expect(byPhone.json.ref).toBe(ref);
+    const missing = await lookup("CG-1999-000001");
+    expect(missing.status).toBe(404);
+    expect(missing.json.error.code).toBe("not_found");
 
-    const anon = await browser.newContext({ baseURL });
-    const p0 = await anon.newPage();
-    await p0.goto(`/status/${ref}`);
-    await expect(p0.getByTestId("status-locked")).toBeVisible();
-    expect((await anon.request.get(`/api/status/${ref}`)).status()).toBe(401);
-
-    const ctx = await browser.newContext({ baseURL, extraHTTPHeaders: { "x-forwarded-for": uniqueIp() } });
-    const page = await ctx.newPage();
     await page.goto(`/status?ref=${ref}`);
-    await expect(page.getByLabel(/Reference/)).toHaveValue(ref);
-    const lookupResp = page.waitForResponse("**/api/status/lookup");
-    await page.getByRole("button", { name: "Send me a code" }).click();
-    const { challenge_id } = await (await lookupResp).json();
-    expect(await seedOtp(challenge_id, "246810")).toBe(true);
-    await page.getByLabel("6-digit code").fill("111111");
-    await page.getByRole("button", { name: "View status" }).click();
-    await expect(page.locator("p[role=alert]")).toContainText("not valid");
-    await page.getByLabel("6-digit code").fill("246810");
-    await page.getByRole("button", { name: "View status" }).click();
-    await page.waitForURL(`**/status/${ref}`);
-    await expect(page.getByTestId("status-reference")).toHaveText(ref);
-    await expect(page.getByTestId("status-current-status")).toHaveText("New Intake");
-    const cookies = await ctx.cookies();
-    const sess = cookies.find((c) => c.name === "cg_status");
-    expect(sess?.httpOnly).toBe(true);
-    expect(page.url()).not.toContain(sess!.value);
-    await page.goto(`/status/CG-1999-000001`);
-    await expect(page.getByTestId("status-locked")).toBeVisible();
-    await ctx.close();
-    await anon.close();
-  });
-
-  test("OTP lockout after three wrong codes", async ({ request }) => {
-    const r = await request.post("/api/status/lookup", { data: { identifier: ref }, headers: { "x-forwarded-for": uniqueIp() } });
-    const { challenge_id } = await r.json();
-    await seedOtp(challenge_id, "135791");
-    const verify = (code: string) => request.post("/api/status/verify", { data: { challenge_id, code }, headers: { "x-forwarded-for": uniqueIp() } });
-    expect((await verify("000000")).status()).toBe(400);
-    expect((await verify("000001")).status()).toBe(400);
-    expect((await verify("000002")).status()).toBe(429);
-    expect((await verify("135791")).status()).toBe(429);
+    await expect(page.getByLabel("File number, phone or email")).toHaveValue(ref);
+    await page.getByRole("button", { name: "Check Status" }).click();
+    await expect(page.getByTestId("status-page")).toBeVisible();
+    await expect(page.getByText(ref, { exact: true })).toBeVisible();
+    await expect(page.getByText("New Intake", { exact: true })).toBeVisible();
   });
 });
