@@ -51,10 +51,13 @@ test.describe.serial("office workflow", () => {
   });
 
   test("client file: preferences with pay snapshot, NOT_CONFIGURED truth labels", async () => {
+    await expect(page.getByTestId("realtime-state").first()).toContainText("NOT_CONFIGURED");
+    await page.getByRole("button", { name: /Job Preferences/ }).click();
     if (FIXTURE_CATALOG) await expect(page.getByTestId("pay-snapshot").first()).toHaveText("$1.11/hr (fixture)");
     else await expect(page.getByTestId("section-preferences")).toContainText("no active openings");
-    await expect(page.getByTestId("realtime-state").first()).toContainText("NOT_CONFIGURED");
+    await page.getByRole("button", { name: /Notes \/ Tasks \/ Contacts/ }).click();
     await expect(page.getByTestId("notification-status").first()).toHaveText("NOT_CONFIGURED");
+    await page.getByRole("button", { name: "Profile", exact: true }).click();
   });
 
   test("inline editing saves only on server success and rolls back on failure", async () => {
