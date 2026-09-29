@@ -54,10 +54,7 @@ export function CommandPalette() {
   }, [open]);
 
   useEffect(() => {
-    if (!open || q.trim().length < 2) {
-      setClients([]);
-      return;
-    }
+    if (!open || q.trim().length < 2) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       const response = await fetch(`/api/staff/search?q=${encodeURIComponent(q)}`, { signal: controller.signal }).catch(() => null);
@@ -124,6 +121,7 @@ export function CommandPalette() {
           onChange={(event) => {
             setQ(event.target.value);
             setActive(0);
+            if (event.target.value.trim().length < 2) setClients([]);
           }}
           onKeyDown={(event) => {
             if (event.key === "Escape") setOpen(false);
