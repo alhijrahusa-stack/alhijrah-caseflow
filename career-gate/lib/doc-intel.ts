@@ -1,8 +1,9 @@
 import "server-only";
 import { z } from "zod";
 import { sql } from "@/lib/db";
+import { registry } from "@/lib/providers/config";
 import { openaiVisionExtract, type DocumentVision } from "@/lib/providers/openai-vision";
-import { needsHuman, reconcileDob, reconcileName, type Recon } from "@/lib/reconcile";
+import { reconcileDob, reconcileName, type Recon } from "@/lib/reconcile";
 import { logActivity } from "@/lib/service";
 import { downloadObject } from "@/lib/storage";
 
@@ -145,34 +146,44 @@ export async function processDocument(documentId: string, traceId: string) {
 
   const record = { full_name: doc.full_name as string, date_of_birth: doc.date_of_birth as string | null };
   const t0 = performance.now();
+  const vision = registry.documentVision();
   let attempt: Attempt;
 
-  try {
-    const bytes = await downloadObject(doc.storage_path);
-    const result = await openaiVisionExtract({ mimeType: doc.mime_type, data: bytes });
-    if (!result.ok) {
-      attempt = {
-        provider_model: result.model,
-        status: result.code === "NOT_CONFIGURED" ? "not_configured" : result.code === "SCHEMA_INVALID" ? "schema_invalid" : "failed",
-        error: result.message,
-        ms: Math.round(performance.now() - t0),
-      };
-    } else {
-      const extraction = visionToExtraction(result.object);
-      const parsed = ExtractionSchema.safeParse(extraction);
-      attempt = parsed.success && !containsSensitive(parsed.data)
-        ? { provider_model: result.model, status: "succeeded", extraction: parsed.data, ms: Math.round(performance.now() - t0) }
-        : { provider_model: result.model, status: "schema_invalid", error: parsed.success ? "output contained a full identifier" : parsed.error.issues[0]?.message ?? "schema invalid", ms: Math.round(performance.now() - t0) };
-    }
-  } catch (error) {
-    const e = error as { name?: string; message?: string };
-    const notConfigured = /NOT_CONFIGURED/i.test(e?.message ?? "");
+  if (!vision.apiKey || !vision.model) {
     attempt = {
-      provider_model: null,
-      status: notConfigured ? "not_configured" : "failed",
-      error: e?.message ?? "Document extraction failed",
+      provider_model: vision.model,
+      status: "not_configured",
+      error: "Document vision is NOT_CONFIGURED",
       ms: Math.round(performance.now() - t0),
     };
+  } else {
+    try {
+      const bytes = await downloadObject(doc.storage_path);
+      const result = await openaiVisionExtract({ mimeType: doc.mime_type, data: bytes });
+      if (!result.ok) {
+        attempt = {
+          provider_model: result.model,
+          status: result.code === "NOT_CONFIGURED" ? "not_configured" : result.code === "SCHEMA_INVALID" ? "schema_invalid" : "failed",
+          error: result.message,
+          ms: Math.round(performance.now() - t0),
+        };
+      } else {
+        const extraction = visionToExtraction(result.object);
+        const parsed = ExtractionSchema.safeParse(extraction);
+        attempt = parsed.success && !containsSensitive(parsed.data)
+          ? { provider_model: result.model, status: "succeeded", extraction: parsed.data, ms: Math.round(performance.now() - t0) }
+          : { provider_model: result.model, status: "schema_invalid", error: parsed.success ? "output contained a full identifier" : parsed.error.issues[0]?.message ?? "schema invalid", ms: Math.round(performance.now() - t0) };
+      }
+    } catch (error) {
+      const e = error as { name?: string; message?: string };
+      const notConfigured = /NOT_CONFIGURED/i.test(e?.message ?? "");
+      attempt = {
+        provider_model: vision.model,
+        status: notConfigured ? "not_configured" : "failed",
+        error: e?.message ?? "Document extraction failed",
+        ms: Math.round(performance.now() - t0),
+      };
+    }
   }
 
   const assessment = attempt.extraction ? assessExtraction(attempt.extraction, doc.doc_type, record) : null;
