@@ -12,10 +12,18 @@ export type DashboardClient = {
   id: string;
   ref: string;
   full_name: string;
+  phone: string;
+  email: string | null;
+  source: string;
+  via_agency: boolean | null;
+  pipeline_stage: string;
   current_status: string;
   next_step: string;
+  created_at: string;
   updated_at: string;
+  assigned_staff: string | null;
   assigned_name: string | null;
+  assigned_staff_code: string | null;
   site_code: string | null;
   site_name: string | null;
   shift_code: string | null;
@@ -94,10 +102,10 @@ async function reportForDays(session: StaffSession, days: number): Promise<Dashb
       days,
       new_clients: Number(summary?.new_clients ?? 0),
       average_processing_days: summary?.average_processing_days == null ? null : Number(summary.average_processing_days),
-      by_status: byStatus.map((r) => ({ key: String(r.key), n: Number(r.n) })),
-      by_staff: byStaff.map((r) => ({ name: String(r.name), n: Number(r.n) })),
-      documents: documents.map((r) => ({ key: String(r.key), n: Number(r.n) })),
-      appointments: appointments.map((r) => ({ key: String(r.key), n: Number(r.n) })),
+      by_status: byStatus.map((row) => ({ key: String(row.key), n: Number(row.n) })),
+      by_staff: byStaff.map((row) => ({ name: String(row.name), n: Number(row.n) })),
+      documents: documents.map((row) => ({ key: String(row.key), n: Number(row.n) })),
+      appointments: appointments.map((row) => ({ key: String(row.key), n: Number(row.n) })),
     };
   });
 }
@@ -121,8 +129,9 @@ export async function staffDashboard(session: StaffSession) {
              where c.deleted_at is null and d.status in ('needs_review','needs_reupload','rejected')) as document_attention`;
 
       const rows = await tx`
-        select c.id, c.ref, c.full_name, c.current_status, c.next_step, c.updated_at,
-               s.display_name as assigned_name,
+        select c.id, c.ref, c.full_name, c.phone, c.email, c.source, c.via_agency, c.pipeline_stage,
+               c.current_status, c.next_step, c.created_at, c.updated_at, c.assigned_staff,
+               s.display_name as assigned_name, s.staff_code as assigned_staff_code,
                p.site_code, p.site_name, p.shift_code, p.days as shift_days, p.hours as shift_hours,
                ap.scheduled_at as next_appointment, ap.location as appointment_location,
                ta.due_at as next_task_due, fu.due_date as next_followup_due, co.created_at as last_contact_at,
@@ -234,7 +243,7 @@ export async function staffDashboard(session: StaffSession) {
   return {
     attention: core.attention,
     groups: { today, week, later, completed, stopped },
-    reports: Object.fromEntries(reports.map((r) => [String(r.days), r])) as Record<string, DashboardReport>,
+    reports: Object.fromEntries(reports.map((report) => [String(report.days), report])) as Record<string, DashboardReport>,
     settings: {
       team,
       catalog: {
