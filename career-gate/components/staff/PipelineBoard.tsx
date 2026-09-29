@@ -3,17 +3,30 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { OperationsClient, PipelineStage } from "@/lib/operations";
+import type { DispatchPeriod, OperationsClient, PipelineStage } from "@/lib/operations";
 
-function legacyShiftPeriod(hours: string | null) {
-  if (!hours) return "unspecified" as const;
+function legacyShiftPeriod(hours: string | null): DispatchPeriod {
+  if (!hours) return "needs_manual_review";
   const meridiem = hours.match(/([0-9]{1,2}):[0-9]{2}\s*(ص|م|AM|PM|am|pm)?/);
-  if (!meridiem) return "unspecified" as const;
-  const hour = Number(meridiem[1]);
+  if (!meridiem) return "needs_manual_review";
+  let hour = Number(meridiem[1]);
   const marker = (meridiem[2] ?? "").toLowerCase();
-  if (marker === "م" || marker === "pm") return "evening" as const;
-  if (marker === "ص" || marker === "am") return "morning" as const;
-  return hour < 12 ? "morning" as const : "evening" as const;
+  if (marker === "م" || marker === "pm") {
+    if (hour < 12) hour += 12;
+  } else if ((marker === "ص" || marker === "am") && hour === 12) {
+    hour = 0;
+  }
+  if (hour >= 5 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 22) return "evening";
+  if (hour >= 0 && hour <= 23) return "night";
+  return "needs_manual_review";
+}
+
+function normalizedPeriod(client: OperationsClient): DispatchPeriod {
+  const value = client.shift_period;
+  if (value === "morning" || value === "evening" || value === "night" || value === "needs_manual_review") return value;
+  if (value === "unspecified") return "needs_manual_review";
+  return legacyShiftPeriod(client.shift_hours);
 }
 
 async function operation(body: Record<string, unknown>) {
@@ -78,7 +91,8 @@ type LocationGroup = {
   siteAddress: string | null;
   morning: OperationsClient[];
   evening: OperationsClient[];
-  unspecified: OperationsClient[];
+  night: OperationsClient[];
+  needs_manual_review: OperationsClient[];
 };
 
 function DispatchClient({ client }: { client: OperationsClient }) {
@@ -108,7 +122,7 @@ function DispatchLane({ title, subtitle, clients, tone }: {
   title: string;
   subtitle: string;
   clients: OperationsClient[];
-  tone: "morning" | "evening" | "unspecified";
+  tone: "morning" | "evening" | "night" | "needs_manual_review";
 }) {
   return (
     <section className="ops-dispatch-lane" data-tone={tone}>
@@ -118,7 +132,7 @@ function DispatchLane({ title, subtitle, clients, tone }: {
       </header>
       <div className="ops-dispatch-list">
         {clients.map((client) => <DispatchClient key={client.id} client={client} />)}
-        {!clients.length && <div className="ops-dispatch-empty">No clients in this shift.</div>}
+        {!clients.length && <div className="ops-dispatch-empty">No clients in this lane.</div>}
       </div>
     </section>
   );
@@ -164,10 +178,10 @@ export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; cl
         siteAddress: client.site_address,
         morning: [],
         evening: [],
-        unspecified: [],
+        night: [],
+        needs_manual_review: [],
       };
-      const period = client.shift_period ?? legacyShiftPeriod(client.shift_hours);
-      current[period].push(client);
+      current[normalizedPeriod(client)].push(client);
       map.set(key, current);
     }
     return [...map.values()].sort((a, b) => `${a.siteName} ${a.siteCode}`.localeCompare(`${b.siteName} ${b.siteCode}`));
@@ -181,9 +195,9 @@ export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; cl
           <h1>Candidate Pipeline</h1>
           <p>ملف واحد لكل عميل · نقل مرحلي بدون إنشاء نسخ مكررة</p>
         </div>
-        <div className="ops-segmented" role="tablist">
-          <button data-active={view === "pipeline"} onClick={() => setView("pipeline")}>Pipeline</button>
-          <button data-active={view === "location"} onClick={() => setView("location")}>Location & Shift</button>
+        <div className="ops-segmented" role="tablist" aria-label="Pipeline views">
+          <button type="button" data-active={view === "pipeline"} onClick={() => setView("pipeline")}>Pipeline</button>
+          <button type="button" data-active={view === "location"} onClick={() => setView("location")}>Location & Shift</button>
         </div>
       </header>
 
@@ -228,17 +242,14 @@ export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; cl
                   <h2>{location.siteName}</h2>
                   <span>{location.siteCode}{location.siteAddress ? ` · ${location.siteAddress}` : ""}</span>
                 </div>
-                <div className="ops-location-total"><strong>{location.morning.length + location.evening.length + location.unspecified.length}</strong><span>clients</span></div>
+                <div className="ops-location-total"><strong>{location.morning.length + location.evening.length + location.night.length + location.needs_manual_review.length}</strong><span>clients</span></div>
               </header>
-              <div className="ops-location-lanes">
+              <div className="ops-location-lanes ops-location-lanes-four">
                 <DispatchLane title="Morning" subtitle="القائمة الصباحية" clients={location.morning} tone="morning" />
                 <DispatchLane title="Evening" subtitle="القائمة المسائية" clients={location.evening} tone="evening" />
+                <DispatchLane title="Night" subtitle="القائمة الليلية" clients={location.night} tone="night" />
+                <DispatchLane title="Needs review" subtitle="يتطلب تصنيف يدوي" clients={location.needs_manual_review} tone="needs_manual_review" />
               </div>
-              {location.unspecified.length > 0 && (
-                <div className="ops-location-unclassified">
-                  <DispatchLane title="Needs classification" subtitle="الشفت غير محدد" clients={location.unspecified} tone="unspecified" />
-                </div>
-              )}
             </article>
           ))}
           {!locations.length && <div className="ops-glass-card ops-empty-large">No clients are available for location dispatch.</div>}
