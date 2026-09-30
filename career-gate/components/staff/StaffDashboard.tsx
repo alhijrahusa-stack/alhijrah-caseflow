@@ -1,10 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import type { DashboardClient, DashboardReport, StaffDashboardData } from "@/lib/staff-dashboard";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
+import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
+import { useStaff } from "@/components/staff/StaffContext";
+import type {
+  DashboardClient,
+  DashboardPeriod,
+  DashboardReport,
+  DashboardTab,
+  StaffDashboardData,
+} from "@/lib/staff-dashboard";
 
-type Tab = "today" | "week" | "reports" | "settings";
 type IconName = "search" | "calendar" | "check" | "plus" | "file" | "phone" | "activity" | "user" | "arrow" | "x" | "clock" | "alert";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
@@ -174,14 +182,42 @@ function downloadBlob(name: string, blob: Blob) {
   URL.revokeObjectURL(url);
 }
 
-export function StaffDashboard({ data, initialTab = "today", meRole }: { data: StaffDashboardData; initialTab?: Tab; meRole: string }) {
-  const [tab, setTab] = useState<Tab>(initialTab);
+export function StaffDashboard({
+  data,
+  initialTab = "today",
+  initialPeriod = 7,
+  meRole,
+}: {
+  data: StaffDashboardData;
+  initialTab?: DashboardTab;
+  initialPeriod?: DashboardPeriod;
+  meRole: string;
+}) {
+  const router = useRouter();
+  const { staff } = useStaff();
+  const [isPending, startTransition] = useTransition();
   const [selected, setSelected] = useState<DashboardClient | null>(null);
-  const [period, setPeriod] = useState("7");
-  const report = data.reports[period] ?? data.reports["7"];
+  const tab = initialTab;
+  const report = data.reports[String(initialPeriod)] ?? null;
   const weekClients = useMemo(() => [...data.groups.today, ...data.groups.week], [data.groups.today, data.groups.week]);
 
+  const navigateTab = (nextTab: DashboardTab) => {
+    const href = nextTab === "reports"
+      ? `/staff?tab=reports&period=${initialPeriod}`
+      : `/staff?tab=${nextTab}`;
+    startTransition(() => {
+      router.push(href, { scroll: false });
+    });
+  };
+
+  const navigatePeriod = (nextPeriod: DashboardPeriod) => {
+    startTransition(() => {
+      router.push(`/staff?tab=reports&period=${nextPeriod}`, { scroll: false });
+    });
+  };
+
   async function exportPdf() {
+    if (!report) return;
     const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
     const pdf = await PDFDocument.create();
     const page = pdf.addPage([612, 792]);
@@ -212,7 +248,7 @@ export function StaffDashboard({ data, initialTab = "today", meRole }: { data: S
     downloadBlob(`career-gate-report-${report.days}d.pdf`, new Blob([bytes as BlobPart], { type: "application/pdf" }));
   }
 
-  const tabs: { id: Tab; ar: string; en: string }[] = [
+  const tabs: { id: DashboardTab; ar: string; en: string }[] = [
     { id: "today", ar: "اليوم", en: "Today" },
     { id: "week", ar: "الأسبوع", en: "Week" },
     { id: "reports", ar: "التقارير", en: "Reports" },
@@ -220,14 +256,15 @@ export function StaffDashboard({ data, initialTab = "today", meRole }: { data: S
   ];
 
   return (
-    <div className="mx-auto max-w-[1600px] pb-28">
-      <div className="mb-5 flex gap-1 overflow-x-auto rounded-2xl border border-white/[.06] bg-white/[.018] p-1.5">
+    <div className="mx-auto max-w-[1600px] pb-28" aria-busy={isPending}>
+      <div className="mb-5 flex items-center gap-1 overflow-x-auto rounded-2xl border border-white/[.06] bg-white/[.018] p-1.5">
         {tabs.map((item) => (
           <button key={item.id} type="button" className="staff-tab min-w-[116px] rounded-xl px-4 py-2.5 text-sm font-medium" data-active={tab === item.id}
-            onClick={() => setTab(item.id)}>
+            onClick={() => navigateTab(item.id)}>
             <span lang="ar" dir="rtl">{item.ar}</span><span className="ml-2 text-[10px] text-slate-600">{item.en}</span>
           </button>
         ))}
+        {(tab === "today" || tab === "week") && <span className="ml-auto px-2"><RealtimeRefresher /></span>}
       </div>
 
       {tab === "today" && (
@@ -259,11 +296,11 @@ export function StaffDashboard({ data, initialTab = "today", meRole }: { data: S
         </div>
       )}
 
-      {tab === "reports" && (
+      {tab === "reports" && report && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <div className="mr-auto"><h2 className="text-lg font-semibold text-slate-100">Reports</h2><p className="mt-1 text-xs text-slate-500">Database-derived operational metrics.</p></div>
-            <select value={period} onChange={(e) => setPeriod(e.target.value)} className="input w-auto min-w-40">
+            <select value={String(initialPeriod)} onChange={(e) => navigatePeriod(Number(e.target.value) as DashboardPeriod)} className="input w-auto min-w-40">
               <option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option>
             </select>
             <button type="button" onClick={() => downloadBlob(`career-gate-report-${report.days}d.csv`, new Blob([csvText(report)], { type: "text/csv;charset=utf-8" }))}
@@ -288,7 +325,7 @@ export function StaffDashboard({ data, initialTab = "today", meRole }: { data: S
           <section className="staff-glass rounded-2xl p-5">
             <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Staff Directory</h2>{meRole === "admin" && <Link href="/staff/settings/team" className="text-xs text-indigo-300 hover:text-indigo-200">Manage team</Link>}</div>
             <div className="mt-4 space-y-2">
-              {data.settings.team.map((member) => (
+              {staff.map((member) => (
                 <div key={member.id} className="flex items-center gap-3 rounded-xl border border-white/[.05] bg-white/[.018] px-3 py-3">
                   <span className="grid h-8 w-8 place-items-center rounded-full bg-white/[.06] text-xs text-slate-300"><Icon name="user" /></span>
                   <div className="min-w-0 flex-1"><p className="text-sm font-medium text-slate-200">{member.display_name}</p><p className="truncate text-xs text-slate-600">{member.email ?? "No sign-in email assigned"}</p></div>
@@ -322,7 +359,7 @@ export function StaffDashboard({ data, initialTab = "today", meRole }: { data: S
         {meRole !== "staff" && <Link href="/staff/new-client" className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-200 hover:bg-white/5"><Icon name="plus" />New client</Link>}
         <Link href="/staff/appointments" className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5"><Icon name="calendar" />Appointments</Link>
         <Link href="/staff/tasks" className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5"><Icon name="check" />My tasks</Link>
-        <button type="button" onClick={() => setTab("settings")} className="rounded-xl px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Settings</button>
+        <button type="button" onClick={() => navigateTab("settings")} className="rounded-xl px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Settings</button>
       </div>
 
       {selected && (

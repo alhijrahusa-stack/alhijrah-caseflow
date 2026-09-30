@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import type postgres from "postgres";
 import { sql } from "@/lib/db";
@@ -21,10 +22,10 @@ export async function staffFromAccessToken(token: string | undefined): Promise<S
   return { authUserId: claims.sub, staff: staff as StaffSession["staff"] };
 }
 
-export async function getStaffSession(): Promise<StaffSession | null> {
+export const getStaffSession = cache(async (): Promise<StaffSession | null> => {
   const jar = await cookies();
   return staffFromAccessToken(jar.get(ACCESS_COOKIE)?.value);
-}
+});
 
 /**
  * Runs fn in a transaction as the Supabase `authenticated` role with the
