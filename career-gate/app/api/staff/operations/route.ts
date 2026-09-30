@@ -7,6 +7,7 @@ import { staffGuard } from "@/lib/staff-api";
 export const runtime = "nodejs";
 
 const id = z.uuid();
+const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const stage = z.enum([
   "portal_intake",
   "no_amazon_account",
@@ -25,10 +26,12 @@ const Input = z.discriminatedUnion("operation", [
     client_id: id,
     payment_status: z.enum(["pending", "paid", "refunded"]),
     payment_method: z.enum(["zelle", "bank_transfer", "cash", "card"]).nullable().optional(),
-    payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    payment_date: date.nullable().optional(),
     receipt_document_id: id.nullable().optional(),
   }),
   z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250), staff_id: id.nullable() }),
+  z.object({ operation: z.literal("reassign_client"), client_id: id, staff_id: id.nullable(), task_ids: z.array(id).max(100).default([]), reason: z.string().trim().max(500).nullable().optional() }),
+  z.object({ operation: z.literal("confirm_started"), client_id: id, start_date: date }),
   z.object({ operation: z.literal("set_round_robin"), enabled: z.boolean() }),
   z.object({
     operation: z.literal("update_staff_comp"),
@@ -90,14 +93,9 @@ export async function POST(req: Request) {
         const [before] = await tx`select * from client_accounts where client_id=${input.client_id} for update`;
         if (!before) throw new Error("ACCOUNT_NOT_FOUND");
         const [row] = await tx`
-          update client_accounts
-          set payment_status=${input.payment_status},
-              payment_method=${input.payment_method ?? null},
-              payment_date=${input.payment_date ?? null},
-              receipt_document_id=coalesce(${input.receipt_document_id ?? null},receipt_document_id),
-              updated_by=${session.staff.id}
-          where client_id=${input.client_id}
-          returning id,payment_status,payment_method,payment_date,commission_amount`;
+          update client_accounts set payment_status=${input.payment_status},payment_method=${input.payment_method ?? null},
+              payment_date=${input.payment_date ?? null},receipt_document_id=coalesce(${input.receipt_document_id ?? null},receipt_document_id),updated_by=${session.staff.id}
+          where client_id=${input.client_id} returning id,payment_status,payment_method,payment_date,commission_amount`;
         await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
                  values(${input.client_id},'payment_updated',${session.staff.id},'client_account',${row.id},
                         ${tx.json({ payment_status: before.payment_status, payment_method: before.payment_method, payment_date: before.payment_date })},
@@ -111,15 +109,85 @@ export async function POST(req: Request) {
           const [staff] = await tx`select id from staff where id=${input.staff_id} and active`;
           if (!staff) throw new Error("STAFF_NOT_FOUND");
         }
-        const rows = await tx`select id,assigned_staff from clients where id=any(${input.client_ids}) and deleted_at is null for update`;
-        for (const client of rows) {
-          if (client.assigned_staff === input.staff_id) continue;
-          await tx`update clients set assigned_staff=${input.staff_id} where id=${client.id}`;
-          await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
-                   values(${client.id},'bulk_staff_assigned',${session.staff.id},'client',${client.id},
-                          ${tx.json({ assigned_staff: client.assigned_staff })},${tx.json({ assigned_staff: input.staff_id })},${traceId})`;
+        const changed = await tx`
+          with locked as (
+            select id,assigned_staff from clients
+            where id=any(${input.client_ids}) and deleted_at is null and current_status not in ('completed','cancelled')
+            for update
+          ), changed as (
+            select * from locked where assigned_staff is distinct from ${input.staff_id}
+          ), updated as (
+            update clients c set assigned_staff=${input.staff_id}
+            from changed x where c.id=x.id
+            returning c.id,x.assigned_staff as previous_staff
+          )
+          insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
+          select u.id,'bulk_staff_assigned',${session.staff.id},'client',u.id,
+                 jsonb_build_object('assigned_staff',u.previous_staff),jsonb_build_object('assigned_staff',${input.staff_id}),${traceId}
+          from updated u returning client_id`;
+        return { changed: changed.length };
+      }
+
+      if (input.operation === "reassign_client") {
+        if (!management(session.staff.role)) throw new Error("FORBIDDEN");
+        if (input.staff_id) {
+          const [staff] = await tx`select id from staff where id=${input.staff_id} and active`;
+          if (!staff) throw new Error("STAFF_NOT_FOUND");
         }
-        return { changed: rows.length };
+        const [client] = await tx`select id,assigned_staff from clients where id=${input.client_id} and deleted_at is null and current_status not in ('completed','cancelled') for update`;
+        if (!client) throw new Error("CLIENT_NOT_ACCESSIBLE");
+        let clientChanged = false;
+        if (client.assigned_staff !== input.staff_id) {
+          await tx`update clients set assigned_staff=${input.staff_id} where id=${input.client_id}`;
+          await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
+                   values(${input.client_id},'staff_reassigned',${session.staff.id},'client',${input.client_id},
+                          ${tx.json({ assigned_staff: client.assigned_staff })},${tx.json({ assigned_staff: input.staff_id, reason: input.reason ?? null })},${traceId})`;
+          clientChanged = true;
+        }
+        let taskChanged = 0;
+        if (input.task_ids.length) {
+          const changedTasks = await tx`
+            with locked as (
+              select id,client_id,assigned_to from tasks
+              where id=any(${input.task_ids}) and client_id=${input.client_id} and status in ('pending','in_progress')
+              for update
+            ), changed as (
+              select * from locked where assigned_to is distinct from ${input.staff_id}
+            ), updated as (
+              update tasks t set assigned_to=${input.staff_id}
+              from changed x where t.id=x.id
+              returning t.id,t.client_id,x.assigned_to as previous_staff
+            )
+            insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
+            select u.client_id,'task_reassigned',${session.staff.id},'task',u.id,
+                   jsonb_build_object('assigned_to',u.previous_staff),jsonb_build_object('assigned_to',${input.staff_id},'reason',${input.reason ?? null}),${traceId}
+            from updated u returning entity_id`;
+          taskChanged = changedTasks.length;
+        }
+        return { changed: clientChanged || taskChanged > 0, client_changed: clientChanged, tasks_changed: taskChanged };
+      }
+
+      if (input.operation === "confirm_started") {
+        if (!management(session.staff.role)) throw new Error("FORBIDDEN");
+        const [client] = await tx`select id,current_status,start_date,next_step from clients where id=${input.client_id} and deleted_at is null for update`;
+        if (!client) throw new Error("CLIENT_NOT_ACCESSIBLE");
+        if (client.current_status === "completed") {
+          if (String(client.start_date ?? "") === input.start_date) return { changed: false, idempotent: true };
+          throw new Error("ALREADY_COMPLETED");
+        }
+        if (client.current_status !== "ready_for_first_day") throw new Error("INVALID_START_STATE");
+        await tx`
+          insert into post_hire_items(client_id,item,status,note,staff_id,updated_at)
+          values(${input.client_id},'start_date','completed','Start date confirmed',${session.staff.id},now())
+          on conflict(client_id,item) do update set status='completed',staff_id=excluded.staff_id,updated_at=now()`;
+        await tx`update clients set start_date=${input.start_date},current_status='completed',next_step='No further action needed.' where id=${input.client_id}`;
+        await tx`
+          insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id) values
+          (${input.client_id},'client_started',${session.staff.id},'client',${input.client_id},
+           ${tx.json({ start_date: client.start_date, status: client.current_status })},${tx.json({ start_date: input.start_date, status: "completed" })},${traceId}),
+          (${input.client_id},'status_changed',${session.staff.id},'client',${input.client_id},
+           ${tx.json({ status: client.current_status })},${tx.json({ status: "completed" })},${traceId})`;
+        return { changed: true, status: "completed", start_date: input.start_date };
       }
 
       if (input.operation === "set_round_robin") {
@@ -130,11 +198,8 @@ export async function POST(req: Request) {
 
       if (session.staff.role !== "admin") throw new Error("FORBIDDEN");
       const [row] = await tx`
-        update staff
-        set commission_type=${input.commission_type},commission_value=${input.commission_value},
-            eligible_for_round_robin=${input.eligible_for_round_robin}
-        where id=${input.staff_id}
-        returning id,staff_code,display_name,commission_type,commission_value,eligible_for_round_robin`;
+        update staff set commission_type=${input.commission_type},commission_value=${input.commission_value},eligible_for_round_robin=${input.eligible_for_round_robin}
+        where id=${input.staff_id} returning id,staff_code,display_name,commission_type,commission_value,eligible_for_round_robin`;
       if (!row) throw new Error("STAFF_NOT_FOUND");
       return { staff: row };
     });
@@ -147,6 +212,8 @@ export async function POST(req: Request) {
     if (message === "INVALID_RECEIPT") return err("invalid_receipt", "Receipt must belong to this client", 400, traceId);
     if (message === "ACCOUNT_NOT_FOUND") return err("account_not_found", "Accounting record not found", 404, traceId);
     if (message === "STAFF_NOT_FOUND") return err("staff_not_found", "Active staff member not found", 404, traceId);
+    if (message === "INVALID_START_STATE") return err("invalid_start_state", "Client must be Ready for First Day before confirming start", 409, traceId);
+    if (message === "ALREADY_COMPLETED") return err("already_completed", "Client is already completed with a different start date", 409, traceId);
     return err("operation_failed", message, 409, traceId);
   }
 }
