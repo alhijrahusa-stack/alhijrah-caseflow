@@ -4,12 +4,11 @@ import { redirect } from "next/navigation";
 import { CommandPalette } from "@/components/staff/CommandPalette";
 import { ExecutiveTactileFX } from "@/components/staff/ExecutiveTactileFX";
 import { QuickClientSearch } from "@/components/staff/QuickClientSearch";
-import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { SignOutButton } from "@/components/staff/SignOutButton";
 import { StaffProvider } from "@/components/staff/StaffContext";
 import { getStaffSession } from "@/lib/auth";
 import { OFFICE } from "@/lib/office";
-import { dashboardCounts, staffDirectory } from "@/lib/queries";
+import { staffDirectory } from "@/lib/queries";
 import "../operations.css";
 import "../dispatcher.css";
 import "../extras.css";
@@ -23,9 +22,8 @@ export const dynamic = "force-dynamic";
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
-  const [staff, counts] = await Promise.all([staffDirectory(session), dashboardCounts(session)]);
+  const staff = await staffDirectory(session);
   const mgmt = session.staff.role !== "staff";
-  const alertCount = mgmt ? Number(counts.audit_alerts ?? 0) : 0;
 
   return (
     <StaffProvider me={{ id: session.staff.id, display_name: session.staff.display_name, role: session.staff.role }} staff={staff}>
@@ -49,11 +47,9 @@ export default async function StaffLayout({ children }: { children: React.ReactN
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
               <QuickClientSearch />
               <CommandPalette />
-              <RealtimeRefresher />
               {mgmt && (
                 <Link href="/staff/audit-alerts" className="relative rounded-xl border border-white/[.07] px-3 py-2 text-xs text-slate-400 hover:bg-white/[.04] hover:text-slate-100" aria-label="Audit alerts" data-executive-tactile="true">
                   Alerts
-                  {alertCount > 0 && <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 font-mono text-[9px] text-white">{alertCount}</span>}
                 </Link>
               )}
               <div className="staff-session-cluster">
