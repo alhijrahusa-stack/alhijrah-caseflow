@@ -6,9 +6,11 @@ import { startTransition, useEffect, useState } from "react";
 
 const DASHBOARD_TABLES = [
   "clients",
+  "client_preferences",
   "appointments",
   "tasks",
   "followups",
+  "documents",
 ] as const;
 
 const CLIENT_TABLES = [
@@ -38,22 +40,14 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
     const performRefresh = () => {
       if (cancelled) return;
       refreshPending = false;
-      startTransition(() => {
-        router.refresh();
-      });
+      startTransition(() => { router.refresh(); });
     };
 
     const scheduleRefresh = () => {
       if (cancelled) return;
       refreshPending = true;
-
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-
+      if (timer) { clearTimeout(timer); timer = null; }
       if (document.visibilityState === "hidden") return;
-
       timer = setTimeout(() => {
         timer = null;
         if (document.visibilityState === "hidden") return;
@@ -63,10 +57,7 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
 
     const handleVisibilityChange = () => {
       if (cancelled || document.visibilityState !== "visible" || !refreshPending) return;
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
+      if (timer) { clearTimeout(timer); timer = null; }
       performRefresh();
     };
 
@@ -76,41 +67,20 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
       const res = await fetch("/api/staff/realtime-token").catch(() => null);
       const data = await res?.json().catch(() => null);
       if (cancelled) return;
-      if (!data?.ok) {
-        setState(data?.error?.code === "NOT_CONFIGURED" ? "NOT_CONFIGURED" : "error");
-        return;
-      }
+      if (!data?.ok) { setState(data?.error?.code === "NOT_CONFIGURED" ? "NOT_CONFIGURED" : "error"); return; }
 
-      const supabase = createClient(data.url, data.anon_key, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
+      const supabase = createClient(data.url, data.anon_key, { auth: { persistSession: false, autoRefreshToken: false } });
       await supabase.realtime.setAuth(data.token);
-
-      channel = supabase.channel(`staff-${clientId ?? "dashboard"}`);
+      channel = supabase.channel(`staff-${clientId ?? "operations"}`);
       const tables = clientId ? CLIENT_TABLES : DASHBOARD_TABLES;
 
       for (const table of tables) {
-        const filter = clientId
-          ? table === "clients"
-            ? `id=eq.${clientId}`
-            : `client_id=eq.${clientId}`
-          : undefined;
-
-        channel.on(
-          "postgres_changes",
-          { event: "*", schema: "public", table, ...(filter ? { filter } : {}) },
-          scheduleRefresh,
-        );
+        const filter = clientId ? table === "clients" ? `id=eq.${clientId}` : `client_id=eq.${clientId}` : undefined;
+        channel.on("postgres_changes", { event: "*", schema: "public", table, ...(filter ? { filter } : {}) }, scheduleRefresh);
       }
 
       channel.subscribe((status) => {
-        setState(
-          status === "SUBSCRIBED"
-            ? "live"
-            : status === "CHANNEL_ERROR"
-              ? "error"
-              : "connecting",
-        );
+        setState(status === "SUBSCRIBED" ? "live" : status === "CHANNEL_ERROR" ? "error" : "connecting");
       });
     })();
 
@@ -122,15 +92,5 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
     };
   }, [clientId, router]);
 
-  return (
-    <span className="text-xs text-slate-400" data-testid="realtime-state" title="Live updates">
-      {state === "live"
-        ? "● Live"
-        : state === "NOT_CONFIGURED"
-          ? "Live updates NOT_CONFIGURED"
-          : state === "error"
-            ? "Live updates unavailable"
-            : "Connecting…"}
-    </span>
-  );
+  return <span className="text-xs text-slate-400" data-testid="realtime-state" title="Live updates">{state === "live" ? "● Live" : state === "NOT_CONFIGURED" ? "Live updates NOT_CONFIGURED" : state === "error" ? "Live updates unavailable" : "Connecting…"}</span>;
 }
