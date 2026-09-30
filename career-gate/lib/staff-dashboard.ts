@@ -114,7 +114,6 @@ async function reportForDays(session: StaffSession, days: DashboardPeriod): Prom
         join activity_log l on l.client_id = c.id
           and l.action in ('status_changed','status_overridden')
           and l.new_value->>'status' = 'completed'
-          and l.created_at >= now() - ${interval}::interval
         where c.deleted_at is null
         group by c.id, c.created_at
       ),
@@ -149,7 +148,8 @@ async function reportForDays(session: StaffSession, days: DashboardPeriod): Prom
            from clients c
            where c.deleted_at is null and c.created_at >= now() - ${interval}::interval) as new_clients,
         (select round(avg(extract(epoch from (completed_at - created_at)) / 86400.0)::numeric, 1)
-           from completed) as average_processing_days,
+           from completed
+           where completed_at >= now() - ${interval}::interval) as average_processing_days,
         coalesce((
           select jsonb_agg(jsonb_build_object('key', key, 'n', n) order by n desc, key)
           from by_status
