@@ -5,6 +5,7 @@ import { createContext, useContext } from "react";
 export type StaffMember = {
   id: string;
   display_name: string;
+  email?: string | null;
   role: string;
   active: boolean;
   staff_code?: string | null;
