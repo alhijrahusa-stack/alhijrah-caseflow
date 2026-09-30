@@ -18,23 +18,33 @@ jobs:
           set -euo pipefail
           ok=false
           for attempt in $(seq 1 24); do
-            status=$(curl --silent --show-error --location \
+            root_status=$(curl --silent --show-error --location \
               --connect-timeout 10 --max-time 30 \
               --output /tmp/vercel-root.html \
               --write-out '%{http_code}' \
               -H 'cache-control: no-cache' \
               "$PRODUCTION_URL/" || true)
 
+            staff_status=$(curl --silent --show-error --location \
+              --connect-timeout 10 --max-time 30 \
+              --output /tmp/vercel-staff.html \
+              --write-out '%{http_code}' \
+              -H 'cache-control: no-cache' \
+              "$PRODUCTION_URL/staff/login" || true)
+
             title=$(grep -o '<title>[^<]*</title>' /tmp/vercel-root.html | head -1 || true)
             env_error=no
             startup_error=no
-            grep -qi 'required environment variables are missing\|Setup Required' /tmp/vercel-root.html && env_error=yes || true
-            grep -qi 'Startup Error' /tmp/vercel-root.html && startup_error=yes || true
-            echo "attempt=$attempt status=$status title=${title:-none} env_error=$env_error startup_error=$startup_error"
+            grep -Eqi 'required environment variables are missing|Setup Required' /tmp/vercel-root.html /tmp/vercel-staff.html && env_error=yes || true
+            grep -Eqi 'Startup Error' /tmp/vercel-root.html /tmp/vercel-staff.html && startup_error=yes || true
+            echo "attempt=$attempt root_status=$root_status staff_status=$staff_status title=${title:-none} env_error=$env_error startup_error=$startup_error"
 
-            if [ "$status" = "200" ] \
-              && grep -q '<title>Alhijrah Caseflow</title>' /tmp/vercel-root.html \
-              && grep -q 'ALHIJRAH CASEFLOW' /tmp/vercel-root.html \
+            if [ "$root_status" = "200" ] \
+              && [ "$staff_status" = "200" ] \
+              && grep -q '<title>بوابة التوظيف — Career Gate</title>' /tmp/vercel-root.html \
+              && grep -q 'Career Gate' /tmp/vercel-root.html \
+              && grep -q 'Staff Sign In' /tmp/vercel-staff.html \
+              && grep -q 'Authorized Career Gate staff access only.' /tmp/vercel-staff.html \
               && [ "$env_error" = "no" ] \
               && [ "$startup_error" = "no" ]; then
               ok=true
@@ -45,14 +55,19 @@ jobs:
           done
 
           if [ "$ok" != true ]; then
-            echo '--- LIVE RESPONSE START ---'
-            head -c 4000 /tmp/vercel-root.html || true
+            echo '--- ROOT RESPONSE START ---'
+            head -c 3000 /tmp/vercel-root.html || true
             echo
-            echo '--- LIVE RESPONSE END ---'
+            echo '--- ROOT RESPONSE END ---'
+            echo '--- STAFF RESPONSE START ---'
+            head -c 3000 /tmp/vercel-staff.html || true
+            echo
+            echo '--- STAFF RESPONSE END ---'
             exit 1
           fi
 
           echo 'LIVE_URL=https://alhijrah-caseflow.vercel.app'
-          echo 'HTTP_STATUS=200'
-          echo 'APP_MARKER=ALHIJRAH CASEFLOW'
+          echo 'ROOT_HTTP_STATUS=200'
+          echo 'STAFF_LOGIN_HTTP_STATUS=200'
+          echo 'APP_MARKER=CAREER_GATE'
           echo 'ENV_ERROR_PAGE=ABSENT'
