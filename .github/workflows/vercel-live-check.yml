@@ -32,19 +32,20 @@ jobs:
               -H 'cache-control: no-cache' \
               "$PRODUCTION_URL/staff/login" || true)
 
-            title=$(grep -o '<title>[^<]*</title>' /tmp/vercel-root.html | head -1 || true)
+            root_title=$(grep -o '<title>[^<]*</title>' /tmp/vercel-root.html | head -1 || true)
+            staff_title=$(grep -o '<title>[^<]*</title>' /tmp/vercel-staff.html | head -1 || true)
             env_error=no
             startup_error=no
             grep -Eqi 'required environment variables are missing|Setup Required' /tmp/vercel-root.html /tmp/vercel-staff.html && env_error=yes || true
             grep -Eqi 'Startup Error' /tmp/vercel-root.html /tmp/vercel-staff.html && startup_error=yes || true
-            echo "attempt=$attempt root_status=$root_status staff_status=$staff_status title=${title:-none} env_error=$env_error startup_error=$startup_error"
+            echo "attempt=$attempt root_status=$root_status staff_status=$staff_status root_title=${root_title:-none} staff_title=${staff_title:-none} env_error=$env_error startup_error=$startup_error"
 
             if [ "$root_status" = "200" ] \
               && [ "$staff_status" = "200" ] \
               && grep -q '<title>بوابة التوظيف — Career Gate</title>' /tmp/vercel-root.html \
               && grep -q 'Career Gate' /tmp/vercel-root.html \
-              && grep -q 'Staff Sign In' /tmp/vercel-staff.html \
-              && grep -q 'Authorized Career Gate staff access only.' /tmp/vercel-staff.html \
+              && grep -q '<title>Office · Career Gate</title>' /tmp/vercel-staff.html \
+              && grep -q 'Career Gate employment intake platform operated by ALHIJRAH VISA &amp; IMMIGRATION SERVICES LLC' /tmp/vercel-staff.html \
               && [ "$env_error" = "no" ] \
               && [ "$startup_error" = "no" ]; then
               ok=true
