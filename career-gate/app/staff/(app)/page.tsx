@@ -1,36 +1,19 @@
 import { redirect } from "next/navigation";
-import { StaffDashboard } from "@/components/staff/StaffDashboard";
+import { OperationalDashboard } from "@/components/staff/OperationalDashboard";
 import { getStaffSession } from "@/lib/auth";
-import { staffDashboard, type DashboardPeriod, type DashboardTab } from "@/lib/staff-dashboard";
+import { dashboardCommandData } from "@/lib/operational-dashboard";
 
 export const dynamic = "force-dynamic";
 
-const TABS = new Set<DashboardTab>(["today", "week", "reports", "settings"]);
-const PERIODS = new Set<DashboardPeriod>([7, 30, 90]);
-
-export default async function Dashboard({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string; period?: string }>;
-}) {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ tab?: string; period?: string }> }) {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
 
   const params = await searchParams;
-  const requestedTab = params.tab as DashboardTab | undefined;
-  const initialTab: DashboardTab = requestedTab && TABS.has(requestedTab) ? requestedTab : "today";
+  if (params.tab === "reports") redirect(`/staff/reports${params.period ? `?period=${params.period}` : ""}`);
+  if (params.tab === "settings") redirect("/staff/settings");
+  if (params.tab === "week") redirect("/staff/week");
 
-  const requestedPeriod = Number(params.period ?? 7) as DashboardPeriod;
-  const initialPeriod: DashboardPeriod = PERIODS.has(requestedPeriod) ? requestedPeriod : 7;
-
-  const data = await staffDashboard(session, initialTab, initialPeriod);
-
-  return (
-    <StaffDashboard
-      data={JSON.parse(JSON.stringify(data))}
-      initialTab={initialTab}
-      initialPeriod={initialPeriod}
-      meRole={session.staff.role}
-    />
-  );
+  const data = await dashboardCommandData(session);
+  return <OperationalDashboard data={data} />;
 }
