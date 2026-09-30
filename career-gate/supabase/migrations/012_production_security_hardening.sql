@@ -1,6 +1,5 @@
 begin;
 
--- Enforce caller RLS/privileges through the application timeline view.
 do $block$
 begin
   if to_regclass('public.v_application_timeline') is not null then
@@ -9,7 +8,6 @@ begin
 end
 $block$;
 
--- Make server-only RLS tables explicitly deny direct Data API access.
 do $block$
 declare
   table_name text;
@@ -45,7 +43,6 @@ begin
 end
 $block$;
 
--- Pin mutable search paths without changing function bodies or privileges.
 do $block$
 declare
   fn record;
@@ -78,25 +75,6 @@ begin
   loop
     execute format('alter function %s set search_path = public, pg_temp', fn.signature);
   end loop;
-end
-$block$;
-
--- PostGIS compatibility: keep spatial reference data readable while placing
--- the extension-owned table behind RLS when it is present.
-do $block$
-begin
-  if to_regclass('public.spatial_ref_sys') is not null then
-    execute 'alter table public.spatial_ref_sys enable row level security';
-    if not exists (
-      select 1
-      from pg_policies
-      where schemaname = 'public'
-        and tablename = 'spatial_ref_sys'
-        and policyname = 'spatial_ref_sys_read'
-    ) then
-      execute 'create policy spatial_ref_sys_read on public.spatial_ref_sys for select to anon, authenticated using (true)';
-    end if;
-  end if;
 end
 $block$;
 
