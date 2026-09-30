@@ -36,7 +36,7 @@ test.describe("executive staff upgrade acceptance", () => {
     const legacyTeam = await page.goto("/staff/settings/team");
     expect(legacyTeam?.status(), "/staff/settings/team").toBeLessThan(400);
     await page.waitForURL(/\/staff\/staff\?tab=team/);
-    await expect(page.getByRole("heading", { name: "Staff" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Staff", exact: true })).toBeVisible();
 
     const pipelineResponse = await page.goto("/staff/pipeline");
     expect(pipelineResponse?.status()).toBeLessThan(400);
