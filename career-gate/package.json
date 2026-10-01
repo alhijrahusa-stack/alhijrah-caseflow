@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/inject-social-preview.mjs",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
