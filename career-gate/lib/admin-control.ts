@@ -1,5 +1,6 @@
 import "server-only";
 import { withStaff, type StaffSession } from "@/lib/auth";
+import { sql } from "@/lib/db";
 
 export type PermissionRuleRow = { id:string; role:"admin"|"manager"|"staff"; resource:string; action:string; scope:"ALL"|"ASSIGNED"|"NONE"; updated_at:string };
 export type WorkflowVersionRow = { id:string; version_no:number; label:string; status:"draft"|"published"|"retired"; created_at:string; published_at:string|null; note:string|null };
@@ -26,7 +27,7 @@ const nullableStr=(v:unknown)=>v==null?null:String(v);
 const bool=(v:unknown)=>Boolean(v);
 
 export async function adminControlData(session: StaffSession) {
-  return withStaff(session, async (tx) => {
+  const scoped = await withStaff(session, async (tx) => {
     const permissions = await tx`select id,role,resource,action,scope,updated_at from permission_rules order by resource,action,role`;
     const versions = await tx`select id,version_no,label,status,created_at,published_at,note from workflow_versions order by version_no desc`;
     const rules = await tx`select version_id,status,label_en,default_next_action,sequence,terminal,active from workflow_version_status_rules order by version_id,sequence`;
@@ -47,7 +48,6 @@ export async function adminControlData(session: StaffSession) {
         ) aa on true
         left join staff s on s.id=aa.staff_id
        order by case a.status when 'maintenance' then 0 when 'available' then 1 when 'assigned' then 2 when 'in_use' then 3 else 4 end,a.asset_code`;
-    const jobHealth = await tx`select status,count(*)::int n from jobs group by status order by status`;
     const notificationHealth = await tx`select status,count(*)::int n from notifications group by status order by status`;
     const [{ n: openAudit }] = await tx`select count(*)::int n from audit_alerts where status='open'`;
     const [{ n: unassigned }] = await tx`select count(*)::int n from clients where deleted_at is null and current_status not in ('completed','cancelled') and assigned_staff is null`;
@@ -70,11 +70,29 @@ export async function adminControlData(session: StaffSession) {
     const assetRows:AssetRow[]=assets.map((r)=>({
       id:str(r.id),asset_code:str(r.asset_code),asset_type:str(r.asset_type),ownership:str(r.ownership),brand:nullableStr(r.brand),model:nullableStr(r.model),serial_number:nullableStr(r.serial_number),condition:str(r.condition),status:str(r.status),note:nullableStr(r.note),assigned_staff:nullableStr(r.assigned_staff),assigned_name:nullableStr(r.assigned_name),assignment_id:nullableStr(r.assignment_id),issued_at:nullableStr(r.issued_at),return_due_at:nullableStr(r.return_due_at),
     }));
-    const health:AdminHealth={
-      jobs:jobHealth.map((r)=>({status:str(r.status),n:Number(r.n)})),
-      notifications:notificationHealth.map((r)=>({status:str(r.status),n:Number(r.n)})),
-      open_audit_alerts:Number(openAudit),unassigned_active_clients:Number(unassigned),overdue_tasks:Number(overdue),
+    return {
+      permissions:permissionRows,
+      workflow:{versions:versionRows,rules:ruleRows,transitions:transitionRows,entries:entryRows},
+      staff:staffRows,
+      assets:assetRows,
+      notificationHealth:notificationHealth.map((r)=>({status:str(r.status),n:Number(r.n)})),
+      openAudit:Number(openAudit),unassigned:Number(unassigned),overdue:Number(overdue),
     };
-    return { permissions:permissionRows, workflow:{versions:versionRows,rules:ruleRows,transitions:transitionRows,entries:entryRows}, staff:staffRows, assets:assetRows, health };
   });
+
+  // The background queue is intentionally invisible to the authenticated role.
+  // Read it only on the trusted server after the verified session is an admin;
+  // do not weaken jobs RLS just to render system health.
+  const jobHealth = session.staff.role === "admin"
+    ? (await sql()`select status,count(*)::int n from jobs group by status order by status`).map((r)=>({status:str(r.status),n:Number(r.n)}))
+    : [];
+
+  const health:AdminHealth={
+    jobs:jobHealth,
+    notifications:scoped.notificationHealth,
+    open_audit_alerts:scoped.openAudit,
+    unassigned_active_clients:scoped.unassigned,
+    overdue_tasks:scoped.overdue,
+  };
+  return { permissions:scoped.permissions, workflow:scoped.workflow, staff:scoped.staff, assets:scoped.assets, health };
 }
