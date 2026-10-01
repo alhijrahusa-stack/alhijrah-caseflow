@@ -19,6 +19,7 @@ async function chooseStepTwo(page: Page) {
 
 async function sign(page: Page) {
   const canvas = page.locator("#signature");
+  await canvas.scrollIntoViewIfNeeded();
   const box = await canvas.boundingBox();
   if (!box) throw new Error("signature canvas has no bounding box");
   await page.mouse.move(box.x + 30, box.y + 50);
