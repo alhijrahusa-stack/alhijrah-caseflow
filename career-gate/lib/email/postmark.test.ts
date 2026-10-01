@@ -38,7 +38,7 @@ describe("Career Gate confirmation email", () => {
     expect(email.subject).toBe("Career Gate — Application Received — ALH-20261001-TEST");
     expect(email.html).toContain("CASE STATUS");
     expect(email.html).toContain("CHECK YOUR CASE STATUS");
-    expect(email.html).toContain(`href="${email.trackingUrl}"`);
+    expect(email.html).toContain(`href="${email.trackingUrl.replaceAll("&", "&amp;")}"`);
     expect(email.html).toContain("ALH-20261001-TEST");
   });
 
