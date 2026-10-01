@@ -22,7 +22,6 @@ export function DynamicStatusForm({clientId,current,nextStep,onDone}:{clientId:s
 
   useEffect(()=>{
     let live=true;
-    setLoading(true);
     fetch(`/api/staff/workflow?from=${encodeURIComponent(current)}`,{cache:"no-store"})
       .then(async res=>{const data=await res.json().catch(()=>null);if(!res.ok||!data?.ok)throw new Error(data?.error?.message??`Workflow load failed (${res.status})`);return data;})
       .then(data=>{if(!live)return;const source=data.data??data;setAllowed(source.allowed??[]);setAll(source.all??[]);})
