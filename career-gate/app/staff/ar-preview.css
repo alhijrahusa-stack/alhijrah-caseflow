@@ -1,0 +1,89 @@
+.staff-shell .cg-ar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  overflow: hidden;
+  background: #030810;
+}
+.staff-shell .cg-ar-camera {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.staff-shell .cg-ar-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 48%, transparent 0 22%, rgba(2,8,16,.1) 48%, rgba(2,8,16,.62) 100%),
+    linear-gradient(180deg, rgba(2,8,16,.55), transparent 28%, transparent 72%, rgba(2,8,16,.62));
+}
+.staff-shell .cg-ar-hud {
+  position: absolute;
+  z-index: 4;
+  inset-inline: 18px;
+  top: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: rgba(4,13,24,.52);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.staff-shell .cg-ar-plane-wrap {
+  position: absolute;
+  z-index: 3;
+  inset: 12% 8% 7%;
+  display: grid;
+  place-items: center;
+  perspective: 1100px;
+  pointer-events: none;
+}
+.staff-shell .cg-ar-document {
+  width: min(58vw, 560px);
+  aspect-ratio: 8.5 / 11;
+  border-radius: 8px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-color: rgba(255,255,255,.96);
+  box-shadow: 0 45px 110px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.2), 0 0 50px rgba(69,215,221,.08);
+  transform: rotateX(4deg) rotateY(-5deg) translateZ(22px);
+  animation: cg-ar-settle 220ms cubic-bezier(.2,.8,.25,1) both;
+}
+.staff-shell .cg-ar-status {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 32px));
+  border: 1px solid rgba(230,173,66,.28);
+  border-radius: 14px;
+  padding: 10px 14px;
+  background: rgba(7,16,31,.86);
+  color: #ffe0a3;
+  text-align: center;
+  font-size: .82rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+@keyframes cg-ar-settle {
+  from { opacity: 0; transform: rotateX(8deg) rotateY(-10deg) translate3d(0,18px,-20px) scale(.97); }
+  to { opacity: 1; transform: rotateX(4deg) rotateY(-5deg) translate3d(0,0,22px) scale(1); }
+}
+@media (max-width: 767px) {
+  .staff-shell .cg-ar-hud { inset-inline: 10px; top: 10px; }
+  .staff-shell .cg-ar-plane-wrap { inset: 15% 5% 8%; }
+  .staff-shell .cg-ar-document { width: min(82vw, 470px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .staff-shell .cg-ar-document { animation: none; transform: none; }
+}
