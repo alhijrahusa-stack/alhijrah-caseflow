@@ -46,6 +46,7 @@ describe("Career Gate confirmation email", () => {
     expect(email.html).toContain("CHECK YOUR CASE STATUS");
     expect(email.html).toContain(`href="${email.trackingUrl.replaceAll("&", "&amp;")}"`);
     expect(email.html).toContain("ALH-20261001-TEST");
+    expect(email.html).not.toContain("<script");
   });
 
   it("renders the Arabic transactional receipt and preserves canonical data values", () => {
