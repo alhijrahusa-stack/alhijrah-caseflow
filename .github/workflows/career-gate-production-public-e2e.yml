@@ -48,7 +48,7 @@ jobs:
           REF=$(jq -r '.ref' /tmp/intake.json)
 
           REPLAY_CODE=$(curl -sS -H 'Content-Type: application/json' -H "Idempotency-Key: $IDEM" -o /tmp/replay.json -w '%{http_code}' -X POST --data "$BODY" "$PRODUCTION_URL/api/intake")
-          require_code "$REPLAY_CODE" 200 replay
+          require_code "$REPLAY_CODE" 201 replay
           jq -e --arg ref "$REF" '.ok == true and .replayed == true and .ref == $ref' /tmp/replay.json >/dev/null
 
           LOOKUP_CODE=$(curl -sS -H 'Content-Type: application/json' -o /tmp/status.json -w '%{http_code}' -X POST --data "$(jq -cn --arg ref "$REF" '{identifier:$ref}')" "$PRODUCTION_URL/api/status/lookup")
