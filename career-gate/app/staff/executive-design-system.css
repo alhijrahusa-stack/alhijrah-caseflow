@@ -269,9 +269,6 @@
 .staff-shell .ops-table { width: 100%; font-size: var(--cg-type-table); }
 .staff-shell .table th,
 .staff-shell .ops-table th {
-  position: sticky;
-  top: var(--cg-sticky-header-offset);
-  z-index: 4;
   min-height: 42px;
   padding: 11px 13px;
   border-color: var(--cg-border);
@@ -281,16 +278,14 @@
   font-weight: 700;
   line-height: 1.35;
   letter-spacing: .025em;
+}
+.staff-shell .table[data-sticky-header="true"] th,
+.staff-shell .ops-table[data-sticky-header="true"] th {
+  position: sticky;
+  top: var(--cg-sticky-header-offset);
+  z-index: 4;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-}
-.staff-shell section .table th,
-.staff-shell section .ops-table th {
-  position: static;
-  top: auto;
-  z-index: auto;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 .staff-shell .table td,
 .staff-shell .ops-table td {
