@@ -284,6 +284,14 @@
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
+.staff-shell section .table th,
+.staff-shell section .ops-table th {
+  position: static;
+  top: auto;
+  z-index: auto;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
 .staff-shell .table td,
 .staff-shell .ops-table td {
   min-height: var(--cg-row-h);
