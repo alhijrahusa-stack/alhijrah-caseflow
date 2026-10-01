@@ -6,14 +6,15 @@ import { useAction } from "@/components/forms/useAction";
 import { CityStep, JobStep, PreferenceSummary, ShiftStep, SiteStep } from "@/components/forms/PreferenceSteps";
 import { emptyPrefs, toSelections, type PrefState } from "@/components/forms/preferences";
 import { emptyProfile, ProfileFields, profilePayload, type ProfileForm } from "@/components/forms/ProfileFields";
+import { AdaptiveIntakePanel } from "@/components/staff/AdaptiveIntakePanel";
+import { SmartDocumentDropzone, type PendingDocument } from "@/components/staff/SmartDocumentDropzone";
 import { StaffPicker } from "@/components/staff/StaffPicker";
 import { useStaff } from "@/components/staff/StaffContext";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { options } from "@/lib/catalog";
-import { DEFAULT_NEXT_STEP, DOC_LABELS, DOC_MAX_BYTES, DOC_TYPES, ENTRY_STATUSES, STATUS_LABELS, type Status } from "@/lib/domain";
+import { DEFAULT_NEXT_STEP, ENTRY_STATUSES, STATUS_LABELS, type Status } from "@/lib/domain";
 
-type PendingDoc = { id: string; doc_type: (typeof DOC_TYPES)[number]; file: File };
 type Draft = {
   profile: ProfileForm;
   prefs: PrefState;
@@ -48,8 +49,8 @@ export function NewClientForm() {
   const [nextStep, setNextStep] = useState(DEFAULT_NEXT_STEP.new_intake);
   const [note, setNote] = useState("");
   const [consent, setConsent] = useState(false);
-  const [docs, setDocs] = useState<PendingDoc[]>([]);
-  const [docType, setDocType] = useState<(typeof DOC_TYPES)[number]>("photo_id");
+  const [docs, setDocs] = useState<PendingDocument[]>([]);
+  const [docType, setDocType] = useState<PendingDocument["doc_type"]>("photo_id");
   const [progress, setProgress] = useState<string | null>(null);
   const [draftState, setDraftState] = useState<"idle" | "restored" | "saved">("idle");
 
@@ -129,6 +130,8 @@ export function NewClientForm() {
         <Section title="Appointment availability"><ProfileFields section="availability" value={profile} onChange={setProfile} /></Section>
       </div>
       <div className="space-y-6">
+        <AdaptiveIntakePanel profile={profile} prefs={prefs} docs={docs} assigned={assigned} consent={consent} />
+
         <Section title="Job preferences">
           {options.length === 0 ? (
             <p className="text-sm text-slate-500">The job catalog has no active options. Preferences can be added once data/job-catalog.json lists them.</p>
@@ -147,28 +150,18 @@ export function NewClientForm() {
             </>
           )}
         </Section>
+
         <Section title="Documents">
-          <div className="flex flex-wrap items-end gap-2">
-            <select aria-label="Document type" className="input w-56" value={docType} onChange={(e) => setDocType(e.target.value as typeof docType)}>
-              {DOC_TYPES.map((t) => <option key={t} value={t}>{DOC_LABELS[t]}</option>)}
-            </select>
-            <input aria-label="Choose file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="text-sm text-slate-400 file:mr-3 file:rounded-lg file:border file:border-white/[.08] file:bg-white/[.04] file:px-3 file:py-2 file:text-xs file:text-slate-300"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (!f) return;
-                if (f.size > DOC_MAX_BYTES) return setFileError(`${f.name} is larger than 4 MB`);
-                setFileError(null);
-                setDocs((d) => [...d, { id: crypto.randomUUID(), doc_type: docType, file: f }]);
-              }} />
-          </div>
-          {docs.map((d) => (
-            <p key={d.id} className="flex justify-between text-sm text-slate-300">
-              <span>{DOC_LABELS[d.doc_type]} — {d.file.name}</span>
-              <button type="button" className="text-red-400" onClick={() => setDocs((x) => x.filter((y) => y.id !== d.id))}>Remove</button>
-            </p>
-          ))}
+          <SmartDocumentDropzone
+            docType={docType}
+            onDocTypeChange={setDocType}
+            docs={docs}
+            onChange={setDocs}
+            disabled={pending || Boolean(progress)}
+            onError={setFileError}
+          />
         </Section>
+
         <Section title="Status, next step and notes">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -204,7 +197,7 @@ export function NewClientForm() {
           </p>
         </Section>
         {(error || fileError) && <p role="alert" className="text-sm text-red-400">{error ?? fileError}</p>}
-        {progress && <p className="text-sm text-slate-400">{progress}</p>}
+        {progress && <p className="text-sm text-slate-400" aria-live="polite">{progress}</p>}
         <Button onClick={save} disabled={pending || Boolean(progress)} className="w-full">
           {pending ? "Saving…" : "Create client file"}
         </Button>
