@@ -84,9 +84,10 @@ begin
   end if;
   if nullif(trim(p_label),'') is null then raise exception 'label required'; end if;
 
+  lock table public.workflow_versions in share row exclusive mode;
   select id into v_current from public.workflow_versions where status='published' order by version_no desc limit 1;
   if v_current is null then raise exception 'published workflow missing'; end if;
-  select coalesce(max(version_no),0)+1 into v_no from public.workflow_versions for update;
+  select coalesce(max(version_no),0)+1 into v_no from public.workflow_versions;
 
   insert into public.workflow_versions(version_no,label,status,created_by,note)
   values(v_no,trim(p_label),'draft',v_actor,p_note) returning id into v_new;
@@ -159,6 +160,7 @@ begin
   if public.cg_staff_role()<>'admin' or v_actor is null then
     raise exception 'admin required' using errcode='42501';
   end if;
+  lock table public.workflow_versions in share row exclusive mode;
   select version_no into v_no from public.workflow_versions where id=p_version and status='draft' for update;
   if v_no is null then raise exception 'draft workflow version not found'; end if;
   v_validation:=public.validate_workflow_version(p_version);
