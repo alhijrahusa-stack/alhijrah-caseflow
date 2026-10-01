@@ -1331,7 +1331,7 @@ function setStep(n,manageViewport=true){
   $('#progressPctView').textContent=pct+'%';
   $('#progressStepView').textContent=`STEP ${state.step} OF 4`;
   $('#progressCurrentView').textContent=`CURRENT STEP · ${String(state.step).padStart(2,'0')}`;
-  if(state.step===3)setTimeout(()=>resizeSignature(true),0);
+  if(state.step===3)resizeSignature(true);
   if(state.step===4)renderReview();
   if(manageViewport){
     requestAnimationFrame(()=>{
