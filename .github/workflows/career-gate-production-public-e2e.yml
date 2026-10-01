@@ -25,9 +25,9 @@ jobs:
             fi
           }
 
-          ROOT_CODE=$(curl -sS -o /tmp/root.html -w '%{http_code}' "$PRODUCTION_URL/")
+          ROOT_CODE=$(curl -sS -L -o /tmp/root.html -w '%{http_code}' "$PRODUCTION_URL/")
           APPLY_CODE=$(curl -sS -L -o /tmp/apply.html -w '%{http_code}' "$PRODUCTION_URL/apply")
-          LOGIN_CODE=$(curl -sS -o /tmp/login.html -w '%{http_code}' "$PRODUCTION_URL/staff/login")
+          LOGIN_CODE=$(curl -sS -L -o /tmp/login.html -w '%{http_code}' "$PRODUCTION_URL/staff/login")
           require_code "$ROOT_CODE" 200 root
           require_code "$APPLY_CODE" 200 apply
           require_code "$LOGIN_CODE" 200 staff_login
