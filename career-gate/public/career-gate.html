@@ -1384,7 +1384,7 @@ function updatePay(){
 function collect(){
   const s=selectedShift(),b=branch();
   return{
-    uid:state.uid,caseNumber:'',
+    uid:state.uid,caseNumber:'',locale:state.locale==='en'?'en':'ar',
     service:$('input[name=service]:checked')?.value||'employment',
     serviceLabel:$('input[name=service]:checked')?.dataset.label||'',
     firstName:val('firstName'),lastName:val('lastName'),dob:val('dob'),
