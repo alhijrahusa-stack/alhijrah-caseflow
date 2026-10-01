@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 import { accessToken, db, intakeBody, STAFF, submitIntake, uniqueIp } from "./helpers";
 
-async function postStaff(request: Parameters<typeof test>[0] extends never ? never : any, role: keyof typeof STAFF, path: string, data: Record<string, unknown>) {
+async function postStaff(request: APIRequestContext, role: keyof typeof STAFF, path: string, data: Record<string, unknown>) {
   const res = await request.post(path, {
     data,
     headers: { cookie: `cg_at=${await accessToken(role)}`, "x-forwarded-for": uniqueIp() },
