@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import type { PrefState } from "@/components/forms/preferences";
 import { optionByKey } from "@/components/forms/preferences";
 import type { ProfileForm } from "@/components/forms/ProfileFields";
 import type { PendingDocument } from "@/components/staff/SmartDocumentDropzone";
-import { DOC_LABELS, type DOC_TYPES } from "@/lib/domain";
+import { DOC_LABELS } from "@/lib/domain";
 
-type DocType = (typeof DOC_TYPES)[number];
+type DocType = PendingDocument["doc_type"];
 
 type Props = {
   profile: ProfileForm;
@@ -46,7 +46,7 @@ export function AdaptiveIntakePanel({ profile, prefs, docs, assigned, consent }:
     const requiredMissing = missing.filter((item) => item.required);
     const selected = prefs.primary.map(optionByKey).filter(Boolean);
     const level = score >= 90 && requiredMissing.length === 0 ? "ready" : score >= 60 ? "progress" : "attention";
-    return { checks, score, missing, requiredMissing, selected, level };
+    return { score, missing, requiredMissing, selected, level };
   }, [profile, prefs, docs, assigned, consent]);
 
   function readGuidance() {
@@ -69,7 +69,7 @@ export function AdaptiveIntakePanel({ profile, prefs, docs, assigned, consent }:
           <h2 className="mt-1 text-lg font-semibold text-slate-100">Readiness & next best action</h2>
           <p className="mt-1 text-xs text-slate-500">Live deterministic checks. No field is changed automatically.</p>
         </div>
-        <div className="cg-readiness-ring" style={{ "--cg-score": analysis.score } as React.CSSProperties}><strong>{analysis.score}%</strong></div>
+        <div className="cg-readiness-ring" style={{ "--cg-score": analysis.score } as CSSProperties}><strong>{analysis.score}%</strong></div>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
