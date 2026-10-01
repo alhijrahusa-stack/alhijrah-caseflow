@@ -14,6 +14,8 @@ export type ActionName = ActionInput["action"]
   | "manage_commission_rules"
   | "approve_commission"
   | "mark_commission_paid"
+  | "evaluate_commission"
+  | "cancel_commission"
   | "configure_permissions"
   | "configure_workflow"
   | "manage_staff_profile"
