@@ -29,6 +29,7 @@ export function StaffNavigation({ management }: { management: boolean }) {
       {item("Appointments", "/staff/appointments")}
       {item("Tasks", "/staff/tasks")}
       {item("Follow-Ups", "/staff/follow-ups")}
+      {item("Commissions", "/staff/commissions")}
       {item("Staff", "/staff/staff")}
       {management && item("Reports", "/staff/reports")}
       {management && <span className="staff-nav-divider" aria-hidden="true" />}
