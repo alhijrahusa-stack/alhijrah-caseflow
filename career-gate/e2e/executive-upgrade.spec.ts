@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "./helpers";
 
+function cssDurationSeconds(value: string) {
+  const first = value.split(",")[0]?.trim() ?? "";
+  if (first.endsWith("ms")) return Number.parseFloat(first) / 1000;
+  if (first.endsWith("s")) return Number.parseFloat(first);
+  return Number.POSITIVE_INFINITY;
+}
+
 test.describe("executive staff upgrade acceptance", () => {
   test("admin can render dashboard, pipeline, operations and unified staff surfaces", async ({ browser, baseURL }) => {
     const context = await browser.newContext({ baseURL });
@@ -46,5 +53,73 @@ test.describe("executive staff upgrade acceptance", () => {
     await expect(page.getByTestId("location-dispatcher")).toBeVisible();
 
     await context.close();
+  });
+
+  test("canonical design system is route-aware, truthful and responsive", async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ baseURL, viewport: { width: 1440, height: 900 } });
+    await signIn(context, baseURL!, "admin");
+    const page = await context.newPage();
+
+    await page.goto("/staff/clients");
+    const current = page.locator('.staff-nav-link[aria-current="page"]');
+    await expect(current).toHaveText("Clients");
+    await expect(current).toHaveCSS("font-weight", "600");
+    const navMetrics = await current.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { height: el.getBoundingClientRect().height, font: Number.parseFloat(s.fontSize), border: s.borderTopColor };
+    });
+    expect(navMetrics.height).toBeGreaterThanOrEqual(40);
+    expect(navMetrics.font).toBeGreaterThanOrEqual(14);
+    expect(navMetrics.border).not.toBe("rgba(0, 0, 0, 0)");
+
+    await current.focus();
+    const focus = await current.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { style: s.outlineStyle, width: Number.parseFloat(s.outlineWidth) };
+    });
+    expect(focus.style).not.toBe("none");
+    expect(focus.width).toBeGreaterThanOrEqual(2);
+
+    const health = await page.evaluate(async () => {
+      const r = await fetch("/api/health/ui", { cache: "no-store" });
+      return { statusCode: r.status, body: await r.json() };
+    });
+    expect(health.statusCode).toBe(200);
+    expect(health.body.ok).toBe(true);
+    expect(["HEALTHY", "DEGRADED"]).toContain(health.body.status);
+    expect(typeof health.body.dbMs).toBe("number");
+
+    await page.goto("/staff");
+    await expect(page.getByTestId("realtime-state")).toBeVisible();
+    await expect(page.getByTestId("realtime-state")).toContainText(/Live|Connecting|NOT_CONFIGURED|offline/i);
+
+    const matrix = [
+      { width: 1440, height: 900, routes: ["/staff", "/staff/clients", "/staff/pipeline"] },
+      { width: 1024, height: 768, routes: ["/staff/tasks", "/staff/accounting", "/staff/staff"] },
+      { width: 390, height: 844, routes: ["/staff", "/staff/clients", "/staff/appointments"] },
+    ];
+    for (const entry of matrix) {
+      await page.setViewportSize({ width: entry.width, height: entry.height });
+      for (const route of entry.routes) {
+        await page.goto(route);
+        const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        expect(overflow, `${route} @ ${entry.width}px should not create page-level overflow`).toBeLessThanOrEqual(1);
+      }
+    }
+
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/staff/clients");
+    const reducedDuration = await page.locator(".staff-nav-link").first().evaluate((el) => getComputedStyle(el).transitionDuration);
+    expect(cssDurationSeconds(reducedDuration)).toBeLessThanOrEqual(0.001);
+
+    await context.close();
+
+    const touch = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    await signIn(touch, baseURL!, "admin");
+    const mobile = await touch.newPage();
+    await mobile.goto("/staff");
+    const targetHeight = await mobile.locator(".staff-nav-link").first().evaluate((el) => el.getBoundingClientRect().height);
+    expect(targetHeight).toBeGreaterThanOrEqual(44);
+    await touch.close();
   });
 });
