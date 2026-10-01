@@ -15,7 +15,7 @@ begin
   if tg_op='INSERT' then
     select exists(select 1 from public.status_entry_states where status=new.current_status) into v_allowed;
     if not v_allowed then
-      raise exception 'invalid entry status: %', new.current_status using errcode='23514';
+      raise exception 'invalid entry status: %', new.current_status;
     end if;
   elsif new.current_status is distinct from old.current_status then
     if new.next_step is not distinct from old.next_step or nullif(trim(new.next_step),'') is null then
