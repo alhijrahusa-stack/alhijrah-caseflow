@@ -70,15 +70,18 @@ export async function POST(req: Request) {
 
         let related: { id: string; amount: string | number; account_id: string } | undefined;
         if (input.related_transaction_id) {
-          [related] = await tx`
+          const relatedRows = await tx`
             select id,amount,account_id from payment_transactions
-            where id=${input.related_transaction_id} and account_id=${account.id} and status='confirmed'` as unknown as [{ id: string; amount: string | number; account_id: string }];
+            where id=${input.related_transaction_id} and account_id=${account.id}
+              and transaction_type='payment' and status='confirmed'`;
+          related = relatedRows[0] as { id: string; amount: string | number; account_id: string } | undefined;
           if (!related) throw new Error("RELATED_TRANSACTION_NOT_FOUND");
           if (input.transaction_type === "refund") {
             const [{ refunded }] = await tx`
               select coalesce(sum(amount),0)::numeric(10,2) refunded
               from payment_transactions
-              where related_transaction_id=${input.related_transaction_id} and transaction_type='refund' and status='confirmed'`;
+              where related_transaction_id=${input.related_transaction_id}
+                and transaction_type='refund' and status='confirmed'`;
             if (Number(refunded) + input.amount > Number(related.amount)) throw new Error("REFUND_EXCEEDS_PAYMENT");
           }
         }
@@ -126,14 +129,18 @@ export async function POST(req: Request) {
             ? "refunded"
             : "pending";
 
+        // client_accounts is now compatibility projection only. The DB guard rejects
+        // financial writes unless the canonical ledger command enables this local flag.
+        await tx`select set_config('cg.finance_projection_sync','1',true)`;
         await tx`
           update client_accounts
           set payment_status=${projectedStatus},
               payment_method=case when ${input.transaction_type}='payment' then ${input.payment_method ?? null} else payment_method end,
               payment_date=case when ${input.transaction_type}='payment' then ${input.occurred_on}::date else payment_date end,
               receipt_document_id=coalesce(${input.receipt_document_id ?? null},receipt_document_id),
-              commission_amount=case when ${projectedStatus}='paid' then commission_amount else 0 end,
-              commission_staff_id=case when ${projectedStatus}='paid' then commission_staff_id else null end,
+              commission_amount=0,
+              commission_staff_id=null,
+              paid_at=case when ${projectedStatus}='paid' then coalesce(paid_at,now()) else null end,
               updated_by=${session.staff.id}
           where id=${account.id}`;
 
