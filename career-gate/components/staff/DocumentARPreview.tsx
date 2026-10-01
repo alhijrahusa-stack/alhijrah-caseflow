@@ -13,6 +13,7 @@ export function DocumentARPreview({ file, onClose }: { file: File; onClose: () =
     let stream: MediaStream | null = null;
     let cancelled = false;
     const media = navigator.mediaDevices;
+    const video = videoRef.current;
     if (!media?.getUserMedia) {
       queueMicrotask(() => !cancelled && setStatus("unavailable"));
       return () => { cancelled = true; };
@@ -26,7 +27,6 @@ export function DocumentARPreview({ file, onClose }: { file: File; onClose: () =
         return;
       }
       stream = next;
-      const video = videoRef.current;
       if (video) {
         video.srcObject = next;
         void video.play().catch(() => undefined);
@@ -38,7 +38,7 @@ export function DocumentARPreview({ file, onClose }: { file: File; onClose: () =
     return () => {
       cancelled = true;
       stream?.getTracks().forEach((track) => track.stop());
-      if (videoRef.current) videoRef.current.srcObject = null;
+      if (video) video.srcObject = null;
     };
   }, []);
 
