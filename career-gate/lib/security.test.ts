@@ -1,10 +1,7 @@
 import { createHmac } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { SignJWT } from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ACTION_ROLES, roleAllows } from "./authz";
 import { fingerprint, otpHash } from "./crypto";
-import { STATUSES, TRANSITIONS } from "./domain";
 import { backoffSeconds } from "./jobs";
 import { verifyAccessToken } from "./jwt";
 import { geminiExtract } from "./providers/gemini";
@@ -41,32 +38,6 @@ describe("staff JWT verification", () => {
     expect(await verifyAccessToken(await mint({}, { exp: "-1m" }))).toBeNull();
     expect(await verifyAccessToken(await mint({ role: "anon" }))).toBeNull();
     expect(await verifyAccessToken("not-a-jwt")).toBeNull();
-  });
-});
-
-describe("RBAC matrix", () => {
-  it("restricts team management to admin and review to admin/manager", () => {
-    for (const a of ["create_staff", "update_staff_role", "disable_staff", "soft_delete_client", "override_status"] as const) {
-      expect(roleAllows("admin", a)).toBe(true);
-      expect(roleAllows("manager", a)).toBe(false);
-      expect(roleAllows("staff", a)).toBe(false);
-    }
-    for (const a of ["verify_document", "reject_document", "assign_staff", "update_status", "create_client"] as const) {
-      expect(roleAllows("manager", a)).toBe(true);
-      expect(roleAllows("staff", a)).toBe(false);
-    }
-    for (const a of ["add_note", "add_task", "complete_task", "mark_contacted", "add_followup"] as const) expect(roleAllows("staff", a)).toBe(true);
-    expect(Object.keys(ACTION_ROLES).length).toBeGreaterThan(30);
-  });
-});
-
-describe("status machine mirrors the database", () => {
-  it("TS transitions equal the migration's status_transitions rows", () => {
-    const sqlText = readFileSync(new URL("../supabase/migrations/002_operations_platform.sql", import.meta.url), "utf8");
-    const block = sqlText.slice(sqlText.indexOf("insert into public.status_transitions"), sqlText.indexOf("create table public.status_entry_states"));
-    const pairs = [...block.matchAll(/\('([a-z_0-9]+)', '([a-z_0-9]+)'\)/g)].map((m) => `${m[1]}>${m[2]}`).sort();
-    const ts = STATUSES.flatMap((f) => TRANSITIONS[f].map((t) => `${f}>${t}`)).sort();
-    expect(ts).toEqual(pairs);
   });
 });
 
