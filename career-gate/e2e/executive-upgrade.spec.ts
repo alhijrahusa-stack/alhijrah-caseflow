@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "./helpers";
 
+function cssDurationSeconds(value: string) {
+  const first = value.split(",")[0]?.trim() ?? "";
+  if (first.endsWith("ms")) return Number.parseFloat(first) / 1000;
+  if (first.endsWith("s")) return Number.parseFloat(first);
+  return Number.POSITIVE_INFINITY;
+}
+
 test.describe("executive staff upgrade acceptance", () => {
   test("admin can render dashboard, pipeline, operations and unified staff surfaces", async ({ browser, baseURL }) => {
     const context = await browser.newContext({ baseURL });
@@ -103,7 +110,7 @@ test.describe("executive staff upgrade acceptance", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/staff/clients");
     const reducedDuration = await page.locator(".staff-nav-link").first().evaluate((el) => getComputedStyle(el).transitionDuration);
-    expect(reducedDuration).toMatch(/0\.01ms|0s/);
+    expect(cssDurationSeconds(reducedDuration)).toBeLessThanOrEqual(0.001);
 
     await context.close();
 
