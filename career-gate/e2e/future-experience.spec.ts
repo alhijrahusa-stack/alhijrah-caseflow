@@ -35,7 +35,9 @@ test.describe("restored premium staff experience", () => {
     const context = await browser.newContext({ baseURL, viewport: { width: 1440, height: 1000 } });
     await signIn(context, baseURL!, "admin");
     const page = await context.newPage();
-    await page.goto("/staff/new-client");
+    const response = await page.goto("/staff/new-client");
+    expect(response?.headers()["permissions-policy"]).toContain("camera=(self)");
+    expect(response?.headers()["permissions-policy"]).toContain("microphone=(self)");
 
     await expect(page.getByText("Adaptive Intake Intelligence")).toBeVisible();
     await expect(page.getByText("Readiness & next best action")).toBeVisible();
@@ -51,6 +53,7 @@ test.describe("restored premium staff experience", () => {
     await expect(page.getByText("test-id.png")).toBeVisible();
     await expect(page.getByText("Ready for secure upload")).toBeVisible();
     await expect(page.getByRole("button", { name: "Spatial preview" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "AR camera preview" })).toBeVisible();
 
     await context.close();
   });
