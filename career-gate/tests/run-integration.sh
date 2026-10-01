@@ -13,7 +13,14 @@ as_pg "$PGBIN/initdb -D $PGDIR/data -A trust -E UTF8 >/dev/null && $PGBIN/pg_ctl
 sleep 2
 P="psql -h 127.0.0.1 -p $PGPORT -U postgres -v ON_ERROR_STOP=1 -q"
 $P -c "create database careergate"
-$P -d careergate -f e2e/supabase-stub.sql $(for m in supabase/migrations/*.sql; do printf -- "-f %s " "$m"; done) 2>&1 | grep -v "wal_level\|HINT" || true
+MIGRATION_LOG=$(mktemp)
+if ! $P -d careergate -f e2e/supabase-stub.sql $(for m in supabase/migrations/*.sql; do printf -- "-f %s " "$m"; done) >"$MIGRATION_LOG" 2>&1; then
+  cat "$MIGRATION_LOG"
+  rm -f "$MIGRATION_LOG"
+  exit 1
+fi
+grep -v "wal_level\|HINT" "$MIGRATION_LOG" || true
+rm -f "$MIGRATION_LOG"
 $P -d careergate -c "select 1 from public.status_transitions limit 1" >/dev/null
 echo "migrations applied"
 DATABASE_URL="postgres://postgres@127.0.0.1:$PGPORT/careergate" \
