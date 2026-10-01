@@ -44,7 +44,7 @@ export function ExecutiveTelemetry() {
   }, []);
 
   useEffect(() => {
-    void sample();
+    const initial = window.setTimeout(() => void sample(), 0);
     const interval = window.setInterval(() => void sample(), SAMPLE_MS);
     const onVisibility = () => { if (document.visibilityState === "visible") void sample(); };
     const onRealtime = (event: Event) => {
@@ -54,6 +54,7 @@ export function ExecutiveTelemetry() {
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("career-gate:realtime-state", onRealtime as EventListener);
     return () => {
+      window.clearTimeout(initial);
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("career-gate:realtime-state", onRealtime as EventListener);
