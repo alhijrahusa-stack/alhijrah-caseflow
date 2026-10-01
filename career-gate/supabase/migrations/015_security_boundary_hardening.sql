@@ -47,19 +47,37 @@ grant execute on function public.career_gate_location_boards() to authenticated,
 -- Server-only outbox: defense in depth in addition to RLS.
 revoke all on table public.career_gate_email_outbox from public, anon, authenticated;
 
--- Supabase Storage exists in hosted environments but not in the local CI stub.
--- Align the bucket with the application boundary: private, 4 MiB max, explicit
--- MIME allowlist. Dynamic SQL keeps fresh local PostgreSQL migrations portable.
+-- Hosted Supabase Storage has file_size_limit and allowed_mime_types. The local
+-- CI storage stub intentionally exposes only id/name/public. Harden every
+-- capability that actually exists so the same migration is reproducible in
+-- hosted Supabase and the isolated PostgreSQL integration environment.
 do $$
+declare
+  has_size_limit boolean;
+  has_mime_limit boolean;
 begin
-  if to_regclass('storage.buckets') is not null then
-    execute $sql$
-      update storage.buckets
-         set public = false,
-             file_size_limit = 4194304,
-             allowed_mime_types = array['image/jpeg','image/png','image/webp','application/pdf']::text[]
-       where id = 'documents'
-    $sql$;
+  if to_regclass('storage.buckets') is null then
+    return;
+  end if;
+
+  select exists (
+    select 1 from information_schema.columns
+     where table_schema = 'storage' and table_name = 'buckets' and column_name = 'file_size_limit'
+  ) into has_size_limit;
+  select exists (
+    select 1 from information_schema.columns
+     where table_schema = 'storage' and table_name = 'buckets' and column_name = 'allowed_mime_types'
+  ) into has_mime_limit;
+
+  execute $sql$update storage.buckets set public = false where id = 'documents'$sql$;
+
+  if has_size_limit then
+    execute $sql$update storage.buckets set file_size_limit = 4194304 where id = 'documents'$sql$;
+  end if;
+  if has_mime_limit then
+    execute $sql$update storage.buckets
+               set allowed_mime_types = array['image/jpeg','image/png','image/webp','application/pdf']::text[]
+             where id = 'documents'$sql$;
   end if;
 end
 $$;
