@@ -45,7 +45,7 @@ export const TRANSITIONS: Record<Status, Status[]> = Object.fromEntries(
   STATUSES.map((status) => [status, [...STATUSES]]),
 ) as Record<Status, Status[]>;
 export const ENTRY_STATUSES: Status[] = [...STATUSES];
-export function canTransition(_from: Status, _to: Status) { return true; }
+export function canTransition(...args: [Status, Status]) { void args; return true; }
 export const DEFAULT_NEXT_STEP: Record<Status, string> = Object.fromEntries(
   STATUSES.map((status) => [status, ""]),
 ) as Record<Status, string>;
