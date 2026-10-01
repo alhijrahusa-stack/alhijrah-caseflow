@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { sql } from "@/lib/db";
+import type { Tx } from "@/lib/service";
 
 const TEMPLATE_KEY = "public_intake_confirmation";
 const MESSAGE_STREAM = "outbound";
@@ -85,8 +86,11 @@ function formatSubmittedAt(iso: string, locale: Locale) {
   const date = new Date(iso);
   if (!Number.isFinite(date.getTime())) return iso;
   return new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
     timeZone: "UTC",
     timeZoneName: "short",
   }).format(date);
@@ -343,7 +347,7 @@ export async function enqueueConfirmationEmail(args: {
   recipientEmail: string;
   locale: Locale;
   payload: ConfirmationPayload;
-}, tx: any) {
+}, tx: Tx) {
   await tx`
     insert into career_gate_email_outbox (application_id, template_key, recipient_email, locale, payload)
     values (${args.applicationId}, ${TEMPLATE_KEY}, ${args.recipientEmail.toLowerCase()}, ${args.locale}, ${tx.json(args.payload as never)})
