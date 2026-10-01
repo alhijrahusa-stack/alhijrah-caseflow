@@ -149,11 +149,23 @@ export function SmartDocumentDropzone({ docType, onDocTypeChange, docs, onChange
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
-          if (e.dataTransfer.files.length) void addFiles(e.dataTransfer.files);
+          if (e.dataTransfer.files.length) void addFiles(Array.from(e.dataTransfer.files));
         }}
       >
-        <input ref={inputRef} className="sr-only" type="file" multiple accept={ACCEPT} disabled={disabled || processing}
-          onChange={(e) => { const files = e.target.files; e.target.value = ""; if (files?.length) void addFiles(files); }} />
+        <input
+          ref={inputRef}
+          className="sr-only"
+          type="file"
+          multiple
+          accept={ACCEPT}
+          aria-label="Choose file"
+          disabled={disabled || processing}
+          onChange={(e) => {
+            const files = Array.from(e.currentTarget.files ?? []);
+            e.currentTarget.value = "";
+            if (files.length) void addFiles(files);
+          }}
+        />
         <div>
           <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/[.06] text-xl text-cyan-200">⇧</div>
           <p className="font-semibold text-slate-100">{processing ? "Optimizing documents…" : dragging ? "Drop documents here" : "Drop documents or click to browse"}</p>
