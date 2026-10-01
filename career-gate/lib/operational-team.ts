@@ -24,6 +24,9 @@ export type TeamMemberWorkload = {
   active: boolean;
   linked: boolean;
   staff_code: string | null;
+  commission_type: "fixed" | "percent";
+  commission_value: number;
+  eligible_for_round_robin: boolean;
   active_clients: number;
   open_tasks: number;
   overdue_tasks: number;
@@ -50,7 +53,7 @@ export async function teamWorkload(session: StaffSession): Promise<TeamWorkloadD
   const activeCatalogKeys = new Set(options.map((option) => option.key));
   return withStaff(session, async (tx) => {
     const [staffRows, clientGroups, taskRows, appointmentRows, followupRows] = await Promise.all([
-      tx`select id,display_name,email,role,active,auth_user_id is not null as linked,staff_code from staff order by active desc,staff_code nulls last,display_name`,
+      tx`select id,display_name,email,role,active,auth_user_id is not null as linked,staff_code,commission_type,commission_value,eligible_for_round_robin from staff order by active desc,staff_code nulls last,display_name`,
       tx`
         with primary_pref as (
           select distinct on (p.client_id) p.client_id,p.site_code,p.site_name,p.job_id,p.shift_code,p.shift_name
@@ -94,8 +97,23 @@ export async function teamWorkload(session: StaffSession): Promise<TeamWorkloadD
       const t = totals.get(id) ?? { total:0,ready:0,waiting:0 };
       const task = tasks.get(id);
       return {
-        id, display_name:String(member.display_name), email:member.email ? String(member.email):null, role:String(member.role), active:Boolean(member.active), linked:Boolean(member.linked), staff_code:member.staff_code ? String(member.staff_code):null,
-        active_clients:t.total, open_tasks:Number(task?.open_tasks ?? 0), overdue_tasks:Number(task?.overdue_tasks ?? 0), appointments_today:Number(appointments.get(id) ?? 0), followups_due:Number(followups.get(id) ?? 0), job_ready:t.ready, waiting_for_job:t.waiting,
+        id,
+        display_name:String(member.display_name),
+        email:member.email ? String(member.email):null,
+        role:String(member.role),
+        active:Boolean(member.active),
+        linked:Boolean(member.linked),
+        staff_code:member.staff_code ? String(member.staff_code):null,
+        commission_type:member.commission_type === "percent" ? "percent" : "fixed",
+        commission_value:Number(member.commission_value ?? 0),
+        eligible_for_round_robin:Boolean(member.eligible_for_round_robin),
+        active_clients:t.total,
+        open_tasks:Number(task?.open_tasks ?? 0),
+        overdue_tasks:Number(task?.overdue_tasks ?? 0),
+        appointments_today:Number(appointments.get(id) ?? 0),
+        followups_due:Number(followups.get(id) ?? 0),
+        job_ready:t.ready,
+        waiting_for_job:t.waiting,
         sites:(perStaff.get(id) ?? []).sort((a,b)=>b.total-a.total || a.site_code.localeCompare(b.site_code)),
       };
     });
@@ -108,7 +126,8 @@ export async function teamWorkload(session: StaffSession): Promise<TeamWorkloadD
       overdue_tasks:members.reduce((s,m)=>s+m.overdue_tasks,0),
       appointments_today:members.reduce((s,m)=>s+m.appointments_today,0),
       followups_due:members.reduce((s,m)=>s+m.followups_due,0),
-      members, unassigned_sites:unassignedSites.sort((a,b)=>b.total-a.total || a.site_code.localeCompare(b.site_code)),
+      members,
+      unassigned_sites:unassignedSites.sort((a,b)=>b.total-a.total || a.site_code.localeCompare(b.site_code)),
     };
   });
 }
