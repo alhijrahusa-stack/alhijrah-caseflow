@@ -1,6 +1,6 @@
 import "server-only";
 import { getStaffSession, type StaffSession } from "@/lib/auth";
-import { clientOf, clientScope, roleAllows, type ActionName } from "@/lib/authz";
+import { clientOf, clientScope, permissionFor, type ActionName } from "@/lib/authz";
 import { err, ipHash } from "@/lib/http";
 import { hit, securityEvent } from "@/lib/ratelimit";
 
@@ -22,7 +22,7 @@ export async function staffGuard(req: Request, traceId: string, opts: { mutation
   return { session, response: null };
 }
 
-/** Role and client-scope check. Denials return 403 (or 404) and are logged. */
+/** Database-backed role/resource/action/scope check. Denials are fail-closed and logged. */
 export async function authorize(
   req: Request,
   session: StaffSession,
@@ -36,7 +36,10 @@ export async function authorize(
     }
     return { ok: false as const, response: err(status === 403 ? "forbidden" : "not_found", message, status, traceId) };
   };
-  if (!roleAllows(session.staff.role, action)) return deny(403, "Your role does not allow this action", { role: session.staff.role });
+
+  const permission = await permissionFor(session.staff.role, action);
+  if (!permission.allowed) return deny(403, "Your role does not allow this action", { role: session.staff.role, resource: permission.resource });
+
   let clientId = target.clientId ?? null;
   if (target.entity) {
     const ref = await clientOf(target.entity.table, target.entity.id);
@@ -44,8 +47,8 @@ export async function authorize(
     clientId = ref.clientId;
   }
   if (clientId) {
-    const scope = await clientScope(session, clientId);
-    if (!scope.ok) return deny(scope.status, scope.reason, { client_id: clientId });
+    const scope = await clientScope(session, clientId, permission.scope);
+    if (!scope.ok) return deny(scope.status, scope.reason, { client_id: clientId, permission_scope: permission.scope });
   }
   return { ok: true, clientId };
 }
