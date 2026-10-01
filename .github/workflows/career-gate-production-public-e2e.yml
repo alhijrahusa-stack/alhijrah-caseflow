@@ -1,0 +1,63 @@
+name: Career Gate Public Production E2E
+
+on:
+  push:
+    branches: [career-gate/production-e2e-runtime]
+
+permissions:
+  contents: read
+
+jobs:
+  public-production-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PRODUCTION_URL: https://alhijrah-caseflow.vercel.app
+    steps:
+      - name: Verify public runtime and isolated intake
+        shell: bash
+        run: |
+          set -euo pipefail
+          require_code() {
+            if [ "$1" != "$2" ]; then
+              echo "$3 unexpected HTTP $1" >&2
+              exit 1
+            fi
+          }
+
+          ROOT_CODE=$(curl -sS -o /tmp/root.html -w '%{http_code}' "$PRODUCTION_URL/")
+          APPLY_CODE=$(curl -sS -L -o /tmp/apply.html -w '%{http_code}' "$PRODUCTION_URL/apply")
+          LOGIN_CODE=$(curl -sS -o /tmp/login.html -w '%{http_code}' "$PRODUCTION_URL/staff/login")
+          require_code "$ROOT_CODE" 200 root
+          require_code "$APPLY_CODE" 200 apply
+          require_code "$LOGIN_CODE" 200 staff_login
+          grep -q 'Career Gate' /tmp/root.html
+          grep -q 'Career Gate' /tmp/login.html
+
+          RID="$GITHUB_RUN_ID"
+          SUFFIX="${RID: -4}"
+          NAME="TEST Production Public E2E ${RID}"
+          EMAIL="cg-prod-public-${RID}@test.invalid"
+          PHONE="313555${SUFFIX}"
+          IDEM=$(cat /proc/sys/kernel/random/uuid)
+          BODY=$(jq -cn --arg n "$NAME" --arg p "$PHONE" --arg e "$EMAIL" '{state:"MI",profile:{full_name:$n,phone:$p,email:$e,employment_history:[]},primary:[],backup:[],communication_consent:false,authorization:{version:"2026-09-28.1",accepted:true,accuracy_acknowledged:true,printed_name:$n,signature:$n}}')
+
+          INTAKE_CODE=$(curl -sS -H 'Content-Type: application/json' -H "Idempotency-Key: $IDEM" -o /tmp/intake.json -w '%{http_code}' -X POST --data "$BODY" "$PRODUCTION_URL/api/intake")
+          require_code "$INTAKE_CODE" 201 intake
+          jq -e '.ok == true and (.ref|test("^CG-[0-9]{4}-[0-9]{6}$"))' /tmp/intake.json >/dev/null
+          REF=$(jq -r '.ref' /tmp/intake.json)
+
+          REPLAY_CODE=$(curl -sS -H 'Content-Type: application/json' -H "Idempotency-Key: $IDEM" -o /tmp/replay.json -w '%{http_code}' -X POST --data "$BODY" "$PRODUCTION_URL/api/intake")
+          require_code "$REPLAY_CODE" 200 replay
+          jq -e --arg ref "$REF" '.ok == true and .replayed == true and .ref == $ref' /tmp/replay.json >/dev/null
+
+          LOOKUP_CODE=$(curl -sS -H 'Content-Type: application/json' -o /tmp/status.json -w '%{http_code}' -X POST --data "$(jq -cn --arg ref "$REF" '{identifier:$ref}')" "$PRODUCTION_URL/api/status/lookup")
+          require_code "$LOOKUP_CODE" 200 status_lookup
+          jq -e --arg ref "$REF" '.ok == true and .ref == $ref' /tmp/status.json >/dev/null
+
+          UNAUTH_CODE=$(curl -sS -H 'Content-Type: application/json' -o /tmp/unauth.json -w '%{http_code}' -X POST --data '{}' "$PRODUCTION_URL/api/staff/accounting")
+          require_code "$UNAUTH_CODE" 401 protected_api
+          jq -e '.error.code == "unauthorized"' /tmp/unauth.json >/dev/null
+
+          echo "PRODUCTION_PUBLIC_E2E=PASS"
+          echo "TEST_REF=$REF"
