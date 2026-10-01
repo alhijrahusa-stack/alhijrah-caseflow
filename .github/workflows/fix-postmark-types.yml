@@ -1,0 +1,35 @@
+name: Fix Postmark Types
+
+on:
+  push:
+    branches: [career-gate-postmark-confirmation]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: career-gate-postmark-confirmation
+          fetch-depth: 0
+      - name: Apply deterministic Postmark type/runtime fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('career-gate/lib/email/postmark.ts')
+          s=p.read_text()
+          s=s.replace('import { sql } from "@/lib/db";\n', 'import { sql } from "@/lib/db";\nimport type { Tx } from "@/lib/service";\n', 1)
+          s=s.replace('''  return new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-US", {\n    dateStyle: "medium",\n    timeStyle: "short",\n    timeZone: "UTC",\n    timeZoneName: "short",\n  }).format(date);''','''  return new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-US", {\n    year: "numeric",\n    month: "short",\n    day: "numeric",\n    hour: "numeric",\n    minute: "2-digit",\n    timeZone: "UTC",\n    timeZoneName: "short",\n  }).format(date);''',1)
+          s=s.replace('}, tx: any) {','}, tx: Tx) {',1)
+          p.write_text(s)
+          PY
+          rm .github/workflows/fix-postmark-types.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add career-gate/lib/email/postmark.ts .github/workflows/fix-postmark-types.yml
+          git commit -m "fix: harden Postmark email runtime types"
+          git push origin HEAD:career-gate-postmark-confirmation
