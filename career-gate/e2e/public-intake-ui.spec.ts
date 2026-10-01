@@ -9,6 +9,7 @@ async function fillStepOne(page: Page) {
 
 async function chooseStepTwo(page: Page) {
   const workType = page.locator('input[name="workType"]').first();
+  await expect(workType).toBeAttached();
   await workType.check({ force: true });
   const shift = page.locator('input[name="shift"]').first();
   await expect(shift).toBeAttached();
@@ -43,8 +44,8 @@ test.describe("Career Gate public intake presentation system", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "ar");
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.locator(".title")).toHaveText("نموذج التقديم على الوظيفة");
-    await expect(page.locator('img[src="/brand/career-gate.webp"]')).toBeVisible();
-    await expect(page.locator('img[src="/brand/alhijrah-services.webp"]')).toBeVisible();
+    await expect(page.locator(".career-brand-logo")).toBeVisible();
+    await expect(page.locator(".office-brand-logo")).toBeVisible();
 
     await fillStepOne(page);
     await page.locator('[data-next="2"]').click();
@@ -68,16 +69,11 @@ test.describe("Career Gate public intake presentation system", () => {
     await page.goto("/career-gate.html");
     await fillStepOne(page);
     await page.locator('[data-next="2"]').click();
-    await page.waitForTimeout(350);
-    const state = await page.evaluate(() => {
+    await expect.poll(async () => page.evaluate(() => {
       const progress = document.querySelector("#formProgress")!.getBoundingClientRect();
       const hero = document.querySelector(".hero")!.getBoundingClientRect();
-      return { scrollY: window.scrollY, progressTop: progress.top, heroBottom: hero.bottom };
-    });
-    expect(state.scrollY).toBeGreaterThan(0);
-    expect(state.progressTop).toBeGreaterThanOrEqual(-24);
-    expect(state.progressTop).toBeLessThan(160);
-    expect(state.heroBottom).toBeLessThan(state.progressTop);
+      return window.scrollY > 0 && progress.top >= -24 && progress.top < 160 && hero.bottom < progress.top;
+    })).toBe(true);
   });
 
   test("files, photo, signature and step survive locale switching; review supports edit without reset", async ({ page }) => {
