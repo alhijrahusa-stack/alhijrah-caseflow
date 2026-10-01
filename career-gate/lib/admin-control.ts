@@ -11,7 +11,7 @@ export type AdminStaffRow = {
   id:string; staff_code:string|null; display_name:string; email:string|null; role:string; active:boolean; phone:string|null;
   date_of_birth:string|null; address_line1:string|null; city:string|null; state:string|null; postal_code:string|null;
   qualification:string|null; job_title:string|null; join_date:string|null; employment_type:string|null; department:string|null;
-  photo_storage_path:string|null; commission_type:string; commission_value:number; eligible_for_round_robin:boolean;
+  photo_storage_path:string|null; commission_type:string; commission_value:number; commission_eligible:boolean; eligible_for_round_robin:boolean;
 };
 export type AssetRow = { id:string; asset_code:string; asset_type:string; ownership:string; brand:string|null; model:string|null; serial_number:string|null; condition:string; status:string; note:string|null; assigned_staff:string|null; assigned_name:string|null; assignment_id:string|null; issued_at:string|null; return_due_at:string|null };
 export type AdminHealth = {
@@ -36,7 +36,7 @@ export async function adminControlData(session: StaffSession) {
     const staff = await tx`
       select id,staff_code,display_name,email,role,active,phone,date_of_birth,address_line1,city,state,postal_code,
              qualification,job_title,join_date,employment_type,department,photo_storage_path,
-             commission_type,commission_value,eligible_for_round_robin
+             commission_type,commission_value,commission_eligible,eligible_for_round_robin
         from staff order by active desc,staff_code nulls last,display_name`;
     const assets = await tx`
       select a.id,a.asset_code,a.asset_type,a.ownership,a.brand,a.model,a.serial_number,a.condition,a.status,a.note,
@@ -65,7 +65,7 @@ export async function adminControlData(session: StaffSession) {
     const transitionRows:WorkflowTransitionRow[]=transitions.map((r)=>({version_id:str(r.version_id),from_status:str(r.from_status),to_status:str(r.to_status)}));
     const entryRows:WorkflowEntryRow[]=entries.map((r)=>({version_id:str(r.version_id),status:str(r.status)}));
     const staffRows:AdminStaffRow[]=staff.map((r)=>({
-      id:str(r.id),staff_code:nullableStr(r.staff_code),display_name:str(r.display_name),email:nullableStr(r.email),role:str(r.role),active:bool(r.active),phone:nullableStr(r.phone),date_of_birth:nullableStr(r.date_of_birth),address_line1:nullableStr(r.address_line1),city:nullableStr(r.city),state:nullableStr(r.state),postal_code:nullableStr(r.postal_code),qualification:nullableStr(r.qualification),job_title:nullableStr(r.job_title),join_date:nullableStr(r.join_date),employment_type:nullableStr(r.employment_type),department:nullableStr(r.department),photo_storage_path:nullableStr(r.photo_storage_path),commission_type:str(r.commission_type),commission_value:Number(r.commission_value),eligible_for_round_robin:bool(r.eligible_for_round_robin),
+      id:str(r.id),staff_code:nullableStr(r.staff_code),display_name:str(r.display_name),email:nullableStr(r.email),role:str(r.role),active:bool(r.active),phone:nullableStr(r.phone),date_of_birth:nullableStr(r.date_of_birth),address_line1:nullableStr(r.address_line1),city:nullableStr(r.city),state:nullableStr(r.state),postal_code:nullableStr(r.postal_code),qualification:nullableStr(r.qualification),job_title:nullableStr(r.job_title),join_date:nullableStr(r.join_date),employment_type:nullableStr(r.employment_type),department:nullableStr(r.department),photo_storage_path:nullableStr(r.photo_storage_path),commission_type:str(r.commission_type),commission_value:Number(r.commission_value),commission_eligible:bool(r.commission_eligible),eligible_for_round_robin:bool(r.eligible_for_round_robin),
     }));
     const assetRows:AssetRow[]=assets.map((r)=>({
       id:str(r.id),asset_code:str(r.asset_code),asset_type:str(r.asset_type),ownership:str(r.ownership),brand:nullableStr(r.brand),model:nullableStr(r.model),serial_number:nullableStr(r.serial_number),condition:str(r.condition),status:str(r.status),note:nullableStr(r.note),assigned_staff:nullableStr(r.assigned_staff),assigned_name:nullableStr(r.assigned_name),assignment_id:nullableStr(r.assignment_id),issued_at:nullableStr(r.issued_at),return_due_at:nullableStr(r.return_due_at),
