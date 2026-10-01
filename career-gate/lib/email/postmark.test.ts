@@ -33,6 +33,12 @@ describe("Career Gate confirmation email", () => {
     );
   });
 
+  it("rejects a tracking URL that leaves the configured Career Gate origin", () => {
+    expect(() => absoluteTrackingUrl("https://example.net/case", payload.caseNumber)).toThrow(
+      "Tracking URL must remain on CAREER_GATE_PUBLIC_URL",
+    );
+  });
+
   it("renders the English transactional receipt with a clickable case-status CTA", () => {
     const email = renderConfirmationEmail("en", payload);
     expect(email.subject).toBe("Career Gate — Application Received — ALH-20261001-TEST");
