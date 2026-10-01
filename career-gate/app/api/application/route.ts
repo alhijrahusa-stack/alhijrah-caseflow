@@ -298,12 +298,13 @@ export async function POST(req: Request) {
 
     if (caseNumber) {
       after(async () => {
-        try {
-          await ensurePostmarkWebhook();
-          await processEmailOutbox(1, caseNumber);
-        } catch (error) {
+        const delivery = processEmailOutbox(1, caseNumber).catch((error) => {
           console.error("Career Gate confirmation email delivery failed", error);
-        }
+        });
+        const webhook = ensurePostmarkWebhook().catch((error) => {
+          console.error("Career Gate Postmark webhook provisioning failed", error);
+        });
+        await Promise.allSettled([delivery, webhook]);
       });
     }
 

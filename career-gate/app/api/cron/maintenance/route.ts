@@ -25,8 +25,11 @@ export async function GET(req: Request) {
   let email = { configured: false, processed: 0, sent: 0, failed: 0 };
   try {
     if (process.env.POSTMARK_SERVER_TOKEN && process.env.CAREER_GATE_FROM_EMAIL && process.env.CAREER_GATE_PUBLIC_URL) {
-      await ensurePostmarkWebhook();
-      email = await processEmailOutbox(20);
+      const results = await Promise.allSettled([ensurePostmarkWebhook(), processEmailOutbox(20)]);
+      const delivery = results[1];
+      if (delivery.status === "fulfilled") email = delivery.value;
+      if (results[0].status === "rejected") console.error("Career Gate Postmark webhook provisioning failed", results[0].reason);
+      if (delivery.status === "rejected") console.error("Career Gate email maintenance delivery failed", delivery.reason);
     }
   } catch (error) {
     console.error("Career Gate email maintenance failed", error);
