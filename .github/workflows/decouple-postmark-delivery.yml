@@ -1,0 +1,45 @@
+name: Decouple Postmark Delivery
+
+on:
+  push:
+    branches: [career-gate-postmark-confirmation]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: career-gate-postmark-confirmation
+          fetch-depth: 0
+      - name: Keep email send independent from webhook provisioning
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('career-gate/app/api/application/route.ts')
+          s = p.read_text()
+          old = '''      after(async () => {\n        try {\n          await ensurePostmarkWebhook();\n          await processEmailOutbox(1, caseNumber);\n        } catch (error) {\n          console.error("Career Gate confirmation email delivery failed", error);\n        }\n      });'''
+          new = '''      after(async () => {\n        const delivery = processEmailOutbox(1, caseNumber).catch((error) => {\n          console.error("Career Gate confirmation email delivery failed", error);\n        });\n        const webhook = ensurePostmarkWebhook().catch((error) => {\n          console.error("Career Gate Postmark webhook provisioning failed", error);\n        });\n        await Promise.allSettled([delivery, webhook]);\n      });'''
+          if old not in s:
+              raise SystemExit('application delivery anchor not found')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('career-gate/app/api/cron/maintenance/route.ts')
+          s = p.read_text()
+          old = '''      await ensurePostmarkWebhook();\n      email = await processEmailOutbox(20);'''
+          new = '''      const results = await Promise.allSettled([ensurePostmarkWebhook(), processEmailOutbox(20)]);\n      const delivery = results[1];\n      if (delivery.status === "fulfilled") email = delivery.value;\n      if (results[0].status === "rejected") console.error("Career Gate Postmark webhook provisioning failed", results[0].reason);\n      if (delivery.status === "rejected") console.error("Career Gate email maintenance delivery failed", delivery.reason);'''
+          if old not in s:
+              raise SystemExit('maintenance delivery anchor not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          rm .github/workflows/decouple-postmark-delivery.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add career-gate/app/api/application/route.ts career-gate/app/api/cron/maintenance/route.ts .github/workflows/decouple-postmark-delivery.yml
+          git commit -m "fix: decouple Postmark delivery from webhook provisioning"
+          git push origin HEAD:career-gate-postmark-confirmation
