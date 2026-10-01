@@ -19,12 +19,15 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
     <section>
       <div className="mb-3 flex items-center justify-between"><div><h2 className="text-xl font-semibold text-slate-100">Attention</h2><p className="text-sm text-slate-500">Current active workload only.</p></div></div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="New Clients" value={data.new_clients}/>
-        <Kpi label="Appointments · Next 2 Hours" value={data.appointments_2h}/>
-        <Kpi label="Tasks Due Today" value={data.tasks_due}/>
-        <Kpi label="Overdue Tasks" value={data.overdue_tasks} tone={data.overdue_tasks?"danger":"neutral"}/>
-        <Kpi label="Overdue Follow-Ups" value={data.overdue_followups} tone={data.overdue_followups?"danger":"neutral"}/>
+        <Kpi label="New Clients" value={data.new_clients} href="/staff/clients?status=new_intake"/>
+        <Kpi label="Appointments · Next 2 Hours" value={data.appointments_2h} href="/staff/appointments"/>
+        <Kpi label="Tasks Due Today" value={data.tasks_due} href="/staff/tasks"/>
+        <Kpi label="Overdue Tasks" value={data.overdue_tasks} href="/staff/tasks" tone={data.overdue_tasks?"danger":"neutral"}/>
+        <Kpi label="Overdue Follow-Ups" value={data.overdue_followups} href="/staff/follow-ups" tone={data.overdue_followups?"danger":"neutral"}/>
         <Kpi label="Documents Needing Action" value={data.document_attention} tone={data.document_attention?"warn":"neutral"}/>
+        <Kpi label="Requirements Needing Action" value={data.requirements_attention} tone={data.requirements_attention?"warn":"neutral"}/>
+        <Kpi label="Payments Pending" value={data.payments_pending} href="/staff/accounting" tone={data.payments_pending?"warn":"neutral"}/>
+        <Kpi label="Open Audit Alerts" value={data.open_audit_alerts} href="/staff/audit-alerts" tone={data.open_audit_alerts?"danger":"neutral"}/>
         <Kpi label="Unassigned Files" value={data.unassigned_clients} href="/staff/staff?tab=assignments&scope=unassigned" tone={data.unassigned_clients?"warn":"neutral"}/>
         <Kpi label="Completed This Month" value={data.completed_this_month} href="/staff/clients?view=completed" tone="good"/>
       </div>
@@ -44,7 +47,7 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
 
       <div className="ops-glass-card">
         <h2 className="text-xl font-semibold text-slate-100">Operational Efficiency</h2>
-        <p className="mt-1 text-sm text-slate-500">Assigned, no overdue work and no current blocking document.</p>
+        <p className="mt-1 text-sm text-slate-500">Assigned, no overdue work, no blocking document and no missing/rejected requirement.</p>
         <div className="mt-6 flex items-end gap-2"><strong className="text-5xl font-semibold tabular-nums text-slate-100">{data.efficiency==null?"N/A":`${data.efficiency}%`}</strong></div>
         {data.efficiency!=null&&<div className="mt-5 h-2 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-emerald-400/80" style={{width:`${Math.max(0,Math.min(100,data.efficiency))}%`}}/></div>}
         <dl className="mt-6 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-slate-500">Active Files</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{data.team.active_clients}</dd></div><div><dt className="text-slate-500">Unassigned</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{data.team.unassigned_clients}</dd></div></dl>
