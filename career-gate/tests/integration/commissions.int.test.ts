@@ -24,7 +24,10 @@ afterAll(async()=>{await db.end()});
 
 describe("commission evaluation",()=>{
   it("does not create commission while employee is not eligible",async()=>{
-    await db`update clients set current_status='completed',next_step='No further action needed.' where id=${clientId}`;
+    await db.begin(async(tx)=>{
+      await tx`select set_config('cg.status_override','integration-test',true)`;
+      await tx`update clients set current_status='completed',next_step='No further action needed.' where id=${clientId}`;
+    });
     const [{n}]=await db`select count(*)::int n from commissions where client_id=${clientId}`;
     expect(n).toBe(0);
   });
