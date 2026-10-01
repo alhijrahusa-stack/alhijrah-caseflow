@@ -1,4 +1,5 @@
 -- Reconciled from live Supabase migration 20260929021632 production_workflow_hardening.
+-- Runtime function definitions are canonical where the stored historical statement was malformed.
 -- Adds deterministic four-lane dispatch with manual override protection and
 -- persistent document upload idempotency without changing existing review status.
 
@@ -33,8 +34,8 @@ immutable
 set search_path = public
 as $$
 declare
-  code text := upper(trim(coalesce(p_shift_code, ''));
-  name text := lower(trim(coalesce(p_shift_name, ''));
+  code text := upper(trim(coalesce(p_shift_code, '')));
+  name text := lower(trim(coalesce(p_shift_name, '')));
   m text[];
   h integer;
   marker text;
