@@ -1,9 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { ClientFile, type ClientFileData, type ClientPanel, type ClientTab } from "@/components/staff/ClientFile";
+import { RequirementsPanel } from "@/components/staff/RequirementsPanel";
 import { getStaffSession } from "@/lib/auth";
 import { clientScope } from "@/lib/authz";
 import { clientAccountSummary } from "@/lib/client-account";
 import { clientFile } from "@/lib/queries";
+import { clientRequirements } from "@/lib/requirements";
 import { securityEvent } from "@/lib/ratelimit";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,9 +39,10 @@ export default async function ClientPage({
     notFound();
   }
 
-  const [data, account, query] = await Promise.all([
+  const [data, account, requirementData, query] = await Promise.all([
     clientFile(session, id),
     clientAccountSummary(session, id),
+    clientRequirements(session, id),
     searchParams,
   ]);
   if (!data) notFound();
@@ -50,11 +53,18 @@ export default async function ClientPage({
   const initialTab = requestedTab && TABS.has(requestedTab) ? requestedTab : null;
 
   return (
-    <ClientFile
-      data={JSON.parse(JSON.stringify(data)) as ClientFileData}
-      account={account}
-      initialPanel={initialPanel}
-      initialTab={initialTab}
-    />
+    <div className="space-y-4">
+      <ClientFile
+        data={JSON.parse(JSON.stringify(data)) as ClientFileData}
+        account={account}
+        initialPanel={initialPanel}
+        initialTab={initialTab}
+      />
+      <RequirementsPanel
+        clientId={id}
+        rows={JSON.parse(JSON.stringify(requirementData.requirements))}
+        readiness={requirementData.readiness}
+      />
+    </div>
   );
 }
