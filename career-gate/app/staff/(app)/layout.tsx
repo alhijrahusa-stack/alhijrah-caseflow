@@ -22,6 +22,7 @@ import "../executive-tactile-v2.css";
 import "../interaction-layer-fix.css";
 import "../executive-design-system.css";
 import "../future-experience.css";
+import "../ar-preview.css";
 
 export const dynamic = "force-dynamic";
 
