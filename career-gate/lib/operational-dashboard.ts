@@ -14,6 +14,9 @@ export type DashboardCommandData = {
   overdue_tasks: number;
   overdue_followups: number;
   document_attention: number;
+  requirements_attention: number;
+  payments_pending: number;
+  open_audit_alerts: number;
   unassigned_clients: number;
   completed_this_month: number;
   efficiency: number | null;
@@ -39,7 +42,8 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
             (a.assigned_staff is not null
              and not exists (select 1 from tasks t where t.client_id=a.id and t.status=any(${OPEN_TASKS}) and t.due_at is not null and t.due_at<now())
              and not exists (select 1 from followups f where f.client_id=a.id and f.status='open' and f.due_date<(now() at time zone ${TZ})::date)
-             and not exists (select 1 from latest_docs d where d.client_id=a.id and d.status=any(${BLOCKING_DOCUMENT_STATES}))) as healthy
+             and not exists (select 1 from latest_docs d where d.client_id=a.id and d.status=any(${BLOCKING_DOCUMENT_STATES}))
+             and not exists (select 1 from client_requirements r where r.client_id=a.id and r.status in ('missing','rejected','expired'))) as healthy
           from active a
         )
         select
@@ -49,6 +53,9 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
           (select count(*)::int from tasks t join active c on c.id=t.client_id where t.status=any(${OPEN_TASKS}) and t.due_at is not null and t.due_at<now()) as overdue_tasks,
           (select count(*)::int from followups f join active c on c.id=f.client_id where f.status='open' and f.due_date<(now() at time zone ${TZ})::date) as overdue_followups,
           (select count(distinct d.client_id)::int from latest_docs d where d.status=any(${BLOCKING_DOCUMENT_STATES})) as document_attention,
+          (select count(distinct r.client_id)::int from client_requirements r join active c on c.id=r.client_id where r.status in ('missing','pending_review','rejected','expired')) as requirements_attention,
+          (select count(*)::int from client_account_balances b join active c on c.id=b.client_id where b.payment_status in ('unpaid','partially_paid','overdue')) as payments_pending,
+          (select count(*)::int from audit_alerts a where a.status='open') as open_audit_alerts,
           (select count(*)::int from active where assigned_staff is null) as unassigned_clients,
           (select count(distinct l.client_id)::int from activity_log l where l.action in ('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now())) as completed_this_month,
           (select count(*)::int from health) as active_count,
@@ -56,7 +63,18 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
       const active = Number(row?.active_count ?? 0);
       const healthy = Number(row?.healthy_count ?? 0);
       return {
-        new_clients:Number(row?.new_clients ?? 0), appointments_2h:Number(row?.appointments_2h ?? 0), tasks_due:Number(row?.tasks_due ?? 0), overdue_tasks:Number(row?.overdue_tasks ?? 0), overdue_followups:Number(row?.overdue_followups ?? 0), document_attention:Number(row?.document_attention ?? 0), unassigned_clients:Number(row?.unassigned_clients ?? 0), completed_this_month:Number(row?.completed_this_month ?? 0), efficiency:active===0?null:Math.round((healthy/active)*100),
+        new_clients:Number(row?.new_clients ?? 0),
+        appointments_2h:Number(row?.appointments_2h ?? 0),
+        tasks_due:Number(row?.tasks_due ?? 0),
+        overdue_tasks:Number(row?.overdue_tasks ?? 0),
+        overdue_followups:Number(row?.overdue_followups ?? 0),
+        document_attention:Number(row?.document_attention ?? 0),
+        requirements_attention:Number(row?.requirements_attention ?? 0),
+        payments_pending:Number(row?.payments_pending ?? 0),
+        open_audit_alerts:Number(row?.open_audit_alerts ?? 0),
+        unassigned_clients:Number(row?.unassigned_clients ?? 0),
+        completed_this_month:Number(row?.completed_this_month ?? 0),
+        efficiency:active===0?null:Math.round((healthy/active)*100),
       };
     }),
   ]);
