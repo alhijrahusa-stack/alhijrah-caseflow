@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { DocumentARPreview } from "@/components/staff/DocumentARPreview";
 import { DOC_LABELS, DOC_MAX_BYTES, DOC_MIME, DOC_TYPES } from "@/lib/domain";
 
 export type PendingDocument = {
@@ -91,6 +92,7 @@ export function SmartDocumentDropzone({ docType, onDocTypeChange, docs, onChange
   const [dragging, setDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [preview, setPreview] = useState<File | null>(null);
+  const [arPreview, setArPreview] = useState<File | null>(null);
 
   async function addFiles(list: FileList | File[]) {
     if (disabled || processing) return;
@@ -175,6 +177,7 @@ export function SmartDocumentDropzone({ docType, onDocTypeChange, docs, onChange
               </div>
               <div className="flex flex-wrap justify-end gap-2">
                 <button type="button" className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5" onClick={() => setPreview(doc.file)}>Spatial preview</button>
+                {IMAGE_TYPES.has(doc.file.type) && <button type="button" className="rounded-lg border border-cyan-300/20 px-2.5 py-1.5 text-xs text-cyan-200 hover:bg-cyan-300/[.05]" onClick={() => setArPreview(doc.file)}>AR camera preview</button>}
                 <button type="button" className="rounded-lg border border-red-400/20 px-2.5 py-1.5 text-xs text-red-300 hover:bg-red-400/5" onClick={() => onChange(docs.filter((item) => item.id !== doc.id))}>Remove</button>
               </div>
             </div>
@@ -182,6 +185,7 @@ export function SmartDocumentDropzone({ docType, onDocTypeChange, docs, onChange
         </div>
       )}
       {preview && <SpatialPreview file={preview} onClose={() => setPreview(null)} />}
+      {arPreview && <DocumentARPreview file={arPreview} onClose={() => setArPreview(null)} />}
     </div>
   );
 }
