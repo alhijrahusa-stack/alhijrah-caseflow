@@ -4,7 +4,16 @@ import type { Role } from "@/lib/domain";
 import type { StaffSession } from "@/lib/auth";
 import type { ActionInput } from "@/lib/actions";
 
-export type ActionName = ActionInput["action"] | "upload_document" | "view_document";
+export type ActionName = ActionInput["action"]
+  | "upload_document"
+  | "view_document"
+  | "record_payment"
+  | "record_refund"
+  | "record_adjustment"
+  | "record_waiver"
+  | "manage_commission_rules"
+  | "approve_commission"
+  | "mark_commission_paid";
 export type PermissionScope = "ALL" | "ASSIGNED" | "NONE";
 export type Permission = { resource: string | null; scope: PermissionScope; allowed: boolean };
 
