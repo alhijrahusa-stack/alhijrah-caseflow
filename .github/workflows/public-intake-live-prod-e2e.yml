@@ -92,7 +92,8 @@ jobs:
             await page.mouse.move(box.x + 155, box.y + 40, { steps: 5 });
             await page.mouse.up();
             await page.locator('#sigWrap.has').waitFor({ state: 'visible' });
-            await page.locator('#consent').check({ force: true });
+            await page.locator('#consentChoice').click();
+            assert.equal(await page.locator('#consent').isChecked(), true);
 
             await page.locator('#langAr').click();
             assert.equal(await page.locator('html').getAttribute('lang'), 'ar');
