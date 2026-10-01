@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStaff } from "@/lib/auth";
 import { permissionFor, clientScope, type ActionName } from "@/lib/authz";
-import { recordFinancialTransaction } from "@/lib/finance";
+import { accountLedgerEntries, recordFinancialTransaction } from "@/lib/finance";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { ActionError } from "@/lib/service";
@@ -54,6 +54,19 @@ const Input = z.discriminatedUnion("operation", [
 
 function actionOf(operation: z.infer<typeof Input>["operation"]): ActionName {
   return operation;
+}
+
+export async function GET(req: Request) {
+  const traceId = traceIdFrom(req);
+  const guard = await staffGuard(req, traceId, { mutation: false });
+  if (guard.response) return guard.response;
+  const raw = new URL(req.url).searchParams.get("client_id");
+  const parsed = id.safeParse(raw);
+  if (!parsed.success) return err("invalid_input", "Valid client_id is required", 400, traceId);
+  const scope = await clientScope(guard.session, parsed.data);
+  if (!scope.ok) return err(scope.status === 403 ? "forbidden" : "not_found", scope.reason, scope.status, traceId);
+  const entries = await accountLedgerEntries(guard.session, parsed.data);
+  return ok({ entries }, 200, traceId);
 }
 
 export async function POST(req: Request) {
