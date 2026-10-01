@@ -7,7 +7,6 @@ import { getStaffSession } from "@/lib/auth";
 import { assignmentData } from "@/lib/operational-assignments";
 import { operationalActivity } from "@/lib/operational-activity";
 import { teamWorkload } from "@/lib/operational-team";
-import { staffDirectory } from "@/lib/queries";
 
 const TABS=new Set(["team","assignments","activity"]);
 
@@ -20,7 +19,7 @@ export default async function StaffPage({searchParams}:{searchParams:Promise<{ta
   if(tab==="assignments"&&!management)return <p className="ops-error">403 — Management access required.</p>;
 
   const team=tab==="team"?await teamWorkload(session):null;
-  const staff=tab==="team"&&session.staff.role==="admin"?await staffDirectory(session):null;
+  const staff=tab==="team"&&session.staff.role==="admin"&&team?team.members:null;
   const assignments=tab==="assignments"?await assignmentData(session):null;
   const activity=tab==="activity"?await operationalActivity(session):null;
 
