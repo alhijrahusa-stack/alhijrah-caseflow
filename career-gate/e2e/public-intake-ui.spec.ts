@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// Runtime assertions are intentionally unchanged; this commit re-triggers PR checks after restoring intake initialization.
 async function fillStepOne(page: Page) {
   await page.locator("#firstName").fill("عبدالله");
   await page.locator("#lastName").fill("Tester");
