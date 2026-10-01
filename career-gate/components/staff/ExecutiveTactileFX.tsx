@@ -2,35 +2,44 @@
 
 import { useEffect } from "react";
 
-/** Presentation-only tactile feedback. Does not mutate application data or session state. */
+let sharedAudioContext: AudioContext | null = null;
+
+function audioContext() {
+  if (sharedAudioContext) return sharedAudioContext;
+  const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioCtx) return null;
+  sharedAudioContext = new AudioCtx();
+  return sharedAudioContext;
+}
+
+/** Presentation-only tactile feedback. Visual feedback is CSS-first; audio is explicit opt-in. */
 export function ExecutiveTactileFX() {
   useEffect(() => {
-    function play() {
+    async function play() {
       try {
-        const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (!AudioCtx) return;
-        const ctx = new AudioCtx();
+        const ctx = audioContext();
+        if (!ctx) return;
+        if (ctx.state === "suspended") await ctx.resume();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = "sine";
         osc.frequency.setValueAtTime(210, ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(48, ctx.currentTime + 0.024);
-        gain.gain.setValueAtTime(0.025, ctx.currentTime);
+        gain.gain.setValueAtTime(0.018, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.026);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start();
         osc.stop(ctx.currentTime + 0.028);
-        window.setTimeout(() => void ctx.close(), 80);
       } catch {
-        // Browser audio policies may suppress feedback; the control remains fully functional.
+        // Browser audio policy may suppress optional sound; visual controls remain fully functional.
       }
     }
 
     function onPointerDown(event: PointerEvent) {
       const target = event.target as HTMLElement | null;
-      if (!target?.closest("[data-executive-tactile='true']")) return;
-      play();
+      if (!target?.closest("[data-executive-audio='true']")) return;
+      void play();
     }
 
     document.addEventListener("pointerdown", onPointerDown, { passive: true });
