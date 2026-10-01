@@ -30,7 +30,6 @@ jobs:
           node <<'NODE'
           const { chromium } = require('playwright');
           const assert = require('node:assert/strict');
-
           const url = process.env.PRODUCTION_URL;
           const testId = `prodverify-${Date.now()}`;
           const email = `${testId}@example.com`;
@@ -56,7 +55,7 @@ jobs:
             });
 
             const r = await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
-            assert.equal(r.status(), 200, 'production form must return HTTP 200');
+            assert.equal(r.status(), 200);
             assert.equal(await page.locator('html').getAttribute('lang'), 'ar');
             assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
             await page.locator('#firstName').fill('Production');
@@ -72,28 +71,23 @@ jobs:
             assert.equal(await page.locator('#firstName').inputValue(), 'Production');
             assert.ok((await page.locator('.title').textContent()).includes('Job Application Form'));
 
-            const workType = page.locator('input[name="workType"]').first();
-            await workType.check({ force: true });
-            const shift = page.locator('input[name="shift"]').first();
-            await shift.check({ force: true });
+            await page.locator('input[name="workType"]').first().check({ force: true });
+            await page.locator('input[name="shift"]').first().check({ force: true });
             await page.locator('[data-next="3"]').click();
             await page.locator('.page.active[data-page="3"]').waitFor({ state: 'visible' });
 
             await page.locator('#docs').setInputFiles({ name: 'production-verification.pdf', mimeType: 'application/pdf', buffer: pdf });
             await page.locator('#photo').setInputFiles({ name: 'production-verification.png', mimeType: 'image/png', buffer: png });
-
             const canvas = page.locator('#signature');
             await canvas.scrollIntoViewIfNeeded();
             const box = await canvas.boundingBox();
-            assert.ok(box, 'signature canvas must be visible');
+            assert.ok(box);
             await page.mouse.move(box.x + 25, box.y + 45);
             await page.mouse.down();
             await page.mouse.move(box.x + 90, box.y + 80, { steps: 5 });
             await page.mouse.move(box.x + 155, box.y + 40, { steps: 5 });
             await page.mouse.up();
             await page.locator('#sigWrap.has').waitFor({ state: 'visible' });
-            await page.locator('#consentChoice').click();
-            assert.equal(await page.locator('#consent').isChecked(), true);
 
             await page.locator('#langAr').click();
             assert.equal(await page.locator('html').getAttribute('lang'), 'ar');
@@ -101,15 +95,20 @@ jobs:
             assert.equal(await page.locator('#docs').evaluate(el => el.files.length), 1);
             assert.equal(await page.locator('#photo').evaluate(el => el.files.length), 1);
             assert.ok((await page.locator('#sigWrap').getAttribute('class')).includes('has'));
-            assert.equal(await page.locator('#consent').isChecked(), true);
             await page.locator('#langEn').click();
 
             await page.locator('[data-next="4"]').click();
             await page.locator('.page.active[data-page="4"]').waitFor({ state: 'visible' });
-            await page.locator('#reviewClientName').waitFor({ state: 'visible' });
             assert.ok((await page.locator('#reviewClientName').textContent()).includes('Production'));
             assert.ok((await page.locator('#reviewDocumentsGrid').textContent()).includes('production-verification.pdf'));
             await page.locator('#reviewPhoto img').waitFor({ state: 'visible' });
+            await page.locator('#consentChoice').click();
+            assert.equal(await page.locator('#consent').isChecked(), true);
+
+            await page.locator('#langAr').click();
+            assert.equal(await page.locator('#consent').isChecked(), true);
+            await page.locator('#langEn').click();
+            assert.equal(await page.locator('#consent').isChecked(), true);
 
             await page.locator('#editPersonal').click();
             await page.locator('.page.active[data-page="1"]').waitFor({ state: 'visible' });
@@ -120,18 +119,18 @@ jobs:
 
             await page.locator('#form').evaluate(form => { form.requestSubmit(); form.requestSubmit(); });
             await page.locator('#receiptScreen.active').waitFor({ state: 'visible', timeout: 60000 });
-            assert.equal(applicationPosts, 1, 'duplicate submit protection must allow one application POST only');
-            assert.ok(submitResponse && submitResponse.ok === true, 'server must confirm successful submission');
-            assert.ok(/^ALH-/.test(submitResponse.caseNumber || ''), 'server must issue a real case number');
-            assert.ok(submitResponse.submittedAt, 'server must return official submission timestamp');
+            assert.equal(applicationPosts, 1, 'single-fire submit failed');
+            assert.ok(submitResponse?.ok === true, 'server did not confirm submission');
+            assert.ok(/^ALH-/.test(submitResponse.caseNumber || ''), 'server case number missing');
+            assert.ok(submitResponse.submittedAt, 'server timestamp missing');
             assert.equal((await page.locator('#receiptCase').textContent()).trim(), submitResponse.caseNumber);
             assert.notEqual((await page.locator('#receiptTime').textContent()).trim(), '—');
 
             const trackingHref = await page.locator('#receiptTrackLink').getAttribute('href');
-            assert.ok(trackingHref, 'receipt must expose tracking URL');
+            assert.ok(trackingHref);
             await page.goto(new URL(trackingHref, url).href, { waitUntil: 'networkidle', timeout: 60000 });
             await page.locator('#trackResult').waitFor({ state: 'visible', timeout: 30000 });
-            assert.ok((await page.locator('#trackResult').textContent()).includes(submitResponse.caseNumber), 'tracking must resolve persisted production application');
+            assert.ok((await page.locator('#trackResult').textContent()).includes(submitResponse.caseNumber), 'tracking did not resolve persisted application');
 
             const mobile = await browser.newContext({ viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
             const mp = await mobile.newPage();
@@ -148,8 +147,5 @@ jobs:
             console.log(`LIVE_PRODUCTION_E2E=PASS case=${submitResponse.caseNumber} submittedAt=${submitResponse.submittedAt}`);
             await context.close();
             await browser.close();
-          })().catch(err => {
-            console.error(err);
-            process.exit(1);
-          });
+          })().catch(err => { console.error(err); process.exit(1); });
           NODE
