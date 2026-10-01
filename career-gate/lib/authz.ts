@@ -13,7 +13,11 @@ export type ActionName = ActionInput["action"]
   | "record_waiver"
   | "manage_commission_rules"
   | "approve_commission"
-  | "mark_commission_paid";
+  | "mark_commission_paid"
+  | "configure_permissions"
+  | "configure_workflow"
+  | "manage_staff_profile"
+  | "manage_assets";
 export type PermissionScope = "ALL" | "ASSIGNED" | "NONE";
 export type Permission = { resource: string | null; scope: PermissionScope; allowed: boolean };
 
