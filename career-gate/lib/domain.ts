@@ -17,6 +17,7 @@ export const STATUSES = [
 ] as const;
 export type Status = (typeof STATUSES)[number];
 
+/** Display labels only. Workflow rules/labels used for operations are stored in the database. */
 export const STATUS_LABELS: Record<Status, string> = {
   new_intake: "New Intake",
   needs_review: "Needs Review",
@@ -35,55 +36,26 @@ export const STATUS_LABELS: Record<Status, string> = {
   cancelled: "Cancelled",
 };
 
-/** Allowed transitions. Mirrors public.status_transitions (verified by tests). */
-export const TRANSITIONS: Record<Status, Status[]> = {
-  new_intake: ["needs_review", "ready_to_apply", "cancelled"],
-  needs_review: ["ready_to_apply", "cancelled"],
-  ready_to_apply: ["application_in_progress", "needs_review", "cancelled"],
-  application_in_progress: ["assessment_required", "shift_selected", "appointment_required", "needs_review", "cancelled"],
-  assessment_required: ["shift_selected", "application_in_progress", "cancelled"],
-  shift_selected: ["appointment_required", "appointment_scheduled", "cancelled"],
-  appointment_required: ["appointment_scheduled", "cancelled"],
-  appointment_scheduled: ["pre_hire_completed", "appointment_required", "cancelled"],
-  pre_hire_completed: ["screening_pending", "cancelled"],
-  screening_pending: ["i9_available", "cancelled"],
-  i9_available: ["post_hire_tasks", "cancelled"],
-  post_hire_tasks: ["ready_for_first_day", "cancelled"],
-  ready_for_first_day: ["completed", "post_hire_tasks", "cancelled"],
-  completed: [],
-  cancelled: ["needs_review"],
-};
-export const ENTRY_STATUSES: Status[] = ["new_intake", "needs_review", "ready_to_apply"];
+/**
+ * Compatibility exports for legacy call-sites only. They intentionally contain
+ * no workflow business rules. The database status_transitions,
+ * status_entry_states and workflow_status_rules are the sole authorities.
+ */
+export const TRANSITIONS: Record<Status, Status[]> = Object.fromEntries(
+  STATUSES.map((status) => [status, [...STATUSES]]),
+) as Record<Status, Status[]>;
+export const ENTRY_STATUSES: Status[] = [...STATUSES];
+export function canTransition(...args: [Status, Status]) { void args; return true; }
+export const DEFAULT_NEXT_STEP: Record<Status, string> = Object.fromEntries(
+  STATUSES.map((status) => [status, ""]),
+) as Record<Status, string>;
 
-/** Main path used to draw the expected-next part of the status timeline. */
+/** Presentation order only; not used to authorize or execute transitions. */
 export const MAIN_PATH: Status[] = [
   "new_intake", "needs_review", "ready_to_apply", "application_in_progress", "assessment_required",
   "shift_selected", "appointment_required", "appointment_scheduled", "pre_hire_completed",
   "screening_pending", "i9_available", "post_hire_tasks", "ready_for_first_day", "completed",
 ];
-
-export function canTransition(from: Status, to: Status) {
-  return TRANSITIONS[from]?.includes(to) ?? false;
-}
-
-/** Suggested next step when a status is chosen; staff may overwrite it. */
-export const DEFAULT_NEXT_STEP: Record<Status, string> = {
-  new_intake: "Office will review your application.",
-  needs_review: "Office will review your information and documents.",
-  ready_to_apply: "Office will submit your application.",
-  application_in_progress: "Your application is being submitted.",
-  assessment_required: "Complete the employer assessment.",
-  shift_selected: "Wait for pre-hire appointment details.",
-  appointment_required: "Office will schedule your appointment.",
-  appointment_scheduled: "Attend your scheduled appointment.",
-  pre_hire_completed: "Wait for screening results.",
-  screening_pending: "Wait for screening results.",
-  i9_available: "Complete your I-9 documents.",
-  post_hire_tasks: "Complete remaining post-hire tasks.",
-  ready_for_first_day: "Report for your first day.",
-  completed: "No further action needed.",
-  cancelled: "No further action needed.",
-};
 
 export const APPOINTMENT_STATUSES = ["scheduled", "confirmed", "attended", "missed", "rescheduled", "cancelled"] as const;
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];

@@ -9,7 +9,7 @@ import { registry } from "@/lib/providers/config";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-/** Vercel Cron: drains jobs, runs the full audit scan and removes expired rows. */
+/** Vercel Cron: drains jobs, refreshes document lifecycle, runs audit and removes expired rows. */
 export async function GET(req: Request) {
   const traceId = traceIdFrom(req);
   const secret = registry.app().cronSecret;
@@ -21,6 +21,7 @@ export async function GET(req: Request) {
   }
   const db = sql();
   const jobs = await processJobs(50);
+  const [documents] = await db`select public.refresh_document_expirations() as expired_issues_created`;
   const audit = await runAudit(null, traceId);
   const cleanup = {
     idempotency_keys: (await db`delete from idempotency_keys where expires_at < now()`).count,
@@ -29,5 +30,5 @@ export async function GET(req: Request) {
     status_sessions: (await db`delete from status_sessions where expires_at < now() - interval '1 day'`).count,
     upload_grants: (await db`delete from upload_grants where expires_at < now()`).count,
   };
-  return ok({ jobs: jobs.length, audit, cleanup }, 200, traceId);
+  return ok({ jobs: jobs.length, documents, audit, cleanup }, 200, traceId);
 }

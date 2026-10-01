@@ -1,7 +1,7 @@
 import "server-only";
 import type postgres from "postgres";
 import { catalogVersion, resolvePreferences, type Selection } from "@/lib/catalog";
-import { DEFAULT_NEXT_STEP, type Status } from "@/lib/domain";
+import type { Status } from "@/lib/domain";
 import type { Profile } from "@/lib/schemas";
 
 export type Tx = postgres.TransactionSql;
@@ -24,7 +24,7 @@ export type ActivityAction =
   | "contact_logged" | "followup_created" | "followup_completed"
   | "assessment_updated" | "post_hire_updated" | "agent_alert_created" | "agent_run"
   | "notification_queued" | "notification_sent" | "notification_failed" | "notification_not_configured"
-  | "status_otp_requested" | "status_otp_verified";
+  | "status_otp_requested" | "status_otp_verified" | "payment_updated";
 
 export type Actor = { staffId: string | null; traceId: string };
 
@@ -58,6 +58,16 @@ export async function requireStaffMember(tx: Tx, id: string | null | undefined) 
   const [row] = await tx`select id from staff where id = ${id} and active`;
   if (!row) throw new ActionError("invalid_staff", "Unknown or inactive staff member");
   return id;
+}
+
+export async function defaultNextAction(tx: Tx, status: Status) {
+  const [row] = await tx`
+    select default_next_action
+      from workflow_status_rules
+     where status=${status} and active
+     limit 1`;
+  if (!row?.default_next_action) throw new ActionError("workflow_rule_missing", `No active workflow rule for ${status}`, 500);
+  return String(row.default_next_action);
 }
 
 export type NewClientInput = {
@@ -110,6 +120,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
     );
   }
 
+  const nextStep = input.nextStep?.trim() || await defaultNextAction(tx, input.status);
   const [client] = await tx`
     insert into clients (
       source, full_name, phone, email, date_of_birth, preferred_language,
@@ -122,8 +133,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
       ${p.preferred_language}, ${p.street}, ${p.city}, ${p.state}, ${p.zip}, ${p.appointment_availability},
       ${p.amazon_worked_before}, ${p.amazon_worked_from}, ${p.amazon_worked_to},
       ${p.amazon_applied_before}, ${p.amazon_application_email}, ${p.currently_amazon}, ${p.via_agency},
-      ${input.communicationConsent}, ${input.status},
-      ${input.nextStep?.trim() || DEFAULT_NEXT_STEP[input.status]}, ${input.assignedStaff}, ${input.createdBy}
+      ${input.communicationConsent}, ${input.status}, ${nextStep}, ${input.assignedStaff}, ${input.createdBy}
     )
     returning id, ref, created_at`;
 

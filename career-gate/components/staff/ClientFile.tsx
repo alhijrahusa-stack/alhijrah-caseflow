@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
-  AddNoteForm, AppointmentForm, AssignForm, ContactedForm, DocumentForm, FollowupForm, NextStepForm, type Panel, StatusForm, TaskForm,
+  AddNoteForm, AppointmentForm, AssignForm, ContactedForm, DocumentForm, FollowupForm, NextStepForm, type Panel, TaskForm,
 } from "@/components/staff/ClientActions";
+import { DynamicStatusForm } from "@/components/staff/DynamicStatusForm";
 import { InlineField } from "@/components/staff/InlineField";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { useStaff } from "@/components/staff/StaffContext";
@@ -181,7 +182,7 @@ export function ClientFile({
         {panel === "note" && <AddNoteForm clientId={c.id} onDone={close} />}
         {panel === "task" && <TaskForm clientId={c.id} onDone={close} />}
         {panel === "contacted" && <ContactedForm clientId={c.id} onDone={close} />}
-        {panel === "status" && <StatusForm clientId={c.id} current={c.current_status} nextStep={c.next_step} onDone={close} />}
+        {panel === "status" && <DynamicStatusForm clientId={c.id} current={c.current_status} nextStep={c.next_step} onDone={close} />}
         {panel === "next_step" && <NextStepForm clientId={c.id} nextStep={c.next_step} onDone={close} />}
         {panel === "followup" && <FollowupForm clientId={c.id} onDone={close} />}
         {panel === "assign" && <AssignForm clientId={c.id} current={c.assigned_staff} onDone={close} />}
