@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DOC_LABELS, DOC_MAX_BYTES, DOC_MIME, DOC_TYPES } from "@/lib/domain";
 
 export type PendingDocument = {
@@ -27,6 +27,12 @@ function humanBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function useImageObjectUrl(file: File) {
+  const url = useMemo(() => IMAGE_TYPES.has(file.type) ? URL.createObjectURL(file) : null, [file]);
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
+  return url;
 }
 
 async function compressImage(file: File): Promise<{ file: File; compressed: boolean; original: number }> {
@@ -63,25 +69,13 @@ async function compressImage(file: File): Promise<{ file: File; compressed: bool
 }
 
 function PreviewThumb({ file }: { file: File }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!IMAGE_TYPES.has(file.type)) return;
-    const next = URL.createObjectURL(file);
-    setUrl(next);
-    return () => URL.revokeObjectURL(next);
-  }, [file]);
+  const url = useImageObjectUrl(file);
   if (!url) return <div className="cg-doc-thumb grid place-items-center text-[10px] font-semibold text-slate-400">PDF</div>;
   return <img className="cg-doc-thumb" src={url} alt="Document preview" />;
 }
 
 function SpatialPreview({ file, onClose }: { file: File; onClose: () => void }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!IMAGE_TYPES.has(file.type)) return;
-    const next = URL.createObjectURL(file);
-    setUrl(next);
-    return () => URL.revokeObjectURL(next);
-  }, [file]);
+  const url = useImageObjectUrl(file);
   return (
     <div className="cg-spatial-backdrop" role="dialog" aria-modal="true" aria-label="Spatial document preview" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="cg-spatial-stage relative p-8">
