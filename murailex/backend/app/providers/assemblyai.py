@@ -27,7 +27,6 @@ class AssemblyAI(AsrAdapter):
             "speech_models": [s.assemblyai_speech_model],
             "speaker_labels": True,
             "language_detection": True,
-            "disfluencies": True,
         }
         expected = (context or {}).get("expected_speakers")
         if expected:

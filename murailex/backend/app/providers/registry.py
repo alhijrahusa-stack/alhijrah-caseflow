@@ -5,6 +5,7 @@ from .assemblyai import AssemblyAI
 from .base import AsrAdapter, DiarizationAdapter
 from .deepgram import DeepgramNova3
 from .google_chirp import GoogleChirp3
+from .local_whisper import LocalWhisper
 from .openai_stt import OpenAITranscribe
 from .pyannote import PyannoteAI
 
@@ -31,7 +32,7 @@ def clear_test_fixtures() -> None:
 def primary_asr() -> list[AsrAdapter]:
     if _override is not None and fixtures_enabled():
         return _override["primary"]
-    return [AssemblyAI(), GoogleChirp3()]
+    return [LocalWhisper(), AssemblyAI(), GoogleChirp3()]
 
 
 def diarization() -> list[DiarizationAdapter]:

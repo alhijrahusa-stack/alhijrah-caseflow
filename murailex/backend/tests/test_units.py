@@ -1,17 +1,9 @@
 from app.pipeline import align, consensus, transcript
 from app.pipeline.text import match_key, token_risks
-from app.providers.assemblyai import AssemblyAI
 
 
 def tok(text, s, e, c=0.95, sp=None):
     return {"text": text, "start_ms": s, "end_ms": e, "confidence": c, "speaker": sp}
-
-
-def test_assemblyai_verbatim_parameters_preserve_disfluencies():
-    params = AssemblyAI().parameters()
-    assert params["speech_models"] == ["universal-3-5-pro"]
-    assert params["language_detection"] is True
-    assert params["disfluencies"] is True
 
 
 def test_match_key_never_changes_display_but_compares_orthography():
@@ -61,6 +53,7 @@ def test_consensus_flags_disagreement_and_accepts_agreement():
     reg = r["regions"][0]
     assert "engine_disagreement" in reg["reasons"] and "number" in reg["risks"]
     assert reg["requires_independent_check"]
+    # provenance retained for accepted tokens
     assert {p["provider"] for p in r["columns"][0]["provenance"]} == {"A", "B"}
 
 

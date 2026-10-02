@@ -381,6 +381,10 @@ def process_recording(db: Session, rec: Recording) -> None:
         "regions_escalated": len(regions),
         "regions_auto_closed_unanimous": auto_closed,
         "disputes_opened": len(disputes),
+        "asr_coverage": {
+            r.provider: (r.normalized or {}).get("coverage")
+            for r in ok_primary
+        },
         "consensus_rules": (cons.__doc__ or "").strip(),
     }
     content = tx.new_content(

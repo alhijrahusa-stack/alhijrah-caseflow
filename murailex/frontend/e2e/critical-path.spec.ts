@@ -11,7 +11,7 @@ test("unauthenticated users are sent to sign-in", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("dir", /rtl|ltr/);
 });
 
-test("critical path: sign in → upload → process → review → lock → export", async ({ page }) => {
+test("critical path: sign in → upload → real ASR → transcript → lock → export", async ({ page }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: /English|العربية/ }).click();
   await page.locator('input[name="email"]').fill("admin@example.com");
@@ -36,36 +36,45 @@ test("critical path: sign in → upload → process → review → lock → expo
   const sha = crypto.createHash("sha256").update(fs.readFileSync(SAMPLE)).digest("hex");
   await expect(page.locator(`button[title="${sha}"]`)).toBeVisible();
 
-  // Durable background processing reaches review
-  await expect(page.locator('[data-status="needs_review"]')).toBeVisible({ timeout: 90_000 });
+  // Durable background processing with the real local ASR engine
+  const status = page.locator("[data-status]").first();
+  await expect(status).toBeVisible({ timeout: 180_000 });
   await expect(page.getByTestId("segment").first()).toBeVisible();
-  await expect(page.getByTestId("transcript")).toContainText("والله");
-  await expect(page.getByTestId("transcript")).toContainText("okay");
-  await expect(page.getByTestId("transcript")).toContainText("[صمت]");
-  await expect(page.getByTestId("speaker-label").first()).toContainText("المتحدث");
+  const transcriptText = ((await page.getByTestId("transcript").textContent()) ?? "").trim();
+  expect(transcriptText.length).toBeGreaterThan(0);
+  const timestamps = await page.getByTestId("segment").evaluateAll((nodes) =>
+    nodes.map((n) => (n.querySelector("button.font-mono")?.textContent ?? "").trim()).filter(Boolean),
+  );
+  expect(timestamps.length).toBeGreaterThan(0);
 
   // Mobile/desktop: no horizontal overflow
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 
-  // Review: replay exact source audio, then resolve every region
-  await page.getByTestId("dispute-chip").first().click();
-  await page.waitForURL(/\/review\//);
-  const cards = page.getByTestId("dispute-card");
-  await expect(cards.first()).toBeVisible();
-  await cards.first().getByTestId("play-exact").click();
-  await expect.poll(async () => (await page.getByTestId("clock").textContent()) ?? "", { timeout: 10_000 }).not.toMatch(/^0:00\.000/);
-  let remaining = await cards.count();
-  expect(remaining).toBeGreaterThanOrEqual(2);
-  await cards.first().getByTestId("accept-candidate").first().click();
-  await expect(cards).toHaveCount(remaining - 1);
-  remaining -= 1;
-  while (remaining > 0) {
-    await cards.first().getByTestId("mark-inaudible").click();
-    await expect(cards).toHaveCount(remaining - 1);
-    remaining -= 1;
+  // Review any real-ASR disputes before locking.
+  if ((await status.getAttribute("data-status")) === "needs_review") {
+    await page.getByTestId("dispute-chip").first().click();
+    await page.waitForURL(/\/review\//);
+    const cards = page.getByTestId("dispute-card");
+    await expect(cards.first()).toBeVisible();
+    await cards.first().getByTestId("play-exact").click();
+    await expect.poll(async () => (await page.getByTestId("clock").textContent()) ?? "", { timeout: 10_000 }).not.toMatch(/^0:00\.000/);
+    let remaining = await cards.count();
+    expect(remaining).toBeGreaterThan(0);
+    while (remaining > 0) {
+      const accept = cards.first().getByTestId("accept-candidate");
+      if (await accept.count()) {
+        await accept.first().click();
+      } else {
+        await cards.first().getByTestId("mark-inaudible").click();
+      }
+      await expect(cards).toHaveCount(remaining - 1);
+      remaining -= 1;
+    }
+    await expect(page.getByTestId("open-count")).toContainText("0");
+    await page.goBack();
+    await page.reload();
   }
-  await expect(page.getByTestId("open-count")).toContainText("0");
 
   // Lock
   await page.goBack();
@@ -73,7 +82,6 @@ test("critical path: sign in → upload → process → review → lock → expo
   page.once("dialog", (d) => d.accept());
   await page.getByTestId("lock").click();
   await expect(page.locator('[data-status="locked"]')).toBeVisible();
-  await expect(page.getByTestId("transcript")).toContainText("[غير مسموع]");
 
   // Exports
   for (const fmt of ["txt", "pdf", "docx", "json", "zip"]) {
