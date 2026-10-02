@@ -24,6 +24,9 @@ export type TeamMemberWorkload = {
   active: boolean;
   linked: boolean;
   staff_code: string | null;
+  commission_type: "fixed" | "percent";
+  commission_value: number;
+  eligible_for_round_robin: boolean;
   active_clients: number;
   open_tasks: number;
   overdue_tasks: number;
@@ -49,22 +52,24 @@ export type TeamWorkloadData = {
 export async function teamWorkload(session: StaffSession): Promise<TeamWorkloadData> {
   const activeCatalogKeys = new Set(options.map((option) => option.key));
   return withStaff(session, async (tx) => {
-    const staffRows = await tx`select id,display_name,email,role,active,auth_user_id is not null as linked,staff_code from staff order by active desc,staff_code nulls last,display_name`;
-    const clientGroups = await tx`
-      with primary_pref as (
-        select distinct on (p.client_id) p.client_id,p.site_code,p.site_name,p.job_id,p.shift_code,p.shift_name
-        from client_preferences p
-        join clients c on c.id=p.client_id
-        where c.deleted_at is null and c.current_status not in ('completed','cancelled') and p.rank='primary'
-        order by p.client_id,p.preference_order
-      )
-      select c.assigned_staff as staff_id,p.site_code,p.site_name,p.job_id,p.shift_code,p.shift_name,count(*)::int as n
-      from clients c left join primary_pref p on p.client_id=c.id
-      where c.deleted_at is null and c.current_status not in ('completed','cancelled')
-      group by c.assigned_staff,p.site_code,p.site_name,p.job_id,p.shift_code,p.shift_name`;
-    const taskRows = await tx`select assigned_to as staff_id,count(*) filter (where status=any(${OPEN_TASKS}))::int as open_tasks,count(*) filter (where status=any(${OPEN_TASKS}) and due_at is not null and due_at<now())::int as overdue_tasks from tasks where assigned_to is not null group by assigned_to`;
-    const appointmentRows = await tx`select c.assigned_staff as staff_id,count(distinct a.id)::int as appointments_today from appointments a join clients c on c.id=a.client_id where c.deleted_at is null and c.current_status not in ('completed','cancelled') and a.status=any(${OPEN_APPOINTMENTS}) and (a.scheduled_at at time zone ${TZ})::date=(now() at time zone ${TZ})::date group by c.assigned_staff`;
-    const followupRows = await tx`select c.assigned_staff as staff_id,count(distinct f.id)::int as followups_due from followups f join clients c on c.id=f.client_id where c.deleted_at is null and c.current_status not in ('completed','cancelled') and f.status='open' and f.due_date<=(now() at time zone ${TZ})::date group by c.assigned_staff`;
+    const [staffRows, clientGroups, taskRows, appointmentRows, followupRows] = await Promise.all([
+      tx`select id,display_name,email,role,active,auth_user_id is not null as linked,staff_code,commission_type,commission_value,eligible_for_round_robin from staff order by active desc,staff_code nulls last,display_name`,
+      tx`
+        with primary_pref as (
+          select distinct on (p.client_id) p.client_id,p.site_code,p.site_name,p.job_id,p.shift_code,p.shift_name
+          from client_preferences p
+          join clients c on c.id=p.client_id
+          where c.deleted_at is null and c.current_status not in ('completed','cancelled') and p.rank='primary'
+          order by p.client_id,p.preference_order
+        )
+        select c.assigned_staff as staff_id,p.site_code,p.site_name,p.job_id,p.shift_code,p.shift_name,count(*)::int as n
+        from clients c left join primary_pref p on p.client_id=c.id
+        where c.deleted_at is null and c.current_status not in ('completed','cancelled')
+        group by c.assigned_staff,p.site_code,p.site_name,p.job_id,p.shift_code,p.shift_name`,
+      tx`select assigned_to as staff_id,count(*) filter (where status=any(${OPEN_TASKS}))::int as open_tasks,count(*) filter (where status=any(${OPEN_TASKS}) and due_at is not null and due_at<now())::int as overdue_tasks from tasks where assigned_to is not null group by assigned_to`,
+      tx`select c.assigned_staff as staff_id,count(distinct a.id)::int as appointments_today from appointments a join clients c on c.id=a.client_id where c.deleted_at is null and c.current_status not in ('completed','cancelled') and a.status=any(${OPEN_APPOINTMENTS}) and (a.scheduled_at at time zone ${TZ})::date=(now() at time zone ${TZ})::date group by c.assigned_staff`,
+      tx`select c.assigned_staff as staff_id,count(distinct f.id)::int as followups_due from followups f join clients c on c.id=f.client_id where c.deleted_at is null and c.current_status not in ('completed','cancelled') and f.status='open' and f.due_date<=(now() at time zone ${TZ})::date group by c.assigned_staff`,
+    ]);
 
     const tasks = new Map(taskRows.map((r) => [String(r.staff_id), r]));
     const appointments = new Map(appointmentRows.map((r) => [String(r.staff_id), Number(r.appointments_today)]));
@@ -92,8 +97,23 @@ export async function teamWorkload(session: StaffSession): Promise<TeamWorkloadD
       const t = totals.get(id) ?? { total:0,ready:0,waiting:0 };
       const task = tasks.get(id);
       return {
-        id, display_name:String(member.display_name), email:member.email ? String(member.email):null, role:String(member.role), active:Boolean(member.active), linked:Boolean(member.linked), staff_code:member.staff_code ? String(member.staff_code):null,
-        active_clients:t.total, open_tasks:Number(task?.open_tasks ?? 0), overdue_tasks:Number(task?.overdue_tasks ?? 0), appointments_today:Number(appointments.get(id) ?? 0), followups_due:Number(followups.get(id) ?? 0), job_ready:t.ready, waiting_for_job:t.waiting,
+        id,
+        display_name:String(member.display_name),
+        email:member.email ? String(member.email):null,
+        role:String(member.role),
+        active:Boolean(member.active),
+        linked:Boolean(member.linked),
+        staff_code:member.staff_code ? String(member.staff_code):null,
+        commission_type:member.commission_type === "percent" ? "percent" : "fixed",
+        commission_value:Number(member.commission_value ?? 0),
+        eligible_for_round_robin:Boolean(member.eligible_for_round_robin),
+        active_clients:t.total,
+        open_tasks:Number(task?.open_tasks ?? 0),
+        overdue_tasks:Number(task?.overdue_tasks ?? 0),
+        appointments_today:Number(appointments.get(id) ?? 0),
+        followups_due:Number(followups.get(id) ?? 0),
+        job_ready:t.ready,
+        waiting_for_job:t.waiting,
         sites:(perStaff.get(id) ?? []).sort((a,b)=>b.total-a.total || a.site_code.localeCompare(b.site_code)),
       };
     });
@@ -106,7 +126,8 @@ export async function teamWorkload(session: StaffSession): Promise<TeamWorkloadD
       overdue_tasks:members.reduce((s,m)=>s+m.overdue_tasks,0),
       appointments_today:members.reduce((s,m)=>s+m.appointments_today,0),
       followups_due:members.reduce((s,m)=>s+m.followups_due,0),
-      members, unassigned_sites:unassignedSites.sort((a,b)=>b.total-a.total || a.site_code.localeCompare(b.site_code)),
+      members,
+      unassigned_sites:unassignedSites.sort((a,b)=>b.total-a.total || a.site_code.localeCompare(b.site_code)),
     };
   });
 }

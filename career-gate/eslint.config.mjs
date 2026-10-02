@@ -5,5 +5,9 @@ const config = [
   { ignores: [".next/**", "node_modules/**", "public/sw.js", "next-env.d.ts", "playwright-report/**", "test-results/**"] },
   ...next,
   ...ts,
+  {
+    files: ["components/staff/SmartDocumentDropzone.tsx"],
+    rules: { "@next/next/no-img-element": "off" },
+  },
 ];
 export default config;

@@ -1,0 +1,239 @@
+/* CAREER GATE — additive premium experience layer.
+ * Loaded after the canonical design system. Keeps motion short and GPU-friendly.
+ */
+
+.staff-shell .cg-route-stage {
+  min-width: 0;
+  animation: cg-route-enter 160ms cubic-bezier(.2,.8,.25,1) both;
+  transform-origin: 50% 18%;
+}
+
+@keyframes cg-route-enter {
+  from { opacity: .72; transform: translate3d(0, 5px, 0) scale(.997); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+.staff-shell .staff-nav-link[data-tone="gold"] { color: #f3dda0; }
+.staff-shell .staff-nav-link[data-tone="cyan"] { color: #b8f6f7; }
+.staff-shell .staff-nav-link[data-tone="violet"] { color: #d9ccff; }
+.staff-shell .staff-nav-link[data-tone="green"] { color: #b9f2d5; }
+.staff-shell .staff-nav-link[data-tone="gold"]:hover { border-color: rgba(214,179,74,.42); background: rgba(214,179,74,.075); }
+.staff-shell .staff-nav-link[data-tone="cyan"]:hover { border-color: rgba(69,215,221,.42); background: rgba(69,215,221,.075); }
+.staff-shell .staff-nav-link[data-tone="violet"]:hover { border-color: rgba(164,139,250,.42); background: rgba(164,139,250,.075); }
+.staff-shell .staff-nav-link[data-tone="green"]:hover { border-color: rgba(74,195,148,.42); background: rgba(74,195,148,.075); }
+
+.staff-shell .cg-intelligence-card,
+.staff-shell .cg-document-pond,
+.staff-shell .cg-assistant-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(154,169,186,.24);
+  background:
+    radial-gradient(circle at 10% -20%, rgba(69,215,221,.09), transparent 46%),
+    radial-gradient(circle at 95% 0%, rgba(214,179,74,.08), transparent 42%),
+    linear-gradient(180deg, rgba(15,35,55,.84), rgba(6,17,31,.92));
+  box-shadow: 0 20px 60px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.045);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+}
+
+.staff-shell .cg-intelligence-card::before,
+.staff-shell .cg-document-pond::before,
+.staff-shell .cg-assistant-panel::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+  inset: -35%;
+  opacity: .48;
+  background: conic-gradient(from 210deg, transparent, rgba(69,215,221,.08), transparent 28%, rgba(214,179,74,.07), transparent 55%);
+  filter: blur(24px);
+  transform: translate3d(0,0,0);
+}
+
+.staff-shell .cg-intelligence-card[data-level="ready"] { border-color: rgba(74,195,148,.42); }
+.staff-shell .cg-intelligence-card[data-level="progress"] { border-color: rgba(214,179,74,.36); }
+.staff-shell .cg-intelligence-card[data-level="attention"] { border-color: rgba(239,122,98,.38); }
+
+.staff-shell .cg-readiness-ring {
+  --cg-score: 0;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--cg-cyan) calc(var(--cg-score) * 1%), rgba(255,255,255,.075) 0);
+  box-shadow: 0 0 30px rgba(69,215,221,.08);
+}
+.staff-shell .cg-readiness-ring::after {
+  content: "";
+  grid-area: 1/1;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #091827;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.045);
+}
+.staff-shell .cg-readiness-ring > strong {
+  grid-area: 1/1;
+  z-index: 1;
+  font-size: 1.06rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-shell .cg-mini-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid rgba(154,169,186,.22);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: rgba(255,255,255,.03);
+  color: var(--cg-text-2);
+  font-size: .78rem;
+  line-height: 1.2;
+}
+
+.staff-shell .cg-document-pond {
+  border-radius: 18px;
+  padding: 16px;
+  transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
+}
+.staff-shell .cg-document-pond[data-dragging="true"] {
+  transform: translateY(-1px) scale(1.002);
+  border-color: rgba(69,215,221,.65);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(69,215,221,.14), transparent 52%),
+    linear-gradient(180deg, rgba(15,41,58,.9), rgba(6,17,31,.94));
+}
+.staff-shell .cg-drop-target {
+  display: grid;
+  place-items: center;
+  min-height: 132px;
+  border: 1px dashed rgba(154,169,186,.33);
+  border-radius: 14px;
+  padding: 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+.staff-shell .cg-drop-target:hover {
+  border-color: rgba(214,179,74,.48);
+  background: rgba(255,255,255,.018);
+}
+.staff-shell .cg-doc-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(154,169,186,.14);
+  border-radius: 13px;
+  padding: 11px 12px;
+  background: rgba(255,255,255,.022);
+}
+.staff-shell .cg-doc-thumb {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 10px;
+  border: 1px solid rgba(154,169,186,.18);
+  object-fit: cover;
+  background: rgba(255,255,255,.035);
+}
+.staff-shell .cg-doc-status { color: #b9f2d5; font-size: .76rem; }
+.staff-shell .cg-doc-status[data-compressed="true"] { color: #b8f6f7; }
+
+.staff-shell .cg-spatial-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2,8,16,.78);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.staff-shell .cg-spatial-stage {
+  width: min(780px, 94vw);
+  min-height: min(620px, 82vh);
+  display: grid;
+  place-items: center;
+  perspective: 1200px;
+  border: 1px solid rgba(154,169,186,.25);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(69,215,221,.05), transparent 42%),
+    linear-gradient(315deg, rgba(214,179,74,.06), transparent 46%),
+    #06101d;
+  box-shadow: 0 50px 120px rgba(0,0,0,.5);
+}
+.staff-shell .cg-spatial-sheet {
+  max-width: min(520px, 75vw);
+  max-height: min(68vh, 720px);
+  object-fit: contain;
+  border-radius: 10px;
+  transform: rotateX(5deg) rotateY(-5deg) translateZ(16px);
+  box-shadow: 0 34px 80px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.08);
+  transition: transform 160ms ease;
+}
+.staff-shell .cg-spatial-stage:hover .cg-spatial-sheet { transform: rotateX(1deg) rotateY(1deg) translateZ(26px) scale(1.01); }
+
+.staff-shell .cg-assistant-launcher {
+  position: fixed;
+  z-index: 60;
+  right: 18px;
+  bottom: 18px;
+  min-width: 54px;
+  min-height: 54px;
+  border: 1px solid rgba(214,179,74,.42);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(214,179,74,.2), rgba(69,215,221,.14)), #0a1a2b;
+  color: #fff7dc;
+  box-shadow: 0 18px 50px rgba(0,0,0,.35), 0 0 30px rgba(69,215,221,.08);
+  font-weight: 700;
+}
+.staff-shell .cg-assistant-panel {
+  position: fixed;
+  z-index: 61;
+  right: 18px;
+  bottom: 82px;
+  width: min(420px, calc(100vw - 28px));
+  max-height: min(650px, calc(100vh - 120px));
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+}
+.staff-shell .cg-assistant-scroll { overflow: auto; overscroll-behavior: contain; }
+.staff-shell .cg-assistant-message {
+  border: 1px solid rgba(154,169,186,.14);
+  border-radius: 13px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.024);
+  white-space: pre-wrap;
+}
+.staff-shell .cg-assistant-message[data-role="user"] { background: rgba(69,215,221,.055); border-color: rgba(69,215,221,.18); }
+.staff-shell .cg-assistant-message[data-role="assistant"] { background: rgba(214,179,74,.045); border-color: rgba(214,179,74,.18); }
+
+.staff-shell .ops-glass-card,
+.staff-shell .staff-client-card,
+.staff-shell .ops-staff-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 220px;
+}
+
+@media (max-width: 767px) {
+  .staff-shell .cg-assistant-panel { right: 14px; bottom: 78px; width: calc(100vw - 28px); }
+  .staff-shell .cg-assistant-launcher { right: 14px; bottom: 14px; }
+  .staff-shell .cg-spatial-backdrop { padding: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-shell .cg-route-stage { animation: none; }
+  .staff-shell .cg-document-pond,
+  .staff-shell .cg-drop-target,
+  .staff-shell .cg-spatial-sheet { transition: none; }
+  .staff-shell .cg-spatial-sheet,
+  .staff-shell .cg-spatial-stage:hover .cg-spatial-sheet { transform: none; }
+}
