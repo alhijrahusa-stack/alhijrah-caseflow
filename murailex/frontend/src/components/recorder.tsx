@@ -101,7 +101,7 @@ export function Recorder({ onFinished, onCancel }: Props) {
         };
         mr.onerror = () => {
           setState("error");
-          setError(t("mic_error"));
+          setError(t("mic_denied"));
         };
         mr.start(1000);
         mediaRef.current = mr;
