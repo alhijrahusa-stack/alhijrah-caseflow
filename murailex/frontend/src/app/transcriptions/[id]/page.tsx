@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { api, ApiError } from "@/lib/api";
 import { fmtBytes, fmtTime, shortHash, textDir } from "@/lib/format";
 import { type Key, useI18n } from "@/lib/i18n";
+import { useSession } from "@/lib/session";
 import type { ExportInfo, ProviderRun, Recording, Revision, Translation } from "@/lib/types";
 
 type Detail = { recording: Recording; provider_runs: ProviderRun[]; job: { status: string; last_error: string | null } | null };
@@ -50,6 +51,8 @@ const STEPS = ["queued", "analyzing", "transcribing", "aligning", "verifying", "
 export default function TranscriptPage() {
   const { id } = useParams<{ id: string }>();
   const { t } = useI18n();
+  const { user } = useSession();
+  const isAdmin = user?.role === "admin";
   const [detail, setDetail] = useState<Detail | null>(null);
   const [revision, setRevision] = useState<Revision | null>(null);
   const [revisions, setRevisions] = useState<Revision[]>([]);
@@ -153,6 +156,7 @@ export default function TranscriptPage() {
               <Link href="/settings#advanced">{t("advanced")}</Link>
             </Button>
           </div>
+          {isAdmin && <EngineSelfTests recordingId={id} />}
         </Card>
       )}
 
@@ -437,5 +441,76 @@ function RunsPanel({ runs }: { runs: ProviderRun[] }) {
         ))}
       </div>
     </details>
+  );
+}
+
+type SelfTest = {
+  id: string;
+  provider: string;
+  model: string;
+  locale: string;
+  role: string;
+  status: string;
+  latency_ms: number | null;
+  error: string | null;
+  completed_at: string | null;
+};
+
+/** Admin action: run the real engine self-tests for this recording's locale routes. */
+function EngineSelfTests({ recordingId }: { recordingId: string }) {
+  const { lang } = useI18n();
+  const ar = lang === "ar";
+  const [tests, setTests] = useState<SelfTest[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    const r = await api<{ self_tests: SelfTest[] }>(`/api/recordings/${recordingId}/engine-self-tests`);
+    setTests(r.self_tests);
+  }, [recordingId]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch
+    void load().catch(() => undefined);
+  }, [load]);
+  const pending = tests.some((x) => !x.completed_at);
+  useEffect(() => {
+    if (!pending) return;
+    const h = setInterval(() => void load().catch(() => undefined), 5000);
+    return () => clearInterval(h);
+  }, [pending, load]);
+  async function run() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/api/recordings/${recordingId}/engine-self-tests`, { method: "POST" });
+      await load();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "Error");
+    } finally {
+      setBusy(false);
+    }
+  }
+  const latest = new Map<string, SelfTest>();
+  for (const x of tests) if (!latest.has(`${x.provider}:${x.role}`)) latest.set(`${x.provider}:${x.role}`, x);
+  return (
+    <div className="space-y-3 border-t border-line pt-4" data-testid="engine-self-tests">
+      <p className="text-sm text-fg-muted">
+        {ar
+          ? "إذا كان سبب الإيقاف عدم جاهزية المحركات: شغّل الاختبار الذاتي الحقيقي على هذا التسجيل، ثم أعد المعالجة بعد أن تصبح الحالة READY."
+          : "If processing was blocked because engines are not ready, run the real engine self-test on this recording, then retry processing once every engine is READY."}
+      </p>
+      <Button variant="secondary" size="sm" onClick={run} disabled={busy || pending}>
+        {pending ? (ar ? "الاختبار جارٍ…" : "Self-test running…") : ar ? "تشغيل الاختبار الذاتي للمحركات" : "Run engine self-test"}
+      </Button>
+      {[...latest.values()].map((x) => (
+        <div key={x.id} className="flex flex-wrap items-center gap-2 text-xs" dir="ltr">
+          <Badge tone={x.status === "READY" ? "ok" : x.completed_at ? "danger" : "accent"}>{x.completed_at ? x.status : "RUNNING"}</Badge>
+          <span className="font-medium text-fg">{x.provider}</span>
+          <span className="text-fg-muted">{x.model} · {x.role} · {x.locale}</span>
+          {x.latency_ms != null && <span className="text-fg-subtle">{(x.latency_ms / 1000).toFixed(1)} s</span>}
+          {x.completed_at && x.status !== "READY" && x.error && <span className="w-full text-danger">{x.error}</span>}
+        </div>
+      ))}
+      {err && <Notice tone="danger" role="alert">{err}</Notice>}
+    </div>
   );
 }

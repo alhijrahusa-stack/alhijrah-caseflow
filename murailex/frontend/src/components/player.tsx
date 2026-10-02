@@ -234,7 +234,7 @@ export function PlayerBar({ className }: { className?: string }) {
   const attach = useContext(AttachCtx);
   const { t } = useI18n();
   return (
-    <div className={cn("rounded-xl border border-line bg-surface/95 p-3.5 shadow-card backdrop-blur sm:p-4", className)}>
+    <div className={cn("rounded-xl border border-line bg-surface p-3.5 shadow-card sm:p-4", className)}>
       <div ref={attach ?? undefined} className="min-h-[72px] w-full cursor-pointer" dir="ltr" data-testid="waveform" />
       <div className="mt-3 flex flex-wrap items-center gap-2" dir="ltr">
         <Button variant="ghost" size="sm" onClick={() => p.skip(-10000)} aria-label={t("minus10")}>
