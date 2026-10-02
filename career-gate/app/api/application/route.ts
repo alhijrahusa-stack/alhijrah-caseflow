@@ -2,13 +2,19 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { fingerprint, newSessionToken, sha256Hex } from "@/lib/crypto";
 import { sql } from "@/lib/db";
+import {
+  enqueueConfirmationEmail,
+  ensurePostmarkWebhook,
+  processEmailOutbox,
+  type ConfirmationPayload,
+} from "@/lib/email/postmark";
 import { DEFAULT_NEXT_STEP } from "@/lib/domain";
 import { err, ipHash } from "@/lib/http";
 import { claimKey, completeKey } from "@/lib/idempotency";
 import { traceIdFrom } from "@/lib/obs";
 import { hit } from "@/lib/ratelimit";
 import { logActivity, type Tx } from "@/lib/service";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
@@ -25,6 +31,7 @@ const FileMeta = z.object({
 const Payload = z.object({
   uid: z.string().trim().min(8).max(200),
   caseNumber: z.string().trim().max(80).optional().default(""),
+  locale: z.enum(["ar", "en"]).optional().default("ar"),
   service: z.string().trim().min(1).max(80),
   serviceLabel: z.string().trim().max(160).optional().default(""),
   firstName: z.string().trim().min(1).max(60),
@@ -128,7 +135,6 @@ async function upsertOperationalClient(tx: Tx, d: Intake, digits: string): Promi
   const fullName = `${d.firstName} ${d.lastName}`.trim();
   const street = [d.address1, d.address2].filter(Boolean).join(", ") || null;
 
-  // Serialize identity decisions with the same advisory keys used by the DB duplicate guard.
   await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-email:${email}`}, 0))`;
   await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-phone:${digits}`}, 0))`;
 
@@ -155,7 +161,7 @@ async function upsertOperationalClient(tx: Tx, d: Intake, digits: string): Promi
         phone = ${digits},
         email = ${email},
         date_of_birth = ${dateOrNull(d.dob)},
-        preferred_language = 'ar',
+        preferred_language = ${d.locale},
         street = ${street},
         city = ${nullable(d.city)},
         state = ${nullable(d.state)},
@@ -175,12 +181,31 @@ async function upsertOperationalClient(tx: Tx, d: Intake, digits: string): Promi
       source, full_name, phone, email, date_of_birth, preferred_language, street, city, state, zip,
       communication_consent, current_status, next_step, start_date
     ) values (
-      'public_intake', ${fullName}, ${digits}, ${email}, ${dateOrNull(d.dob)}, 'ar',
+      'public_intake', ${fullName}, ${digits}, ${email}, ${dateOrNull(d.dob)}, ${d.locale},
       ${street}, ${nullable(d.city)}, ${nullable(d.state)}, ${nullable(d.zip)},
       true, 'new_intake', ${DEFAULT_NEXT_STEP.new_intake}, ${dateOrNull(d.startDate)}
     )
     returning id, ref, created_at`;
   return { client: client as ClientRow, reused: false };
+}
+
+function confirmationPayload(d: Intake, caseNumber: string, submittedAt: string, trackingUrl: string): ConfirmationPayload {
+  return {
+    clientName: `${d.firstName} ${d.lastName}`.trim(),
+    caseNumber,
+    submittedAt,
+    trackingUrl,
+    service: d.serviceLabel || d.service,
+    email: d.email.trim().toLowerCase(),
+    phone: d.phone,
+    workType: d.workType,
+    shiftName: d.shiftName || d.shift || d.selectedShift,
+    shiftDays: d.shiftDays,
+    shiftHours: d.shiftHours,
+    expectedPay: d.expectedPay || d.totalPay,
+    branchName: d.branchName,
+    branchAddress: d.branchAddress,
+  };
 }
 
 export async function POST(req: Request) {
@@ -241,11 +266,20 @@ export async function POST(req: Request) {
         },
       });
 
+      const trackingUrl = `/career-gate.html?track=1&case=${encodeURIComponent(app.case_number)}`;
+      const submittedAt = new Date(app.created_at).toISOString();
+      await enqueueConfirmationEmail({
+        applicationId: app.id,
+        recipientEmail: d.email,
+        locale: d.locale,
+        payload: confirmationPayload(d, app.case_number, submittedAt, trackingUrl),
+      }, tx);
+
       const body = {
         ok: true,
         caseNumber: app.case_number,
-        trackingUrl: `/career-gate.html?track=1&case=${encodeURIComponent(app.case_number)}`,
-        submittedAt: new Date(app.created_at).toISOString(),
+        trackingUrl,
+        submittedAt,
         client_id: client.id,
         existing_client: reused,
       };
@@ -261,6 +295,18 @@ export async function POST(req: Request) {
     const clientId = String(body.client_id ?? "");
     const uploadToken = clientId ? await newUploadGrant(clientId) : undefined;
     const caseNumber = String(body.caseNumber ?? "");
+
+    if (caseNumber) {
+      after(async () => {
+        const delivery = processEmailOutbox(1, caseNumber).catch((error) => {
+          console.error("Career Gate confirmation email delivery failed", error);
+        });
+        const webhook = ensurePostmarkWebhook().catch((error) => {
+          console.error("Career Gate Postmark webhook provisioning failed", error);
+        });
+        await Promise.allSettled([delivery, webhook]);
+      });
+    }
 
     return NextResponse.json({
       ok: true,

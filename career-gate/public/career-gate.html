@@ -1331,7 +1331,7 @@ function setStep(n,manageViewport=true){
   $('#progressPctView').textContent=pct+'%';
   $('#progressStepView').textContent=`STEP ${state.step} OF 4`;
   $('#progressCurrentView').textContent=`CURRENT STEP · ${String(state.step).padStart(2,'0')}`;
-  if(state.step===3)setTimeout(()=>resizeSignature(true),0);
+  if(state.step===3)resizeSignature(true);
   if(state.step===4)renderReview();
   if(manageViewport){
     requestAnimationFrame(()=>{
@@ -1384,7 +1384,7 @@ function updatePay(){
 function collect(){
   const s=selectedShift(),b=branch();
   return{
-    uid:state.uid,caseNumber:'',
+    uid:state.uid,caseNumber:'',locale:state.locale==='en'?'en':'ar',
     service:$('input[name=service]:checked')?.value||'employment',
     serviceLabel:$('input[name=service]:checked')?.dataset.label||'',
     firstName:val('firstName'),lastName:val('lastName'),dob:val('dob'),
