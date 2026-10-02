@@ -9,6 +9,9 @@ const matrix = [
   { table: "payment_transactions", authenticated: ["SELECT", "INSERT"] },
   { table: "commission_rules", authenticated: ["SELECT"] },
   { table: "commissions", authenticated: ["SELECT", "INSERT", "UPDATE"] },
+  { table: "assignment_settings", authenticated: ["SELECT", "UPDATE"] },
+  { table: "ownership_transfer_requests", authenticated: ["SELECT", "INSERT", "UPDATE"] },
+  { table: "pipeline_stages", authenticated: ["SELECT"] },
 ] as const;
 
 const privileges = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"] as const;
