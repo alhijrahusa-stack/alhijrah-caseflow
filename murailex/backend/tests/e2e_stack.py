@@ -38,6 +38,7 @@ import boto3  # noqa: E402
 import uvicorn  # noqa: E402
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
+from moto.server import ThreadedMotoServer  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 
 
