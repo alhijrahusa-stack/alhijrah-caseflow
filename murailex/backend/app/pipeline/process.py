@@ -371,6 +371,11 @@ def process_recording(db: Session, rec: Recording) -> None:
     items = tx.build_items(columns, accepted, region_items, derived.get("silences", []), smap)
     segments = tx.segment(items)
     speakers = sorted(set(smap.values()), key=lambda x: int(x[1:]))
+    asr_coverage: dict[str, Any] = {}
+    for run in ok_primary:
+        if run is not None:
+            asr_coverage[run.provider] = (run.normalized or {}).get("coverage")
+
     method = {
         "primary_engines": [m for m, _ in primary_inputs],
         "diarization": diar_source,
@@ -381,10 +386,7 @@ def process_recording(db: Session, rec: Recording) -> None:
         "regions_escalated": len(regions),
         "regions_auto_closed_unanimous": auto_closed,
         "disputes_opened": len(disputes),
-        "asr_coverage": {
-            r.provider: (r.normalized or {}).get("coverage")
-            for r in ok_primary
-        },
+        "asr_coverage": asr_coverage,
         "consensus_rules": (cons.__doc__ or "").strip(),
     }
     content = tx.new_content(
