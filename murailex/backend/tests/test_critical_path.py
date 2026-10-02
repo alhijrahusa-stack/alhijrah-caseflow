@@ -62,7 +62,7 @@ def test_provider_not_configured_is_explicit(app_client, users):
     r = app_client.get(f"/api/recordings/{rec['id']}").json()
     assert r["recording"]["status"] == "provider_not_configured"
     statuses = {run["provider"]: run["status"] for run in r["provider_runs"]}
-    assert statuses == {"assemblyai": "not_configured", "google_chirp3": "not_configured"}
+    assert statuses == {"local_whisper": "not_configured", "assemblyai": "not_configured", "google_chirp3": "not_configured"}
     assert app_client.get(f"/api/recordings/{rec['id']}/transcript").json()["revision"] is None
 
 
