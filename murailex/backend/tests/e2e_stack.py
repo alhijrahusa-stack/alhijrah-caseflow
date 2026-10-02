@@ -1,3 +1,4 @@
+# ruff: noqa: I001
 """Full local stack for browser end-to-end tests using the real local ASR engine.
 
 Starts an S3 API emulator (versioning + Object Lock), migrates a dedicated PostgreSQL
