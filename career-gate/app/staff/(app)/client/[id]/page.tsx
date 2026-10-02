@@ -1,9 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { ClientFile, type ClientFileData, type ClientPanel, type ClientTab } from "@/components/staff/ClientFile";
+import { NextActionCard } from "@/components/staff/NextActionCard";
 import { RequirementsPanel } from "@/components/staff/RequirementsPanel";
 import { getStaffSession } from "@/lib/auth";
 import { clientScope } from "@/lib/authz";
 import { clientAccountSummary } from "@/lib/client-account";
+import { clientNextAction } from "@/lib/next-action";
 import { clientFile } from "@/lib/queries";
 import { clientRequirements } from "@/lib/requirements";
 import { securityEvent } from "@/lib/ratelimit";
@@ -39,10 +41,11 @@ export default async function ClientPage({
     notFound();
   }
 
-  const [data, account, requirementData, query] = await Promise.all([
+  const [data, account, requirementData, nextAction, query] = await Promise.all([
     clientFile(session, id),
     clientAccountSummary(session, id),
     clientRequirements(session, id),
+    clientNextAction(session, id),
     searchParams,
   ]);
   if (!data) notFound();
@@ -54,6 +57,7 @@ export default async function ClientPage({
 
   return (
     <div className="space-y-4">
+      {nextAction && <NextActionCard action={nextAction} />}
       <ClientFile
         data={JSON.parse(JSON.stringify(data)) as ClientFileData}
         account={account}

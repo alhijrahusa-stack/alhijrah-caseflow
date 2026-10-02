@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHmac, randomInt, randomUUID } from "node:crypto";
 import type { APIRequestContext, BrowserContext } from "@playwright/test";
 import { SignJWT } from "jose";
 import postgres from "postgres";
@@ -23,7 +23,6 @@ export const PNG = Buffer.from(
 );
 
 let sqlClient: postgres.Sql | null = null;
-let intakeSequence = 1000;
 export const db = () => (sqlClient ??= postgres(process.env.DATABASE_URL!, { max: 2, prepare: false, types: { date: { to: 1082, from: [1082], serialize: (x: string) => x, parse: (x: string) => x } } }));
 
 export async function accessToken(role: Role) {
@@ -55,10 +54,10 @@ export async function seedOtp(challengeId: string, code: string) {
 }
 
 export function intakeBody(name: string, extra: Record<string, unknown> = {}) {
-  const suffix = String(intakeSequence++).padStart(4, "0").slice(-4);
+  const phone = `313${String(randomInt(0, 10_000_000)).padStart(7, "0")}`;
   return {
     state: "MI",
-    profile: { full_name: name, phone: `313555${suffix}`, email: `${name.replace(/\W/g, "").toLowerCase()}@test.invalid`, employment_history: [] },
+    profile: { full_name: name, phone, email: `${name.replace(/\W/g, "").toLowerCase()}@test.invalid`, employment_history: [] },
     primary: FIXTURE_CATALOG ? [{ site_code: "TST1", job_id: "J-A", shift_code: "S1" }] : [],
     backup: [],
     communication_consent: true,

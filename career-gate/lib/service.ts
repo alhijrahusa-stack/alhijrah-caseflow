@@ -72,20 +72,57 @@ export type NewClientInput = {
   communicationConsent: boolean;
 };
 
-async function existingIdentity(tx: Tx, profile: Profile) {
-  const email = profile.email?.trim().toLowerCase() || null;
-  const phone = profile.phone.replace(/\D/g, "");
-  const [row] = await tx`
-    select c.id,c.ref,c.pipeline_stage,c.assigned_staff,s.display_name as owner
-    from clients c
-    left join staff s on s.id=c.assigned_staff
-    where c.deleted_at is null and (
-      (${email}::text is not null and lower(trim(coalesce(c.email,'')))=${email})
-      or regexp_replace(coalesce(c.phone,''),'\D','','g')=${phone}
-    )
-    order by c.created_at
-    limit 1`;
-  return row ?? null;
+export type ClientIdentityMatch = {
+  id: string;
+  ref: string;
+  created_at: Date;
+  pipeline_stage: string | null;
+  assigned_staff: string | null;
+  owner: string | null;
+};
+
+export function normalizeClientEmail(value: string | null | undefined) {
+  return value?.trim().toLowerCase() || null;
+}
+
+export function normalizeClientPhone(value: string | null | undefined) {
+  const digits = value?.replace(/\D/g, "") ?? "";
+  return digits || null;
+}
+
+/** Serializes identity decisions using the same keys enforced by the database duplicate guard. */
+export async function lockClientIdentity(tx: Tx, emailInput: string | null | undefined, phoneInput: string | null | undefined) {
+  const email = normalizeClientEmail(emailInput);
+  const phone = normalizeClientPhone(phoneInput);
+  if (email) await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-email:${email}`}, 0))`;
+  if (phone) await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-phone:${phone}`}, 0))`;
+  return { email, phone };
+}
+
+/** Canonical active-client identity lookup used by every intake adapter. */
+export async function findClientIdentityMatches(
+  tx: Tx,
+  emailInput: string | null | undefined,
+  phoneInput: string | null | undefined,
+  opts: { lock?: boolean; forUpdate?: boolean } = {},
+): Promise<ClientIdentityMatch[]> {
+  const identity = opts.lock
+    ? await lockClientIdentity(tx, emailInput, phoneInput)
+    : { email: normalizeClientEmail(emailInput), phone: normalizeClientPhone(phoneInput) };
+  if (!identity.email && !identity.phone) return [];
+
+  const lockClause = opts.forUpdate ? " for update" : "";
+  const rows = await tx.unsafe(
+    `select c.id,c.ref,c.created_at,c.pipeline_stage,c.assigned_staff,s.display_name as owner
+       from clients c
+       left join staff s on s.id=c.assigned_staff
+      where c.deleted_at is null
+        and (($1::text is not null and lower(trim(coalesce(c.email,'')))=$1)
+          or ($2::text is not null and regexp_replace(coalesce(c.phone,''),'\\D','','g')=$2))
+      order by c.created_at${lockClause}`,
+    [identity.email, identity.phone],
+  );
+  return rows as unknown as ClientIdentityMatch[];
 }
 
 /** Inserts the client, history and preferences in the caller's transaction. */
@@ -94,7 +131,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
   if (!prefs.ok) throw new ActionError("invalid_preferences", prefs.error);
 
   const p = input.profile;
-  const duplicate = await existingIdentity(tx, p);
+  const duplicate = (await findClientIdentityMatches(tx, p.email, p.phone, { lock: true }))[0] ?? null;
   if (duplicate) {
     if (actor.staffId) {
       throw new ActionError(
