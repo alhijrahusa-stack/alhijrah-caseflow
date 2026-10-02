@@ -3,7 +3,8 @@ import { databaseConfigMessage, sql } from "@/lib/db";
 import { err, ipHash, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { registry } from "@/lib/providers/config";
-import { sendEmailOtp } from "@/lib/providers/supabase-auth";
+import { sendEmail } from "@/lib/providers/messaging";
+import { generateEmailOtp, sendEmailOtp } from "@/lib/providers/supabase-auth";
 import { hit, securityEvent } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -41,11 +42,40 @@ export async function POST(req: Request) {
   }
 
   if (bootstrap || isStaff) {
-    const r = await sendEmailOtp(email, true);
-    if (!r.ok) {
-      if (r.code === "NOT_CONFIGURED") return err("NOT_CONFIGURED", r.message, 503, traceId);
-      console.error(JSON.stringify({ trace_id: traceId, route: "/api/staff/auth/login", result: "provider_error", error_code: r.code }));
-      return err("AUTH_PROVIDER_ERROR", "Could not send the sign-in code", 502, traceId);
+    const primary = await sendEmailOtp(email, true);
+    if (!primary.ok) {
+      if (primary.code === "NOT_CONFIGURED") return err("NOT_CONFIGURED", primary.message, 503, traceId);
+      if (primary.code !== "PROVIDER_ERROR") {
+        console.error(JSON.stringify({ trace_id: traceId, route: "/api/staff/auth/login", result: "provider_rejected", error_code: primary.code }));
+        return err("AUTH_PROVIDER_ERROR", "Could not send the sign-in code", 502, traceId);
+      }
+
+      // Supabase Auth remains the authentication authority. If its SMTP delivery fails,
+      // generate a valid Supabase OTP with the service role and deliver that token via
+      // the already-supported Resend provider instead of bypassing Auth.
+      const generated = await generateEmailOtp(email);
+      if (!generated.ok) {
+        console.error(JSON.stringify({ trace_id: traceId, route: "/api/staff/auth/login", result: "otp_generation_failed", error_code: generated.code }));
+        return err("AUTH_PROVIDER_ERROR", "Could not send the sign-in code", 502, traceId);
+      }
+
+      const delivery = await sendEmail(
+        email,
+        "Career Gate - Staff Sign-In Code رمز تسجيل دخول الموظفين",
+        `CAREER GATE\n\nStaff Sign-In Code / رمز تسجيل دخول الموظفين\n\n${generated.data.email_otp}\n\nThis code is temporary. If you did not request it, ignore this email.\nهذا الرمز مؤقت. إذا لم تطلب تسجيل الدخول، تجاهل هذه الرسالة.`,
+      );
+      if (delivery.status !== "sent") {
+        console.error(JSON.stringify({
+          trace_id: traceId,
+          route: "/api/staff/auth/login",
+          result: "fallback_delivery_failed",
+          provider: delivery.provider,
+          delivery_status: delivery.status,
+        }));
+        return err(delivery.status === "not_configured" ? "NOT_CONFIGURED" : "AUTH_PROVIDER_ERROR", "Could not send the sign-in code", delivery.status === "not_configured" ? 503 : 502, traceId);
+      }
+
+      console.info(JSON.stringify({ trace_id: traceId, route: "/api/staff/auth/login", result: "fallback_delivery_sent", provider: delivery.provider }));
     }
   }
 
