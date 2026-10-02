@@ -5,6 +5,11 @@ export type AuthResult<T> = { ok: true; data: T } | { ok: false; code: "NOT_CONF
 
 export type Session = { access_token: string; refresh_token: string; expires_in: number; user: { id: string; email: string } };
 
+type GeneratedLinkResponse = {
+  email_otp?: string;
+  properties?: { email_otp?: string } | null;
+};
+
 async function call<T>(path: string, body: unknown, opts: { service?: boolean; bearer?: string } = {}): Promise<AuthResult<T>> {
   const { url, anonKey, serviceKey } = registry.supabase();
   const key = opts.service ? serviceKey : anonKey;
@@ -35,9 +40,24 @@ async function call<T>(path: string, body: unknown, opts: { service?: boolean; b
   return { ok: true, data };
 }
 
-/** Sends a 6-digit email sign-in code. */
+/** Sends a 6-digit email sign-in code through the configured Supabase Auth mailer. */
 export const sendEmailOtp = (email: string, createUser: boolean) =>
   call<Record<string, never>>("/otp", { email, create_user: createUser });
+
+/**
+ * Generates the same Supabase Auth email OTP without sending it.
+ * This is used only as a delivery fallback when Supabase SMTP is unavailable;
+ * verification still happens through Supabase Auth, so the session authority is unchanged.
+ */
+export async function generateEmailOtp(email: string): Promise<AuthResult<{ email_otp: string }>> {
+  const r = await call<GeneratedLinkResponse>("/admin/generate_link", { type: "magiclink", email }, { service: true });
+  if (!r.ok) return r;
+  const otp = r.data.email_otp ?? r.data.properties?.email_otp;
+  if (!otp || !/^\d{6}$/.test(otp)) {
+    return { ok: false, code: "PROVIDER_ERROR", message: "Supabase Auth did not return a valid email OTP" };
+  }
+  return { ok: true, data: { email_otp: otp } };
+}
 
 export const verifyEmailOtp = (email: string, token: string) =>
   call<Session>("/verify", { type: "email", email, token });
