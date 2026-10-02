@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: career-gate-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   web:
     runs-on: ubuntu-24.04
@@ -25,6 +29,8 @@ jobs:
       - run: npm test
       - name: Integration (PostgreSQL + migrations)
         run: ./tests/run-integration.sh
+      - name: Production build
+        run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: End-to-end (test catalog fixture)
         run: ./e2e/run.sh
