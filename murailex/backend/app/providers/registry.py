@@ -14,6 +14,7 @@ from .assemblyai import AssemblyAI
 from .base import AsrAdapter, DiarizationAdapter, Pending, ProviderInfo
 from .deepgram import DeepgramNova3
 from .google_chirp import GoogleChirp3
+from .local_whisper import LocalWhisper
 from .openai_stt import OpenAITranscribe
 from .pyannote import PyannoteAI
 
@@ -82,6 +83,28 @@ class _BenchmarkBlocked(AsrAdapter):
         raise RuntimeError("Benchmark gate blocked provider execution before normalization.")
 
 
+LOCAL_BENCHMARK_LABEL = "NOT BENCHMARKED — local personal-use routing (no human-ground-truth benchmark)"
+
+
+def local_mode() -> bool:
+    return get_settings().environment == "local"
+
+
+def local_primary() -> LocalWhisper:
+    return LocalWhisper("local_whisper", "local_asr_model", "primary_asr")
+
+
+def local_verifier() -> LocalWhisper:
+    return LocalWhisper("local_whisper_verify", "local_verify_model", "verification_asr")
+
+
+def required_roles() -> frozenset[str]:
+    """Local mode has no on-device diarization engine; speakers stay unattributed."""
+    if local_mode():
+        return frozenset({"primary_asr", "verification_asr"})
+    return frozenset({"primary_asr", "diarization", "verification_asr"})
+
+
 def fixtures_enabled() -> bool:
     settings = get_settings()
     return settings.environment == "test" and settings.test_fixture_providers
@@ -129,6 +152,8 @@ def primary_asr(locale: str) -> list[AsrAdapter]:
     if _override is not None and fixtures_enabled():
         return _override["primary"]
     locale = _locale(locale)
+    if local_mode():
+        return [local_primary()]
     if locale == "ar":
         candidates: list[AsrAdapter] = [AssemblyAI(), DeepgramNova3("ar")]
     elif locale == "ar-YE":
@@ -141,6 +166,8 @@ def primary_asr(locale: str) -> list[AsrAdapter]:
 def diarization() -> list[DiarizationAdapter]:
     if _override is not None and fixtures_enabled():
         return _override["diarization"]
+    if local_mode():
+        return []
     gated = _gate([PyannoteAI()])
     return cast(list[DiarizationAdapter], gated)
 
@@ -149,6 +176,8 @@ def verification_asr(locale: str) -> list[AsrAdapter]:
     if _override is not None and fixtures_enabled():
         return _override["verification"]
     locale = _locale(locale)
+    if local_mode():
+        return [local_verifier()]
     if locale == "ar":
         candidates: list[AsrAdapter] = [OpenAITranscribe()]
     elif locale == "ar-YE":
@@ -159,7 +188,15 @@ def verification_asr(locale: str) -> list[AsrAdapter]:
 
 
 def all_adapters() -> list[AsrAdapter | DiarizationAdapter]:
-    return [AssemblyAI(), GoogleChirp3("ar-YE"), DeepgramNova3("ar"), OpenAITranscribe(), PyannoteAI()]
+    return [
+        AssemblyAI(),
+        GoogleChirp3("ar-YE"),
+        DeepgramNova3("ar"),
+        OpenAITranscribe(),
+        PyannoteAI(),
+        local_primary(),
+        local_verifier(),
+    ]
 
 
 def by_name(name: str) -> AsrAdapter | DiarizationAdapter:
@@ -276,7 +313,7 @@ def engine_state(
         privacy_var = _PRIVACY_ENV.get(spec.provider)
         if privacy_var:
             required.append(privacy_var)
-    elif get_settings().environment != "test" and not benchmark_routing_approved():
+    elif get_settings().environment not in ("test", "local") and not benchmark_routing_approved():
         status = "BLOCKED"
         blocker = "Human-ground-truth benchmark routing is not approved."
         required.extend(["BENCHMARK_ROUTING_APPROVED", "BENCHMARK_DATASET_VERSION", "BENCHMARK_HELD_OUT_RUN_ID"])
@@ -319,6 +356,7 @@ def engine_state(
         }
     return {
         **asdict(spec),
+        "benchmark": LOCAL_BENCHMARK_LABEL if local_mode() else ("APPROVED" if benchmark_routing_approved() else "NOT APPROVED"),
         "name": spec.provider,
         "status": status,
         "blocker": blocker,

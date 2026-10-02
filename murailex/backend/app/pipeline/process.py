@@ -123,7 +123,9 @@ def _classification_failures(
 # ---------------------------------------------------------------- stage 1: derive
 
 
-def ensure_derived(db: Session, rec: Recording) -> dict[str, Any]:
+def ensure_derived(db: Session, rec: Recording, *, announce: bool = True) -> dict[str, Any]:
+    """Create derived working copies. `announce=False` (provider self-tests) leaves the
+    recording's processing status untouched: a self-test is not processing."""
     wd = _workdir(rec)
     if rec.derived and rec.derived.get("analysis_wav"):
         local = os.path.join(wd, "analysis.wav")
@@ -131,7 +133,8 @@ def ensure_derived(db: Session, rec: Recording) -> dict[str, Any]:
             storage.download_to(rec.derived["analysis_wav"]["key"], local)
         return rec.derived
 
-    _set_status(db, rec, "analyzing", "Creating derived working copies")
+    if announce:
+        _set_status(db, rec, "analyzing", "Creating derived working copies")
     original = os.path.join(wd, "original.bin")
     storage.download_to(rec.storage_key, original, rec.storage_version_id)
     digest = _file_sha(original)
@@ -551,14 +554,19 @@ def process_recording(db: Session, rec: Recording) -> None:
         for run in ok_primary[:2]
         if run is not None
     ]
-    assert diar_run is not None
-    turns = (diar_run.normalized or {}).get("turns", [])
-    diar_source = {
-        "provider": diar_run.provider,
-        "model": diar_run.model,
-        "run_id": str(diar_run.id),
-        "independent": True,
-    }
+    if diar_run is not None:
+        turns = (diar_run.normalized or {}).get("turns", [])
+        diar_source: dict[str, Any] = {
+            "provider": diar_run.provider,
+            "model": diar_run.model,
+            "run_id": str(diar_run.id),
+            "independent": True,
+        }
+    else:
+        # Only reachable when the active routing defines no diarization engine (local mode):
+        # speakers remain unattributed rather than inferred.
+        turns = []
+        diar_source = {"provider": None, "model": None, "run_id": None, "independent": False, "status": "not_performed"}
     result = cons.analyze(primary_inputs, turns, s.low_confidence_threshold)
     columns = result["columns"]
     regions = result["regions"]
@@ -832,6 +840,12 @@ def process_recording(db: Session, rec: Recording) -> None:
             for verifier in verifiers
         ],
         "single_engine_mode": result["single_engine"],
+        "benchmark_routing": registry.LOCAL_BENCHMARK_LABEL if registry.local_mode() else "APPROVED",
+        "primary_coverage": [
+            {"provider": run.provider, "model": run.model, **((run.normalized or {}).get("coverage") or {})}
+            for run in ok_primary[:2]
+            if run is not None
+        ],
         "language_locale": locale,
         "confidence_policy": "provenance_only_no_acceptance_gate",
         "context_padding_ms": s.context_padding_ms,

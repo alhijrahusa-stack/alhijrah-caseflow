@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, Clock3, Copy, FileText, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { AlertTriangle, Check, Clock3, Copy, FileText, ShieldCheck, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -129,86 +129,74 @@ export function ExecutiveSummary({ content, recording, rtl }: { content: Content
   }
 
   return (
-    <div className="space-y-4 float-in">
-      <Card className="glass-elevated relative overflow-hidden border-indigo-400/15 p-5 sm:p-7">
-        <div className="pointer-events-none absolute -end-12 -top-16 size-48 rounded-full bg-indigo-500/10 blur-3xl" />
-        <div className="relative flex items-start gap-3">
-          <div className="grid size-11 shrink-0 place-items-center rounded-2xl border border-indigo-300/20 bg-indigo-400/10 text-indigo-200 shadow-[0_0_28px_rgba(99,102,241,.18)]">
-            <Sparkles className="size-5" />
+    <div className="space-y-4 fade-in">
+      <Card className="p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="eyebrow">MURAILEX</div>
+            <h2 className="mt-1 text-lg font-semibold text-fg">{rtl ? "الملخص التنفيذي" : "Executive Summary"}</h2>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="tech-label">MURAILEX INTELLIGENCE</div>
-                <h2 className="mt-1 text-xl font-bold tracking-tight text-white">{rtl ? "الملخص التنفيذي" : "Executive Summary"}</h2>
-              </div>
-              <Button variant="secondary" size="sm" onClick={copySummary}>
-                {copied ? <Check /> : <Copy />} {copied ? (rtl ? "تم النسخ" : "Copied") : (rtl ? "نسخ الملخص" : "Copy summary")}
-              </Button>
-            </div>
-            <p className="mt-4 text-[15px] leading-7 text-slate-300">{data.overview}</p>
-          </div>
+          <Button variant="secondary" size="sm" onClick={copySummary}>
+            {copied ? <Check /> : <Copy />} {copied ? (rtl ? "تم النسخ" : "Copied") : (rtl ? "نسخ الملخص" : "Copy summary")}
+          </Button>
         </div>
+        <p className="mt-3 text-[15px] leading-7 text-fg-muted">{data.overview}</p>
       </Card>
 
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <Card className="p-3.5 sm:p-4">
-          <Users className="mb-2 size-4 text-cyan-300" />
-          <div className="text-xl font-bold tabular-nums">{data.speakers}</div>
-          <div className="muted mt-1 text-[11px]">{rtl ? "متحدثون" : "Speakers"}</div>
-        </Card>
-        <Card className="p-3.5 sm:p-4">
-          <FileText className="mb-2 size-4 text-violet-300" />
-          <div className="text-xl font-bold tabular-nums">{data.wordCount.toLocaleString()}</div>
-          <div className="muted mt-1 text-[11px]">{rtl ? "كلمة" : "Words"}</div>
-        </Card>
-        <Card className="p-3.5 sm:p-4">
-          <AlertTriangle className={`mb-2 size-4 ${data.unresolved ? "text-amber-300" : "text-emerald-300"}`} />
-          <div className="text-xl font-bold tabular-nums">{data.unresolved}</div>
-          <div className="muted mt-1 text-[11px]">{rtl ? "غير محسوم" : "Unresolved"}</div>
-        </Card>
+        {[
+          { icon: Users, value: data.speakers, label: rtl ? "متحدثون" : "Speakers", tone: "text-primary-text" },
+          { icon: FileText, value: data.wordCount.toLocaleString(), label: rtl ? "كلمة" : "Words", tone: "text-primary-text" },
+          { icon: AlertTriangle, value: data.unresolved, label: rtl ? "غير محسوم" : "Unresolved", tone: data.unresolved ? "text-warn" : "text-ok" },
+        ].map(({ icon: Icon, value, label, tone }) => (
+          <Card key={label} className="p-3.5 sm:p-4">
+            <Icon className={`mb-2 size-4 ${tone}`} aria-hidden />
+            <div className="text-xl font-semibold tabular-nums text-fg">{value}</div>
+            <div className="mt-0.5 text-xs text-fg-subtle">{label}</div>
+          </Card>
+        ))}
       </div>
 
-      <Card className="space-y-4">
+      <Card className="space-y-3">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="size-5 text-indigo-300" />
-          <h3 className="font-semibold text-white">{rtl ? "النقاط الرئيسية" : "Key Points"}</h3>
+          <ShieldCheck className="size-4 text-primary-text" aria-hidden />
+          <h3 className="text-[15px] font-semibold text-fg">{rtl ? "النقاط الرئيسية" : "Key Points"}</h3>
         </div>
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           {data.keyPoints.map((p, i) => (
-            <div key={`${p.startMs}-${i}`} className="group rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3.5 transition hover:border-indigo-400/20 hover:bg-indigo-400/[0.045]">
-              <div className="mb-1.5 flex items-center gap-2 text-[11px]">
-                <Clock3 className="size-3.5 text-indigo-300" />
-                <span className="font-mono text-indigo-300" dir="ltr">{fmtTime(p.startMs)}</span>
-                {p.label && <span className="muted"><bdi>{p.label}</bdi></span>}
+            <div key={`${p.startMs}-${i}`} className="rounded-lg border border-line bg-surface-2/50 p-3.5">
+              <div className="mb-1 flex items-center gap-2 text-xs">
+                <Clock3 className="size-3.5 text-fg-subtle" aria-hidden />
+                <span className="font-mono text-primary-text" dir="ltr">{fmtTime(p.startMs)}</span>
+                {p.label && <span className="text-fg-subtle"><bdi>{p.label}</bdi></span>}
               </div>
-              <p className="bidi-auto text-[15px] leading-7 text-slate-200" dir="auto">{p.text}</p>
+              <p className="bidi-auto text-[15px] leading-7 text-fg" dir="auto">{p.text}</p>
             </div>
           ))}
         </div>
       </Card>
 
       {data.critical.length > 0 && (
-        <Card className="space-y-3 border-amber-300/10">
+        <Card tone="warn" className="space-y-3">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="size-5 text-amber-300" />
-            <h3 className="font-semibold text-white">{rtl ? "مقاطع تستحق المراجعة" : "Review-worthy moments"}</h3>
+            <AlertTriangle className="size-4 text-warn" aria-hidden />
+            <h3 className="text-[15px] font-semibold text-fg">{rtl ? "مقاطع تستحق المراجعة" : "Review-worthy moments"}</h3>
           </div>
-          <p className="muted text-xs leading-5">
+          <p className="text-xs leading-5 text-fg-muted">
             {rtl
               ? "اختيار آلي لمواضع تحتوي مؤشرات لغوية أو مناطق متنازعاً عليها. لا يمثل استنتاجاً قانونياً ولا حكماً على محتوى التسجيل."
               : "Automatically surfaced passages containing linguistic signals or disputed regions. This is not a legal conclusion or judgment about the recording."}
           </p>
           {data.critical.map((p, i) => (
-            <div key={`${p.startMs}-${i}`} className="flex gap-3 border-t border-white/[0.06] pt-3 first:border-0 first:pt-0">
-              <span className="shrink-0 font-mono text-[11px] text-amber-300" dir="ltr">{fmtTime(p.startMs)}</span>
-              <p className="bidi-auto text-sm leading-6 text-slate-300" dir="auto">{p.text}</p>
+            <div key={`${p.startMs}-${i}`} className="flex gap-3 border-t border-line pt-3 first:border-0 first:pt-0">
+              <span className="shrink-0 font-mono text-xs text-warn" dir="ltr">{fmtTime(p.startMs)}</span>
+              <p className="bidi-auto text-sm leading-6 text-fg" dir="auto">{p.text}</p>
             </div>
           ))}
         </Card>
       )}
 
-      <p className="px-1 text-center text-[11px] leading-5 text-slate-500">
+      <p className="px-1 text-center text-xs leading-5 text-fg-subtle">
         {rtl
           ? "الملخص مشتق من النص الحالي. عند أي تعارض، التسجيل الصوتي الأصلي هو المرجع الحاكم."
           : "This summary is derived from the current transcript. If anything conflicts, the original audio recording controls."}

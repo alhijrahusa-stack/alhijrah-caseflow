@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Copy, Download, FileLock2, ListChecks, RefreshCcw } from "lucide-react";
+import { Copy, Download, FileLock2, ListChecks, RefreshCcw } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -10,8 +10,10 @@ import { PROCESSING, StatusBadge } from "@/components/status";
 import { TranscriptView } from "@/components/transcript-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardTitle, Stat } from "@/components/ui/card";
+import { Checkbox, Input, Select } from "@/components/ui/input";
+import { Notice } from "@/components/ui/notice";
+import { PageHeader } from "@/components/ui/page-header";
 import { api, ApiError } from "@/lib/api";
 import { fmtBytes, fmtTime, shortHash, textDir } from "@/lib/format";
 import { type Key, useI18n } from "@/lib/i18n";
@@ -22,10 +24,10 @@ type Detail = { recording: Recording; provider_runs: ProviderRun[]; job: { statu
 function CopyHash({ value }: { value: string | null }) {
   const { t } = useI18n();
   const [done, setDone] = useState(false);
-  if (!value) return <span className="muted">—</span>;
+  if (!value) return <span className="text-fg-subtle">—</span>;
   return (
     <button
-      className="inline-flex items-center gap-1 font-mono text-[11px] hover:text-accent-600"
+      className="inline-flex items-center gap-1 rounded-sm font-mono text-xs text-fg hover:text-primary-text"
       dir="ltr"
       title={value}
       onClick={async () => {
@@ -38,7 +40,7 @@ function CopyHash({ value }: { value: string | null }) {
         }
       }}
     >
-      {shortHash(value)} <Copy className="size-3" /> {done && <span className="text-emerald-600">{t("copied")}</span>}
+      {shortHash(value)} <Copy className="size-3" /> {done && <span className="text-ok">{t("copied")}</span>}
     </button>
   );
 }
@@ -47,7 +49,7 @@ const STEPS = ["queued", "analyzing", "transcribing", "aligning", "verifying", "
 
 export default function TranscriptPage() {
   const { id } = useParams<{ id: string }>();
-  const { t, dir } = useI18n();
+  const { t } = useI18n();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [revision, setRevision] = useState<Revision | null>(null);
   const [revisions, setRevisions] = useState<Revision[]>([]);
@@ -56,7 +58,6 @@ export default function TranscriptPage() {
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const Back = dir === "rtl" ? ArrowRight : ArrowLeft;
 
   const load = useCallback(async () => {
     try {
@@ -98,7 +99,7 @@ export default function TranscriptPage() {
   }
 
   if (!detail) {
-    return <div className="muted py-20 text-center text-sm">{error ?? "…"}</div>;
+    return <div className="py-20 text-center text-sm text-fg-muted">{error ?? "…"}</div>;
   }
   const rec = detail.recording;
   const content = revision?.content;
@@ -108,41 +109,19 @@ export default function TranscriptPage() {
 
   return (
     <div className="space-y-5 fade-in">
-      <div className="flex items-center gap-2">
-        <Button asChild variant="ghost" size="icon" aria-label={t("back")}>
-          <Link href="/transcriptions">
-            <Back />
-          </Link>
-        </Button>
-        <h1 className="min-w-0 flex-1 truncate text-xl font-semibold" dir="auto">
-          {rec.title}
-        </h1>
-        <StatusBadge status={rec.status} />
-      </div>
+      <PageHeader title={rec.title} back="/transcriptions" actions={<StatusBadge status={rec.status} />} />
 
-      <Card className="grid grid-cols-2 gap-3 p-4 text-xs sm:grid-cols-4">
-        <div>
-          <div className="muted">{t("duration")}</div>
-          <div className="font-mono" dir="ltr">{fmtTime(rec.duration_ms)}</div>
-        </div>
-        <div>
-          <div className="muted">{t("uploaded")}</div>
-          <div dir="ltr">{new Date(rec.uploaded_at).toLocaleString()}</div>
-        </div>
-        <div>
-          <div className="muted">{t("original_sha")}</div>
-          <CopyHash value={rec.sha256} />
-        </div>
-        <div>
-          <div className="muted">{t("transcript_sha")}</div>
-          <CopyHash value={revision?.sha256 ?? null} />
-        </div>
-        <div className="col-span-2 muted sm:col-span-4" dir="auto">
+      <Card className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4 sm:p-5">
+        <Stat label={t("duration")}><span className="font-mono" dir="ltr">{fmtTime(rec.duration_ms)}</span></Stat>
+        <Stat label={t("uploaded")}><span dir="ltr">{new Date(rec.uploaded_at).toLocaleString()}</span></Stat>
+        <Stat label={t("original_sha")}><CopyHash value={rec.sha256} /></Stat>
+        <Stat label={t("transcript_sha")}><CopyHash value={revision?.sha256 ?? null} /></Stat>
+        <div className="col-span-2 truncate border-t border-line pt-3 text-xs text-fg-subtle sm:col-span-4" dir="auto">
           {rec.original_filename} · {rec.mime_type} · {fmtBytes(rec.byte_size)}
         </div>
       </Card>
 
-      {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
+      {error && <Notice tone="danger" role="alert">{error}</Notice>}
 
       {PROCESSING.has(rec.status) && (
         <Card className="space-y-4">
@@ -152,20 +131,20 @@ export default function TranscriptPage() {
               const idx = STEPS.indexOf(rec.status);
               return (
                 <li key={s} className="flex items-center gap-3 text-sm">
-                  <span className={`size-2 rounded-full ${i < idx ? "bg-emerald-500" : i === idx ? "animate-pulse bg-accent-500" : "bg-black/10 dark:bg-white/15"}`} />
-                  <span className={i === idx ? "font-medium" : "muted"}>{t(`st_${s}` as Key)}</span>
+                  <span className={`size-2 rounded-full ${i < idx ? "bg-ok" : i === idx ? "animate-pulse bg-primary-text" : "bg-line-strong"}`} aria-hidden />
+                  <span className={i === idx ? "font-medium text-fg" : "text-fg-subtle"}>{t(`st_${s}` as Key)}</span>
                 </li>
               );
             })}
           </ol>
-          {rec.status_detail && <p className="muted text-xs">{rec.status_detail}</p>}
+          {rec.status_detail && <p className="text-xs text-fg-muted">{rec.status_detail}</p>}
         </Card>
       )}
 
       {(rec.status === "failed" || rec.status === "provider_not_configured") && (
-        <Card className="space-y-3 border-rose-200">
-          <p className="text-sm">{rec.status_detail}</p>
-          {detail.job?.last_error && <p className="muted font-mono text-xs" dir="ltr">{detail.job.last_error}</p>}
+        <Card tone="danger" className="space-y-3">
+          <p className="text-sm text-fg">{rec.status_detail}</p>
+          {detail.job?.last_error && <p className="break-words font-mono text-xs text-fg-muted" dir="ltr">{detail.job.last_error}</p>}
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => act(() => api(`/api/recordings/${id}/reprocess`, { method: "POST" }))} disabled={busy}>
               <RefreshCcw /> {t("reprocess")}
@@ -179,7 +158,7 @@ export default function TranscriptPage() {
 
       {content && (
         <PlayerProvider recordingId={id} durationHint={rec.duration_ms}>
-          <div className="sticky top-2 z-30">
+          <div className="sticky top-16 z-20 lg:top-2">
             <PlayerBar />
           </div>
 
@@ -208,8 +187,8 @@ export default function TranscriptPage() {
               </Button>
             )}
             {revisions.length > 1 && (
-              <select
-                className="glass rounded-2xl px-3 py-2 text-sm"
+              <Select
+                className="h-9"
                 value={revision?.id}
                 onChange={(e) => setSelected(e.target.value)}
                 aria-label={t("revision")}
@@ -219,7 +198,7 @@ export default function TranscriptPage() {
                     {t("revision")} {r.number} · {r.status === "locked" ? t("locked") : t("draft")}
                   </option>
                 ))}
-              </select>
+              </Select>
             )}
             <Badge tone={revision?.status === "locked" ? "ok" : "neutral"}>
               {t("revision")} {revision?.number} · {revision?.status === "locked" ? t("locked") : t("draft")}
@@ -227,7 +206,7 @@ export default function TranscriptPage() {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Input placeholder={t("search")} value={query} onChange={(e) => setQuery(e.target.value)} dir="auto" className="sm:max-w-xs" />
+            <Input type="search" aria-label={t("search")} placeholder={t("search")} value={query} onChange={(e) => setQuery(e.target.value)} dir="auto" className="sm:max-w-xs" />
             <div className="flex flex-wrap gap-1.5">
               <Button size="sm" variant={speaker === null ? "subtle" : "ghost"} onClick={() => setSpeaker(null)}>
                 {t("all_speakers")}
@@ -240,8 +219,8 @@ export default function TranscriptPage() {
             </div>
           </div>
 
-          <Card className="p-2 sm:p-3">
-            <p className="muted px-3 pt-2 text-center text-[11px] tracking-wide">
+          <Card className="p-3 sm:p-4">
+            <p className="px-2 pb-3 text-center text-xs text-fg-subtle">
               {content.title} · {content.controlling_source}
             </p>
             <TranscriptView recordingId={id} content={content} editable={editable} query={query} speakerFilter={speaker} onChanged={load} />
@@ -283,8 +262,8 @@ function SpeakerPanel({ recordingId, speakers, onChanged }: { recordingId: strin
         </Button>
       </div>
       {Object.entries(speakers).map(([sid, info]) => (
-        <div key={sid} className="grid gap-2 rounded-2xl border hairline p-3 sm:grid-cols-[8rem_1fr_auto] sm:items-center">
-          <bdi className="text-sm font-medium">{info.label}</bdi>
+        <div key={sid} className="grid gap-2 rounded-lg border border-line bg-surface-2/50 p-3 sm:grid-cols-[8rem_1fr_auto] sm:items-center">
+          <bdi className="text-sm font-medium text-fg">{info.label}</bdi>
           <div className="space-y-1.5">
             <Input
               placeholder={info.verified_name ?? t("verify_name")}
@@ -292,17 +271,14 @@ function SpeakerPanel({ recordingId, speakers, onChanged }: { recordingId: strin
               onChange={(e) => setNames({ ...names, [sid]: e.target.value })}
               dir="auto"
             />
-            <label className="flex items-center gap-2 text-xs muted">
-              <input type="checkbox" checked={!!confirm[sid]} onChange={(e) => setConfirm({ ...confirm, [sid]: e.target.checked })} />
-              {t("verify_confirm")}
-            </label>
+            <Checkbox label={t("verify_confirm")} checked={!!confirm[sid]} onChange={(e) => setConfirm({ ...confirm, [sid]: e.target.checked })} />
           </div>
           <Button size="sm" onClick={() => verify(sid)} disabled={!!names[sid] && !confirm[sid]}>
             {t("save")}
           </Button>
         </div>
       ))}
-      {msg && <p className="text-sm text-rose-600">{msg}</p>}
+      {msg && <Notice tone="danger" role="alert">{msg}</Notice>}
     </Card>
   );
 }
@@ -344,11 +320,11 @@ function ExportPanel({ recordingId, revisionId }: { recordingId: string; revisio
         </Button>
       </div>
       {last && (
-        <p className="muted text-xs" dir="ltr" data-testid="export-result">
+        <p className="break-all font-mono text-xs text-fg-muted" dir="ltr" data-testid="export-result">
           {last.filename} · SHA-256 {last.sha256}
         </p>
       )}
-      {err && <p className="text-sm text-rose-600">{err}</p>}
+      {err && <Notice tone="danger" role="alert">{err}</Notice>}
     </Card>
   );
 }
@@ -392,7 +368,7 @@ function TranslationPanel({ recordingId }: { recordingId: string }) {
   return (
     <Card className="space-y-3">
       <CardTitle>{t("translate")}</CardTitle>
-      <p className="muted text-xs">{t("translation_note")}</p>
+      <p className="text-xs text-fg-muted">{t("translation_note")}</p>
       <div className="flex flex-wrap gap-2">
         {(["ar_en", "en_ar", "bilingual"] as const).map((m) => (
           <Button key={m} size="sm" variant="secondary" onClick={() => create(m)}>
@@ -400,13 +376,13 @@ function TranslationPanel({ recordingId }: { recordingId: string }) {
           </Button>
         ))}
       </div>
-      {err && <p className="text-sm text-rose-600">{err}</p>}
+      {err && <Notice tone="danger" role="alert">{err}</Notice>}
       {items.map((tr) => (
-        <div key={tr.id} className="rounded-2xl border hairline p-3">
+        <div key={tr.id} className="rounded-lg border border-line bg-surface-2/50 p-3">
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-medium">{t(`mode_${tr.mode}` as Key)}</span>
+            <span className="font-medium text-fg">{t(`mode_${tr.mode}` as Key)}</span>
             <Badge tone={tr.status === "succeeded" ? "ok" : tr.status === "failed" ? "danger" : "accent"}>{tr.status}</Badge>
-            <span className="muted text-xs">{tr.provider} {tr.model}</span>
+            <span className="text-xs text-fg-subtle">{tr.provider} {tr.model}</span>
             {tr.status === "succeeded" && (
               <div className="ms-auto flex gap-1">
                 <Button size="sm" variant="ghost" onClick={() => setOpen(open === tr.id ? null : tr.id)}>
@@ -420,13 +396,13 @@ function TranslationPanel({ recordingId }: { recordingId: string }) {
               </div>
             )}
           </div>
-          {tr.error && <p className="mt-1 text-xs text-rose-600">{tr.error}</p>}
+          {tr.error && <p className="mt-1 text-xs text-danger">{tr.error}</p>}
           {open === tr.id && tr.segments && (
             <div className="mt-3 space-y-3">
               {tr.segments.map((s) => (
-                <div key={s.segment_id} className="grid gap-1 text-sm sm:grid-cols-2 sm:gap-4">
+                <div key={s.segment_id} className="grid gap-1 text-sm text-fg sm:grid-cols-2 sm:gap-4">
                   <p className="bidi-auto" dir={textDir(s.source_text)}>
-                    <span className="muted me-2 font-mono text-[11px]" dir="ltr">{fmtTime(s.start_ms)}</span>
+                    <span className="me-2 font-mono text-xs text-fg-subtle" dir="ltr">{fmtTime(s.start_ms)}</span>
                     <bdi className="font-medium">{s.speaker_label}</bdi> {s.source_text}
                   </p>
                   <p className="bidi-auto" dir={textDir(s.translation)}>{s.translation}</p>
@@ -444,19 +420,19 @@ function RunsPanel({ runs }: { runs: ProviderRun[] }) {
   const { t } = useI18n();
   if (!runs.length) return null;
   return (
-    <details className="glass rounded-3xl p-4 text-xs">
-      <summary className="cursor-pointer text-sm font-medium">{t("provider_runs")}</summary>
+    <details className="rounded-xl border border-line bg-surface p-4 text-xs shadow-card sm:p-5">
+      <summary className="cursor-pointer text-sm font-semibold text-fg">{t("provider_runs")}</summary>
       <div className="mt-3 space-y-1.5" dir="ltr">
         {runs.map((r) => (
-          <div key={r.id} className="flex flex-wrap gap-x-3 gap-y-0.5 border-b hairline pb-1.5">
-            <span className="font-medium">{r.provider}</span>
-            <span className="muted">{r.model}</span>
-            <span className="muted">{r.role}</span>
-            <span className="muted">{r.scope}</span>
-            <span className={r.status === "succeeded" ? "text-emerald-600" : r.status === "failed" || r.status === "not_configured" ? "text-rose-600" : ""}>
+          <div key={r.id} className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-line pb-1.5 last:border-0">
+            <span className="font-medium text-fg">{r.provider}</span>
+            <span className="text-fg-muted">{r.model}</span>
+            <span className="text-fg-muted">{r.role}</span>
+            <span className="text-fg-subtle">{r.scope}</span>
+            <span className={r.status === "succeeded" ? "text-ok" : r.status === "failed" || r.status === "not_configured" ? "text-danger" : "text-fg-muted"}>
               {r.status === "not_configured" ? "NOT CONFIGURED" : r.status}
             </span>
-            {r.error && <span className="w-full text-rose-600">{r.error}</span>}
+            {r.error && <span className="w-full text-danger">{r.error}</span>}
           </div>
         ))}
       </div>

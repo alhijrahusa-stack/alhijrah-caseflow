@@ -97,11 +97,30 @@ PRIVACY_REGISTRY: dict[str, dict[str, Any]] = {
         "verified_at": VERIFIED_AT,
         "approval_setting": "PYANNOTE_LEGAL_AUDIO_APPROVED",
     },
+    "local_whisper": {
+        "provider": "On-device Whisper (faster-whisper)",
+        "retention_policy": "Audio and transcripts stay on this machine; no third-party transfer.",
+        "training_policy": "No data leaves the machine.",
+        "deletion_policy": "Controlled by the local operator.",
+        "encryption_in_transit": "Not applicable — no network transfer of audio.",
+        "encryption_at_rest": "Local disk controls.",
+        "authentication": "None — local process",
+        "logging_exposure": "Local logs only.",
+        "subprocessor_implications": "None.",
+        "verified_source": ["app/providers/local_whisper.py"],
+        "verified_at": VERIFIED_AT,
+        "approval_setting": "ON-DEVICE (ENVIRONMENT=local)",
+    },
 }
+
+LOCAL_PROVIDERS = frozenset({"local_whisper", "local_whisper_verify"})
 
 
 def approved(provider: str) -> bool:
     settings = get_settings()
+    if provider in LOCAL_PROVIDERS:
+        # On-device processing: no audio leaves the machine, so no third-party policy applies.
+        return settings.environment == "local"
     flags = {
         "assemblyai": settings.assemblyai_legal_audio_approved,
         "google_chirp3": settings.google_legal_audio_approved,

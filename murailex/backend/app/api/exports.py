@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -92,7 +93,18 @@ def build_context(db: Session, rec: Recording, rev: TranscriptRevision) -> dict[
 
 
 def _safe(name: str) -> str:
+    """ASCII-only form used inside storage keys."""
     return re.sub(r"[^A-Za-z0-9._-]+", "_", name)[:80] or "recording"
+
+
+def _title_for_filename(name: str) -> str:
+    """Download filename form of a title: keeps Arabic and other letters, digits and
+    combining marks (sent RFC 5987-encoded); drops path separators and control characters."""
+    kept = "".join(
+        ch if unicodedata.category(ch)[0] in "LNM" or ch in "._-" else "_"
+        for ch in unicodedata.normalize("NFC", name)
+    )
+    return re.sub(r"_+", "_", kept).strip("_.")[:80] or "recording"
 
 
 def _revision(
@@ -195,7 +207,7 @@ def create_export(
     if is_legal_pdf and body.document_type in {"summary", "complete_case"}:
         summary_row = _summary_for_export(db, rec, rev, body.summary_id)
 
-    base = f"MURAILEX_{_safe(rec.title)}_r{rev.number}"
+    base = f"MURAILEX_{_title_for_filename(rec.title)}_r{rev.number}"
     details: dict[str, Any] = {"document_type": body.document_type}
 
     if body.format == "zip":
@@ -263,7 +275,7 @@ def create_export(
                 "audit_chain": audit.verify_chain(db),
             },
         )
-        filename = f"MURAILEX Forensic Evidence Package - {_safe(rec.title)} r{rev.number}.zip"
+        filename = f"MURAILEX Forensic Evidence Package - {_title_for_filename(rec.title)} r{rev.number}.zip"
         details["manifest_files"] = len(manifest["files"])
         details["document_type"] = "evidence_package"
     elif body.format == "txt":
@@ -288,7 +300,7 @@ def create_export(
                 "transcript": "Transcript",
                 "complete_case": "Complete Case",
             }[body.document_type]
-            filename = f"MURAILEX {label} - {_safe(rec.title)} r{rev.number}.pdf"
+            filename = f"MURAILEX {label} - {_title_for_filename(rec.title)} r{rev.number}.pdf"
             details.update(
                 {
                     "layout": "professional_revision_bound_legal_pdf",

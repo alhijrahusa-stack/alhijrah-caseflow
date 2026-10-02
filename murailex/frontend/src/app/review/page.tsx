@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { rowClass } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api";
 import { fmtTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -17,14 +19,15 @@ export default function ReviewQueue() {
   }, []);
   return (
     <div className="space-y-5 fade-in">
-      <h1 className="text-2xl font-semibold">{t("review")}</h1>
-      {items && items.length === 0 && <p className="muted py-10 text-center text-sm">{t("no_open_regions")}</p>}
+      <PageHeader title={t("review")} />
+      {items === null && <p className="py-10 text-center text-sm text-fg-subtle">…</p>}
+      {items && items.length === 0 && <p className="py-10 text-center text-sm text-fg-muted">{t("no_open_regions")}</p>}
       <div className="space-y-2.5">
         {items?.map((r) => (
-          <Link key={r.id} href={`/review/${r.id}`} className="glass flex items-center gap-4 rounded-3xl p-4">
+          <Link key={r.id} href={`/review/${r.id}`} className={rowClass}>
             <div className="min-w-0 flex-1">
-              <div className="truncate font-medium" dir="auto">{r.title}</div>
-              <div className="muted text-xs" dir="ltr">{fmtTime(r.duration_ms)}</div>
+              <div className="truncate text-sm font-semibold text-fg" dir="auto">{r.title}</div>
+              <div className="mt-1 font-mono text-xs text-fg-subtle" dir="ltr">{fmtTime(r.duration_ms)}</div>
             </div>
             <Badge tone="warn">{r.open_disputes} {t("open_regions")}</Badge>
           </Link>

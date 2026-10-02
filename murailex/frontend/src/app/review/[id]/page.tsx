@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Check, Play } from "lucide-react";
+import { Check, Play } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -9,7 +9,9 @@ import { PlayerBar, PlayerProvider, usePlayer } from "@/components/player";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/input";
+import { Checkbox, Textarea } from "@/components/ui/input";
+import { Notice } from "@/components/ui/notice";
+import { PageHeader } from "@/components/ui/page-header";
 import { api, ApiError } from "@/lib/api";
 import { fmtTime, textDir } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -29,10 +31,10 @@ function MiniWave({ peaks, start, end }: { peaks: number[] | null; start: number
   const he = ((end / 1000) * pps - from) / w;
   return (
     <svg viewBox={`0 0 ${w} 40`} preserveAspectRatio="none" className="h-12 w-full" style={{ direction: "ltr" }} aria-hidden>
-      <rect x={hs * w} width={Math.max(0.5, (he - hs) * w)} y={0} height={40} fill="rgba(245,158,11,0.18)" />
+      <rect x={hs * w} width={Math.max(0.5, (he - hs) * w)} y={0} height={40} fill="rgba(245,185,70,0.18)" />
       {slice.map((p, i) => {
         const h = Math.max(0.6, (p / max) * 38);
-        return <rect key={i} x={i} y={20 - h / 2} width={0.7} height={h} fill={i / w >= hs && i / w <= he ? "#7a5af8" : "rgba(122,90,248,0.35)"} />;
+        return <rect key={i} x={i} y={20 - h / 2} width={0.7} height={h} fill={i / w >= hs && i / w <= he ? "#a3aeff" : "#364056"} />;
       })}
     </svg>
   );
@@ -63,10 +65,10 @@ function DisputeCard({ d, peaks, speakerLabel, onResolved }: { d: Dispute; peaks
   return (
     <Card id={`d-${d.id}`} className="space-y-4 scroll-mt-40" data-testid="dispute-card">
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="font-mono text-accent-600 dark:text-accent-300" dir="ltr">
+        <span className="font-mono text-primary-text" dir="ltr">
           {fmtTime(d.start_ms, true)} – {fmtTime(d.end_ms, true)}
         </span>
-        {speakerLabel && <bdi className="font-medium">{speakerLabel}</bdi>}
+        {speakerLabel && <bdi className="font-medium text-fg">{speakerLabel}</bdi>}
         {d.status === "resolved" && <Badge tone="ok"><Check className="size-3" /> {t("resolved")}</Badge>}
         <div className="flex flex-wrap gap-1">
           {reasons.map((r) => (
@@ -75,7 +77,7 @@ function DisputeCard({ d, peaks, speakerLabel, onResolved }: { d: Dispute; peaks
         </div>
       </div>
 
-      <button className="block w-full" onClick={() => { player.highlight(d.start_ms, d.end_ms); player.playWindow(Math.max(0, d.start_ms - CONTEXT_MS), d.end_ms + CONTEXT_MS); }}>
+      <button className="block w-full rounded-lg border border-line bg-surface-2/50 px-2" aria-label={t("play_region")} onClick={() => { player.highlight(d.start_ms, d.end_ms); player.playWindow(Math.max(0, d.start_ms - CONTEXT_MS), d.end_ms + CONTEXT_MS); }}>
         <MiniWave peaks={peaks} start={d.start_ms} end={d.end_ms} />
       </button>
 
@@ -95,18 +97,18 @@ function DisputeCard({ d, peaks, speakerLabel, onResolved }: { d: Dispute; peaks
       </div>
 
       <div className="space-y-2">
-        <div className="muted text-xs">{t("candidates")}</div>
+        <div className="eyebrow">{t("candidates")}</div>
         {d.candidates.map((c, i) => (
-          <div key={`${c.provider}-${i}`} className="flex items-start gap-3 rounded-2xl border hairline p-3">
+          <div key={`${c.provider}-${i}`} className="flex flex-wrap items-start gap-3 rounded-lg border border-line bg-surface-2/50 p-3 sm:flex-nowrap">
             <div className="min-w-0 flex-1">
               <p className="bidi-auto text-[17px] leading-8" dir={textDir(c.text)}>
-                {c.text ? <bdi>{c.text}</bdi> : <span className="muted text-sm">∅</span>}
+                {c.text ? <bdi className="text-fg">{c.text}</bdi> : <span className="text-sm text-fg-subtle">∅</span>}
               </p>
-              <div className="muted mt-1 flex flex-wrap gap-x-3 text-[11px]" dir="ltr">
+              <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-fg-subtle" dir="ltr">
                 <span>{c.provider} · {c.model}</span>
                 <span>{c.role === "verification_asr" ? "verification" : "primary"}</span>
                 {c.mean_confidence != null && <span>{t("confidence")} {c.mean_confidence.toFixed(2)} (min {c.min_confidence?.toFixed(2)})</span>}
-                {c.agrees_with.length > 0 ? <span className="text-emerald-600">{t("agrees_with")} {c.agrees_with.join(", ")}</span> : <span className="text-rose-600">no agreement</span>}
+                {c.agrees_with.length > 0 ? <span className="text-ok">{t("agrees_with")} {c.agrees_with.join(", ")}</span> : <span className="text-danger">no agreement</span>}
               </div>
             </div>
             {d.status === "open" && c.text && (
@@ -139,25 +141,24 @@ function DisputeCard({ d, peaks, speakerLabel, onResolved }: { d: Dispute; peaks
           )}
         </div>
       ) : (
-        <p className="text-sm" dir="auto">
-          <span className="muted">{d.resolution?.action}: </span>
-          <bdi>{d.resolution?.text}</bdi> <span className="muted text-xs">— {d.resolution?.by}</span>
+        <p className="text-sm text-fg" dir="auto">
+          <span className="text-fg-muted">{d.resolution?.action}: </span>
+          <bdi>{d.resolution?.text}</bdi> <span className="text-xs text-fg-subtle">— {d.resolution?.by}</span>
         </p>
       )}
-      {err && <p className="text-sm text-rose-600">{err}</p>}
+      {err && <Notice tone="danger" role="alert">{err}</Notice>}
     </Card>
   );
 }
 
 export default function ReviewPage() {
   const { id } = useParams<{ id: string }>();
-  const { t, dir } = useI18n();
+  const { t } = useI18n();
   const [rec, setRec] = useState<Recording | null>(null);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [showResolved, setShowResolved] = useState(false);
   const [peaks, setPeaks] = useState<number[] | null>(null);
   const [speakers, setSpeakers] = useState<Record<string, { label: string }>>({});
-  const Back = dir === "rtl" ? ArrowRight : ArrowLeft;
 
   const load = useCallback(async () => {
     const [r, d, tr] = await Promise.all([
@@ -176,33 +177,29 @@ export default function ReviewPage() {
     api<{ peaks: number[] }>(`/api/recordings/${id}/peaks`).then((p) => setPeaks(p.peaks)).catch(() => setPeaks(null));
   }, [id, load]);
 
-  if (!rec) return <div className="muted py-20 text-center text-sm">…</div>;
+  if (!rec) return <div className="py-20 text-center text-sm text-fg-subtle">…</div>;
   const open = disputes.filter((d) => d.status === "open");
   const shown = showResolved ? disputes : open;
   return (
     <PlayerProvider recordingId={id} durationHint={rec.duration_ms}>
       <div className="space-y-5 fade-in">
-        <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="icon" aria-label={t("back")}>
-            <Link href={`/transcriptions/${id}`}><Back /></Link>
-          </Button>
-          <h1 className="min-w-0 flex-1 truncate text-xl font-semibold" dir="auto">{rec.title}</h1>
-          <Badge tone={open.length ? "warn" : "ok"} data-testid="open-count">{open.length} {t("open_regions")}</Badge>
-        </div>
-        <div className="sticky top-2 z-30"><PlayerBar /></div>
+        <PageHeader
+          title={rec.title}
+          back={`/transcriptions/${id}`}
+          actions={<Badge tone={open.length ? "warn" : "ok"} data-testid="open-count">{open.length} {t("open_regions")}</Badge>}
+        />
+        <div className="sticky top-16 z-20 lg:top-2"><PlayerBar /></div>
         <div className="flex items-center justify-between">
-          <label className="muted flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} /> {t("show_resolved")}
-          </label>
+          <Checkbox label={t("show_resolved")} checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} />
           {open.length === 0 && (
             <Button asChild size="sm"><Link href={`/transcriptions/${id}`}>{t("lock")}</Link></Button>
           )}
         </div>
-        {shown.length === 0 && <p className="muted py-10 text-center text-sm">{t("no_open_regions")}</p>}
+        {shown.length === 0 && <p className="py-10 text-center text-sm text-fg-muted">{t("no_open_regions")}</p>}
         {shown.map((d) => (
           <DisputeCard key={d.id} d={d} peaks={peaks} speakerLabel={d.speaker ? speakers[d.speaker]?.label ?? d.speaker : ""} onResolved={load} />
         ))}
-        <p className="muted text-center text-xs">{t("controlling")}</p>
+        <p className="text-center text-xs text-fg-subtle">{t("controlling")}</p>
       </div>
     </PlayerProvider>
   );

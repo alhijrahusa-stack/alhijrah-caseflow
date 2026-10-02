@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     bootstrap_admin_email: str | None = None
     bootstrap_admin_password: SecretStr | None = None
 
+    # Evidence storage. "s3" (production) or "filesystem" (single-machine local use only:
+    # private directory, write-once objects, no network exposure).
+    storage_backend: str = "s3"
+    local_storage_dir: str = "./murailex-data/objects"
+
     # S3-compatible private storage
     s3_endpoint_url: str | None = None
     s3_region: str = "us-east-1"
@@ -73,6 +78,14 @@ class Settings(BaseSettings):
     benchmark_routing_approved: bool = False
     benchmark_dataset_version: str | None = None
     benchmark_held_out_run_id: str | None = None
+
+    # On-device ASR (ENVIRONMENT=local only). large-v3 is the most accurate Whisper checkpoint;
+    # the verifier is a different checkpoint so disputed regions get independent evidence.
+    local_asr_model: str = "large-v3"
+    local_verify_model: str = "medium"
+    local_asr_compute_type: str = "int8"
+    local_asr_threads: int = 0
+    local_asr_beam_size: int = 5
 
     provider_poll_seconds: float = 5.0
     provider_retry_base_seconds: float = 5.0

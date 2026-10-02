@@ -1,11 +1,13 @@
 "use client";
 
-import { ShieldCheck, Sparkles } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
+import { Wordmark } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Field, Input } from "@/components/ui/input";
+import { Notice } from "@/components/ui/notice";
 import { ApiError, api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
@@ -37,29 +39,18 @@ function LoginForm() {
   }
 
   return (
-    <div className="relative grid min-h-dvh place-items-center overflow-hidden px-5 py-10">
-      <div className="pointer-events-none absolute -start-36 -top-28 size-[32rem] rounded-full bg-indigo-500/[0.12] blur-3xl" />
-      <div className="pointer-events-none absolute -end-40 bottom-0 size-[28rem] rounded-full bg-cyan-400/[0.07] blur-3xl" />
-
-      <div className="relative w-full max-w-sm fade-in">
+    <div className="grid min-h-dvh place-items-center px-5 py-10">
+      <div className="w-full max-w-sm fade-in">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 grid size-14 place-items-center rounded-[20px] border border-indigo-300/15 bg-indigo-400/10 shadow-[0_0_42px_rgba(99,102,241,.16)]">
-            <Sparkles className="size-6 text-indigo-200" />
-          </div>
-          <h1 className="brand-gradient text-[34px] font-extrabold tracking-[0.22em]">MURAILEX</h1>
-          <div className="mt-2 text-sm font-medium text-slate-300">{lang === "ar" ? "الذكاء الجنائي للصوت" : "Forensic Audio Intelligence"}</div>
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.025] px-3 py-1.5 text-[10px] tracking-[0.08em] text-slate-500">
-            <ShieldCheck className="size-3.5 text-cyan-300" /> FORENSIC INTEGRITY MODE
-          </div>
+          <Wordmark className="justify-center" />
+          <div className="mt-3 text-sm text-fg-muted">{lang === "ar" ? "الذكاء الجنائي للصوت" : "Forensic Audio Intelligence"}</div>
         </div>
 
-        <form onSubmit={submit} className="glass-elevated space-y-4 rounded-[26px] p-6 sm:p-7">
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-slate-400">{t("email")}</span>
-            <Input name="email" type="email" dir="ltr" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 bg-black/20" />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-slate-400">{t("password")}</span>
+        <form onSubmit={submit} className="space-y-4 rounded-xl border border-line bg-surface p-6 shadow-card sm:p-7">
+          <Field label={t("email")}>
+            <Input name="email" type="email" dir="ltr" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
+          </Field>
+          <Field label={t("password")}>
             <Input
               name="password"
               type="password"
@@ -68,11 +59,15 @@ function LoginForm() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="h-12 bg-black/20"
+              className="h-11"
             />
-          </label>
-          {error && <p role="alert" className="rounded-xl border border-rose-400/15 bg-rose-400/[0.06] p-3 text-sm text-rose-300">{error}</p>}
-          <Button type="submit" className="h-12 w-full" disabled={busy}>
+          </Field>
+          {error && (
+            <Notice tone="danger" role="alert">
+              {error}
+            </Notice>
+          )}
+          <Button type="submit" size="lg" className="w-full" disabled={busy}>
             {busy ? t("signing_in") : t("sign_in")}
           </Button>
         </form>
@@ -83,8 +78,13 @@ function LoginForm() {
           </Button>
         </div>
 
-        <div className="mt-6 text-center text-[10px] leading-5 text-slate-600">
-          <div>Powered by <span className="font-semibold text-slate-500">ALHIJRAH SERVICES</span></div>
+        <div className="mt-6 text-center text-[11.5px] leading-5 text-fg-subtle">
+          <div className="inline-flex items-center gap-1.5">
+            <ShieldCheck className="size-3.5 text-ok" /> {lang === "ar" ? "وضع السلامة الجنائية" : "Forensic integrity mode"}
+          </div>
+          <div className="mt-2">
+            Powered by <span className="font-semibold text-fg-muted">ALHIJRAH SERVICES</span>
+          </div>
           <div>عبدالله المريسي</div>
         </div>
       </div>

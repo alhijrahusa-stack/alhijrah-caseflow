@@ -4,6 +4,7 @@ import { Mic, Pause, Play, Square, Trash2, UploadCloud, Waves } from "lucide-rea
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
 import { fmtTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { recordingsStore, type StoredRecording } from "@/lib/idb";
@@ -146,35 +147,34 @@ export function Recorder({ onFinished, onCancel }: Props) {
 
   if (state === "error") {
     return (
-      <div className="space-y-4 text-center">
-        <p className="text-sm text-rose-300">{error}</p>
-        <Button variant="secondary" onClick={onCancel}>{t("back")}</Button>
+      <div className="space-y-4">
+        <Notice tone="danger" role="alert">{error}</Notice>
+        <div className="flex justify-center">
+          <Button variant="secondary" onClick={onCancel}>{t("back")}</Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative flex flex-col items-center gap-7 py-2">
-      <div className="pointer-events-none absolute inset-x-0 -bottom-10 h-52 bg-[radial-gradient(ellipse_at_center,rgba(244,63,94,.12),transparent_68%)]" />
-
-      <div className="relative flex items-center gap-2 rounded-full border border-white/[0.08] bg-black/20 px-3 py-1.5 text-[11px] font-bold tracking-[0.14em] text-slate-300">
-        <span className={`size-2 rounded-full ${state === "recording" ? "soft-pulse bg-rose-400 shadow-[0_0_18px_rgba(244,63,94,.9)]" : "bg-amber-300"}`} />
+    <div className="flex flex-col items-center gap-6 py-2">
+      <div className="flex items-center gap-2 rounded-md border border-line-strong bg-surface-2 px-2.5 py-1 text-xs font-semibold text-fg-muted" role="status">
+        <span className={`size-2 rounded-full ${state === "recording" ? "animate-pulse bg-danger" : "bg-warn"}`} aria-hidden />
         {state === "paused" ? (rtl ? "متوقف مؤقتاً" : "PAUSED") : (rtl ? "تسجيل مباشر" : "RECORDING")}
       </div>
 
-      <div className="relative text-center">
-        <div className="font-mono text-[58px] font-medium leading-none tabular-nums tracking-[-0.05em] text-white sm:text-[72px]" dir="ltr" aria-live="polite">
+      <div className="text-center">
+        <div className="font-mono text-[52px] font-medium leading-none tabular-nums tracking-tight text-fg sm:text-[64px]" dir="ltr" aria-live="polite">
           {fmtTime(elapsed)}
         </div>
-        <div className="mt-2 flex items-center justify-center gap-2 text-[11px] text-slate-500">
-          <Waves className="size-3.5 text-rose-300" />
+        <div className="mt-2 flex items-center justify-center gap-2 text-xs text-fg-subtle">
+          <Waves className="size-3.5" />
           {rtl ? "صوت خام — دون تنقية أو تعديل" : "Raw capture — no enhancement applied"}
         </div>
       </div>
 
-      <div className="relative flex h-28 w-full max-w-2xl items-center justify-center overflow-hidden rounded-[24px] border border-white/[0.07] bg-black/25 px-4" aria-hidden dir="ltr">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(244,63,94,.05),transparent)]" />
-        <div className="flex h-20 w-full items-center justify-center gap-[2px]">
+      <div className="flex h-24 w-full max-w-2xl items-center justify-center rounded-lg border border-line bg-surface-2/60 px-4" aria-hidden dir="ltr">
+        <div className="flex h-16 w-full items-center justify-center gap-[3px]">
           {Array.from({ length: 60 }, (_, i) => {
             const phase = Math.sin((i + elapsed / 105) * 0.52) ** 2;
             const center = 1 - Math.min(1, Math.abs(i - 29.5) / 34);
@@ -182,19 +182,19 @@ export function Recorder({ onFinished, onCancel }: Props) {
             return (
               <span
                 key={i}
-                className="w-[3px] rounded-full bg-gradient-to-t from-rose-500 via-rose-400 to-pink-300 transition-[height,opacity] duration-75"
-                style={{ height: `${h * 100}%`, opacity: state === "paused" ? 0.32 : 0.62 + h * 0.38 }}
+                className="w-[3px] rounded-full bg-danger transition-[height,opacity] duration-75"
+                style={{ height: `${h * 100}%`, opacity: state === "paused" ? 0.3 : 0.55 + h * 0.45 }}
               />
             );
           })}
         </div>
       </div>
 
-      <div className="relative flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <Button variant="secondary" size="icon" className="size-12" onClick={discard} aria-label={t("discard")}>
           <Trash2 />
         </Button>
-        <Button size="lg" className="record-gradient h-16 rounded-full border border-white/10 px-9 text-base shadow-[0_18px_52px_-18px_rgba(244,63,94,.8)]" onClick={stop} disabled={state === "starting"}>
+        <Button size="lg" variant="destructive" className="h-14 px-8" onClick={stop} disabled={state === "starting"}>
           <Square className="fill-current" /> {rtl ? "إنهاء" : "Done"}
         </Button>
         <Button variant="secondary" size="icon" className="size-12" onClick={pause} aria-label={state === "paused" ? t("resume") : t("pause")}>
@@ -202,13 +202,13 @@ export function Recorder({ onFinished, onCancel }: Props) {
         </Button>
       </div>
 
-      <div className="relative w-full max-w-md rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3">
-        <div className="mb-2 flex items-center justify-between text-[10px] font-medium text-slate-500">
-          <span>{rtl ? "مستوى الإدخال" : "INPUT LEVEL"}</span>
+      <div className="w-full max-w-md">
+        <div className="mb-1.5 flex items-center justify-between text-[11.5px] font-medium text-fg-subtle">
+          <span>{rtl ? "مستوى الإدخال" : "Input level"}</span>
           <span className="font-mono" dir="ltr">{Math.round(level * 100)}%</span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-          <div className="record-gradient h-full rounded-full transition-[width] duration-75" style={{ width: `${Math.min(100, level * 130)}%` }} />
+        <div className="h-1.5 overflow-hidden rounded-full bg-surface-3" dir="ltr">
+          <div className="h-full rounded-full bg-danger transition-[width] duration-75" style={{ width: `${Math.min(100, level * 130)}%` }} />
         </div>
       </div>
     </div>

@@ -44,7 +44,20 @@ def sniff_mime(head: bytes) -> str | None:
             return mime
     if head[:4] == b"caff":
         return "audio/x-caf"
+    if _mpeg_layer3_frame(head):
+        return "audio/mpeg"
     return None
+
+
+def _mpeg_layer3_frame(head: bytes) -> bool:
+    """MPEG-1/2/2.5 Layer III frame header (11-bit sync), with or without CRC protection."""
+    if len(head) < 4 or head[0] != 0xFF or head[1] & 0xE0 != 0xE0:
+        return False
+    version = (head[1] >> 3) & 0x3  # 01 is reserved
+    layer = (head[1] >> 1) & 0x3  # 01 = Layer III
+    bitrate = head[2] >> 4  # 1111 is invalid
+    sample_rate = (head[2] >> 2) & 0x3  # 11 is reserved
+    return version != 0x1 and layer == 0x1 and bitrate != 0xF and sample_rate != 0x3
 
 
 def _run(args: list[str], timeout: int = 3600) -> subprocess.CompletedProcess[bytes]:

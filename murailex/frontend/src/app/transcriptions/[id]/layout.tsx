@@ -5,6 +5,8 @@ import { type ReactNode, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/input";
+import { Notice } from "@/components/ui/notice";
 import { api, ApiError } from "@/lib/api";
 import type { Recording } from "@/lib/types";
 
@@ -55,15 +57,15 @@ export default function RecordingLayout({ children }: { children: ReactNode }) {
   return (
     <>
       {requiresRepair && (
-        <Card className="mb-5 space-y-3 border-amber-300 p-4">
+        <Card tone="warn" className="mb-5 space-y-3 p-4 sm:p-5">
           <div>
-            <div className="text-sm font-semibold">لغة / لهجة التسجيل مطلوبة قبل المعالجة</div>
-            <div className="muted mt-1 text-xs">Recording locale is required. The original file and SHA-256 remain unchanged.</div>
+            <div className="text-sm font-semibold text-fg">لغة / لهجة التسجيل مطلوبة قبل المعالجة</div>
+            <div className="mt-1 text-xs text-fg-muted">Recording locale is required. The original file and SHA-256 remain unchanged.</div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <select
+            <Select
               aria-label="Recording locale"
-              className="glass h-10 flex-1 rounded-2xl px-3 text-sm"
+              wrapperClassName="flex-1"
               value={locale}
               onChange={(event) => setLocale(event.target.value)}
             >
@@ -74,12 +76,12 @@ export default function RecordingLayout({ children }: { children: ReactNode }) {
               <option value="ar-SY">العربية السورية — ar-SY</option>
               <option value="ar-LB">العربية اللبنانية — ar-LB</option>
               <option value="ar-IQ">العربية العراقية — ar-IQ</option>
-            </select>
+            </Select>
             <Button disabled={!VALID.has(locale) || busy} onClick={repairAndRetry}>
               {busy ? "…" : "حفظ وإعادة المعالجة"}
             </Button>
           </div>
-          {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
+          {error && <Notice tone="danger" role="alert">{error}</Notice>}
         </Card>
       )}
       {children}

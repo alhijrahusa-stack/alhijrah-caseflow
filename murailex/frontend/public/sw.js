@@ -1,5 +1,5 @@
 /* MURAILEX service worker: caches the app shell only. API responses and evidence audio are never cached. */
-const CACHE = "murailex-shell-v1";
+const CACHE = "murailex-shell-v2";
 const SHELL = ["/", "/transcriptions", "/review", "/settings", "/login", "/icons/icon.svg", "/icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {

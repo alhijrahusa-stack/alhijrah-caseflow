@@ -86,3 +86,29 @@ def test_overlap_detection():
 def test_speaker_labels():
     assert transcript.speaker_label("S1") == "[المتحدث 1]"
     assert transcript.speaker_map(["SPEAKER_01", "SPEAKER_00", "SPEAKER_01"]) == {"SPEAKER_01": "S1", "SPEAKER_00": "S2"}
+
+
+def test_long_unattributed_speech_is_paragraphed_at_pauses_without_losing_items():
+    from app.pipeline.transcript import SEGMENT_HARD_MAX_MS, segment
+
+    items = []
+    t = 0
+    for n in range(300):  # 300 words, ~150 s, no speaker attribution
+        gap = 400 if n % 15 == 14 else 50
+        items.append({"kind": "word", "text": f"w{n}", "start_ms": t, "end_ms": t + 450, "speaker": None,
+                      "risks": [], "source": "consensus", "provenance": []})
+        t += 450 + gap
+    segs = segment(items)
+    assert len(segs) > 1
+    flat = [it["text"] for s in segs for it in s["items"]]
+    assert flat == [f"w{n}" for n in range(300)]
+    assert all(s["end_ms"] - s["start_ms"] <= SEGMENT_HARD_MAX_MS for s in segs)
+    assert all(a["end_ms"] <= b["start_ms"] for a, b in zip(segs, segs[1:]))
+
+
+def test_short_turns_are_not_split():
+    from app.pipeline.transcript import segment
+
+    items = [{"kind": "word", "text": f"w{n}", "start_ms": n * 500, "end_ms": n * 500 + 450, "speaker": "S1",
+              "risks": [], "source": "consensus", "provenance": []} for n in range(20)]
+    assert len(segment(items)) == 1

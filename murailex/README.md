@@ -32,7 +32,23 @@ Forensic verbatim transcription for Arabic/English recordings. **The original au
 
 A provider without credentials reports **NOT CONFIGURED** (Settings → Advanced). With no primary engine configured a recording stops at `provider_not_configured`; nothing is fabricated.
 
-## Run
+## Run locally (single machine, personal use)
+
+```bash
+murailex/local/run-local.sh          # first run installs, initialises and builds (a few minutes)
+murailex/local/run-local.sh stop
+```
+
+Opens on `http://localhost:3000`. The admin login is printed and stored in `murailex/.local-data/secrets.env`.
+
+- Requirements: Python 3.11+, Node.js 22+, PostgreSQL 15+ server binaries, `ffmpeg`, and `fonts-noto-core` / `fonts-dejavu-core` for PDF export.
+- `ENVIRONMENT=local` routes every Arabic locale to on-device Whisper. Primary ASR is faster-whisper `large-v3` (int8, CPU). Disputed regions are verified by faster-whisper `medium`. Audio never leaves the machine.
+- There is no on-device diarization. Speakers stay `[متحدث غير محدد]` until a person assigns them.
+- Local routing is labelled **NOT BENCHMARKED**. Each provider/model/locale route still needs a real self-test, run by an admin (`POST /api/recordings/{id}/engine-self-tests`), before processing is allowed.
+- Evidence is stored write-once under `murailex/.local-data/objects`. PostgreSQL data lives in `murailex/.local-data/pg`. Both survive restarts.
+- On a 4-core CPU, `large-v3` decodes at roughly real-time speed.
+
+## Run (production stack)
 
 ```bash
 cp .env.example .env   # fill in secrets and provider keys

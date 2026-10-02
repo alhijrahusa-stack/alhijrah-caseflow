@@ -9,6 +9,7 @@ import { usePlayer } from "@/components/player";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
+import { Notice } from "@/components/ui/notice";
 import { api, ApiError } from "@/lib/api";
 import { fmtTime, textDir } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -16,7 +17,8 @@ import type { Content, Item, Recording, Segment } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const MARKERS = new Set(["[غير مسموع]", "[اسم غير واضح]", "[رقم غير واضح]", "[تداخل]", "[صمت]"]);
-const SPEAKER_COLORS = ["#818CF8", "#22D3EE", "#10B981", "#F59E0B", "#F472B6", "#A78BFA"];
+// Each speaker colour meets ≥ 4.5:1 contrast on every surface token.
+const SPEAKER_COLORS = ["#A3AEFF", "#22D3EE", "#34D399", "#FBBF24", "#F472B6", "#C4B5FD"];
 
 export function segmentText(seg: Segment): string {
   return seg.items.map((i) => (i.kind === "dispute" ? "" : i.text)).filter(Boolean).join(" ");
@@ -28,7 +30,7 @@ function Token({ item, recordingId, onSeek, query }: { item: Item; recordingId: 
     return (
       <Link
         href={`/review/${recordingId}#d-${item.dispute_id}`}
-        className="mx-0.5 inline-flex items-center gap-1 rounded-lg border border-rose-400/15 bg-rose-400/10 px-1.5 py-0.5 align-baseline text-[13px] text-rose-200"
+        className="mx-0.5 inline-flex items-center gap-1 rounded-md border border-danger/35 bg-danger/10 px-1.5 py-0.5 align-baseline text-[13px] font-medium text-danger hover:bg-danger/20"
         data-testid="dispute-chip"
       >
         <AlertTriangle className="size-3" /> {t("disputed")}
@@ -46,11 +48,11 @@ function Token({ item, recordingId, onSeek, query }: { item: Item; recordingId: 
         onClick={() => onSeek(item.start_ms)}
         title={risky ? item.risks.join(", ") : undefined}
         className={cn(
-          "cursor-pointer rounded-md transition-colors duration-150 hover:bg-indigo-400/10",
-          isMarker && "mx-0.5 rounded-lg border border-white/[0.06] bg-white/[0.045] px-1.5 text-[0.92em] text-slate-400",
-          risky && !isMarker && "underline decoration-amber-400/80 decoration-dotted underline-offset-4",
-          item.source === "human" && "decoration-indigo-400",
-          highlighted && "bg-indigo-400/20 text-white shadow-[0_0_18px_rgba(99,102,241,.18)]",
+          "cursor-pointer rounded-sm transition-colors duration-150 hover:bg-primary/15",
+          isMarker && "mx-0.5 rounded-md border border-line-strong bg-surface-3 px-1.5 text-[0.92em] text-fg-muted",
+          risky && !isMarker && "underline decoration-warn/80 decoration-dotted underline-offset-4",
+          item.source === "human" && "decoration-primary-text",
+          highlighted && "bg-warn/25 text-fg",
         )}
       >
         <bdi>{item.text}</bdi>
@@ -137,23 +139,25 @@ export function TranscriptView({
 
   return (
     <div className="space-y-4" data-testid="transcript">
-      <div className="glass-strong grid grid-cols-2 rounded-[18px] p-1.5">
+      <div className="grid grid-cols-2 gap-1 rounded-lg border border-line bg-surface-2 p-1">
         <button
           type="button"
+          aria-pressed={view === "summary"}
           onClick={() => setView("summary")}
           className={cn(
-            "flex h-11 items-center justify-center gap-2 rounded-[14px] text-sm font-semibold transition-all duration-200",
-            view === "summary" ? "summary-tab bg-white/[0.075] text-white shadow-[0_10px_30px_-20px_rgba(99,102,241,.8)]" : "text-slate-500 hover:text-slate-300",
+            "flex h-10 items-center justify-center gap-2 rounded-md text-sm font-semibold transition-colors duration-150",
+            view === "summary" ? "bg-surface-3 text-fg shadow-card" : "text-fg-muted hover:text-fg",
           )}
         >
           <Sparkles className="size-4" /> {rtl ? "الملخص" : "Summary"}
         </button>
         <button
           type="button"
+          aria-pressed={view === "transcript"}
           onClick={() => setView("transcript")}
           className={cn(
-            "flex h-11 items-center justify-center gap-2 rounded-[14px] text-sm font-semibold transition-all duration-200",
-            view === "transcript" ? "summary-tab bg-white/[0.075] text-white shadow-[0_10px_30px_-20px_rgba(99,102,241,.8)]" : "text-slate-500 hover:text-slate-300",
+            "flex h-10 items-center justify-center gap-2 rounded-md text-sm font-semibold transition-colors duration-150",
+            view === "transcript" ? "bg-surface-3 text-fg shadow-card" : "text-fg-muted hover:text-fg",
           )}
         >
           <FileText className="size-4" /> {rtl ? "النص الكامل" : "Transcript"}
@@ -167,7 +171,7 @@ export function TranscriptView({
           rtl={rtl}
         />
       ) : (
-        <div className="float-in space-y-3">
+        <div className="fade-in space-y-3">
           <div className="flex justify-end">
             <Button size="sm" variant="secondary" onClick={copyTranscript}>
               {copied ? <Check /> : <Copy />} {copied ? (rtl ? "تم النسخ" : "Copied") : (rtl ? "نسخ النص" : "Copy transcript")}
@@ -187,33 +191,31 @@ export function TranscriptView({
                   key={seg.id}
                   id={seg.id}
                   className={cn(
-                    "group relative overflow-hidden rounded-[18px] border px-3.5 py-3.5 transition-all duration-200 sm:px-4",
-                    active
-                      ? "border-indigo-400/25 bg-indigo-400/[0.085] shadow-[0_12px_38px_-24px_rgba(99,102,241,.75)]"
-                      : "border-white/[0.055] bg-white/[0.018] hover:border-white/[0.10] hover:bg-white/[0.035]",
+                    "group relative overflow-hidden rounded-lg border px-3.5 py-3 transition-colors duration-150 sm:px-4",
+                    active ? "border-primary/50 bg-primary/10" : "border-line bg-surface-2/40 hover:border-line-strong hover:bg-surface-2",
                   )}
                   data-testid="segment"
                 >
-                  <span className="absolute inset-y-3 start-0 w-[2px] rounded-full" style={{ background: color, boxShadow: active ? `0 0 16px ${color}` : undefined }} />
+                  <span className="absolute inset-y-3 start-0 w-[3px] rounded-full" style={{ background: color }} aria-hidden />
                   <div className="mb-1.5 flex items-center gap-2 text-xs">
-                    <button className="font-mono tabular-nums text-indigo-300 hover:text-indigo-200 hover:underline" dir="ltr" onClick={() => player.seek(seg.start_ms, true)}>
+                    <button className="font-mono tabular-nums text-primary-text hover:underline" dir="ltr" onClick={() => player.seek(seg.start_ms, true)}>
                       {fmtTime(seg.start_ms)}
                     </button>
                     {label && (
                       <button
-                        className={cn("font-semibold", editable ? "hover:text-indigo-300" : "cursor-default")}
+                        className={cn("font-semibold", editable ? "hover:underline" : "cursor-default")}
                         style={{ color }}
                         onClick={() => editable && setSpeakerFor(seg)}
                         disabled={!editable}
                         data-testid="speaker-label"
                       >
                         <bdi>{label}</bdi>
-                        {info?.verified_name && <span className="ms-1 text-slate-500">(<bdi>{info.verified_name}</bdi> ✓)</span>}
+                        {info?.verified_name && <span className="ms-1 text-fg-subtle">(<bdi>{info.verified_name}</bdi> ✓)</span>}
                       </button>
                     )}
                     {editable && !hasDispute && (
                       <button
-                        className="ms-auto rounded-lg p-1 text-slate-500 opacity-70 transition hover:bg-white/[0.06] hover:text-slate-200 sm:opacity-0 sm:group-hover:opacity-100"
+                        className="ms-auto rounded-md p-1.5 text-fg-subtle transition-colors hover:bg-surface-3 hover:text-fg sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
                         onClick={() => {
                           setDraft(text);
                           setEditing(seg);
@@ -224,7 +226,7 @@ export function TranscriptView({
                       </button>
                     )}
                   </div>
-                  <p className="bidi-auto text-[17px] leading-8 text-slate-200" dir={textDir(text || label)}>
+                  <p className="bidi-auto text-[17px] leading-8 text-fg" dir={textDir(text || label)}>
                     {seg.items.map((it, i) => (
                       <Token key={i} item={it} recordingId={recordingId} onSeek={(ms) => player.seek(ms, true)} query={query} />
                     ))}
@@ -238,14 +240,14 @@ export function TranscriptView({
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent title={t("type_exact")}>
-          <p className="muted mb-3 text-xs">{t("controlling")}</p>
+          <p className="mb-3 text-xs text-fg-muted">{t("controlling")}</p>
           {editing && (
             <Button variant="secondary" size="sm" className="mb-3" onClick={() => player.playWindow(editing.start_ms, editing.end_ms)}>
               {t("play_exact")} · {fmtTime(editing.start_ms)}
             </Button>
           )}
           <Textarea dir="auto" className="bidi-auto" value={draft} onChange={(e) => setDraft(e.target.value)} rows={5} />
-          {error && <p className="mt-2 text-sm text-rose-300">{error}</p>}
+          {error && <Notice tone="danger" role="alert" className="mt-2">{error}</Notice>}
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setEditing(null)}>{t("cancel")}</Button>
             <Button onClick={saveText} disabled={!draft.trim()}>{t("save")}</Button>
@@ -259,7 +261,7 @@ export function TranscriptView({
             {Object.entries(content.speakers).map(([sid, info]) => (
               <Button key={sid} variant={speakerFor?.speaker === sid ? "default" : "secondary"} onClick={() => setSpeaker(sid)} className="justify-start">
                 <UserRound /> <bdi>{info.label}</bdi>
-                {info.verified_name && <span className="text-slate-500">({info.verified_name})</span>}
+                {info.verified_name && <span className="text-fg-subtle">({info.verified_name})</span>}
               </Button>
             ))}
           </div>
@@ -272,7 +274,7 @@ export function TranscriptView({
 function useCallbackSpeakerColor(content: Content) {
   const keys = useMemo(() => Object.keys(content.speakers), [content.speakers]);
   return (speaker: string | null) => {
-    if (!speaker) return "#64748B";
+    if (!speaker) return "#8B96AA";
     const idx = Math.max(0, keys.indexOf(speaker));
     return SPEAKER_COLORS[idx % SPEAKER_COLORS.length];
   };

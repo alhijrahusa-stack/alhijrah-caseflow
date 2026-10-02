@@ -7,6 +7,12 @@ from typing import Any
 from .text import UNCLEAR_MARKERS
 
 SEGMENT_GAP_MS = 1500
+# Readability bounds: a paragraph that has run this long starts a new one at the next
+# natural pause (or unconditionally at the hard cap). Only paragraph boundaries change;
+# no item is altered, merged, reordered or dropped.
+SEGMENT_SOFT_MAX_MS = 20000
+SEGMENT_PAUSE_MS = 300
+SEGMENT_HARD_MAX_MS = 40000
 SCHEMA = "murailex.transcript/2"
 
 
@@ -104,7 +110,12 @@ def segment(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if segments and not standalone and not segments[-1].get("_standalone"):
             cur = segments[-1]
             same = spk is None or cur["speaker"] is None or spk == cur["speaker"]
-            if same and it["start_ms"] - cur["end_ms"] <= SEGMENT_GAP_MS:
+            gap = it["start_ms"] - cur["end_ms"]
+            length = it["end_ms"] - cur["start_ms"]
+            too_long = length > SEGMENT_HARD_MAX_MS or (
+                cur["end_ms"] - cur["start_ms"] >= SEGMENT_SOFT_MAX_MS and gap >= SEGMENT_PAUSE_MS
+            )
+            if same and gap <= SEGMENT_GAP_MS and not too_long:
                 cur["items"].append(it)
                 cur["end_ms"] = max(cur["end_ms"], it["end_ms"])
                 if cur["speaker"] is None:

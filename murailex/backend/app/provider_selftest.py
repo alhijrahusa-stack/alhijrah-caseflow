@@ -84,7 +84,7 @@ def run_provider_self_test(db: Session, test: ProviderSelfTest) -> None:
         db.commit()
         return
 
-    derived = ensure_derived(db, rec)
+    derived = ensure_derived(db, rec, announce=False)
     root = os.environ.get("MURAILEX_WORK_DIR") or os.path.join(tempfile.gettempdir(), "murailex-work")
     work_dir = os.path.join(root, str(rec.id))
     os.makedirs(work_dir, exist_ok=True)

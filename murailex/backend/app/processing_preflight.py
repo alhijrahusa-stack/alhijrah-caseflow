@@ -12,8 +12,6 @@ from .models import Job, Recording
 from .providers import registry
 from .providers.base import ProviderError
 
-_REQUIRED_ROLES = frozenset({"primary_asr", "diarization", "verification_asr"})
-
 
 def _block(
     db: Session,
@@ -116,7 +114,7 @@ def enforce_processing_preflight(
         )
 
     roles = {role for _, role in routed}
-    missing_roles = sorted(_REQUIRED_ROLES - roles)
+    missing_roles = sorted(registry.required_roles() - roles)
     if not routed or missing_roles:
         _block(
             db,
@@ -172,6 +170,7 @@ def enforce_processing_preflight(
             "ready_engine_ids": ready_ids,
             "benchmark_dataset_version": settings.benchmark_dataset_version,
             "benchmark_held_out_run_id": settings.benchmark_held_out_run_id,
+            "benchmark_routing": registry.LOCAL_BENCHMARK_LABEL if registry.local_mode() else "APPROVED",
         },
     )
     db.commit()

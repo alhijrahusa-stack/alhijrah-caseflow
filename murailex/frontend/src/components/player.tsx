@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type WaveSurfer from "wavesurfer.js";
 
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { fmtTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -132,7 +133,9 @@ export function PlayerProvider({ recordingId, durationHint, children }: { record
       ]);
       if (destroyed) return;
       const regions = Regions.create();
-      const accent = getComputedStyle(document.documentElement).getPropertyValue("--color-accent-500").trim() || "#7a5af8";
+      const css = getComputedStyle(document.documentElement);
+      const accent = css.getPropertyValue("--color-primary-text").trim() || "#a3aeff";
+      const idle = css.getPropertyValue("--color-line-strong").trim() || "#364056";
       const ws = WS.create({
         container,
         media: audioRef.current!,
@@ -143,7 +146,7 @@ export function PlayerProvider({ recordingId, durationHint, children }: { record
         barGap: 1.5,
         barRadius: 2,
         normalize: true,
-        waveColor: "rgba(122,90,248,0.28)",
+        waveColor: idle,
         progressColor: accent,
         cursorColor: accent,
         cursorWidth: 2,
@@ -211,7 +214,7 @@ export function PlayerProvider({ recordingId, durationHint, children }: { record
         const reg = regionsRef.current;
         if (!reg) return;
         reg.clearRegions();
-        if (s != null && e != null) reg.addRegion({ start: s / 1000, end: e / 1000, color: "rgba(245, 158, 11, 0.22)", drag: false, resize: false });
+        if (s != null && e != null) reg.addRegion({ start: s / 1000, end: e / 1000, color: "rgba(245, 185, 70, 0.22)", drag: false, resize: false });
       },
     }),
     [ready, playing, timeMs, durationMs, rate, variant, seek],
@@ -231,7 +234,7 @@ export function PlayerBar({ className }: { className?: string }) {
   const attach = useContext(AttachCtx);
   const { t } = useI18n();
   return (
-    <div className={cn("glass-strong rounded-3xl p-4", className)}>
+    <div className={cn("rounded-xl border border-line bg-surface/95 p-3.5 shadow-card backdrop-blur sm:p-4", className)}>
       <div ref={attach ?? undefined} className="min-h-[72px] w-full cursor-pointer" dir="ltr" data-testid="waveform" />
       <div className="mt-3 flex flex-wrap items-center gap-2" dir="ltr">
         <Button variant="ghost" size="sm" onClick={() => p.skip(-10000)} aria-label={t("minus10")}>
@@ -243,13 +246,13 @@ export function PlayerBar({ className }: { className?: string }) {
         <Button variant="ghost" size="sm" onClick={() => p.skip(10000)} aria-label={t("plus10")}>
           10 <RotateCw />
         </Button>
-        <span className="font-mono text-xs tabular-nums muted" data-testid="clock">
+        <span className="font-mono text-xs tabular-nums text-fg-muted" data-testid="clock">
           {fmtTime(p.timeMs, true)} / {fmtTime(p.durationMs)}
         </span>
         <div className="ms-auto flex items-center gap-1">
-          <span className="muted text-[11px]">{t("speed")}</span>
-          <select
-            className="rounded-xl border hairline bg-transparent px-2 py-1 text-xs"
+          <span className="text-xs text-fg-subtle">{t("speed")}</span>
+          <Select
+            className="h-8 w-[4.75rem] text-xs"
             value={p.rate}
             onChange={(e) => p.setRate(Number(e.target.value))}
             aria-label={t("speed")}
@@ -259,11 +262,11 @@ export function PlayerBar({ className }: { className?: string }) {
                 {r}×
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
-      <div className="mt-2 text-[11px] muted" dir="auto">
-        {p.variant === "original" ? t("original_audio") : <span className="text-amber-600 dark:text-amber-300">{t("derived_copy")}</span>}
+      <div className="mt-2 text-xs text-fg-subtle" dir="auto">
+        {p.variant === "original" ? t("original_audio") : <span className="text-warn">{t("derived_copy")}</span>}
       </div>
     </div>
   );

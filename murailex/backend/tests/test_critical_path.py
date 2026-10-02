@@ -549,3 +549,73 @@ def test_worker_lease_recovery(users):
         assert got is not None and got.id == job_id and got.locked_by == "live-worker"
         got.status = "failed"
         db.commit()
+
+
+def test_routing_without_diarization_engine_leaves_speakers_unattributed(app_client, users):
+    """Local routing defines no diarization engine: the transcript must still be produced,
+    every primary token kept, and no speaker identity inferred."""
+    from app.providers import registry
+    from app.providers.fixture import FixtureAsr
+
+    registry.install_test_fixtures(
+        [FixtureAsr("engine_a", "engine_a.json"), FixtureAsr("engine_b", "engine_b.json")],
+        [],
+        [FixtureAsr("verifier", "verifier.json", role="verification_asr")],
+    )
+    try:
+        csrf = login(app_client, "owner@example.com")
+        rec = upload_file(app_client, csrf, SAMPLE, title="No diarization")
+        drain_jobs()
+        detail = app_client.get(f"/api/recordings/{rec['id']}").json()
+        assert detail["recording"]["status"] in ("ready", "needs_review"), detail["recording"]
+        content = app_client.get(f"/api/recordings/{rec['id']}/transcript").json()["revision"]["content"]
+        assert content["method"]["diarization"]["status"] == "not_performed"
+        assert content["method"]["diarization"]["independent"] is False
+        assert content["speakers"] == {} or all(not v.get("verified_name") for v in content["speakers"].values())
+        assert all(seg["speaker"] is None for seg in content["segments"])
+        assert any(item["text"] for seg in content["segments"] for item in seg["items"])
+    finally:
+        registry.clear_test_fixtures()
+
+
+def test_provider_self_test_does_not_change_recording_processing_status(app_client, users, fixture_providers):
+    """A self-test creates derived copies but is not processing: the recording's status must
+    not be left at 'analyzing' (which blocked reprocessing and kept the UI polling)."""
+    import uuid as _uuid
+
+    from app.db import session_factory
+    from app.forensic_models import ProviderSelfTest
+    from app.models import Recording
+    from app.pipeline.process import Wait
+    from app.provider_selftest import run_provider_self_test
+
+    csrf = login(app_client, "owner@example.com")
+    rec = upload_file(app_client, csrf, SAMPLE, title="Self-test status")
+    with session_factory()() as db:
+        before = db.get(Recording, _uuid.UUID(rec["id"]))
+        assert before is not None and before.derived is None
+        status_before = (before.status, before.status_detail)
+        test = ProviderSelfTest(
+            provider="fixture:engine_a",
+            model="fixture",
+            locale="ar-YE",
+            role="primary_asr",
+            recording_id=before.id,
+            status="BLOCKED",
+            error="queued",
+            requested_by=before.owner_id,
+        )
+        db.add(test)
+        db.commit()
+        for _ in range(20):
+            try:
+                run_provider_self_test(db, test)
+                break
+            except Wait:
+                db.rollback()
+                test = db.get(ProviderSelfTest, test.id)
+        after = db.get(Recording, before.id)
+        assert test.status == "READY"
+        assert after.derived and after.derived.get("analysis_wav")
+        assert (after.status, after.status_detail) == status_before
+    drain_jobs()

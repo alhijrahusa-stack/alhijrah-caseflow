@@ -13,17 +13,17 @@ export const DialogClose = DialogPrimitive.Close;
 export function DialogContent({ className, children, title, ...props }: React.ComponentProps<typeof DialogPrimitive.Content> & { title: string }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/25 backdrop-blur-sm" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60" />
       <DialogPrimitive.Content
         className={cn(
-          "glass-strong fixed inset-x-3 bottom-3 z-50 max-h-[85dvh] overflow-y-auto rounded-3xl p-6 shadow-2xl sm:inset-x-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:w-[28rem] sm:-translate-x-1/2 sm:-translate-y-1/2",
+          "fixed inset-x-3 bottom-3 z-50 max-h-[85dvh] overflow-y-auto rounded-xl border border-line-strong bg-surface p-5 shadow-pop sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[30rem] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:p-6",
           className,
         )}
         {...props}
       >
         <div className="mb-4 flex items-center justify-between gap-4">
-          <DialogPrimitive.Title className="text-base font-semibold">{title}</DialogPrimitive.Title>
-          <DialogPrimitive.Close className="rounded-full p-1.5 hover:bg-black/5 dark:hover:bg-white/10" aria-label="Close">
+          <DialogPrimitive.Title className="text-base font-semibold text-fg">{title}</DialogPrimitive.Title>
+          <DialogPrimitive.Close className="rounded-md p-1.5 text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Close">
             <X className="size-4" />
           </DialogPrimitive.Close>
         </div>
