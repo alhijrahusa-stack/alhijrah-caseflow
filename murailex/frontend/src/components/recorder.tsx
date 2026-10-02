@@ -26,26 +26,41 @@ type Props = { onFinished: (rec: StoredRecording) => void; onCancel: () => void 
 /**
  * Captures microphone audio without processing (echo cancellation, noise suppression and
  * auto-gain are disabled so the evidence is the unaltered capture). Chunks are persisted
- * to IndexedDB every second so a crash or closed tab never loses the recording.
+ * to IndexedDB every second so a crash or interrupted tab session retains the completed
+ * chunks already written.
  */
 export function Recorder({ onFinished, onCancel }: Props) {
   const { t } = useI18n();
-  const [state, setState] = useState<"starting" | "recording" | "paused" | "error">("starting");
+  const [state, setState] = useState<"starting" | "recording" | "paused" | "stopping" | "error">("starting");
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [level, setLevel] = useState(0);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const recRef = useRef<StoredRecording | null>(null);
   const tickRef = useRef<number | null>(null);
   const startRef = useRef(0);
   const accRef = useRef(0);
   const rafRef = useRef<number | null>(null);
+  const persistChainRef = useRef<Promise<void>>(Promise.resolve());
 
   const cleanup = useCallback(() => {
-    if (tickRef.current) window.clearInterval(tickRef.current);
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (tickRef.current !== null) {
+      window.clearInterval(tickRef.current);
+      tickRef.current = null;
+    }
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     streamRef.current?.getTracks().forEach((tr) => tr.stop());
+    streamRef.current = null;
+    const ctx = audioContextRef.current;
+    audioContextRef.current = null;
+    if (ctx && ctx.state !== "closed") {
+      void ctx.close().catch(() => undefined);
+    }
   }, []);
 
   useEffect(() => {
@@ -67,35 +82,55 @@ export function Recorder({ onFinished, onCancel }: Props) {
         streamRef.current = stream;
         const mime = pickMime();
         const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-        const rec: StoredRecording = { id: crypto.randomUUID(), mime: mr.mimeType || mime || "audio/webm", chunks: [], startedAt: Date.now(), finished: false };
+        const rec: StoredRecording = {
+          id: crypto.randomUUID(),
+          mime: mr.mimeType || mime || "audio/webm",
+          chunks: [],
+          startedAt: Date.now(),
+          finished: false,
+        };
         recRef.current = rec;
         await recordingsStore.put(rec);
-        mr.ondataavailable = async (e) => {
-          if (e.data && e.data.size > 0 && recRef.current) {
-            recRef.current.chunks.push(e.data);
-            await recordingsStore.put(recRef.current);
-          }
+        mr.ondataavailable = (e) => {
+          if (!e.data || e.data.size <= 0 || !recRef.current) return;
+          recRef.current.chunks.push(e.data);
+          const current = recRef.current;
+          persistChainRef.current = persistChainRef.current
+            .then(() => recordingsStore.put(current).then(() => undefined))
+            .catch(() => undefined);
+        };
+        mr.onerror = () => {
+          setState("error");
+          setError(t("mic_error"));
         };
         mr.start(1000);
         mediaRef.current = mr;
         startRef.current = performance.now();
         setState("recording");
         tickRef.current = window.setInterval(() => {
-          if (mediaRef.current?.state === "recording") setElapsed(accRef.current + performance.now() - startRef.current);
+          if (mediaRef.current?.state === "recording") {
+            setElapsed(accRef.current + performance.now() - startRef.current);
+          }
         }, 250);
-        const ctx = new AudioContext();
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 512;
-        ctx.createMediaStreamSource(stream).connect(analyser);
-        const data = new Uint8Array(analyser.fftSize);
-        const loop = () => {
-          analyser.getByteTimeDomainData(data);
-          let peak = 0;
-          for (const v of data) peak = Math.max(peak, Math.abs(v - 128) / 128);
-          setLevel(peak);
-          rafRef.current = requestAnimationFrame(loop);
-        };
-        loop();
+
+        try {
+          const ctx = new AudioContext();
+          audioContextRef.current = ctx;
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 512;
+          ctx.createMediaStreamSource(stream).connect(analyser);
+          const data = new Uint8Array(analyser.fftSize);
+          const loop = () => {
+            analyser.getByteTimeDomainData(data);
+            let peak = 0;
+            for (const v of data) peak = Math.max(peak, Math.abs(v - 128) / 128);
+            setLevel(peak);
+            rafRef.current = requestAnimationFrame(loop);
+          };
+          loop();
+        } catch {
+          // The recorder remains usable if the browser does not expose an audio analyser.
+        }
       } catch {
         setState("error");
         setError(t("mic_denied"));
@@ -103,16 +138,25 @@ export function Recorder({ onFinished, onCancel }: Props) {
     })();
     return () => {
       cancelled = true;
+      const mr = mediaRef.current;
+      if (mr && mr.state !== "inactive") {
+        try {
+          mr.stop();
+        } catch {
+          // Ignore teardown races; already-persisted chunks remain recoverable.
+        }
+      }
       cleanup();
     };
   }, [cleanup, t]);
 
   function pause() {
     const mr = mediaRef.current;
-    if (!mr) return;
+    if (!mr || state === "stopping") return;
     if (mr.state === "recording") {
       mr.pause();
       accRef.current += performance.now() - startRef.current;
+      setElapsed(accRef.current);
       setState("paused");
     } else if (mr.state === "paused") {
       mr.resume();
@@ -123,21 +167,43 @@ export function Recorder({ onFinished, onCancel }: Props) {
 
   async function stop() {
     const mr = mediaRef.current;
-    if (!mr || !recRef.current) return;
-    await new Promise<void>((resolve) => {
-      mr.addEventListener("stop", () => resolve(), { once: true });
-      mr.stop();
+    const rec = recRef.current;
+    if (!mr || !rec || state === "stopping" || state === "error") return;
+    setState("stopping");
+    if (mr.state === "recording") {
+      accRef.current += performance.now() - startRef.current;
+      setElapsed(accRef.current);
+    }
+    await new Promise<void>((resolve, reject) => {
+      const onStop = () => resolve();
+      const onError = () => reject(new Error("MediaRecorder stopped with an error."));
+      mr.addEventListener("stop", onStop, { once: true });
+      mr.addEventListener("error", onError, { once: true });
+      try {
+        mr.stop();
+      } catch (e) {
+        mr.removeEventListener("stop", onStop);
+        mr.removeEventListener("error", onError);
+        reject(e);
+      }
     });
-    // allow the final dataavailable handler to persist
-    await new Promise((r) => setTimeout(r, 50));
+    await persistChainRef.current;
     cleanup();
-    recRef.current.finished = true;
-    await recordingsStore.put(recRef.current);
-    onFinished(recRef.current);
+    rec.finished = true;
+    await recordingsStore.put(rec);
+    onFinished(rec);
   }
 
   async function discard() {
-    if (mediaRef.current && mediaRef.current.state !== "inactive") mediaRef.current.stop();
+    if (state === "stopping") return;
+    const mr = mediaRef.current;
+    if (mr && mr.state !== "inactive") {
+      try {
+        mr.stop();
+      } catch {
+        // Ignore teardown races during discard.
+      }
+    }
     cleanup();
     if (recRef.current) await recordingsStore.remove(recRef.current.id);
     onCancel();
@@ -154,10 +220,13 @@ export function Recorder({ onFinished, onCancel }: Props) {
     );
   }
 
+  const recordingActive = state === "recording";
+  const controlsDisabled = state === "starting" || state === "stopping";
+
   return (
     <div className="flex flex-col items-center gap-6 py-2">
       <div className="flex items-center gap-2 text-sm">
-        <span className={`size-2.5 rounded-full ${state === "recording" ? "animate-pulse bg-rose-500" : "bg-amber-400"}`} />
+        <span className={`size-2.5 rounded-full ${recordingActive ? "animate-pulse bg-rose-500" : "bg-amber-400"}`} />
         <span className="muted">{state === "paused" ? t("pause") : t("recording_now")}</span>
       </div>
       <div className="font-mono text-5xl tabular-nums tracking-tight" dir="ltr" aria-live="polite">
@@ -170,13 +239,13 @@ export function Recorder({ onFinished, onCancel }: Props) {
         })}
       </div>
       <div className="flex items-center gap-3">
-        <Button variant="secondary" size="icon" onClick={discard} aria-label={t("discard")}>
+        <Button variant="secondary" size="icon" onClick={discard} aria-label={t("discard")} disabled={controlsDisabled}>
           <Trash2 />
         </Button>
-        <Button size="lg" className="rounded-full bg-rose-600 px-8 hover:bg-rose-700" onClick={stop} disabled={state === "starting"}>
-          <Square className="fill-current" /> {t("stop")}
+        <Button size="lg" className="rounded-full bg-rose-600 px-8 hover:bg-rose-700" onClick={stop} disabled={controlsDisabled}>
+          <Square className="fill-current" /> {state === "stopping" ? t("uploading") : t("stop")}
         </Button>
-        <Button variant="secondary" size="icon" onClick={pause} aria-label={state === "paused" ? t("resume") : t("pause")}>
+        <Button variant="secondary" size="icon" onClick={pause} aria-label={state === "paused" ? t("resume") : t("pause")} disabled={controlsDisabled}>
           {state === "paused" ? <Play /> : <Pause />}
         </Button>
       </div>

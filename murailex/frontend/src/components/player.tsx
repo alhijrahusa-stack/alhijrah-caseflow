@@ -89,13 +89,11 @@ export function PlayerProvider({ recordingId, durationHint, children }: { record
     const onErr = () => {
       const t = a.currentTime * 1000;
       if (!triedRefreshRef.current && Date.now() - urlAtRef.current > 60_000) {
-        triedRefreshRef.current = true; // signed URL likely expired — refresh once
+        triedRefreshRef.current = true;
         void loadUrl(variant, t);
         return;
       }
-      if (variant === "original") {
-        setVariant("playback");
-      }
+      if (variant === "original") setVariant("playback");
     };
     a.addEventListener("timeupdate", onTime);
     a.addEventListener("loadedmetadata", onMeta);
@@ -107,6 +105,7 @@ export function PlayerProvider({ recordingId, durationHint, children }: { record
       a.pause();
       a.removeAttribute("src");
       a.load();
+      audioRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- single audio element per recording
   }, [recordingId]);
@@ -132,7 +131,7 @@ export function PlayerProvider({ recordingId, durationHint, children }: { record
       ]);
       if (destroyed) return;
       const regions = Regions.create();
-      const accent = getComputedStyle(document.documentElement).getPropertyValue("--color-accent-500").trim() || "#7a5af8";
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent-500").trim() || "#7a5af8";
       const ws = WS.create({
         container,
         media: audioRef.current!,
@@ -143,7 +142,7 @@ export function PlayerProvider({ recordingId, durationHint, children }: { record
         barGap: 1.5,
         barRadius: 2,
         normalize: true,
-        waveColor: "rgba(122,90,248,0.28)",
+        waveColor: "color-mix(in srgb, var(--accent-500) 28%, transparent)",
         progressColor: accent,
         cursorColor: accent,
         cursorWidth: 2,
@@ -211,7 +210,7 @@ export function PlayerProvider({ recordingId, durationHint, children }: { record
         const reg = regionsRef.current;
         if (!reg) return;
         reg.clearRegions();
-        if (s != null && e != null) reg.addRegion({ start: s / 1000, end: e / 1000, color: "rgba(245, 158, 11, 0.22)", drag: false, resize: false });
+        if (s != null && e != null) reg.addRegion({ start: s / 1000, end: e / 1000, color: "color-mix(in srgb, var(--warning-700) 18%, transparent)", drag: false, resize: false });
       },
     }),
     [ready, playing, timeMs, durationMs, rate, variant, seek],
@@ -231,7 +230,7 @@ export function PlayerBar({ className }: { className?: string }) {
   const attach = useContext(AttachCtx);
   const { t } = useI18n();
   return (
-    <div className={cn("glass-strong rounded-3xl p-4", className)}>
+    <div className={cn("glass-strong rounded-[1.75rem] p-4", className)}>
       <div ref={attach ?? undefined} className="min-h-[72px] w-full cursor-pointer" dir="ltr" data-testid="waveform" />
       <div className="mt-3 flex flex-wrap items-center gap-2" dir="ltr">
         <Button variant="ghost" size="sm" onClick={() => p.skip(-10000)} aria-label={t("minus10")}>
@@ -249,7 +248,7 @@ export function PlayerBar({ className }: { className?: string }) {
         <div className="ms-auto flex items-center gap-1">
           <span className="muted text-[11px]">{t("speed")}</span>
           <select
-            className="rounded-xl border hairline bg-transparent px-2 py-1 text-xs"
+            className="rounded-xl border border-[var(--border)] bg-[var(--surface-strong)] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-accent-200 dark:focus:ring-accent-500/30"
             value={p.rate}
             onChange={(e) => p.setRate(Number(e.target.value))}
             aria-label={t("speed")}
