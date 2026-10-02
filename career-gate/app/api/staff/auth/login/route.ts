@@ -9,6 +9,7 @@ import { hit, securityEvent } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 const GENERIC = "If this email belongs to Career Gate staff, a sign-in code has been sent.";
+const ROUTE = "/api/staff/auth/login";
 
 export async function POST(req: Request) {
   const traceId = traceIdFrom(req);
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
 
   const ip = ipHash(req);
   if (!(await hit("login_send_15min", ip))) {
-    await securityEvent({ event: "rate_limited_login_send", ipHash: ip, route: "/api/staff/auth/login", traceId });
+    await securityEvent({ event: "rate_limited_login_send", ipHash: ip, route: ROUTE, traceId });
     return err("rate_limited", "Too many sign-in requests. Try again later.", 429, traceId);
   }
 
@@ -28,8 +29,6 @@ export async function POST(req: Request) {
   const bootstrap = registry.app().adminEmail?.toLowerCase() === email;
   let isStaff = false;
 
-  // The bootstrap admin can receive the OTP before the database link is created.
-  // Non-bootstrap accounts must already exist as active staff.
   if (!bootstrap) {
     try {
       const [staff] = await sql()`select id from staff where lower(email) = ${email} and active`;
@@ -42,41 +41,42 @@ export async function POST(req: Request) {
   }
 
   if (bootstrap || isStaff) {
-    const primary = await sendEmailOtp(email, true);
-    if (!primary.ok) {
-      if (primary.code === "NOT_CONFIGURED") return err("NOT_CONFIGURED", primary.message, 503, traceId);
-      if (primary.code !== "PROVIDER_ERROR") {
-        console.error(JSON.stringify({ trace_id: traceId, route: "/api/staff/auth/login", result: "provider_rejected", error_code: primary.code }));
-        return err("AUTH_PROVIDER_ERROR", "Could not send the sign-in code", 502, traceId);
-      }
-
-      // Supabase Auth remains the authentication authority. If its SMTP delivery fails,
-      // generate a valid Supabase OTP with the service role and deliver that token via
-      // the already-supported Resend provider instead of bypassing Auth.
-      const generated = await generateEmailOtp(email);
-      if (!generated.ok) {
-        console.error(JSON.stringify({ trace_id: traceId, route: "/api/staff/auth/login", result: "otp_generation_failed", error_code: generated.code }));
-        return err("AUTH_PROVIDER_ERROR", "Could not send the sign-in code", 502, traceId);
-      }
-
+    // Supabase remains the authentication authority. Generate its OTP once and use
+    // Resend as the primary transport so a broken Supabase SMTP configuration does
+    // not add latency or become a single point of failure.
+    const generated = await generateEmailOtp(email);
+    if (generated.ok) {
       const delivery = await sendEmail(
         email,
-        "Career Gate - Staff Sign-In Code رمز تسجيل دخول الموظفين",
+        "Career Gate — Staff Sign-In Code | رمز تسجيل دخول الموظفين",
         `CAREER GATE\n\nStaff Sign-In Code / رمز تسجيل دخول الموظفين\n\n${generated.data.email_otp}\n\nThis code is temporary. If you did not request it, ignore this email.\nهذا الرمز مؤقت. إذا لم تطلب تسجيل الدخول، تجاهل هذه الرسالة.`,
       );
-      if (delivery.status !== "sent") {
-        console.error(JSON.stringify({
-          trace_id: traceId,
-          route: "/api/staff/auth/login",
-          result: "fallback_delivery_failed",
-          provider: delivery.provider,
-          delivery_status: delivery.status,
-        }));
-        return err(delivery.status === "not_configured" ? "NOT_CONFIGURED" : "AUTH_PROVIDER_ERROR", "Could not send the sign-in code", delivery.status === "not_configured" ? 503 : 502, traceId);
+
+      if (delivery.status === "sent") {
+        console.info(JSON.stringify({ trace_id: traceId, route: ROUTE, result: "otp_delivery_sent", provider: delivery.provider }));
+        return ok({ message: GENERIC }, 200, traceId);
       }
 
-      console.info(JSON.stringify({ trace_id: traceId, route: "/api/staff/auth/login", result: "fallback_delivery_sent", provider: delivery.provider }));
+      console.warn(JSON.stringify({
+        trace_id: traceId,
+        route: ROUTE,
+        result: "primary_delivery_unavailable",
+        provider: delivery.provider,
+        delivery_status: delivery.status,
+      }));
+    } else {
+      console.warn(JSON.stringify({ trace_id: traceId, route: ROUTE, result: "otp_generation_unavailable", error_code: generated.code }));
     }
+
+    // Controlled failover only. This keeps sign-in recoverable if Resend or the
+    // service-role generation path is unavailable, without changing Auth authority.
+    const fallback = await sendEmailOtp(email, true);
+    if (!fallback.ok) {
+      console.error(JSON.stringify({ trace_id: traceId, route: ROUTE, result: "all_delivery_paths_failed", error_code: fallback.code }));
+      return err(fallback.code === "NOT_CONFIGURED" ? "NOT_CONFIGURED" : "AUTH_PROVIDER_ERROR", "Could not send the sign-in code", fallback.code === "NOT_CONFIGURED" ? 503 : 502, traceId);
+    }
+
+    console.info(JSON.stringify({ trace_id: traceId, route: ROUTE, result: "otp_delivery_sent", provider: "supabase_auth_mailer" }));
   }
 
   return ok({ message: GENERIC }, 200, traceId);
