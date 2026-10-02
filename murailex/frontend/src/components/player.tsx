@@ -141,13 +141,13 @@ export function PlayerProvider({ recordingId, durationHint, children }: { record
         media: audioRef.current!,
         peaks: [peaks],
         duration: (durationMs || (peaks.length / 50) * 1000) / 1000,
-        height: 72,
+        height: window.matchMedia("(min-width: 640px)").matches ? 72 : 44,
         barWidth: 2,
         barGap: 1.5,
         barRadius: 2,
         normalize: true,
         waveColor: idle,
-        progressColor: accent,
+        progressColor: [accent, "#8f7bff"],
         cursorColor: accent,
         cursorWidth: 2,
         interact: true,
@@ -234,25 +234,26 @@ export function PlayerBar({ className }: { className?: string }) {
   const attach = useContext(AttachCtx);
   const { t } = useI18n();
   return (
-    <div className={cn("rounded-xl border border-line bg-surface p-3.5 shadow-card sm:p-4", className)}>
-      <div ref={attach ?? undefined} className="min-h-[72px] w-full cursor-pointer" dir="ltr" data-testid="waveform" />
-      <div className="mt-3 flex flex-wrap items-center gap-2" dir="ltr">
-        <Button variant="ghost" size="sm" onClick={() => p.skip(-10000)} aria-label={t("minus10")}>
-          <RotateCcw /> 10
+    <div className={cn("glass-strong rounded-2xl !bg-surface px-3 py-2.5 sm:p-4", className)}>
+      <div ref={attach ?? undefined} className="min-h-[44px] w-full cursor-pointer sm:min-h-[72px]" dir="ltr" data-testid="waveform" />
+      <div className="mt-2 flex items-center gap-1 sm:mt-3 sm:gap-2" dir="ltr">
+        <Button variant="ghost" size="sm" className="px-2 sm:px-3" onClick={() => p.skip(-10000)} aria-label={t("minus10")}>
+          <RotateCcw /> <span className="hidden sm:inline">10</span>
         </Button>
-        <Button size="icon" onClick={p.toggle} aria-label={p.playing ? "Pause" : "Play"} data-testid="play-toggle">
+        <Button size="icon" className="size-10 shrink-0 sm:size-11" onClick={p.toggle} aria-label={p.playing ? "Pause" : "Play"} data-testid="play-toggle">
           {p.playing ? <Pause className="fill-current" /> : <Play className="fill-current" />}
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => p.skip(10000)} aria-label={t("plus10")}>
-          10 <RotateCw />
+        <Button variant="ghost" size="sm" className="px-2 sm:px-3" onClick={() => p.skip(10000)} aria-label={t("plus10")}>
+          <span className="hidden sm:inline">10</span> <RotateCw />
         </Button>
-        <span className="font-mono text-xs tabular-nums text-fg-muted" data-testid="clock">
-          {fmtTime(p.timeMs, true)} / {fmtTime(p.durationMs)}
+        <span className="min-w-0 whitespace-nowrap font-mono text-[11px] tabular-nums text-fg-muted sm:text-xs" data-testid="clock">
+          <span className="hidden sm:inline">{fmtTime(p.timeMs, true)}</span>
+          <span className="sm:hidden">{fmtTime(p.timeMs)}</span> / {fmtTime(p.durationMs)}
         </span>
-        <div className="ms-auto flex items-center gap-1">
-          <span className="text-xs text-fg-subtle">{t("speed")}</span>
+        <div className="ms-auto flex shrink-0 items-center gap-1">
+          <span className="hidden text-xs text-fg-subtle sm:inline">{t("speed")}</span>
           <Select
-            className="h-8 w-[4.75rem] text-xs"
+            className="h-8 w-[3.75rem] !pe-6 !ps-2.5 text-xs sm:w-[4.75rem] sm:!pe-9 sm:!ps-3.5"
             value={p.rate}
             onChange={(e) => p.setRate(Number(e.target.value))}
             aria-label={t("speed")}
@@ -265,8 +266,8 @@ export function PlayerBar({ className }: { className?: string }) {
           </Select>
         </div>
       </div>
-      <div className="mt-2 text-xs text-fg-subtle" dir="auto">
-        {p.variant === "original" ? t("original_audio") : <span className="text-warn">{t("derived_copy")}</span>}
+      <div className={cn("mt-2 text-xs", p.variant === "original" ? "hidden text-fg-subtle sm:block" : "text-warn")} dir="auto">
+        {p.variant === "original" ? t("original_audio") : t("derived_copy")}
       </div>
     </div>
   );

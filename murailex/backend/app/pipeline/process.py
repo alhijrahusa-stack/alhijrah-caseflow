@@ -154,6 +154,7 @@ def ensure_derived(db: Session, rec: Recording, *, announce: bool = True) -> dic
     flac = os.path.join(wd, "analysis.flac")
     playback = os.path.join(wd, "playback.m4a")
     audio.derive_analysis_wav(original, analysis)
+    info = audio.with_decoded_duration(info, analysis)
     audio.derive_flac(analysis, flac)
     audio.derive_playback(original, playback)
     peaks = audio.waveform_peaks(analysis)

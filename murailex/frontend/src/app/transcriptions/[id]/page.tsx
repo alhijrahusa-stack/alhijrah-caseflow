@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Download, FileLock2, ListChecks, RefreshCcw } from "lucide-react";
+import { Check, Copy, Download, FileLock2, ListChecks, RefreshCcw } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -14,10 +14,12 @@ import { Card, CardTitle, Stat } from "@/components/ui/card";
 import { Checkbox, Input, Select } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { PageHeader } from "@/components/ui/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError } from "@/lib/api";
 import { fmtBytes, fmtTime, shortHash, textDir } from "@/lib/format";
 import { type Key, useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
+import { cn } from "@/lib/utils";
 import type { ExportInfo, ProviderRun, Recording, Revision, Translation } from "@/lib/types";
 
 type Detail = { recording: Recording; provider_runs: ProviderRun[]; job: { status: string; last_error: string | null } | null };
@@ -102,7 +104,15 @@ export default function TranscriptPage() {
   }
 
   if (!detail) {
-    return <div className="py-20 text-center text-sm text-fg-muted">{error ?? "…"}</div>;
+    if (error) return <Notice tone="danger" role="alert">{error}</Notice>;
+    return (
+      <div className="space-y-5" role="status" aria-label="Loading">
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-28 w-full rounded-2xl" />
+        <Skeleton className="h-36 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
+      </div>
+    );
   }
   const rec = detail.recording;
   const content = revision?.content;
@@ -126,23 +136,7 @@ export default function TranscriptPage() {
 
       {error && <Notice tone="danger" role="alert">{error}</Notice>}
 
-      {PROCESSING.has(rec.status) && (
-        <Card className="space-y-4">
-          <CardTitle>{t("processing")}</CardTitle>
-          <ol className="grid gap-2">
-            {STEPS.map((s, i) => {
-              const idx = STEPS.indexOf(rec.status);
-              return (
-                <li key={s} className="flex items-center gap-3 text-sm">
-                  <span className={`size-2 rounded-full ${i < idx ? "bg-ok" : i === idx ? "animate-pulse bg-primary-text" : "bg-line-strong"}`} aria-hidden />
-                  <span className={i === idx ? "font-medium text-fg" : "text-fg-subtle"}>{t(`st_${s}` as Key)}</span>
-                </li>
-              );
-            })}
-          </ol>
-          {rec.status_detail && <p className="text-xs text-fg-muted">{rec.status_detail}</p>}
-        </Card>
-      )}
+      {PROCESSING.has(rec.status) && <ProcessingCard status={rec.status} detail={rec.status_detail} since={rec.uploaded_at} durationMs={rec.duration_ms} />}
 
       {(rec.status === "failed" || rec.status === "provider_not_configured") && (
         <Card tone="danger" className="space-y-3">
@@ -224,7 +218,7 @@ export default function TranscriptPage() {
           </div>
 
           <Card className="p-3 sm:p-4">
-            <p className="px-2 pb-3 text-center text-xs text-fg-subtle">
+            <p dir="ltr" className="px-2 pb-3 text-center text-xs text-fg-subtle">
               {content.title} · {content.controlling_source}
             </p>
             <TranscriptView recordingId={id} content={content} editable={editable} query={query} speakerFilter={speaker} onChanged={load} />
@@ -512,5 +506,64 @@ function EngineSelfTests({ recordingId }: { recordingId: string }) {
       ))}
       {err && <Notice tone="danger" role="alert">{err}</Notice>}
     </div>
+  );
+}
+
+/** Live pipeline stage from the server plus real elapsed time. No estimated percentage is shown. */
+function ProcessingCard({ status, detail, since, durationMs }: { status: string; detail: string | null; since: string; durationMs: number | null }) {
+  const { t, lang } = useI18n();
+  const ar = lang === "ar";
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const h = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(h);
+  }, []);
+  const idx = STEPS.indexOf(status);
+  const elapsed = Math.max(0, now - new Date(since).getTime());
+  return (
+    <Card className="space-y-5" aria-live="polite" data-testid="processing">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <CardTitle>{t("processing")}</CardTitle>
+          <p className="mt-1 text-xs text-fg-subtle">
+            {ar ? "المعالجة تتم على هذا الجهاز؛ يمكنك إغلاق الصفحة والعودة لاحقاً." : "Processing runs on this machine; you can close this page and come back."}
+          </p>
+        </div>
+        <div className="text-end font-mono text-xs text-fg-muted" dir="ltr">
+          <div>
+            {ar ? "منذ الرفع" : "since upload"} <span className="text-fg">{fmtTime(elapsed)}</span>
+          </div>
+          {durationMs ? (
+            <div>
+              {ar ? "طول التسجيل" : "recording"} <span className="text-fg">{fmtTime(durationMs)}</span>
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <ol className="relative grid gap-3 ps-1">
+        {STEPS.map((s, i) => {
+          const done = i < idx;
+          const current = i === idx;
+          return (
+            <li key={s} className="relative flex items-center gap-3 text-sm">
+              <span
+                className={cn(
+                  "relative grid size-6 shrink-0 place-items-center rounded-full border text-[11px] font-semibold transition-colors duration-300",
+                  done && "border-ok/40 bg-ok/15 text-ok",
+                  current && "pulse-ring brand-gradient border-transparent text-white shadow-glow",
+                  !done && !current && "border-white/10 bg-white/[0.03] text-fg-subtle",
+                )}
+                aria-hidden
+              >
+                {done ? <Check className="size-3.5" /> : i + 1}
+              </span>
+              <span className={cn(current ? "font-semibold text-fg" : done ? "text-fg-muted" : "text-fg-subtle")}>{t(`st_${s}` as Key)}</span>
+              {current && <span className="ms-auto size-1.5 animate-pulse rounded-full bg-primary-text" aria-hidden />}
+            </li>
+          );
+        })}
+      </ol>
+      {detail && <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-fg-muted">{detail}</p>}
+    </Card>
   );
 }

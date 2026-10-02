@@ -87,6 +87,16 @@ def probe(path: str) -> dict[str, Any]:
     }
 
 
+def with_decoded_duration(info: dict[str, Any], decoded_wav: str) -> dict[str, Any]:
+    """Browser MediaRecorder WebM/Opus files carry no duration header, so ffprobe reports none.
+    In that case the duration is taken from the fully decoded PCM analysis copy (exact sample
+    count) and the source of the value is recorded."""
+    if info.get("duration_ms"):
+        return {**info, "duration_source": "container"}
+    decoded = probe(decoded_wav)
+    return {**info, "duration_ms": decoded["duration_ms"], "duration_source": "decoded_analysis_wav"}
+
+
 def derive_analysis_wav(src: str, dst: str) -> None:
     """16 kHz mono PCM WAV — the provider/analysis working copy."""
     _run([FFMPEG, "-nostdin", "-y", "-v", "error", "-i", src, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", dst])

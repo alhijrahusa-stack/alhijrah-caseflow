@@ -40,7 +40,8 @@ def _model(name: str) -> Any:
                 name,
                 device="cpu",
                 compute_type=s.local_asr_compute_type,
-                cpu_threads=s.local_asr_threads or (os.cpu_count() or 4),
+                # leave one core for the API/web app unless explicitly configured
+                cpu_threads=s.local_asr_threads or max(1, (os.cpu_count() or 4) - 1),
             )
         return _MODELS[key]
 

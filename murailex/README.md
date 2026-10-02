@@ -32,21 +32,34 @@ Forensic verbatim transcription for Arabic/English recordings. **The original au
 
 A provider without credentials reports **NOT CONFIGURED** (Settings → Advanced). With no primary engine configured a recording stops at `provider_not_configured`; nothing is fabricated.
 
-## Run locally (single machine, personal use)
+## Run locally (single machine + phone on the same private LAN)
 
 ```bash
-murailex/local/run-local.sh          # first run installs, initialises and builds (a few minutes)
+murailex/local/run-local.sh          # first run installs, initialises and builds
 murailex/local/run-local.sh stop
 ```
 
-Opens on `http://localhost:3000`. The admin login is printed and stored in `murailex/.local-data/secrets.env`.
+The launcher prints:
 
-- Requirements: Python 3.11+, Node.js 22+, PostgreSQL 15+ server binaries, `ffmpeg`, and `fonts-noto-core` / `fonts-dejavu-core` for PDF export.
-- `ENVIRONMENT=local` routes every Arabic locale to on-device Whisper. Primary ASR is faster-whisper `large-v3` (int8, CPU). Disputed regions are verified by faster-whisper `medium`. Audio never leaves the machine.
-- There is no on-device diarization. Speakers stay `[متحدث غير محدد]` until a person assigns them.
-- Local routing is labelled **NOT BENCHMARKED**. Each provider/model/locale route still needs a real self-test, run by an admin (`POST /api/recordings/{id}/engine-self-tests`), before processing is allowed.
-- Evidence is stored write-once under `murailex/.local-data/objects`. PostgreSQL data lives in `murailex/.local-data/pg`. Both survive restarts.
-- On a 4-core CPU, `large-v3` decodes at roughly real-time speed.
+- **Laptop:** `https://localhost:8443`
+- **Phone:** `https://<laptop-LAN-IP>:8443`, from the same Wi-Fi.
+- **One-time phone trust:** open `http://<laptop-LAN-IP>:8080/murailex-local-ca.crt` on the phone and install it as a trusted certificate.
+  - iOS: Settings → General → VPN & Device Management → install, then Settings → General → About → Certificate Trust Settings → enable.
+  - Android: Settings → Security → Encryption & credentials → Install a certificate → CA certificate.
+  - Without this, the browser shows a certificate warning. Phones only allow the microphone on HTTPS pages.
+- **Login:** the admin email is printed. The password is generated on first run and stored only in `murailex/.local-data/secrets.env` (mode 600). Neither is committed.
+
+Details:
+
+- **Network exposure:** only the HTTPS gateway (8443) and the certificate-download page (8080) listen on the LAN. API, web server and PostgreSQL bind to 127.0.0.1. Allow 8443/8080 through the laptop's firewall for the phone to connect. Set `MURAILEX_LAN_IP` if the wrong interface is detected.
+- **Requirements:** Linux (or WSL2 with port forwarding), Python 3.11+, Node.js 22+, PostgreSQL 15+ server binaries, `ffmpeg`, `openssl`, and `fonts-noto-core` / `fonts-dejavu-core` for PDF export. The first transcription downloads the Whisper models (about 4.5 GB).
+- **ASR:** `ENVIRONMENT=local` routes every Arabic locale to on-device faster-whisper `large-v3` (int8, CPU) as the primary engine. faster-whisper `medium` verifies disputed regions.
+  - Decoding has no VAD, no no-speech skipping and no prompt, so no part of the recording is silently dropped.
+  - Audio never leaves the machine.
+  - The worker runs at lower CPU priority and leaves one core free so the UI stays responsive during transcription.
+- **Speakers:** there is no on-device diarization. Speakers stay `[متحدث غير محدد]` until a person assigns them.
+- **Readiness:** local routing is labelled **NOT BENCHMARKED**. On a fresh install, upload a recording. When processing is blocked, an admin presses **Run engine self-test** on that recording, then **Retry processing**. This is a real self-test, run once per dialect route.
+- **Storage:** evidence is stored write-once under `murailex/.local-data/objects`. PostgreSQL lives in `murailex/.local-data/pg`, and the TLS material in `murailex/.local-data/tls`. All of it survives restarts.
 
 ## Run (production stack)
 

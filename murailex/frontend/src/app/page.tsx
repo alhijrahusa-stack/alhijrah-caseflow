@@ -46,8 +46,8 @@ type SendFn = (
   source: "upload" | "recording",
   storedId?: string,
 ) => Promise<void>;
-type ReadyState = { ready: boolean; checks?: { database?: { ok: boolean }; storage?: { ok: boolean } } };
-type ProviderState = { providers: { name: string; status: string; role: string; model?: string }[] };
+type ReadyState = { ready: boolean; infrastructure_ready?: boolean };
+type ProviderState = { providers: { name: string; status: string; role: string; model?: string; locale?: string }[] };
 type Active = { name: string; progress: number; error?: string; retry?: () => void };
 
 const RECORDING_TYPES: { value: RecordingType; ar: string; en: string }[] = [
@@ -78,8 +78,28 @@ export default function HomePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const sendRef = useRef<SendFn | null>(null);
   const [recording, setRecording] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [languageLocale, setLanguageLocale] = useState<ArabicLocale | "">("");
   const [recordingType, setRecordingType] = useState<RecordingType | "">("");
+
+  // Remember the last intake choices on this device (convenience only; validated on read).
+  useEffect(() => {
+    try {
+      const loc = localStorage.getItem("murailex.intake.locale");
+      const typ = localStorage.getItem("murailex.intake.type");
+      if (loc && ["ar", "ar-YE", "ar-EG", "ar-SY", "ar-LB", "ar-IQ"].includes(loc)) setLanguageLocale(loc as ArabicLocale);
+      if (typ && RECORDING_TYPES.some((x) => x.value === typ)) setRecordingType(typ as RecordingType);
+    } catch {
+      /* storage unavailable */
+    }
+  }, []);
+  const remember = (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      /* storage unavailable */
+    }
+  };
   const [expectedTermsInput, setExpectedTermsInput] = useState("");
   const [active, setActive] = useState<Active | null>(null);
   const [recent, setRecent] = useState<Recording[]>([]);
@@ -103,7 +123,9 @@ export default function HomePage() {
     }
     setPending(pendingUploads().filter((item) => !item.storedRecordingId));
     try {
-      setReady(await api<ReadyState>("/api/ready"));
+      // 503 is a normal answer here (not every route is ready); read the body either way.
+      const res = await fetch("/api/ready", { cache: "no-store", credentials: "same-origin" });
+      setReady((await res.json()) as ReadyState);
     } catch {
       setReady({ ready: false });
     }
@@ -118,11 +140,15 @@ export default function HomePage() {
     void load();
   }, [load]);
 
-  const configured = useMemo(
-    () => providers?.providers.filter((provider) => provider.status === "READY").length ?? 0,
-    [providers],
+  // Readiness that matters is the selected dialect's route, not every route on the machine.
+  const scoped = useMemo(
+    () => (providers?.providers ?? []).filter((provider) => !languageLocale || provider.locale === languageLocale),
+    [providers, languageLocale],
   );
-  const providerTotal = providers?.providers.length ?? 0;
+  const configured = scoped.filter((provider) => provider.status === "READY").length;
+  const providerTotal = scoped.length;
+  const infraOk = ready ? (ready.infrastructure_ready ?? ready.ready) : null;
+  const localeReady = !!languageLocale && providerTotal > 0 && configured === providerTotal;
   const expectedTerms = useMemo(
     () =>
       expectedTermsInput
@@ -212,6 +238,10 @@ export default function HomePage() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    startFile(file);
+  }
+
+  function startFile(file: File) {
     const title = file.name.replace(/\.[^.]+$/, "");
     const match = pendingUploads().find((item) => item.name === file.name && item.size === file.size);
     if (match) forgetPending(match.fingerprint);
@@ -228,19 +258,31 @@ export default function HomePage() {
     return false;
   };
 
-  const systemTone = ready?.ready ? "ok" : ready === null ? "neutral" : "warn";
+  const systemTone =
+    ready === null ? "neutral" : !infraOk ? "warn" : !languageLocale ? (ready.ready ? "ok" : "neutral") : localeReady ? "ok" : "warn";
+  const systemTitle =
+    ready === null
+      ? rtl ? "جارٍ فحص النظام" : "Checking system"
+      : !infraOk
+        ? rtl ? "يتطلب النظام مراجعة" : "System requires attention"
+        : !languageLocale
+          ? rtl ? "البنية التشغيلية متصلة — اختر اللهجة" : "Core system online — choose a dialect"
+          : localeReady
+            ? rtl ? `جاهز للمعالجة — ${languageLocale}` : `Ready to process — ${languageLocale}`
+            : rtl ? `محركات ${languageLocale} تحتاج اختباراً ذاتياً` : `${languageLocale} engines need a self-test`;
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6 rise-in">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="text-sm text-fg-subtle">{greeting(rtl)}</div>
-          <h1 className="mt-1 text-2xl font-semibold text-fg sm:text-[28px]">
+          <h1 className="text-gradient mt-1 text-[26px] font-bold tracking-tight sm:text-[32px]">
             {rtl ? "جاهز لمعالجة تسجيل جديد؟" : "Ready for a new recording?"}
           </h1>
           <p className="mt-1.5 text-sm text-fg-muted">{t("controlling")}</p>
+          <p className="mt-1 text-xs text-fg-subtle sm:hidden">مكتب الهجره — عبدالله المريسي</p>
         </div>
-        <div className="flex items-start gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-xs leading-5 text-fg-muted">
+        <div className="glass hidden items-start gap-3 rounded-2xl px-4 py-3 text-xs leading-5 text-fg-muted sm:flex">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-ok" />
           <div>
             <div className="eyebrow">{rtl ? "التشغيل" : "Operated by"}</div>
@@ -251,7 +293,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      <Card className="p-0">
+      <Card className="p-0 sm:p-0">
         <div className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <span
@@ -263,17 +305,7 @@ export default function HomePage() {
             />
             <div className="min-w-0">
               <div className="text-sm font-semibold text-fg" role="status">
-                {ready?.ready
-                  ? rtl
-                    ? "البنية التشغيلية متصلة"
-                    : "Core system online"
-                  : ready === null
-                    ? rtl
-                      ? "جارٍ فحص النظام"
-                      : "Checking system"
-                    : rtl
-                      ? "يتطلب النظام مراجعة"
-                      : "System requires attention"}
+                {systemTitle}
               </div>
               <div className="mt-0.5 truncate text-xs text-fg-subtle">
                 {rtl
@@ -329,7 +361,7 @@ export default function HomePage() {
               aria-valuemax={100}
               aria-valuenow={Math.round(active.progress * 100)}
             >
-              <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${active.progress * 100}%` }} />
+              <div className="brand-gradient h-full rounded-full shadow-glow transition-[width] duration-300 ease-out" style={{ width: `${active.progress * 100}%` }} />
             </div>
             {active.error ? (
               <Notice tone="danger" role="alert">
@@ -352,7 +384,7 @@ export default function HomePage() {
             )}
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="flex flex-col gap-6">
             <div>
               <h2 className="text-base font-semibold text-fg">{rtl ? "تسجيل أو رفع ملف صوتي" : "Record or upload audio"}</h2>
               <p className="mt-1 text-sm text-fg-muted">
@@ -362,7 +394,10 @@ export default function HomePage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={rtl ? "اللغة / اللهجة — إلزامي" : "Language / locale — required"}>
-                <Select value={languageLocale} onChange={(event) => setLanguageLocale(event.target.value as ArabicLocale)} className="h-11">
+                <Select value={languageLocale} onChange={(event) => {
+                  setLanguageLocale(event.target.value as ArabicLocale);
+                  remember("murailex.intake.locale", event.target.value);
+                }} className="h-11">
                   <option value="" disabled>{rtl ? "اختر اللغة/اللهجة" : "Select language/locale"}</option>
                   <option value="ar">العربية العامة / الفصحى / المختلطة — ar</option>
                   <option value="ar-YE">العربية اليمنية — ar-YE</option>
@@ -373,7 +408,10 @@ export default function HomePage() {
                 </Select>
               </Field>
               <Field label={rtl ? "نوع التسجيل — إلزامي" : "Recording type — required"}>
-                <Select value={recordingType} onChange={(event) => setRecordingType(event.target.value as RecordingType)} className="h-11">
+                <Select value={recordingType} onChange={(event) => {
+                  setRecordingType(event.target.value as RecordingType);
+                  remember("murailex.intake.type", event.target.value);
+                }} className="h-11">
                   <option value="" disabled>{rtl ? "اختر نوع التسجيل" : "Select recording type"}</option>
                   {RECORDING_TYPES.map((type) => (
                     <option key={type.value} value={type.value}>{rtl ? type.ar : type.en}</option>
@@ -391,39 +429,64 @@ export default function HomePage() {
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 rounded-lg border border-line bg-surface-2/60 p-3.5 sm:grid-cols-4">
+            <div className="hidden grid-cols-4 gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3.5 sm:grid">
               <Stat label="Version">Draft v1</Stat>
               <Stat label="Locale"><span dir="ltr">{languageLocale || "—"}</span></Stat>
               <Stat label="Type"><span dir="ltr">{recordingType || "—"}</span></Stat>
               <Stat label="Engines"><span dir="ltr">{configured} / {providerTotal || "—"}</span></Stat>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[auto_1fr_1fr] sm:items-stretch">
-              <Button
-                size="lg"
-                className="h-14 px-8"
+            <div
+              className={cn(
+                "grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,14rem)_1fr]",
+                // once the intake choices are set (remembered per device), put the actions first on phones
+                languageLocale && recordingType && "order-first sm:order-none",
+              )}
+            >
+              <button
+                type="button"
                 onClick={() => {
                   if (guardIntake(rtl ? "تسجيل جديد" : "New recording")) setRecording(true);
                 }}
                 aria-label={t("record")}
+                className="lift group flex flex-col items-center justify-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-5 text-fg sm:gap-3 sm:px-4 sm:py-6 hover:border-white/20 hover:bg-white/[0.07] focus-visible:outline-2 focus-visible:outline-primary-text"
               >
-                <Mic className="!size-5" /> {t("record")}
-              </Button>
-              <Button
-                size="lg"
-                variant="secondary"
-                className="h-14"
+                <span className="pulse-ring brand-gradient relative grid size-16 place-items-center rounded-full sm:size-[76px] text-white shadow-glow transition-transform duration-200 group-hover:scale-105 group-active:scale-95">
+                  <Mic className="size-8" strokeWidth={1.9} />
+                </span>
+                <span className="text-[15px] font-semibold">{t("record")}</span>
+                <span className="hidden text-xs text-fg-subtle sm:block">{rtl ? "من ميكروفون هذا الجهاز" : "From this device's microphone"}</span>
+              </button>
+              <button
+                type="button"
+                data-testid="dropzone"
                 onClick={() => {
                   if (guardIntake(rtl ? "رفع ملف" : "Upload audio")) fileRef.current?.click();
                 }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDragging(false);
+                  const file = event.dataTransfer.files?.[0];
+                  if (file && guardIntake(file.name)) startFile(file);
+                }}
+                className={cn(
+                  "lift flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-3 py-5 text-center sm:px-4 sm:py-6 focus-visible:outline-2 focus-visible:outline-primary-text",
+                  dragging ? "border-primary-text bg-primary/15" : "border-white/15 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]",
+                )}
               >
-                <UploadCloud className="!size-5 text-primary-text" /> {t("upload")}
-              </Button>
-              <Button asChild size="lg" variant="secondary" className="h-14">
-                <Link href="/transcriptions">
-                  <FileAudio2 className="!size-5 text-primary-text" /> {t("transcriptions")}
-                </Link>
-              </Button>
+                <span className="grid size-16 place-items-center rounded-2xl bg-white/[0.06] text-primary-text sm:size-12">
+                  <UploadCloud className="size-6" />
+                </span>
+                <span className="text-[15px] font-semibold text-fg">{t("upload")}</span>
+                <span className="hidden text-xs text-fg-subtle sm:block">
+                  {rtl ? "اسحب الملف هنا أو اضغط للاختيار — MP3، M4A، WAV، OGG، وغيرها" : "Drop a file here or tap to choose — MP3, M4A, WAV, OGG and more"}
+                </span>
+              </button>
             </div>
             <input
               ref={fileRef}

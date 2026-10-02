@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { rowClass } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
+import { RowSkeletons } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { fmtTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -28,7 +29,7 @@ export default function TranscriptionsPage() {
     <div className="space-y-5 fade-in">
       <PageHeader title={t("transcriptions")} />
       <Input type="search" aria-label={t("search")} placeholder={t("search")} value={q} onChange={(e) => setQ(e.target.value)} dir="auto" />
-      {items === null && <p className="py-10 text-center text-sm text-fg-subtle">…</p>}
+      {items === null && <RowSkeletons count={4} />}
       {items && shown.length === 0 && <p className="py-10 text-center text-sm text-fg-muted">{t("no_recordings")}</p>}
       <div className="space-y-2.5">
         {shown.map((r) => (

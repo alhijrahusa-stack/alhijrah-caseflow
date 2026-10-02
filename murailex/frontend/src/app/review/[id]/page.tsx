@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox, Textarea } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { PageHeader } from "@/components/ui/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError } from "@/lib/api";
 import { fmtTime, textDir } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -177,7 +178,14 @@ export default function ReviewPage() {
     api<{ peaks: number[] }>(`/api/recordings/${id}/peaks`).then((p) => setPeaks(p.peaks)).catch(() => setPeaks(null));
   }, [id, load]);
 
-  if (!rec) return <div className="py-20 text-center text-sm text-fg-subtle">…</div>;
+  if (!rec)
+    return (
+      <div className="space-y-5" role="status" aria-label="Loading">
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-36 w-full rounded-2xl" />
+        <Skeleton className="h-56 w-full rounded-2xl" />
+      </div>
+    );
   const open = disputes.filter((d) => d.status === "open");
   const shown = showResolved ? disputes : open;
   return (

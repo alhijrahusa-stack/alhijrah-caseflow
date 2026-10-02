@@ -19,7 +19,7 @@ const NAV = [
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-fg" aria-hidden>
+      <span className="brand-gradient grid size-8 place-items-center rounded-xl text-primary-fg shadow-glow" aria-hidden>
         <ShieldCheck className="size-[18px]" strokeWidth={2} />
       </span>
       <span className="text-[17px] font-bold tracking-[0.14em] text-fg" dir="ltr">MURAILEX</span>
@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
-      <aside className="hidden border-e border-line bg-surface lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:px-4 lg:py-5">
+      <aside className="glass-strong hidden !border-y-0 !border-s-0 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:px-4 lg:py-5">
         <Link href="/" className="mb-8 block rounded-lg px-2 py-1">
           <Wordmark />
           <div className="mt-2 ps-[42px] text-xs text-fg-subtle">{rtl ? "الذكاء الجنائي للصوت" : "Forensic Audio Intelligence"}</div>
@@ -72,7 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               aria-current={active(href) ? "page" : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors duration-150",
-                active(href) ? "bg-surface-3 font-semibold text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+                active(href) ? "bg-white/[0.08] font-semibold text-fg shadow-[inset_0_1px_0_rgb(255_255_255/0.06)]" : "text-fg-muted hover:bg-white/[0.05] hover:text-fg",
               )}
             >
               <Icon className={cn("size-[18px]", active(href) ? "text-primary-text" : "text-fg-subtle")} />
@@ -102,7 +102,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         )}
 
-        <header className="sticky top-0 z-30 flex h-14 items-center border-b border-line bg-canvas/95 px-4 backdrop-blur lg:hidden">
+        <header className="glass-strong !bg-canvas/[0.97] sticky top-0 z-30 flex h-14 items-center !border-x-0 !border-t-0 px-4 lg:hidden">
           <Link href="/">
             <Wordmark />
           </Link>
@@ -111,7 +111,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">{children}</main>
       </div>
 
-      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur lg:hidden" aria-label="Primary">
+      <nav className="glass-strong !bg-canvas/[0.97] safe-bottom fixed inset-x-0 bottom-0 z-40 !border-x-0 !border-b-0 lg:hidden" aria-label="Primary">
         <div className="mx-auto grid max-w-md grid-cols-4">
           {NAV.map(({ href, key, icon: Icon }) => (
             <Link
@@ -119,7 +119,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               href={href}
               aria-current={active(href) ? "page" : undefined}
               className={cn(
-                "relative flex flex-col items-center gap-1 pb-1 pt-2.5 text-[11px] font-medium transition-colors",
+                "relative flex min-h-14 flex-col items-center justify-center gap-1 pb-1 pt-2 text-[11px] font-medium transition-colors touch-manipulation",
                 active(href) ? "text-primary-text" : "text-fg-subtle",
               )}
             >

@@ -3,12 +3,12 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const cardVariants = cva("rounded-xl border p-5 sm:p-6", {
+const cardVariants = cva("rounded-2xl border p-5 sm:p-6", {
   variants: {
     tone: {
-      default: "border-line bg-surface shadow-card",
-      warn: "border-warn/35 bg-surface shadow-card",
-      danger: "border-danger/35 bg-surface shadow-card",
+      default: "glass",
+      warn: "glass !border-warn/35",
+      danger: "glass !border-danger/35",
     },
   },
   defaultVariants: { tone: "default" },
@@ -24,7 +24,7 @@ export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHead
 
 /** Interactive list row used for recordings and review queue entries. */
 export const rowClass =
-  "flex items-center gap-4 rounded-xl border border-line bg-surface p-4 transition-colors duration-150 hover:border-line-strong hover:bg-surface-2";
+  "glass lift flex items-center gap-4 rounded-2xl p-4 hover:!border-white/15 hover:!bg-surface-2/80 focus-visible:!border-primary-text";
 
 /** Bordered inner block inside a card. */
 export const insetClass = "rounded-lg border border-line bg-surface-2/60";

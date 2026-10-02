@@ -173,7 +173,7 @@ export function Recorder({ onFinished, onCancel }: Props) {
         </div>
       </div>
 
-      <div className="flex h-24 w-full max-w-2xl items-center justify-center rounded-lg border border-line bg-surface-2/60 px-4" aria-hidden dir="ltr">
+      <div className="glass flex h-24 w-full max-w-2xl items-center justify-center rounded-2xl px-4" aria-hidden dir="ltr">
         <div className="flex h-16 w-full items-center justify-center gap-[3px]">
           {Array.from({ length: 60 }, (_, i) => {
             const phase = Math.sin((i + elapsed / 105) * 0.52) ** 2;
@@ -182,7 +182,7 @@ export function Recorder({ onFinished, onCancel }: Props) {
             return (
               <span
                 key={i}
-                className="w-[3px] rounded-full bg-danger transition-[height,opacity] duration-75"
+                className="w-[3px] rounded-full bg-gradient-to-t from-danger-solid to-danger transition-[height,opacity] duration-75"
                 style={{ height: `${h * 100}%`, opacity: state === "paused" ? 0.3 : 0.55 + h * 0.45 }}
               />
             );
@@ -194,7 +194,7 @@ export function Recorder({ onFinished, onCancel }: Props) {
         <Button variant="secondary" size="icon" className="size-12" onClick={discard} aria-label={t("discard")}>
           <Trash2 />
         </Button>
-        <Button size="lg" variant="destructive" className="h-14 px-8" onClick={stop} disabled={state === "starting"}>
+        <Button size="lg" variant="destructive" className="h-14 rounded-full px-8 shadow-[0_10px_30px_-10px_rgb(201_60_60/0.7)]" onClick={stop} disabled={state === "starting"}>
           <Square className="fill-current" /> {rtl ? "إنهاء" : "Done"}
         </Button>
         <Button variant="secondary" size="icon" className="size-12" onClick={pause} aria-label={state === "paused" ? t("resume") : t("pause")}>

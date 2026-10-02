@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { rowClass } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { RowSkeletons } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { fmtTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -20,7 +21,7 @@ export default function ReviewQueue() {
   return (
     <div className="space-y-5 fade-in">
       <PageHeader title={t("review")} />
-      {items === null && <p className="py-10 text-center text-sm text-fg-subtle">…</p>}
+      {items === null && <RowSkeletons count={3} />}
       {items && items.length === 0 && <p className="py-10 text-center text-sm text-fg-muted">{t("no_open_regions")}</p>}
       <div className="space-y-2.5">
         {items?.map((r) => (

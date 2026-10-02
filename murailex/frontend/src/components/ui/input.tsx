@@ -4,10 +4,10 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const fieldClass =
-  "w-full rounded-lg border border-line-strong bg-surface-2 text-[15px] text-fg outline-none transition-colors duration-150 placeholder:text-fg-subtle hover:border-fg-subtle/50 focus:border-primary-text focus:ring-2 focus:ring-primary/30 disabled:opacity-50";
+  "w-full rounded-xl border border-white/10 bg-surface-2/80 text-[15px] text-fg outline-none transition-colors duration-150 placeholder:text-fg-subtle hover:border-fg-subtle/50 focus:border-primary-text focus:ring-2 focus:ring-primary/30 disabled:opacity-50";
 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(({ className, ...props }, ref) => (
-  <input ref={ref} className={cn(fieldClass, "h-10 px-3.5", className)} {...props} />
+  <input ref={ref} className={cn(fieldClass, "h-11 px-3.5", className)} {...props} />
 ));
 Input.displayName = "Input";
 
@@ -20,10 +20,10 @@ Textarea.displayName = "Textarea";
 export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement> & { wrapperClassName?: string }>(
   ({ className, wrapperClassName, children, ...props }, ref) => (
     <div className={cn("relative", wrapperClassName)}>
-      <select ref={ref} className={cn(fieldClass, "h-10 appearance-none pe-9 ps-3.5 text-sm", className)} {...props}>
+      <select ref={ref} className={cn(fieldClass, "h-11 appearance-none pe-9 ps-3.5 text-sm", className)} {...props}>
         {children}
       </select>
-      <ChevronDown className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
+      <ChevronDown className="pointer-events-none absolute end-2.5 top-1/2 size-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
     </div>
   ),
 );
