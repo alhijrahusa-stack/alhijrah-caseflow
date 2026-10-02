@@ -122,7 +122,7 @@ export async function findClientIdentityMatches(
       order by c.created_at${lockClause}`,
     [identity.email, identity.phone],
   );
-  return rows as ClientIdentityMatch[];
+  return rows as unknown as ClientIdentityMatch[];
 }
 
 /** Inserts the client, history and preferences in the caller's transaction. */
