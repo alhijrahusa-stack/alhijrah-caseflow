@@ -33,6 +33,7 @@ export type Item = {
   source: string;
   provenance: Provenance[];
   dispute_id?: string;
+  evidence_state?: "CONFIRMED" | "LOW_CONFIDENCE" | "UNINTELLIGIBLE" | "DISPUTED" | "SILENCE";
 };
 
 export type Segment = { id: string; speaker: string | null; start_ms: number; end_ms: number; items: Item[] };

@@ -56,7 +56,9 @@ def _users(db: Session) -> dict[uuid.UUID, str]:
 
 @router.get("/recordings")
 def list_recordings(p: Principal = Depends(current_principal), db: Session = Depends(get_db), q: str | None = None):
-    stmt = select(Recording).order_by(Recording.created_at.desc())
+    stmt = select(Recording).where(
+        or_(Recording.recording_type.is_(None), Recording.recording_type != "system_canary")
+    ).order_by(Recording.created_at.desc())
     if not p.is_admin:
         shared = select(RecordingAccess.recording_id).where(RecordingAccess.user_id == p.user.id)
         stmt = stmt.where(or_(Recording.owner_id == p.user.id, Recording.id.in_(shared)))

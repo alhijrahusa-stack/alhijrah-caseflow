@@ -149,6 +149,18 @@ def enforce_processing_preflight(
                 "required_environment_variables": state["required_environment_variables"],
             }
         )
+    if blocked and registry.local_mode():
+        from .local_canary import pending_self_test
+        from .pipeline.process import Wait
+
+        if all(
+            pending_self_test(db, row["provider"], row["model"], locale, row["role"]) for row in blocked
+        ):
+            # Automatic engine validation is running; wait for it instead of failing the upload.
+            rec.status = "queued"
+            rec.status_detail = "Waiting for automatic engine validation"
+            db.commit()
+            raise Wait(15.0, "engine self-test in progress")
     if blocked:
         _block(
             db,

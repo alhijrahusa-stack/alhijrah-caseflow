@@ -80,7 +80,7 @@ export async function resumableUpload(
     recordingType: RecordingType;
     expectedTerms?: string[];
     expectedSpeakers?: number;
-    onProgress?: (fraction: number) => void;
+    onProgress?: (fraction: number, sentBytes: number, totalBytes: number) => void;
     signal?: AbortSignal;
   },
 ): Promise<Recording> {
@@ -115,9 +115,13 @@ export async function resumableUpload(
 
   const done = new Set(session.received_parts);
   let sent = session.received_bytes;
-  opts.onProgress?.(sent / blob.size);
-  for (let number = 1; number <= session.total_parts; number++) {
-    if (done.has(number)) continue;
+  opts.onProgress?.(sent / blob.size, sent, blob.size);
+  const todo: number[] = [];
+  for (let number = 1; number <= session.total_parts; number++) if (!done.has(number)) todo.push(number);
+
+  // Up to three chunks in flight: each is hashed, sent and acknowledged independently, and a
+  // failed chunk is retried on its own (the server rejects a chunk whose SHA-256 differs).
+  const sendPart = async (number: number) => {
     const start = (number - 1) * session.chunk_size;
     const chunk = blob.slice(start, Math.min(blob.size, start + session.chunk_size));
     const buffer = await chunk.arrayBuffer();
@@ -145,8 +149,16 @@ export async function resumableUpload(
       }
     }
     sent += chunk.size;
-    opts.onProgress?.(sent / blob.size);
-  }
+    opts.onProgress?.(sent / blob.size, sent, blob.size);
+  };
+  let cursor = 0;
+  const lane = async () => {
+    while (cursor < todo.length) {
+      const number = todo[cursor++];
+      await sendPart(number);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, todo.length) }, lane));
   const result = await api<{ recording: Recording }>(`/api/uploads/${session.id}/complete`, {
     method: "POST",
   });

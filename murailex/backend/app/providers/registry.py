@@ -328,13 +328,18 @@ def engine_state(
         elif latest.status == "READY":
             meta = latest.response_metadata or {}
             fingerprint = credential_fingerprint(spec.provider)
+            tested_engine = (meta.get("parameters") or {}).get("engine_fingerprint")
             if (
                 latest.provider_run_id
                 and latest.completed_at
                 and meta.get("actual_persisted_model") == spec.model
                 and meta.get("credential_fingerprint") == fingerprint
+                and tested_engine == spec.params.get("engine_fingerprint")
             ):
                 status = "READY"
+            elif tested_engine != spec.params.get("engine_fingerprint"):
+                status = "BLOCKED"
+                blocker = "Engine version, model revision or decode configuration changed since the last real self-test."
             else:
                 status = "FAILED"
                 blocker = "Persisted READY evidence does not match the exact model or current credential."

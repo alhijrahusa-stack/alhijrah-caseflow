@@ -4,8 +4,8 @@ import { AlertTriangle, Check, Copy, FileText, Pencil, Sparkles, UserRound } fro
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { ExecutiveSummary } from "@/components/executive-summary";
 import { usePlayer } from "@/components/player";
+import { SummaryPanel } from "@/components/summary-panel";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
@@ -13,12 +13,12 @@ import { Notice } from "@/components/ui/notice";
 import { api, ApiError } from "@/lib/api";
 import { fmtTime, textDir } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import type { Content, Item, Recording, Segment } from "@/lib/types";
+import type { Content, Item, Segment } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const MARKERS = new Set(["[غير مسموع]", "[اسم غير واضح]", "[رقم غير واضح]", "[تداخل]", "[صمت]"]);
 // Each speaker colour meets ≥ 4.5:1 contrast on every surface token.
-const SPEAKER_COLORS = ["#A3AEFF", "#22D3EE", "#34D399", "#FBBF24", "#F472B6", "#C4B5FD"];
+const SPEAKER_COLORS = ["#E9CB8A", "#22D3EE", "#34D399", "#C4B5FD", "#F472B6", "#A3AEFF"];
 
 export function segmentText(seg: Segment): string {
   return seg.items.map((i) => (i.kind === "dispute" ? "" : i.text)).filter(Boolean).join(" ");
@@ -46,11 +46,12 @@ function Token({ item, recordingId, onSeek, query }: { item: Item; recordingId: 
         role="button"
         tabIndex={-1}
         onClick={() => onSeek(item.start_ms)}
-        title={risky ? item.risks.join(", ") : undefined}
+        title={risky ? item.risks.join(", ") : item.evidence_state === "LOW_CONFIDENCE" ? "LOW_CONFIDENCE — not confirmed by the independent verifier" : undefined}
         className={cn(
           "cursor-pointer rounded-sm transition-colors duration-150 hover:bg-primary/15",
           isMarker && "mx-0.5 rounded-md border border-line-strong bg-surface-3 px-1.5 text-[0.92em] text-fg-muted",
           risky && !isMarker && "underline decoration-warn/80 decoration-dotted underline-offset-4",
+          item.evidence_state === "LOW_CONFIDENCE" && !risky && "text-fg-muted underline decoration-fg-subtle/60 decoration-dotted underline-offset-[6px]",
           item.source === "human" && "decoration-primary-text",
           highlighted && "bg-warn/25 text-fg",
         )}
@@ -68,8 +69,10 @@ export function TranscriptView({
   query,
   speakerFilter,
   onChanged,
+  revision,
 }: {
   recordingId: string;
+  revision?: { id: string; status: string; number: number };
   content: Content;
   editable: boolean;
   query: string;
@@ -83,7 +86,7 @@ export function TranscriptView({
   const [draft, setDraft] = useState("");
   const [speakerFor, setSpeakerFor] = useState<Segment | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<"summary" | "transcript">("summary");
+  const [view, setView] = useState<"summary" | "transcript">("transcript");
   const [copied, setCopied] = useState(false);
 
   const segments = useMemo(() => {
@@ -165,11 +168,9 @@ export function TranscriptView({
       </div>
 
       {view === "summary" ? (
-        <ExecutiveSummary
-          content={content}
-          recording={{ duration_ms: content.recording.duration_ms } as Recording}
-          rtl={rtl}
-        />
+        revision ? (
+          <SummaryPanel recordingId={recordingId} revision={revision} rtl={rtl} onSeek={(ms) => player.seek(ms, true)} />
+        ) : null
       ) : (
         <div className="fade-in space-y-3">
           <div className="flex justify-end">
@@ -198,7 +199,10 @@ export function TranscriptView({
                 >
                   <span className="absolute inset-y-3 start-0 w-[3px] rounded-full" style={{ background: color }} aria-hidden />
                   <div className="mb-1.5 flex items-center gap-2 text-xs">
-                    <button className="font-mono tabular-nums text-primary-text hover:underline" dir="ltr" onClick={() => player.seek(seg.start_ms, true)}>
+                    <button className="font-mono tabular-nums text-primary-text hover:underline" dir="ltr" onClick={() => {
+                        player.highlight(seg.start_ms, seg.end_ms);
+                        player.seek(seg.start_ms, true);
+                      }}>
                       {fmtTime(seg.start_ms)}
                     </button>
                     {label && (

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from .. import audio, audit, jobs, storage
 from ..config import get_settings
@@ -158,14 +159,15 @@ async def put_part(
     data = await request.body()
     if len(data) != expected:
         raise HTTPException(422, f"Part {part_number} must be exactly {expected} bytes.")
-    digest = hashlib.sha256(data).hexdigest()
+    digest = await run_in_threadpool(lambda: hashlib.sha256(data).hexdigest())
     claimed = request.headers.get("x-chunk-sha256")
     if claimed and claimed.lower() != digest:
         raise HTTPException(422, "Chunk checksum mismatch; resend this part.")
     if part_number == 1 and audio.sniff_mime(data[:64]) is None:
         raise HTTPException(415, "File content is not a recognised audio container.")
 
-    etag = storage.upload_part(session.storage_key, session.s3_upload_id, part_number, data)
+    # Blocking I/O off the event loop so other requests stay responsive during uploads.
+    etag = await run_in_threadpool(storage.upload_part, session.storage_key, session.s3_upload_id, part_number, data)
     session = _own_session(db, p, upload_id, lock=True)
     parts = dict(session.parts)
     parts[str(part_number)] = {"etag": etag, "size": len(data), "sha256": digest}

@@ -19,6 +19,12 @@ def _preload_local_models() -> None:
             log.info("local ASR model ready: %s", name)
         except Exception as exc:  # noqa: BLE001 - surfaced again, with context, by the first job
             log.error("local ASR model %s failed to load: %s: %s", name, type(exc).__name__, exc)
+    try:
+        from .local_canary import ensure_engine_self_tests
+
+        ensure_engine_self_tests()
+    except Exception:  # noqa: BLE001 - validation can still be requested from the UI
+        log.exception("automatic engine self-test scheduling failed")
 
 
 if __name__ == "__main__":

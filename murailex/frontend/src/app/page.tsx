@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, rowClass, Stat } from "@/components/ui/card";
 import { Field, Input, Select } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
+import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
 import { fmtBytes, fmtTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -48,7 +49,7 @@ type SendFn = (
 ) => Promise<void>;
 type ReadyState = { ready: boolean; infrastructure_ready?: boolean };
 type ProviderState = { providers: { name: string; status: string; role: string; model?: string; locale?: string }[] };
-type Active = { name: string; progress: number; error?: string; retry?: () => void };
+type Active = { name: string; progress: number; sent?: number; total?: number; error?: string; retry?: () => void };
 
 const RECORDING_TYPES: { value: RecordingType; ar: string; en: string }[] = [
   { value: "interrogation", ar: "استجواب", en: "Interrogation" },
@@ -75,6 +76,7 @@ export default function HomePage() {
   const { t, dir } = useI18n();
   const rtl = dir === "rtl";
   const router = useRouter();
+  const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const sendRef = useRef<SendFn | null>(null);
   const [recording, setRecording] = useState(false);
@@ -193,10 +195,11 @@ export default function HomePage() {
           languageLocale,
           recordingType,
           expectedTerms,
-          onProgress: (progress) => setActive({ name, progress }),
+          onProgress: (progress, sentBytes, totalBytes) => setActive({ name, progress, sent: sentBytes, total: totalBytes }),
         });
         if (storedId) await recordingsStore.remove(storedId);
         setActive(null);
+        toast(rtl ? "تم الرفع والتحقق من بصمة SHA-256" : "Uploaded — SHA-256 verified");
         router.push(`/transcriptions/${rec.id}`);
       } catch (error) {
         const retry = () => void sendRef.current?.(blob, name, title, source, storedId);
@@ -208,7 +211,7 @@ export default function HomePage() {
         });
       }
     },
-    [expectedTerms, languageLocale, recordingType, router, rtl, t],
+    [expectedTerms, languageLocale, recordingType, router, rtl, t, toast],
   );
 
   useEffect(() => {
@@ -380,7 +383,14 @@ export default function HomePage() {
                 </div>
               </Notice>
             ) : (
-              <p className="text-center text-xs text-fg-subtle">{t("uploading")}…</p>
+              <p className="text-center text-xs text-fg-subtle" dir="auto">
+                {t("uploading")}…{" "}
+                {active.total ? (
+                  <span className="font-mono" dir="ltr">
+                    {fmtBytes(active.sent ?? 0)} / {fmtBytes(active.total)}
+                  </span>
+                ) : null}
+              </p>
             )}
           </div>
         ) : (

@@ -134,7 +134,7 @@ export function PlayerProvider({ recordingId, durationHint, children }: { record
       if (destroyed) return;
       const regions = Regions.create();
       const css = getComputedStyle(document.documentElement);
-      const accent = css.getPropertyValue("--color-primary-text").trim() || "#a3aeff";
+      const accent = css.getPropertyValue("--color-primary-text").trim() || "#e9cb8a";
       const idle = css.getPropertyValue("--color-line-strong").trim() || "#364056";
       const ws = WS.create({
         container,
@@ -147,7 +147,7 @@ export function PlayerProvider({ recordingId, durationHint, children }: { record
         barRadius: 2,
         normalize: true,
         waveColor: idle,
-        progressColor: [accent, "#8f7bff"],
+        progressColor: [accent, "#c4a15c"],
         cursorColor: accent,
         cursorWidth: 2,
         interact: true,

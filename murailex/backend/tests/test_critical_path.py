@@ -316,6 +316,18 @@ def test_full_critical_path(app_client, users, fixture_providers):
     for line in archive.read(f"{prefix}/SHA256SUMS.txt").decode().splitlines():
         digest, name = line.split("  ", 1)
         assert hashlib.sha256(archive.read(f"{prefix}/{name}")).hexdigest() == digest
+    # Ed25519 signature over manifest.json, verifiable with the bundled public key only
+    from app import signing
+
+    manifest_bytes = archive.read(f"{prefix}/manifest.json")
+    signature = archive.read(f"{prefix}/manifest.sig")
+    public_pem = archive.read(f"{prefix}/public-key.pem")
+    assert len(signature) == 64
+    assert signing.verify(public_pem, manifest_bytes, signature)
+    assert not signing.verify(public_pem, manifest_bytes.replace(b'"', b"'", 1), signature)
+    assert manifest["signature"]["algorithm"] == "Ed25519"
+    sums = archive.read(f"{prefix}/SHA256SUMS.txt").decode()
+    assert "  manifest.sig" in sums and "  public-key.pem" in sums and "  manifest.json" in sums
     for name in archive.namelist():
         assert b"Certified Transcript" not in archive.read(name)
     runs = json.loads(archive.read(f"{prefix}/provider_runs.json"))

@@ -28,8 +28,12 @@ from ..providers import registry
 from ..providers.base import AsrAdapter, NotConfigured, Pending, ProviderError
 from . import consensus as cons
 from . import transcript as tx
+from . import verification as xv
 
 log = logging.getLogger("murailex.pipeline")
+
+PIPELINE_VERSION = "murailex.pipeline/2"
+ALIGNMENT_VERSION = "murailex.align/1"
 
 WORK_ROOT = os.environ.get("MURAILEX_WORK_DIR", os.path.join(tempfile.gettempdir(), "murailex-work"))
 
@@ -120,6 +124,31 @@ def _classification_failures(
     return [int(c["index"]) for c in columns if int(c["index"]) not in classified]
 
 
+def _clock(ms: int) -> str:
+    sec = max(0, ms) // 1000
+    return f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}"
+
+
+def _progress_reporter(recording_id: Any, status: str = "transcribing", label: str = "Transcribing") -> Any:
+    """Report real long-form decoding progress (windows done, audio position) on its own
+    short transaction so the main processing transaction is unaffected."""
+    from ..db import session_factory
+
+    def report(done: int, total: int, decoded_ms: int, duration_ms: int) -> None:
+        try:
+            with session_factory()() as s:
+                row = s.get(Recording, recording_id)
+                if row is not None and row.status == status:
+                    row.status_detail = (
+                        f"{label} — window {done}/{total} · decoded {_clock(decoded_ms)} of {_clock(duration_ms)}"
+                    )
+                    s.commit()
+        except Exception:  # noqa: BLE001 - progress is informational; never fail the job for it
+            log.warning("progress update failed", exc_info=True)
+
+    return report
+
+
 # ---------------------------------------------------------------- stage 1: derive
 
 
@@ -155,6 +184,21 @@ def ensure_derived(db: Session, rec: Recording, *, announce: bool = True) -> dic
     playback = os.path.join(wd, "playback.m4a")
     audio.derive_analysis_wav(original, analysis)
     info = audio.with_decoded_duration(info, analysis)
+    limit_ms = get_settings().max_recording_duration_seconds * 1000
+    if info["duration_ms"] > limit_ms:
+        os.remove(original)
+        audit.record(
+            db,
+            "processing_blocked",
+            actor_label="system",
+            recording_id=rec.id,
+            details={"reason": "recording_too_long", "duration_ms": info["duration_ms"], "limit_ms": limit_ms},
+        )
+        db.commit()
+        raise ProviderError(
+            f"Recording is {info['duration_ms'] / 60000:.1f} min; the configured maximum is {limit_ms / 60000:.0f} min.",
+            retryable=False,
+        )
     audio.derive_flac(analysis, flac)
     audio.derive_playback(original, playback)
     peaks = audio.waveform_peaks(analysis)
@@ -480,7 +524,9 @@ def process_recording(db: Session, rec: Recording) -> None:
     for adapter in primaries:
         path = flac if adapter.name == "google_chirp3" else analysis
         try:
-            runs[adapter.name] = drive_run(db, rec, adapter, "primary_asr", path, ctx)
+            runs[adapter.name] = drive_run(
+                db, rec, adapter, "primary_asr", path, {**ctx, "on_progress": _progress_reporter(rec.id)}
+            )
         except Wait as wait:
             waits.append(wait)
     for diarizer in diarizers:
@@ -545,6 +591,28 @@ def process_recording(db: Session, rec: Recording) -> None:
         )
         db.commit()
         return
+
+    xv_states: dict[Any, bool] | None = None
+    xv_summary: dict[str, Any] | None = None
+    if registry.local_mode() and verifiers:
+        _set_status(db, rec, "verifying", "Independent verification pass over the full recording")
+        full_runs = []
+        for verifier in verifiers:
+            vrun = drive_run(
+                db, rec, verifier, "verification_asr", analysis,
+                {**ctx, "on_progress": _progress_reporter(rec.id, "verifying", "Independent verification")},
+                scope="full",
+            )
+            if vrun is None or vrun.status != "succeeded":
+                _set_status(db, rec, "failed", "Mandatory independent verification pass failed.")
+                audit.record(db, "processing_failed", actor_label="system", recording_id=rec.id,
+                             details={"reason": "mandatory_full_verification_failed", "provider": verifier.name})
+                db.commit()
+                return
+            full_runs.append(vrun)
+        primary_tokens = (ok_primary[0].normalized or {}).get("tokens", []) if ok_primary and ok_primary[0] else []
+        xv_states, xv_summary = xv.cross_verify(primary_tokens, (full_runs[0].normalized or {}).get("tokens", []))
+        xv_summary["verifier"] = {"provider": full_runs[0].provider, "model": full_runs[0].model, "run_id": str(full_runs[0].id)}
 
     _set_status(db, rec, "aligning", "Aligning tokens and computing consensus")
     primary_inputs = [
@@ -831,6 +899,15 @@ def process_recording(db: Session, rec: Recording) -> None:
         derived.get("silences", []),
         smap,
     )
+    for item in items:
+        if item["kind"] == "dispute":
+            item["evidence_state"] = "DISPUTED"
+        elif item["kind"] == "marker":
+            item["evidence_state"] = "UNINTELLIGIBLE" if item.get("text") != tx.UNCLEAR_MARKERS["silence"] else "SILENCE"
+        elif item.get("source") == "unanimous_verification":
+            item["evidence_state"] = "CONFIRMED"
+        elif xv_states is not None:
+            item["evidence_state"] = "CONFIRMED" if xv_states.get(xv.token_id(item)) else "LOW_CONFIDENCE"
     segments = tx.segment(items)
     speakers = sorted(set(smap.values()), key=lambda value: int(value[1:]))
     method = {
@@ -855,6 +932,30 @@ def process_recording(db: Session, rec: Recording) -> None:
         "disputes_opened": len(disputes),
         "primary_token_traceability": "verified",
         "consensus_rules": (cons.__doc__ or "").strip(),
+        "verification": xv_summary,
+        "provenance": {
+            "pipeline_version": PIPELINE_VERSION,
+            "source_sha256": rec.sha256,
+            "working_audio_sha256": derived["analysis_wav"]["sha256"],
+            "preprocessing": derived.get("procedure"),
+            "alignment_version": ALIGNMENT_VERSION,
+            "asr": [
+                {
+                    "provider": run.provider,
+                    "model": run.model,
+                    "run_id": str(run.id),
+                    "engine_fingerprint": (run.raw_response or {}).get("engine_fingerprint")
+                    if isinstance(run.raw_response, dict) else None,
+                    "engine": (run.raw_response or {}).get("fingerprint_material")
+                    if isinstance(run.raw_response, dict) else None,
+                    "parameters": run.parameters,
+                }
+                for run in ok_primary[:2]
+                if run is not None
+            ],
+            "verification": xv_summary.get("verifier") if xv_summary else None,
+            "diarization": diar_source,
+        },
     }
     content = tx.new_content(
         {

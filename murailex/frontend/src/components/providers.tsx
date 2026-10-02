@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 
+import { ToastProvider } from "@/components/ui/toast";
 import { I18nProvider } from "@/lib/i18n";
 import { SessionProvider } from "@/lib/session";
 
@@ -16,7 +17,9 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <I18nProvider>
       <SessionProvider>
-        <AppShell>{children}</AppShell>
+        <ToastProvider>
+          <AppShell>{children}</AppShell>
+        </ToastProvider>
       </SessionProvider>
     </I18nProvider>
   );

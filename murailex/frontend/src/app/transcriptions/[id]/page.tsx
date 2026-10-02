@@ -3,7 +3,7 @@
 import { Check, Copy, Download, FileLock2, ListChecks, RefreshCcw } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PlayerBar, PlayerProvider } from "@/components/player";
 import { PROCESSING, StatusBadge } from "@/components/status";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardTitle, Stat } from "@/components/ui/card";
 import { Checkbox, Input, Select } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
+import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError } from "@/lib/api";
@@ -52,7 +53,8 @@ const STEPS = ["queued", "analyzing", "transcribing", "aligning", "verifying", "
 
 export default function TranscriptPage() {
   const { id } = useParams<{ id: string }>();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const toast = useToast();
   const { user } = useSession();
   const isAdmin = user?.role === "admin";
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -84,6 +86,14 @@ export default function TranscriptPage() {
   }, [load]);
 
   const status = detail?.recording.status;
+  const prevStatus = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (prevStatus.current && PROCESSING.has(prevStatus.current) && status && !PROCESSING.has(status)) {
+      if (status === "failed" || status === "provider_not_configured") toast(lang === "ar" ? "تعذّرت المعالجة" : "Processing failed", "danger");
+      else toast(lang === "ar" ? "اكتمل التفريغ والتحقق" : "Transcription and verification complete");
+    }
+    prevStatus.current = status;
+  }, [status, toast, lang]);
   useEffect(() => {
     if (!status || !PROCESSING.has(status)) return;
     const h = setInterval(() => void load(), 3000);
@@ -124,15 +134,7 @@ export default function TranscriptPage() {
     <div className="space-y-5 fade-in">
       <PageHeader title={rec.title} back="/transcriptions" actions={<StatusBadge status={rec.status} />} />
 
-      <Card className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4 sm:p-5">
-        <Stat label={t("duration")}><span className="font-mono" dir="ltr">{fmtTime(rec.duration_ms)}</span></Stat>
-        <Stat label={t("uploaded")}><span dir="ltr">{new Date(rec.uploaded_at).toLocaleString()}</span></Stat>
-        <Stat label={t("original_sha")}><CopyHash value={rec.sha256} /></Stat>
-        <Stat label={t("transcript_sha")}><CopyHash value={revision?.sha256 ?? null} /></Stat>
-        <div className="col-span-2 truncate border-t border-line pt-3 text-xs text-fg-subtle sm:col-span-4" dir="auto">
-          {rec.original_filename} · {rec.mime_type} · {fmtBytes(rec.byte_size)}
-        </div>
-      </Card>
+      <ResultCard rec={rec} revision={revision} openDisputes={openDisputes} />
 
       {error && <Notice tone="danger" role="alert">{error}</Notice>}
 
@@ -172,7 +174,11 @@ export default function TranscriptPage() {
               <Button
                 disabled={busy}
                 onClick={() => {
-                  if (window.confirm(t("lock_confirm"))) void act(() => api(`/api/recordings/${id}/lock`, { method: "POST" }));
+                  if (window.confirm(t("lock_confirm")))
+                    void act(async () => {
+                      await api(`/api/recordings/${id}/lock`, { method: "POST" });
+                      toast(lang === "ar" ? "تم قفل النسخة القانونية" : "Canonical revision locked");
+                    });
                 }}
                 data-testid="lock"
               >
@@ -221,7 +227,15 @@ export default function TranscriptPage() {
             <p dir="ltr" className="px-2 pb-3 text-center text-xs text-fg-subtle">
               {content.title} · {content.controlling_source}
             </p>
-            <TranscriptView recordingId={id} content={content} editable={editable} query={query} speakerFilter={speaker} onChanged={load} />
+            <TranscriptView
+              recordingId={id}
+              content={content}
+              editable={editable}
+              query={query}
+              speakerFilter={speaker}
+              onChanged={load}
+              revision={revision ? { id: revision.id, status: revision.status, number: revision.number } : undefined}
+            />
           </Card>
 
           {editable && <SpeakerPanel recordingId={id} speakers={content.speakers} onChanged={load} />}
@@ -282,7 +296,8 @@ function SpeakerPanel({ recordingId, speakers, onChanged }: { recordingId: strin
 }
 
 function ExportPanel({ recordingId, revisionId }: { recordingId: string; revisionId: string }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const toast = useToast();
   const [last, setLast] = useState<ExportInfo | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -292,6 +307,7 @@ function ExportPanel({ recordingId, revisionId }: { recordingId: string; revisio
     try {
       const r = await api<{ export: ExportInfo }>(`/api/recordings/${recordingId}/exports`, { method: "POST", json: { format, revision_id: revisionId } });
       setLast(r.export);
+      toast(`${format.toUpperCase()} ${lang === "ar" ? "جاهز — SHA-256 محفوظ" : "ready — SHA-256 recorded"}`);
       const a = document.createElement("a");
       a.href = r.export.download_url;
       a.download = r.export.filename;
@@ -565,5 +581,82 @@ function ProcessingCard({ status, detail, since, durationMs }: { status: string;
       </ol>
       {detail && <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-fg-muted">{detail}</p>}
     </Card>
+  );
+}
+
+type VerificationSummary = {
+  version?: string;
+  verification_confidence?: number | null;
+  cross_verified_tokens?: number;
+  primary_tokens?: number;
+};
+
+/** The dominant result surface: state, integrity and measured verification at a glance. */
+function ResultCard({ rec, revision, openDisputes }: { rec: Recording; revision: Revision | null; openDisputes: number }) {
+  const { t, lang } = useI18n();
+  const ar = lang === "ar";
+  const method = (revision?.content?.method ?? {}) as { verification?: VerificationSummary | null; diarization?: { status?: string } };
+  const vc = method.verification ?? null;
+  const integrityFailure = rec.status === "failed" && /integrity/i.test(rec.status_detail ?? "");
+  const state = integrityFailure
+    ? { key: "INTEGRITY FAILURE", ar: "فشل سلامة الدليل", tone: "danger" as const }
+    : PROCESSING.has(rec.status)
+      ? { key: "PROCESSING", ar: "قيد المعالجة", tone: "accent" as const }
+      : !revision
+        ? { key: "NOT PROCESSED", ar: "لم يُعالج", tone: "neutral" as const }
+        : revision.status === "locked"
+          ? { key: "LOCKED", ar: "مقفل", tone: "ok" as const }
+          : openDisputes > 0
+            ? { key: "REVIEW REQUIRED", ar: "تتطلب مراجعة", tone: "warn" as const }
+            : { key: "VERIFIED", ar: "متحقق — جاهز للقفل", tone: "ok" as const };
+  const speakers = revision?.content ? Object.keys(revision.content.speakers).length : 0;
+  return (
+    <section className="glass-strong rounded-2xl p-4 sm:p-6" data-testid="result-card" aria-label="Verified transcript">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="eyebrow">{ar ? "النص المُتحقق منه" : "Verified transcript"}</div>
+        <Badge tone={state.tone} data-testid="result-state">
+          {state.key}
+          {ar ? ` · ${state.ar}` : ""}
+        </Badge>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+        <Stat label={t("duration")}><span className="font-mono" dir="ltr">{fmtTime(rec.duration_ms)}</span></Stat>
+        <Stat label={ar ? "اللغة" : "Language"}><span dir="ltr">{rec.language_locale ?? "—"}</span></Stat>
+        <Stat label={ar ? "المتحدثون" : "Speakers"}>
+          {speakers > 0 ? speakers : <span className="text-fg-subtle">{ar ? "غير مفرّقين" : "Not separated"}</span>}
+        </Stat>
+        <Stat label={ar ? "غير محسوم" : "Unresolved"}>
+          <span className={openDisputes ? "text-warn" : "text-ok"}>{revision ? openDisputes : "—"}</span>
+        </Stat>
+        <Stat label={ar ? "ثقة التحقق المستقل" : "Verification confidence"}>
+          {vc?.verification_confidence != null ? (
+            <span title={`${vc.version}: ${vc.cross_verified_tokens}/${vc.primary_tokens} tokens confirmed by an independent engine`}>
+              <span className="font-semibold text-primary-text">{(vc.verification_confidence * 100).toFixed(1)}%</span>
+              <span className="ms-1 text-xs text-fg-subtle" dir="ltr">({vc.cross_verified_tokens}/{vc.primary_tokens})</span>
+            </span>
+          ) : (
+            <span className="text-fg-subtle">—</span>
+          )}
+        </Stat>
+        <Stat label={ar ? "الدقة مقابل الحقيقة" : "Ground-truth accuracy"}>
+          <span className="text-fg-subtle">{ar ? "لا مرجع بشري" : "No human reference"}</span>
+        </Stat>
+        <Stat label={ar ? "النسخة القانونية" : "Canonical revision"}>
+          {revision ? `r${revision.number} · ${revision.status === "locked" ? t("locked") : t("draft")}` : "—"}
+        </Stat>
+        <Stat label={ar ? "أُنشئ" : "Generated"}>
+          <span dir="ltr">{revision ? new Date(revision.created_at).toLocaleString() : "—"}</span>
+        </Stat>
+      </div>
+      <div className="mt-4 grid gap-3 border-t border-[var(--color-hairline)] pt-3 sm:grid-cols-2">
+        <Stat label={`${t("original_sha")} · ${ar ? "يُعاد التحقق قبل المعالجة والقفل والتصدير" : "re-verified before processing, lock and export"}`}>
+          <CopyHash value={rec.sha256} />
+        </Stat>
+        <Stat label={t("transcript_sha")}><CopyHash value={revision?.sha256 ?? null} /></Stat>
+      </div>
+      <div className="mt-2 truncate text-xs text-fg-subtle" dir="auto">
+        {rec.original_filename} · {rec.mime_type} · {fmtBytes(rec.byte_size)}
+      </div>
+    </section>
   );
 }

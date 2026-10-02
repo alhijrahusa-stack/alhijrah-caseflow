@@ -36,17 +36,37 @@ as_pg() {
   if [ "$(id -u)" = 0 ]; then runuser -u postgres -- "$@"; else "$@"; fi
 }
 
+# A pid file is trusted only while that pid still runs the command recorded for the service:
+# after a reboot or container restart pids are reused by unrelated processes.
+svc_alive() { # name
+  local f="$RUN/$1.pid" pid expect actual
+  [ -f "$f" ] || return 1
+  pid="$(head -1 "$f")"; expect="$(sed -n 2p "$f")"
+  [ -n "$pid" ] && [ -n "$expect" ] || return 1
+  actual="$(ps -o args= -p "$pid" 2>/dev/null || true)"
+  [ -n "$actual" ] && [[ "$actual" == *"$expect"* ]]
+}
+
+svc_marker() { # text that appears in the service's command line while it runs
+  case "$1" in
+    api) echo "--port $API_PORT" ;;
+    worker) echo "-m app.worker" ;;
+    web) echo "next-server" ;;
+    gateway) echo "lan-gateway.mjs" ;;
+  esac
+}
+
 stop_all() {
   # Each service runs in its own process group; signal the whole group so child processes
   # (e.g. next-server under the Next CLI) never outlive the stop.
   for name in gateway web worker api; do
-    if [ -f "$RUN/$name.pid" ]; then
-      pid="$(cat "$RUN/$name.pid")"
+    if svc_alive "$name"; then
+      pid="$(head -1 "$RUN/$name.pid")"
       kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
       for _ in $(seq 1 30); do kill -0 -- "-$pid" 2>/dev/null || break; sleep 0.5; done
       kill -KILL -- "-$pid" 2>/dev/null || true
-      rm -f "$RUN/$name.pid"
     fi
+    rm -f "$RUN/$name.pid"
   done
   if [ -f "$PGDATA/postmaster.pid" ]; then as_pg "$PG_BIN/pg_ctl" -D "$PGDATA" -m fast -w stop >/dev/null || true; fi
   log "stopped"
@@ -103,6 +123,7 @@ export LOCAL_STORAGE_DIR="$DATA/objects"
 export MURAILEX_WORK_DIR="$DATA/work"
 export APP_BASE_URL="https://localhost:$HTTPS_PORT"
 export COOKIE_SECURE=true
+export EVIDENCE_SIGNING_KEY_PATH="$DATA/signing/ed25519-private.pem"   # generated once, mode 600
 export PYTHONPATH="$BACKEND"
 
 ( cd "$BACKEND" && .venv/bin/alembic upgrade head >"$LOG/migrate.log" 2>&1 ) || die "database migration failed (see $LOG/migrate.log)"
@@ -111,11 +132,12 @@ port_free() { ! (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
 start_bg() { # name, port, logfile, command...
   local name="$1" port="$2" logfile="$3"; shift 3
-  if [ -f "$RUN/$name.pid" ] && kill -0 "$(cat "$RUN/$name.pid")" 2>/dev/null; then return; fi
+  if svc_alive "$name"; then return; fi
   [ "$port" = 0 ] || port_free "$port" || die "port $port is already in use by another process; stop it first ($name)."
   # New session/process group (portable: no util-linux setsid needed).
   nohup python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@" >>"$logfile" 2>&1 < /dev/null &
-  echo $! > "$RUN/$name.pid"
+  # line 1: pid, line 2: a command fragment that identifies the service
+  printf '%s\n%s\n' "$!" "$(svc_marker "$name")" > "$RUN/$name.pid"
 }
 
 start_bg api "$API_PORT" "$LOG/api.log" "$BACKEND/.venv/bin/uvicorn" app.main:app --app-dir "$BACKEND" --host 127.0.0.1 --port "$API_PORT"
@@ -124,7 +146,7 @@ ready_count() { local n; n="$(grep -c 'local ASR model ready' "$LOG/worker.log" 
 fail_count() { local n; n="$(grep -c 'local ASR model .* failed to load' "$LOG/worker.log" 2>/dev/null)" || true; echo "${n:-0}"; }
 WORKER_READY_BASE=$(( $(ready_count) + 2 ))
 WORKER_FAIL_BASE=$(fail_count)
-if [ -f "$RUN/worker.pid" ] && kill -0 "$(cat "$RUN/worker.pid")" 2>/dev/null; then WORKER_READY_BASE=0; fi
+if svc_alive worker; then WORKER_READY_BASE=0; fi
 start_bg worker 0 "$LOG/worker.log" nice -n 10 "$BACKEND/.venv/bin/python" -m app.worker
 
 # ---- frontend ------------------------------------------------------------------------------
@@ -164,7 +186,8 @@ if [ ! -f "$TLS/server.crt" ] || [ "$(cat "$TLS/server.san" 2>/dev/null)" != "$S
     || die "could not issue the LAN certificate (openssl)."
   chmod 600 "$TLS/server.key"; echo "$SAN" > "$TLS/server.san"
   # a running gateway still holds the old certificate
-  if [ -f "$RUN/gateway.pid" ]; then kill -TERM -- "-$(cat "$RUN/gateway.pid")" 2>/dev/null || true; rm -f "$RUN/gateway.pid"; sleep 1; fi
+  if svc_alive gateway; then kill -TERM -- "-$(head -1 "$RUN/gateway.pid")" 2>/dev/null || true; sleep 1; fi
+  rm -f "$RUN/gateway.pid"
 fi
 start_bg gateway "$HTTPS_PORT" "$LOG/gateway.log" node "$HERE/lan-gateway.mjs" "$TLS" "$HTTPS_PORT" "$HTTP_PORT" "$WEB_PORT"
 

@@ -8,6 +8,7 @@ import zipfile
 from datetime import datetime, timezone
 from typing import Any
 
+from .. import signing
 from ..canonical import canonical_json, sha256_hex
 from ..pipeline import transcript as tx
 
@@ -298,8 +299,18 @@ def build_package(ctx: dict[str, Any], extras: dict[str, Any]) -> tuple[bytes, d
         "translations": [{"id": t["id"], "mode": t["mode"], "sha256": t["sha256"]} for t in extras.get("translations", [])],
         "files": {name: {"sha256": sha256_hex(data), "bytes": len(data)} for name, data in sorted(files.items())},
         "notice": "Derived documents. The original audio recording is the controlling source.",
+        "signature": {
+            "algorithm": "Ed25519",
+            "signed_file": "manifest.json",
+            "signature_file": "manifest.sig",
+            "public_key_file": "public-key.pem",
+            "public_key_sha256": signing.public_key_fingerprint(),
+            "verify": "openssl pkeyutl -verify -pubin -inkey public-key.pem -rawin -in manifest.json -sigfile manifest.sig",
+        },
     }
     files["manifest.json"] = json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True).encode()
+    files["manifest.sig"] = signing.sign(files["manifest.json"])
+    files["public-key.pem"] = signing.public_key_pem()
     sums = "".join(f"{sha256_hex(data)}  {name}\n" for name, data in sorted(files.items()))
     files["SHA256SUMS.txt"] = sums.encode()
     buf = io.BytesIO()

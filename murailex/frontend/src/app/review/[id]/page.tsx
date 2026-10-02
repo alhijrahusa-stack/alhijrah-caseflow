@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox, Textarea } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
+import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError } from "@/lib/api";
@@ -35,7 +36,7 @@ function MiniWave({ peaks, start, end }: { peaks: number[] | null; start: number
       <rect x={hs * w} width={Math.max(0.5, (he - hs) * w)} y={0} height={40} fill="rgba(245,185,70,0.18)" />
       {slice.map((p, i) => {
         const h = Math.max(0.6, (p / max) * 38);
-        return <rect key={i} x={i} y={20 - h / 2} width={0.7} height={h} fill={i / w >= hs && i / w <= he ? "#a3aeff" : "#364056"} />;
+        return <rect key={i} x={i} y={20 - h / 2} width={0.7} height={h} fill={i / w >= hs && i / w <= he ? "#e9cb8a" : "#38526a"} />;
       })}
     </svg>
   );
@@ -43,6 +44,7 @@ function MiniWave({ peaks, start, end }: { peaks: number[] | null; start: number
 
 function DisputeCard({ d, peaks, speakerLabel, onResolved }: { d: Dispute; peaks: number[] | null; speakerLabel: string; onResolved: () => void }) {
   const { t } = useI18n();
+  const toast = useToast();
   const player = usePlayer();
   const [typing, setTyping] = useState(false);
   const [text, setText] = useState("");
@@ -54,6 +56,7 @@ function DisputeCard({ d, peaks, speakerLabel, onResolved }: { d: Dispute; peaks
     setErr(null);
     try {
       await api(`/api/disputes/${d.id}/resolve`, { method: "POST", json: body });
+      toast(t("resolved"));
       onResolved();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("error"));

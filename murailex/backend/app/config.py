@@ -86,6 +86,17 @@ class Settings(BaseSettings):
     local_asr_compute_type: str = "int8"
     local_asr_threads: int = 0
     local_asr_beam_size: int = 5
+    # Long-form decoding: ~10 min windows split at a pause near each target point when one
+    # exists within ±90 s, decoded with 15 s of overlap on each side, checkpointed per window.
+    local_asr_window_ms: int = 600_000
+    local_asr_window_search_ms: int = 90_000
+    local_asr_window_overlap_ms: int = 15_000
+
+    # Ed25519 key used to sign evidence package manifests (generated once if missing).
+    evidence_signing_key_path: str | None = None
+
+    # Longest recording accepted for transcription (seconds). Enforced once, at ingestion.
+    max_recording_duration_seconds: int = 7200
 
     provider_poll_seconds: float = 5.0
     provider_retry_base_seconds: float = 5.0
