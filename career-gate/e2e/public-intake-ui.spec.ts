@@ -1,6 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// Runtime assertions are intentionally unchanged; this commit re-triggers PR checks after restoring intake initialization.
 async function fillStepOne(page: Page) {
   await page.locator("#firstName").fill("عبدالله");
   await page.locator("#lastName").fill("Tester");
@@ -47,7 +46,7 @@ test.describe("Career Gate public intake presentation system", () => {
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.locator(".title")).toHaveText("نموذج التقديم على الوظيفة");
     await expect(page.locator(".career-brand-logo")).toBeVisible();
-    await expect(page.locator(".office-brand-logo")).toBeVisible();
+    await expect(page.locator(".office-name")).toBeVisible();
 
     await fillStepOne(page);
     await page.locator('[data-next="2"]').click();
