@@ -120,6 +120,11 @@ start_bg() { # name, port, logfile, command...
 
 start_bg api "$API_PORT" "$LOG/api.log" "$BACKEND/.venv/bin/uvicorn" app.main:app --app-dir "$BACKEND" --host 127.0.0.1 --port "$API_PORT"
 # ASR is CPU-bound; run it at lower priority so the UI and API stay responsive while it works.
+ready_count() { local n; n="$(grep -c 'local ASR model ready' "$LOG/worker.log" 2>/dev/null)" || true; echo "${n:-0}"; }
+fail_count() { local n; n="$(grep -c 'local ASR model .* failed to load' "$LOG/worker.log" 2>/dev/null)" || true; echo "${n:-0}"; }
+WORKER_READY_BASE=$(( $(ready_count) + 2 ))
+WORKER_FAIL_BASE=$(fail_count)
+if [ -f "$RUN/worker.pid" ] && kill -0 "$(cat "$RUN/worker.pid")" 2>/dev/null; then WORKER_READY_BASE=0; fi
 start_bg worker 0 "$LOG/worker.log" nice -n 10 "$BACKEND/.venv/bin/python" -m app.worker
 
 # ---- frontend ------------------------------------------------------------------------------
@@ -174,6 +179,15 @@ asset="$(curl -fsS "http://127.0.0.1:$WEB_PORT/login" | grep -o '/_next/static/[
 
 for _ in $(seq 1 20); do curl -fsS --cacert "$TLS/murailex-local-ca.crt" -o /dev/null "https://localhost:$HTTPS_PORT/login" 2>/dev/null && break; sleep 0.5; done
 curl -fsS --cacert "$TLS/murailex-local-ca.crt" -o /dev/null "https://localhost:$HTTPS_PORT/login" || die "LAN gateway did not start (see $LOG/gateway.log)"
+
+# Do not announce "ready" until the worker has the ASR models in memory (first job starts at once).
+log "loading on-device ASR models…"
+for _ in $(seq 1 600); do
+  [ "$(ready_count)" -ge "$WORKER_READY_BASE" ] && break
+  [ "$(fail_count)" -gt "$WORKER_FAIL_BASE" ] && die "ASR model failed to load (see $LOG/worker.log)"
+  sleep 1
+done
+[ "$(ready_count)" -ge "$WORKER_READY_BASE" ] || die "ASR models did not load within 10 minutes (see $LOG/worker.log)"
 
 log "laptop: https://localhost:$HTTPS_PORT"
 if [ -n "$LAN_IP" ]; then
