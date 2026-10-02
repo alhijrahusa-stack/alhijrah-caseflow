@@ -1,9 +1,10 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { STATUS_LABELS, type Status } from "@/lib/domain";
 import type { DashboardCommandData } from "@/lib/operational-dashboard";
 
-function Kpi({label,value,href,tone="neutral",detail}:{label:string;value:string|number;href?:string;tone?:"neutral"|"warn"|"danger"|"good";detail?:string}){
+function Kpi({label,value,href,tone="neutral",detail}:{label:string;value:ReactNode;href?:string;tone?:"neutral"|"warn"|"danger"|"good";detail?:string}){
   const cls=tone==="danger"?"text-red-300":tone==="warn"?"text-amber-300":tone==="good"?"text-emerald-300":"text-slate-100";
   const body=<div className="staff-kpi rounded-2xl p-4"><p className="text-sm text-slate-400">{label}</p><p className={`mt-2 text-3xl font-semibold tabular-nums ${cls}`}>{value}</p>{detail&&<p className="mt-1 text-xs text-slate-500">{detail}</p>}</div>;
   return href?<Link href={href} className="block transition hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">{body}</Link>:body;
@@ -64,9 +65,9 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
       <div className="ops-glass-card">
         <SectionTitle title="Finance" subtitle="Ledger-backed operational projection." href="/staff/accounting" label="Open Accounting"/>
         <div className="grid grid-cols-2 gap-3">
-          <Kpi label="Receivables" value={<Money value={data.finance.receivables}/> as never} tone={data.finance.receivables>0?"warn":"good"}/>
-          <Kpi label="Collected · Month" value={<Money value={data.finance.collected_this_month}/> as never} tone="good"/>
-          <Kpi label="Refunds · Month" value={<Money value={data.finance.refunds_this_month}/> as never}/>
+          <Kpi label="Receivables" value={<Money value={data.finance.receivables}/>} tone={data.finance.receivables>0?"warn":"good"}/>
+          <Kpi label="Collected · Month" value={<Money value={data.finance.collected_this_month}/>} tone="good"/>
+          <Kpi label="Refunds · Month" value={<Money value={data.finance.refunds_this_month}/>}/>
           <Kpi label="Commissions Attention" value={data.finance.commissions_attention} tone={data.finance.commissions_attention?"warn":"neutral"}/>
         </div>
       </div>
