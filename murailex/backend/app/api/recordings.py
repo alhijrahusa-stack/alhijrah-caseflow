@@ -56,7 +56,12 @@ def _users(db: Session) -> dict[uuid.UUID, str]:
 
 
 @router.get("/recordings")
-def list_recordings(p: Principal = Depends(current_principal), db: Session = Depends(get_db), q: str | None = None):
+def list_recordings(
+    p: Principal = Depends(current_principal),
+    db: Session = Depends(get_db),
+    q: str | None = None,
+    case_id: str | None = None,
+):
     stmt = select(Recording).where(
         or_(Recording.recording_type.is_(None), Recording.recording_type != "system_canary")
     ).order_by(Recording.created_at.desc())
@@ -65,6 +70,8 @@ def list_recordings(p: Principal = Depends(current_principal), db: Session = Dep
         stmt = stmt.where(or_(Recording.owner_id == p.user.id, Recording.id.in_(shared)))
     if q:
         stmt = stmt.where(Recording.title.ilike(f"%{q}%"))
+    if case_id:
+        stmt = stmt.where(Recording.case_id == parse_uuid(case_id))
     recs = list(db.execute(stmt.limit(500)).scalars())
     open_counts = dict(
         db.execute(

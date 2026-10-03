@@ -14,6 +14,7 @@ import { Card, CardTitle, Stat } from "@/components/ui/card";
 import { Checkbox, Input, Select } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { useToast } from "@/components/ui/toast";
+import { CasePicker } from "@/components/case-picker";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError } from "@/lib/api";
@@ -134,6 +135,13 @@ export default function TranscriptPage() {
   return (
     <div className="space-y-5 fade-in">
       <PageHeader title={rec.title} back="/transcriptions" actions={<StatusBadge status={rec.status} />} />
+      <CasePicker
+        key={rec.id}
+        recordingId={rec.id}
+        caseId={rec.case_id ?? null}
+        canEdit={user?.role === "admin" || user?.id === rec.owner_id}
+        rtl={lang === "ar"}
+      />
 
       <ResultCard rec={rec} revision={revision} openDisputes={openDisputes} />
 

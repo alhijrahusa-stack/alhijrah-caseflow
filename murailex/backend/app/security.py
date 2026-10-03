@@ -75,13 +75,20 @@ def authenticate(db: Session, email: str, password: str) -> User | None:
     return user
 
 
-def create_session(db: Session, user: User) -> tuple[str, AuthSession]:
+def create_session(
+    db: Session, user: User, *, ip: str | None = None, user_agent: str | None = None, mfa_verified: bool = False
+) -> tuple[str, AuthSession]:
     token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
     session = AuthSession(
         token_hash=_token_hash(token),
         csrf_token=secrets.token_urlsafe(24),
         user_id=user.id,
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=get_settings().session_ttl_hours),
+        expires_at=now + timedelta(hours=get_settings().session_ttl_hours),
+        ip=(ip or "")[:64] or None,
+        user_agent=(user_agent or "")[:300] or None,
+        mfa_verified=mfa_verified,
+        last_seen_at=now,
     )
     db.add(session)
     db.flush()
@@ -101,7 +108,19 @@ def _load_session(db: Session, token: str | None) -> tuple[AuthSession, User] | 
     session, user = row
     if session.revoked_at is not None or session.expires_at <= datetime.now(timezone.utc) or not user.is_active:
         return None
+    if user.mfa_enabled_at is not None and not session.mfa_verified:
+        return None  # a session without the second factor never outlives MFA enrolment
     return session, user
+
+
+LAST_SEEN_GRANULARITY = timedelta(minutes=5)
+
+
+def touch_session(db: Session, session: AuthSession) -> None:
+    now = datetime.now(timezone.utc)
+    if session.last_seen_at is None or now - session.last_seen_at >= LAST_SEEN_GRANULARITY:
+        db.execute(AuthSession.__table__.update().where(AuthSession.id == session.id).values(last_seen_at=now))
+        db.commit()  # at most once per LAST_SEEN_GRANULARITY per session; nothing else is pending yet
 
 
 class Principal:
@@ -123,6 +142,7 @@ def current_principal(request: Request, db: Session = Depends(get_db)) -> Princi
         sent = request.headers.get(CSRF_HEADER, "")
         if not sent or not hmac.compare_digest(sent, session.csrf_token):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "CSRF validation failed.")
+    touch_session(db, session)
     return Principal(user, session)
 
 

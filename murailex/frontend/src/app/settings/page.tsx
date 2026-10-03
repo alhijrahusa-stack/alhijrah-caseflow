@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { SecurityCard } from "@/components/security-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -81,6 +82,8 @@ export default function SettingsPage() {
         </div>
         <Button variant="outline" onClick={signOut}>{t("sign_out")}</Button>
       </Card>
+
+      <SecurityCard rtl={lang === "ar"} />
 
       {isAdmin && (
         <Card className="space-y-4">

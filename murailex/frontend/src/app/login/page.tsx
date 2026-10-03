@@ -19,6 +19,8 @@ function LoginForm() {
   const params = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [needOtp, setNeedOtp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -27,11 +29,17 @@ function LoginForm() {
     setBusy(true);
     setError(null);
     try {
-      await api("/api/auth/login", { method: "POST", json: { email, password } });
+      await api("/api/auth/login", { method: "POST", json: needOtp ? { email, password, otp } : { email, password } });
       await refresh();
       const next = params.get("next");
       router.replace(next && next.startsWith("/") && !next.startsWith("//") && next !== "/login" ? next : "/");
     } catch (err) {
+      const code = err instanceof ApiError && err.detail && typeof err.detail === "object" ? (err.detail as { code?: string }).code : undefined;
+      if (code === "mfa_required") {
+        setNeedOtp(true);
+        setError(null);
+        return;
+      }
       setError(err instanceof ApiError ? err.message : t("error"));
     } finally {
       setBusy(false);
@@ -62,6 +70,23 @@ function LoginForm() {
               className="h-11"
             />
           </Field>
+          {needOtp && (
+            <Field label={lang === "ar" ? "رمز التحقق (6 أرقام)" : "Authentication code (6 digits)"}>
+              <Input
+                name="otp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9 ]{6,7}"
+                dir="ltr"
+                required
+                autoFocus
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                className="h-11 text-center font-mono tracking-[0.4em]"
+                data-testid="otp"
+              />
+            </Field>
+          )}
           {error && (
             <Notice tone="danger" role="alert">
               {error}

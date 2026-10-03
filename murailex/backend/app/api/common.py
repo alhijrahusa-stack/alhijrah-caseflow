@@ -23,7 +23,7 @@ def iso(dt) -> str | None:
 
 
 def user_out(u: User) -> dict[str, Any]:
-    return {"id": str(u.id), "email": u.email, "display_name": u.display_name, "role": u.role, "is_active": u.is_active}
+    return {"id": str(u.id), "email": u.email, "display_name": u.display_name, "role": u.role, "is_active": u.is_active, "mfa_enabled": u.mfa_enabled_at is not None}
 
 
 def recording_out(r: Recording) -> dict[str, Any]:
@@ -35,6 +35,7 @@ def recording_out(r: Recording) -> dict[str, Any]:
         "expected_speakers": r.expected_speakers, "media_info": r.media_info,
         "audio_quality": (r.derived or {}).get("quality"),
         "storage_version_id": r.storage_version_id, "owner_id": str(r.owner_id),
+        "case_id": str(r.case_id) if r.case_id else None,
     }
 
 

@@ -37,6 +37,10 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="transcriber")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    totp_secret_enc: Mapped[str | None] = mapped_column(Text)
+    totp_pending_enc: Mapped[str | None] = mapped_column(Text)
+    mfa_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    totp_last_step: Mapped[int | None] = mapped_column(BigInteger)
 
 
 class AuthSession(Base):
@@ -48,6 +52,10 @@ class AuthSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(300))
+    mfa_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class LoginAttempt(Base):
@@ -55,6 +63,16 @@ class LoginAttempt(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     key: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class Case(Base):
+    __tablename__ = "cases"
+    __table_args__ = (UniqueConstraint("owner_id", "reference", name="uq_cases_owner_reference"),)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_id)
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    reference: Mapped[str] = mapped_column(String(120), nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Recording(Base):
@@ -79,6 +97,7 @@ class Recording(Base):
     expected_speakers: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(40), nullable=False, default="queued")
     status_detail: Mapped[str | None] = mapped_column(Text)
+    case_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cases.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

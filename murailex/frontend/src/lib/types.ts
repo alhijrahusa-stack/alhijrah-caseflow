@@ -1,4 +1,4 @@
-export type User = { id: string; email: string; display_name: string; role: string; is_active: boolean };
+export type User = { id: string; email: string; display_name: string; role: string; is_active: boolean; mfa_enabled?: boolean };
 
 export type Recording = {
   id: string;
@@ -18,6 +18,8 @@ export type Recording = {
   expected_speakers: number | null;
   open_disputes?: number;
   storage_version_id?: string | null;
+  owner_id?: string;
+  case_id?: string | null;
   media_info?: Record<string, unknown> | null;
   audio_quality?: { version: string; overall: string; labels: string[]; reasons: Record<string, string>; metrics: Record<string, number | string> } | null;
 };
