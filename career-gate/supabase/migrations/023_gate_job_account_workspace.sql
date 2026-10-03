@@ -13,25 +13,38 @@ create table public.gate_job_emails (
   pin_auth_tag text not null check (length(pin_auth_tag) > 0),
   encryption_key_version text not null check (length(encryption_key_version) > 0),
   status text not null default 'AVAILABLE' check (status in ('AVAILABLE','RESERVED','USED')),
+  reserved_client_id uuid references public.clients(id) on delete restrict,
   reserved_by uuid references public.staff(id) on delete restrict,
   reserved_at timestamptz,
   reservation_expires_at timestamptz,
+  used_client_id uuid references public.clients(id) on delete restrict,
+  used_by uuid references public.staff(id) on delete restrict,
+  used_at timestamptz,
   created_by uuid not null references public.staff(id) on delete restrict,
   updated_by uuid references public.staff(id) on delete restrict,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint gate_job_emails_state_ck check (
-    (status = 'AVAILABLE' and reserved_by is null and reserved_at is null and reservation_expires_at is null)
+    (status = 'AVAILABLE'
+      and reserved_client_id is null and reserved_by is null and reserved_at is null and reservation_expires_at is null
+      and used_client_id is null and used_by is null and used_at is null)
     or
-    (status = 'RESERVED' and reserved_by is not null and reserved_at is not null and reservation_expires_at is not null and reservation_expires_at > reserved_at)
+    (status = 'RESERVED'
+      and reserved_client_id is not null and reserved_by is not null and reserved_at is not null
+      and reservation_expires_at is not null and reservation_expires_at > reserved_at
+      and used_client_id is null and used_by is null and used_at is null)
     or
-    (status = 'USED' and reserved_by is null and reserved_at is null and reservation_expires_at is null)
+    (status = 'USED'
+      and reserved_client_id is null and reserved_by is null and reserved_at is null and reservation_expires_at is null
+      and used_client_id is not null and used_by is not null and used_at is not null)
   )
 );
 
 create unique index gate_job_emails_email_normalized_uidx on public.gate_job_emails(email_normalized);
 create index gate_job_emails_status_idx on public.gate_job_emails(status);
 create index gate_job_emails_reservation_expiry_idx on public.gate_job_emails(reservation_expires_at) where status = 'RESERVED';
+create index gate_job_emails_reserved_client_idx on public.gate_job_emails(reserved_client_id) where status = 'RESERVED';
+create index gate_job_emails_used_client_idx on public.gate_job_emails(used_client_id) where status = 'USED';
 
 create table public.gate_job_accounts (
   id uuid primary key default gen_random_uuid(),
@@ -52,25 +65,25 @@ create table public.gate_job_accounts (
   ready_at timestamptz,
   updated_by uuid references public.staff(id) on delete restrict,
   updated_at timestamptz not null default now(),
-  removed_by uuid references public.staff(id) on delete restrict,
-  removed_at timestamptz,
+  disabled_by uuid references public.staff(id) on delete restrict,
+  disabled_at timestamptz,
   created_at timestamptz not null default now(),
   constraint gate_job_accounts_state_ck check (
-    (status = 'PENDING' and ready_by is null and ready_at is null and removed_by is null and removed_at is null)
+    (status = 'PENDING' and ready_by is null and ready_at is null and disabled_by is null and disabled_at is null)
     or
-    (status = 'READY' and ready_by is not null and ready_at is not null and removed_by is null and removed_at is null)
+    (status = 'READY' and ready_by is not null and ready_at is not null and disabled_by is null and disabled_at is null)
     or
-    (status = 'DISABLED' and removed_by is not null and removed_at is not null)
+    (status = 'DISABLED' and disabled_by is not null and disabled_at is not null)
   )
 );
 
 create unique index gate_job_accounts_one_active_per_client_uidx
   on public.gate_job_accounts(assigned_to_client_id)
-  where status in ('PENDING','READY') and removed_at is null;
+  where status in ('PENDING','READY') and disabled_at is null;
 
 create unique index gate_job_accounts_one_active_per_source_uidx
   on public.gate_job_accounts(source_email_id)
-  where status in ('PENDING','READY') and removed_at is null;
+  where status in ('PENDING','READY') and disabled_at is null;
 
 create index gate_job_accounts_client_idx on public.gate_job_accounts(assigned_to_client_id);
 create index gate_job_accounts_status_idx on public.gate_job_accounts(status);
@@ -109,8 +122,13 @@ begin
     return old;
   end if;
 
-  if old.status = 'USED' and new.status <> 'USED' then
-    raise exception 'gate_job_email_used_terminal' using errcode = 'P0001';
+  if old.status = 'USED' then
+    if new.status <> 'USED'
+       or new.used_client_id is distinct from old.used_client_id
+       or new.used_by is distinct from old.used_by
+       or new.used_at is distinct from old.used_at then
+      raise exception 'gate_job_email_used_terminal' using errcode = 'P0001';
+    end if;
   end if;
   if old.status = 'AVAILABLE' and new.status not in ('AVAILABLE','RESERVED') then
     raise exception 'gate_job_email_invalid_transition' using errcode = 'P0001';
