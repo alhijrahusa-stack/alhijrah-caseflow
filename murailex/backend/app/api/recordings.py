@@ -413,6 +413,7 @@ class TranslationIn(StrictIn):
 
 @router.post("/recordings/{recording_id}/translations")
 def create_translation(recording_id: str, body: TranslationIn, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    from ..providers import local_mt, registry
     from ..providers import translate as gt
     from ..translation import MODES
 
@@ -421,11 +422,18 @@ def create_translation(recording_id: str, body: TranslationIn, p: Principal = De
                         .order_by(TranscriptRevision.number.desc()).limit(1)).scalar_one_or_none()
     if latest is None:
         raise HTTPException(409, "Lock the forensic transcript before translating.")
-    if not gt.configured():
-        raise HTTPException(503, "Translation provider (Google Cloud Translation) is NOT CONFIGURED.")
     src, tgt = MODES[body.mode]
+    if registry.local_mode():
+        # On-device only: legal text never leaves the machine in local mode.
+        if not local_mt.configured(src, tgt):
+            raise HTTPException(503, f"On-device translation model {src}->{tgt} is NOT INSTALLED.")
+        provider, model = local_mt.NAME, local_mt.model_id(src, tgt)
+    else:
+        if not gt.configured():
+            raise HTTPException(503, "Translation provider (Google Cloud Translation) is NOT CONFIGURED.")
+        provider, model = "google_translate", gt.MODEL
     tr = Translation(recording_id=rec.id, source_revision_id=latest.id, mode=body.mode, source_language=src, target_language=tgt,
-                     provider="google_translate", model=gt.MODEL, status="queued", created_by=p.user.id)
+                     provider=provider, model=model[:100], status="queued", created_by=p.user.id)
     db.add(tr)
     db.flush()
     jobs.enqueue(db, "translate", rec.id, {"translation_id": str(tr.id)})

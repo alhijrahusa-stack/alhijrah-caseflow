@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     google_stt_language_codes: str = "ar-YE"
     google_stt_gcs_bucket: str | None = None
     google_translate_location: str = "global"
+    # On-device translation (ENVIRONMENT=local): CTranslate2 conversions of OPUS-MT models,
+    # one directory per direction (ar-en, en-ar) under this path. Empty = not configured.
+    local_mt_dir: str = ""
 
     pyannote_api_key: SecretStr | None = None
     pyannote_base_url: str = "https://api.pyannote.ai/v1"

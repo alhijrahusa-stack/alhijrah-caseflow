@@ -14,6 +14,7 @@ from .canonical import canonical_json, sha256_hex
 from .models import TranscriptRevision, Translation
 from .pipeline import transcript as tx
 from .pipeline.text import MARKER_TRANSLATIONS
+from .providers import local_mt
 from .providers import translate as gt
 
 MODES = {
@@ -40,6 +41,10 @@ def _pieces(seg: dict) -> list[tuple[str, str]]:
     return out
 
 
+def provider_for(name: str):
+    return local_mt if name == local_mt.NAME else gt
+
+
 def run_translation(db: Session, tr: Translation) -> None:
     if tr.status == "succeeded":
         return
@@ -58,7 +63,7 @@ def run_translation(db: Session, tr: Translation) -> None:
     translated: list[str] = []
     raw_batches = []
     for i in range(0, len(texts), 100):
-        out, raw = gt.translate_batch(texts[i : i + 100], tr.source_language, tr.target_language)
+        out, raw = provider_for(tr.provider).translate_batch(texts[i : i + 100], tr.source_language, tr.target_language)
         translated.extend(out)
         raw_batches.append(raw)
     it = iter(translated)

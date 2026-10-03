@@ -27,6 +27,7 @@ LOG="$DATA/logs"
 
 log() { printf '[murailex] %s\n' "$*"; }
 die() { printf '[murailex] ERROR: %s\n' "$*" >&2; exit 1; }
+warn() { printf '[murailex] WARNING: %s\n' "$*" >&2; }
 
 PG_BIN="${PG_BIN:-$(dirname "$(command -v pg_ctl 2>/dev/null || ls -d /usr/lib/postgresql/*/bin/pg_ctl 2>/dev/null | sort -V | tail -1)")}"
 [ -x "$PG_BIN/pg_ctl" ] || die "PostgreSQL server binaries (pg_ctl/initdb) not found. Install PostgreSQL 15+ or set PG_BIN."
@@ -115,6 +116,28 @@ if [ ! -x "$BACKEND/.venv/bin/python" ]; then
   python3 -m venv "$BACKEND/.venv"
   "$BACKEND/.venv/bin/pip" install -q -r "$BACKEND/requirements.txt" -r "$BACKEND/requirements-local.txt"
 fi
+"$BACKEND/.venv/bin/python" -c "import faster_whisper, sentencepiece" 2>/dev/null \
+  || "$BACKEND/.venv/bin/pip" install -q -r "$BACKEND/requirements-local.txt"
+
+# On-device translation models (OPUS-MT, CC-BY-4.0): original Marian weights, pinned by SHA-256,
+# converted once to CTranslate2 int8. Translation stays unavailable (not faked) if this fails.
+MT_DIR="$DATA/models/mt"
+install_mt() { # direction url sha256
+  local dir="$MT_DIR/$1" zip="$MT_DIR/src/$1.zip"
+  [ -f "$dir/model.bin" ] && return 0
+  mkdir -p "$MT_DIR/src"
+  log "installing on-device translation model $1 (first run)"
+  if [ ! -f "$zip" ]; then
+    curl -fsSL --max-time 1800 -o "$zip.part" "$2" && mv -f "$zip.part" "$zip" || rm -f "$zip.part"
+  fi
+  [ -f "$zip" ] && echo "$3  $zip" | sha256sum -c --quiet - || { warn "translation model $1: download or checksum failed; translation $1 unavailable"; rm -f "$zip"; return 0; }
+  rm -rf "$MT_DIR/src/$1" && mkdir -p "$MT_DIR/src/$1" && unzip -qo "$zip" -d "$MT_DIR/src/$1"
+  "$BACKEND/.venv/bin/ct2-opus-mt-converter" --model_dir "$MT_DIR/src/$1" --output_dir "$dir" --quantization int8 --force >"$LOG/mt-$1.log" 2>&1 \
+    && cp "$MT_DIR/src/$1/source.spm" "$MT_DIR/src/$1/target.spm" "$MT_DIR/src/$1/LICENSE" "$MT_DIR/src/$1/README.md" "$dir/" \
+    || { warn "translation model $1: conversion failed (see $LOG/mt-$1.log)"; rm -rf "$dir"; }
+}
+install_mt ar-en https://object.pouta.csc.fi/OPUS-MT-models/ar-en/opus-2019-12-18.zip 2406c939b175616789999f370a3f487e90cd018e4590e8679cf91ee8caff2416
+install_mt en-ar https://object.pouta.csc.fi/Tatoeba-MT-models/eng-ara/opus-2021-02-23.zip 857a0d6383f4cb4b990a4915f3a21cb9ab9d00d8837d99ed73bd9f8a5df3af7a
 
 export ENVIRONMENT=local
 export DATABASE_URL="postgresql+psycopg://murailex@127.0.0.1:$PGPORT/murailex"
@@ -124,6 +147,7 @@ export MURAILEX_WORK_DIR="$DATA/work"
 export APP_BASE_URL="https://localhost:$HTTPS_PORT"
 export COOKIE_SECURE=true
 export EVIDENCE_SIGNING_KEY_PATH="$DATA/signing/ed25519-private.pem"   # generated once, mode 600
+export LOCAL_MT_DIR="$MT_DIR"
 export PYTHONPATH="$BACKEND"
 
 ( cd "$BACKEND" && .venv/bin/alembic upgrade head >"$LOG/migrate.log" 2>&1 ) || die "database migration failed (see $LOG/migrate.log)"
