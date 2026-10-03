@@ -31,18 +31,20 @@ test.describe("Gate Job Account Workspace", () => {
     await accounts.getByLabel("Assigned To", { exact: true }).fill(name);
     await accounts.getByRole("button", { name: new RegExp(name) }).click();
     await accounts.getByRole("button", { name: /CONFIRM ASSIGNMENT/ }).click();
-    await expect(accounts.getByText(email, { exact: true })).toBeVisible();
-    await expect(accounts.getByText("PENDING", { exact: true })).toBeVisible();
+    const accountTable = accounts.getByRole("table");
+    await expect(accountTable.getByText(email, { exact: true })).toBeVisible();
+    await expect(accountTable.getByText("PENDING", { exact: true })).toBeVisible();
 
     const [account] = await db()`select a.id,a.assigned_to_client_id,a.password_ciphertext,a.pin_ciphertext from gate_job_accounts a join clients c on c.id=a.assigned_to_client_id where c.full_name=${name}`;
     expect(account.password_ciphertext).not.toContain(password);
     expect(account.pin_ciphertext).not.toContain(pin);
 
-    await accounts.getByRole("link", { name: "Open Client" }).click();
-    await expect(page.getByTestId("gate-job-account-card")).toContainText(email);
-    await page.getByRole("button", { name: /MARK READY/ }).click();
-    await expect(page.getByTestId("gate-job-account-card")).toContainText("READY");
-    await page.getByTestId("gate-job-account-card").getByRole("button", { name: "Reveal" }).first().click();
-    await expect(page.getByTestId("gate-job-account-card")).toContainText(password);
+    await accountTable.getByRole("link", { name: "Open Client" }).click();
+    const card = page.getByTestId("gate-job-account-card");
+    await expect(card).toContainText(email);
+    await card.getByRole("button", { name: /MARK READY/ }).click();
+    await expect(card).toContainText("READY");
+    await card.getByRole("button", { name: "Reveal" }).first().click();
+    await expect(card).toContainText(password);
   });
 });
