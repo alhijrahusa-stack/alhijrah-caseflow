@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from ..models import Recording, Summary, TranscriptRevision
 from ..pipeline.text import CRITICAL_RISKS
 from ..security import Principal, current_principal, load_recording
 from .common import iso, parse_uuid
+from .strict import StrictIn
 
 router = APIRouter(prefix="/api")
 
@@ -234,7 +235,7 @@ def _defense(rec: Recording, rev: TranscriptRevision, binding: str) -> dict[str,
     }
 
 
-class SummaryIn(BaseModel):
+class SummaryIn(StrictIn):
     summary_type: str = Field(pattern="^(neutral|defense)$")
     revision_id: str | None = None
 

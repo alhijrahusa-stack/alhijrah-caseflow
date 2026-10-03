@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -46,6 +46,7 @@ from .common import (
     run_out,
     translation_out,
 )
+from .strict import StrictIn
 
 router = APIRouter(prefix="/api")
 
@@ -199,7 +200,7 @@ def list_disputes(recording_id: str, status: str | None = None, p: Principal = D
     return {"disputes": [dispute_out(d) for d in db.execute(q).scalars()]}
 
 
-class ResolveIn(BaseModel):
+class ResolveIn(StrictIn):
     action: str = Field(pattern="^(accept_candidate|type_exact|mark_inaudible|mark_unclear_name|mark_unclear_number|mark_overlap)$")
     candidate_index: int | None = None
     text: str | None = Field(default=None, max_length=5000)
@@ -267,7 +268,7 @@ def resolve(dispute_id: str, body: ResolveIn, p: Principal = Depends(current_pri
     return {"dispute": dispute_out(d), "remaining": remaining}
 
 
-class SegmentTextIn(BaseModel):
+class SegmentTextIn(StrictIn):
     text: str = Field(min_length=1, max_length=20000)
 
 
@@ -287,7 +288,7 @@ def correct_segment(recording_id: str, segment_id: str, body: SegmentTextIn, p: 
     return {"ok": True}
 
 
-class SpeakerIn(BaseModel):
+class SpeakerIn(StrictIn):
     speaker: str = Field(pattern=r"^S\d{1,3}$")
 
 
@@ -317,7 +318,7 @@ def add_speaker(recording_id: str, p: Principal = Depends(current_principal), db
     return {"speaker": sid}
 
 
-class VerifyNameIn(BaseModel):
+class VerifyNameIn(StrictIn):
     name: str | None = Field(default=None, max_length=200)
     confirm_human_verification: bool = False
 
@@ -399,7 +400,7 @@ def new_revision(recording_id: str, p: Principal = Depends(current_principal), d
 
 # ------------------------------------------------------------- translations
 
-class TranslationIn(BaseModel):
+class TranslationIn(StrictIn):
     mode: str = Field(pattern="^(ar_en|en_ar|bilingual)$")
 
 
@@ -453,7 +454,7 @@ def review_queue(p: Principal = Depends(current_principal), db: Session = Depend
     return {"items": [{**recording_out(r), "open_disputes": n} for r, n in db.execute(stmt).all()]}
 
 
-class AccessIn(BaseModel):
+class AccessIn(StrictIn):
     email: str
     permission: str = Field(pattern="^(view|review)$")
 

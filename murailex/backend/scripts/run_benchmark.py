@@ -147,6 +147,7 @@ def main() -> int:
             if critical_reference
             else "NOT MEASURED"
         ),
+        "critical_entity_source": sorted({str(r.get("critical_extraction") or "human annotation") for r in rows if r.get("critical_reference")}),
     }
     if args.persist:
         result["benchmark_run_id"] = _persist(result, payload)

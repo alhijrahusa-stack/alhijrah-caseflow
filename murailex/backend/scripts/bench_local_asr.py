@@ -25,6 +25,7 @@ from pathlib import Path
 
 os.environ.setdefault("ENVIRONMENT", "local")
 
+from app.benchmark import ENTITY_EXTRACTION_VERSION, extract_numeric_entities  # noqa: E402
 from app.providers import registry  # noqa: E402
 from app.providers.local_whisper import LocalWhisper, hardware_profile  # noqa: E402
 
@@ -75,8 +76,11 @@ def run(adapter: LocalWhisper, rows: list[dict[str, str]], locale: str) -> tuple
                 "ground_truth_revision": "corpus-release",
                 "ground_truth_reviewer": "corpus publisher (human transcription)",
                 "human_ground_truth": True,
-                "critical_reference": [],
-                "critical_hypothesis": [],
+                # Numeric entities are extracted by the same rule from the human reference and
+                # the hypothesis; the reference text itself is never edited.
+                "critical_reference": [{"item_id": row["item_id"], **e} for e in extract_numeric_entities(row["ground_truth"])],
+                "critical_hypothesis": [{"item_id": row["item_id"], **e} for e in extract_numeric_entities(hyp)],
+                "critical_extraction": ENTITY_EXTRACTION_VERSION,
                 "split": split_of(row["item_id"]),
                 "duration_s": round(dur, 3),
                 "decode_s": round(spent, 3),
@@ -99,12 +103,18 @@ def main() -> None:
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--locale", default="ar")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument(
+        "--numeric-first", action="store_true",
+        help="select every item whose reference contains digits before the others (entity coverage)",
+    )
     ap.add_argument("--commit-sha", default=os.environ.get("MURAILEX_COMMIT", "unknown"))
     args = ap.parse_args()
 
     with open(args.manifest, encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh, delimiter="\t"))
     rows.sort(key=lambda r: r["item_id"])
+    if args.numeric_first:
+        rows.sort(key=lambda r: 0 if extract_numeric_entities(r["ground_truth"]) else 1)
     if args.limit:
         rows = rows[: args.limit]
     out = Path(args.out_dir)

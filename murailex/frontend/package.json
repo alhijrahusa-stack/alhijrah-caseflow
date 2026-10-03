@@ -21,7 +21,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "tailwind-merge": "3.7.0",
-    "wavesurfer.js": "8.0.1"
+    "wavesurfer.js": "8.0.1",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

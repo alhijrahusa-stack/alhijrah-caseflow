@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -28,6 +28,7 @@ from ..models import (
 )
 from ..security import Principal, current_principal, load_recording
 from .common import dispute_out, iso, parse_uuid, run_out, translation_out
+from .strict import StrictIn
 from .summaries import summary_out, transcript_binding_sha
 
 router = APIRouter(prefix="/api")
@@ -42,7 +43,7 @@ CONTENT_TYPES = {
 PDF_DOCUMENT_TYPES = {"summary", "transcript", "complete_case"}
 
 
-class ExportIn(BaseModel):
+class ExportIn(StrictIn):
     format: str = Field(pattern="^(txt|docx|pdf|json|zip)$")
     revision_id: str | None = None
     translation_id: str | None = None

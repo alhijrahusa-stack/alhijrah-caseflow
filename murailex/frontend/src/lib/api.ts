@@ -1,3 +1,5 @@
+import type { ZodType } from "zod";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -14,7 +16,12 @@ function csrf(): string {
   return m ? decodeURIComponent(m[1]) : "";
 }
 
-export async function api<T = unknown>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
+export async function api<T = unknown>(
+  path: string,
+  init: RequestInit & { json?: unknown; schema?: ZodType } = {},
+): Promise<T> {
+  const { schema, ...rest } = init;
+  init = rest;
   const headers = new Headers(init.headers);
   const method = (init.method ?? "GET").toUpperCase();
   if (method !== "GET" && method !== "HEAD") headers.set("x-csrf-token", csrf());
@@ -42,7 +49,14 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
     throw new ApiError(res.status, message, detail);
   }
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const data: unknown = await res.json();
+  if (schema) {
+    const parsed = schema.safeParse(data);
+    if (!parsed.success) {
+      throw new ApiError(res.status, `Unexpected response from ${path.split("?")[0]}: ${parsed.error.issues.map((i) => i.path.join(".") + " " + i.message).slice(0, 3).join("; ")}`);
+    }
+  }
+  return data as T;
 }
 
 export { csrf };

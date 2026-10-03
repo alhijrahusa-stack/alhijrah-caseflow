@@ -631,3 +631,12 @@ def test_provider_self_test_does_not_change_recording_processing_status(app_clie
         assert after.derived and after.derived.get("analysis_wav")
         assert (after.status, after.status_detail) == status_before
     drain_jobs()
+
+
+def test_request_bodies_are_strict(app_client, users):
+    csrf = login(app_client, "owner@example.com")
+    base = {"filename": "s.wav", "size": 10, "fingerprint": "strict", **upload_metadata()}
+    unknown = app_client.post("/api/uploads", headers={"x-csrf-token": csrf}, json={**base, "owner_id": "x"})
+    assert unknown.status_code == 422
+    coerced = app_client.post("/api/uploads", headers={"x-csrf-token": csrf}, json={**base, "size": "10"})
+    assert coerced.status_code == 422

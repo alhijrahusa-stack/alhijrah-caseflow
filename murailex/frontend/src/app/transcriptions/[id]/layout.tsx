@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { api, ApiError } from "@/lib/api";
+import { RecordingEnvelope } from "@/lib/schemas";
 import type { Recording } from "@/lib/types";
 
 const VALID = new Set(["ar", "ar-YE", "ar-EG", "ar-SY", "ar-LB", "ar-IQ"]);
@@ -23,7 +24,7 @@ export default function RecordingLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let live = true;
-    api<Detail>(`/api/recordings/${id}`)
+    api<Detail>(`/api/recordings/${id}`, { schema: RecordingEnvelope })
       .then((result) => {
         if (live) setRecording(result.recording);
       })

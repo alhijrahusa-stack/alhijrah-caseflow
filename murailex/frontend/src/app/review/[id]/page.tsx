@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError } from "@/lib/api";
+import { RecordingEnvelope } from "@/lib/schemas";
 import { fmtTime, textDir } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import type { Dispute, Recording } from "@/lib/types";
@@ -166,7 +167,7 @@ export default function ReviewPage() {
 
   const load = useCallback(async () => {
     const [r, d, tr] = await Promise.all([
-      api<{ recording: Recording }>(`/api/recordings/${id}`),
+      api<{ recording: Recording }>(`/api/recordings/${id}`, { schema: RecordingEnvelope }),
       api<{ disputes: Dispute[] }>(`/api/recordings/${id}/disputes`),
       api<{ revision: { content?: { speakers: Record<string, { label: string }> } } | null }>(`/api/recordings/${id}/transcript`),
     ]);

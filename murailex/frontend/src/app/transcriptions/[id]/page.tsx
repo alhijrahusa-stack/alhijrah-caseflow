@@ -17,6 +17,7 @@ import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError } from "@/lib/api";
+import { ExportEnvelope, RecordingEnvelope, RevisionsEnvelope } from "@/lib/schemas";
 import { fmtBytes, fmtTime, shortHash, textDir } from "@/lib/format";
 import { type Key, useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
@@ -67,10 +68,11 @@ export default function TranscriptPage() {
 
   const load = useCallback(async () => {
     try {
-      const d = await api<Detail>(`/api/recordings/${id}`);
+      const d = await api<Detail>(`/api/recordings/${id}`, { schema: RecordingEnvelope });
       setDetail(d);
       const tr = await api<{ revision: Revision | null; revisions: Revision[] }>(
         `/api/recordings/${id}/transcript${selected ? `?revision=${selected}` : ""}`,
+        { schema: RevisionsEnvelope },
       );
       setRevision(tr.revision);
       setRevisions(tr.revisions);
@@ -304,7 +306,7 @@ function ExportPanel({ recordingId, revisionId }: { recordingId: string; revisio
     setBusy(format);
     setErr(null);
     try {
-      const r = await api<{ export: ExportInfo }>(`/api/recordings/${recordingId}/exports`, { method: "POST", json: { format, revision_id: revisionId } });
+      const r = await api<{ export: ExportInfo }>(`/api/recordings/${recordingId}/exports`, { method: "POST", json: { format, revision_id: revisionId }, schema: ExportEnvelope });
       setLast(r.export);
       toast(`${format.toUpperCase()} ${lang === "ar" ? "جاهز — SHA-256 محفوظ" : "ready — SHA-256 recorded"}`);
       const a = document.createElement("a");
@@ -370,7 +372,7 @@ function TranslationPanel({ recordingId }: { recordingId: string }) {
     }
   }
   async function exportTr(id: string, format: string) {
-    const r = await api<{ export: ExportInfo }>(`/api/recordings/${recordingId}/exports`, { method: "POST", json: { format, translation_id: id } });
+    const r = await api<{ export: ExportInfo }>(`/api/recordings/${recordingId}/exports`, { method: "POST", json: { format, translation_id: id }, schema: ExportEnvelope });
     const a = document.createElement("a");
     a.href = r.export.download_url;
     a.download = r.export.filename;

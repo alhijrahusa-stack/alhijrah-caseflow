@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -14,13 +14,14 @@ from ..models import Job, Recording, TranscriptRevision
 from ..providers import registry
 from ..security import Principal, current_principal, load_recording, require_admin
 from .common import iso, parse_uuid, recording_out
+from .strict import StrictIn
 
 router = APIRouter(prefix="/api")
 
 LOCALE_PATTERN = r"^(ar|ar-YE|ar-EG|ar-SY|ar-LB|ar-IQ)$"
 
 
-class LocaleIn(BaseModel):
+class LocaleIn(StrictIn):
     language_locale: str = Field(pattern=LOCALE_PATTERN)
 
 

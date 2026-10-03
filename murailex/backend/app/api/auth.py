@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import EmailStr, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -26,11 +26,12 @@ from ..security import (
     verify_password,
 )
 from .common import parse_uuid, user_out
+from .strict import StrictIn
 
 router = APIRouter(prefix="/api")
 
 
-class LoginIn(BaseModel):
+class LoginIn(StrictIn):
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=1, max_length=512)
 
@@ -78,7 +79,7 @@ def me(p: Principal = Depends(current_principal)):
     return {"user": user_out(p.user), "csrf_token": p.session.csrf_token}
 
 
-class PasswordIn(BaseModel):
+class PasswordIn(StrictIn):
     current_password: str
     new_password: str = Field(min_length=12, max_length=512)
 
@@ -95,7 +96,7 @@ def change_password(body: PasswordIn, p: Principal = Depends(current_principal),
     return {"ok": True}
 
 
-class UserIn(BaseModel):
+class UserIn(StrictIn):
     email: EmailStr
     display_name: str = ""
     password: str = Field(min_length=12, max_length=512)
@@ -121,7 +122,7 @@ def create_user(body: UserIn, p: Principal = Depends(require_admin), db: Session
     return {"user": user_out(u)}
 
 
-class UserPatch(BaseModel):
+class UserPatch(StrictIn):
     role: str | None = None
     is_active: bool | None = None
 

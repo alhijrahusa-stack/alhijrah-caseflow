@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
@@ -88,37 +87,106 @@ def score_transcript(reference: str, hypothesis: str) -> dict[str, Any]:
     }
 
 
+_DIGIT_FOLD = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+_NUMBER = re.compile(r"\d+(?:[.,٫٬]\d+)*")
+_ARABIC_FOLD = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ى": "ي", "ة": "ه", "ؤ": "و", "ئ": "ي", "ـ": None})
+ENTITY_EXTRACTION_VERSION = "murailex.entities.numeric/1"
+FUZZY_MATCH_VERSION = "murailex.fuzzy/1"
+FUZZY_THRESHOLD = 0.85
+
+
+def extract_numeric_entities(text: str) -> list[dict[str, str]]:
+    """Rule-based numeric entities (digit sequences) exactly as written in the text.
+
+    Applied identically to the human reference and to the hypothesis; numbers spelled out in
+    words are not extracted, so a hypothesis that spells out a reference number is a miss.
+    """
+    folded = unicodedata.normalize("NFKC", text).translate(_DIGIT_FOLD)
+    return [{"type": "number", "text": m.group(0)} for m in _NUMBER.finditer(folded)]
+
+
+def fuzzy_key(entity_type: str, text: str) -> str:
+    """Comparison-only key: NFKC, digits folded, separators dropped for numbers, Arabic letter
+    variants folded, diacritics and punctuation removed. Never applied to evidence text."""
+    value = unicodedata.normalize("NFKC", text).translate(_DIGIT_FOLD)
+    if entity_type in {"number", "money", "date", "time", "percent"}:
+        return "".join(ch for ch in value if ch.isdigit())
+    return measurement_normalize(value).translate(_ARABIC_FOLD)
+
+
+def similarity(a: str, b: str) -> float:
+    if not a and not b:
+        return 1.0
+    s, d, i = _distance(list(a), list(b))
+    return 1.0 - (s + d + i) / max(len(a), len(b))
+
+
+def _match_counts(ref: list[dict[str, str]], hyp: list[dict[str, str]], mode: str) -> dict[str, list[int]]:
+    """Per-group (item), per-type one-to-one matching. exact: identical typed text.
+    fuzzy: identical fuzzy key, else greedy best similarity >= FUZZY_THRESHOLD for
+    non-numeric types (numbers never match approximately)."""
+    by_group: dict[str, tuple[list, list]] = {}
+    for row in ref:
+        by_group.setdefault(str(row.get("item_id", "")), ([], []))[0].append(row)
+    for row in hyp:
+        by_group.setdefault(str(row.get("item_id", "")), ([], []))[1].append(row)
+    out: dict[str, list[int]] = {}
+    for refs, hyps in by_group.values():
+        pool = [(str(h["type"]).strip(), str(h["text"]).strip()) for h in hyps]
+        used = [False] * len(pool)
+        for r in refs:
+            kind, text = str(r["type"]).strip(), str(r["text"]).strip()
+            counts = out.setdefault(kind, [0, 0])
+            counts[1] += 1
+            hit = -1
+            for j, (hk, ht) in enumerate(pool):
+                if used[j] or hk != kind:
+                    continue
+                if ht == text or (mode == "fuzzy" and fuzzy_key(kind, ht) == fuzzy_key(kind, text)):
+                    hit = j
+                    break
+            if hit < 0 and mode == "fuzzy" and kind not in {"number", "money", "date", "time", "percent"}:
+                best = FUZZY_THRESHOLD
+                for j, (hk, ht) in enumerate(pool):
+                    if used[j] or hk != kind:
+                        continue
+                    score = similarity(fuzzy_key(kind, ht), fuzzy_key(kind, text))
+                    if score >= best:
+                        best, hit = score, j
+            if hit >= 0:
+                used[hit] = True
+                counts[0] += 1
+    return out
+
+
 def critical_entity_accuracy(
     reference: list[dict[str, str]], hypothesis: list[dict[str, str]]
 ) -> dict[str, Any]:
-    """Exact typed entity accuracy. Inputs must be human-annotated/reference-extracted records."""
-
-    def key(row: dict[str, str]) -> tuple[str, str]:
-        return (str(row["type"]).strip(), str(row["text"]).strip())
-
-    ref = Counter(key(row) for row in reference)
-    hyp = Counter(key(row) for row in hypothesis)
-    total = sum(ref.values())
+    """Typed entity accuracy (exact, plus a separately labelled fuzzy figure). Reference
+    entities must be human-annotated or extracted from the human reference. Entities carrying
+    an item_id are only matched within the same item."""
+    exact = _match_counts(reference, hypothesis, "exact")
+    total = sum(v[1] for v in exact.values())
     if total == 0:
         raise ValueError("No human-ground-truth critical entities are available.")
-    matched = sum(min(count, hyp[item]) for item, count in ref.items())
+    fuzzy = _match_counts(reference, hypothesis, "fuzzy")
+    matched = sum(v[0] for v in exact.values())
+    fuzzy_matched = sum(v[0] for v in fuzzy.values())
     by_type: dict[str, dict[str, int | float]] = {}
-    for entity_type in sorted({item[0] for item in ref}):
-        type_total = sum(count for (kind, _), count in ref.items() if kind == entity_type)
-        type_matched = sum(
-            min(count, hyp[(kind, text)])
-            for (kind, text), count in ref.items()
-            if kind == entity_type
-        )
+    for entity_type in sorted(exact):
+        m, t = exact[entity_type]
         by_type[entity_type] = {
-            "matched": type_matched,
-            "reference": type_total,
-            "accuracy": type_matched / type_total,
+            "matched": m,
+            "reference": t,
+            "accuracy": m / t,
+            "fuzzy_matched": fuzzy[entity_type][0],
+            "fuzzy_accuracy": fuzzy[entity_type][0] / t,
         }
     return {
         "matched": matched,
         "reference": total,
         "accuracy": matched / total,
+        "fuzzy": {"version": FUZZY_MATCH_VERSION, "threshold": FUZZY_THRESHOLD, "matched": fuzzy_matched, "accuracy": fuzzy_matched / total},
         "by_type": by_type,
     }
 

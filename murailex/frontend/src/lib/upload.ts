@@ -1,4 +1,5 @@
 import { ApiError, api } from "./api";
+import { RecordingEnvelope, UploadSessionSchema } from "./schemas";
 import type { Recording } from "./types";
 
 export type ArabicLocale = "ar" | "ar-YE" | "ar-EG" | "ar-SY" | "ar-LB" | "ar-IQ";
@@ -88,6 +89,7 @@ export async function resumableUpload(
   const mime = blob.type || "application/octet-stream";
   const session = await api<UploadSessionInfo>("/api/uploads", {
     method: "POST",
+    schema: UploadSessionSchema,
     json: {
       filename: opts.name,
       mime_type: mime,
@@ -161,6 +163,7 @@ export async function resumableUpload(
   await Promise.all(Array.from({ length: Math.min(3, todo.length) }, lane));
   const result = await api<{ recording: Recording }>(`/api/uploads/${session.id}/complete`, {
     method: "POST",
+    schema: RecordingEnvelope,
   });
   forgetPending(fingerprint);
   return result.recording;

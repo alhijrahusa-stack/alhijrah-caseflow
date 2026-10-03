@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -16,6 +16,7 @@ from ..db import get_db
 from ..models import Recording, UploadSession, new_id
 from ..security import Principal, current_principal, require_capability
 from .common import parse_uuid, recording_out
+from .strict import StrictIn
 
 router = APIRouter(prefix="/api/uploads")
 
@@ -26,7 +27,7 @@ RECORDING_TYPE_PATTERN = (
 )
 
 
-class UploadIn(BaseModel):
+class UploadIn(StrictIn):
     filename: str = Field(min_length=1, max_length=500)
     mime_type: str = Field(default="application/octet-stream", max_length=100)
     size: int = Field(gt=0)
