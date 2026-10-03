@@ -21,7 +21,7 @@ test.describe("Smart Career Collect Client", () => {
     await expect(page.getByText("VALID", { exact: true }).first()).toBeVisible();
 
     await page.getByRole("button", { name: /STAGE SELECTED CASES/ }).click();
-    await expect(page.getByRole("status")).toContainText("1 import case staged.");
+    await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
     const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("..");
     const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
     await expect(queueRow).toBeVisible();
