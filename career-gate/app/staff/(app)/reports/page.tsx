@@ -5,10 +5,10 @@ import { reports } from "@/lib/queries";
 
 function Table({ title, rows, label, extra }: { title: string; rows: Record<string, unknown>[]; label: (r: Record<string, unknown>) => string; extra?: (r: Record<string, unknown>) => string }) {
   return (
-    <section className="ops-glass-card">
+    <section className="report-glass-card p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        <span className="rounded-full border border-white/[.08] px-2.5 py-1 font-mono text-[10px] text-slate-400">{rows.length}</span>
+        <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
+        <span className="rounded-full border border-white/[.08] bg-white/[.02] px-2.5 py-1 font-mono text-[10px] text-slate-400">{rows.length}</span>
       </div>
       {rows.length === 0 ? <p className="text-sm text-slate-500">No data.</p> : (
         <div className="overflow-x-auto">
@@ -31,7 +31,11 @@ export default async function ReportsPage() {
   if (!session) redirect("/staff/login");
   if (session.staff.role === "staff") return <p className="ops-error" data-testid="forbidden">403 — Admin or manager only.</p>;
   const r = JSON.parse(JSON.stringify(await reports(session)));
-  const last30 = Number(r.last30[0].n);
+  const last30 = Number(r.last30[0]?.n ?? 0);
+  const statusTotal = r.byStatus.reduce((sum: number, row: Record<string, unknown>) => sum + Number(row.n ?? 0), 0);
+  const completed = r.byStatus.reduce((sum: number, row: Record<string, unknown>) => sum + (row.current_status === "completed" ? Number(row.n ?? 0) : 0), 0);
+  const completionRate = statusTotal === 0 ? 0 : Math.round((completed / statusTotal) * 100);
+
   return (
     <div className="ops-page space-y-4">
       <header className="ops-hero">
@@ -40,9 +44,15 @@ export default async function ReportsPage() {
           <h1>Reports</h1>
           <p>Live operational counts from the production database · no estimated values</p>
         </div>
-        <div className="ops-metric min-w-44">
-          <span>New clients · 30 days</span>
-          <strong data-testid="report-last30">{last30}</strong>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="ops-metric min-w-44">
+            <span>New clients · 30 days</span>
+            <strong data-testid="report-last30">{last30}</strong>
+          </div>
+          <div className="report-performance" aria-label={`Completed client ratio ${completionRate}%`}>
+            <div className="report-performance-ring" style={{ "--value": completionRate } as React.CSSProperties}><strong>{completionRate}%</strong></div>
+            <div className="report-performance-copy"><span>Completion performance</span><strong>{completed} of {statusTotal} client records</strong></div>
+          </div>
         </div>
       </header>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
