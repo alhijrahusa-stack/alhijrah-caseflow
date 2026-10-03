@@ -25,14 +25,15 @@ test.describe("Smart Career Collect Client", () => {
     await expect(page.getByText(name, { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "REVIEW" }).last().click();
 
-    const reviewer = page.locator("select").last();
-    await reviewer.selectOption({ index: 1 });
+    await page.getByLabel("REVIEWED BY").selectOption({ index: 1 });
     await page.getByRole("button", { name: "REVIEW", exact: true }).last().click();
+    await expect(page.getByRole("button", { name: "CHECK & VERIFY" })).toBeEnabled();
     await page.getByRole("button", { name: "CHECK & VERIFY" }).click();
 
     await page.getByText("CURRENT DOCUMENT STATUS REVIEWED").click();
     await page.getByText("INFORMATION MATCH CONFIRMED").click();
     await page.getByRole("button", { name: "SAVE CONFIRMATIONS" }).click();
+    await expect(page.getByRole("button", { name: "APPROVE FILE" })).toBeEnabled();
     await page.getByRole("button", { name: "APPROVE FILE" }).click();
     await expect(page).toHaveURL(/\/staff\/client\/[0-9a-f-]+$/i);
     await expect(page.getByText(name, { exact: true })).toBeVisible();
