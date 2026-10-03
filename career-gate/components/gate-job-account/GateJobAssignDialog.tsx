@@ -29,17 +29,14 @@ export function GateJobAssignDialog({ onDone, onClose }: { onDone: () => void; o
   }, []);
 
   useEffect(() => {
-    if (clientSearch.trim().length < 2) {
-      setClients([]);
-      return;
-    }
+    if (selected || clientSearch.trim().length < 2) return;
     const timer = setTimeout(() => {
       void api(`/api/staff/search?q=${encodeURIComponent(clientSearch)}`)
         .then((data) => setClients(data.results))
         .catch((err) => setError(err instanceof Error ? err.message : "Client search failed"));
     }, 220);
     return () => clearTimeout(timer);
-  }, [clientSearch]);
+  }, [clientSearch, selected]);
 
   async function confirm() {
     if (!emailId || !selected || pending) return;
@@ -94,6 +91,7 @@ export function GateJobAssignDialog({ onDone, onClose }: { onDone: () => void; o
           const value = event.target.value;
           setClientSearch(value);
           setSelected(null);
+          if (value.trim().length < 2) setClients([]);
         }} />
       </label>
       {clients.length > 0 && <div className="mt-2 max-h-44 overflow-auto rounded-xl border border-white/[.07] bg-black/20 p-1">{clients.map((client) => <button key={client.id} type="button" onClick={() => { setSelected(client); setClientSearch(`${client.full_name} · ${client.ref}`); setClients([]); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-white/[.04]"><span>{client.full_name}</span><span className="font-mono text-slate-500">{client.ref}</span></button>)}</div>}
