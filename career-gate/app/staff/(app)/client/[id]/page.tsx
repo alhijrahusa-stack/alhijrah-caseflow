@@ -1,11 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import { GateJobAccountCard, type GateJobAccountCardData } from "@/components/gate-job-account/GateJobAccountCard";
 import { ClientFile, type ClientFileData, type ClientPanel, type ClientTab } from "@/components/staff/ClientFile";
+import { NextActionCard } from "@/components/staff/NextActionCard";
 import { RequirementsPanel } from "@/components/staff/RequirementsPanel";
 import { getGateJobAccountForClient } from "@/lib/gate-job-account/service";
 import { getStaffSession } from "@/lib/auth";
 import { clientScope } from "@/lib/authz";
 import { clientAccountSummary } from "@/lib/client-account";
+import { clientNextAction } from "@/lib/next-action";
 import { clientFile } from "@/lib/queries";
 import { clientRequirements } from "@/lib/requirements";
 import { securityEvent } from "@/lib/ratelimit";
@@ -27,11 +29,12 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
     }
     notFound();
   }
-  const [data, account, gateJobAccount, requirementData, query] = await Promise.all([
+  const [data, account, gateJobAccount, requirementData, nextAction, query] = await Promise.all([
     clientFile(session, id),
     clientAccountSummary(session, id),
     getGateJobAccountForClient(session, id),
     clientRequirements(session, id),
+    clientNextAction(session, id),
     searchParams,
   ]);
   if (!data) notFound();
@@ -40,5 +43,12 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const requestedTab = query.tab as ClientTab | undefined;
   const initialTab = requestedTab && TABS.has(requestedTab) ? requestedTab : null;
   const gateJob = gateJobAccount ? JSON.parse(JSON.stringify(gateJobAccount)) as GateJobAccountCardData : null;
-  return <div className="space-y-4"><ClientFile data={JSON.parse(JSON.stringify(data)) as ClientFileData} account={account} initialPanel={initialPanel} initialTab={initialTab} /><GateJobAccountCard account={gateJob} /><RequirementsPanel clientId={id} rows={JSON.parse(JSON.stringify(requirementData.requirements))} readiness={requirementData.readiness} /></div>;
+  return (
+    <div className="space-y-4">
+      {nextAction && <NextActionCard action={nextAction} />}
+      <ClientFile data={JSON.parse(JSON.stringify(data)) as ClientFileData} account={account} initialPanel={initialPanel} initialTab={initialTab} />
+      <GateJobAccountCard account={gateJob} />
+      <RequirementsPanel clientId={id} rows={JSON.parse(JSON.stringify(requirementData.requirements))} readiness={requirementData.readiness} />
+    </div>
+  );
 }

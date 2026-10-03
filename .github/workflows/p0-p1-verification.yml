@@ -3,8 +3,34 @@ name: P0 P1 verification
 on:
   push:
     branches: [main, p0-p1-hardening]
+    paths:
+      - "src/**"
+      - "api/**"
+      - "supabase/**"
+      - "test/**"
+      - "e2e/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "Dockerfile"
+      - "railway.toml"
+      - "vercel.json"
+      - "playwright.config.js"
   pull_request:
     branches: [main]
+    paths:
+      - "src/**"
+      - "api/**"
+      - "supabase/**"
+      - "test/**"
+      - "e2e/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "Dockerfile"
+      - "railway.toml"
+      - "vercel.json"
+      - "playwright.config.js"
   workflow_dispatch:
 
 permissions:

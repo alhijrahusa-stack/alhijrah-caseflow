@@ -2,13 +2,19 @@ name: Career Gate CI
 
 on:
   push:
+    branches: [main]
     paths: ["career-gate/**", ".github/workflows/career-gate.yml"]
   pull_request:
+    branches: [main]
     paths: ["career-gate/**", ".github/workflows/career-gate.yml"]
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: career-gate-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   web:
@@ -25,6 +31,8 @@ jobs:
       - run: npm test
       - name: Integration (PostgreSQL + migrations)
         run: ./tests/run-integration.sh
+      - name: Production build
+        run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: End-to-end (test catalog fixture)
         run: ./e2e/run.sh
