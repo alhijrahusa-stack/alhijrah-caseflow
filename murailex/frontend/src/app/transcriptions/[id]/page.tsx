@@ -668,6 +668,20 @@ function ResultCard({ rec, revision, openDisputes }: { rec: Recording; revision:
             <span className="text-fg-subtle">—</span>
           )}
         </Stat>
+        <Stat label={ar ? "جودة الصوت" : "Audio quality"}>
+          {rec.audio_quality ? (
+            <span
+              className={rec.audio_quality.overall === "CLEAN" || rec.audio_quality.overall === "ACCEPTABLE" ? "text-ok" : "text-warn"}
+              title={Object.values(rec.audio_quality.reasons).join(" · ") || `SNR ≈ ${rec.audio_quality.metrics.snr_db_est} dB`}
+              data-testid="audio-quality"
+            >
+              {rec.audio_quality.overall}
+              <span className="ms-1 text-xs text-fg-subtle" dir="ltr">SNR≈{rec.audio_quality.metrics.snr_db_est} dB</span>
+            </span>
+          ) : (
+            <span className="text-fg-subtle">—</span>
+          )}
+        </Stat>
         <Stat label={ar ? "الدقة مقابل الحقيقة" : "Ground-truth accuracy"}>
           <span className="text-fg-subtle">{ar ? "لا مرجع بشري" : "No human reference"}</span>
         </Stat>

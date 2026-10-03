@@ -33,6 +33,7 @@ def recording_out(r: Recording) -> dict[str, Any]:
         "duration_ms": r.duration_ms, "status": r.status, "status_detail": r.status_detail,
         "language_locale": r.language_locale, "recording_type": r.recording_type, "expected_terms": r.expected_terms,
         "expected_speakers": r.expected_speakers, "media_info": r.media_info,
+        "audio_quality": (r.derived or {}).get("quality"),
         "storage_version_id": r.storage_version_id, "owner_id": str(r.owner_id),
     }
 

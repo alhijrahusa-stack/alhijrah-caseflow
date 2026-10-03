@@ -21,7 +21,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import audio, audit, storage
+from .. import audio, audio_quality, audit, storage
 from ..config import get_settings
 from ..models import Dispute, ProviderRun, Recording, TranscriptRevision
 from ..providers import registry
@@ -129,6 +129,29 @@ def _clock(ms: int) -> str:
     return f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}"
 
 
+def _yield_check(recording_id: Any) -> Any:
+    """True when other work is waiting for the (single) worker; used between long-form windows."""
+    from ..db import session_factory
+    from ..models import Job
+
+    def check() -> bool:
+        try:
+            with session_factory()() as s:
+                now = datetime.now(timezone.utc)
+                return s.execute(
+                    select(Job.id).where(
+                        Job.recording_id != recording_id,
+                        Job.kind.in_(["process_recording", "provider_self_test"]),
+                        Job.run_after <= now,
+                        (Job.status == "queued") | ((Job.status == "running") & (Job.locked_until < now)),
+                    ).limit(1)
+                ).first() is not None
+        except Exception:  # noqa: BLE001
+            return False
+
+    return check
+
+
 def _progress_reporter(recording_id: Any, status: str = "transcribing", label: str = "Transcribing") -> Any:
     """Report real long-form decoding progress (windows done, audio position) on its own
     short transaction so the main processing transaction is unaffected."""
@@ -206,6 +229,10 @@ def ensure_derived(db: Session, rec: Recording, *, announce: bool = True) -> dic
     os.remove(original)
 
     derived: dict[str, Any] = {"silences": silences}
+    try:
+        derived["quality"] = audio_quality.analyze(analysis, info)
+    except Exception as exc:  # noqa: BLE001 - quality is advisory; it never stops processing
+        derived["quality"] = {"version": audio_quality.VERSION, "overall": "NOT_ASSESSED", "error": f"{type(exc).__name__}: {exc}"}
     for name, path, ctype in (
         ("analysis_wav", analysis, "audio/wav"),
         ("analysis_flac", flac, "audio/flac"),
@@ -525,7 +552,7 @@ def process_recording(db: Session, rec: Recording) -> None:
         path = flac if adapter.name == "google_chirp3" else analysis
         try:
             runs[adapter.name] = drive_run(
-                db, rec, adapter, "primary_asr", path, {**ctx, "on_progress": _progress_reporter(rec.id)}
+                db, rec, adapter, "primary_asr", path, {**ctx, "on_progress": _progress_reporter(rec.id), "should_yield": _yield_check(rec.id)}
             )
         except Wait as wait:
             waits.append(wait)
@@ -600,7 +627,11 @@ def process_recording(db: Session, rec: Recording) -> None:
         for verifier in verifiers:
             vrun = drive_run(
                 db, rec, verifier, "verification_asr", analysis,
-                {**ctx, "on_progress": _progress_reporter(rec.id, "verifying", "Independent verification")},
+                {
+                    **ctx,
+                    "on_progress": _progress_reporter(rec.id, "verifying", "Independent verification"),
+                    "should_yield": _yield_check(rec.id),
+                },
                 scope="full",
             )
             if vrun is None or vrun.status != "succeeded":

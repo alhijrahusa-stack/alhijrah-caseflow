@@ -19,6 +19,7 @@ export type Recording = {
   open_disputes?: number;
   storage_version_id?: string | null;
   media_info?: Record<string, unknown> | null;
+  audio_quality?: { version: string; overall: string; labels: string[]; reasons: Record<string, string>; metrics: Record<string, number | string> } | null;
 };
 
 export type Provenance = Record<string, unknown>;

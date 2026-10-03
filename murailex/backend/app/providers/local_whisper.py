@@ -310,6 +310,8 @@ class LocalWhisper(AsrAdapter):
         s = get_settings()
         _language(context.get("language_locale"))
         progress: Callable[[int, int, int, int], None] | None = context.get("on_progress")
+        should_yield: Callable[[], bool] | None = context.get("should_yield")
+        yield_after: int | None = None
         started = time.monotonic()
         try:
             model = _model(self.model_name())
@@ -338,6 +340,7 @@ class LocalWhisper(AsrAdapter):
                             resumed += 1
                     except (OSError, ValueError):
                         data = None
+                decoded_now = data is None
                 if data is None:
                     t_window = time.monotonic()
                     if len(plan) == 1:
@@ -363,10 +366,20 @@ class LocalWhisper(AsrAdapter):
                 windows.append(data)
                 if progress:
                     progress(len(windows), len(plan), w["own_end_ms"], duration_ms)
+                if should_yield and decoded_now and len(windows) < len(plan) and should_yield():
+                    # Long-job fairness: the finished window is checkpointed; let other queued
+                    # work run and resume from the checkpoints afterwards.
+                    yield_after = len(windows)
+                    break
         except ProviderError:
             raise
         except Exception as exc:  # noqa: BLE001
             raise ProviderError(f"Local Whisper failed: {type(exc).__name__}: {exc}", retryable=False) from exc
+        if yield_after is not None:
+            from ..pipeline.process import Wait
+
+            _log.info("%s yielding after window %d/%d to other queued work", self.name, yield_after, len(plan))
+            raise Wait(1.0, f"{self.name} yielded after window {yield_after}/{len(plan)}")
         first = windows[0] if windows else {}
         return {
             "model": self.model_name(),
