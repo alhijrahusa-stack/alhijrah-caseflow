@@ -16,7 +16,6 @@ on:
       - "railway.toml"
       - "vercel.json"
       - "playwright.config.js"
-      - ".github/workflows/p0-p1-verification.yml"
   pull_request:
     branches: [main]
     paths:
@@ -32,7 +31,6 @@ on:
       - "railway.toml"
       - "vercel.json"
       - "playwright.config.js"
-      - ".github/workflows/p0-p1-verification.yml"
   workflow_dispatch:
 
 permissions:
