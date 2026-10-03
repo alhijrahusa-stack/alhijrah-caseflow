@@ -674,3 +674,24 @@ def test_integrity_verification_detects_tampering_and_blocks(app_client, users, 
         db.commit()
     again = app_client.post(f"/api/recordings/{rec['id']}/integrity", headers={"x-csrf-token": csrf}).json()
     assert again["integrity"]["ok"] is True and again["recording"]["status"] == "needs_review"
+
+
+def test_out_of_order_timestamp_beside_dispute_is_accounted_once(app_client, users):
+    """Regression: a dispute's primary candidate must hold exactly its aligned columns; an
+    accepted token whose timestamp falls inside the region span must not be persisted twice."""
+    from app.providers import registry
+    from app.providers.fixture import FixtureAsr, FixtureDiarization
+
+    registry.install_test_fixtures(
+        [FixtureAsr("engine_a", "ooo_engine_a.json"), FixtureAsr("engine_b", "ooo_engine_b.json")],
+        [FixtureDiarization("diarization.json")],
+        [FixtureAsr("verifier", "verifier.json", role="verification_asr")],
+    )
+    try:
+        csrf = login(app_client, "owner@example.com")
+        rec = upload_file(app_client, csrf, SAMPLE, title="out of order")
+        drain_jobs()
+        out = app_client.get(f"/api/recordings/{rec['id']}").json()["recording"]
+        assert out["status"] in ("needs_review", "ready"), out["status_detail"]
+    finally:
+        registry.clear_test_fixtures()

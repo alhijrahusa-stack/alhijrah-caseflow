@@ -828,14 +828,16 @@ def process_recording(db: Session, rec: Recording) -> None:
             continue
 
         candidates = []
-        for meta, tokens in primary_inputs:
-            candidates.append(
-                cons.candidate(
-                    meta,
-                    cons.tokens_in_window(tokens, region["start_ms"], region["end_ms"]),
-                    "primary_asr",
-                )
-            )
+        for meta, _tokens in primary_inputs:
+            # Exactly the primary tokens aligned into this region's columns (never a time
+            # window), so every primary token is accounted for once: in the region or outside it.
+            region_tokens = [
+                {"text": p["raw"], "start_ms": p["start_ms"], "end_ms": p["end_ms"], "confidence": p.get("confidence")}
+                for index in sorted(region_column_ids)
+                for p in columns[index]["provenance"]
+                if p["run_id"] == meta["run_id"]
+            ]
+            candidates.append(cons.candidate(meta, region_tokens, "primary_asr"))
         for verifier in verifiers:
             run = _get_run(
                 db,
