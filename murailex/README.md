@@ -17,7 +17,7 @@ Forensic verbatim transcription for Arabic/English recordings. **The original au
 - Audit events are SHA-256 hash-chained (`GET /api/audit/verify`).
 - No generative model touches the source transcript. Consensus is deterministic (time-constrained token alignment); unresolved evidence stays visible as a dispute and must be resolved by a person: accept a candidate, type exactly what is heard, or mark `[غير مسموع]`, `[اسم غير واضح]`, `[رقم غير واضح]`, `[تداخل]`.
 - Speakers are `[المتحدث N]`; a real name requires explicit human verification.
-- Translation (Google Cloud Translation NMT) is a separate, timestamp-aligned derived document created only from a locked revision.
+- Translation is a separate, timestamp-aligned derived document created only from a locked revision. It uses Google Cloud Translation NMT on the production stack and on-device OPUS-MT in local mode.
 - Exports (TXT/DOCX/PDF/JSON/Evidence Package ZIP with `manifest.json` and `SHA256SUMS.txt`) are generated only from locked revisions.
 
 ## Engines
@@ -57,7 +57,7 @@ Details:
   - Decoding has no VAD, no no-speech skipping and no prompt, so no part of the recording is silently dropped.
   - Audio never leaves the machine.
   - The worker runs at lower CPU priority and leaves one core free so the UI stays responsive during transcription.
-- **Speakers:** there is no on-device diarization. Speakers stay `[متحدث غير محدد]` until a person assigns them.
+- **Speakers:** on-device diarization assigns anonymous labels (see below); naming a speaker is a human act. If the diarization models are absent, speakers stay `[متحدث غير محدد]`.
 - **Readiness:** local routing is labelled **NOT BENCHMARKED**. On a fresh install, upload a recording. When processing is blocked, an admin presses **Run engine self-test** on that recording, then **Retry processing**. This is a real self-test, run once per dialect route.
 - **Storage:** evidence is stored write-once under `murailex/.local-data/objects`. PostgreSQL lives in `murailex/.local-data/pg`, and the TLS material in `murailex/.local-data/tls`. All of it survives restarts.
 
@@ -85,6 +85,29 @@ Details:
 - **Signing:** evidence packages carry `manifest.sig` (Ed25519 over `manifest.json`) and `public-key.pem`. Verify with `openssl pkeyutl -verify -pubin -inkey public-key.pem -rawin -in manifest.json -sigfile manifest.sig`.
 - **Export validation:** every export is structurally validated, written, read back and re-hashed before it is recorded.
 - **Benchmark Lab:** `scripts/bench_local_asr.py` decodes a human-transcribed corpus with the exact production adapter. It splits items by group into development and held-out sets, and records RTF and peak RAM for `scripts/run_benchmark.py` to score.
+
+### On-device diarization and translation
+
+- **Diarization:** sherpa-onnx runs pyannote segmentation-3.0 (MIT) and WeSpeaker ResNet34 VoxCeleb embeddings (CC-BY-4.0) on the CPU.
+  - The launcher installs the models, pinned by SHA-256.
+  - The route is fingerprinted and self-tested exactly like ASR.
+  - It is required once installed. Without it, speakers stay unattributed and are never inferred.
+  - An expected speaker count given at intake fixes the number of clusters.
+- **DER:** `scripts/bench_local_diarization.py` scores the production adapter against human RTTM within the UEM. The protocol is NIST DER: 10 ms frames, overlap scored, no collar, optimal mapping.
+- **Translation:** OPUS-MT ar→en and en→ar (CC-BY-4.0) runs through CTranslate2 int8.
+  - The launcher downloads the original releases, pinned by SHA-256, and converts them.
+  - Every translation records the release and the model hash.
+  - Long segments are chunked, never truncated.
+  - A translation is a derived reference document, not evidence. In local mode, text never leaves the machine.
+
+### Accounts, sessions and cases
+
+- **Two-factor authentication:** TOTP (RFC 6238), enrolled in Settings → Security.
+  - Secrets are encrypted at rest. Codes are single-use per 30 s step.
+  - Enrolment signs out every session that lacks the second factor.
+- **Sessions:** Settings lists active sessions (device, IP, last seen). You can sign out one session or all others. A password change signs out the others.
+- **Cases:** recordings can be filed in an owner-scoped case, either from the recording page or by filtering the list. Filing is audited and never touches a recording, transcript or hash.
+- **Contracts:** every request body is strict: no type coercion, unknown fields rejected. Evidence-critical responses (recording, revision, upload session, export) are validated in the browser with Zod.
 
 ## Run (production stack)
 
