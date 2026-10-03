@@ -59,7 +59,9 @@ class Settings(BaseSettings):
     # Empty = not configured (speakers stay unattributed, never inferred).
     local_diar_dir: str = ""
     local_diar_embedding: str = "wespeaker_en_voxceleb_resnet34_LM.onnx"
-    local_diar_threshold: float = 0.5  # sherpa-onnx default; not tuned on any evaluation data
+    # Frozen from the AMI development split only (IS1008a, ES2011a: DER 36.2% at 1.0 vs 48.8%
+    # at 0.9 and 44.3% at 1.1); the AMI test split is evaluated once with this value.
+    local_diar_threshold: float = 1.0
     local_diar_min_on_s: float = 0.3
     local_diar_min_off_s: float = 0.5
 
