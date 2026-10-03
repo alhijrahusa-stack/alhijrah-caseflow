@@ -19,5 +19,6 @@ export const metadata: Metadata = {
 export default async function SmartClientImportPage() {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login?next=%2Fstaff%2Fsmart-client-import%2Fnew");
+  if (session.staff.role === "staff") redirect("/staff");
   return <SmartClientImportMobile />;
 }
