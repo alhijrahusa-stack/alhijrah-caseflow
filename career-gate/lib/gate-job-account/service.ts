@@ -226,14 +226,16 @@ export async function reserveGateJobEmail(session: StaffSession, emailId: string
     if (!row) throw new GateJobAccountError("not_found", "Gate Job email not found", 404);
     if (row.status === "USED") throw new GateJobAccountError("email_used", "This Gate Job email has already been used", 409);
     if (row.status === "RESERVED") {
-      if (row.reserved_by !== session.staff.id) throw new GateJobAccountError("email_reserved", "This Gate Job email is reserved by another staff member", 409);
+      if (row.reserved_by !== session.staff.id || row.reserved_client_id !== clientId) {
+        throw new GateJobAccountError("email_reserved", "This Gate Job email is reserved for another assignment", 409);
+      }
       return { id: row.id, status: row.status, reservation_expires_at: row.reservation_expires_at };
     }
     const [reserved] = await tx`
-      update gate_job_emails set status='RESERVED',reserved_by=${session.staff.id},reserved_at=now(),
+      update gate_job_emails set status='RESERVED',reserved_client_id=${clientId},reserved_by=${session.staff.id},reserved_at=now(),
         reservation_expires_at=now()+(${RESERVATION_MINUTES}::text || ' minutes')::interval,updated_by=${session.staff.id}
       where id=${row.id} and status='AVAILABLE'
-      returning id,status,reservation_expires_at`;
+      returning id,status,reserved_client_id,reservation_expires_at`;
     if (!reserved) throw new GateJobAccountError("email_unavailable", "Gate Job email is no longer available", 409);
     await securityAudit(tx, "email_reserved", session.staff.id, traceId, { record_id: row.id, client_id: clientId });
     return reserved;
@@ -249,7 +251,8 @@ export async function releaseGateJobEmail(session: StaffSession, emailId: string
       throw new GateJobAccountError("forbidden", "This reservation belongs to another staff member", 403);
     }
     const [released] = await tx`
-      update gate_job_emails set status='AVAILABLE',reserved_by=null,reserved_at=null,reservation_expires_at=null,updated_by=${session.staff.id}
+      update gate_job_emails set status='AVAILABLE',reserved_client_id=null,reserved_by=null,reserved_at=null,
+        reservation_expires_at=null,updated_by=${session.staff.id}
       where id=${row.id} returning id,status`;
     await securityAudit(tx, "email_released", session.staff.id, traceId, { record_id: row.id });
     return released;
@@ -266,8 +269,14 @@ export async function confirmGateJobAssignment(session: StaffSession, emailId: s
 
     const source = await lockVaultEmail(tx, emailId);
     if (!source) throw new GateJobAccountError("not_found", "Gate Job email not found", 404);
-    if (source.status !== "RESERVED" || source.reserved_by !== session.staff.id || !source.reservation_expires_at || source.reservation_expires_at.getTime() <= Date.now()) {
-      throw new GateJobAccountError("invalid_reservation", "Gate Job email reservation is missing or expired", 409);
+    if (
+      source.status !== "RESERVED" ||
+      source.reserved_by !== session.staff.id ||
+      source.reserved_client_id !== clientId ||
+      !source.reservation_expires_at ||
+      source.reservation_expires_at.getTime() <= Date.now()
+    ) {
+      throw new GateJobAccountError("invalid_reservation", "Gate Job email reservation is missing, expired, or belongs to another client", 409);
     }
     if (await activeAccountBySource(tx, source.id)) throw new GateJobAccountError("email_assigned", "Gate Job email already backs an active account", 409);
 
@@ -288,10 +297,11 @@ export async function confirmGateJobAssignment(session: StaffSession, emailId: s
       ) values (
         ${accountId},${clientId},${source.id},${source.email},${passwordSnapshot.ciphertext},${passwordSnapshot.nonce},${passwordSnapshot.authTag},
         ${pinSnapshot.ciphertext},${pinSnapshot.nonce},${pinSnapshot.authTag},${passwordSnapshot.keyVersion},'PENDING',${session.staff.id}
-      ) returning id,assigned_to_client_id,source_email_id,email_snapshot,status,assigned_at,ready_at,updated_at,removed_at`;
+      ) returning id,assigned_to_client_id,source_email_id,email_snapshot,status,assigned_at,ready_at,updated_at,disabled_at`;
 
     await tx`
-      update gate_job_emails set status='USED',reserved_by=null,reserved_at=null,reservation_expires_at=null,updated_by=${session.staff.id}
+      update gate_job_emails set status='USED',reserved_client_id=null,reserved_by=null,reserved_at=null,reservation_expires_at=null,
+        used_client_id=${clientId},used_by=${session.staff.id},used_at=now(),updated_by=${session.staff.id}
       where id=${source.id}`;
 
     await securityAudit(tx, "email_used", session.staff.id, traceId, { record_id: source.id, client_id: clientId, account_id: accountId });
@@ -335,7 +345,7 @@ export async function markGateJobAccountReady(session: StaffSession, accountId: 
     const [updated] = await tx`
       update gate_job_accounts set status='READY',ready_by=${session.staff.id},ready_at=now(),updated_by=${session.staff.id}
       where id=${row.id}
-      returning id,assigned_to_client_id,email_snapshot,status,assigned_at,ready_at,updated_at,removed_at`;
+      returning id,assigned_to_client_id,email_snapshot,status,assigned_at,ready_at,updated_at,disabled_at`;
     await clientAudit(tx, { clientId: row.assigned_to_client_id, action: "gate_job_account_ready", staffId: session.staff.id, traceId, entityId: row.id, detail: { status: "READY" } });
     return updated;
   });
@@ -363,7 +373,7 @@ export async function updateGateJobAccount(session: StaffSession, raw: unknown, 
         encryption_key_version=coalesce(${password?.keyVersion ?? pin?.keyVersion ?? null},encryption_key_version),
         updated_by=${session.staff.id}
       where id=${row.id}
-      returning id,assigned_to_client_id,email_snapshot,status,assigned_at,ready_at,updated_at,removed_at`;
+      returning id,assigned_to_client_id,email_snapshot,status,assigned_at,ready_at,updated_at,disabled_at`;
     await clientAudit(tx, {
       clientId: row.assigned_to_client_id,
       action: "gate_job_account_updated",
@@ -383,9 +393,9 @@ export async function removeGateJobAccount(session: StaffSession, accountId: str
     if (!row) throw new GateJobAccountError("not_found", "Gate Job account not found", 404);
     if (row.status === "DISABLED") return row;
     const [updated] = await tx`
-      update gate_job_accounts set status='DISABLED',removed_by=${session.staff.id},removed_at=now(),updated_by=${session.staff.id}
+      update gate_job_accounts set status='DISABLED',disabled_by=${session.staff.id},disabled_at=now(),updated_by=${session.staff.id}
       where id=${row.id}
-      returning id,assigned_to_client_id,email_snapshot,status,assigned_at,ready_at,updated_at,removed_at`;
+      returning id,assigned_to_client_id,email_snapshot,status,assigned_at,ready_at,updated_at,disabled_at`;
     await clientAudit(tx, { clientId: row.assigned_to_client_id, action: "gate_job_account_disabled", staffId: session.staff.id, traceId, entityId: row.id, detail: { status: "DISABLED" } });
     return updated;
   });
