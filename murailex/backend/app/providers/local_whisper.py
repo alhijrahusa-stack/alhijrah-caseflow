@@ -86,6 +86,32 @@ def _versions() -> dict[str, str]:
         return {"faster_whisper": "not-installed", "ctranslate2": "not-installed"}
 
 
+def hardware_profile() -> dict[str, Any]:
+    """Detected hardware and the resource policy actually in force (ResourceGovernor v1).
+    GPU is reported when CTranslate2 sees CUDA devices, but routing stays on the CPU profile
+    until a GPU self-test and benchmark prove the GPU route; that promotion is not automatic."""
+    s = get_settings()
+    cuda = 0
+    try:
+        import ctranslate2
+
+        cuda = int(ctranslate2.get_cuda_device_count())
+    except Exception:  # noqa: BLE001
+        cuda = 0
+    cpus = os.cpu_count() or 1
+    return {
+        "profile": "CPU_PROFILE",
+        "cpu_count": cpus,
+        "cuda_devices_detected": cuda,
+        "gpu_route": "not promoted (requires GPU self-test + benchmark evidence)" if cuda else "no GPU detected",
+        "asr_threads": s.local_asr_threads or max(1, cpus - 1),
+        "reserved_cores_for_ui_api": 0 if s.local_asr_threads else min(1, cpus - 1),
+        "max_parallel_asr": 1,
+        "worker_priority": "nice 10 (launcher)",
+        "long_job_fairness": "window-level checkpoints; queued jobs run in arrival order",
+    }
+
+
 def plan_windows(
     duration_ms: int,
     silences: list[tuple[int, int]],

@@ -52,6 +52,10 @@ def ready(db: Session = Depends(get_db)):
         ready_now = infrastructure_ok and provider_ready
         provider_proven = provider_ready
 
+    if registry.local_mode():
+        from ..providers.local_whisper import hardware_profile
+
+        checks["resources"] = hardware_profile()
     return JSONResponse(
         {
             "ready": ready_now,

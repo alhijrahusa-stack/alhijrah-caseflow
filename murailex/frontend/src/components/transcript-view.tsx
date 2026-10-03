@@ -173,7 +173,12 @@ export function TranscriptView({
         ) : null
       ) : (
         <div className="fade-in space-y-3">
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-fg-subtle" aria-label={rtl ? "دليل حالات الأدلة" : "Evidence state legend"}>
+              <li className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-ok" aria-hidden />{rtl ? "مؤكَّد بمحرك مستقل" : "Confirmed by independent engine"}</li>
+              <li className="inline-flex items-center gap-1.5"><span className="text-fg-muted underline decoration-fg-subtle/60 decoration-dotted underline-offset-4">{rtl ? "كلمة" : "word"}</span>{rtl ? "ثقة منخفضة" : "Low confidence"}</li>
+              <li className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-danger" aria-hidden />{rtl ? "متنازع عليه — مراجعة" : "Disputed — review"}</li>
+            </ul>
             <Button size="sm" variant="secondary" onClick={copyTranscript}>
               {copied ? <Check /> : <Copy />} {copied ? (rtl ? "تم النسخ" : "Copied") : (rtl ? "نسخ النص" : "Copy transcript")}
             </Button>

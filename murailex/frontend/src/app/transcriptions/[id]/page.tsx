@@ -49,7 +49,6 @@ function CopyHash({ value }: { value: string | null }) {
   );
 }
 
-const STEPS = ["queued", "analyzing", "transcribing", "aligning", "verifying", "building"];
 
 export default function TranscriptPage() {
   const { id } = useParams<{ id: string }>();
@@ -525,7 +524,24 @@ function EngineSelfTests({ recordingId }: { recordingId: string }) {
   );
 }
 
-/** Live pipeline stage from the server plus real elapsed time. No estimated percentage is shown. */
+const STAGES: { key: string; ar: string; en: string; statuses: string[] }[] = [
+  { key: "integrity", ar: "التحقق من سلامة الأصل", en: "Integrity check", statuses: ["queued"] },
+  { key: "prepare", ar: "تحضير الصوت", en: "Preparing audio", statuses: ["analyzing"] },
+  { key: "transcribe", ar: "التفريغ", en: "Transcribing", statuses: ["transcribing"] },
+  { key: "verify", ar: "التحقق المستقل", en: "Verification", statuses: ["verifying", "aligning"] },
+  { key: "finalize", ar: "الإنهاء", en: "Finalizing", statuses: ["building"] },
+];
+
+/** Decoded position reported by the worker ("decoded H:MM:SS of H:MM:SS"); real, never estimated. */
+function decodedFraction(detail: string | null): number | null {
+  const m = detail?.match(/decoded (\d+):(\d\d):(\d\d) of (\d+):(\d\d):(\d\d)/);
+  if (!m) return null;
+  const sec = (h: string, mi: string, s: string) => Number(h) * 3600 + Number(mi) * 60 + Number(s);
+  const total = sec(m[4], m[5], m[6]);
+  return total > 0 ? Math.min(1, sec(m[1], m[2], m[3]) / total) : null;
+}
+
+/** Live pipeline stage from the server plus real elapsed time and real decoded position. */
 function ProcessingCard({ status, detail, since, durationMs }: { status: string; detail: string | null; since: string; durationMs: number | null }) {
   const { t, lang } = useI18n();
   const ar = lang === "ar";
@@ -534,15 +550,16 @@ function ProcessingCard({ status, detail, since, durationMs }: { status: string;
     const h = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(h);
   }, []);
-  const idx = STEPS.indexOf(status);
+  const idx = Math.max(0, STAGES.findIndex((s) => s.statuses.includes(status)));
   const elapsed = Math.max(0, now - new Date(since).getTime());
+  const fraction = decodedFraction(detail);
   return (
     <Card className="space-y-5" aria-live="polite" data-testid="processing">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <CardTitle>{t("processing")}</CardTitle>
           <p className="mt-1 text-xs text-fg-subtle">
-            {ar ? "المعالجة تتم على هذا الجهاز؛ يمكنك إغلاق الصفحة والعودة لاحقاً." : "Processing runs on this machine; you can close this page and come back."}
+            {ar ? "المعالجة تتم على هذا الجهاز وتستمر حتى لو أُغلقت الصفحة." : "Processing runs on this machine and continues if you close this page."}
           </p>
         </div>
         <div className="text-end font-mono text-xs text-fg-muted" dir="ltr">
@@ -557,29 +574,42 @@ function ProcessingCard({ status, detail, since, durationMs }: { status: string;
         </div>
       </div>
       <ol className="relative grid gap-3 ps-1">
-        {STEPS.map((s, i) => {
+        {STAGES.map((s, i) => {
           const done = i < idx;
           const current = i === idx;
           return (
-            <li key={s} className="relative flex items-center gap-3 text-sm">
+            <li key={s.key} className="relative flex items-center gap-3 text-sm">
               <span
                 className={cn(
                   "relative grid size-6 shrink-0 place-items-center rounded-full border text-[11px] font-semibold transition-colors duration-300",
                   done && "border-ok/40 bg-ok/15 text-ok",
-                  current && "pulse-ring brand-gradient border-transparent text-white shadow-glow",
+                  current && "pulse-ring brand-gradient border-transparent text-primary-fg shadow-glow",
                   !done && !current && "border-white/10 bg-white/[0.03] text-fg-subtle",
                 )}
                 aria-hidden
               >
                 {done ? <Check className="size-3.5" /> : i + 1}
               </span>
-              <span className={cn(current ? "font-semibold text-fg" : done ? "text-fg-muted" : "text-fg-subtle")}>{t(`st_${s}` as Key)}</span>
+              <span className={cn(current ? "font-semibold text-fg" : done ? "text-fg-muted" : "text-fg-subtle")}>{ar ? s.ar : s.en}</span>
               {current && <span className="ms-auto size-1.5 animate-pulse rounded-full bg-primary-text" aria-hidden />}
             </li>
           );
         })}
       </ol>
-      {detail && <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-fg-muted">{detail}</p>}
+      {fraction != null && (
+        <div
+          className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]"
+          dir="ltr"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(fraction * 100)}
+          aria-label={ar ? "الموضع المُفرّغ من التسجيل" : "Decoded position in the recording"}
+        >
+          <div className="brand-gradient h-full rounded-full transition-[width] duration-700" style={{ width: `${fraction * 100}%` }} />
+        </div>
+      )}
+      {detail && <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-fg-muted" dir="ltr">{detail}</p>}
     </Card>
   );
 }

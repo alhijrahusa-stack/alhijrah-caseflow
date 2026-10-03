@@ -152,6 +152,12 @@ start_bg worker 0 "$LOG/worker.log" nice -n 10 "$BACKEND/.venv/bin/python" -m ap
 # ---- frontend ------------------------------------------------------------------------------
 if [ ! -d "$FRONTEND/node_modules" ]; then ( cd "$FRONTEND" && npm ci --no-audit --no-fund >"$LOG/npm.log" 2>&1 ); fi
 if [ ! -f "$FRONTEND/.next/BUILD_ID" ] || [ -n "$(find "$FRONTEND/src" -newer "$FRONTEND/.next/BUILD_ID" -type f -print -quit)" ]; then
+  # Never rebuild under a running server: it would keep serving references to replaced assets.
+  if svc_alive web; then
+    kill -TERM -- "-$(head -1 "$RUN/web.pid")" 2>/dev/null || true
+    for _ in $(seq 1 30); do svc_alive web || break; sleep 0.5; done
+    rm -f "$RUN/web.pid"
+  fi
   log "building web app"
   ( cd "$FRONTEND" && BACKEND_INTERNAL_URL="http://127.0.0.1:$API_PORT" npm run build >"$LOG/build.log" 2>&1 ) || die "web build failed (see $LOG/build.log)"
 fi

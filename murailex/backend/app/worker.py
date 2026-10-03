@@ -13,6 +13,7 @@ def _preload_local_models() -> None:
 
     s = get_settings()
     log = logging.getLogger("murailex.worker")
+    log.info("resource profile: %s", local_whisper.hardware_profile())
     for name in (s.local_asr_model, s.local_verify_model):
         try:
             local_whisper._model(name)
