@@ -564,7 +564,7 @@ def process_recording(db: Session, rec: Recording) -> None:
                 diarizer,
                 "diarization",
                 analysis,
-                ctx,
+                {**ctx, "on_progress": _progress_reporter(rec.id, "transcribing", "Speaker diarization")},
             )
         except Wait as wait:
             waits.append(wait)

@@ -113,7 +113,7 @@ PRIVACY_REGISTRY: dict[str, dict[str, Any]] = {
     },
 }
 
-LOCAL_PROVIDERS = frozenset({"local_whisper", "local_whisper_verify"})
+LOCAL_PROVIDERS = frozenset({"local_whisper", "local_whisper_verify", "local_diarization"})
 
 
 def approved(provider: str) -> bool:

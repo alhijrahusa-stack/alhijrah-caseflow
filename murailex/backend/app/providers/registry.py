@@ -9,11 +9,12 @@ from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..forensic_models import ProviderSelfTest
-from . import privacy
+from . import local_diarization, privacy
 from .assemblyai import AssemblyAI
 from .base import AsrAdapter, DiarizationAdapter, Pending, ProviderInfo
 from .deepgram import DeepgramNova3
 from .google_chirp import GoogleChirp3
+from .local_diarization import LocalDiarization
 from .local_whisper import LocalWhisper
 from .openai_stt import OpenAITranscribe
 from .pyannote import PyannoteAI
@@ -98,9 +99,16 @@ def local_verifier() -> LocalWhisper:
     return LocalWhisper("local_whisper_verify", "local_verify_model", "verification_asr")
 
 
+def local_diarizer() -> LocalDiarization:
+    return LocalDiarization()
+
+
 def required_roles() -> frozenset[str]:
-    """Local mode has no on-device diarization engine; speakers stay unattributed."""
+    """In local mode diarization is required once its on-device models are installed;
+    without them speakers stay unattributed (never inferred)."""
     if local_mode():
+        if local_diarization.installed():
+            return frozenset({"primary_asr", "diarization", "verification_asr"})
         return frozenset({"primary_asr", "verification_asr"})
     return frozenset({"primary_asr", "diarization", "verification_asr"})
 
@@ -167,7 +175,7 @@ def diarization() -> list[DiarizationAdapter]:
     if _override is not None and fixtures_enabled():
         return _override["diarization"]
     if local_mode():
-        return []
+        return [local_diarizer()] if local_diarization.installed() else []
     gated = _gate([PyannoteAI()])
     return cast(list[DiarizationAdapter], gated)
 
@@ -196,6 +204,7 @@ def all_adapters() -> list[AsrAdapter | DiarizationAdapter]:
         PyannoteAI(),
         local_primary(),
         local_verifier(),
+        local_diarizer(),
     ]
 
 

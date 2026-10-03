@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     # On-device translation (ENVIRONMENT=local): CTranslate2 conversions of OPUS-MT models,
     # one directory per direction (ar-en, en-ar) under this path. Empty = not configured.
     local_mt_dir: str = ""
+    # On-device speaker diarization (ENVIRONMENT=local): sherpa-onnx with pyannote
+    # segmentation-3.0 (MIT) + WeSpeaker ResNet34 VoxCeleb embeddings (CC-BY-4.0).
+    # Empty = not configured (speakers stay unattributed, never inferred).
+    local_diar_dir: str = ""
+    local_diar_threshold: float = 0.5  # sherpa-onnx default; not tuned on any evaluation data
+    local_diar_min_on_s: float = 0.3
+    local_diar_min_off_s: float = 0.5
 
     pyannote_api_key: SecretStr | None = None
     pyannote_base_url: str = "https://api.pyannote.ai/v1"

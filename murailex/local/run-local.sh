@@ -116,7 +116,7 @@ if [ ! -x "$BACKEND/.venv/bin/python" ]; then
   python3 -m venv "$BACKEND/.venv"
   "$BACKEND/.venv/bin/pip" install -q -r "$BACKEND/requirements.txt" -r "$BACKEND/requirements-local.txt"
 fi
-"$BACKEND/.venv/bin/python" -c "import faster_whisper, sentencepiece" 2>/dev/null \
+"$BACKEND/.venv/bin/python" -c "import faster_whisper, sentencepiece, sherpa_onnx" 2>/dev/null \
   || "$BACKEND/.venv/bin/pip" install -q -r "$BACKEND/requirements-local.txt"
 
 # On-device translation models (OPUS-MT, CC-BY-4.0): original Marian weights, pinned by SHA-256,
@@ -139,6 +139,26 @@ install_mt() { # direction url sha256
 install_mt ar-en https://object.pouta.csc.fi/OPUS-MT-models/ar-en/opus-2019-12-18.zip 2406c939b175616789999f370a3f487e90cd018e4590e8679cf91ee8caff2416
 install_mt en-ar https://object.pouta.csc.fi/Tatoeba-MT-models/eng-ara/opus-2021-02-23.zip 857a0d6383f4cb4b990a4915f3a21cb9ab9d00d8837d99ed73bd9f8a5df3af7a
 
+# On-device speaker diarization models (sherpa-onnx releases), pinned by SHA-256:
+# pyannote segmentation-3.0 ONNX (MIT, CNRS) and WeSpeaker ResNet34 VoxCeleb (CC-BY-4.0).
+DIAR_DIR="$DATA/models/diar"
+fetch_pinned() { # url dest sha256
+  [ -f "$2" ] && echo "$3  $2" | sha256sum -c --quiet - 2>/dev/null && return 0
+  curl -fsSL --max-time 900 -o "$2.part" "$1" && echo "$3  $2.part" | sha256sum -c --quiet - && mv -f "$2.part" "$2" && return 0
+  rm -f "$2.part"; return 1
+}
+if [ ! -f "$DIAR_DIR/sherpa-onnx-pyannote-segmentation-3-0/model.onnx" ] || [ ! -f "$DIAR_DIR/wespeaker_en_voxceleb_resnet34_LM.onnx" ]; then
+  log "installing on-device speaker diarization models (first run)"
+  mkdir -p "$DIAR_DIR"
+  REL=https://github.com/k2-fsa/sherpa-onnx/releases/download
+  if fetch_pinned "$REL/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2" "$DIAR_DIR/seg.tar.bz2" 24615ee884c897d9d2ba09bb4d30da6bb1b15e685065962db5b02e76e4996488 \
+    && fetch_pinned "$REL/speaker-recongition-models/wespeaker_en_voxceleb_resnet34_LM.onnx" "$DIAR_DIR/wespeaker_en_voxceleb_resnet34_LM.onnx" e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012; then
+    tar xjf "$DIAR_DIR/seg.tar.bz2" -C "$DIAR_DIR"
+  else
+    warn "diarization models: download or checksum failed; speakers will stay unattributed"
+  fi
+fi
+
 export ENVIRONMENT=local
 export DATABASE_URL="postgresql+psycopg://murailex@127.0.0.1:$PGPORT/murailex"
 export STORAGE_BACKEND=filesystem
@@ -148,6 +168,7 @@ export APP_BASE_URL="https://localhost:$HTTPS_PORT"
 export COOKIE_SECURE=true
 export EVIDENCE_SIGNING_KEY_PATH="$DATA/signing/ed25519-private.pem"   # generated once, mode 600
 export LOCAL_MT_DIR="$MT_DIR"
+export LOCAL_DIAR_DIR="$DIAR_DIR"
 export PYTHONPATH="$BACKEND"
 
 ( cd "$BACKEND" && .venv/bin/alembic upgrade head >"$LOG/migrate.log" 2>&1 ) || die "database migration failed (see $LOG/migrate.log)"

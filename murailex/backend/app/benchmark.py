@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
@@ -270,3 +271,110 @@ def aggregate_scores(scores: list[dict[str, Any]]) -> dict[str, Any]:
         }
     out["normalization_scope"] = "measurement_only"
     return out
+
+
+DER_PROTOCOL = "murailex.der/1: NIST DER, 10 ms frames, overlapped speech scored, no collar, optimal one-to-one speaker mapping, scored within UEM"
+
+
+def _frames(turns: list[tuple[float, float, str]], start: float, end: float, step: float) -> list[set[str]]:
+    n = max(0, int(round((end - start) / step)))
+    frames: list[set[str]] = [set() for _ in range(n)]
+    for t0, t1, spk in turns:
+        a = max(0, int(round((max(t0, start) - start) / step)))
+        b = min(n, int(round((min(t1, end) - start) / step)))
+        for i in range(a, b):
+            frames[i].add(spk)
+    return frames
+
+
+def _hungarian_max(weights: list[list[int]]) -> list[int]:
+    """Maximum-weight assignment on a square matrix (Kuhn-Munkres, O(n^3)); returns col per row."""
+    n = len(weights)
+    big = max((w for row in weights for w in row), default=0)
+    cost = [[big - w for w in row] for row in weights]
+    u = [0] * (n + 1)
+    v = [0] * (n + 1)
+    p = [0] * (n + 1)
+    way = [0] * (n + 1)
+    for i in range(1, n + 1):
+        p[0] = i
+        j0 = 0
+        minv = [float("inf")] * (n + 1)
+        used = [False] * (n + 1)
+        while True:
+            used[j0] = True
+            i0, delta, j1 = p[j0], float("inf"), 0
+            for j in range(1, n + 1):
+                if not used[j]:
+                    cur = cost[i0 - 1][j - 1] - u[i0] - v[j]
+                    if cur < minv[j]:
+                        minv[j], way[j] = cur, j0
+                    if minv[j] < delta:
+                        delta, j1 = minv[j], j
+            for j in range(n + 1):
+                if used[j]:
+                    u[p[j]] += delta
+                    v[j] -= delta
+                else:
+                    minv[j] -= delta
+            j0 = j1
+            if p[j0] == 0:
+                break
+        while True:
+            j1 = way[j0]
+            p[j0] = p[j1]
+            j0 = j1
+            if j0 == 0:
+                break
+    col_of_row = [0] * n
+    for j in range(1, n + 1):
+        if p[j]:
+            col_of_row[p[j] - 1] = j - 1
+    return col_of_row
+
+
+def _best_mapping(overlap: dict[tuple[str, str], int], refs: list[str], hyps: list[str]) -> dict[str, str]:
+    """Optimal one-to-one hyp->ref mapping maximising matched frames."""
+    n = max(len(refs), len(hyps))
+    if n == 0:
+        return {}
+    weights = [[overlap.get((refs[c], hyps[r]), 0) if r < len(hyps) and c < len(refs) else 0 for c in range(n)] for r in range(n)]
+    cols = _hungarian_max(weights)
+    return {hyps[r]: refs[c] for r, c in enumerate(cols) if r < len(hyps) and c < len(refs) and weights[r][c] > 0}
+
+
+def diarization_error_rate(
+    reference: list[tuple[float, float, str]],
+    hypothesis: list[tuple[float, float, str]],
+    uem: tuple[float, float],
+    step: float = 0.01,
+) -> dict[str, Any]:
+    """Turns are (start_s, end_s, speaker). Reference must be human-annotated."""
+    ref = _frames(reference, uem[0], uem[1], step)
+    hyp = _frames(hypothesis, uem[0], uem[1], step)
+    overlap: dict[tuple[str, str], int] = Counter()
+    for r, h in zip(ref, hyp, strict=True):
+        for rs in r:
+            for hs in h:
+                overlap[(rs, hs)] += 1
+    mapping = _best_mapping(dict(overlap), sorted({s for f in ref for s in f}), sorted({s for f in hyp for s in f}))
+    miss = fa = conf = total = 0
+    for r, h in zip(ref, hyp, strict=True):
+        nr, nh = len(r), len(h)
+        total += nr
+        miss += max(0, nr - nh)
+        fa += max(0, nh - nr)
+        correct = len(r & {mapping[s] for s in h if s in mapping})
+        conf += min(nr, nh) - correct
+    if total == 0:
+        raise ValueError("Reference contains no speech inside the UEM; DER is undefined.")
+    return {
+        "protocol": DER_PROTOCOL,
+        "reference_speech_s": round(total * step, 2),
+        "missed_s": round(miss * step, 2),
+        "false_alarm_s": round(fa * step, 2),
+        "confusion_s": round(conf * step, 2),
+        "der": (miss + fa + conf) / total,
+        "reference_speakers": len({s for f in ref for s in f}),
+        "hypothesis_speakers": len({s for f in hyp for s in f}),
+    }

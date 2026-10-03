@@ -117,3 +117,27 @@ def test_aggregate_is_micro_average():
     assert result["raw_wer"]["errors"] == 1
     assert result["raw_wer"]["reference_units"] == 6
     assert result["raw_wer"]["rate"] == pytest.approx(1 / 6)
+
+
+def test_der_components_and_optimal_mapping():
+    from app.benchmark import diarization_error_rate
+
+    ref = [(0.0, 10.0, "A"), (10.0, 20.0, "B")]
+    perfect = diarization_error_rate(ref, [(0.0, 10.0, "x"), (10.0, 20.0, "y")], (0.0, 20.0))
+    assert perfect["der"] == 0.0  # labels are arbitrary; mapping is optimal
+    one = diarization_error_rate(ref, [(0.0, 20.0, "x")], (0.0, 20.0))
+    assert one["confusion_s"] == 10.0 and one["der"] == pytest.approx(0.5)
+    gap = diarization_error_rate(ref, [(0.0, 5.0, "x"), (10.0, 20.0, "y"), (20.0, 25.0, "y")], (0.0, 20.0))
+    assert gap["missed_s"] == 5.0 and gap["false_alarm_s"] == 0.0  # outside the UEM is not scored
+    overlap = diarization_error_rate([(0.0, 10.0, "A"), (5.0, 10.0, "B")], [(0.0, 10.0, "x")], (0.0, 10.0))
+    assert overlap["missed_s"] == 5.0 and overlap["der"] == pytest.approx(5 / 15)
+
+
+def test_der_mapping_is_optimal_not_greedy():
+    from app.benchmark import _best_mapping
+
+    # greedy would pair (A,x)=5 first and leave B with y=1 (total 6); optimal is A-y + B-x = 8
+    overlap = {("A", "x"): 5, ("A", "y"): 4, ("B", "x"): 4, ("B", "y"): 1}
+    assert _best_mapping(overlap, ["A", "B"], ["x", "y"]) == {"x": "B", "y": "A"}
+    many = {(f"R{i}", f"H{i}"): 10 for i in range(12)}
+    assert _best_mapping(many, [f"R{i}" for i in range(12)], [f"H{i}" for i in range(12)]) == {f"H{i}": f"R{i}" for i in range(12)}
