@@ -101,8 +101,17 @@ def reprocess(recording_id: str, p: Principal = Depends(current_principal), db: 
     rec = load_recording(db, p, parse_uuid(recording_id), "upload")
     if rec.status not in ("failed", "provider_not_configured"):
         raise HTTPException(409, "Only failed or unconfigured recordings can be reprocessed.")
-    if db.execute(select(TranscriptRevision.id).where(TranscriptRevision.recording_id == rec.id)).first():
-        raise HTTPException(409, "A transcript already exists for this recording.")
+    revisions = list(db.execute(select(TranscriptRevision).where(TranscriptRevision.recording_id == rec.id)).scalars())
+    if revisions:
+        # Only a failed, never-reviewed draft without persisted evidence may be regenerated.
+        from ..forensic_models import EvidenceSpan
+
+        only = revisions[0] if len(revisions) == 1 else None
+        has_evidence = only is not None and db.execute(select(EvidenceSpan.id).where(EvidenceSpan.revision_id == only.id)).first()
+        if only is None or only.status != "draft" or only.review_state != "unreviewed" or has_evidence or rec.status != "failed":
+            raise HTTPException(409, "A transcript already exists for this recording.")
+        audit.record(db, "failed_draft_regeneration_requested", actor=p.user, recording_id=rec.id,
+                     details={"revision_id": str(only.id)})
     active = db.execute(select(Job).where(Job.recording_id == rec.id, Job.status.in_(["queued", "running"]))).first()
     if active:
         raise HTTPException(409, "Processing is already scheduled.")

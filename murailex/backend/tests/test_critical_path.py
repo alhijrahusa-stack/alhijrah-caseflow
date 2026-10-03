@@ -695,3 +695,39 @@ def test_out_of_order_timestamp_beside_dispute_is_accounted_once(app_client, use
         assert out["status"] in ("needs_review", "ready"), out["status_detail"]
     finally:
         registry.clear_test_fixtures()
+
+
+def test_failed_unreviewed_draft_is_regenerated_not_duplicated(app_client, users, fixture_providers):
+    import uuid
+
+    from app.db import session_factory
+    from app.models import Dispute, Recording, TranscriptRevision
+
+    csrf = login(app_client, "owner@example.com")
+    rec = upload_file(app_client, csrf, SAMPLE, title="regenerate draft")
+    drain_jobs()
+    with session_factory()() as db:
+        before = db.query(Dispute).filter_by(recording_id=uuid.UUID(rec["id"]), status="open").count()
+        row = db.get(Recording, uuid.UUID(rec["id"]))
+        row.status, row.status_detail = "failed", "simulated failure after draft"
+        db.commit()
+    # a draft that already has persisted evidence is not regenerated
+    assert app_client.post(f"/api/recordings/{rec['id']}/reprocess", headers={"x-csrf-token": csrf}).status_code == 409
+    with session_factory()() as db:
+        from app.forensic_models import EvidenceSpan, ProviderToken
+
+        rev = db.query(TranscriptRevision).filter_by(recording_id=uuid.UUID(rec["id"])).one()
+        span_ids = [s.id for s in db.query(EvidenceSpan).filter_by(revision_id=rev.id)]
+        db.query(ProviderToken).filter(ProviderToken.evidence_span_id.in_(span_ids)).delete(synchronize_session=False)
+        db.query(EvidenceSpan).filter_by(revision_id=rev.id).delete(synchronize_session=False)
+        db.commit()
+    assert app_client.post(f"/api/recordings/{rec['id']}/reprocess", headers={"x-csrf-token": csrf}).status_code == 200
+    drain_jobs()
+    out = app_client.get(f"/api/recordings/{rec['id']}").json()
+    assert out["recording"]["status"] in ("needs_review", "ready"), (out["recording"]["status_detail"], out["job"])
+    with session_factory()() as db:
+        rid = uuid.UUID(rec["id"])
+        assert db.query(TranscriptRevision).filter_by(recording_id=rid).count() == 1
+        assert db.query(Dispute).filter_by(recording_id=rid, status="superseded").count() == before
+        assert db.query(Dispute).filter_by(recording_id=rid, status="open").count() == before
+        assert db.query(EvidenceSpan).join(TranscriptRevision, EvidenceSpan.revision_id == TranscriptRevision.id).filter(TranscriptRevision.recording_id == rid).count() > 0

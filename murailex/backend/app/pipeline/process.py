@@ -504,10 +504,17 @@ def _derive_region_run(
 
 def process_recording(db: Session, rec: Recording) -> None:
     s = get_settings()
-    if db.execute(
-        select(TranscriptRevision.id).where(TranscriptRevision.recording_id == rec.id)
-    ).first():
-        return
+    existing = list(db.execute(select(TranscriptRevision).where(TranscriptRevision.recording_id == rec.id)).scalars())
+    if existing:
+        # Never finalize twice. The only exception is a never-reviewed draft that has no
+        # persisted evidence (left by a pre-atomic failure); it is regenerated in place.
+        from ..forensic_models import EvidenceSpan
+
+        only = existing[0]
+        if len(existing) > 1 or only.status != "draft" or only.review_state != "unreviewed" or db.execute(
+            select(EvidenceSpan.id).where(EvidenceSpan.revision_id == only.id)
+        ).first():
+            return
 
     derived = ensure_derived(db, rec)
     wd = _workdir(rec)
@@ -806,6 +813,18 @@ def process_recording(db: Session, rec: Recording) -> None:
         return
 
     _set_status(db, rec, "building", "Creating disputes and draft transcript")
+    # Regeneration of a failed, never-reviewed draft (see reprocess): revisions are never
+    # deleted, so the same draft is rebuilt and its stale disputes are superseded, in the same
+    # transaction as the new disputes, content and evidence.
+    regenerating = db.execute(
+        select(TranscriptRevision).where(TranscriptRevision.recording_id == rec.id, TranscriptRevision.status == "draft")
+    ).scalar_one_or_none()
+    if regenerating is not None:
+        stale = list(db.execute(select(Dispute).where(Dispute.recording_id == rec.id, Dispute.status == "open")).scalars())
+        for old in stale:
+            old.status = "superseded"
+        audit.record(db, "draft_regeneration", actor_label="system", recording_id=rec.id,
+                     details={"revision_id": str(regenerating.id), "superseded_disputes": len(stale)})
     raw_speakers = [c["speaker_raw"] for c in columns] + [turn["speaker"] for turn in turns]
     smap = tx.speaker_map([c["speaker_raw"] for c in columns] or raw_speakers)
     for speaker in raw_speakers:
@@ -1045,15 +1064,18 @@ def process_recording(db: Session, rec: Recording) -> None:
         speakers,
         method,
     )
-    rev = TranscriptRevision(
-        recording_id=rec.id,
-        number=1,
-        status="draft",
-        content=content,
-        review_state="unreviewed",
-    )
-    db.add(rev)
-    db.flush()
+    if regenerating is not None:
+        rev = regenerating
+    else:
+        rev = TranscriptRevision(
+            recording_id=rec.id,
+            number=1,
+            status="draft",
+            content=content,
+            review_state="unreviewed",
+        )
+        db.add(rev)
+        db.flush()
     rev.content = tx.bind_revision(content, str(rev.id))
 
     audit.record(
@@ -1074,4 +1096,8 @@ def process_recording(db: Session, rec: Recording) -> None:
     rec.status_detail = (
         f"{len(disputes)} region(s) need review" if disputes else "Ready to lock"
     )
-    db.commit()
+    # Evidence rows are persisted and the primary-token accounting invariant validated before
+    # the single commit: a failed invariant leaves no draft, disputes or status behind.
+    from ..forensic_persistence import persist_transcript_evidence
+
+    persist_transcript_evidence(db, rec, rev)
