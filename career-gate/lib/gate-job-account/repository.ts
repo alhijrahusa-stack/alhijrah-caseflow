@@ -18,9 +18,13 @@ export type GateJobEmailSecretRow = {
   pin_auth_tag: string;
   encryption_key_version: string;
   status: VaultStatus;
+  reserved_client_id: string | null;
   reserved_by: string | null;
   reserved_at: Date | null;
   reservation_expires_at: Date | null;
+  used_client_id: string | null;
+  used_by: string | null;
+  used_at: Date | null;
   updated_at: Date;
 };
 
@@ -43,8 +47,8 @@ export type GateJobAccountSecretRow = {
   ready_at: Date | null;
   updated_by: string | null;
   updated_at: Date;
-  removed_by: string | null;
-  removed_at: Date | null;
+  disabled_by: string | null;
+  disabled_at: Date | null;
   created_at: Date;
   client_name?: string;
   client_ref?: string;
@@ -75,7 +79,8 @@ export async function clientAudit(
 export async function releaseExpiredReservations(tx: Db, traceId: string) {
   const rows = await tx`
     update gate_job_emails
-    set status='AVAILABLE', reserved_by=null, reserved_at=null, reservation_expires_at=null, updated_by=null
+    set status='AVAILABLE', reserved_client_id=null, reserved_by=null, reserved_at=null,
+        reservation_expires_at=null, updated_by=null
     where status='RESERVED' and reservation_expires_at <= now()
     returning id`;
   for (const row of rows) {
@@ -87,7 +92,8 @@ export async function releaseExpiredReservations(tx: Db, traceId: string) {
 export async function listVault(tx: Db, q: string, status: VaultStatus | "ALL") {
   const pattern = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
   return tx`
-    select id,email,status,reserved_by,reserved_at,reservation_expires_at,created_at,updated_at
+    select id,email,status,reserved_client_id,reserved_by,reserved_at,reservation_expires_at,
+           used_client_id,used_at,created_at,updated_at
     from gate_job_emails
     where (${status === "ALL"} or status=${status})
       and (${q.length === 0} or email_normalized ilike ${pattern})
@@ -119,7 +125,7 @@ export async function listAccounts(tx: Db, session: StaffSession, q: string, sta
   const isAdmin = session.staff.role === "admin";
   const isStaff = session.staff.role === "staff";
   return tx`
-    select a.id,a.assigned_to_client_id,a.source_email_id,a.email_snapshot,a.status,a.assigned_at,a.ready_at,a.updated_at,a.removed_at,
+    select a.id,a.assigned_to_client_id,a.source_email_id,a.email_snapshot,a.status,a.assigned_at,a.ready_at,a.updated_at,a.disabled_at,
            c.full_name as client_name,c.ref as client_ref
     from gate_job_accounts a
     join clients c on c.id=a.assigned_to_client_id
@@ -144,7 +150,7 @@ export async function activeAccountForClient(tx: Db, clientId: string) {
   const [row] = await tx`
     select a.*,c.full_name as client_name,c.ref as client_ref,c.assigned_staff as client_assigned_staff,c.deleted_at as client_deleted_at
     from gate_job_accounts a join clients c on c.id=a.assigned_to_client_id
-    where a.assigned_to_client_id=${clientId} and a.status in ('PENDING','READY') and a.removed_at is null
+    where a.assigned_to_client_id=${clientId} and a.status in ('PENDING','READY') and a.disabled_at is null
     order by a.assigned_at desc limit 1`;
   return (row as GateJobAccountSecretRow | undefined) ?? null;
 }
@@ -155,6 +161,6 @@ export async function lockClient(tx: Db, clientId: string) {
 }
 
 export async function activeAccountBySource(tx: Db, sourceEmailId: string) {
-  const [row] = await tx`select id from gate_job_accounts where source_email_id=${sourceEmailId} and status in ('PENDING','READY') and removed_at is null limit 1`;
+  const [row] = await tx`select id from gate_job_accounts where source_email_id=${sourceEmailId} and status in ('PENDING','READY') and disabled_at is null limit 1`;
   return row ?? null;
 }
