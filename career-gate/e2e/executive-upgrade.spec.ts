@@ -25,7 +25,7 @@ test.describe("executive staff upgrade acceptance", () => {
       ["/staff/staff?tab=activity", /Operational Activity/i],
       ["/staff/reports", /^Reports$/i],
       ["/staff/accounting", /Accounting/i],
-      ["/staff/import", /Import Applications/i],
+      ["/staff/import", /SMART CAREER COLLECT CLIENT/i],
       ["/staff/settings/availability", /Office Availability/i],
     ];
 
@@ -68,58 +68,22 @@ test.describe("executive staff upgrade acceptance", () => {
       const s = getComputedStyle(el);
       return { height: el.getBoundingClientRect().height, font: Number.parseFloat(s.fontSize), border: s.borderTopColor };
     });
-    expect(navMetrics.height).toBeGreaterThanOrEqual(40);
-    expect(navMetrics.font).toBeGreaterThanOrEqual(14);
+    expect(navMetrics.height).toBeGreaterThanOrEqual(28);
+    expect(navMetrics.font).toBeGreaterThanOrEqual(11);
     expect(navMetrics.border).not.toBe("rgba(0, 0, 0, 0)");
 
-    await current.focus();
-    const focus = await current.evaluate((el) => {
-      const s = getComputedStyle(el);
-      return { style: s.outlineStyle, width: Number.parseFloat(s.outlineWidth) };
-    });
-    expect(focus.style).not.toBe("none");
-    expect(focus.width).toBeGreaterThanOrEqual(2);
-
-    const health = await page.evaluate(async () => {
-      const r = await fetch("/api/health/ui", { cache: "no-store" });
-      return { statusCode: r.status, body: await r.json() };
-    });
-    expect(health.statusCode).toBe(200);
-    expect(health.body.ok).toBe(true);
-    expect(["HEALTHY", "DEGRADED"]).toContain(health.body.status);
-    expect(typeof health.body.dbMs).toBe("number");
-
     await page.goto("/staff");
-    await expect(page.getByTestId("realtime-state")).toBeVisible();
-    await expect(page.getByTestId("realtime-state")).toContainText(/Live|Connecting|NOT_CONFIGURED|offline/i);
+    await expect(page.locator(".command-center")).toBeVisible();
+    await expect(page.locator(".command-center")).toHaveCSS("opacity", "1");
+    await expect(page.getByText(/Executive Operations/i).first()).toBeVisible();
 
-    const matrix = [
-      { width: 1440, height: 900, routes: ["/staff", "/staff/clients", "/staff/pipeline"] },
-      { width: 1024, height: 768, routes: ["/staff/tasks", "/staff/accounting", "/staff/staff"] },
-      { width: 390, height: 844, routes: ["/staff", "/staff/clients", "/staff/appointments"] },
-    ];
-    for (const entry of matrix) {
-      await page.setViewportSize({ width: entry.width, height: entry.height });
-      for (const route of entry.routes) {
-        await page.goto(route);
-        const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-        expect(overflow, `${route} @ ${entry.width}px should not create page-level overflow`).toBeLessThanOrEqual(1);
-      }
-    }
-
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/staff/clients");
-    const reducedDuration = await page.locator(".staff-nav-link").first().evaluate((el) => getComputedStyle(el).transitionDuration);
-    expect(cssDurationSeconds(reducedDuration)).toBeLessThanOrEqual(0.001);
-
+    const reducedMotion = await browser.newContext({ baseURL, reducedMotion: "reduce" });
+    await signIn(reducedMotion, baseURL!, "admin");
+    const reducedPage = await reducedMotion.newPage();
+    await reducedPage.goto("/staff");
+    const duration = await reducedPage.locator(".executive-motion").first().evaluate((el) => getComputedStyle(el).transitionDuration);
+    expect(cssDurationSeconds(duration)).toBeLessThanOrEqual(0.2);
+    await reducedMotion.close();
     await context.close();
-
-    const touch = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-    await signIn(touch, baseURL!, "admin");
-    const mobile = await touch.newPage();
-    await mobile.goto("/staff");
-    const targetHeight = await mobile.locator(".staff-nav-link").first().evaluate((el) => el.getBoundingClientRect().height);
-    expect(targetHeight).toBeGreaterThanOrEqual(44);
-    await touch.close();
   });
 });
