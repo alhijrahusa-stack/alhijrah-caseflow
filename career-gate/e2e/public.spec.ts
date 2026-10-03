@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { db, FIXTURE_CATALOG, intakeBody, RUN, submitIntake, uniqueIp } from "./helpers";
+import { db, FIXTURE_CATALOG, intakeBody, RUN, seedOtp, submitIntake, uniqueIp } from "./helpers";
 
 test.describe.serial("public intake and status access", () => {
   let ref = "";
+  let publicEmail = "";
+  let publicPhone = "";
 
   test("current public apply entry redirects to the production form", async ({ page }) => {
     await page.goto("/apply");
@@ -13,7 +15,8 @@ test.describe.serial("public intake and status access", () => {
   test("intake API accepts a current request and persists canonical data", async ({ request }) => {
     const name = `TEST Public ${RUN}`;
     const body = intakeBody(name);
-    body.profile = { ...body.profile, phone: "3135550142", email: `public.${RUN}@test.invalid` };
+    publicEmail = String(body.profile.email);
+    publicPhone = String(body.profile.phone);
     if (FIXTURE_CATALOG) {
       body.primary = [
         { site_code: "TST1", job_id: "J-A", shift_code: "S2" },
@@ -77,29 +80,34 @@ test.describe.serial("public intake and status access", () => {
     expect(second.res.status()).toBe(429);
   });
 
-  test("direct public status lookup returns current file data and 404 for unknown identifiers", async ({ page, request }) => {
-    const ip = uniqueIp();
+  test("public status lookup is non-enumerating and verified status access requires OTP", async ({ page, request }) => {
     const lookup = async (identifier: string) => {
-      const response = await request.post("/api/status/lookup", { data: { identifier }, headers: { "x-forwarded-for": ip } });
+      const response = await request.post("/api/status/lookup", { data: { identifier }, headers: { "x-forwarded-for": uniqueIp() } });
       return { status: response.status(), json: await response.json() };
     };
-    const valid = await lookup(ref);
-    expect(valid.status).toBe(200);
-    expect(valid.json.ok).toBe(true);
-    expect(valid.json.ref).toBe(ref);
-    const byEmail = await lookup(`public.${RUN}@test.invalid`);
-    expect(byEmail.status).toBe(200);
-    expect(byEmail.json.ref).toBe(ref);
-    const byPhone = await lookup("(313) 555-0142");
-    expect(byPhone.status).toBe(200);
-    expect(byPhone.json.ref).toBe(ref);
-    const missing = await lookup("CG-1999-000001");
-    expect(missing.status).toBe(404);
-    expect(missing.json.error.code).toBe("not_found");
 
-    await page.goto(`/status?ref=${ref}`);
+    for (const identifier of [ref, publicEmail, publicPhone, "CG-1999-000001"]) {
+      const result = await lookup(identifier);
+      expect(result.status).toBe(200);
+      expect(result.json.ok).toBe(true);
+      expect(result.json.verification_required).toBe(true);
+      expect(result.json.challenge_id).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(result.json.ref).toBeUndefined();
+    }
+
+    await page.goto(`/status?ref=${encodeURIComponent(ref)}`);
     await expect(page.getByLabel("File number, phone or email")).toHaveValue(ref);
     await page.getByRole("button", { name: "Check Status" }).click();
+    await expect(page.getByLabel("Verification code")).toBeVisible();
+
+    const [client] = await db()`select id from clients where ref = ${ref}`;
+    const [challenge] = await db()`select id from otp_requests where client_id = ${client.id} order by created_at desc limit 1`;
+    expect(challenge?.id).toBeTruthy();
+    expect(await seedOtp(String(challenge.id), "123456")).toBe(true);
+
+    await page.getByLabel("Verification code").fill("123456");
+    await page.getByRole("button", { name: "Verify & View Status" }).click();
+    await page.waitForURL(`**/status/${ref}`);
     const statusPage = page.getByTestId("status-page");
     await expect(statusPage).toBeVisible();
     await expect(statusPage.getByText(ref, { exact: true })).toBeVisible();
