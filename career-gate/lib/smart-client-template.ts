@@ -109,7 +109,7 @@ export function buildCareerGateImportTemplate() {
     ["Maximum rows", "1000"],
   ];
   const reference = [["FIELD", "REQUIRED", "ACCEPTED HEADERS / ALIASES"]];
-  for (const field of IMPORT_FIELD_REGISTRY) reference.push([field.key, field.required ? "YES" : "NO", field.aliases.join(" | ")]);
+  for (const field of IMPORT_FIELD_REGISTRY) reference.push([field.key, ("required" in field && field.required) ? "YES" : "NO", field.aliases.join(" | ")]);
   const metadata = [
     ["template_id", IMPORT_TEMPLATE_ID],
     ["template_version", IMPORT_SCHEMA_VERSION],
