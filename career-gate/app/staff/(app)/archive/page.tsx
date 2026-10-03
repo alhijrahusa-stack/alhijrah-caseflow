@@ -24,7 +24,7 @@ export default async function ArchivePage() {
   if (!session) redirect("/staff/login");
   if (session.staff.role !== "admin" && session.staff.role !== "manager") redirect("/staff");
 
-  const rows = await sql()<ArchivedClient[]>`
+  const rows = await sql()`
     select
       c.id,
       c.ref,
@@ -40,7 +40,7 @@ export default async function ArchivePage() {
     left join documents d on d.client_id = c.id
     where c.deleted_at is not null
     group by c.id, s.display_name
-    order by c.deleted_at desc`;
+    order by c.deleted_at desc` as unknown as ArchivedClient[];
 
   const retainedDocuments = rows.reduce((total, row) => total + Number(row.retained_documents ?? 0), 0);
 
