@@ -20,7 +20,11 @@ test.describe("Smart Career Collect Client", () => {
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     await expect(page.getByText("VALID", { exact: true }).first()).toBeVisible();
 
+    const queueReload = page.waitForResponse((response) =>
+      response.request().method() === "GET" && new URL(response.url()).pathname === "/api/staff/smart-client-import" && response.ok(),
+    );
     await page.getByRole("button", { name: /STAGE SELECTED CASES/ }).click();
+    await queueReload;
     await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
     const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("xpath=ancestor::section[1]");
     const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
