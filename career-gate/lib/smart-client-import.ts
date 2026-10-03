@@ -380,7 +380,7 @@ export async function mutateImportCase(session: StaffSession, input: unknown, tr
       if (!row.reviewer_id) throw new ActionError("reviewer_required", "Select a reviewer first", 400);
       const draft = CanonicalImportDraftSchema.safeParse(row.mapped_draft);
       const documents = await tx`select count(*)::int as n from client_import_documents where import_case_id=${action.case_id}`;
-      let duplicate: unknown[] = [];
+      let duplicate: { id: string; ref: string }[] = [];
       if (draft.success) duplicate = await findClientIdentityMatches(tx, draft.data.profile.email, draft.data.profile.phone);
       const blocking = !draft.success || duplicate.length > 0 || (Array.isArray(row.conflicts) && row.conflicts.length > 0);
       const missingDocument = Number(documents[0]?.n ?? 0) === 0;
