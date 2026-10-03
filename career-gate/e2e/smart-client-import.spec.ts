@@ -20,12 +20,28 @@ test.describe("Smart Career Collect Client", () => {
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     await expect(page.getByText("VALID", { exact: true }).first()).toBeVisible();
 
-    const queueReload = page.waitForResponse((response) =>
-      response.request().method() === "GET" && new URL(response.url()).pathname === "/api/staff/smart-client-import" && response.ok(),
+    const stageResponsePromise = page.waitForResponse((response) =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/staff/universal-intake",
     );
     await page.getByRole("button", { name: /STAGE SELECTED CASES/ }).click();
-    await queueReload;
+    const stageResponse = await stageResponsePromise;
+    expect(stageResponse.status(), await stageResponse.text()).toBe(201);
     await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
+
+    const [staged] = await db()`
+      select id,status,mapped_draft #>> '{profile,full_name}' as full_name
+      from client_import_cases
+      where mapped_draft #>> '{profile,full_name}'=${name}
+      order by created_at desc
+      limit 1`;
+    expect(staged?.status).toBe("PENDING");
+    expect(staged?.full_name).toBe(name);
+
+    const queueResponse = await page.request.get(`${baseURL}/api/staff/smart-client-import`);
+    expect(queueResponse.status(), await queueResponse.text()).toBe(200);
+    const queuePayload = await queueResponse.json();
+    expect(queuePayload.rows.some((row: { id: string }) => row.id === staged.id)).toBe(true);
+
     const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("xpath=ancestor::section[1]");
     const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
     await expect(queueRow).toBeVisible();
