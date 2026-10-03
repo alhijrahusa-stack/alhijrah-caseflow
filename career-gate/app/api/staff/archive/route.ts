@@ -7,7 +7,10 @@ import { logActivity } from "@/lib/service";
 
 export const runtime = "nodejs";
 
-const RestoreSchema = z.object({ client_id: z.uuid() });
+const ArchiveSchema = z.discriminatedUnion("operation", [
+  z.object({ operation: z.literal("archive"), client_id: z.uuid(), reason: z.string().trim().min(1).max(500) }),
+  z.object({ operation: z.literal("restore"), client_id: z.uuid() }),
+]);
 
 export async function POST(req: Request) {
   const traceId = traceIdFrom(req);
@@ -17,19 +20,39 @@ export async function POST(req: Request) {
     return err("forbidden", "Management access required", 403, traceId);
   }
 
-  const parsed = RestoreSchema.safeParse(await req.json().catch(() => undefined));
-  if (!parsed.success) return err("invalid_input", "Invalid client", 400, traceId);
+  const parsed = ArchiveSchema.safeParse(await req.json().catch(() => undefined));
+  if (!parsed.success) return err("invalid_input", "Invalid archive request", 400, traceId);
 
   try {
-    const restored = await sql().begin(async (tx) => {
+    const result = await sql().begin(async (tx) => {
       const [client] = await tx`
         select id, deleted_at, deleted_by, delete_reason
         from clients
         where id = ${parsed.data.client_id}
         for update`;
       if (!client) return null;
-      if (!client.deleted_at) return { id: client.id, changed: false };
 
+      if (parsed.data.operation === "archive") {
+        if (client.deleted_at) return { id: client.id, changed: false, archived: true };
+        await tx`
+          update clients
+          set deleted_at = now(),
+              deleted_by = ${session.staff.id},
+              delete_reason = ${parsed.data.reason},
+              updated_at = now()
+          where id = ${client.id}`;
+        await logActivity(tx, {
+          clientId: client.id,
+          action: "client_deleted",
+          actor: { staffId: session.staff.id, traceId },
+          entityType: "client",
+          entityId: client.id,
+          newValue: { reason: parsed.data.reason, recoverable: true },
+        });
+        return { id: client.id, changed: true, archived: true };
+      }
+
+      if (!client.deleted_at) return { id: client.id, changed: false, archived: false };
       await tx`
         update clients
         set deleted_at = null,
@@ -37,7 +60,6 @@ export async function POST(req: Request) {
             delete_reason = null,
             updated_at = now()
         where id = ${client.id}`;
-
       await logActivity(tx, {
         clientId: client.id,
         action: "client_restored",
@@ -51,12 +73,12 @@ export async function POST(req: Request) {
         },
         newValue: { deleted_at: null, deleted_by: null, delete_reason: null },
       });
-      return { id: client.id, changed: true };
+      return { id: client.id, changed: true, archived: false };
     });
 
-    if (!restored) return err("not_found", "Archived client not found", 404, traceId);
-    return ok(restored, 200, traceId);
+    if (!result) return err("not_found", "Client not found", 404, traceId);
+    return ok(result, 200, traceId);
   } catch {
-    return err("restore_failed", "Unable to restore client", 500, traceId);
+    return err("archive_failed", "Unable to update archive state", 500, traceId);
   }
 }
