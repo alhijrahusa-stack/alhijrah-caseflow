@@ -27,7 +27,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
     }
     notFound();
   }
-  const [data, account, amazonAccount, requirementData, query] = await Promise.all([
+  const [data, account, gateJobAccount, requirementData, query] = await Promise.all([
     clientFile(session, id),
     clientAccountSummary(session, id),
     getGateJobAccountForClient(session, id),
@@ -39,6 +39,6 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const initialPanel = requestedPanel && PANELS.has(requestedPanel) ? requestedPanel : null;
   const requestedTab = query.tab as ClientTab | undefined;
   const initialTab = requestedTab && TABS.has(requestedTab) ? requestedTab : null;
-  const amazon = amazonAccount ? JSON.parse(JSON.stringify(amazonAccount)) as GateJobAccountCardData : null;
-  return <div className="space-y-4"><ClientFile data={JSON.parse(JSON.stringify(data)) as ClientFileData} account={account} initialPanel={initialPanel} initialTab={initialTab} /><GateJobAccountCard account={amazon} /><RequirementsPanel clientId={id} rows={JSON.parse(JSON.stringify(requirementData.requirements))} readiness={requirementData.readiness} /></div>;
+  const gateJob = gateJobAccount ? JSON.parse(JSON.stringify(gateJobAccount)) as GateJobAccountCardData : null;
+  return <div className="space-y-4"><ClientFile data={JSON.parse(JSON.stringify(data)) as ClientFileData} account={account} initialPanel={initialPanel} initialTab={initialTab} /><GateJobAccountCard account={gateJob} /><RequirementsPanel clientId={id} rows={JSON.parse(JSON.stringify(requirementData.requirements))} readiness={requirementData.readiness} /></div>;
 }
