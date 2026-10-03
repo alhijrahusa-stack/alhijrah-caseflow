@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type QueueCase = {
@@ -29,10 +30,12 @@ type QueueCase = {
   created_client_id: string | null;
   document_count: number;
   created_at: string;
+  updated_at: string;
 };
 
 type Staff = { id: string; display_name: string; staff_code: string | null };
 type QueuePayload = { counters: Record<string, number>; staff: Staff[]; cases: QueueCase[] };
+type ApiResult = { ok?: boolean; client_id?: string; error?: { message?: string }; [key: string]: unknown };
 
 type StageResult = {
   total: number;
@@ -107,13 +110,13 @@ export function SmartCareerCollectClient() {
     }
   }
 
-  async function act(payload: Record<string, unknown>) {
+  async function act(payload: Record<string, unknown>): Promise<ApiResult | null> {
     const action = String(payload.action ?? "action");
     setActionBusy(action);
     setActionError(null);
     try {
       const res = await fetch("/api/staff/smart-import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-      const body = await res.json().catch(() => null);
+      const body = (await res.json().catch(() => null)) as ApiResult | null;
       if (!res.ok || !body?.ok) throw new Error(body?.error?.message ?? `Action failed (${res.status})`);
       if (selected) await loadQueue(selected.id);
       await loadQueue();
@@ -225,6 +228,7 @@ export function SmartCareerCollectClient() {
 
       {selected && (
         <ReviewWorkspace
+          key={`${selected.id}:${selected.updated_at}`}
           item={selected}
           staff={queue.staff}
           busy={actionBusy}
@@ -237,19 +241,13 @@ export function SmartCareerCollectClient() {
   );
 }
 
-function ReviewWorkspace({ item, staff, busy, error, close, act }: { item: QueueCase; staff: Staff[]; busy: string | null; error: string | null; close: () => void; act: (payload: Record<string, unknown>) => Promise<any> }) {
+function ReviewWorkspace({ item, staff, busy, error, close, act }: { item: QueueCase; staff: Staff[]; busy: string | null; error: string | null; close: () => void; act: (payload: Record<string, unknown>) => Promise<ApiResult | null> }) {
+  const router = useRouter();
   const [draft, setDraft] = useState(item.mapped_draft);
   const [reviewer, setReviewer] = useState(item.reviewer_id ?? "");
   const [docConfirmed, setDocConfirmed] = useState(item.document_match_confirmed);
   const [infoConfirmed, setInfoConfirmed] = useState(item.information_match_confirmed);
   const approved = item.status === "APPROVED_FILE";
-
-  useEffect(() => {
-    setDraft(item.mapped_draft);
-    setReviewer(item.reviewer_id ?? "");
-    setDocConfirmed(item.document_match_confirmed);
-    setInfoConfirmed(item.information_match_confirmed);
-  }, [item]);
 
   const profile = draft.profile ?? {};
   const setProfile = (name: string, value: string) => setDraft((d) => ({ ...d, profile: { ...(d.profile ?? {}), [name]: value || null } }));
@@ -292,7 +290,7 @@ function ReviewWorkspace({ item, staff, busy, error, close, act }: { item: Queue
           <label className="flex items-center gap-3 text-sm text-slate-200"><input type="checkbox" checked={infoConfirmed} onChange={(e) => setInfoConfirmed(e.target.checked)} /> INFORMATION MATCH CONFIRMED</label>
           <div className="flex flex-wrap gap-2">
             <button className="staff-button" disabled={Boolean(busy)} type="button" onClick={() => act({ action: "confirm", case_id: item.id, document_match_confirmed: docConfirmed, information_match_confirmed: infoConfirmed })}>SAVE CONFIRMATIONS</button>
-            <button className="ops-primary-button" disabled={!item.reviewed_at || !docConfirmed || !infoConfirmed || !item.verification_result?.ready || Boolean(busy)} type="button" onClick={async () => { const result = await act({ action: "approve", case_id: item.id }); if (result?.client_id) window.location.assign(`/staff/client/${result.client_id}`); }}>{busy === "approve" ? "APPROVING…" : "APPROVE FILE"}</button>
+            <button className="ops-primary-button" disabled={!item.reviewed_at || !docConfirmed || !infoConfirmed || !item.verification_result?.ready || Boolean(busy)} type="button" onClick={async () => { const result = await act({ action: "approve", case_id: item.id }); if (typeof result?.client_id === "string") router.push(`/staff/client/${result.client_id}`); }}>{busy === "approve" ? "APPROVING…" : "APPROVE FILE"}</button>
           </div>
         </div>
       )}
