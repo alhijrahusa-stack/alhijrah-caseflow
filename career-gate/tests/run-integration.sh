@@ -20,7 +20,7 @@ rm -f "$MIGRATION_LOG"
 $P -d careergate -c "select 1 from public.status_transitions limit 1" >/dev/null
 echo "migrations applied"
 DATABASE_URL="postgres://postgres@127.0.0.1:$PGPORT/careergate" \
-AMAZON_CREDENTIALS_KEY_V1="CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg=" \
+GATE_JOB_CREDENTIALS_KEY_V1="CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg=" \
 STATUS_OTP_PEPPER="integration-otp-pepper-0123456789abcdef" \
 IP_HASH_PEPPER="integration-ip-pepper-0123456789abcdefgh" \
 TZ=UTC npx vitest run --config vitest.integration.config.ts "$@"

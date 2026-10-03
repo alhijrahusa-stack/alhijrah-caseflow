@@ -26,7 +26,7 @@ export function StaffNavigation({ management }: { management: boolean }) {
       {item("Dashboard", "/staff")}
       {item("Pipeline", "/staff/pipeline")}
       {item("Clients", "/staff/clients")}
-      {item("Amazon Account", "/staff/amazon-account")}
+      {item("Gate Job Account", "/staff/gate-job-account")}
       {item("Appointments", "/staff/appointments")}
       {item("Tasks", "/staff/tasks")}
       {item("Follow-Ups", "/staff/follow-ups")}

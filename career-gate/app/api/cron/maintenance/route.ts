@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { expireAmazonReservations } from "@/lib/amazon/service";
+import { expireGateJobReservations } from "@/lib/gate-job-account/service";
 import { runAudit } from "@/lib/audit";
 import { sql } from "@/lib/db";
 import { err, ok } from "@/lib/http";
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   const db = sql();
   const jobs = await processJobs(50);
   const audit = await runAudit(null, traceId);
-  const amazonReservations = await expireAmazonReservations(traceId);
+  const amazonReservations = await expireGateJobReservations(traceId);
   const cleanup = {
     idempotency_keys: (await db`delete from idempotency_keys where expires_at < now()`).count,
     rate_limits: (await db`delete from rate_limits where window_start < now() - interval '1 day'`).count,

@@ -1,8 +1,8 @@
 import { notFound, redirect } from "next/navigation";
-import { AmazonAccountCard, type AmazonAccountCardData } from "@/components/amazon/AmazonAccountCard";
+import { GateJobAccountCard, type GateJobAccountCardData } from "@/components/gate-job-account/GateJobAccountCard";
 import { ClientFile, type ClientFileData, type ClientPanel, type ClientTab } from "@/components/staff/ClientFile";
 import { RequirementsPanel } from "@/components/staff/RequirementsPanel";
-import { getAmazonAccountForClient } from "@/lib/amazon/service";
+import { getGateJobAccountForClient } from "@/lib/gate-job-account/service";
 import { getStaffSession } from "@/lib/auth";
 import { clientScope } from "@/lib/authz";
 import { clientAccountSummary } from "@/lib/client-account";
@@ -30,7 +30,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const [data, account, amazonAccount, requirementData, query] = await Promise.all([
     clientFile(session, id),
     clientAccountSummary(session, id),
-    getAmazonAccountForClient(session, id),
+    getGateJobAccountForClient(session, id),
     clientRequirements(session, id),
     searchParams,
   ]);
@@ -39,6 +39,6 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const initialPanel = requestedPanel && PANELS.has(requestedPanel) ? requestedPanel : null;
   const requestedTab = query.tab as ClientTab | undefined;
   const initialTab = requestedTab && TABS.has(requestedTab) ? requestedTab : null;
-  const amazon = amazonAccount ? JSON.parse(JSON.stringify(amazonAccount)) as AmazonAccountCardData : null;
-  return <div className="space-y-4"><ClientFile data={JSON.parse(JSON.stringify(data)) as ClientFileData} account={account} initialPanel={initialPanel} initialTab={initialTab} /><AmazonAccountCard account={amazon} /><RequirementsPanel clientId={id} rows={JSON.parse(JSON.stringify(requirementData.requirements))} readiness={requirementData.readiness} /></div>;
+  const amazon = amazonAccount ? JSON.parse(JSON.stringify(amazonAccount)) as GateJobAccountCardData : null;
+  return <div className="space-y-4"><ClientFile data={JSON.parse(JSON.stringify(data)) as ClientFileData} account={account} initialPanel={initialPanel} initialTab={initialTab} /><GateJobAccountCard account={amazon} /><RequirementsPanel clientId={id} rows={JSON.parse(JSON.stringify(requirementData.requirements))} readiness={requirementData.readiness} /></div>;
 }
