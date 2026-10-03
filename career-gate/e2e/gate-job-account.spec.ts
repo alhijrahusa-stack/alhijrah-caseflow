@@ -15,10 +15,11 @@ test.describe("Gate Job Account Workspace", () => {
     const password = "UI-Secret-Password-123";
     const pin = "765432";
     await page.getByRole("button", { name: /ADD EMAIL/ }).click();
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
-    await page.getByLabel("PIN").fill(pin);
-    await page.getByRole("button", { name: /SAVE/ }).click();
+    const addDialog = page.getByRole("dialog", { name: "ADD GATE JOB ACCOUNT EMAIL" });
+    await addDialog.getByLabel("Email", { exact: true }).fill(email);
+    await addDialog.getByLabel("Password", { exact: true }).fill(password);
+    await addDialog.getByLabel("PIN", { exact: true }).fill(pin);
+    await addDialog.getByRole("button", { name: /SAVE/ }).click();
     await expect(page.getByText(email, { exact: true })).toBeVisible();
     await expect(page.locator("body")).not.toContainText(password);
     await expect(page.locator("body")).not.toContainText(pin);
