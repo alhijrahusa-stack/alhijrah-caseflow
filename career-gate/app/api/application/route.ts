@@ -7,7 +7,7 @@ import { err, ipHash } from "@/lib/http";
 import { claimKey, completeKey } from "@/lib/idempotency";
 import { traceIdFrom } from "@/lib/obs";
 import { hit } from "@/lib/ratelimit";
-import { logActivity, type Tx } from "@/lib/service";
+import { findClientIdentityMatches, logActivity, normalizeClientPhone, type Tx } from "@/lib/service";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -92,7 +92,6 @@ function makeCaseNumber() {
 
 const nullable = (v: string) => v.trim() || null;
 const dateOrNull = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
-const phoneDigits = (v: string) => v.replace(/\D/g, "");
 const branchCity = (name: string) => name.split(/\s+-\s+/)[0]?.trim() || name.trim();
 
 async function newUploadGrant(clientId: string) {
@@ -127,28 +126,14 @@ async function upsertOperationalClient(tx: Tx, d: Intake, digits: string): Promi
   const email = d.email.trim().toLowerCase();
   const fullName = `${d.firstName} ${d.lastName}`.trim();
   const street = [d.address1, d.address2].filter(Boolean).join(", ") || null;
-
-  // Serialize identity decisions with the same advisory keys used by the DB duplicate guard.
-  await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-email:${email}`}, 0))`;
-  await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-phone:${digits}`}, 0))`;
-
-  const matches = await tx`
-    select id, ref, created_at
-    from clients
-    where deleted_at is null
-      and (
-        lower(trim(coalesce(email, ''))) = ${email}
-        or regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = ${digits}
-      )
-    order by created_at
-    for update`;
+  const matches = await findClientIdentityMatches(tx, email, digits, { lock: true, forUpdate: true });
 
   if (matches.length > 1) {
     throw new IdentityConflictError("The submitted email and phone belong to different existing client files.");
   }
 
   if (matches.length === 1) {
-    const existing = matches[0] as ClientRow;
+    const existing = matches[0];
     const [client] = await tx`
       update clients set
         full_name = ${fullName},
@@ -193,7 +178,7 @@ export async function POST(req: Request) {
   const d = parsed.data;
   if (!d.signature.captured) return NextResponse.json({ ok: false, message: "Signature is required" }, { status: 400 });
 
-  const digits = phoneDigits(d.phone);
+  const digits = normalizeClientPhone(d.phone) ?? "";
   if (digits.length < 10 || digits.length > 15) {
     return NextResponse.json({ ok: false, message: "Enter a valid phone number" }, { status: 400 });
   }
