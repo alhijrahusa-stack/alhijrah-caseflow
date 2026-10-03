@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 
 from . import audit
-from .api import auth, cases, exports, forensic_controls, recordings, summaries, system, uploads
+from .api import auth, cases, exports, forensic_controls, integrity, recordings, summaries, system, uploads
 from .config import get_settings
 from .db import session_factory
 from .models import User
@@ -86,6 +86,7 @@ def create_app() -> FastAPI:
         exports.router,
         summaries.router,
         cases.router,
+        integrity.router,
     ):
         app.include_router(r)
 

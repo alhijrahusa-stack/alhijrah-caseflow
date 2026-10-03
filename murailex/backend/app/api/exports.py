@@ -225,6 +225,8 @@ def create_export(
     db: Session = Depends(get_db),
 ):
     rec = load_recording(db, p, parse_uuid(recording_id), "export")
+    if rec.status == "integrity_failure":
+        raise HTTPException(409, "INTEGRITY FAILURE: blocked until integrity is re-verified.")
     is_legal_pdf = body.format == "pdf" and body.translation_id is None
     require_locked = not is_legal_pdf
     rev = _revision(db, rec, body.revision_id, require_locked=require_locked)

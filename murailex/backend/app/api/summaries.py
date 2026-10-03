@@ -248,6 +248,8 @@ def generate_summary(
     db: Session = Depends(get_db),
 ):
     rec = load_recording(db, p, parse_uuid(recording_id), "export")
+    if rec.status == "integrity_failure":
+        raise HTTPException(409, "INTEGRITY FAILURE: blocked until integrity is re-verified.")
     q = select(TranscriptRevision).where(TranscriptRevision.recording_id == rec.id)
     if body.revision_id:
         q = q.where(TranscriptRevision.id == parse_uuid(body.revision_id))

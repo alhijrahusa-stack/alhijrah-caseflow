@@ -25,8 +25,8 @@ def test_route_absent_without_models(monkeypatch):
 
 
 def test_normalize_drops_empty_turns():
-    norm = LocalDiarization().normalize({"turns": [{"speaker": "SPEAKER_00", "start": 0, "end": 900}, {"speaker": "SPEAKER_01", "start": 5, "end": 5}]})
-    assert norm == {"turns": [{"speaker": "SPEAKER_00", "start_ms": 0, "end_ms": 900, "confidence": None}]}
+    norm = LocalDiarization().normalize({"turns": [{"speaker": "SPEAKER_01", "start": 0, "end": 900}, {"speaker": "SPEAKER_02", "start": 5, "end": 5}]})
+    assert norm == {"turns": [{"speaker": "SPEAKER_01", "start_ms": 0, "end_ms": 900, "confidence": None}]}
 
 
 @needs_models

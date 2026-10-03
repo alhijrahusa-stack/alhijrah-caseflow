@@ -640,3 +640,37 @@ def test_request_bodies_are_strict(app_client, users):
     assert unknown.status_code == 422
     coerced = app_client.post("/api/uploads", headers={"x-csrf-token": csrf}, json={**base, "size": "10"})
     assert coerced.status_code == 422
+
+
+def test_integrity_verification_detects_tampering_and_blocks(app_client, users, fixture_providers):
+    import uuid
+
+    from app.db import session_factory
+    from app.models import Recording
+
+    csrf = login(app_client, "owner@example.com")
+    rec = upload_file(app_client, csrf, SAMPLE, title="integrity check")
+    drain_jobs()
+    ok = app_client.post(f"/api/recordings/{rec['id']}/integrity", headers={"x-csrf-token": csrf}).json()
+    assert ok["integrity"]["ok"] is True
+    assert {c["check"] for c in ok["integrity"]["checks"]} >= {"original_sha256", "working_audio_sha256"}
+    # tamper with the persisted working-audio hash out of band (revisions are DB-guarded)
+    with session_factory()() as db:
+        row = db.get(Recording, uuid.UUID(rec["id"]))
+        derived = dict(row.derived)
+        derived["analysis_wav"] = {**derived["analysis_wav"], "sha256": "0" * 64}
+        row.derived = derived
+        db.commit()
+    bad = app_client.post(f"/api/recordings/{rec['id']}/integrity", headers={"x-csrf-token": csrf}).json()
+    assert bad["integrity"]["ok"] is False and bad["recording"]["status"] == "integrity_failure"
+    assert app_client.post(f"/api/recordings/{rec['id']}/exports", headers={"x-csrf-token": csrf}, json={"format": "txt"}).status_code == 409
+    assert app_client.post(f"/api/recordings/{rec['id']}/lock", headers={"x-csrf-token": csrf}).status_code == 409
+    # restoring the record and re-verifying is the only way out of INTEGRITY_FAILURE
+    with session_factory()() as db:
+        row = db.get(Recording, uuid.UUID(rec["id"]))
+        derived = dict(row.derived)
+        derived["analysis_wav"] = {**derived["analysis_wav"], "sha256": ok["integrity"]["checks"][1]["expected"]}
+        row.derived = derived
+        db.commit()
+    again = app_client.post(f"/api/recordings/{rec['id']}/integrity", headers={"x-csrf-token": csrf}).json()
+    assert again["integrity"]["ok"] is True and again["recording"]["status"] == "needs_review"

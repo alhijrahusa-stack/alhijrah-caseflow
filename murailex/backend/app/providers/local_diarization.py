@@ -2,7 +2,7 @@
 
 sherpa-onnx runs pyannote segmentation-3.0 (MIT) for speech/speaker-change/overlap frames and
 WeSpeaker ResNet34 (VoxCeleb, CC-BY-4.0) embeddings, then clusters them. No audio leaves the
-machine. Labels are anonymous (SPEAKER_00, …); naming a speaker stays a human act.
+machine. Labels are anonymous (SPEAKER_01, SPEAKER_02, …); naming a speaker stays a human act.
 
 The route identity (engine fingerprint) covers the sherpa-onnx version, the SHA-256 of both
 model files and the clustering/duration settings, so any change re-triggers the real
@@ -25,8 +25,6 @@ from .base import DiarizationAdapter, ProviderError, ProviderInfo
 
 log = logging.getLogger("murailex.diar")
 SEGMENTATION = "sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
-EMBEDDING = "wespeaker_en_voxceleb_resnet34_LM.onnx"
-MODEL = "pyannote-segmentation-3.0+wespeaker-resnet34-voxceleb"
 _lock = threading.Lock()
 
 
@@ -34,9 +32,13 @@ def _path(name: str) -> str:
     return os.path.join(get_settings().local_diar_dir, name)
 
 
+def _embedding() -> str:
+    return get_settings().local_diar_embedding
+
+
 def installed() -> bool:
     base = get_settings().local_diar_dir
-    return bool(base) and os.path.isfile(_path(SEGMENTATION)) and os.path.isfile(_path(EMBEDDING))
+    return bool(base) and os.path.isfile(_path(SEGMENTATION)) and os.path.isfile(_path(_embedding()))
 
 
 @lru_cache(maxsize=8)
@@ -92,7 +94,8 @@ class LocalDiarization(DiarizationAdapter):
             "engine": "sherpa-onnx",
             "sherpa_onnx": _version(),
             "segmentation_sha256": _sha(SEGMENTATION),
-            "embedding_sha256": _sha(EMBEDDING),
+            "embedding_model": _embedding(),
+            "embedding_sha256": _sha(_embedding()),
             "clustering": "fast-agglomerative",
             "threshold": s.local_diar_threshold,
             "min_duration_on_s": s.local_diar_min_on_s,
@@ -108,7 +111,7 @@ class LocalDiarization(DiarizationAdapter):
         s = get_settings()
         return ProviderInfo(
             self.name,
-            MODEL,
+            "pyannote-segmentation-3.0+" + _embedding().removesuffix(".onnx"),
             "diarization",
             s.environment == "local" and installed(),
             {
@@ -130,7 +133,7 @@ class LocalDiarization(DiarizationAdapter):
                 pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(model=_path(SEGMENTATION)),
                 num_threads=threads,
             ),
-            embedding=sherpa_onnx.SpeakerEmbeddingExtractorConfig(model=_path(EMBEDDING), num_threads=threads),
+            embedding=sherpa_onnx.SpeakerEmbeddingExtractorConfig(model=_path(_embedding()), num_threads=threads),
             clustering=sherpa_onnx.FastClusteringConfig(num_clusters=num_clusters, threshold=s.local_diar_threshold),
             min_duration_on=s.local_diar_min_on_s,
             min_duration_off=s.local_diar_min_off_s,
@@ -162,7 +165,7 @@ class LocalDiarization(DiarizationAdapter):
         spent = time.monotonic() - t0
         del samples
         turns = [
-            {"speaker": f"SPEAKER_{int(seg.speaker):02d}", "start": round(seg.start * 1000), "end": round(seg.end * 1000)}
+            {"speaker": f"SPEAKER_{int(seg.speaker) + 1:02d}", "start": round(seg.start * 1000), "end": round(seg.end * 1000)}
             for seg in result
         ]
         log.info("local_diarization: %.1f s audio in %.1f s (RTF %.3f), %d turns, %d speakers",

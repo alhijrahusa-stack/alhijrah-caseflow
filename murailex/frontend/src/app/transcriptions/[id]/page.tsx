@@ -143,7 +143,7 @@ export default function TranscriptPage() {
         rtl={lang === "ar"}
       />
 
-      <ResultCard rec={rec} revision={revision} openDisputes={openDisputes} />
+      <ResultCard rec={rec} revision={revision} openDisputes={openDisputes} onChanged={load} />
 
       {error && <Notice tone="danger" role="alert">{error}</Notice>}
 
@@ -632,12 +632,31 @@ type VerificationSummary = {
 };
 
 /** The dominant result surface: state, integrity and measured verification at a glance. */
-function ResultCard({ rec, revision, openDisputes }: { rec: Recording; revision: Revision | null; openDisputes: number }) {
+type IntegrityResult = { ok: boolean; verified_at: string; checks: { check: string; ok: boolean }[] };
+
+function ResultCard({ rec, revision, openDisputes, onChanged }: { rec: Recording; revision: Revision | null; openDisputes: number; onChanged: () => Promise<void> | void }) {
   const { t, lang } = useI18n();
   const ar = lang === "ar";
+  const toast = useToast();
+  const [integrity, setIntegrity] = useState<IntegrityResult | null>(null);
+  const [checking, setChecking] = useState(false);
+  async function verifyIntegrity() {
+    setChecking(true);
+    try {
+      // Never optimistic: the state shown is the server's recomputation.
+      const r = await api<{ integrity: IntegrityResult }>(`/api/recordings/${rec.id}/integrity`, { method: "POST" });
+      setIntegrity(r.integrity);
+      toast(r.integrity.ok ? (ar ? "السلامة متحققة — كل البصمات مطابقة" : "Integrity verified — all hashes match") : ar ? "فشل سلامة الدليل" : "Integrity failure", r.integrity.ok ? "ok" : "danger");
+      await onChanged();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Error", "danger");
+    } finally {
+      setChecking(false);
+    }
+  }
   const method = (revision?.content?.method ?? {}) as { verification?: VerificationSummary | null; diarization?: { status?: string } };
   const vc = method.verification ?? null;
-  const integrityFailure = rec.status === "failed" && /integrity/i.test(rec.status_detail ?? "");
+  const integrityFailure = rec.status === "integrity_failure" || (rec.status === "failed" && /integrity/i.test(rec.status_detail ?? ""));
   const state = integrityFailure
     ? { key: "INTEGRITY FAILURE", ar: "فشل سلامة الدليل", tone: "danger" as const }
     : PROCESSING.has(rec.status)
@@ -694,6 +713,20 @@ function ResultCard({ rec, revision, openDisputes }: { rec: Recording; revision:
         </Stat>
         <Stat label={ar ? "الدقة مقابل الحقيقة" : "Ground-truth accuracy"}>
           <span className="text-fg-subtle">{ar ? "لا مرجع بشري" : "No human reference"}</span>
+        </Stat>
+        <Stat label={ar ? "سلامة المصدر" : "Source integrity"}>
+          <span className="flex flex-wrap items-center gap-2">
+            {integrity ? (
+              <span className={integrity.ok ? "text-ok" : "text-danger"} data-testid="integrity-state" title={integrity.checks.map((c) => `${c.check}: ${c.ok ? "OK" : "MISMATCH"}`).join(" · ")}>
+                {integrity.ok ? (ar ? `مطابقة (${integrity.checks.length})` : `Verified (${integrity.checks.length})`) : ar ? "عدم تطابق" : "Mismatch"}
+              </span>
+            ) : integrityFailure ? (
+              <span className="text-danger">{ar ? "عدم تطابق" : "Mismatch"}</span>
+            ) : null}
+            <button className="text-xs text-primary-text underline-offset-2 hover:underline disabled:opacity-50" onClick={verifyIntegrity} disabled={checking} data-testid="verify-integrity">
+              {checking ? "…" : ar ? "تحقق الآن" : "Verify now"}
+            </button>
+          </span>
         </Stat>
         <Stat label={ar ? "النسخة القانونية" : "Canonical revision"}>
           {revision ? `r${revision.number} · ${revision.status === "locked" ? t("locked") : t("draft")}` : "—"}

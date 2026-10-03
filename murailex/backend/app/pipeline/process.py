@@ -466,6 +466,39 @@ def drive_run(
         ) from exc
 
 
+def _derive_region_run(
+    db: Session, rec: Recording, adapter: AsrAdapter, full: ProviderRun, scope: str, ws: int, we: int
+) -> ProviderRun:
+    """Persist the full independent pass's tokens for one region window as a region run.
+
+    Deterministic and traceable: the run records the source run id and window; no text is
+    created or changed. Idempotent: an existing terminal run for the scope is returned."""
+    existing = _get_run(db, rec, adapter, "verification_asr", scope)
+    if existing is not None and existing.status == "succeeded":
+        return existing
+    tokens = [dict(t) for t in (full.normalized or {}).get("tokens", []) if t["end_ms"] > ws and t["start_ms"] < we]
+    run = existing or ProviderRun(
+        recording_id=rec.id,
+        provider=adapter.name,
+        model=full.model,
+        role="verification_asr",
+        scope_key=scope,
+        parameters=full.parameters,
+        window_start_ms=ws,
+        window_end_ms=we,
+    )
+    run.status = "succeeded"
+    run.input_sha256 = full.input_sha256
+    run.raw_response = {"method": "slice_of_full_independent_pass", "source_run_id": str(full.id), "window_ms": [ws, we]}
+    run.normalized = {"tokens": tokens, "text": " ".join(t["text"] for t in tokens)}
+    run.started_at = run.started_at or _now()
+    run.finished_at = _now()
+    if existing is None:
+        db.add(run)
+    db.commit()
+    return run
+
+
 # ---------------------------------------------------------------- main entry
 
 
@@ -621,6 +654,7 @@ def process_recording(db: Session, rec: Recording) -> None:
 
     xv_states: dict[Any, bool] | None = None
     xv_summary: dict[str, Any] | None = None
+    full_by_provider: dict[str, ProviderRun] = {}
     if registry.local_mode() and verifiers:
         _set_status(db, rec, "verifying", "Independent verification pass over the full recording")
         full_runs = []
@@ -641,6 +675,7 @@ def process_recording(db: Session, rec: Recording) -> None:
                 db.commit()
                 return
             full_runs.append(vrun)
+            full_by_provider[verifier.name] = vrun
         primary_tokens = (ok_primary[0].normalized or {}).get("tokens", []) if ok_primary and ok_primary[0] else []
         xv_states, xv_summary = xv.cross_verify(primary_tokens, (full_runs[0].normalized or {}).get("tokens", []))
         xv_summary["verifier"] = {"provider": full_runs[0].provider, "model": full_runs[0].model, "run_id": str(full_runs[0].id)}
@@ -702,6 +737,13 @@ def process_recording(db: Session, rec: Recording) -> None:
             rec.duration_ms or region["end_ms"] + s.context_padding_ms,
             region["end_ms"] + s.context_padding_ms,
         )
+        scope = f"region:{region['start_ms']}-{region['end_ms']}"
+        if all(v.name in full_by_provider for v in verifiers):
+            # The independent verifier already decoded the whole recording; its reading of
+            # this interval is taken from that persisted pass instead of re-decoding a clip.
+            for verifier in verifiers:
+                _derive_region_run(db, rec, verifier, full_by_provider[verifier.name], scope, ws, we)
+            continue
         clip = os.path.join(wd, f"region-{region['start_ms']}-{region['end_ms']}.wav")
         if not os.path.exists(clip):
             audio.cut_segment(analysis, clip, ws, we)

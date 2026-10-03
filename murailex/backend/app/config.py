@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     # segmentation-3.0 (MIT) + WeSpeaker ResNet34 VoxCeleb embeddings (CC-BY-4.0).
     # Empty = not configured (speakers stay unattributed, never inferred).
     local_diar_dir: str = ""
+    local_diar_embedding: str = "wespeaker_en_voxceleb_resnet34_LM.onnx"
     local_diar_threshold: float = 0.5  # sherpa-onnx default; not tuned on any evaluation data
     local_diar_min_on_s: float = 0.3
     local_diar_min_off_s: float = 0.5

@@ -150,12 +150,20 @@ def enforce_processing_preflight(
             }
         )
     if blocked and registry.local_mode():
-        from .local_canary import pending_self_test
+        from .local_canary import ensure_engine_self_tests, pending_self_test
         from .pipeline.process import Wait
+        from .providers.privacy import LOCAL_PROVIDERS
 
-        if all(
-            pending_self_test(db, row["provider"], row["model"], locale, row["role"]) for row in blocked
-        ):
+        def all_pending() -> bool:
+            return all(pending_self_test(db, row["provider"], row["model"], locale, row["role"]) for row in blocked)
+
+        # A local route that is merely unvalidated (new or changed fingerprint, no self-test yet)
+        # gets its real self-test queued here, so a job reaching preflight before the worker's
+        # startup validation pass waits instead of failing. FAILED/NOT_CONFIGURED still block.
+        if not all_pending() and all(row["status"] == "BLOCKED" and row["provider"] in LOCAL_PROVIDERS for row in blocked):
+            ensure_engine_self_tests()
+            db.expire_all()
+        if all_pending():
             # Automatic engine validation is running; wait for it instead of failing the upload.
             rec.status = "queued"
             rec.status_detail = "Waiting for automatic engine validation"

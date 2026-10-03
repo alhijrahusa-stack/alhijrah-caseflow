@@ -47,6 +47,10 @@ def main() -> None:
     ap.add_argument("--dataset-version", required=True)
     ap.add_argument("--item", action="append", required=True, help="ID=wav,rttm,uem")
     ap.add_argument("--out", required=True)
+    ap.add_argument(
+        "--expected-speakers", action="store_true",
+        help="pass the reference speaker count as the intake 'expected speakers' (labelled operating mode)",
+    )
     args = ap.parse_args()
     adapter = LocalDiarization()
     rows, totals = [], {"reference_speech_s": 0.0, "missed_s": 0.0, "false_alarm_s": 0.0, "confusion_s": 0.0}
@@ -54,11 +58,13 @@ def main() -> None:
     for spec in args.item:
         file_id, paths = spec.split("=", 1)
         wav, rttm, uem_path = paths.split(",")
+        reference = read_rttm(rttm, file_id)
+        expected = len({t[2] for t in reference}) if args.expected_speakers else None
         t0 = time.monotonic()
-        raw = adapter.transcribe(wav, {})
+        raw = adapter.transcribe(wav, {"expected_speakers": expected})
         spent = time.monotonic() - t0
         hyp = [(t["start"] / 1000, t["end"] / 1000, t["speaker"]) for t in raw["turns"]]
-        score = diarization_error_rate(read_rttm(rttm, file_id), hyp, read_uem(uem_path, file_id))
+        score = diarization_error_rate(reference, hyp, read_uem(uem_path, file_id))
         audio_s += raw["audio_seconds"]
         infer_s += spent
         for k in totals:
@@ -75,6 +81,7 @@ def main() -> None:
         "aggregate": {**{k: round(v, 2) for k, v in totals.items()}, "der": der},
         "inference_rtf": round(infer_s / audio_s, 4),
         "peak_rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1),
+        "operating_mode": "expected speaker count supplied at intake" if args.expected_speakers else "blind (speaker count estimated)",
         "ground_truth": "human RTTM annotations (AMI corpus, pyannote AMI-diarization-setup only_words)",
     }
     with open(args.out, "w", encoding="utf-8") as fh:

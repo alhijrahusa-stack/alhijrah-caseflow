@@ -349,6 +349,8 @@ def verify_speaker(recording_id: str, sid: str, body: VerifyNameIn, p: Principal
 @router.post("/recordings/{recording_id}/lock")
 def lock(recording_id: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
     rec = load_recording(db, p, parse_uuid(recording_id), "lock")
+    if rec.status == "integrity_failure":
+        raise HTTPException(409, "INTEGRITY FAILURE: locking is blocked until integrity is re-verified.")
     rev = draft_for_update(db, rec)
     open_ids = tx.open_dispute_ids(rev.content)
     open_rows = db.execute(select(func.count()).select_from(Dispute).where(Dispute.recording_id == rec.id, Dispute.status == "open")).scalar_one()
