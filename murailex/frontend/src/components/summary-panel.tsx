@@ -23,6 +23,17 @@ type Anchor = {
   notice?: string;
 };
 
+type Entity = { entity_types: string[]; verbatim: string; segment_id: string; start_ms: number; speaker: string; verification?: string; reviewed: boolean };
+
+const MODES = [
+  { key: "executive", ar: "تنفيذي", en: "Executive" },
+  { key: "detailed", ar: "تفصيلي", en: "Detailed" },
+  { key: "key_points", ar: "النقاط الرئيسية", en: "Key points" },
+  { key: "timeline", ar: "التسلسل الزمني", en: "Timeline" },
+  { key: "entities", ar: "أسماء · تواريخ · أرقام", en: "Names · Dates · Numbers" },
+] as const;
+type Mode = (typeof MODES)[number]["key"];
+
 type SummaryRow = {
   id: string;
   transcript_revision_id: string;
@@ -32,6 +43,9 @@ type SummaryRow = {
   generated_at: string;
   generation_model: string;
   content: {
+    mode?: Mode;
+    mode_items?: Anchor[];
+    entities?: Entity[];
     material_statements: Anchor[];
     unresolved_disputed_matters: Anchor[];
     chronological_timeline: Anchor[];
@@ -58,16 +72,17 @@ export function SummaryPanel({
   const [row, setRow] = useState<SummaryRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>("key_points");
   const locked = revision.status === "locked";
 
   const load = useCallback(async () => {
     try {
-      const r = await api<{ summary: SummaryRow }>(`/api/recordings/${recordingId}/summaries/neutral?revision_id=${revision.id}`);
+      const r = await api<{ summary: SummaryRow }>(`/api/recordings/${recordingId}/summaries/${mode}?revision_id=${revision.id}`);
       setRow(r.summary);
     } catch {
       setRow(null);
     }
-  }, [recordingId, revision.id]);
+  }, [recordingId, revision.id, mode]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch an existing summary for this revision
@@ -80,7 +95,7 @@ export function SummaryPanel({
     try {
       const r = await api<{ summary: SummaryRow }>(`/api/recordings/${recordingId}/summaries`, {
         method: "POST",
-        json: { summary_type: "neutral", revision_id: revision.id },
+        json: { summary_type: mode, revision_id: revision.id },
       });
       setRow(r.summary);
       toast(rtl ? "الملخص جاهز" : "Summary ready");
@@ -91,8 +106,29 @@ export function SummaryPanel({
     }
   }
 
+  const chips = (
+    <div className="flex flex-wrap gap-1.5" role="tablist" aria-label={rtl ? "نوع الملخص" : "Summary mode"} data-testid="summary-modes">
+      {MODES.map((m) => (
+        <button
+          key={m.key}
+          role="tab"
+          aria-selected={mode === m.key}
+          onClick={() => setMode(m.key)}
+          className={cn(
+            "rounded-full border px-3 py-1 text-xs transition-colors",
+            mode === m.key ? "border-primary/50 bg-primary/15 text-primary-text" : "border-line text-fg-muted hover:border-line-strong hover:text-fg",
+          )}
+        >
+          {rtl ? m.ar : m.en}
+        </button>
+      ))}
+    </div>
+  );
+
   if (!row) {
     return (
+      <div className="space-y-3">
+      {locked && chips}
       <div className="glass flex flex-col items-center gap-3 rounded-2xl px-5 py-8 text-center" data-testid="summary-empty">
         <span className="grid size-11 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-primary-text">
           {locked ? <Sparkles className="size-5" /> : <Lock className="size-5" />}
@@ -113,18 +149,21 @@ export function SummaryPanel({
         )}
         {err && <Notice tone="danger" role="alert">{err}</Notice>}
       </div>
+      </div>
     );
   }
 
   const c = row.content;
-  const items = c.material_statements.length ? c.material_statements : c.chronological_timeline.slice(0, 8);
+  const items = c.mode_items ?? (c.material_statements.length ? c.material_statements : c.chronological_timeline.slice(0, 8));
+  const title = MODES.find((m) => m.key === (c.mode ?? mode));
   return (
     <div className="space-y-4 fade-in" data-testid="summary">
+      {chips}
       <div className="glass rounded-2xl p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="eyebrow">{rtl ? "ملخص مستند إلى السجل" : "Record-grounded summary"}</div>
-            <h3 className="mt-1 text-[15px] font-semibold text-fg">{rtl ? "البنود الجوهرية" : "Material statements"}</h3>
+            <h3 className="mt-1 text-[15px] font-semibold text-fg">{title ? (rtl ? title.ar : title.en) : rtl ? "البنود الجوهرية" : "Material statements"}</h3>
           </div>
           <Badge tone={row.status === "locked" ? "ok" : "neutral"}>{row.status}</Badge>
         </div>
@@ -135,6 +174,19 @@ export function SummaryPanel({
           <div><dt className="inline">at </dt><dd className="inline text-fg-muted">{new Date(row.generated_at).toLocaleString()}</dd></div>
         </dl>
       </div>
+      {c.entities && (
+        <ul className="glass divide-y divide-line rounded-xl" data-testid="summary-entities">
+          {c.entities.length === 0 && <li className="p-3.5 text-sm text-fg-muted">{rtl ? "لا توجد أسماء أو تواريخ أو أرقام مُعلَّمة." : "No names, dates or numbers were flagged."}</li>}
+          {c.entities.map((e, i) => (
+            <li key={`${e.segment_id}-${i}`} className="flex flex-wrap items-center gap-2 p-3 text-sm">
+              <button className="font-mono text-xs text-primary-text hover:underline" dir="ltr" onClick={() => onSeek(e.start_ms)}>{fmtTime(e.start_ms)}</button>
+              <bdi className="font-medium text-fg">{e.verbatim}</bdi>
+              {e.entity_types.map((t) => <Badge key={t} tone="accent">{t}</Badge>)}
+              <Badge tone={e.reviewed ? "ok" : "warn"}>{e.reviewed ? (rtl ? "مُراجَع" : "reviewed") : e.verification ?? "—"}</Badge>
+            </li>
+          ))}
+        </ul>
+      )}
       <ol className="space-y-2">
         {items.map((a) => (
           <li key={a.quote_anchor_id} className="glass rounded-xl p-3.5">

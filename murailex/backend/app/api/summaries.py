@@ -20,7 +20,9 @@ from .strict import StrictIn
 
 router = APIRouter(prefix="/api")
 
-SUMMARY_TYPES = {"neutral", "defense"}
+SUMMARY_TYPES = {"neutral", "defense", "executive", "detailed", "key_points", "timeline", "entities"}
+MODES = ("executive", "detailed", "key_points", "timeline", "entities")
+ENTITY_RISKS = {"name": "name", "date": "date", "number": "number", "money": "amount"}
 
 
 def transcript_binding_sha(rec: Recording, rev: TranscriptRevision) -> str:
@@ -235,8 +237,42 @@ def _defense(rec: Recording, rev: TranscriptRevision, binding: str) -> dict[str,
     }
 
 
+def _mode(rec: Recording, rev: TranscriptRevision, binding: str, mode: str) -> dict[str, Any]:
+    """Deterministic extractive summary modes over the locked transcript. Every item is a
+    verbatim anchor (segment id + timestamps); nothing is paraphrased or inferred."""
+    base = _neutral(rec, rev, binding)
+    content = rev.content or {}
+    if mode == "executive":
+        items = base["material_statements"][:5]
+    elif mode == "key_points":
+        items = base["material_statements"]
+    elif mode == "timeline":
+        items = base["chronological_timeline"]
+    elif mode == "detailed":
+        items = base["material_statements"] + [a for a in base["chronological_timeline"] if a["segment_id"] not in {m["segment_id"] for m in base["material_statements"]}]
+        items.sort(key=lambda a: a["start_ms"])
+    else:  # entities: names / dates / numbers / amounts exactly as transcribed
+        items = []
+        entities: list[dict[str, Any]] = []
+        for seg in content.get("segments") or []:
+            for item in seg.get("items") or []:
+                kinds = sorted(ENTITY_RISKS[r] for r in set(item.get("risks") or []) & ENTITY_RISKS.keys())
+                if not kinds or item.get("kind") != "word":
+                    continue
+                entities.append({
+                    "entity_types": kinds, "verbatim": item.get("text"), "segment_id": seg["id"],
+                    "start_ms": int(item.get("start_ms") or 0), "end_ms": int(item.get("end_ms") or 0),
+                    "speaker": _speaker(content, item.get("speaker")),
+                    "verification": item.get("evidence_state") or item.get("review_state"),
+                    "reviewed": item.get("source") in {"human", "reviewer_accepted_candidate"},
+                })
+        base["entities"] = entities
+    return {**base, "summary_type": mode, "mode": mode, "mode_items": items,
+            "limitations": "Deterministic extractive view of the locked canonical transcript; verbatim anchors only, no paraphrase, inference or legal conclusion."}
+
+
 class SummaryIn(StrictIn):
-    summary_type: str = Field(pattern="^(neutral|defense)$")
+    summary_type: str = Field(pattern="^(neutral|defense|executive|detailed|key_points|timeline|entities)$")
     revision_id: str | None = None
 
 
@@ -256,7 +292,15 @@ def generate_summary(
     rev = db.execute(q.order_by(TranscriptRevision.number.desc()).limit(1)).scalar_one_or_none()
     if rev is None:
         raise HTTPException(409, "Transcript revision not found.")
+    if rev.status != "locked":
+        raise HTTPException(409, "Summaries are generated only from a LOCKED canonical transcript.")
     binding = transcript_binding_sha(rec, rev)
+    existing = db.execute(
+        select(Summary).where(Summary.recording_id == rec.id, Summary.transcript_revision_id == rev.id, Summary.summary_type == body.summary_type)
+    ).scalar_one_or_none()
+    if existing is not None:
+        # Deterministic over an immutable revision: the persisted summary is the answer.
+        return {"summary": summary_out(existing)}
     latest_no = (
         db.execute(
             select(func.max(Summary.summary_revision)).where(
@@ -267,7 +311,12 @@ def generate_summary(
         ).scalar_one_or_none()
         or 0
     )
-    content = _neutral(rec, rev, binding) if body.summary_type == "neutral" else _defense(rec, rev, binding)
+    if body.summary_type == "neutral":
+        content = _neutral(rec, rev, binding)
+    elif body.summary_type == "defense":
+        content = _defense(rec, rev, binding)
+    else:
+        content = _mode(rec, rev, binding, body.summary_type)
     row = Summary(
         recording_id=rec.id,
         transcript_revision_id=rev.id,

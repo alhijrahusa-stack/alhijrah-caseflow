@@ -246,6 +246,18 @@ def test_full_critical_path(app_client, users, fixture_providers):
     assert response.status_code == 200, response.text
     locked = response.json()["revision"]
     assert locked["status"] == "locked" and len(locked["sha256"]) == 64
+    # summary modes: on demand, locked revision only, deterministic, verbatim-anchored
+    seg_ids = {s["id"] for s in locked["content"]["segments"]} if locked.get("content") else None
+    for mode in ("executive", "detailed", "key_points", "timeline", "entities"):
+        made = app_client.post(f"/api/recordings/{rec['id']}/summaries", headers={"x-csrf-token": csrf}, json={"summary_type": mode})
+        assert made.status_code == 200, made.text
+        sm = made.json()["summary"]
+        assert sm["transcript_sha256"] == locked["sha256"] and sm["content"]["mode"] == mode
+        anchors = sm["content"]["entities"] if mode == "entities" else sm["content"]["mode_items"]
+        if seg_ids:
+            assert all(a["segment_id"] in seg_ids for a in anchors)
+        again = app_client.post(f"/api/recordings/{rec['id']}/summaries", headers={"x-csrf-token": csrf}, json={"summary_type": mode}).json()["summary"]
+        assert again["id"] == sm["id"]
 
     assert app_client.post(
         f"/api/recordings/{rec['id']}/segments/{segment['id']}/text",

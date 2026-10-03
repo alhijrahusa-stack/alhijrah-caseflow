@@ -440,24 +440,31 @@ function TranslationPanel({ recordingId }: { recordingId: string }) {
 }
 
 function RunsPanel({ runs }: { runs: ProviderRun[] }) {
-  const { t } = useI18n();
+  const { lang } = useI18n();
   if (!runs.length) return null;
+  const full = runs.filter((r) => !r.scope || r.scope === "full");
+  const regions = runs.filter((r) => r.scope && r.scope !== "full");
+  const regionOk = regions.filter((r) => r.status === "succeeded").length;
   return (
-    <details className="rounded-xl border border-line bg-surface p-4 text-xs shadow-card sm:p-5">
-      <summary className="cursor-pointer text-sm font-semibold text-fg">{t("provider_runs")}</summary>
+    <details className="glass rounded-xl p-4 text-xs sm:p-5" data-testid="advanced-details">
+      <summary className="cursor-pointer text-sm font-semibold text-fg">{lang === "ar" ? "تفاصيل متقدمة" : "Advanced details"}</summary>
       <div className="mt-3 space-y-1.5" dir="ltr">
-        {runs.map((r) => (
+        {full.map((r) => (
           <div key={r.id} className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-line pb-1.5 last:border-0">
             <span className="font-medium text-fg">{r.provider}</span>
             <span className="text-fg-muted">{r.model}</span>
             <span className="text-fg-muted">{r.role}</span>
-            <span className="text-fg-subtle">{r.scope}</span>
             <span className={r.status === "succeeded" ? "text-ok" : r.status === "failed" || r.status === "not_configured" ? "text-danger" : "text-fg-muted"}>
               {r.status === "not_configured" ? "NOT CONFIGURED" : r.status}
             </span>
             {r.error && <span className="w-full text-danger">{r.error}</span>}
           </div>
         ))}
+        {regions.length > 0 && (
+          <div className="pt-1 text-fg-subtle">
+            {regions.length} region verification checks · {regionOk} succeeded
+          </div>
+        )}
       </div>
     </details>
   );
