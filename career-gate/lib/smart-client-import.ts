@@ -362,7 +362,7 @@ export async function listImportQueue(session: StaffSession, args: { status?: st
            or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,phone}','') ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,email}','') ilike ${`%${q}%`})
-      and (${cursor == null} or (c.created_at,c.id) < (${cursor?.createdAt ?? new Date(8640000000000000).toISOString()}::timestamptz,${cursor?.id ?? "ffffffff-ffff-ffff-ffff-ffffffffffff"}::uuid))
+      and (${cursor == null} or (c.created_at,c.id) < (${cursor?.createdAt ?? "9999-12-31T23:59:59.999Z"}::timestamptz,${cursor?.id ?? "ffffffff-ffff-ffff-ffff-ffffffffffff"}::uuid))
     order by c.created_at desc,c.id desc
     limit ${limit + 1}`;
   const visible = rows.slice(0, limit) as unknown as QueueRow[];
