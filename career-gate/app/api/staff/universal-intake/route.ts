@@ -3,12 +3,13 @@ import { ActionError } from "@/lib/service";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { staffGuard } from "@/lib/staff-api";
-import { fetchGoogleSheet, importRows, rowsFromImageOrPdf } from "@/lib/universal-intake";
+import { fetchGoogleSheet, rowsFromImageOrPdf } from "@/lib/universal-intake";
+import { MAX_IMPORT_FILE_BYTES, stageRows } from "@/lib/smart-client-import";
+import { sha256Hex } from "@/lib/crypto";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const CSV_TYPES = new Set(["text/csv", "application/csv", "text/plain", "application/vnd.ms-excel"]);
 const XLSX_TYPES = new Set(["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
 const OCR_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
   const traceId = traceIdFrom(req);
   const guard = await staffGuard(req, traceId, { mutation: true });
   if (guard.response) return guard.response;
-  if (guard.session.staff.role === "staff") return err("forbidden", "Universal intake requires manager or admin access", 403, traceId);
+  if (guard.session.staff.role === "staff") return err("forbidden", "Smart Career Collect Client requires manager or admin access", 403, traceId);
 
   try {
     const form = await req.formData();
@@ -36,17 +37,23 @@ export async function POST(req: Request) {
 
     let rows;
     let source: string;
+    let sourceHash: string;
+    let sourceName: string | null = null;
 
     if (sheetUrl) {
       const csv = await fetchGoogleSheet(sheetUrl);
+      const bytes = new TextEncoder().encode(csv);
       rows = parseCsv(csv);
       source = "google_sheets";
+      sourceHash = sha256Hex(bytes);
     } else {
       if (!file) return err("invalid_input", "File is required", 400, traceId);
-      if (file.size > MAX_FILE_BYTES) return err("file_too_large", "File exceeds the 10 MB import limit", 413, traceId);
+      if (file.size > MAX_IMPORT_FILE_BYTES) return err("file_too_large", "File exceeds the 10 MB import limit", 413, traceId);
       const ext = extension(file.name);
       const mime = file.type || "application/octet-stream";
       const bytes = new Uint8Array(await file.arrayBuffer());
+      sourceHash = sha256Hex(bytes);
+      sourceName = file.name.slice(0, 200);
 
       if (ext === "csv" || CSV_TYPES.has(mime)) {
         rows = parseCsv(new TextDecoder().decode(bytes));
@@ -65,8 +72,12 @@ export async function POST(req: Request) {
       }
     }
 
-    const result = await importRows(guard.session, rows, source, traceId);
-    return ok({ source, ...result }, result.created > 0 ? 201 : 200, traceId);
+    const result = await stageRows(guard.session, rows, source, traceId, {
+      source_hash: sourceHash,
+      source_name: sourceName,
+      google_sheet: sheetUrl ? true : false,
+    });
+    return ok({ source, ...result }, 201, traceId);
   } catch (error) {
     if (error instanceof ActionError) return err(error.code, error.message, error.status, traceId);
     const message = error instanceof Error ? error.message : "Import failed";
