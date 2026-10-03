@@ -37,7 +37,7 @@ export const ACTION_ROLES = {
   update_post_hire: MGMT,
   run_intake_agent: ALL,
   send_notification: MGMT,
-  soft_delete_client: ADMIN,
+  soft_delete_client: MGMT,
   create_staff: ADMIN,
   update_staff_role: ADMIN,
   disable_staff: ADMIN,
