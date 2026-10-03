@@ -57,7 +57,7 @@ export const CANONICAL_IMPORT_HEADERS = IMPORT_FIELD_REGISTRY.map((field) => fie
 export const IMPORT_SCHEMA_VERSION = "2026-10-04.1";
 export const IMPORT_TEMPLATE_ID = "career-gate-client-import";
 export const IMPORT_SCHEMA_HASH = createHash("sha256")
-  .update(JSON.stringify(IMPORT_FIELD_REGISTRY.map(({ key, required }) => ({ key, required: Boolean(required) }))))
+  .update(JSON.stringify(IMPORT_FIELD_REGISTRY.map((field) => ({ key: field.key, required: "required" in field && field.required === true }))))
   .digest("hex");
 
 type RegistryKey = (typeof IMPORT_FIELD_REGISTRY)[number]["key"];
