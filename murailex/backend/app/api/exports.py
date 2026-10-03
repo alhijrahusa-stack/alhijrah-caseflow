@@ -93,8 +93,11 @@ def build_context(db: Session, rec: Recording, rev: TranscriptRevision) -> dict[
     }
 
 
-def validate_export_bytes(fmt: str, data: bytes) -> str | None:
-    """Structural validation of a generated export. Returns a problem description or None."""
+def validate_export_bytes(fmt: str, data: bytes, expect_hashes: tuple[str, ...] = ()) -> str | None:
+    """Read-back validation of a generated export. Returns a problem description or None.
+
+    PDF: parsed, every page's text layer extracted (searchable/selectable), page numbering
+    present, and each expected hash (source / transcript) found in the extracted text."""
     import io as _io
     import zipfile as _zip
 
@@ -103,6 +106,21 @@ def validate_export_bytes(fmt: str, data: bytes) -> str | None:
     if fmt == "pdf":
         if not data.startswith(b"%PDF-") or b"%%EOF" not in data[-1024:]:
             return "not a complete PDF document"
+        try:
+            from pypdf import PdfReader
+
+            reader = PdfReader(_io.BytesIO(data))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        except Exception as exc:  # noqa: BLE001 - any parse failure is a validation failure
+            return f"PDF does not parse ({type(exc).__name__})"
+        if not reader.pages:
+            return "PDF has no pages"
+        if not re.search(r"Page\s*1\b", text):
+            return "PDF has no page numbering in its text layer"
+        compact = re.sub(r"\s+", "", text)
+        missing = [h[:12] for h in expect_hashes if h and h not in compact]
+        if missing:
+            return f"PDF text layer lacks expected hash(es) {missing}"
         return None
     if fmt in ("docx", "zip"):
         try:
@@ -364,7 +382,8 @@ def create_export(
         )
         filename = f"{base}.json"
 
-    problem = validate_export_bytes(body.format, data)
+    expect = (rec.sha256, rev.sha256 or transcript_binding_sha(rec, rev)) if body.format == "pdf" and translation is None else ()
+    problem = validate_export_bytes(body.format, data, expect)
     if problem:
         raise HTTPException(500, f"Generated {body.format.upper()} failed validation: {problem}")
     digest = sha256_hex(data)

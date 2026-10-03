@@ -116,8 +116,8 @@ if [ ! -x "$BACKEND/.venv/bin/python" ]; then
   python3 -m venv "$BACKEND/.venv"
   "$BACKEND/.venv/bin/pip" install -q -r "$BACKEND/requirements.txt" -r "$BACKEND/requirements-local.txt"
 fi
-"$BACKEND/.venv/bin/python" -c "import faster_whisper, sentencepiece, sherpa_onnx" 2>/dev/null \
-  || "$BACKEND/.venv/bin/pip" install -q -r "$BACKEND/requirements-local.txt"
+"$BACKEND/.venv/bin/python" -c "import faster_whisper, sentencepiece, sherpa_onnx, pypdf" 2>/dev/null \
+  || "$BACKEND/.venv/bin/pip" install -q -r "$BACKEND/requirements.txt" -r "$BACKEND/requirements-local.txt"
 
 # On-device translation models (OPUS-MT, CC-BY-4.0): original Marian weights, pinned by SHA-256,
 # converted once to CTranslate2 int8. Translation stays unavailable (not faked) if this fails.
