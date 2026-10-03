@@ -15,6 +15,7 @@ import "../operations.css";
 import "../dispatcher.css";
 import "../extras.css";
 import "../executive-design-system.css";
+import "../executive-refinement.css";
 
 export const dynamic = "force-dynamic";
 
@@ -29,22 +30,31 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       <ExecutiveTactileFX />
       <div className="staff-shell">
         <header className="staff-topbar sticky top-0 z-30">
-          <div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-2 px-4 py-3 lg:px-6">
-            <Link href="/staff" className="staff-brand-lockup me-2 min-w-0" data-executive-tactile="true">
-              <span className="staff-brand-mark" aria-hidden="true"><Image src="/brand/career-gate.webp" alt="" width={44} height={44} priority /></span>
-              <span className="staff-brand-office" aria-hidden="true"><Image src="/brand/alhijrah-services.webp" alt="" width={36} height={36} priority /></span>
-              <span className="staff-brand-copy min-w-0"><strong className="block truncate text-slate-100">CAREER GATE</strong><p className="truncate">{OFFICE.company} · {OFFICE.location}</p></span>
-            </Link>
+          <div className="staff-executive-header mx-auto max-w-[1800px] px-4 py-3 lg:px-6">
+            <div className="staff-executive-header-row">
+              <Link href="/staff" className="staff-brand-lockup staff-brand-capsule min-w-0" data-executive-tactile="true">
+                <span className="staff-brand-halo" aria-hidden="true" />
+                <span className="staff-brand-mark" aria-hidden="true"><Image src="/brand/career-gate.webp" alt="" width={48} height={48} priority /></span>
+                <span className="staff-brand-office" aria-hidden="true"><Image src="/brand/alhijrah-services.webp" alt="" width={40} height={40} priority /></span>
+                <span className="staff-brand-copy min-w-0"><strong className="block truncate text-slate-100">CAREER GATE</strong><p className="truncate">{OFFICE.company} · {OFFICE.location}</p></span>
+              </Link>
 
-            <div className="ms-auto flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
-              <ExecutiveTelemetry />
-              <QuickClientSearch />
-              <CommandPalette />
-              {mgmt && <Link href="/staff/audit-alerts" className="relative rounded-xl border border-white/[.07] px-3 py-2 text-xs text-slate-400 hover:bg-white/[.04] hover:text-slate-100" aria-label="Audit alerts" data-executive-tactile="true">Alerts</Link>}
-              <div className="staff-session-cluster">
-                <span className="staff-session-chip hidden sm:flex" data-testid="me"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.7)]" /><span className="max-w-32 truncate text-xs text-slate-200">{session.staff.display_name}</span><span className="text-[10px] uppercase tracking-wide text-slate-500">{session.staff.role}</span></span>
-                <Link href="/staff/staff?tab=team" className="staff-session-link" data-executive-tactile="true">Executive Profile</Link>
-                <div data-executive-tactile="true"><SignOutButton /></div>
+              <div className="staff-institutional-masthead" dir="rtl">
+                <span>مرحبا بكم</span>
+                <strong>النظام الإداري مكتب الهجرة — قسم إدارة التوظيف</strong>
+                <p>الدقة · السرعة · المصداقية</p>
+              </div>
+
+              <div className="staff-header-actions">
+                <ExecutiveTelemetry />
+                <QuickClientSearch />
+                <CommandPalette />
+                {mgmt && <Link href="/staff/audit-alerts" className="staff-header-alert" aria-label="Audit alerts" data-executive-tactile="true">Alerts</Link>}
+                <div className="staff-session-cluster">
+                  <span className="staff-session-chip hidden sm:flex" data-testid="me"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.7)]" /><span className="max-w-32 truncate text-xs text-slate-200">{session.staff.display_name}</span><span className="text-[10px] uppercase tracking-wide text-slate-500">{session.staff.role}</span></span>
+                  <Link href="/staff/staff?tab=team" className="staff-session-link" data-executive-tactile="true">Executive Profile</Link>
+                  <div data-executive-tactile="true"><SignOutButton /></div>
+                </div>
               </div>
             </div>
 

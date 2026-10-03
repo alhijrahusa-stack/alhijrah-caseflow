@@ -32,8 +32,8 @@ export function StaffNavigation({ management }: { management: boolean }) {
       {item("Follow-Ups", "/staff/follow-ups")}
       {item("Staff", "/staff/staff")}
       {management && item("Reports", "/staff/reports")}
-      {management && <span className="staff-nav-divider" aria-hidden="true" />}
       {management && item("Accounting", "/staff/accounting")}
+      {management && item("Archive", "/staff/archive")}
       {management && item("Import", "/staff/import")}
       {management && <span className="staff-nav-divider" aria-hidden="true" />}
       {management && item("New Client", "/staff/new-client")}
