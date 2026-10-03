@@ -76,11 +76,22 @@ create index amazon_accounts_client_idx on public.amazon_accounts(assigned_to_cl
 create index amazon_accounts_status_idx on public.amazon_accounts(status);
 create index amazon_accounts_source_idx on public.amazon_accounts(source_email_id);
 
+create or replace function public.cg_amazon_touch()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end
+$$;
+
 create trigger amazon_emails_touch before update on public.amazon_emails
-for each row execute function public.cg_touch();
+for each row execute function public.cg_amazon_touch();
 
 create trigger amazon_accounts_touch before update on public.amazon_accounts
-for each row execute function public.cg_touch();
+for each row execute function public.cg_amazon_touch();
 
 create or replace function public.cg_amazon_email_guard()
 returns trigger
