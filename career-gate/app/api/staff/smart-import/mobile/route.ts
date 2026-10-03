@@ -11,6 +11,7 @@ export async function POST(req: Request) {
   const traceId = traceIdFrom(req);
   const guard = await staffGuard(req, traceId, { mutation: true });
   if (guard.response) return guard.response;
+  if (guard.session.staff.role === "staff") return err("forbidden", "Smart client import requires manager or admin access", 403, traceId);
   try {
     const form = await req.formData();
     const notes = String(form.get("notes") ?? "");
