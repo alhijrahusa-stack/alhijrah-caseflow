@@ -68,6 +68,7 @@ jobs:
               ('@/lib/amazon/', '@/lib/gate-job-account/'),
               ('/api/staff/amazon-account', '/api/staff/gate-job-account'),
               ('/staff/amazon-account', '/staff/gate-job-account'),
+              ('%2Fstaff%2Famazon-account', '%2Fstaff%2Fgate-job-account'),
               ('AmazonAccountWorkspace', 'GateJobAccountWorkspace'),
               ('AmazonEmailVault', 'GateJobEmailVault'),
               ('AmazonAccounts', 'GateJobAccounts'),
@@ -121,6 +122,12 @@ jobs:
               ('amazon_email_', 'gate_job_email_'),
               ('amazon_email_vault', 'gate_job_email_vault'),
               ('amazon_account', 'gate_job_account'),
+              ('amazon-account-workspace', 'gate-job-account-workspace'),
+              ('amazon-accounts', 'gate-job-accounts'),
+              ('amazon-email-vault', 'gate-job-email-vault'),
+              ('amazon-account-card', 'gate-job-account-card'),
+              ('amazon-account-integration', 'gate-job-account-integration'),
+              ('amazon-admin@test.invalid', 'gate-job-admin@test.invalid'),
               ('Amazon account', 'Gate Job account'),
               ('Amazon Account', 'Gate Job Account'),
               ('Amazon email', 'Gate Job email'),
@@ -145,7 +152,6 @@ jobs:
               path.write_text(text)
           PY
 
-          # Rename internal test descriptions and remaining file references; legitimate pre-existing Amazon intake fields outside feature scope remain untouched.
           if grep -RniE 'Amazon|amazon-account|amazon_emails|amazon_accounts|@/lib/amazon|@/components/amazon' \
               'career-gate/app/api/staff/gate-job-account' \
               'career-gate/app/staff/(app)/gate-job-account' \
