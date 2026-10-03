@@ -1,15 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { db, signIn, submitIntake } from "./helpers";
+import { db, intakeBody, signIn, submitIntake } from "./helpers";
 
 test.describe("Amazon Account Workspace", () => {
   test("adds an encrypted vault email, assigns exact client, marks ready and exposes no plaintext before reveal", async ({ page, request, baseURL }) => {
     const name = `TEST Amazon UI ${Date.now()}`;
-    const { json } = await submitIntake(request, {
-      state: "MI",
-      profile: { full_name: name, phone: `313${String(Date.now()).slice(-7)}`, email: `client-${Date.now()}@test.invalid`, employment_history: [] },
-      primary: [], backup: [], communication_consent: false,
-      authorization: { version: "2026-09-28.1", accepted: true, accuracy_acknowledged: true, printed_name: name, signature: name },
-    });
+    const { json } = await submitIntake(request, intakeBody(name));
     expect(json.ok).toBeTruthy();
     await signIn(page.context(), baseURL!, "admin");
     await page.goto("/staff/amazon-account");
