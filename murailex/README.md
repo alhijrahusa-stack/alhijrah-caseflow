@@ -61,6 +61,31 @@ Details:
 - **Readiness:** local routing is labelled **NOT BENCHMARKED**. On a fresh install, upload a recording. When processing is blocked, an admin presses **Run engine self-test** on that recording, then **Retry processing**. This is a real self-test, run once per dialect route.
 - **Storage:** evidence is stored write-once under `murailex/.local-data/objects`. PostgreSQL lives in `murailex/.local-data/pg`, and the TLS material in `murailex/.local-data/tls`. All of it survives restarts.
 
+### Long-form processing (up to 2 hours, configurable)
+
+- **Limit:** `MAX_RECORDING_DURATION_SECONDS` (default 7200) is enforced once, at ingestion. Longer recordings are rejected with the measured length and the limit.
+- **Windows:** audio is decoded in windows of about 10 min. Each boundary is placed at a pause within ±90 s of the target point when one exists, and every window carries 15 s of overlap on each side. Merging is deterministic: each word belongs to the window whose own interval contains its midpoint.
+- **Checkpoints:** every window is checkpointed (input SHA-256 + exact engine fingerprint). A worker crash, machine restart or browser close resumes from the last checkpoint and never restarts from minute zero.
+- **Fairness:** after each new window a long job yields if other work is waiting, so one 2-hour recording cannot monopolise the worker.
+- **Progress:** the processing card shows the real decoded position ("window 3/12 · decoded 0:30:00 of 1:59:59"). No estimated percentages are shown.
+
+### Engine validation (automatic)
+
+- Each route is identified by an engine fingerprint: engine and CTranslate2 versions, model snapshot revision, device, compute type and decode/windowing configuration.
+- At worker start, every route whose fingerprint has no passing real self-test is tested automatically on a bundled CC0 real-speech canary (`local/canary`).
+- Uploads made meanwhile wait for validation instead of failing.
+- A route that has passed is not re-tested until its fingerprint changes.
+
+### Verification and evidence
+
+- **Independent verifier:** a second, independent engine (`medium`) decodes the full recording. Every primary word is aligned against it deterministically: `CONFIRMED` (same comparison key) or `LOW_CONFIDENCE` (not confirmed). Text is never changed.
+- **Verification Confidence (`murailex.vc/1`):** confirmed words / primary words. It is an inter-engine agreement rate, not accuracy against ground truth.
+- **Disputes:** critical-risk regions (numbers, money, dates, names, negations, overlap…) still become disputes for human review.
+- **Audio quality (`murailex.aq/1`):** CLEAN / ACCEPTABLE / NOISY / HEAVY_NOISE / LOW_VOLUME / CLIPPED / TELEPHONE / COMPRESSED / DEGRADED, each with its measured reason. Quality never stops a job and never changes the route without benchmark evidence.
+- **Signing:** evidence packages carry `manifest.sig` (Ed25519 over `manifest.json`) and `public-key.pem`. Verify with `openssl pkeyutl -verify -pubin -inkey public-key.pem -rawin -in manifest.json -sigfile manifest.sig`.
+- **Export validation:** every export is structurally validated, written, read back and re-hashed before it is recorded.
+- **Benchmark Lab:** `scripts/bench_local_asr.py` decodes a human-transcribed corpus with the exact production adapter. It splits items by group into development and held-out sets, and records RTF and peak RAM for `scripts/run_benchmark.py` to score.
+
 ## Run (production stack)
 
 ```bash
