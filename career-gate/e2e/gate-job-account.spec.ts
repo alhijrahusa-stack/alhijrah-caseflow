@@ -25,19 +25,20 @@ test.describe("Gate Job Account Workspace", () => {
     await expect(page.locator("body")).not.toContainText(pin);
 
     await page.getByRole("tab", { name: "GATE JOB ACCOUNTS" }).click();
-    await page.getByRole("button", { name: /CREATE \/ ASSIGN ACCOUNT/ }).click();
-    await page.getByLabel("Gate Job email").selectOption({ label: email });
-    await page.getByLabel("Assigned To").fill(name);
-    await page.getByRole("button", { name: new RegExp(name) }).click();
-    await page.getByRole("button", { name: /CONFIRM ASSIGNMENT/ }).click();
-    await expect(page.getByText(email, { exact: true })).toBeVisible();
-    await expect(page.getByText("PENDING", { exact: true })).toBeVisible();
+    const accounts = page.getByTestId("gate-job-accounts");
+    await accounts.getByRole("button", { name: /CREATE \/ ASSIGN ACCOUNT/ }).click();
+    await accounts.getByLabel("Gate Job email", { exact: true }).selectOption({ label: email });
+    await accounts.getByLabel("Assigned To", { exact: true }).fill(name);
+    await accounts.getByRole("button", { name: new RegExp(name) }).click();
+    await accounts.getByRole("button", { name: /CONFIRM ASSIGNMENT/ }).click();
+    await expect(accounts.getByText(email, { exact: true })).toBeVisible();
+    await expect(accounts.getByText("PENDING", { exact: true })).toBeVisible();
 
     const [account] = await db()`select a.id,a.assigned_to_client_id,a.password_ciphertext,a.pin_ciphertext from gate_job_accounts a join clients c on c.id=a.assigned_to_client_id where c.full_name=${name}`;
     expect(account.password_ciphertext).not.toContain(password);
     expect(account.pin_ciphertext).not.toContain(pin);
 
-    await page.getByRole("link", { name: "Open Client" }).click();
+    await accounts.getByRole("link", { name: "Open Client" }).click();
     await expect(page.getByTestId("gate-job-account-card")).toContainText(email);
     await page.getByRole("button", { name: /MARK READY/ }).click();
     await expect(page.getByTestId("gate-job-account-card")).toContainText("READY");
