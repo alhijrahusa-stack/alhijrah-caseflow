@@ -99,19 +99,19 @@ def get_recording(recording_id: str, p: Principal = Depends(current_principal), 
 @router.post("/recordings/{recording_id}/reprocess")
 def reprocess(recording_id: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
     rec = load_recording(db, p, parse_uuid(recording_id), "upload")
-    if rec.status not in ("failed", "provider_not_configured"):
-        raise HTTPException(409, "Only failed or unconfigured recordings can be reprocessed.")
-    revisions = list(db.execute(select(TranscriptRevision).where(TranscriptRevision.recording_id == rec.id)).scalars())
+    revisions = db.execute(select(TranscriptRevision.id).where(TranscriptRevision.recording_id == rec.id)).first()
     if revisions:
-        # Only a failed, never-reviewed draft without persisted evidence may be regenerated.
-        from ..forensic_models import EvidenceSpan
+        # Only pure machine output that no person has touched may be rebuilt (audited);
+        # reviewed or locked work changes only through a new revision.
+        from ..pipeline.process import regenerable_draft
 
-        only = revisions[0] if len(revisions) == 1 else None
-        has_evidence = only is not None and db.execute(select(EvidenceSpan.id).where(EvidenceSpan.revision_id == only.id)).first()
-        if only is None or only.status != "draft" or only.review_state != "unreviewed" or has_evidence or rec.status != "failed":
-            raise HTTPException(409, "A transcript already exists for this recording.")
-        audit.record(db, "failed_draft_regeneration_requested", actor=p.user, recording_id=rec.id,
-                     details={"revision_id": str(only.id)})
+        draft = regenerable_draft(db, rec)
+        if draft is None:
+            raise HTTPException(409, "A reviewed or locked transcript exists; create a new revision instead.")
+        audit.record(db, "draft_regeneration_requested", actor=p.user, recording_id=rec.id,
+                     details={"revision_id": str(draft.id), "previous_status": rec.status})
+    elif rec.status not in ("failed", "provider_not_configured"):
+        raise HTTPException(409, "Only failed or unconfigured recordings can be reprocessed.")
     active = db.execute(select(Job).where(Job.recording_id == rec.id, Job.status.in_(["queued", "running"]))).first()
     if active:
         raise HTTPException(409, "Processing is already scheduled.")
@@ -213,6 +213,8 @@ def list_disputes(recording_id: str, status: str | None = None, p: Principal = D
     q = select(Dispute).where(Dispute.recording_id == rec.id).order_by(Dispute.ordinal)
     if status:
         q = q.where(Dispute.status == status)
+    else:
+        q = q.where(Dispute.status != "superseded")  # superseded machine disputes are audit history only
     return {"disputes": [dispute_out(d) for d in db.execute(q).scalars()]}
 
 

@@ -18,7 +18,7 @@ import tempfile
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .. import audio, audio_quality, audit, storage
@@ -466,6 +466,50 @@ def drive_run(
         ) from exc
 
 
+def regenerable_draft(db: Session, rec: Recording) -> TranscriptRevision | None:
+    """The recording's only revision when it is pure machine output that no person has
+    touched: an unreviewed draft, no resolved disputes, no review events, no human items.
+    Such a draft may be rebuilt in place (audited); anything a reviewer touched may not."""
+    from ..forensic_models import EvidenceSpan, ReviewEvent
+
+    revs = list(db.execute(select(TranscriptRevision).where(TranscriptRevision.recording_id == rec.id)).scalars())
+    if len(revs) != 1 or revs[0].status != "draft" or revs[0].review_state != "unreviewed":
+        return None
+    rev = revs[0]
+    if db.execute(select(Dispute.id).where(Dispute.recording_id == rec.id, Dispute.status.notin_(["open", "superseded"]))).first():
+        return None
+    if db.execute(
+        select(ReviewEvent.id).join(EvidenceSpan, ReviewEvent.evidence_span_id == EvidenceSpan.id).where(EvidenceSpan.revision_id == rev.id)
+    ).first():
+        return None
+    if any(item.get("source") == "human" for seg in (rev.content or {}).get("segments", []) for item in seg.get("items", [])):
+        return None
+    return rev
+
+
+def _add_coverage_regions(
+    regions: list[dict[str, Any]], primary: list[dict[str, Any]], verifier: list[dict[str, Any]], turns: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Every interval where the independent verifier heard words and the primary produced
+    none becomes (or joins) a hard review region with reason coverage_gap. Never filled
+    automatically: the reviewer sees both readings against the audio."""
+    for span in xv.verifier_only_spans(primary, verifier):
+        hit = next((r for r in regions if r["start_ms"] <= span["end_ms"] and r["end_ms"] >= span["start_ms"]), None)
+        if hit is not None:
+            hit["reasons"] = sorted(set(hit["reasons"]) | {"coverage_gap"})
+            hit["start_ms"], hit["end_ms"] = min(hit["start_ms"], span["start_ms"]), max(hit["end_ms"], span["end_ms"])
+            hit["hard"] = hit["requires_independent_check"] = True
+            continue
+        speaker = cons.speaker_at(turns, span["start_ms"], span["end_ms"])[0] if turns else None
+        regions.append({
+            "start_ms": span["start_ms"], "end_ms": span["end_ms"], "columns": [],
+            "reasons": ["coverage_gap"], "risks": [], "critical": False, "hard": True,
+            "requires_independent_check": True, "speaker_raw": speaker,
+        })
+    regions.sort(key=lambda r: (r["start_ms"], r["end_ms"]))
+    return regions
+
+
 def _derive_region_run(
     db: Session, rec: Recording, adapter: AsrAdapter, full: ProviderRun, scope: str, ws: int, we: int
 ) -> ProviderRun:
@@ -504,17 +548,8 @@ def _derive_region_run(
 
 def process_recording(db: Session, rec: Recording) -> None:
     s = get_settings()
-    existing = list(db.execute(select(TranscriptRevision).where(TranscriptRevision.recording_id == rec.id)).scalars())
-    if existing:
-        # Never finalize twice. The only exception is a never-reviewed draft that has no
-        # persisted evidence (left by a pre-atomic failure); it is regenerated in place.
-        from ..forensic_models import EvidenceSpan
-
-        only = existing[0]
-        if len(existing) > 1 or only.status != "draft" or only.review_state != "unreviewed" or db.execute(
-            select(EvidenceSpan.id).where(EvidenceSpan.revision_id == only.id)
-        ).first():
-            return
+    if db.execute(select(TranscriptRevision.id).where(TranscriptRevision.recording_id == rec.id)).first() and regenerable_draft(db, rec) is None:
+        return  # never finalize twice; only a never-reviewed machine draft may be rebuilt
 
     derived = ensure_derived(db, rec)
     wd = _workdir(rec)
@@ -712,6 +747,10 @@ def process_recording(db: Session, rec: Recording) -> None:
     result = cons.analyze(primary_inputs, turns, s.low_confidence_threshold)
     columns = result["columns"]
     regions = result["regions"]
+    if full_by_provider and primary_inputs:
+        regions = _add_coverage_regions(
+            regions, primary_inputs[0][1], (next(iter(full_by_provider.values())).normalized or {}).get("tokens", []), turns
+        )
 
     trace_failures = _primary_trace_failures(primary_inputs, columns)
     if trace_failures:
@@ -820,11 +859,18 @@ def process_recording(db: Session, rec: Recording) -> None:
         select(TranscriptRevision).where(TranscriptRevision.recording_id == rec.id, TranscriptRevision.status == "draft")
     ).scalar_one_or_none()
     if regenerating is not None:
+        from ..forensic_models import EvidenceSpan, ProviderToken
+
         stale = list(db.execute(select(Dispute).where(Dispute.recording_id == rec.id, Dispute.status == "open")).scalars())
         for old in stale:
             old.status = "superseded"
+        span_ids = select(EvidenceSpan.id).where(EvidenceSpan.revision_id == regenerating.id)
+        tokens_removed = db.execute(delete(ProviderToken).where(ProviderToken.evidence_span_id.in_(span_ids))).rowcount
+        spans_removed = db.execute(delete(EvidenceSpan).where(EvidenceSpan.revision_id == regenerating.id)).rowcount
         audit.record(db, "draft_regeneration", actor_label="system", recording_id=rec.id,
-                     details={"revision_id": str(regenerating.id), "superseded_disputes": len(stale)})
+                     details={"revision_id": str(regenerating.id), "pipeline_version": PIPELINE_VERSION,
+                              "superseded_disputes": len(stale), "machine_evidence_spans_replaced": spans_removed,
+                              "machine_provider_tokens_replaced": tokens_removed})
     raw_speakers = [c["speaker_raw"] for c in columns] + [turn["speaker"] for turn in turns]
     smap = tx.speaker_map([c["speaker_raw"] for c in columns] or raw_speakers)
     for speaker in raw_speakers:
