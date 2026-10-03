@@ -983,6 +983,762 @@ html,body{max-width:100%;overflow-x:clip}
 .shell,#appShell,form,.panel,.page,.pad,.topbar,.progress-glass,.stepper,.bar,.grid,.shift-deck,.choicegrid,.review-page,.review-section,.contact-footer,.receipt-screen,.receipt-shell,.receipt{min-width:0;max-width:100%}
 img,canvas,input,select,textarea,button{max-width:100%}
 @media(max-width:560px){.shell{width:100%;max-width:100%;margin-inline:0}.topbar,.panel,.progress-glass,.contact-footer,.receipt-screen,.receipt{width:100%;max-width:100%}.stepper{grid-template-columns:1fr}.bar{flex-wrap:wrap;min-width:0}.bar .spacer{min-width:0}.pay-table{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}.pay-table table{min-width:640px;max-width:none}.language-toggle{max-width:100%;flex-wrap:wrap;justify-content:center}}
+/* =========================================================
+   CAREER GATE — EXECUTIVE UI REFINEMENT v45
+   Visual-only additive override.
+   Preserves existing IDs, workflow, API bindings and JS.
+   ========================================================= */
+
+:root{
+  --exec-bg:#050a13;
+  --exec-surface:#0b1728;
+  --exec-surface-2:#0e1d31;
+  --exec-gold:#d6b34a;
+  --exec-gold-soft:#f0d780;
+  --exec-cyan:#45d7dd;
+  --exec-text:#f8fafc;
+  --exec-muted:#aebdcd;
+  --exec-line:rgba(242,217,129,.22);
+  --exec-line-soft:rgba(255,255,255,.085);
+  --exec-shadow:
+    0 24px 64px rgba(0,0,0,.28),
+    inset 0 1px 0 rgba(255,255,255,.035);
+  --exec-radius-xl:24px;
+  --exec-radius-lg:18px;
+  --exec-ease:cubic-bezier(.16,1,.3,1);
+}
+
+/* ---------- Global stability ---------- */
+
+html{
+  scrollbar-gutter:stable;
+  text-size-adjust:100%;
+  -webkit-text-size-adjust:100%;
+}
+
+body{
+  min-width:320px;
+  text-rendering:optimizeLegibility;
+  -webkit-font-smoothing:antialiased;
+  font-synthesis:none;
+}
+
+img,
+canvas,
+svg{
+  display:block;
+  max-width:100%;
+}
+
+button,
+.btn,
+input,
+select,
+textarea{
+  -webkit-tap-highlight-color:transparent;
+}
+
+.shell{
+  width:min(100%,1180px);
+  padding-top:18px;
+}
+
+/* ---------- Header hierarchy ---------- */
+
+.topbar{
+  grid-template-columns:minmax(0,1.45fr) minmax(220px,.7fr) auto;
+  min-height:104px;
+  gap:24px;
+  padding:18px 22px;
+  border-color:rgba(242,217,129,.28);
+  background:
+    radial-gradient(circle at 0 0,rgba(214,179,74,.07),transparent 45%),
+    linear-gradient(180deg,rgba(18,38,62,.94),rgba(7,16,29,.97));
+  box-shadow:
+    0 22px 58px rgba(0,0,0,.29),
+    inset 0 1px 0 rgba(255,255,255,.045);
+}
+
+.office-lockup{
+  display:grid;
+  grid-template-columns:64px minmax(0,1fr);
+  align-items:center;
+  gap:16px;
+}
+
+.office-brand-logo{
+  width:64px;
+  height:64px;
+  object-fit:contain;
+  border-radius:16px;
+  flex:none;
+  filter:
+    drop-shadow(0 10px 18px rgba(0,0,0,.2))
+    drop-shadow(0 0 12px rgba(214,179,74,.07));
+}
+
+.office-name{
+  margin:0;
+  max-width:620px;
+  color:#fffdf7;
+  font-size:clamp(21px,1.8vw,27px);
+  line-height:1.42;
+  font-weight:700;
+  letter-spacing:-.012em;
+  text-wrap:balance;
+}
+
+.portal-lockup{
+  min-width:0;
+  gap:11px;
+  padding-inline:4px;
+}
+
+.career-brand-logo{
+  width:54px;
+  height:54px;
+  flex:none;
+  object-fit:contain;
+  border-radius:14px;
+}
+
+.portal-ar{
+  color:var(--exec-gold-soft);
+  font-size:17px;
+  line-height:1.25;
+}
+
+.portal-en{
+  margin-top:4px;
+  color:#b9f5f7;
+  font-size:12px;
+  letter-spacing:.12em;
+}
+
+.header-actions{
+  min-width:max-content;
+}
+
+.language-toggle{
+  padding:5px;
+  gap:5px;
+  border-color:rgba(242,217,129,.25);
+  background:rgba(4,11,20,.38);
+}
+
+.language-toggle button{
+  min-width:48px;
+  min-height:36px;
+}
+
+/* ---------- Hero ---------- */
+
+.hero{
+  border-color:rgba(242,217,129,.24);
+  background:
+    radial-gradient(circle at 50% 0,rgba(214,179,74,.075),transparent 52%),
+    linear-gradient(180deg,rgba(18,39,64,.87),rgba(8,18,32,.95));
+}
+
+.hero .pad{
+  padding:34px 30px 32px;
+}
+
+.hero-kicker{
+  color:var(--exec-gold-soft);
+  font-size:13px;
+  letter-spacing:.13em;
+}
+
+.title{
+  max-width:860px;
+  margin:8px auto 8px;
+  font-size:clamp(34px,4.3vw,50px);
+  line-height:1.18;
+  letter-spacing:-.018em;
+  text-wrap:balance;
+}
+
+.lead{
+  max-width:680px;
+  font-size:16px;
+  line-height:1.7;
+  color:#d4deea;
+}
+
+/* ---------- Tracking card ---------- */
+
+.tracker{
+  border-color:rgba(69,215,221,.28);
+  background:
+    radial-gradient(circle at 100% 0,rgba(69,215,221,.07),transparent 40%),
+    linear-gradient(180deg,rgba(15,35,58,.91),rgba(7,17,30,.97));
+}
+
+.tracker .pad{
+  padding:24px 26px;
+}
+
+.trackTitle{
+  align-items:center;
+  margin-bottom:20px;
+}
+
+.trackIcon{
+  width:46px;
+  height:46px;
+  flex-basis:46px;
+  border-radius:14px;
+  background:
+    linear-gradient(145deg,rgba(69,215,221,.2),rgba(69,215,221,.07));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.05),
+    0 8px 20px rgba(0,0,0,.15);
+}
+
+.trackTitle h2{
+  font-size:24px;
+  line-height:1.32;
+}
+
+.trackTitle .muted{
+  margin-top:2px;
+}
+
+.trackGrid{
+  grid-template-columns:210px minmax(260px,1fr) 110px;
+  gap:11px;
+}
+
+.trackGrid .btn{
+  width:100%;
+}
+
+/* ---------- Progress ---------- */
+
+.progress-glass{
+  padding:17px 20px;
+  border-radius:20px;
+  border-color:rgba(242,217,129,.25);
+  background:
+    linear-gradient(180deg,rgba(16,34,56,.88),rgba(7,16,29,.94));
+}
+
+.progress-value{
+  min-width:4ch;
+  text-align:end;
+}
+
+.progress{
+  height:7px;
+}
+
+.progress span{
+  will-change:width;
+}
+
+.progress-foot{
+  margin-top:10px;
+  font-size:12px;
+  letter-spacing:.025em;
+}
+
+/* ---------- Step navigation ---------- */
+
+.stepper{
+  gap:9px;
+}
+
+.stepbtn{
+  min-width:0;
+  min-height:68px;
+  padding:12px 13px;
+  border-radius:16px;
+  background:
+    linear-gradient(180deg,rgba(17,35,57,.82),rgba(8,17,30,.9));
+}
+
+.stepbtn:hover{
+  transform:translateY(-1px);
+}
+
+.stepbtn.active{
+  border-color:rgba(242,217,129,.6);
+  background:
+    linear-gradient(180deg,rgba(214,179,74,.15),rgba(12,26,43,.94));
+  box-shadow:
+    0 10px 26px rgba(0,0,0,.13),
+    inset 0 0 0 1px rgba(242,217,129,.055);
+}
+
+.num{
+  width:36px;
+  height:36px;
+  flex-basis:36px;
+}
+
+.stepbtn strong{
+  overflow-wrap:anywhere;
+}
+
+.stepbtn small{
+  margin-top:2px;
+  font-size:12px;
+}
+
+/* ---------- Main panels ---------- */
+
+.panel{
+  border-radius:var(--exec-radius-xl);
+  border-color:rgba(242,217,129,.2);
+}
+
+.panel>.pad{
+  padding:27px 28px;
+}
+
+.page{
+  min-height:0;
+}
+
+.section-title{
+  margin-bottom:9px;
+  color:#fffdf7;
+  font-size:clamp(24px,2.3vw,29px);
+  text-wrap:balance;
+}
+
+.divider{
+  margin:25px 0 15px;
+  font-size:14px;
+  color:var(--exec-gold-soft);
+}
+
+/* ---------- Form controls ---------- */
+
+.lbl{
+  margin-bottom:7px;
+  color:#f1f4f8;
+  font-size:14px;
+  line-height:1.45;
+}
+
+input,
+select,
+textarea{
+  min-height:54px;
+  padding:13px 14px;
+  border:1px solid rgba(9,20,34,.15);
+  border-radius:13px;
+  background:#faf8f2;
+  color:#07111f;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.88),
+    0 1px 2px rgba(0,0,0,.04);
+}
+
+input:hover,
+select:hover,
+textarea:hover{
+  border-color:rgba(214,179,74,.54);
+}
+
+input:focus,
+select:focus,
+textarea:focus{
+  border-color:rgba(214,179,74,.92);
+  background:#fffef9;
+  box-shadow:
+    0 0 0 4px rgba(214,179,74,.13),
+    0 7px 20px rgba(0,0,0,.055);
+}
+
+input::placeholder,
+textarea::placeholder{
+  color:#78838f;
+}
+
+/* ---------- Interactive cards ---------- */
+
+.service,
+.choice,
+.shift-card,
+.review-item,
+.legal-card{
+  border-color:rgba(255,255,255,.085);
+}
+
+.service,
+.choice,
+.shift-card{
+  background:
+    linear-gradient(180deg,rgba(19,39,63,.74),rgba(8,18,32,.88));
+}
+
+.service:hover,
+.choice:hover,
+.shift-card:hover{
+  transform:translateY(-1px);
+  border-color:rgba(242,217,129,.38);
+}
+
+.service.selected,
+.choice.selected,
+.shift-card.selected{
+  border-color:rgba(242,217,129,.66);
+  box-shadow:
+    inset 0 0 0 1px rgba(242,217,129,.07),
+    0 10px 24px rgba(0,0,0,.11);
+}
+
+/* ---------- Buttons / immediate feedback ---------- */
+
+button,
+.btn,
+.stepbtn,
+.service,
+.choice,
+.shift-card{
+  touch-action:manipulation;
+  transition:
+    transform 80ms var(--exec-ease),
+    border-color 150ms var(--exec-ease),
+    box-shadow 150ms var(--exec-ease),
+    background-color 150ms var(--exec-ease),
+    opacity 150ms var(--exec-ease);
+}
+
+button:active:not(:disabled),
+.btn:active:not(:disabled),
+.stepbtn:active,
+.service:active,
+.choice:active,
+.shift-card:active{
+  transform:translateY(1px) scale(.992);
+  transition-duration:35ms;
+}
+
+.btn{
+  min-height:50px;
+  border-radius:12px;
+}
+
+.primary{
+  background:
+    linear-gradient(145deg,#f1d77b 0%,#d6b34a 56%,#a98422 100%);
+  color:#06101d;
+}
+
+.cyan{
+  background:
+    linear-gradient(145deg,#6be5e8,#209ba4);
+  color:#041318;
+}
+
+.green{
+  background:
+    linear-gradient(145deg,#58d2a4,#287b60);
+}
+
+/* ---------- Sticky action bar ---------- */
+
+.bar{
+  bottom:8px;
+  margin:20px 10px 10px;
+  padding:10px;
+  border-radius:16px;
+  border-color:rgba(242,217,129,.22);
+  background:rgba(6,14,25,.94);
+  box-shadow:
+    0 18px 42px rgba(0,0,0,.3),
+    inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+/* ---------- Review ---------- */
+
+.review-page{
+  border-color:rgba(242,217,129,.3);
+}
+
+.review-hero-row{
+  padding-bottom:19px;
+}
+
+.review-section{
+  margin-top:15px;
+  padding:16px;
+  border-radius:17px;
+}
+
+.review-item{
+  min-height:78px;
+  padding:13px 14px;
+  border-radius:14px;
+}
+
+.review-photo{
+  width:68px;
+  height:68px;
+  border-radius:18px;
+}
+
+/* ---------- Tracking result ---------- */
+
+.cardGlass{
+  border-radius:20px;
+  border-color:rgba(69,215,221,.26);
+  background:
+    linear-gradient(180deg,rgba(12,28,47,.96),rgba(6,15,27,.98));
+}
+
+.trackCardHead{
+  grid-template-columns:68px minmax(0,1fr) auto;
+  padding:16px;
+}
+
+.avatar{
+  width:64px;
+  height:64px;
+  border-radius:16px;
+}
+
+.trackBody{
+  padding:16px;
+}
+
+.kv,
+.timeline{
+  border-radius:13px;
+}
+
+/* ---------- Footer ---------- */
+
+.contact-footer{
+  padding:15px 17px;
+  border-radius:17px;
+  background:
+    linear-gradient(180deg,rgba(16,33,54,.68),rgba(6,14,26,.84));
+}
+
+.contact-grid a{
+  min-width:0;
+  overflow:hidden;
+}
+
+.contact-grid strong{
+  overflow-wrap:anywhere;
+}
+
+/* ---------- RTL precision ---------- */
+
+html[dir="rtl"] .office-name,
+html[dir="rtl"] .section-title,
+html[dir="rtl"] .trackTitle,
+html[dir="rtl"] .stepbtn,
+html[dir="rtl"] .lbl{
+  text-align:right;
+}
+
+html[dir="rtl"] input:not([dir="ltr"]),
+html[dir="rtl"] select,
+html[dir="rtl"] textarea{
+  text-align:right;
+}
+
+.portal-en,
+.progress-value,
+.progress-label,
+.progress-foot,
+.meta,
+.shift-code,
+.receipt-case{
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- Desktop / tablet ---------- */
+
+@media(max-width:900px){
+  .shell{
+    padding-inline:12px;
+  }
+
+  .topbar{
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:14px;
+  }
+
+  .office-lockup{
+    grid-column:1/-1;
+  }
+
+  .portal-lockup{
+    justify-content:flex-start;
+  }
+
+  .trackGrid{
+    grid-template-columns:1fr;
+  }
+
+  .trackGrid .btn{
+    width:auto;
+    min-width:120px;
+    justify-self:start;
+  }
+}
+
+/* ---------- Mobile ---------- */
+
+@media(max-width:560px){
+  .shell{
+    padding:8px 8px 66px;
+  }
+
+  .topbar{
+    grid-template-columns:1fr;
+    gap:14px;
+    padding:16px 14px;
+    border-radius:20px;
+  }
+
+  .office-lockup{
+    grid-template-columns:52px minmax(0,1fr);
+    gap:12px;
+    justify-content:stretch;
+    text-align:start;
+  }
+
+  .office-brand-logo{
+    width:52px;
+    height:52px;
+    border-radius:14px;
+  }
+
+  .office-name{
+    font-size:18px;
+    line-height:1.45;
+    text-align:start;
+  }
+
+  .portal-lockup{
+    justify-content:flex-start;
+    padding-inline:0;
+  }
+
+  .career-brand-logo{
+    width:46px;
+    height:46px;
+  }
+
+  .portal-copy{
+    text-align:start;
+  }
+
+  .header-actions{
+    justify-content:flex-start;
+  }
+
+  .hero .pad{
+    padding:25px 17px 24px;
+  }
+
+  .hero-kicker{
+    font-size:12px;
+  }
+
+  .title{
+    font-size:clamp(30px,9vw,36px);
+    line-height:1.2;
+  }
+
+  .lead{
+    font-size:15px;
+  }
+
+  .tracker .pad,
+  .panel>.pad{
+    padding:20px 15px;
+  }
+
+  .trackTitle{
+    gap:11px;
+  }
+
+  .trackIcon{
+    width:42px;
+    height:42px;
+    flex-basis:42px;
+  }
+
+  .trackTitle h2{
+    font-size:21px;
+  }
+
+  .trackGrid .btn{
+    width:100%;
+  }
+
+  .progress-glass{
+    padding:15px;
+  }
+
+  .stepper{
+    grid-template-columns:1fr;
+    gap:7px;
+  }
+
+  .stepbtn{
+    min-height:62px;
+  }
+
+  .section-title{
+    font-size:23px;
+  }
+
+  .divider{
+    margin-top:22px;
+  }
+
+  .bar{
+    margin-inline:0;
+  }
+
+  .bar .btn{
+    flex:1 1 auto;
+  }
+
+  .review-section{
+    padding:14px 12px;
+  }
+
+  .trackCardHead{
+    grid-template-columns:58px minmax(0,1fr);
+  }
+
+  .avatar{
+    width:54px;
+    height:54px;
+  }
+
+  .trackCardHead .statusPill{
+    grid-column:1/-1;
+  }
+
+  .contact-footer{
+    padding:14px 12px;
+  }
+}
+
+/* ---------- Accessibility / motion ---------- */
+
+@media(prefers-reduced-motion:reduce){
+  *,
+  *::before,
+  *::after{
+    scroll-behavior:auto!important;
+    animation:none!important;
+    transition-duration:.001ms!important;
+  }
+}
 </style>
 </head>
 <body>
