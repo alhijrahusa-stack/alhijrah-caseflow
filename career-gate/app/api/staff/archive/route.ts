@@ -62,7 +62,7 @@ export async function POST(req: Request) {
         where id = ${client.id}`;
       await logActivity(tx, {
         clientId: client.id,
-        action: "client_restored",
+        action: "client_updated",
         actor: { staffId: session.staff.id, traceId },
         entityType: "client",
         entityId: client.id,
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
           deleted_by: client.deleted_by,
           delete_reason: client.delete_reason,
         },
-        newValue: { deleted_at: null, deleted_by: null, delete_reason: null },
+        newValue: { deleted_at: null, deleted_by: null, delete_reason: null, restored_from_archive: true },
       });
       return { id: client.id, changed: true, archived: false };
     });
