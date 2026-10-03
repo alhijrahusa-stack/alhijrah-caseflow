@@ -50,7 +50,7 @@ test.describe("Smart Career Collect Client", () => {
 
     await page.locator(".staff-picker-trigger").click();
     await page.getByRole("option", { name: new RegExp(String(admin.display_name)) }).click();
-    await page.getByRole("button", { name: "REVIEW" }).click();
+    await page.getByRole("button", { name: "REVIEW", exact: true }).click();
     await page.getByRole("button", { name: "CHECK & VERIFY" }).click();
     await expect(page.getByText("MISSING DOCUMENT", { exact: true }).last()).toBeVisible();
 
