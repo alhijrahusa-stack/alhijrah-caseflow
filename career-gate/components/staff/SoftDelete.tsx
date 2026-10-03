@@ -4,21 +4,31 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAction } from "@/components/forms/useAction";
 
-/** Admin-only soft delete with a mandatory reason. Records are kept. */
-export function SoftDelete({ clientId }: { clientId: string }) {
+/** Management-only recoverable archive action. Records and documents are retained. */
+export function SoftDelete({ clientId, compact = false }: { clientId: string; compact?: boolean }) {
   const router = useRouter();
-  const a = useAction({ successMessage: "Client soft-deleted" });
+  const a = useAction({ successMessage: "Client moved to archive" });
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
-  if (!open) return <button type="button" className="text-sm text-red-700 hover:underline" onClick={() => setOpen(true)}>Delete client (admin)</button>;
+
+  if (!open) {
+    return <button type="button" className={compact ? "archive-client-button" : "text-sm font-semibold text-red-300 hover:text-red-200"} onClick={() => setOpen(true)}>Archive</button>;
+  }
+
   return (
-    <form className="flex flex-wrap items-center gap-2 rounded-md border border-red-200 bg-red-50 p-2" data-testid="form-soft-delete"
-      onSubmit={async (e) => { e.preventDefault(); if (await a.run({ action: "soft_delete_client", client_id: clientId, reason })) router.push("/staff/clients"); }}>
-      <label className="text-sm text-red-800" htmlFor="del_reason">Reason (required)</label>
-      <input id="del_reason" required className="input w-64 py-1" value={reason} onChange={(e) => setReason(e.target.value)} />
-      <button className="rounded bg-red-600 px-3 py-1 text-sm text-white" disabled={a.pending}>Soft delete</button>
-      <button type="button" className="text-sm text-slate-600" onClick={() => setOpen(false)}>Cancel</button>
-      <p className="w-full text-xs text-red-800">The file and its documents are kept; it is hidden from everyone except admins.</p>
+    <form
+      className="archive-delete-form"
+      data-testid="form-soft-delete"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (await a.run({ action: "soft_delete_client", client_id: clientId, reason })) router.push("/staff/clients");
+      }}
+    >
+      <label className="text-xs font-semibold text-red-200" htmlFor={`del_reason_${clientId}`}>Archive reason</label>
+      <input id={`del_reason_${clientId}`} required className="input min-w-56 py-1" value={reason} onChange={(e) => setReason(e.target.value)} />
+      <button className="archive-confirm-button" disabled={a.pending}>{a.pending ? "Archiving…" : "Confirm"}</button>
+      <button type="button" className="text-xs text-slate-400 hover:text-slate-200" onClick={() => setOpen(false)}>Cancel</button>
+      <p className="w-full text-xs text-slate-500">Recoverable: the client, documents, and audit history remain retained.</p>
     </form>
   );
 }
