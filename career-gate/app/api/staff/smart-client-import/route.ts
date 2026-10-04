@@ -7,28 +7,16 @@ import { staffGuard } from "@/lib/staff-api";
 import {
   approveImportCase,
   getImportCase,
-  listImportQueue,
   startImportReview,
   verifyImportCase,
 } from "@/lib/smart-client-import";
+import { listImportQueueV3 } from "@/lib/smart-client-queue-v3";
 import { saveImportReviewWithEvidence } from "@/lib/smart-client-review";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const Id = z.uuid();
-
-async function withUploaderMetadata<T extends { rows: Array<{ id: string }> }>(queue: T) {
-  const ids = queue.rows.map((row) => row.id);
-  if (!ids.length) return queue;
-  const meta = await sql()`
-    select c.id,c.created_by,s.display_name as uploaded_by_name
-    from client_import_cases c
-    left join staff s on s.id=c.created_by
-    where c.id = any(${ids}::uuid[])`;
-  const index = new Map(meta.map((row) => [String(row.id), { uploaded_by: String(row.created_by), uploaded_by_name: row.uploaded_by_name ? String(row.uploaded_by_name) : null }]));
-  return { ...queue, rows: queue.rows.map((row) => ({ ...row, ...(index.get(row.id) ?? { uploaded_by: null, uploaded_by_name: null }) })) };
-}
 
 export async function GET(req: Request) {
   const traceId = traceIdFrom(req);
@@ -43,12 +31,12 @@ export async function GET(req: Request) {
       const [creator] = await sql()`select display_name from staff where id=${String(detail.case.created_by)} limit 1`;
       return ok({ ...detail, case: { ...detail.case, uploaded_by_name: creator?.display_name ? String(creator.display_name) : null } }, 200, traceId);
     }
-    const queue = await listImportQueue(guard.session, {
+    const queue = await listImportQueueV3(guard.session, {
       status: url.searchParams.get("status"),
       q: url.searchParams.get("q"),
       cursor: url.searchParams.get("cursor"),
     });
-    return ok(await withUploaderMetadata(queue), 200, traceId);
+    return ok(queue, 200, traceId);
   } catch (error) {
     if (error instanceof ActionError) return err(error.code, error.message, error.status, traceId);
     if (error instanceof z.ZodError) return err("invalid_id", "Invalid import case ID", 400, traceId);
@@ -99,12 +87,15 @@ export async function POST(req: Request) {
       return ok(row, 200, traceId);
     }
     if (body.action === "soft_delete") {
-      const [row] = await sql()`select id,case_number,status,created_client_id from client_import_cases where id=${body.id} for update`;
-      if (!row) throw new ActionError("not_found", "Import case not found", 404);
-      if (String(row.case_number) !== body.case_number.trim()) throw new ActionError("confirmation_mismatch", "Type the exact case number to confirm deletion", 409);
-      if (row.status === "APPROVED_FILE" || row.created_client_id) throw new ActionError("delete_blocked", "Approved imports are retained for audit and cannot be deleted", 409);
-      const [deleted] = await sql()`update client_import_cases set deleted_at=now(),archived_at=coalesce(archived_at,now()) where id=${body.id} returning id,case_number,deleted_at`;
-      return ok(deleted, 200, traceId);
+      const rows = await sql().begin(async (tx) => {
+        const [row] = await tx`select id,case_number,status,created_client_id from client_import_cases where id=${body.id} for update`;
+        if (!row) throw new ActionError("not_found", "Import case not found", 404);
+        if (String(row.case_number) !== body.case_number.trim()) throw new ActionError("confirmation_mismatch", "Type the exact case number to confirm deletion", 409);
+        if (row.status === "APPROVED_FILE" || row.created_client_id) throw new ActionError("delete_blocked", "Approved imports are retained for audit and cannot be deleted", 409);
+        const [deleted] = await tx`update client_import_cases set deleted_at=now(),archived_at=coalesce(archived_at,now()) where id=${body.id} returning id,case_number,deleted_at`;
+        return deleted;
+      });
+      return ok(rows, 200, traceId);
     }
     return ok(await approveImportCase(guard.session, {
       id: body.id,
