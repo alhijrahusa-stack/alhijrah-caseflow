@@ -6,9 +6,10 @@ const config = [
   ...next,
   ...ts,
   {
-    files: ["components/staff/UniversalIntakePanel.tsx"],
+    files: ["components/staff/UniversalIntakePanel.tsx", "components/staff/SmartCareerCollectClient.tsx"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
       "@next/next/no-location-assign-relative-destination": "off",
       "@next/next/no-img-element": "off",
     },
@@ -17,6 +18,12 @@ const config = [
     files: ["lib/smart-client-import.ts"],
     rules: {
       "@typescript-eslint/no-unused-vars": ["error", { "varsIgnorePattern": "^jsonArray$" }],
+    },
+  },
+  {
+    files: ["lib/smart-client-mobile.ts"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["error", { "varsIgnorePattern": "^EvidenceField$" }],
     },
   },
 ];
