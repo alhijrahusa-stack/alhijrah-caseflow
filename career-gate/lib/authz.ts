@@ -2,12 +2,13 @@ import "server-only";
 import { sql } from "@/lib/db";
 import type { Role } from "@/lib/domain";
 import type { StaffSession } from "@/lib/auth";
+import { permissionAllows, type PermissionMode, type StaffPermission } from "@/lib/permissions";
 
 const ALL: Role[] = ["admin", "manager", "staff"];
 const MGMT: Role[] = ["admin", "manager"];
 const ADMIN: Role[] = ["admin"];
 
-/** Which roles may run each staff action. Client scope is checked separately. */
+/** Existing role authorization remains the upper bound for every granular permission. */
 export const ACTION_ROLES = {
   create_client: MGMT,
   update_client: ALL,
@@ -43,6 +44,7 @@ export const ACTION_ROLES = {
   disable_staff: ADMIN,
   reactivate_staff: ADMIN,
   invite_staff: ADMIN,
+  manage_staff_permissions: MGMT,
   upsert_availability: MGMT,
   delete_availability: MGMT,
   add_blocked_period: MGMT,
@@ -52,12 +54,18 @@ export const ACTION_ROLES = {
   run_audit_scan: MGMT,
   upload_document: ALL,
   view_document: ALL,
-} as const satisfies Record<string, Role[]>;
+} as const satisfies Record<StaffPermission, Role[]>;
 
 export type ActionName = keyof typeof ACTION_ROLES;
 
 export function roleAllows(role: Role, action: ActionName) {
   return (ACTION_ROLES[action] as readonly Role[]).includes(role);
+}
+
+export async function staffPermissionAllows(staffId: string, action: ActionName): Promise<boolean> {
+  const [row] = await sql()`select permission_mode, permissions from staff where id = ${staffId} and active`;
+  if (!row) return false;
+  return permissionAllows(row.permission_mode as PermissionMode, (row.permissions ?? []) as string[], action);
 }
 
 export type ClientScope = { ok: true; clientId: string } | { ok: false; status: 403 | 404; reason: string };
