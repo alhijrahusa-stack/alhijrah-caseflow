@@ -6,7 +6,19 @@ import { hit, securityEvent } from "@/lib/ratelimit";
 
 type Guard = { session: StaffSession; response: null } | { session: null; response: Response };
 
-/** Authenticates the staff caller and applies the per-staff mutation limits. */
+async function accountingPermission(req: Request): Promise<ActionName | null> {
+  if (new URL(req.url).pathname !== "/api/staff/accounting") return null;
+  const body = await req.clone().json().catch(() => null) as { operation?: string; status?: string } | null;
+  if (body?.operation === "record_transaction") return "record_transaction";
+  if (body?.operation !== "update_commission") return null;
+  if (body.status === "approved") return "approve_commission";
+  if (body.status === "paid") return "pay_commission";
+  if (body.status === "cancelled") return "cancel_commission";
+  if (body.status === "reversed") return "reverse_commission";
+  return null;
+}
+
+/** Authenticates the staff caller and applies per-staff mutation and route-level permission controls. */
 export async function staffGuard(req: Request, traceId: string, opts: { mutation: boolean }): Promise<Guard> {
   const session = await getStaffSession();
   if (!session) return { session: null, response: err("unauthorized", "Sign in required", 401, traceId) };
@@ -17,6 +29,19 @@ export async function staffGuard(req: Request, traceId: string, opts: { mutation
     if (!okMin || !okHour) {
       await securityEvent({ event: "rate_limited_staff_action", staffId: session.staff.id, ipHash: ipHash(req), route: new URL(req.url).pathname, traceId });
       return { session: null, response: err("rate_limited", "Too many actions. Wait a moment and try again.", 429, traceId) };
+    }
+
+    const permission = await accountingPermission(req);
+    if (permission && (!roleAllows(session.staff.role, permission) || !(await staffPermissionAllows(session.staff.id, permission)))) {
+      await securityEvent({
+        event: "access_denied",
+        staffId: session.staff.id,
+        ipHash: ipHash(req),
+        route: new URL(req.url).pathname,
+        detail: { action: permission, role: session.staff.role },
+        traceId,
+      });
+      return { session: null, response: err("forbidden", "Your access profile does not allow this action", 403, traceId) };
     }
   }
   return { session, response: null };
