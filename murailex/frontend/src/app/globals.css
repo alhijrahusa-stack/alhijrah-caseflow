@@ -1,0 +1,231 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * MURAILEX executive design system.
+ * Every colour, radius and type token used by the UI is declared here once. Components
+ * consume semantic utilities (bg-surface, text-fg-muted, border-line, bg-danger/10 …);
+ * raw palette classes are not used. All text tokens meet WCAG 2.2 AA (≥ 4.5:1) on every
+ * surface token.
+ */
+@theme {
+  --font-sans: var(--font-inter), var(--font-plex-arabic), ui-sans-serif, -apple-system, "Segoe UI", "Noto Sans Arabic", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Consolas, monospace;
+
+  --color-canvas: #06101d;
+  --color-surface: #0a1726;
+  --color-surface-2: #0e2033;
+  --color-surface-3: #142a40;
+  --color-line: #21384e;
+  --color-line-strong: #38526a;
+
+  --color-fg: #f5f2e9;
+  --color-fg-muted: #aeb9c5;
+  --color-fg-subtle: #8e9dae;
+
+  --color-primary: #c4a15c;
+  --color-primary-hover: #d3b46f;
+  --color-primary-fg: #06101d;
+  --color-primary-text: #e9cb8a;
+  --color-primary-2: #b8944f;
+  --color-glass: rgb(10 23 38 / 0.76);
+  --color-glass-strong: rgb(10 23 38 / 0.9);
+  --color-hairline: rgb(213 181 111 / 0.14);
+
+  --color-ok: #4ade9a;
+  --color-warn: #f5b946;
+  --color-danger: #f38b8b;
+  --color-danger-solid: #c93c3c;
+  --color-info: #6ccfea;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1rem;
+
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -20px rgb(0 0 0 / 0.7);
+  --shadow-pop: 0 24px 64px -24px rgb(0 0 0 / 0.85);
+  --shadow-glow: 0 8px 22px -12px rgb(196 161 92 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.12) inset;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100dvh;
+  font-feature-settings: "cv11", "ss01";
+  /* html paints the canvas colour; a transparent body lets the fixed ambient layer show. */
+  background: transparent;
+}
+
+/* Ambient lighting: two soft, fixed glows behind all content (no layout, no repaint on scroll). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(64rem 38rem at 88% -12%, rgb(196 161 92 / 0.09), transparent 62%),
+    radial-gradient(52rem 34rem at -12% 112%, rgb(30 70 120 / 0.28), transparent 62%),
+    linear-gradient(rgb(213 181 111 / 0.025) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, rgb(213 181 111 / 0.025) 1px, transparent 1px) 0 0 / 48px 48px;
+  mask-image: linear-gradient(180deg, #000 0%, rgb(0 0 0 / 0.55) 70%, rgb(0 0 0 / 0.3) 100%);
+}
+
+/* Glass panel: translucent surface, background blur, hairline border and a top highlight. */
+.glass {
+  background: var(--color-glass);
+  border: 1px solid var(--color-hairline);
+  box-shadow: inset 0 1px 0 rgb(245 242 233 / 0.05), 0 18px 48px -30px rgb(0 0 0 / 0.95);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.glass-strong {
+  background: var(--color-glass-strong);
+  border: 1px solid var(--color-hairline);
+  box-shadow: inset 0 1px 0 rgb(245 242 233 / 0.06), 0 18px 48px -26px rgb(0 0 0 / 0.95);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+}
+
+.brand-gradient {
+  background-image: linear-gradient(135deg, var(--color-primary), var(--color-primary-2));
+}
+
+.text-gradient {
+  background-image: linear-gradient(90deg, #f5f2e9 0%, #ecd9ad 70%, #e9cb8a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.lift {
+  transition: transform 180ms var(--ease-out), border-color 180ms var(--ease-out), background-color 180ms var(--ease-out);
+}
+@media (hover: hover) {
+  .lift:hover { transform: translateY(-1px); }
+}
+.lift:active { transform: scale(0.99); }
+
+.skeleton {
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.04) 0%, rgb(255 255 255 / 0.09) 50%, rgb(255 255 255 / 0.04) 100%);
+  background-size: 200% 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary-text);
+  outline-offset: 2px;
+}
+
+select option {
+  background: var(--color-surface-2);
+  color: var(--color-fg);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--color-primary);
+}
+
+/* Section eyebrow label (Latin uppercase tracking is skipped for Arabic by :lang). */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-fg-subtle);
+}
+
+.eyebrow:lang(ar) {
+  letter-spacing: 0;
+}
+
+.bidi-auto {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fade-in {
+    animation: fade-in 220ms var(--ease-out) both;
+  }
+  .rise-in {
+    animation: rise-in 360ms var(--ease-out) both;
+  }
+  .skeleton {
+    animation: shimmer 1.4s linear infinite;
+  }
+  .pulse-ring::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: inherit;
+    border: 1.5px solid rgb(233 203 138 / 0.45);
+    animation: pulse-ring 2.4s var(--ease-out) infinite;
+    pointer-events: none;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.99); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+  @keyframes pulse-ring {
+    0% { transform: scale(0.96); opacity: 0.9; }
+    70% { transform: scale(1.12); opacity: 0; }
+    100% { opacity: 0; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+::selection {
+  background: rgb(196 161 92 / 0.4);
+  color: #fff;
+}

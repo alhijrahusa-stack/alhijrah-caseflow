@@ -1,0 +1,4 @@
+# On-device ASR for ENVIRONMENT=local (murailex/local/run-local.sh)
+faster-whisper==1.2.1
+sentencepiece==0.2.2
+sherpa-onnx==1.13.8
