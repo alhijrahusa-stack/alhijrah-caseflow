@@ -1,12 +1,24 @@
 import "server-only";
 import { getStaffSession, type StaffSession } from "@/lib/auth";
-import { clientOf, clientScope, roleAllows, type ActionName } from "@/lib/authz";
+import { clientOf, clientScope, roleAllows, staffPermissionAllows, type ActionName } from "@/lib/authz";
 import { err, ipHash } from "@/lib/http";
 import { hit, securityEvent } from "@/lib/ratelimit";
 
 type Guard = { session: StaffSession; response: null } | { session: null; response: Response };
 
-/** Authenticates the staff caller and applies the per-staff mutation limits. */
+async function accountingPermission(req: Request): Promise<ActionName | null> {
+  if (new URL(req.url).pathname !== "/api/staff/accounting") return null;
+  const body = await req.clone().json().catch(() => null) as { operation?: string; status?: string } | null;
+  if (body?.operation === "record_transaction") return "record_transaction";
+  if (body?.operation !== "update_commission") return null;
+  if (body.status === "approved") return "approve_commission";
+  if (body.status === "paid") return "pay_commission";
+  if (body.status === "cancelled") return "cancel_commission";
+  if (body.status === "reversed") return "reverse_commission";
+  return null;
+}
+
+/** Authenticates the staff caller and applies per-staff mutation and route-level permission controls. */
 export async function staffGuard(req: Request, traceId: string, opts: { mutation: boolean }): Promise<Guard> {
   const session = await getStaffSession();
   if (!session) return { session: null, response: err("unauthorized", "Sign in required", 401, traceId) };
@@ -18,11 +30,24 @@ export async function staffGuard(req: Request, traceId: string, opts: { mutation
       await securityEvent({ event: "rate_limited_staff_action", staffId: session.staff.id, ipHash: ipHash(req), route: new URL(req.url).pathname, traceId });
       return { session: null, response: err("rate_limited", "Too many actions. Wait a moment and try again.", 429, traceId) };
     }
+
+    const permission = await accountingPermission(req);
+    if (permission && (!roleAllows(session.staff.role, permission) || !(await staffPermissionAllows(session.staff.id, permission)))) {
+      await securityEvent({
+        event: "access_denied",
+        staffId: session.staff.id,
+        ipHash: ipHash(req),
+        route: new URL(req.url).pathname,
+        detail: { action: permission, role: session.staff.role },
+        traceId,
+      });
+      return { session: null, response: err("forbidden", "Your access profile does not allow this action", 403, traceId) };
+    }
   }
   return { session, response: null };
 }
 
-/** Role and client-scope check. Denials return 403 (or 404) and are logged. */
+/** Role is the upper bound; granular permission and client scope are enforced beneath it. */
 export async function authorize(
   req: Request,
   session: StaffSession,
@@ -37,6 +62,9 @@ export async function authorize(
     return { ok: false as const, response: err(status === 403 ? "forbidden" : "not_found", message, status, traceId) };
   };
   if (!roleAllows(session.staff.role, action)) return deny(403, "Your role does not allow this action", { role: session.staff.role });
+  if (!(await staffPermissionAllows(session.staff.id, action))) {
+    return deny(403, "Your access profile does not allow this action", { role: session.staff.role });
+  }
   let clientId = target.clientId ?? null;
   if (target.entity) {
     const ref = await clientOf(target.entity.table, target.entity.id);
