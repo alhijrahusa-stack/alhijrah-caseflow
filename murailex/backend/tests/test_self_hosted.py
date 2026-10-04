@@ -72,3 +72,22 @@ def test_signing_key_from_secret_is_stable(monkeypatch):
     expected = serialization.load_pem_private_key(pem.encode(), password=None).public_key()
     assert signing.public_key_pem() == expected.public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
     monkeypatch.setattr(signing, "_KEY", None)
+
+
+def test_self_hosted_route_can_decode(monkeypatch, tmp_path):
+    """Regression: the transcriber itself must accept the self-hosted route (it used to refuse
+    anything but ENVIRONMENT=local, failing every production self-test)."""
+    import subprocess
+
+    import pytest
+
+    from app.providers.base import ProviderError
+
+    _prod_self_hosted(monkeypatch)
+    wav = tmp_path / "tone.wav"
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono", "-t", "1", str(wav)], check=True)
+    adapter = registry.local_primary()
+    monkeypatch.setattr("app.providers.local_whisper._model", lambda name: (_ for _ in ()).throw(RuntimeError("model-load-reached")))
+    with pytest.raises(Exception) as exc:
+        adapter.transcribe(str(wav), {"language_locale": "ar"})
+    assert not (isinstance(exc.value, ProviderError) and "ENVIRONMENT=local" in str(exc.value))
