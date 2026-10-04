@@ -3,11 +3,13 @@ import {
   CANONICAL_IMPORT_HEADERS,
   IMPORT_SCHEMA_HASH,
   IMPORT_STATUSES,
+  evidenceMatchScore,
+  normalizeEvidenceValue,
   prepareImportDraft,
+  readinessScore,
   requiredMissingFromDraft,
 } from "@/lib/smart-client-import-core";
 import { buildCareerGateImportTemplate } from "@/lib/smart-client-template";
-
 
 describe("Smart Career Collect Client canonical import contract", () => {
   it("normalizes a valid row into the existing Client profile contract", () => {
@@ -35,6 +37,23 @@ describe("Smart Career Collect Client canonical import contract", () => {
     expect(IMPORT_SCHEMA_HASH).toMatch(/^[0-9a-f]{64}$/);
     expect(CANONICAL_IMPORT_HEADERS[0]).toBe("full_name");
     expect(CANONICAL_IMPORT_HEADERS[1]).toBe("phone");
+    expect(CANONICAL_IMPORT_HEADERS).toContain("backup_site_code");
+    expect(CANONICAL_IMPORT_HEADERS).toContain("backup_shift_code");
+  });
+
+  it("normalizes evidence without silently resolving conflicts", () => {
+    expect(normalizeEvidenceValue("phone", "+1 (313) 555-0199")).toBe("3135550199");
+    expect(normalizeEvidenceValue("email", " TEST@Example.com ")).toBe("test@example.com");
+    expect(evidenceMatchScore("full_name", "Abdullah Musaeed", "Abdullah Musaeed")).toBe(100);
+    expect(evidenceMatchScore("full_name", "Abdullah Musaeed", "Abdullah Musaied")).toBeGreaterThan(80);
+    expect(evidenceMatchScore("full_name", "Abdullah Musaeed", "Different Person")).toBeLessThan(50);
+  });
+
+  it("computes readiness from operational state rather than a decorative constant", () => {
+    const ready = readinessScore({ requiredMissing: 0, blockingConflicts: 0, reviewerAssigned: true, verificationCompleted: true, documentConfirmed: true, informationConfirmed: true, documentCount: 1 });
+    const blocked = readinessScore({ requiredMissing: 1, blockingConflicts: 1, reviewerAssigned: false, verificationCompleted: false, documentConfirmed: false, informationConfirmed: false, documentCount: 0 });
+    expect(ready).toBe(100);
+    expect(blocked).toBeLessThan(ready);
   });
 
   it("generates a real XLSX ZIP payload without a template dependency", () => {

@@ -6,6 +6,37 @@ import type { IntakeRow } from "@/lib/intake-file";
 
 const MAX_GOOGLE_SHEET_BYTES = 10 * 1024 * 1024;
 
+const OCR_FIELDS = [
+  "full_name",
+  "phone",
+  "email",
+  "date_of_birth",
+  "preferred_language",
+  "street",
+  "city",
+  "state",
+  "zip",
+  "appointment_availability",
+  "amazon_worked_before",
+  "amazon_worked_from",
+  "amazon_worked_to",
+  "amazon_applied_before",
+  "amazon_application_email",
+  "currently_amazon",
+  "via_agency",
+  "employment_kind",
+  "company",
+  "job_title",
+  "employment_from",
+  "employment_to",
+  "site_code",
+  "job_id",
+  "shift_code",
+  "backup_site_code",
+  "backup_job_id",
+  "backup_shift_code",
+] as const;
+
 const OCR_SCHEMA = {
   type: "OBJECT",
   properties: {
@@ -13,36 +44,29 @@ const OCR_SCHEMA = {
       type: "ARRAY",
       items: {
         type: "OBJECT",
-        properties: {
-          full_name: { type: "STRING", nullable: true },
-          phone: { type: "STRING", nullable: true },
-          email: { type: "STRING", nullable: true },
-          date_of_birth: { type: "STRING", nullable: true },
-          preferred_language: { type: "STRING", nullable: true },
-          street: { type: "STRING", nullable: true },
-          city: { type: "STRING", nullable: true },
-          state: { type: "STRING", nullable: true },
-          zip: { type: "STRING", nullable: true },
-          site_code: { type: "STRING", nullable: true },
-          job_id: { type: "STRING", nullable: true },
-          shift_code: { type: "STRING", nullable: true },
-        },
-        required: ["full_name", "phone", "email", "date_of_birth", "preferred_language", "street", "city", "state", "zip", "site_code", "job_id", "shift_code"],
+        properties: Object.fromEntries(OCR_FIELDS.map((field) => [field, { type: "STRING", nullable: true }])),
+        required: [...OCR_FIELDS],
       },
     },
   },
   required: ["clients"],
 };
 
-const OcrResult = z.object({
-  clients: z.array(z.object({
-    full_name: z.string().nullable(), phone: z.string().nullable(), email: z.string().nullable(), date_of_birth: z.string().nullable(),
-    preferred_language: z.string().nullable(), street: z.string().nullable(), city: z.string().nullable(), state: z.string().nullable(),
-    zip: z.string().nullable(), site_code: z.string().nullable(), job_id: z.string().nullable(), shift_code: z.string().nullable(),
-  })).max(100),
-});
+const clientShape = Object.fromEntries(
+  OCR_FIELDS.map((field) => [field, z.string().nullable()]),
+) as unknown as Record<(typeof OCR_FIELDS)[number], z.ZodTypeAny>;
+const ClientResult = z.object(clientShape);
+const OcrResult = z.object({ clients: z.array(ClientResult).max(100) });
 
-const OCR_PROMPT = `Extract client application facts from this source. Return only values explicitly supported by the source. Do not infer, repair, guess, or complete missing data. One identifiable client equals one clients item. Dates must be YYYY-MM-DD only when the exact date is supported. For Amazon assignment fields, return site_code, job_id, and shift_code only when those exact codes are present. Otherwise return null.`;
+const OCR_PROMPT = `Extract client application facts from this source into the provided schema.
+Use only facts explicitly supported by the source. Never infer, guess, repair, translate into an unsupported fact, or complete missing information.
+Return null for anything not explicitly present.
+One identifiable client equals one clients item.
+Dates must be YYYY-MM-DD only when the exact date is supported.
+Boolean-like fields must be returned as the visible source answer text (for example Yes/No), not inferred.
+For Amazon assignment fields, return site_code, job_id, shift_code and backup_* codes only when those exact codes are present. A desired shift written only as free text must stay in shift_code only when it is clearly the source value; do not invent a catalog code.
+Employment fields describe only the explicitly visible employment entry. Do not invent employer history.
+The output is staging evidence for human review, not canonical truth.`;
 
 export async function rowsFromImageOrPdf(bytes: Uint8Array, mimeType: string) {
   let lastMessage = "Document extraction failed";
@@ -57,20 +81,9 @@ export async function rowsFromImageOrPdf(bytes: Uint8Array, mimeType: string) {
     try { json = JSON.parse(result.text); } catch { lastMessage = "OCR provider returned invalid JSON"; continue; }
     const parsed = OcrResult.safeParse(json);
     if (!parsed.success) { lastMessage = parsed.error.issues[0]?.message ?? "OCR output failed validation"; continue; }
-    return parsed.data.clients.map((client) => ({
-      full_name: client.full_name,
-      phone: client.phone,
-      email: client.email,
-      date_of_birth: client.date_of_birth,
-      preferred_language: client.preferred_language,
-      street: client.street,
-      city: client.city,
-      state: client.state,
-      zip: client.zip,
-      site_code: client.site_code,
-      job_id: client.job_id,
-      shift_code: client.shift_code,
-    })) satisfies IntakeRow[];
+    return parsed.data.clients.map((client) => Object.fromEntries(
+      OCR_FIELDS.map((field) => [field, client[field] ?? null]),
+    ) as IntakeRow);
   }
   throw new ActionError("ocr_failed", lastMessage, 422);
 }
