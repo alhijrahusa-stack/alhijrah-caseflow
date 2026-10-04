@@ -21,5 +21,5 @@ export default async function SmartClientImportMobilePage() {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login?next=%2Fstaff%2Fsmart-client-import%2Fnew");
   if (session.staff.role === "staff") redirect("/staff");
-  return <MobileSmartImportForm />;
+  return <MobileSmartImportForm staff={{ display_name: session.staff.display_name }} />;
 }
