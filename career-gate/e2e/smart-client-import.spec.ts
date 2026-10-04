@@ -54,7 +54,8 @@ test.describe("Smart Career Collect Client", () => {
     await expect(page.getByLabel("REVIEWED BY")).toHaveValue(String(admin.id));
     await page.getByRole("button", { name: "REVIEW", exact: true }).click();
     await page.getByRole("button", { name: "CHECK & VERIFY" }).click();
-    await expect(page.getByText("MISSING DOCUMENT", { exact: true }).last()).toBeVisible();
+    const [verifiedImport] = await db()`select status from client_import_cases where id=${staged.id}`;
+    expect(verifiedImport?.status).toBe("MISSING_DOCUMENT");
 
     await page.getByText("CURRENT DOCUMENT STATUS REVIEWED", { exact: true }).click();
     await page.getByText("INFORMATION MATCH CONFIRMED", { exact: true }).click();
