@@ -26,8 +26,9 @@ begin
         'add_preference','remove_preference','schedule_appointment','book_slot','update_appointment',
         'add_note','add_task','update_task','complete_task','assign_staff','mark_contacted','add_followup','complete_followup',
         'verify_document','reject_document','request_reupload','process_document','update_assessment','add_standard_assessments',
-        'update_post_hire','run_intake_agent','send_notification','soft_delete_client','create_staff','update_staff_role',
-        'disable_staff','reactivate_staff','invite_staff','manage_staff_permissions','upsert_availability','delete_availability',
+        'update_post_hire','run_intake_agent','send_notification','record_transaction','approve_commission','pay_commission',
+        'cancel_commission','reverse_commission','soft_delete_client','create_staff','update_staff_role','disable_staff',
+        'reactivate_staff','invite_staff','manage_staff_permissions','upsert_availability','delete_availability',
         'add_blocked_period','remove_blocked_period','resolve_alert','ignore_alert','run_audit_scan','upload_document','view_document'
       ]::text[]);
   end if;
