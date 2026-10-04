@@ -190,7 +190,7 @@ def enforce_processing_preflight(
             "ready_engine_ids": ready_ids,
             "benchmark_dataset_version": settings.benchmark_dataset_version,
             "benchmark_held_out_run_id": settings.benchmark_held_out_run_id,
-            "benchmark_routing": registry.LOCAL_BENCHMARK_LABEL if registry.local_mode() else "APPROVED",
+            "benchmark_routing": registry.LOCAL_BENCHMARK_LABEL if registry.personal_local() else "APPROVED",
         },
     )
     db.commit()

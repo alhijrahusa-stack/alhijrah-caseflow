@@ -34,6 +34,13 @@ def private_key() -> Ed25519PrivateKey:
     global _KEY
     with _LOCK:
         if _KEY is None:
+            secret = get_settings().evidence_signing_key_pem
+            if secret is not None and secret.get_secret_value().strip():
+                loaded = serialization.load_pem_private_key(secret.get_secret_value().strip().encode(), password=None)
+                if not isinstance(loaded, Ed25519PrivateKey):
+                    raise RuntimeError("Evidence signing key is not an Ed25519 key.")
+                _KEY = loaded
+                return _KEY
             path = _key_path()
             if not os.path.exists(path):
                 os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)

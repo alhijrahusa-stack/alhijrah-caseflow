@@ -57,6 +57,7 @@ def duration_s(path: str) -> float:
 def run(adapter: LocalWhisper, rows: list[dict[str, str]], locale: str) -> tuple[list[dict], dict]:
     items = []
     audio_total = decode_total = 0.0
+    fresh = 0
     for i, row in enumerate(rows, 1):
         path = row["audio_path"]
         dur = duration_s(path)
@@ -65,8 +66,11 @@ def run(adapter: LocalWhisper, rows: list[dict[str, str]], locale: str) -> tuple
         spent = time.monotonic() - t0
         norm = adapter.normalize(raw)
         hyp = " ".join(t["text"] for t in norm["tokens"])
-        audio_total += dur
-        decode_total += spent
+        resumed = bool((raw or {}).get("windows_resumed_from_checkpoint")) if isinstance(raw, dict) else False
+        if not resumed:  # RTF only over items actually decoded in this run
+            audio_total += dur
+            decode_total += spent
+            fresh += 1
         items.append(
             {
                 "item_id": row["item_id"],
@@ -92,6 +96,7 @@ def run(adapter: LocalWhisper, rows: list[dict[str, str]], locale: str) -> tuple
         "audio_seconds": round(audio_total, 3),
         "decode_seconds": round(decode_total, 3),
         "inference_rtf": round(decode_total / audio_total, 4) if audio_total else None,
+        "rtf_scope": f"{fresh}/{len(rows)} items decoded fresh (checkpoint-resumed items excluded)",
         "peak_rss_mb": round(peak_rss_mb, 1),
     }
 
@@ -136,6 +141,7 @@ def main() -> None:
                 "environment": {**hardware_profile(), **perf},
                 "audio_hours": round(sum(x["duration_s"] for x in chosen) / 3600, 4),
                 "items": chosen,
+                "executed_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
             }
             path = out / f"{adapter.name}-{split}.json"
             path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")

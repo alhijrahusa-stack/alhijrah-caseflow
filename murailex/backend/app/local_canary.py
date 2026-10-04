@@ -25,9 +25,11 @@ from .providers import registry
 log = logging.getLogger("murailex.canary")
 
 CANARY_TYPE = "system_canary"
-CANARY_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "local", "canary", "engine-canary-ar.mp3")
+_CANARY_CANDIDATES = (
+    os.path.join(os.path.dirname(__file__), "canary", "engine-canary-ar.mp3"),  # shipped in the backend image
+    os.path.join(os.path.dirname(__file__), "..", "..", "local", "canary", "engine-canary-ar.mp3"),
 )
+CANARY_PATH = os.path.abspath(next((p for p in _CANARY_CANDIDATES if os.path.exists(p)), _CANARY_CANDIDATES[-1]))
 
 
 def _canary_recording(db, locale: str, owner: User) -> Recording:

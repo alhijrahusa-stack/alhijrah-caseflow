@@ -93,6 +93,10 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     def _startup() -> None:
         bootstrap_admin()
+        from .benchmark_import import import_benchmarks
+
+        with session_factory()() as db:
+            import_benchmarks(db)
 
     return app
 

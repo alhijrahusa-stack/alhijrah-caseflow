@@ -119,8 +119,9 @@ LOCAL_PROVIDERS = frozenset({"local_whisper", "local_whisper_verify", "local_dia
 def approved(provider: str) -> bool:
     settings = get_settings()
     if provider in LOCAL_PROVIDERS:
-        # On-device processing: no audio leaves the machine, so no third-party policy applies.
-        return settings.environment == "local"
+        # On-device / self-hosted processing inside the MURAILEX runtime: no audio leaves it,
+        # so no third-party data policy applies.
+        return settings.environment == "local" or settings.asr_route == "self_hosted"
     flags = {
         "assemblyai": settings.assemblyai_legal_audio_approved,
         "google_chirp3": settings.google_legal_audio_approved,

@@ -2,3 +2,4 @@
 faster-whisper==1.2.1
 sentencepiece==0.2.2
 sherpa-onnx==1.13.8
+ctranslate2==4.8.2

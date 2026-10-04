@@ -1058,7 +1058,7 @@ def process_recording(db: Session, rec: Recording) -> None:
             for verifier in verifiers
         ],
         "single_engine_mode": result["single_engine"],
-        "benchmark_routing": registry.LOCAL_BENCHMARK_LABEL if registry.local_mode() else "APPROVED",
+        "benchmark_routing": registry.LOCAL_BENCHMARK_LABEL if registry.personal_local() else "APPROVED",
         "primary_coverage": [
             {"provider": run.provider, "model": run.model, **((run.normalized or {}).get("coverage") or {})}
             for run in ok_primary[:2]

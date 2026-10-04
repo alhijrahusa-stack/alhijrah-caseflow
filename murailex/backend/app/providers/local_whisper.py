@@ -55,6 +55,7 @@ def _model(name: str) -> Any:
 
             _MODELS[key] = WhisperModel(
                 name,
+                revision=_pinned(name) or None,
                 device="cpu",
                 compute_type=s.local_asr_compute_type,
                 # leave one core for the API/web app unless explicitly configured
@@ -63,8 +64,17 @@ def _model(name: str) -> Any:
         return _MODELS[key]
 
 
+def _pinned(name: str) -> str:
+    s = get_settings()
+    return {s.local_asr_model: s.local_asr_model_revision, s.local_verify_model: s.local_verify_model_revision}.get(name, "")
+
+
 def model_revision(name: str) -> str:
-    """Immutable identity of the installed checkpoint (Hugging Face snapshot commit id)."""
+    """Immutable identity of the checkpoint (Hugging Face snapshot commit id): the pinned
+    revision when configured (the engine downloads exactly that snapshot), else the installed one."""
+    pinned = _pinned(name)
+    if pinned:
+        return pinned
     if name not in _REVISIONS:
         try:
             from faster_whisper.utils import download_model
