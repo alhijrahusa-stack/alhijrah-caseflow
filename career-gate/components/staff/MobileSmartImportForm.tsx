@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useStaff } from "@/components/staff/StaffContext";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
 
 const ACCEPT = "application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp";
@@ -49,8 +48,7 @@ function statusTone(stage: Stage) {
   return "border-white/10 bg-white/[.025] text-slate-400";
 }
 
-export function MobileSmartImportForm() {
-  const { me } = useStaff();
+export function MobileSmartImportForm({ staff }: { staff: { display_name: string } }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionStart = useRef(Date.now());
   const [elapsed, setElapsed] = useState(0);
@@ -127,7 +125,7 @@ export function MobileSmartImportForm() {
       const captured: SubmitResult = {
         case_id: data.case_id,
         created_at: data.created_at,
-        uploaded_by_name: data.uploaded_by_name ?? me.display_name,
+        uploaded_by_name: data.uploaded_by_name ?? staff.display_name,
         mapped_draft: data.mapped_draft,
         verification_result: data.verification_result,
         enrichment_url: data.enrichment_url,
@@ -157,7 +155,7 @@ export function MobileSmartImportForm() {
   }
 
   const extracted = serverDraft ?? local.row;
-  const issues = Array.isArray(verification?.extraction_errors) ? verification?.extraction_errors.length : 0;
+  const issues = Array.isArray(verification?.extraction_errors) ? verification.extraction_errors.length : 0;
   const localFields = local.evidence.length;
 
   return (
@@ -172,7 +170,7 @@ export function MobileSmartImportForm() {
               <p className="mt-1 text-xs text-slate-500">Secure Internal Intake · Local Intelligence · Vision/OCR</p>
             </div>
             <div className="grid grid-cols-2 gap-x-5 gap-y-2 text-[10px] sm:grid-cols-5">
-              <Meta label="STAFF" value={result?.uploaded_by_name ?? me.display_name} />
+              <Meta label="STAFF" value={result?.uploaded_by_name ?? staff.display_name} />
               <Meta label="FILES" value={String(files.length)} mono />
               <Meta label="SESSION" value={submitted ? "SUBMITTED" : "DRAFT"} />
               <Meta label="TIME" value={formatElapsed(elapsed)} mono tone="cyan" />
@@ -192,7 +190,7 @@ export function MobileSmartImportForm() {
             </section>
 
             <section className="rounded-xl border border-white/[.08] bg-[#05080f]/85 p-4 backdrop-blur-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3"><SectionTitle number="03" title="CLIENT SOURCE DATA" meta="Raw submitted information" /><div className="flex gap-4 text-[9px] text-slate-600"><span>UPLOADED BY <b className="ml-1 text-slate-400">{result?.uploaded_by_name ?? me.display_name}</b></span><span>UPLOADED AT <b className="ml-1 font-mono text-slate-400">{result ? formatDate(result.created_at) : "pending"}</b></span></div></div>
+              <div className="flex flex-wrap items-center justify-between gap-3"><SectionTitle number="03" title="CLIENT SOURCE DATA" meta="Raw submitted information" /><div className="flex gap-4 text-[9px] text-slate-600"><span>UPLOADED BY <b className="ml-1 text-slate-400">{result?.uploaded_by_name ?? staff.display_name}</b></span><span>UPLOADED AT <b className="ml-1 font-mono text-slate-400">{result ? formatDate(result.created_at) : "pending"}</b></span></div></div>
               <textarea className="mt-3 min-h-56 w-full resize-y rounded-lg border border-white/[.08] bg-[#02050a] p-3.5 font-mono text-[12px] leading-6 text-slate-200 outline-none transition focus:border-cyan-400/35 disabled:opacity-70" maxLength={10000} value={notes} disabled={submitted} onChange={(e) => setNotes(e.target.value)} placeholder="Paste the client's known information here. Missing facts remain unresolved; the system does not invent them." />
               <div className="mt-2 flex items-center justify-between text-[10px] text-slate-600"><span>{notes.length.toLocaleString()} / 10,000</span><span>Raw source remains visible even when AI is unavailable.</span></div>
             </section>
