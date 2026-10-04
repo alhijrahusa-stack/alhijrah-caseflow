@@ -25,9 +25,11 @@ from .providers import registry
 log = logging.getLogger("murailex.canary")
 
 CANARY_TYPE = "system_canary"
-CANARY_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "local", "canary", "engine-canary-ar.mp3")
+_CANARY_CANDIDATES = (
+    os.path.join(os.path.dirname(__file__), "canary", "engine-canary-ar.mp3"),  # shipped in the backend image
+    os.path.join(os.path.dirname(__file__), "..", "..", "local", "canary", "engine-canary-ar.mp3"),
 )
+CANARY_PATH = os.path.abspath(next((p for p in _CANARY_CANDIDATES if os.path.exists(p)), _CANARY_CANDIDATES[-1]))
 
 
 def _canary_recording(db, locale: str, owner: User) -> Recording:
@@ -72,6 +74,9 @@ def ensure_engine_self_tests() -> int:
     with session_factory()() as db:
         owner = db.execute(
             select(User).where(User.email == (get_settings().bootstrap_admin_email or "").lower())
+        ).scalars().first() or db.execute(
+            # a worker without the bootstrap identity uses the earliest active administrator
+            select(User).where(User.role == "admin", User.is_active.is_(True)).order_by(User.created_at)
         ).scalars().first()
         if owner is None:
             return 0

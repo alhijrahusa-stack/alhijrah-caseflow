@@ -88,6 +88,12 @@ LOCAL_BENCHMARK_LABEL = "NOT BENCHMARKED — local personal-use routing (no huma
 
 
 def local_mode() -> bool:
+    """On-device engine routing: personal local mode or the self-hosted production route."""
+    s = get_settings()
+    return s.environment == "local" or s.asr_route == "self_hosted"
+
+
+def personal_local() -> bool:
     return get_settings().environment == "local"
 
 
@@ -116,6 +122,32 @@ def required_roles() -> frozenset[str]:
 def fixtures_enabled() -> bool:
     settings = get_settings()
     return settings.environment == "test" and settings.test_fixture_providers
+
+
+def _held_out_evidence(db: Session | None, spec: EngineSpec) -> bool:
+    """Self-hosted production routes need a persisted held-out benchmark run of this provider
+    whose stored engine fingerprint equals the route's current fingerprint."""
+    if db is None:
+        return False
+    from ..forensic_models import BenchmarkRun
+
+    settings = get_settings()
+    ids = [x.strip() for x in (settings.benchmark_held_out_run_id or "").split(",") if x.strip()]
+    for run_id in ids:
+        try:
+            row = db.get(BenchmarkRun, __import__("uuid").UUID(run_id))
+        except ValueError:
+            continue
+        if (
+            row is not None
+            and row.split == "held_out"
+            and row.ground_truth_status == "HUMAN VERIFIED"
+            and row.dataset_version in (settings.benchmark_dataset_version or "").split(",")
+            and row.provider == spec.provider
+            and (row.parameters or {}).get("engine_fingerprint") == spec.params.get("engine_fingerprint")
+        ):
+            return True
+    return False
 
 
 def benchmark_routing_approved() -> bool:
@@ -326,6 +358,9 @@ def engine_state(
         status = "BLOCKED"
         blocker = "Human-ground-truth benchmark routing is not approved."
         required.extend(["BENCHMARK_ROUTING_APPROVED", "BENCHMARK_DATASET_VERSION", "BENCHMARK_HELD_OUT_RUN_ID"])
+    elif get_settings().environment not in ("test", "local") and local_mode() and not _held_out_evidence(db, spec):
+        status = "BLOCKED"
+        blocker = "No persisted held-out human-ground-truth benchmark run for this exact engine fingerprint."
     elif not info.configured:
         status = "NOT_CONFIGURED"
         blocker = "Provider adapter is not configured for the exact engine route."
@@ -370,7 +405,7 @@ def engine_state(
         }
     return {
         **asdict(spec),
-        "benchmark": LOCAL_BENCHMARK_LABEL if local_mode() else ("APPROVED" if benchmark_routing_approved() else "NOT APPROVED"),
+        "benchmark": LOCAL_BENCHMARK_LABEL if personal_local() else ("APPROVED" if benchmark_routing_approved() else "NOT APPROVED"),
         "name": spec.provider,
         "status": status,
         "blocker": blocker,

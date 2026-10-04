@@ -94,8 +94,16 @@ class Settings(BaseSettings):
 
     # On-device ASR (ENVIRONMENT=local only). large-v3 is the most accurate Whisper checkpoint;
     # the verifier is a different checkpoint so disputed regions get independent evidence.
+    # ASR_ROUTE=self_hosted runs the on-device engines (faster-whisper, local diarization) inside
+    # the MURAILEX runtime in any environment, with no cloud transcription route at all. Outside
+    # ENVIRONMENT=local the production benchmark gate still applies to every route.
+    asr_route: str = "cloud"
     local_asr_model: str = "large-v3"
     local_verify_model: str = "medium"
+    # Pinned Hugging Face snapshot revisions (part of the engine fingerprint); empty = whatever
+    # is installed locally.
+    local_asr_model_revision: str = ""
+    local_verify_model_revision: str = ""
     local_asr_compute_type: str = "int8"
     local_asr_threads: int = 0
     local_asr_beam_size: int = 5
@@ -107,6 +115,9 @@ class Settings(BaseSettings):
 
     # Ed25519 key used to sign evidence package manifests (generated once if missing).
     evidence_signing_key_path: str | None = None
+    # PEM of the Ed25519 evidence signing key held as a server secret (stable across deploys);
+    # takes precedence over the key file.
+    evidence_signing_key_pem: SecretStr | None = None
 
     # Longest recording accepted for transcription (seconds). Enforced once, at ingestion.
     max_recording_duration_seconds: int = 7200

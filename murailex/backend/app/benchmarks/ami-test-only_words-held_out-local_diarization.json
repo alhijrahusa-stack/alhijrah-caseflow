@@ -1,0 +1,89 @@
+{
+ "aggregate": {
+  "confusion_s": 878.89,
+  "der": 0.33378610237346296,
+  "false_alarm_s": 205.89,
+  "missed_s": 642.75,
+  "reference_speech_s": 5175.56
+ },
+ "commit_sha": "4ec1b93",
+ "dataset_version": "ami-test-only_words",
+ "ground_truth": "human RTTM annotations (AMI corpus, pyannote AMI-diarization-setup only_words)",
+ "inference_rtf": 0.1988,
+ "items": [
+  {
+   "audio_seconds": 838.833,
+   "confusion_s": 186.18,
+   "der": 0.4544474780859319,
+   "false_alarm_s": 26.32,
+   "hypothesis_speakers": 1,
+   "inference_seconds": 178.62,
+   "item_id": "IS1009a",
+   "missed_s": 103.75,
+   "protocol": "murailex.der/1: NIST DER, 10 ms frames, overlapped speech scored, no collar, optimal one-to-one speaker mapping, scored within UEM",
+   "reference_speakers": 4,
+   "reference_speech_s": 695.9
+  },
+  {
+   "audio_seconds": 1049.355,
+   "confusion_s": 89.51,
+   "der": 0.2593374700843594,
+   "false_alarm_s": 38.94,
+   "hypothesis_speakers": 7,
+   "inference_seconds": 205.92,
+   "item_id": "ES2004a",
+   "missed_s": 111.03,
+   "protocol": "murailex.der/1: NIST DER, 10 ms frames, overlapped speech scored, no collar, optimal one-to-one speaker mapping, scored within UEM",
+   "reference_speakers": 4,
+   "reference_speech_s": 923.43
+  },
+  {
+   "audio_seconds": 1505.643,
+   "confusion_s": 87.71,
+   "der": 0.22928545668976677,
+   "false_alarm_s": 38.96,
+   "hypothesis_speakers": 9,
+   "inference_seconds": 274.81,
+   "item_id": "TS3003a",
+   "missed_s": 108.57,
+   "protocol": "murailex.der/1: NIST DER, 10 ms frames, overlapped speech scored, no collar, optimal one-to-one speaker mapping, scored within UEM",
+   "reference_speakers": 4,
+   "reference_speech_s": 1025.97
+  },
+  {
+   "audio_seconds": 2142.709,
+   "confusion_s": 515.49,
+   "der": 0.3701437796906247,
+   "false_alarm_s": 101.67,
+   "hypothesis_speakers": 11,
+   "inference_seconds": 441.31,
+   "item_id": "EN2002a",
+   "missed_s": 319.4,
+   "protocol": "murailex.der/1: NIST DER, 10 ms frames, overlapped speech scored, no collar, optimal one-to-one speaker mapping, scored within UEM",
+   "reference_speakers": 4,
+   "reference_speech_s": 2530.26
+  }
+ ],
+ "kind": "der",
+ "operating_mode": "blind (speaker count estimated)",
+ "parameters": {
+  "clustering": "fast-agglomerative",
+  "device": "cpu",
+  "embedding_model": "wespeaker_en_voxceleb_resnet34_LM.onnx",
+  "embedding_sha256": "e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012",
+  "engine": "sherpa-onnx",
+  "engine_fingerprint": "115b7b2d0ffd730699c7546b9321b80d7419ff50c7179abb4471d325550f0076",
+  "licenses": "segmentation MIT (CNRS); embeddings CC-BY-4.0 (WeSpeaker/VoxCeleb)",
+  "min_duration_off_s": 0.5,
+  "min_duration_on_s": 0.3,
+  "privacy_gate": "ON-DEVICE \u2014 audio is not transmitted",
+  "runtime": "sherpa-onnx (onnxruntime, CPU)",
+  "segmentation_sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079",
+  "sherpa_onnx": "1.13.8",
+  "threshold": 1.0
+ },
+ "peak_rss_mb": 561.6,
+ "protocol": "murailex.der/1: NIST DER, 10 ms frames, overlapped speech scored, no collar, optimal one-to-one speaker mapping, scored within UEM",
+ "provider": "local_diarization",
+ "split": "held_out"
+}

@@ -1,0 +1,1570 @@
+{
+ "audio_hours": 0.217,
+ "commit_sha": "4ec1b93",
+ "dataset_version": "fleurs-ar_eg-test",
+ "environment": {
+  "asr_threads": 3,
+  "audio_seconds": 1420.247,
+  "cpu_count": 4,
+  "cuda_devices_detected": 0,
+  "decode_seconds": 1556.357,
+  "gpu_route": "no GPU detected",
+  "inference_rtf": 1.0958,
+  "long_job_fairness": "window-level checkpoints; queued jobs run in arrival order",
+  "max_parallel_asr": 1,
+  "peak_rss_mb": 5254.2,
+  "profile": "CPU_PROFILE",
+  "reserved_cores_for_ui_api": 1,
+  "rtf_scope": "120/120 items decoded fresh, under concurrent load (worker + diarization benchmark on the same 4 CPUs)",
+  "worker_priority": "nice 10 (launcher)"
+ },
+ "executed_at": "2026-10-04T01:40:23.540088+00:00",
+ "items": [
+  {
+   "audio_sha256": "329446b56841db8d253c3bd29a1c42809ce4e293bc706590bdfa81a0aee05dd0",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1665/3572359457086342786.wav",
+     "text": "1967",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1665/3572359457086342786.wav",
+     "text": "1967",
+     "type": "number"
+    }
+   ],
+   "decode_s": 20.957,
+   "duration_s": 13.32,
+   "ground_truth": "وستشير الوثيقة، بحسب التسريب، إلى الخلاف على الحدود، التي تريدها فلسطين مبنية على حدود ما قبل حرب عام 1967 في الشرق الأوسط.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "وستشير الوثيقة بحسب التسريب إلى الخلاف على الحدود التي تريدها فلسطين مبنية على حدود ما قبل حرب عام 1967 في الشرق الأوسط",
+   "item_id": "1665/3572359457086342786.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "3941fd36ba46869052edecbdb602a424beaa95d46ce813b5b144ad3e3fee4e6d",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1682/18293889617981033556.wav",
+     "text": "29",
+     "type": "number"
+    },
+    {
+     "item_id": "1682/18293889617981033556.wav",
+     "text": "3",
+     "type": "number"
+    },
+    {
+     "item_id": "1682/18293889617981033556.wav",
+     "text": "24",
+     "type": "number"
+    },
+    {
+     "item_id": "1682/18293889617981033556.wav",
+     "text": "5",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1682/18293889617981033556.wav",
+     "text": "293",
+     "type": "number"
+    },
+    {
+     "item_id": "1682/18293889617981033556.wav",
+     "text": "4",
+     "type": "number"
+    },
+    {
+     "item_id": "1682/18293889617981033556.wav",
+     "text": "241",
+     "type": "number"
+    },
+    {
+     "item_id": "1682/18293889617981033556.wav",
+     "text": "2",
+     "type": "number"
+    }
+   ],
+   "decode_s": 16.873,
+   "duration_s": 13.92,
+   "ground_truth": "على الرغم من أن كاتب هذا الجزء من النص غير معروف تحديداً، ولكننا نعلم أن المخطوطة الكبيرة (ذات مقاسات 29¾ بوصة × 24½ بوصة) كانت مخزّنة مطوية في بداية وجودها.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "على الرغم من ان كاتب هذا الجزء من النص غير معروف تحديدا ولكن انا نعلم ان المخطوطة الكبيرة زيت مقاسات 29 .3 بوصة ف24 .5 بوصة كانت مخزنة مطوية في بداية وجودها",
+   "item_id": "1682/18293889617981033556.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "22b5b69e484dd093071bc362566d594913a9c5453513f323aa347f98cf13a9db",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1685/15167169897552395972.wav",
+     "text": "35",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1685/15167169897552395972.wav",
+     "text": "35",
+     "type": "number"
+    }
+   ],
+   "decode_s": 14.456,
+   "duration_s": 13.26,
+   "ground_truth": "فعلى سبيل المثال، تنسيق تصوير الصور الساكنة الأكثر شيوعاً في العالم هو 35 ميليمتراً، وهو حجم الفيلم المسيطر في نهاية عصر الفيلم التناظري.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "على سبيل المثال تنسيق تصوير الصور الأكثر شيعن في العالم هو 35 مم وهو حجم الفيلم المسيطر في نهاية عصر الفيلم التناظري",
+   "item_id": "1685/15167169897552395972.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "95414f8718a29127f6bff42c68d4c887b3725a78a0298bfb220ebc8df4c1ba39",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1685/6090363003126996366.wav",
+     "text": "35",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1685/6090363003126996366.wav",
+     "text": "35",
+     "type": "number"
+    }
+   ],
+   "decode_s": 16.973,
+   "duration_s": 10.92,
+   "ground_truth": "فعلى سبيل المثال، تنسيق تصوير الصور الساكنة الأكثر شيوعاً في العالم هو 35 ميليمتراً، وهو حجم الفيلم المسيطر في نهاية عصر الفيلم التناظري.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "فعلى سبيل المثال تنسي تصوير الصور السكنة الأكثر شيوعاً في العالم هو 35 مم وهو حجم الفيلم المسيطر في نهاية عصر الفيلم التناظري",
+   "item_id": "1685/6090363003126996366.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "f4050f708050c4e7905d0fd61f34e3c144e50a55f598830a20cc7d1559d56f57",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1705/12508957343522803710.wav",
+     "text": "1940",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1705/12508957343522803710.wav",
+     "text": "15",
+     "type": "number"
+    },
+    {
+     "item_id": "1705/12508957343522803710.wav",
+     "text": "1940",
+     "type": "number"
+    }
+   ],
+   "decode_s": 12.51,
+   "duration_s": 7.38,
+   "ground_truth": "في 15 آب 1940، غزا الحلفاء جنوب فرنسا، وسُمِّيَ الغَزْوُ بـ\"عملية دراغون\".",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "فخمستاشر قاب 1940 غزة الحلفاء جنوب فرنسا وسمية الغزو بعملات دراغون",
+   "item_id": "1705/12508957343522803710.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "b34464c4fad1715f5d8199d3eb7641ac21a87360cbcdc32eb4b1183369ec78b8",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1722/14265345359982994030.wav",
+     "text": "53",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1722/14265345359982994030.wav",
+     "text": "53",
+     "type": "number"
+    }
+   ],
+   "decode_s": 15.056,
+   "duration_s": 11.18,
+   "ground_truth": "بدأ كومو، 53 عام حكمه في وقت مبكر هذا العام ووقع مشروع قانون الشهر الماضي يشرع الزواج من نفس الجنس.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "بدأ كومو 53 عام حكمو في وقت مبكر هذا العام ووقع مشروع قانون الشهر الماضي يشرع الزواج من نفس الجنس",
+   "item_id": "1722/14265345359982994030.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "a688b27f571d74f9ea6b45f04b3ba1fff3fb66f9787b246cc005c089a4fa9acd",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [
+    {
+     "item_id": "1722/168915550529281700.wav",
+     "text": "53",
+     "type": "number"
+    }
+   ],
+   "decode_s": 14.444,
+   "duration_s": 13.02,
+   "ground_truth": "بدأ كومو، 53 عام حكمه في وقت مبكر هذا العام ووقع مشروع قانون الشهر الماضي يشرع الزواج من نفس الجنس.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "بدأ كم ثلاثة وخمسون عام حكمه في وقت مبكر هذا العام وقع مشروع قانون الشهر الماضي يشرع الزواج من نفس الجنس",
+   "item_id": "1722/168915550529281700.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "ea12573c436c087af81e678767640de6b7683eb082f3f35d538dad18bb58c2db",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1724/11912522541094009632.wav",
+     "text": "400",
+     "type": "number"
+    },
+    {
+     "item_id": "1724/11912522541094009632.wav",
+     "text": "1100",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1724/11912522541094009632.wav",
+     "text": "400",
+     "type": "number"
+    },
+    {
+     "item_id": "1724/11912522541094009632.wav",
+     "text": "1100",
+     "type": "number"
+    }
+   ],
+   "decode_s": 11.793,
+   "duration_s": 8.04,
+   "ground_truth": "شهرتها بكونها مركز الفخامة بدأت في عام 400 بعد الميلاد واستمرت حتى عام 1100 بعد الميلاد.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "شهرتها بكونها مركز الفخامة بدأت في عام 400 بعد الميلاد واستمرت حتى عام 1100 بعد الميلاد",
+   "item_id": "1724/11912522541094009632.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "620c0a4e7f90ea42ead9c85b38ebb383ba250aa3c82cce82d33dc3128807ca8c",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1724/15277176291710398715.wav",
+     "text": "400",
+     "type": "number"
+    },
+    {
+     "item_id": "1724/15277176291710398715.wav",
+     "text": "1100",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1724/15277176291710398715.wav",
+     "text": "400",
+     "type": "number"
+    },
+    {
+     "item_id": "1724/15277176291710398715.wav",
+     "text": "1100",
+     "type": "number"
+    }
+   ],
+   "decode_s": 13.11,
+   "duration_s": 10.6,
+   "ground_truth": "شهرتها بكونها مركز الفخامة بدأت في عام 400 بعد الميلاد واستمرت حتى عام 1100 بعد الميلاد.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "شهرتها بكونها مركز الفخامة بدأت في عام 400 بعد الميلاد واستمرت حتى عام 1100 بعد الميلاد",
+   "item_id": "1724/15277176291710398715.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "0510ea9d7e8f7a030be260667d0938c30cc8bc7e6c5721b38e6865dc20029bf8",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1725/9789333960643411627.wav",
+     "text": "2007",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1725/9789333960643411627.wav",
+     "text": "2007",
+     "type": "number"
+    }
+   ],
+   "decode_s": 18.784,
+   "duration_s": 16.58,
+   "ground_truth": "أصبح Eee PC من ASUS الذي أُطلق في وقت سابق في جميع أنحاء العالم لعوامل توفير التكاليف والقدرة الوظيفية، موضوعاً مثيراً في شهر تكنولوجيا المعلومات في تايبيه لعام 2007.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "الذي أطلق ASUS من EPC أصبح في وقت صابق في جميع أنحاء العالم لعوامل توفير التكاليف والقدرة الوظيفية موضوعاً مثيراً في شهر تكنولوجيا المعلومات في طيبيه لعام 2007.",
+   "item_id": "1725/9789333960643411627.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "1a5a27dac16d8f478e8ecd78437b70f91d31ea4e0364bbd2b34c470face441f4",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1736/16363182624095136288.wav",
+     "text": "16",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1736/16363182624095136288.wav",
+     "text": "16",
+     "type": "number"
+    }
+   ],
+   "decode_s": 10.929,
+   "duration_s": 9.36,
+   "ground_truth": "أطلق رولاندو ميندوزا النار من بندقيته م16على السياح.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "اطلق رولاندو من دوز النار من بندقيته ام 16 على السياح",
+   "item_id": "1736/16363182624095136288.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "40f5f22ed76762d017f518107e39955ac773d22ffefddc6ced05b41bea6ceb2a",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1748/1260918510710584407.wav",
+     "text": "11",
+     "type": "number"
+    },
+    {
+     "item_id": "1748/1260918510710584407.wav",
+     "text": "35",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1748/1260918510710584407.wav",
+     "text": "11",
+     "type": "number"
+    },
+    {
+     "item_id": "1748/1260918510710584407.wav",
+     "text": "35",
+     "type": "number"
+    }
+   ],
+   "decode_s": 12.196,
+   "duration_s": 8.72,
+   "ground_truth": "وقد أخمدت فرق الإنقاذ النار في نهاية المطاف بحلول الساعة 11:35 مساء.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "وقت أحمدت فرق الإنقاذ النار في نهاية المطاف بحلول الساعة 11 .35 مساء",
+   "item_id": "1748/1260918510710584407.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "c8a0e778efdc3705d9ed1eae93c4f9d4a848b0116e51acd0fb63f7d8d2655a88",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1749/11707472638508941092.wav",
+     "text": "1940",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1749/11707472638508941092.wav",
+     "text": "1940",
+     "type": "number"
+    }
+   ],
+   "decode_s": 15.483,
+   "duration_s": 14.88,
+   "ground_truth": "كان يحكم فرنسا \"فيشي\". هؤلاء هم الشعب الفرنسي الذين صنعوا السلام مع الألمان في عام 1940 وعملوا مع الغزاة بدلاً من محاربتهم.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "كان يحكم فرنسا فيشي هؤلاء هم الشعب الفرنسي الذين صنعوا السلام مع الألمان في عام 1940 وعملوا مع الغزاه بدلا من محاربتهم",
+   "item_id": "1749/11707472638508941092.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "0ab9bc830ce26fed851b74ab60e110547296464a47b3f7fb2be3cacfc2c62928",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1758/6860546483066737669.wav",
+     "text": "120",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1758/6860546483066737669.wav",
+     "text": "120",
+     "type": "number"
+    }
+   ],
+   "decode_s": 15.836,
+   "duration_s": 11.1,
+   "ground_truth": "يقع الأرخبيل علي بعد 120 كيلومتر من شمال شبه الجزيرة. الأكبر هي جزيرة الملك جورج وبها مستوطنة فيلا لاس إستريلاس.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "يقع الأرخابيل على بعد 120 كيلومتر من شمال شبه الجزيرة الأكبر هي جزيرة الملك جورج وبها مستوطنة فيلا لاس استريلاس",
+   "item_id": "1758/6860546483066737669.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "c39feba5bb110b7bce6bebd038389d1243d0c0dc9fb02e51147c9b5b2140963b",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1776/689289328218725095.wav",
+     "text": "150",
+     "type": "number"
+    },
+    {
+     "item_id": "1776/689289328218725095.wav",
+     "text": "200",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1776/689289328218725095.wav",
+     "text": "150",
+     "type": "number"
+    },
+    {
+     "item_id": "1776/689289328218725095.wav",
+     "text": "200",
+     "type": "number"
+    }
+   ],
+   "decode_s": 12.414,
+   "duration_s": 9.36,
+   "ground_truth": "وخلال الليل تم عمل ما بين 150 و200 نسخة، تعرف الآن باسم \"نشرات دنلاب النقدية\".",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "وخلال الليل تم عمل ما بين 150 و 200 نسخة تعرف الآن باسم نشرات دنلاب النقدية",
+   "item_id": "1776/689289328218725095.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "6bcc7dd8a2b5fe264c799c8c325039b4c67817c4bd7fd485d1f0cfc068b709b9",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1776/7384704551395474098.wav",
+     "text": "150",
+     "type": "number"
+    },
+    {
+     "item_id": "1776/7384704551395474098.wav",
+     "text": "200",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1776/7384704551395474098.wav",
+     "text": "150",
+     "type": "number"
+    },
+    {
+     "item_id": "1776/7384704551395474098.wav",
+     "text": "200",
+     "type": "number"
+    }
+   ],
+   "decode_s": 11.121,
+   "duration_s": 7.38,
+   "ground_truth": "وخلال الليل تم عمل ما بين 150 و200 نسخة، تعرف الآن باسم \"نشرات دنلاب النقدية\".",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "وخلال الليل تم عمل ما بين 150 و 200 نسخة طاعة في الان باسم نشرات دنلاب النقدية",
+   "item_id": "1776/7384704551395474098.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "206aaf4a941b7748ecb480cb56bb98e5c907c88818ae1c9ca212fc10b21e6b90",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1795/1035166469684084794.wav",
+     "text": "1988",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1795/1035166469684084794.wav",
+     "text": "1988",
+     "type": "number"
+    }
+   ],
+   "decode_s": 24.47,
+   "duration_s": 23.76,
+   "ground_truth": "ومنذ عام 1988، توجّب أن تكون صناديق الاقتراع شفافة بحيث يمكن للناخبين والمراقبين أن يتأكدوا من عدم وجود مغلفات في بداية التصويت، وأنه لا يتم إضافة مغلفات إلا مغلفات الناخبين المسجلين والمصرّح لهم حسب الأصول والمفوضين.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "منذ عام 1988 توجب أن تكون صناديق الإقتراع شفافة بحيث يمكن للناخبين والمراقبين أن يتأكدوا من عدم وجود مغلفات في بداية التصويت وأنه لا يتم إضافة مغلفات إلا مغلفات الناخبين المسجلين والمصرحة لهم حسب الأصول والمفوضين",
+   "item_id": "1795/1035166469684084794.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "2641df6207ec2cf69d89dc2ea36f9cbc6200ce614d7c6d1c3f1b1d17d86b014a",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1795/6612432491120637645.wav",
+     "text": "1988",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1795/6612432491120637645.wav",
+     "text": "1988",
+     "type": "number"
+    }
+   ],
+   "decode_s": 23.38,
+   "duration_s": 24.68,
+   "ground_truth": "ومنذ عام 1988، توجّب أن تكون صناديق الاقتراع شفافة بحيث يمكن للناخبين والمراقبين أن يتأكدوا من عدم وجود مغلفات في بداية التصويت، وأنه لا يتم إضافة مغلفات إلا مغلفات الناخبين المسجلين والمصرّح لهم حسب الأصول والمفوضين.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "ومنذ عام 1988 توجب أن تكون صناديق الاقتراع شفافة بحيث يمكن للناخبين والمراقبين أن يتأكدوا من عدم وجود مغلفات في بداية التصويت وأنه لا يتم إضافة مغلفات إلا مغلفات الناخبين المسجلين والمصرحة لهم حسب الأصول والمفوضين",
+   "item_id": "1795/6612432491120637645.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "e3cea7c07bd2f4b829d22a32bfb979fac19d82ed4d979fd2aadd04676bf5c363",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1800/17247754661305436241.wav",
+     "text": "2017",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1800/17247754661305436241.wav",
+     "text": "2017",
+     "type": "number"
+    }
+   ],
+   "decode_s": 14.981,
+   "duration_s": 13.08,
+   "ground_truth": "ومن المقرر أن يبدأ الجسر العمل بكامل طاقته في سبتمبر 2017، في نفس الوقت المتوقع عنده الانتهاء من نقاط التفتيش الجمركية البرازيلية.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "ومن المقرر أن يبدأ الجسر العمل بكامل طاقته في سبتمبر 2017 في نفس الوقت المتوقع عنده الانتهاء من نقاط التفتيش الجمروكية البرازيلية",
+   "item_id": "1800/17247754661305436241.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "0f05c9f37816705f7dfac41563d398bf678966dc6ce3b311430702ca7e8ec9f3",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1846/4720251199887263634.wav",
+     "text": "12",
+     "type": "number"
+    },
+    {
+     "item_id": "1846/4720251199887263634.wav",
+     "text": "2",
+     "type": "number"
+    },
+    {
+     "item_id": "1846/4720251199887263634.wav",
+     "text": "3",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1846/4720251199887263634.wav",
+     "text": "12",
+     "type": "number"
+    },
+    {
+     "item_id": "1846/4720251199887263634.wav",
+     "text": "3",
+     "type": "number"
+    },
+    {
+     "item_id": "1846/4720251199887263634.wav",
+     "text": "2",
+     "type": "number"
+    }
+   ],
+   "decode_s": 11.362,
+   "duration_s": 12.92,
+   "ground_truth": "نسبة الأبعاد الخاصة بهذه الصورة تكون (عند القسمة على 12 للحصول على النسبة لأبسط عدد صحيح) إذن ستكون 3:2.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "نسبة الأبعاد الخاصة بهذه الصورة تكون عند القسم على 12 للحصول على النسبة لأبسط عدد صحيح، إذن ستكون 2 إلى 3.",
+   "item_id": "1846/4720251199887263634.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "f093054ea758d97e6bd8c2a425d1876b20ad14640963a53746f58ac83422a221",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1869/488112907159263264.wav",
+     "text": "70",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1869/488112907159263264.wav",
+     "text": "70",
+     "type": "number"
+    }
+   ],
+   "decode_s": 14.566,
+   "duration_s": 14.64,
+   "ground_truth": "فكّاها الطويلان كانا مرصعين بأكثر من 70 سناً يشبه الشفرات بالإضافة إلى مجموعة أخرى في سقف فمها، وهذا يعني أنه ليس هناك مفر لأي شيء يقف في طريقها.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "فكاها الطويلان كان مرصعين بأكثر من 70 سنان يشبه الشفارات بالإضافة إلى مجموعة أخرى في سقف فمها وهذا يعني أنه ليس هناك مفر لأي شيء يقف في طريقها",
+   "item_id": "1869/488112907159263264.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "f0e44d069da34e2928e49c14ce67edaa457881602baea00dba66872d659d3188",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [
+    {
+     "item_id": "1885/6078467931729042050.wav",
+     "text": "10",
+     "type": "number"
+    },
+    {
+     "item_id": "1885/6078467931729042050.wav",
+     "text": "00",
+     "type": "number"
+    },
+    {
+     "item_id": "1885/6078467931729042050.wav",
+     "text": "11",
+     "type": "number"
+    },
+    {
+     "item_id": "1885/6078467931729042050.wav",
+     "text": "00",
+     "type": "number"
+    }
+   ],
+   "decode_s": 9.435,
+   "duration_s": 9.28,
+   "ground_truth": "بين الساعة 10:00 إلى 11:00 مساءً بتوقيت الجبل، أُضرِمَ حريقٌ من قبل النزلاء في الفناء.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "بين الساعة العاشرة إلى الحادية عشر مساء بتوقيت الجبل قدر محريق من قبل النزلاء في الفناء",
+   "item_id": "1885/6078467931729042050.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "4190f0720beaea9d5dc4220a2bb1cd36fb18bc4c62eed7780885414aa29a3d5e",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1904/16877575166172325679.wav",
+     "text": "25",
+     "type": "number"
+    },
+    {
+     "item_id": "1904/16877575166172325679.wav",
+     "text": "30",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1904/16877575166172325679.wav",
+     "text": "25",
+     "type": "number"
+    },
+    {
+     "item_id": "1904/16877575166172325679.wav",
+     "text": "30",
+     "type": "number"
+    }
+   ],
+   "decode_s": 11.257,
+   "duration_s": 7.98,
+   "ground_truth": "وعلى الرغم من ذلك، فنظرا لبطء قنوات التواصل، قد تتأخر الأنماط في الغرب قدر ما يقارب 25 إلى 30 سنة.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "وعلى الرغم من ذلك فننظر لبطء قنوات التواصل قد تتأخر الأنماط في الغرب قدر ما يقرب 25 أو 30 سنة.",
+   "item_id": "1904/16877575166172325679.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "936762075cda08a264423498b4cf0ef7704e0f9ea724e6fbdb5485fecd6efc09",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [
+    {
+     "item_id": "1924/6231850542888987417.wav",
+     "text": "45",
+     "type": "number"
+    },
+    {
+     "item_id": "1924/6231850542888987417.wav",
+     "text": "117",
+     "type": "number"
+    }
+   ],
+   "decode_s": 15.261,
+   "duration_s": 18.0,
+   "ground_truth": "فشلت أربع متزلّجات ضمن فريق المعوقين من إكمال أشواطهن، وفشل 45 من إجمالي 117 متزلّجة في سباق التعرّج العملاق في الحصول على ترتيب في السباق.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "فشلت أربع متزلجات دمن فريق المعوقين من إكمال أشواطهن، وفشل خمسة وأربعون من إجمال مئة وسبعة عشر متزلجة في صباق التعرج العملاق في الحصول على ترتيب في الصباق.",
+   "item_id": "1924/6231850542888987417.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "0e8fcf44fc8d0e6d41143880424566e47df4e838871ab5df3bae94a8746e8c43",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1927/545497118089615904.wav",
+     "text": "2006",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1927/545497118089615904.wav",
+     "text": "2006",
+     "type": "number"
+    }
+   ],
+   "decode_s": 11.241,
+   "duration_s": 9.66,
+   "ground_truth": "(Angel (2006، يشرح طريقة الاستمرارية كطريقةٍ يتم استخدامها لمساعدة المؤسسات على الوصول إلى مستوى أعلى من الأداء.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "يشح تريجة أنجل 2006 الاستمرارية كطريقة يتم استخدامها لمساعدة المؤسسات على الوصول إلى مستوى أعلى من الأداء",
+   "item_id": "1927/545497118089615904.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "4e435f6903dd42ebf21a8129539072ec21cf8ab32c90b3c0433d3a5b39b4ddb2",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1928/1538597893327652599.wav",
+     "text": "1976",
+     "type": "number"
+    },
+    {
+     "item_id": "1928/1538597893327652599.wav",
+     "text": "30",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1928/1538597893327652599.wav",
+     "text": "1976",
+     "type": "number"
+    }
+   ],
+   "decode_s": 9.66,
+   "duration_s": 7.92,
+   "ground_truth": "وبحلول عام 1976، تمت استعادة ثلاثين في المائة من ماتشو بيتشو واستمرت أعمال الترميم حتى اليوم.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "وبحلول عام 1976 تمت استعادة 30 % من ماتشو بيتشو واستمرت أعمل الترميم حتى اليوم",
+   "item_id": "1928/1538597893327652599.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "8d7138e43e6f05f09cb95ca1a46ea692adbea2fa2ebf44571f2747ee633adb92",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1928/2714003609478751201.wav",
+     "text": "1976",
+     "type": "number"
+    },
+    {
+     "item_id": "1928/2714003609478751201.wav",
+     "text": "30",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1928/2714003609478751201.wav",
+     "text": "1976",
+     "type": "number"
+    }
+   ],
+   "decode_s": 9.887,
+   "duration_s": 11.34,
+   "ground_truth": "وبحلول عام 1976، تمت استعادة ثلاثين في المائة من ماتشو بيتشو واستمرت أعمال الترميم حتى اليوم.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "وبحلول عام 1976 تمت استعدى 30 % من ماتشو بيتشو واستمرت أعمال الترميم حتى اليوم",
+   "item_id": "1928/2714003609478751201.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "906a9a5c33c2a118082fd347cd3fcbe5b49bd7977dbc0462b0ccb73d8a4f1ff4",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1936/3065881170554682773.wav",
+     "text": "21",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1936/3065881170554682773.wav",
+     "text": "21",
+     "type": "number"
+    }
+   ],
+   "decode_s": 18.526,
+   "duration_s": 17.52,
+   "ground_truth": "صرح بيري بقوله \"سأعود إلى تكساس لتقييم نتائج المؤتمر الحزبي لهذه الليلة، وتحديد ما إذا كان هناك مسار لتقدمي في هذا السباق\"، لكنه قال لاحقاً أنه سيبقى في السباق وينافس في انتخابات كارولاينا الجنوبية في 21 من كانون الثاني.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "صرح بيري بقوله سأعود إلى تكساس لتقييم نتائج المؤتمر الحزبية لهذه الليلة وتحديد ما إذا كان هناك مصار لتقدمي في هذا الصباق لكنه قال لاحقا إنه سيبقى في الصباق وينرفيس في انتخابات كارولين الجنوبية في 21 من كانون الثاني",
+   "item_id": "1936/3065881170554682773.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "7782e7f952d6ca2c2181cd9346c85d5c70dea43ea2b996b05249e588cd2c8e2d",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1946/18057767562950719380.wav",
+     "text": "2020",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [
+    {
+     "item_id": "1946/18057767562950719380.wav",
+     "text": "2020",
+     "type": "number"
+    }
+   ],
+   "decode_s": 15.303,
+   "duration_s": 16.26,
+   "ground_truth": "تتفاوت سياسات الإلغاء، ولكن اعتباراً من أواخر آذار، لم تعد معظم سياسات الإلغاء المستندة إلى فيروس كورونا حتى تموز عام 2020، عندما كان من المقرر أن يتم تنظيم الألعاب الأوليمبية.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "تتفاوت سياسات الإلغاء ولكن اعتبارا من أواخر أوزور لم تعود معظم سياسات الإلغاء المستند إلى فيروس كورونا حتى تموز عام 2020 عندما كان من المقرر أن يتم تنظيم الألعاب الأولمبية",
+   "item_id": "1946/18057767562950719380.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "d11f7a3958662ea082c261cbf4e197625ca167269b1fbae7c0f32ef1d6f36ed1",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 11.421,
+   "duration_s": 9.96,
+   "ground_truth": "السبائك هي بشكل أساسي خليط من اثنين أو أكثر من المعادن. لا تنسَ أن هناك العديد من العناصر في الجدول الدوري.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "السبائك هي بشكل أساسي خليط من اثنين أو اكثر من المعادل لا تنسى ان هناك العديد من العناصر في الجدول الدوري",
+   "item_id": "1662/10893642191705398473.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "1a27f84ff9906c7873dd5f4c22804373e060c3617188c3d1bb0253046f47dc33",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 11.491,
+   "duration_s": 9.0,
+   "ground_truth": "السبائك هي بشكل أساسي خليط من اثنين أو أكثر من المعادن. لا تنسَ أن هناك العديد من العناصر في الجدول الدوري.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "السباك هي بشكل أساسي خليط من اثنين او اكثر من المعادل لا تنسى ان هناك العديد من العناصر في الجدول الدوري",
+   "item_id": "1662/3455183174061775462.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "d1df29c3e75b4afb8260b4ec921c72fda3284c17ae8c49433ad39f5b372cf6d3",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 11.313,
+   "duration_s": 11.16,
+   "ground_truth": "السبائك هي بشكل أساسي خليط من اثنين أو أكثر من المعادن. لا تنسَ أن هناك العديد من العناصر في الجدول الدوري.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "السبائك هي بشكل اساسي خليط من اثنين او اكثر من المعادن لا تنسى ان هناك العديد من العناصر في الجدول الدوري",
+   "item_id": "1662/7449664396847395604.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "4ef21a3c9c981b594b6bbf472298c977ab09212a3e143d63164bcd3727b81ad1",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 10.017,
+   "duration_s": 8.58,
+   "ground_truth": "قلّب المسحوقين الجافّين سوية ثم اعصرهما بأيدٍ مبللة نظيفة حتى تصبح على شكل كرة.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "قلب المصحوقين الكفين سوية ثم عصرهما بأيد مبللة نظيفة حتى تصبح على شكل كرة",
+   "item_id": "1664/9474891308071147916.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "a9bb571c5d2b4797a1b481069fa668d34280abb1605d546b5febe14e9f9ee349",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 12.54,
+   "duration_s": 12.24,
+   "ground_truth": "بصفة عامة، يمكن أن يظهر سلوكان عندما يبدأ المديرون في قيادة أقرانهم السابقين أحدهما هو محاولة البقاء \"مثل الآخرين\" (أو الأخريات).",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "بصفة عامة يمكن أن يظهر سلوكان عندما يبدأ المديرون في قيادة أقرانهم السابقين، أحدهما هو محاولة البقاء مثل الآخرين أو الأخريات.",
+   "item_id": "1667/10427622000895658817.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "b9c5839b807f7ff959c969ddafe271de824e194523bc0c177d9cd7fa05440e41",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 12.699,
+   "duration_s": 11.64,
+   "ground_truth": "بصفة عامة، يمكن أن يظهر سلوكان عندما يبدأ المديرون في قيادة أقرانهم السابقين أحدهما هو محاولة البقاء \"مثل الآخرين\" (أو الأخريات).",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "بسفر عمّة يمكن أن يظهر سلوكان عندما يبدأ المديرون في قيادة أقرانهم السابقين أحدهما هو محاولة البقاء مثل الآخرين أو الأخرى.",
+   "item_id": "1667/13121245795898949537.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "4a6129aa5ab7dcc6b0db7e92067ae09b9b621a12d0ff7b3624138622a7c11b5e",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 13.218,
+   "duration_s": 12.44,
+   "ground_truth": "بصفة عامة، يمكن أن يظهر سلوكان عندما يبدأ المديرون في قيادة أقرانهم السابقين أحدهما هو محاولة البقاء \"مثل الآخرين\" (أو الأخريات).",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "بصفة عامة يمكن أن يظهر سلوكان عندما يبدأ المديرون في قيادة أقرانهم الصابقين، أحدهما هو محاولة البقاء مثل الآخرين أو الأخريات.",
+   "item_id": "1667/17302192805096092625.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "8cbb29f35b098578eac241e253dc903341e0bacb12ae36bace78ceb40e414197",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 10.275,
+   "duration_s": 10.5,
+   "ground_truth": "لا تجعل القماش يصبح ساخنًا أكثر من اللازم (مما قد يؤدي إلى انكماشه أو احتراقه في أسوأ الحالات).",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "لا تجعل القماش يصبح ساخناً أكثر من اللازم مما قد يؤدي إلى انكماش أو احتراقي في أسوء الحلد",
+   "item_id": "1672/14917490381726120325.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "0bed267710fb6c1e9e2b6ae42b39fb9de14ba047941f062db603c16277d036ea",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 10.782,
+   "duration_s": 10.02,
+   "ground_truth": "لا تجعل القماش يصبح ساخنًا أكثر من اللازم (مما قد يؤدي إلى انكماشه أو احتراقه في أسوأ الحالات).",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "لا تجعل القماش يصبح ساخنا أو أكثر من اللازم مما قد يؤدي إلى انكماشه أو احتراقه في أسوأ الحالات",
+   "item_id": "1672/9089120693378305267.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "fbf3e7a1ad086ea93dd1281d38c84e4af2c373d08363c655b4ee6f52449bb8f1",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 14.334,
+   "duration_s": 14.08,
+   "ground_truth": "أثناء الحرب الثورية، شكلت الولايات الثلاث عشرة أولاً حكومة مركزية ضعيفة ـ وكان الكونغرس يشكل العنصر الوحيد فيها ـ في ظل النظام الأساسي للاتحاد الفيدرالي.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "أثناء الحرب الثورية شكلت الولايات الثلاث عشرة أولاً حكومة مركزية ضعفة وكان الكونجرس يشكل العنصر الوحيد فيها في ظل النظام الأساسي للاتحاد الفيدرالي",
+   "item_id": "1673/4236800387298798932.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "526767a616560c00eafa19923a874f865e4a63fde19a7dd14b65c2665aa211c6",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 10.002,
+   "duration_s": 8.64,
+   "ground_truth": "جميع الأسماء، بالإضافة إلى كلمة Sie بالنسبة لك، تبدأ دائماً بحرف كبير، حتى في منتصف الجملة.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "بالنسبة لـ C جميع الأسماء بالإضافة إلى كلمة لك تبدأ دائما بحرف كبير حتى في منتصف الجملة",
+   "item_id": "1675/2643688612859794020.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "9b5b327d11dadc1aec01e73fc6295ef55d69cc25dcd4a8660a6c04c66eded53a",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 10.688,
+   "duration_s": 7.56,
+   "ground_truth": "جميع الأسماء، بالإضافة إلى كلمة Sie بالنسبة لك، تبدأ دائماً بحرف كبير، حتى في منتصف الجملة.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "s -i -e جميع الأسماء بالإضافة لكينما بالنسبة لك تبدأ دائما بحرف الجبير حتى في المنتصف الجملة",
+   "item_id": "1675/6976910421368809071.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "41346a325b8a30a0f2d7e1cb15791a5b53bc4e934f57ec99adf0b4bc0a7d9934",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 11.115,
+   "duration_s": 9.36,
+   "ground_truth": "يوجد رسوم يومية للحفاظ على المنتزه والدخول إليه،أسوة بجميع المتنزهات الوطنية في جنوب إفريقيا.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "جد رسوم يومية للحفاظ على المنتزه والدخول إليه أسوة بجميع المنتزهات الوطنية في جنوب إفريقيا",
+   "item_id": "1676/11965576615136843543.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "6bfc387007cdb76fefe8b04547e233847aeb1a49e8fc93c940d11e0305b44d0f",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 11.217,
+   "duration_s": 11.22,
+   "ground_truth": "يوجد رسوم يومية للحفاظ على المنتزه والدخول إليه،أسوة بجميع المتنزهات الوطنية في جنوب إفريقيا.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "يوجد رسوم يومية للحفاظ على المنتزة والدخول إليه أسوة بجميع المتنزهات الوطنية في جنوب إفريقيا",
+   "item_id": "1676/7184341331931062441.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "d14812aa828908134f7cb0dbcbe5ec8cd95c3a64cc310f4e2f0817d8156ea90b",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 9.408,
+   "duration_s": 9.0,
+   "ground_truth": "الحشرات الوحيدة التي لا يُمكنها طي أجنحتها اليوم هي اليعسوب وذبابة مايو.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "الحشرات الوحيدة التي لا يمكنها طيّ أجنحتها اليوم هي اليعسوب وزبابة مايو",
+   "item_id": "1677/4002662618215996421.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "a9e6ea95028697d7d0304b3330d56c2fa92e4873ab1f2f951855732138e4ba74",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 8.945,
+   "duration_s": 10.44,
+   "ground_truth": "الحشرات الوحيدة التي لا يُمكنها طي أجنحتها اليوم هي اليعسوب وذبابة مايو.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "الحشرات الوحيدة التي لا يمكنها طيأ اجنحتها اليوم هي اليعسوب وذبابة مايو",
+   "item_id": "1677/9190125542399019358.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "46017e1f1d7fc5b5644b6c2249829bd24cd2d6ee5b74a31da6345ea02bd38a9f",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 9.023,
+   "duration_s": 5.88,
+   "ground_truth": "قامت فرقة إيروشميث بإلغاء باقي حفلاتهم في جولتهم الموسيقية.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "قمت فرقة إيروشميث بإلغاء بقي حفالتهم في قولتهم الموسيقية",
+   "item_id": "1679/18374334934488271994.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "8c32d7b17ca443bd94f63e3222b8a2fe23c041e5a9026502d14d2f932c58ac94",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 9.129,
+   "duration_s": 5.7,
+   "ground_truth": "قامت فرقة إيروشميث بإلغاء باقي حفلاتهم في جولتهم الموسيقية.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "فمّت فرقة إيروشمات بإلغاء باقي حفلتهم في جولتهم الموسيقية",
+   "item_id": "1679/7452292054103089878.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "bd8bc2530a366c72486d7f44e817f7d05c13d3bc0037971906463538a076498e",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 12.146,
+   "duration_s": 11.44,
+   "ground_truth": "ونتيجة لذلك، يمكن أن يُسفر التآزر داخل المنظمة للتغلب على العقبات إلى نشوء إجراءات مبتكرة جديدة تُلبي احتياجات العميل.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "نتيجة لذلك يمكن أن يسفر التآذر داخل المنظمة للتغلب على العقبات إلى نشوء إجراءات مبتكرة جديدة تلبي احتياجات العميل.",
+   "item_id": "1686/17602101147393797171.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "aa2b0a4d2278b896948a345d56f3ef9f2c5aeaf9527caaec2f566625b9a59259",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 13.548,
+   "duration_s": 11.16,
+   "ground_truth": "جرت التقاليد على أن وظيفة القوّات البحريّة هي ضمان قدرة بلدك على نقل شعبك وبضائعه، بينما في الوقت نفسه، اعتراض قدرة عدوّك على نقل شعبه وبضائعه.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "جارة التقاريد على أن وظيفة الكوات البحرية هي ضمان قدرة بلد على نقل شعبك وبضائحه بينما في الوقت نفسي اعترال قدرة أدوك على نقل شعبه وبضائحه",
+   "item_id": "1688/10726395627256131145.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "a43934abb31be00819d120624fbb716757e6c887eefe0c79245bf56fe8b6180d",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 14.159,
+   "duration_s": 14.28,
+   "ground_truth": "جرت التقاليد على أن وظيفة القوّات البحريّة هي ضمان قدرة بلدك على نقل شعبك وبضائعه، بينما في الوقت نفسه، اعتراض قدرة عدوّك على نقل شعبه وبضائعه.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "قررت التقاليد على أن وظيفة القوات البحرية هي ضمان قدرة بلدك على نقل شعبك وبضائعه بينما في الوقت نفسه اعتراض قدرة عدوك على نقل شعبه وبضائعه",
+   "item_id": "1688/3605286412311080768.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "5f2efe856a370d252f02674e69d26e936c154867bfbbbd235362234562d8cdbd",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 6.674,
+   "duration_s": 2.367,
+   "ground_truth": "أوروبا قارة صغيرة نسبياً ولكن فيها العديد من الدول المستقلة. وفي ظل الظروف العادية، فإن السفر عبر عدة بلدان يعني اضطرارك إلى المرور عبر طلبات الحصول على التأشيرة ومراقبة جوازات السفر عدة مرات.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "أوروبا، كيف حالك؟",
+   "item_id": "1689/4248701110553593570.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "8a3d99b9c9bce2d042e811705fd1d7ee194bf463e2e3a8898493bbbd4b00b769",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 16.627,
+   "duration_s": 16.26,
+   "ground_truth": "أوروبا قارة صغيرة نسبياً ولكن فيها العديد من الدول المستقلة. وفي ظل الظروف العادية، فإن السفر عبر عدة بلدان يعني اضطرارك إلى المرور عبر طلبات الحصول على التأشيرة ومراقبة جوازات السفر عدة مرات.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "أوروبا قارة صغيرة نسبيا ولكن فيها العديد من الدول المستقلة وفي ظل الظروف العادية فإن الصفر عبر عدة بلدان يعني اضطرارك إلى المرور عبر طلبات الحصول على التأشيرة ومراقبة جاوزات الصفر عدة مرات",
+   "item_id": "1689/822133939192484974.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "618978faa2c2afc7103535a66db8107340e24bd1403f318e5d3b679948985ba3",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 10.419,
+   "duration_s": 10.02,
+   "ground_truth": "تمتلك الشركات الأكبر طائراتها الخاصة، في بعض الخطوط، ولكن كانت هناك مشكلة للخطوط الأخرى والشركات الأصغر.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "تمتلك الشركات الأكبر طائراتها الخاصة في بعض الخطوط ولكن كانت هناك مشكلة للخطوط الأخرى والشركات الأصر.",
+   "item_id": "1691/4503403737804316173.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "761fb82c99dbc9addc64a4aabf75c10f5cd9d3b54af63fff3e6f8b7d9e475d83",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 10.708,
+   "duration_s": 9.82,
+   "ground_truth": "ويوضع الأطفال في إطار الرعاية الحاضنة لأسباب متنوعة تتراوح بين الإهمال والإيذاء وحتى الابتزاز.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "ويضع الأطفال في إطار الرعاية الحاضنة لأسباب متنوعة تتراوح بين الإهمال والإذاء وحتى الإبتزاز",
+   "item_id": "1694/17746754713062145192.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "8360a3b3decbc051e450d29b2552f9cfe88a84bca8be8ad8c08caa09db134f92",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 10.819,
+   "duration_s": 9.66,
+   "ground_truth": "ويوضع الأطفال في إطار الرعاية الحاضنة لأسباب متنوعة تتراوح بين الإهمال والإيذاء وحتى الابتزاز.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "يضع الأطفال في إطار الرعاية الحاضنة لأسباب متنوعة تتراوح بين الإهمال والإذاء وحتى الإبتزاز",
+   "item_id": "1694/7643523525855207328.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "b14c359e453e043e20a744e08d9162db7ddca10142dc9a60024b0d257a0c8117",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 9.289,
+   "duration_s": 7.68,
+   "ground_truth": "خُلِق كل شيء في الكون من مادة. خُلِقت كل المواد من جزيئات صغيرة تُسمي بالذرات.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "خلق كل شيء في الكون من مدة، خلقت كل المواد من جزيئات صغيرة تسمى بالذرات",
+   "item_id": "1698/16282306712308714640.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "5928a127cdf2630424ec080da89447f80806a42f1b3f3dc182c3c71613da3600",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 14.267,
+   "duration_s": 13.68,
+   "ground_truth": "وصف أحد المراقبين مدينة بيشكيك بأنها تغرق في حالة من \"فقدان السيطرة\"، حيث تجولت عصابات من الناس في الطرقات وقاموا بنهب مخازن السلع الاستهلاكية.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "وصف أحد المراقبين مدينة بيشكيك بأنها تغرق في حالة من فقدان السيطرة حيث تجولت عصابات من الناس في الطرقات وقاموا بنهب مخازن السلعة الاستهلاكية",
+   "item_id": "1699/15045220052445029977.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "70df1b5b55c9cdfff2f41da10eaaaf15cea2832385ed2bac0338b1bab36d2595",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 14.238,
+   "duration_s": 16.2,
+   "ground_truth": "وصف أحد المراقبين مدينة بيشكيك بأنها تغرق في حالة من \"فقدان السيطرة\"، حيث تجولت عصابات من الناس في الطرقات وقاموا بنهب مخازن السلع الاستهلاكية.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "وصف أحد المراقبين مدينة بيشكيك بأنها تغرق في حالة من فقدان السيطرة حيث تجولت عصابات من الناس في الطرقات وقاموا بنهب مخازن السلعة الاستهلاكية.",
+   "item_id": "1699/15812151706374108994.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "845214524e5c8c1f90b670fc0b382b33a1008953d3b9c0b6465c951c226a083d",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 8.265,
+   "duration_s": 6.3,
+   "ground_truth": "إنه أنحف تحت ماريا وأكثر سمكاً تحت المرتفعات.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "إنه أنحف تحت ماريا وأكثر رسومكا تحت المرتفعات",
+   "item_id": "1700/16503643840126849573.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "6691947e2fa14082e4a6ec8fc621960838488a3a6bd8bd4317a1777dd3b6c05e",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 8.235,
+   "duration_s": 8.52,
+   "ground_truth": "إنه أنحف تحت ماريا وأكثر سمكاً تحت المرتفعات.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "إنه أنحف تحت ماريا وأكثر سمكا تحت المرتفعات.",
+   "item_id": "1700/4333409702612128797.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "340ad67af13dd88a6e86f7c3136374fb78bc900536a0be45084ff8f072cacb29",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [
+    {
+     "item_id": "1703/10634940561331464457.wav",
+     "text": "9",
+     "type": "number"
+    }
+   ],
+   "critical_reference": [],
+   "decode_s": 9.521,
+   "duration_s": 7.38,
+   "ground_truth": "أدى مارتيلي أمس القسم في مجلس انتخابي مؤقت جديد مكون من تسعة أعضاء.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "أدى مرتلي أمس القسم في مجلس انتخابي مؤقت جديد مكون من 9 أعضاء",
+   "item_id": "1703/10634940561331464457.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "439e477656399fd13b04ea5cbfd004c71b7fa66dd5a93faebffd194858d2a820",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 12.644,
+   "duration_s": 11.92,
+   "ground_truth": "ينتقد التقرير بشدة كل جوانب السياسة الحالية تقريباً للسلطة التنفيذية تجاه العراق، كما يحثّ على تغيير فوري في الاتجاه.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "ينتقد التقرير بشدة كل جوانب السياسة الحالية تقريباً للسلطة التنفيذية تجاه العراق كما يحث على تغيير فوري في الاتجاه",
+   "item_id": "1709/1429914686631795314.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "20f0a85f760e0e4491b875d7ddc93a38e436c898f82f82261bd9cd393c926fb3",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 12.137,
+   "duration_s": 9.48,
+   "ground_truth": "ينتقد التقرير بشدة كل جوانب السياسة الحالية تقريباً للسلطة التنفيذية تجاه العراق، كما يحثّ على تغيير فوري في الاتجاه.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "ينتقد التقريب بشدة كل جانب السياسة الحالية تقريباً للسلطة التنفيذية تجاه العراق كما يحسوا على تغيير فريف الاتجاه",
+   "item_id": "1709/15085179950010979621.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "1c40eb8ea949928d8db51f272964792f59554180a8e4b166a0c6c642c6d091d4",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 14.138,
+   "duration_s": 11.82,
+   "ground_truth": "تبحث هذه النظريات في الشيء الذي يجعل بعض الأشخاص يريدون الأشياء التي يفعلونها والأشياء في بيئتهم المحيطة التي تجعلهم يفعلون أو لا يفعلون أشياء معينة.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "تبحث زين نظريات في الشيء الذي يجعل بعض الأشخاص يردون الأشياء التي يفعلونها والأشياء في بيئتهم المحيطة التي تجعلهم يفعلون أو لا يفعلون أشياء معينة.",
+   "item_id": "1711/15531878305117330488.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "f803333ac8916553a993cd33e2b963ecdce76ba63dfeaecc4fc47ba022e65245",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 12.83,
+   "duration_s": 11.4,
+   "ground_truth": "أُرسل القمر الصناعي إلى الفضاء بواسطة صاروخ. يستخدم العلماء التلسكوبات في الفضاء لأن الغلاف الجوي لكوكب الأرض يشوه بعض الضوء والرؤية.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "أرسل القمر الصناعي إلى الفضاء بواسطة صاروخ يستخدم العلماء التليسكوبات في الفضاء لأن الغلاف الجوي لكوكب الأرض يشوه بعض الضوء والرؤية",
+   "item_id": "1714/10394942145902478734.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "3d0b5e5fab276346f9d22b81dfcd4a0b43f535ea0bec84afec5934470c9bc23d",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 12.734,
+   "duration_s": 12.02,
+   "ground_truth": "أُرسل القمر الصناعي إلى الفضاء بواسطة صاروخ. يستخدم العلماء التلسكوبات في الفضاء لأن الغلاف الجوي لكوكب الأرض يشوه بعض الضوء والرؤية.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "أرسل القمر الصناعي إلى الفضاء بوسطة صاروخ يستخدم العلماء التلسكوبات في الفضاء لأن الغلاف الجوي لكوكب الأرض يشوه بعض الضوء والرؤية",
+   "item_id": "1714/4699396933165992764.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "4ebedc4df9a7abecd2488523b5d2fa69fc308ab518740a8c91b918b09f739bd6",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 16.765,
+   "duration_s": 13.8,
+   "ground_truth": "يتم إذاعة الإعلانات المنتظمة في المترو باللغة الكاتالونية فقط، بينما يتم إذاعة الاضطرابات غير المتوقعة بواسطة نظام آلي في مجموعة متنوعة من اللغات تشمل الإسبانية والإنجليزية والفرنسية والعربية واليابانية.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "يتم إزاعت الإعلانات المنتظمة في المترو باللغة الكتالونية فقط بينما يتم إزاعت التربط غير المتوقع بوسط نظام آلي في مجموعة متنوعة من اللغات تشمل الأسبانية والإنجليزية والفرنسية والعربية واليابانية",
+   "item_id": "1715/14959576169405068184.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "bcc4183654840acb8cd3bd82d88d9ad26c88205974462d25f678d83d3cf23a8a",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 11.458,
+   "duration_s": 12.3,
+   "ground_truth": "نظراً للتّضاريس تحت المياه، يتركّز التّدفق العائد في بضعة أقسام عميقةٍ، وقد يتشكّل تيارٌ سريعٌ إلى المياه العميقة هناك.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "نظرة للتضاريس تحت المياه يتركز التضفق العائد في بضعة أقصام عميقة وقد يتشكل طيار سريع إلى المياه العميقة هناك.",
+   "item_id": "1717/3644417349963489934.wav",
+   "split": "held_out"
+  },
+  {
+   "audio_sha256": "0ae4f570fcb0bd67d84ad5ec07c3b1491a2590a5548d58c7ea3a0a6374979b25",
+   "critical_extraction": "murailex.entities.numeric/1",
+   "critical_hypothesis": [],
+   "critical_reference": [],
+   "decode_s": 10.79,
+   "duration_s": 10.16,
+   "ground_truth": "الشوكولاتة الساخنة متوافقة مع المعايير البلجيكية. عصائر الفاكهة ممتازة على الرغم من أنها باهظة الثمن.",
+   "ground_truth_reviewer": "corpus publisher (human transcription)",
+   "ground_truth_revision": "corpus-release",
+   "human_ground_truth": true,
+   "hypothesis": "الشوكولات الساخنة متوافقة مع المعايير البلجيكية عصائر الفاكهة ممتازة على الرغم من أنها باهضت الثمن",
+   "item_id": "1720/11187297241957533844.wav",
+   "split": "held_out"
+  }
+ ],
+ "locale": "ar",
+ "model": "medium",
+ "parameters": {
+  "beam_size": 5,
+  "compute_type": "int8",
+  "condition_on_previous_text": false,
+  "ctranslate2": "4.8.2",
+  "device": "cpu",
+  "engine": "faster-whisper",
+  "engine_fingerprint": "1c4c9010af0f1193f6b5ac258543e6f438c7c5d385a3466dc0d5a5fd8f292276",
+  "faster_whisper": "1.2.1",
+  "initial_prompt": null,
+  "language": "ar",
+  "model": "medium",
+  "model_revision": "08e178d48790749d25932bbc082711ddcfdfbc4f",
+  "no_speech_threshold": null,
+  "privacy_gate": "ON-DEVICE — audio is not transmitted",
+  "runtime": "faster-whisper/CTranslate2",
+  "task": "transcribe",
+  "vad_filter": false,
+  "windowing": {
+   "overlap_ms": 15000,
+   "search_ms": 90000,
+   "target_ms": 600000,
+   "version": "murailex.window/1"
+  },
+  "word_timestamps": true
+ },
+ "provider": "local_whisper_verify",
+ "split": "held_out"
+}

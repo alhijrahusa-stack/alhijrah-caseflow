@@ -113,7 +113,7 @@ class LocalDiarization(DiarizationAdapter):
             self.name,
             "pyannote-segmentation-3.0+" + _embedding().removesuffix(".onnx"),
             "diarization",
-            s.environment == "local" and installed(),
+            (s.environment == "local" or s.asr_route == "self_hosted") and installed(),
             {
                 "runtime": "sherpa-onnx (onnxruntime, CPU)",
                 **self.fingerprint_material(),

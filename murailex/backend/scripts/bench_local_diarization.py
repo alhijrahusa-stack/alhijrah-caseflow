@@ -47,6 +47,7 @@ def main() -> None:
     ap.add_argument("--dataset-version", required=True)
     ap.add_argument("--item", action="append", required=True, help="ID=wav,rttm,uem")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--split", default="held_out", choices=["development", "held_out"])
     ap.add_argument(
         "--expected-speakers", action="store_true",
         help="pass the reference speaker count as the intake 'expected speakers' (labelled operating mode)",
@@ -73,6 +74,9 @@ def main() -> None:
         print(json.dumps(rows[-1]), file=sys.stderr, flush=True)
     der = (totals["missed_s"] + totals["false_alarm_s"] + totals["confusion_s"]) / totals["reference_speech_s"]
     out = {
+        "kind": "der",
+        "split": args.split,
+        "commit_sha": os.environ.get("MURAILEX_COMMIT", "unknown"),
         "dataset_version": args.dataset_version,
         "protocol": DER_PROTOCOL,
         "provider": adapter.name,
