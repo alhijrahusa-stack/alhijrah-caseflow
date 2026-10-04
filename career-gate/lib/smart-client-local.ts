@@ -21,7 +21,12 @@ const PHONE_RE = /(?:\+?1[\s().-]*)?(?:\(?\d{3}\)?[\s.-]*)\d{3}[\s.-]*\d{4}\b/;
 const ZIP_RE = /\b\d{5}(?:-\d{4})?\b/;
 const DATE_TOKEN_RE = /\b(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{4})\b/;
 const US_CITY_STATE_ZIP_RE = /^\s*([A-Za-z .'-]{2,}),?\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/i;
-const STREET_RE = /^\s*\d{1,6}\s+[A-Za-z0-9 .#'/-]{2,}(?:\b(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PKWY|PARKWAY|HWY|HIGHWAY|WAY|PL|PLACE|TER|TERRACE|CIR|CIRCLE)\b.*)$/i;
+const STREET_SUFFIX = "ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PKWY|PARKWAY|HWY|HIGHWAY|WAY|PL|PLACE|TER|TERRACE|CIR|CIRCLE";
+const STREET_RE = new RegExp(`^\\s*\\d{1,6}\\s+[A-Za-z0-9 .#'/-]{2,}(?:\\b(?:${STREET_SUFFIX})\\b.*)$`, "i");
+const COMBINED_US_ADDRESS_RE = new RegExp(
+  `^\\s*(\\d{1,6}\\s+.+?\\b(?:${STREET_SUFFIX})\\b(?:\\s+(?:APT|APARTMENT|UNIT|STE|SUITE|#)\\s*[A-Za-z0-9-]+)?)\\s+([A-Za-z .'-]{2,}),?\\s+([A-Z]{2})\\s+(\\d{5}(?:-\\d{4})?)\\s*$`,
+  "i",
+);
 const URL_RE = /(?:https?:\/\/|www\.|wa\.me\/)/i;
 const NON_NAME_TERMS_RE = /\b(?:night|morning|evening|afternoon|available|availability|english|arabic|spanish|yes|no|true|false|amazon|warehouse|shift|site|job|client|customer|application|resume|passport|license|address|street|city|state|zip|phone|email)\b/i;
 const LABEL_PREFIX_RE = /^(?:full\s*name|name|client\s*name|phone|mobile|cell|telephone|email|e-mail|dob|date\s*of\s*birth|birth\s*date|street|address|street\s*address|city|state|zip|zip\s*code|postal\s*code|preferred\s*language|language|appointment\s*availability|availability|available|site|site\s*code|preferred\s*location|location|job|job\s*id|amazon\s*job\s*id|shift|desired\s*shift|backup\s*site|backup\s*location|backup\s*job\s*id|backup\s*shift|amazon\s*application\s*email|amazon\s*worked\s*before|amazon\s*applied\s*before|currently\s*amazon|via\s*agency|company|employer|job\s*title|employment\s*from|employment\s*to|employment\s*kind|notes?|الاسم|الاسم\s*الكامل|رقم\s*الهاتف|الهاتف|البريد|البريد\s*الإلكتروني|ايميل|إيميل|تاريخ\s*الميلاد|العنوان|المدينة|الولاية|الرمز\s*البريدي|اللغة|المواعيد|موعد|الموقع|الشفت|الوردية)\b/i;
@@ -154,6 +159,19 @@ function firstMatch(lines: string[], re: RegExp) {
   return null;
 }
 
+function parseCombinedUsAddress(value: string | null) {
+  if (!value) return null;
+  const match = clean(value).match(COMBINED_US_ADDRESS_RE);
+  if (!match) return null;
+  return {
+    street: clean(match[1]),
+    city: clean(match[2]),
+    state: match[3].toUpperCase(),
+    zip: match[4],
+    source: clean(value),
+  };
+}
+
 export function extractDeterministicClient(raw: string): LocalExtraction {
   const text = raw.replace(/\r/g, "\n").trim();
   const lines = explodeSource(text);
@@ -179,26 +197,31 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
   add(row, evidence, "date_of_birth", dob, dobRaw && dob ? "HIGH" : dob ? "MEDIUM" : "REVIEW", dobRaw ?? dob);
 
   const streetLabeled = labeled(lines, ["street", "address", "street address", "home address", "العنوان"]);
-  const street = streetLabeled ?? lines.find((line) => STREET_RE.test(line)) ?? null;
-  add(row, evidence, "street", street ? clean(street) : null, streetLabeled ? "HIGH" : street ? "MEDIUM" : "REVIEW", street);
+  const combinedAddress = parseCombinedUsAddress(streetLabeled) ?? lines.map(parseCombinedUsAddress).find(Boolean) ?? null;
+  const street = combinedAddress?.street ?? streetLabeled ?? lines.find((line) => STREET_RE.test(line)) ?? null;
+  add(row, evidence, "street", street ? clean(street) : null, combinedAddress || streetLabeled ? "HIGH" : street ? "MEDIUM" : "REVIEW", combinedAddress?.source ?? street);
 
   const cityLabeled = labeled(lines, ["city", "المدينة"]);
   const stateLabeled = labeled(lines, ["state", "الولاية"]);
   const zipLabeled = labeled(lines, ["zip", "zip code", "postal code", "الرمز البريدي"]);
-  let city = cityLabeled;
-  let state = stateLabeled?.toUpperCase() ?? null;
-  let zip = zipLabeled?.match(ZIP_RE)?.[0] ?? null;
+  let city = cityLabeled ?? combinedAddress?.city ?? null;
+  let state = stateLabeled?.toUpperCase() ?? combinedAddress?.state ?? null;
+  let zip = zipLabeled?.match(ZIP_RE)?.[0] ?? combinedAddress?.zip ?? null;
+  let addressRef = combinedAddress?.source ?? null;
   if (!city || !state || !zip) {
-    const cityLine = lines.map((line) => line.match(US_CITY_STATE_ZIP_RE)).find(Boolean) as RegExpMatchArray | undefined;
-    if (cityLine) {
-      city ||= clean(cityLine[1]);
-      state ||= cityLine[2].toUpperCase();
-      zip ||= cityLine[3];
+    const cityEntry = lines
+      .map((line) => ({ line, match: line.match(US_CITY_STATE_ZIP_RE) }))
+      .find((entry) => Boolean(entry.match));
+    if (cityEntry?.match) {
+      city ||= clean(cityEntry.match[1]);
+      state ||= cityEntry.match[2].toUpperCase();
+      zip ||= cityEntry.match[3];
+      addressRef ||= cityEntry.line;
     }
   }
-  add(row, evidence, "city", city, cityLabeled ? "HIGH" : city ? "MEDIUM" : "REVIEW", city);
-  add(row, evidence, "state", state, stateLabeled ? "HIGH" : state ? "MEDIUM" : "REVIEW", state);
-  add(row, evidence, "zip", zip, zipLabeled ? "HIGH" : zip ? "MEDIUM" : "REVIEW", zip);
+  add(row, evidence, "city", city, cityLabeled || combinedAddress ? "HIGH" : city ? "MEDIUM" : "REVIEW", cityLabeled ?? addressRef ?? city);
+  add(row, evidence, "state", state, stateLabeled || combinedAddress ? "HIGH" : state ? "MEDIUM" : "REVIEW", stateLabeled ?? addressRef ?? state);
+  add(row, evidence, "zip", zip, zipLabeled || combinedAddress ? "HIGH" : zip ? "MEDIUM" : "REVIEW", zipLabeled ?? addressRef ?? zip);
 
   const language = labeled(lines, ["preferred language", "language", "اللغة"]) ?? standaloneLanguage(lines);
   add(row, evidence, "preferred_language", language, language ? "HIGH" : "REVIEW", language);
