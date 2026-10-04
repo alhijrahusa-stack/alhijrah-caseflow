@@ -4,8 +4,9 @@ import type { StaffSession } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import type { IntakeRow } from "@/lib/intake-file";
 import { ActionError } from "@/lib/service";
-import { uploadObject, removeObject } from "@/lib/storage";
+import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdf } from "@/lib/universal-intake";
+import { extractDeterministicClient } from "@/lib/smart-client-local";
 import {
   SMART_IMPORT_LIMITS,
   evidenceMatchScore,
@@ -23,15 +24,12 @@ const EVIDENCE_FIELDS = [
   "employment_to", "site_code", "job_id", "shift_code", "backup_site_code", "backup_job_id", "backup_shift_code",
 ] as const;
 
-type EvidenceField = (typeof EVIDENCE_FIELDS)[number];
 type SourceRow = { row: IntakeRow; source: string; documentId: string | null; sourcePage: number | null };
 
-type FileExtraction = {
+type FileCapture = {
   file: File;
   bytes: Uint8Array;
   sha256: string;
-  rows: IntakeRow[];
-  extractionError: string | null;
   documentId: string | null;
   storagePath: string | null;
 };
@@ -154,6 +152,12 @@ function mergeEvidence(sources: SourceRow[]) {
   return { merged, evidence, conflicts };
 }
 
+function localSource(notes: string): SourceRow | null {
+  if (!notes.trim()) return null;
+  const local = extractDeterministicClient(notes);
+  return { row: local.row, source: "local_text", documentId: null, sourcePage: null };
+}
+
 export async function stageMobileImportV2(args: {
   session: StaffSession;
   notes: string;
@@ -174,96 +178,172 @@ export async function stageMobileImportV2(args: {
   const key = args.idempotencyKey.trim();
   if (key.length < 8 || key.length > 200) throw new ActionError("invalid_idempotency_key", "A valid idempotency key is required", 400);
 
-  const fileData: FileExtraction[] = [];
-  const extractionErrors: Record<string, unknown>[] = [];
-  let staffTextRow: IntakeRow | null = null;
-  if (notes) {
-    try {
-      const rows = await rowsFromImageOrPdf(new TextEncoder().encode(notes), "text/plain");
-      staffTextRow = rows[0] ?? null;
-      if (rows.length > 1) extractionErrors.push({ source: "staff_text", code: "MULTIPLE_CLIENTS_DETECTED", count: rows.length });
-    } catch (error) {
-      extractionErrors.push({ source: "staff_text", code: "EXTRACTION_FAILED", message: error instanceof Error ? error.message : "Text extraction unavailable" });
-    }
-  }
-
-  for (const file of args.files) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
-    let rows: IntakeRow[] = [];
-    let extractionError: string | null = null;
-    try {
-      rows = await rowsFromImageOrPdf(bytes, file.type);
-      if (rows.length > 1) extractionErrors.push({ source: file.name, code: "MULTIPLE_CLIENTS_DETECTED", count: rows.length });
-    } catch (error) {
-      extractionError = error instanceof Error ? error.message : "Extraction failed";
-      extractionErrors.push({ source: file.name, code: "EXTRACTION_FAILED", message: extractionError });
-    }
-    fileData.push({ file, bytes, sha256, rows, extractionError, documentId: null, storagePath: null });
-  }
-
+  const local = extractDeterministicClient(notes);
   const preSources: SourceRow[] = [];
-  if (staffTextRow) preSources.push({ row: staffTextRow, source: "staff_text", documentId: null, sourcePage: null });
-  for (const entry of fileData) if (entry.rows[0]) preSources.push({ row: entry.rows[0], source: entry.file.name || entry.file.type, documentId: null, sourcePage: null });
+  if (notes) preSources.push({ row: local.row, source: "local_text", documentId: null, sourcePage: null });
   const preMerge = mergeEvidence(preSources);
   const preDraft = partialDraft(preMerge.merged, notes);
   const preMissing = requiredMissingFromDraft(preDraft);
 
+  const fileData: FileCapture[] = [];
+  for (const file of args.files) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    fileData.push({ file, bytes, sha256, documentId: null, storagePath: null });
+  }
+
   const created = await sql().begin(async (tx) => {
     const [existing] = await tx`select id from client_import_batches where created_by=${args.session.staff.id} and idempotency_key=${key}`;
     if (existing) {
-      const [caseRow] = await tx`select id,status from client_import_cases where batch_id=${existing.id} order by created_at limit 1`;
-      return { batchId: String(existing.id), caseId: String(caseRow.id), idempotent: true };
+      const [caseRow] = await tx`
+        select id,status,created_at,mapped_draft,verification_result
+        from client_import_cases where batch_id=${existing.id} order by created_at limit 1`;
+      return {
+        batchId: String(existing.id), caseId: String(caseRow.id), idempotent: true,
+        createdAt: String(caseRow.created_at), mappedDraft: caseRow.mapped_draft, verificationResult: caseRow.verification_result,
+      };
     }
     const [batch] = await tx`
       insert into client_import_batches(source_type,source_file_hash,idempotency_key,created_by,metadata)
       values('mobile',${sourceHash({ notes, files: fileData.map((entry) => ({ name: entry.file.name, sha256: entry.sha256 })) })},${key},${args.session.staff.id},
-             ${tx.json({ file_count: args.files.length, raw_text_present: Boolean(notes), extraction_engine: "gemini_structured_vision" } as never)}) returning id`;
+             ${tx.json({ file_count: args.files.length, raw_text_present: Boolean(notes), extraction_engine: "local_first_gemini_enrichment" } as never)}) returning id`;
     const [caseRow] = await tx`
       insert into client_import_cases(batch_id,source_type,status,raw_input,mapped_draft,missing_fields,conflicts,field_evidence,verification_result,created_by)
       values(${batch.id},'mobile','PENDING',${tx.json({ notes } as never)},${tx.json(preDraft as never)},${tx.json(preMissing as never)},
-        ${tx.json(preMerge.conflicts as never)},${tx.json(preMerge.evidence as never)},${tx.json({ extraction_errors: extractionErrors, processing_state: "EXTRACTED" } as never)},${args.session.staff.id})
-      returning id`;
-    return { batchId: String(batch.id), caseId: String(caseRow.id), idempotent: false };
+        ${tx.json(preMerge.conflicts as never)},${tx.json(preMerge.evidence as never)},
+        ${tx.json({ processing_state: "CAPTURED", local_state: "COMPLETE", ai_state: args.files.length ? "PENDING" : "SKIPPED", extraction_errors: [], evidence_fields: preMerge.evidence.length } as never)},${args.session.staff.id})
+      returning id,created_at,mapped_draft,verification_result`;
+    return {
+      batchId: String(batch.id), caseId: String(caseRow.id), idempotent: false,
+      createdAt: String(caseRow.created_at), mappedDraft: caseRow.mapped_draft, verificationResult: caseRow.verification_result,
+    };
   });
 
-  if (created.idempotent) return { batch_id: created.batchId, case_id: created.caseId, idempotent: true };
-
-  const uploadedPaths: string[] = [];
-  try {
-    for (const entry of fileData) {
-      const path = `smart-import/${created.caseId}/${randomUUID()}-${safeFilename(entry.file.name || "upload")}`;
-      await uploadObject(path, entry.bytes, entry.file.type);
-      uploadedPaths.push(path);
-      entry.storagePath = path;
-      const [doc] = await sql()`
-        insert into client_import_documents(import_case_id,storage_reference,original_filename,mime_type,size_bytes,sha256,detected_document_type,extraction_metadata,uploaded_by)
-        values(${created.caseId},${path},${safeFilename(entry.file.name || "upload")},${entry.file.type},${entry.file.size},${entry.sha256},${conservativeDocumentType(entry.file.name)},
-          ${sql().json({ extracted_rows: entry.rows.length, extraction_error: entry.extractionError, processing_state: entry.extractionError ? "FAILED" : "EXTRACTED" } as never)},${args.session.staff.id})
-        returning id`;
-      entry.documentId = String(doc.id);
+  if (!created.idempotent) {
+    const uploadedPaths: string[] = [];
+    try {
+      for (const entry of fileData) {
+        const path = `smart-import/${created.caseId}/${randomUUID()}-${safeFilename(entry.file.name || "upload")}`;
+        await uploadObject(path, entry.bytes, entry.file.type);
+        uploadedPaths.push(path);
+        entry.storagePath = path;
+        const [doc] = await sql()`
+          insert into client_import_documents(import_case_id,storage_reference,original_filename,mime_type,size_bytes,sha256,detected_document_type,extraction_metadata,uploaded_by)
+          values(${created.caseId},${path},${safeFilename(entry.file.name || "upload")},${entry.file.type},${entry.file.size},${entry.sha256},${conservativeDocumentType(entry.file.name)},
+            ${sql().json({ extracted_rows: 0, extraction_error: null, processing_state: "PENDING" } as never)},${args.session.staff.id})
+          returning id`;
+        entry.documentId = String(doc.id);
+      }
+      await sql()`
+        update client_import_cases
+        set verification_result=${sql().json({
+          processing_state: "CAPTURED",
+          local_state: "COMPLETE",
+          ai_state: args.files.length ? "PENDING" : "SKIPPED",
+          extraction_errors: [],
+          evidence_fields: preMerge.evidence.length,
+          document_count: args.files.length,
+        } as never)}
+        where id=${created.caseId}`;
+    } catch (error) {
+      for (const path of uploadedPaths) await removeObject(path).catch(() => undefined);
+      await sql().begin(async (tx) => {
+        await tx`delete from client_import_documents where import_case_id=${created.caseId}`;
+        await tx`delete from client_import_cases where id=${created.caseId}`;
+        await tx`delete from client_import_batches where id=${created.batchId}`;
+      });
+      throw error;
     }
-
-    const finalSources: SourceRow[] = [];
-    if (staffTextRow) finalSources.push({ row: staffTextRow, source: "staff_text", documentId: null, sourcePage: null });
-    for (const entry of fileData) if (entry.rows[0]) finalSources.push({ row: entry.rows[0], source: entry.file.name || entry.file.type, documentId: entry.documentId, sourcePage: null });
-    const merged = mergeEvidence(finalSources);
-    const draft = partialDraft(merged.merged, notes);
-    const missing = requiredMissingFromDraft(draft);
-    await sql()`
-      update client_import_cases set mapped_draft=${sql().json(draft as never)},missing_fields=${sql().json(missing as never)},
-        conflicts=${sql().json(merged.conflicts as never)},field_evidence=${sql().json(merged.evidence as never)},
-        verification_result=${sql().json({ extraction_errors: extractionErrors, processing_state: extractionErrors.length ? "REVIEW_REQUIRED" : "EXTRACTED", evidence_fields: merged.evidence.length } as never)}
-      where id=${created.caseId}`;
-  } catch (error) {
-    for (const path of uploadedPaths) await removeObject(path).catch(() => undefined);
-    await sql().begin(async (tx) => {
-      await tx`delete from client_import_documents where import_case_id=${created.caseId}`;
-      await tx`delete from client_import_cases where id=${created.caseId}`;
-      await tx`delete from client_import_batches where id=${created.batchId}`;
-    });
-    throw error;
   }
 
-  return { batch_id: created.batchId, case_id: created.caseId, idempotent: false };
+  return {
+    batch_id: created.batchId,
+    case_id: created.caseId,
+    idempotent: created.idempotent,
+    created_at: created.createdAt,
+    uploaded_by: args.session.staff.id,
+    uploaded_by_name: args.session.staff.display_name,
+    mapped_draft: created.mappedDraft ?? preDraft,
+    verification_result: created.verificationResult ?? {
+      processing_state: "CAPTURED",
+      local_state: "COMPLETE",
+      ai_state: args.files.length ? "PENDING" : "SKIPPED",
+      extraction_errors: [],
+      evidence_fields: preMerge.evidence.length,
+    },
+  };
+}
+
+export async function enrichMobileImportCase(session: StaffSession, caseId: string) {
+  assertManager(session);
+  const [caseRow] = await sql()`
+    select id,source_type,raw_input,status,created_by
+    from client_import_cases where id=${caseId}`;
+  if (!caseRow) throw new ActionError("not_found", "Import case not found", 404);
+  if (caseRow.source_type !== "mobile") throw new ActionError("invalid_source", "Extraction retry is only available for mobile smart imports", 409);
+  if (caseRow.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot be re-extracted", 409);
+
+  const notes = typeof caseRow.raw_input?.notes === "string" ? caseRow.raw_input.notes : "";
+  const local = extractDeterministicClient(notes);
+  const sources: SourceRow[] = [];
+  if (notes) sources.push({ row: local.row, source: "local_text", documentId: null, sourcePage: null });
+
+  const docs = await sql()`
+    select id,storage_reference,original_filename,mime_type,extraction_metadata
+    from client_import_documents where import_case_id=${caseId} order by created_at,id`;
+  const extractionErrors: Record<string, unknown>[] = [];
+
+  await sql()`
+    update client_import_cases
+    set verification_result=coalesce(verification_result,'{}'::jsonb) || ${sql().json({ processing_state: "AI_PROCESSING", local_state: "COMPLETE", ai_state: "PROCESSING" } as never)}
+    where id=${caseId}`;
+
+  for (const doc of docs) {
+    let rows: IntakeRow[] = [];
+    let extractionError: string | null = null;
+    try {
+      const bytes = await downloadObject(String(doc.storage_reference));
+      rows = await rowsFromImageOrPdf(bytes, String(doc.mime_type));
+      if (rows[0]) sources.push({ row: rows[0], source: String(doc.original_filename), documentId: String(doc.id), sourcePage: null });
+      if (rows.length > 1) extractionErrors.push({ source: doc.original_filename, code: "MULTIPLE_CLIENTS_DETECTED", count: rows.length });
+    } catch (error) {
+      extractionError = error instanceof Error ? error.message : "Extraction failed";
+      extractionErrors.push({ source: doc.original_filename, code: "EXTRACTION_FAILED", message: extractionError });
+    }
+    await sql()`
+      update client_import_documents
+      set extraction_metadata=${sql().json({ extracted_rows: rows.length, extraction_error: extractionError, processing_state: extractionError ? "FAILED" : "EXTRACTED" } as never)}
+      where id=${doc.id}`;
+  }
+
+  const merged = mergeEvidence(sources);
+  const draft = partialDraft(merged.merged, notes);
+  const missing = requiredMissingFromDraft(draft);
+  const aiState = docs.length === 0 ? "SKIPPED" : extractionErrors.length === docs.length ? "FAILED" : extractionErrors.length ? "PARTIAL" : "COMPLETE";
+  const processingState = extractionErrors.length ? "REVIEW_REQUIRED" : "EXTRACTED";
+  const verificationResult = {
+    processing_state: processingState,
+    local_state: "COMPLETE",
+    ai_state: aiState,
+    extraction_errors: extractionErrors,
+    evidence_fields: merged.evidence.length,
+    document_count: docs.length,
+    checked_at: new Date().toISOString(),
+  };
+
+  await sql()`
+    update client_import_cases
+    set mapped_draft=${sql().json(draft as never)},missing_fields=${sql().json(missing as never)},
+        conflicts=${sql().json(merged.conflicts as never)},field_evidence=${sql().json(merged.evidence as never)},
+        verification_result=${sql().json(verificationResult as never)}
+    where id=${caseId}`;
+
+  return {
+    case_id: caseId,
+    mapped_draft: draft,
+    missing_fields: missing,
+    conflicts: merged.conflicts,
+    field_evidence: merged.evidence,
+    verification_result: verificationResult,
+  };
 }
