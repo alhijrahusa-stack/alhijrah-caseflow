@@ -158,6 +158,18 @@ def tokens_in_window(tokens: list[Token], start: int, end: int) -> list[Token]:
     return [t for t in tokens if start <= (t["start_ms"] + t["end_ms"]) / 2 <= end]
 
 
+def tokens_for_region(tokens: list[Token], start: int, end: int) -> list[Token]:
+    """Tokens an engine placed in this region: midpoint selection, falling back to overlap.
+
+    An independent engine's word timestamps drift slightly against the primary's. Midpoint
+    selection alone can then return nothing for a region the engine did in fact transcribe,
+    which used to fall back to the padded clip text and compare out-of-region words."""
+    inside = tokens_in_window(tokens, start, end)
+    if inside:
+        return inside
+    return [t for t in tokens if t["end_ms"] > start and t["start_ms"] < end]
+
+
 def candidate(
     meta: dict[str, Any],
     tokens: list[Token],
@@ -193,9 +205,16 @@ def annotate_agreement(cands: list[dict[str, Any]]) -> None:
 
 
 def auto_resolution(region: dict[str, Any], cands: list[dict[str, Any]], threshold: float) -> dict[str, Any] | None:
-    """Auto-close only non-critical, non-hard regions with unanimous independent text."""
+    """Close a region only when every engine, including an independent verifier, produced the
+    same comparison key for it.
+
+    A critical-risk span (name, number, money, date, admission, denial, negation...) is closed
+    this way only when that independent check actually passed on it; the span keeps its risk
+    flags and records which engines agreed, so it stays visible as a critical item. A hard
+    region (the primary engines themselves disagreed), overlapped speech, a coverage gap and
+    any key mismatch are never closed here: they stay disputes for targeted human review."""
     del threshold  # provider confidence is provenance only; it never authorizes acceptance
-    if region.get("critical") or region.get("hard") or "overlap" in region.get("reasons", []):
+    if region.get("hard") or "overlap" in region.get("reasons", []) or "coverage_gap" in region.get("reasons", []):
         return None
     verifiers = [c for c in cands if c["role"] == "verification_asr"]
     if len(cands) < 2 or not verifiers or any(not c["key"] for c in cands):

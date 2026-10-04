@@ -152,8 +152,15 @@ def test_full_critical_path(app_client, users, fixture_providers):
     ]
     assert "[صمت]" in texts
     assert "والله" in texts
+    # Critical spans the independent verifier read identically are closed by that check and
+    # carry it on the record; the number the engines actually disagree on stays disputed.
+    by_text = {item["text"]: item for segment in content["segments"] for item in segment["items"]}
+    assert by_text["سالم"]["review_state"] == "INDEPENDENTLY VERIFIED"
+    assert "name" in by_text["سالم"]["risks"]
+    assert {p.get("provider") for p in by_text["سالم"]["provenance"]} >= {"fixture:engine_a", "fixture:verifier"}
+    # "okay" (code-switch) sits in the overlapped-speech region, which is never auto-closed.
     assert "okay" not in texts
-    assert "سالم" not in texts
+    assert "خمسة" not in texts and "خمسين" not in texts  # engine disagreement on a number
     words = [
         item
         for segment in content["segments"]
@@ -169,7 +176,8 @@ def test_full_critical_path(app_client, users, fixture_providers):
     assert "risk:number" in reasons
     assert "overlap" in reasons
     assert "risk:code_switch" in reasons
-    assert "risk:name" in reasons
+    # the name region passed its independent check above, so it is no longer disputed
+    assert "risk:name" not in reasons
     number = next(dispute for dispute in disputes if "risk:number" in dispute["reasons"])
     candidate_texts = {candidate["provider"]: candidate["text"] for candidate in number["candidates"]}
     assert "خمسة" in candidate_texts["fixture:engine_a"]
