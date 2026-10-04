@@ -44,9 +44,12 @@ export const IMPORT_FIELD_REGISTRY = [
   { key: "job_title", label: "Job Title", aliases: ["job_title", "job title", "title"] },
   { key: "employment_from", label: "Employment From", aliases: ["employment_from", "employment from", "job_from"] },
   { key: "employment_to", label: "Employment To", aliases: ["employment_to", "employment to", "job_to"] },
-  { key: "site_code", label: "Site Code", aliases: ["site_code", "site code", "site", "location", "amazon_location", "amazon location", "work_location", "work location", "الموقع"] },
+  { key: "site_code", label: "Preferred Location / Site", aliases: ["site_code", "site code", "site", "preferred location", "preferred_location", "location option 1", "location_option_1", "location", "amazon_location", "amazon location", "work_location", "work location", "الموقع"] },
   { key: "job_id", label: "Job ID", aliases: ["job_id", "job id", "amazon_job_id", "amazon job id", "job"] },
-  { key: "shift_code", label: "Shift Code", aliases: ["shift_code", "shift code", "shift", "shift_name", "shift name", "الشفت", "الوردية"] },
+  { key: "shift_code", label: "Desired Shift", aliases: ["shift_code", "shift code", "shift", "desired shift", "desired_shift", "shift_name", "shift name", "الشفت", "الوردية"] },
+  { key: "backup_site_code", label: "Location Option 2", aliases: ["backup_site_code", "backup site code", "backup location", "location option 2", "location_option_2"] },
+  { key: "backup_job_id", label: "Backup Job ID", aliases: ["backup_job_id", "backup job id", "job option 2", "job_option_2"] },
+  { key: "backup_shift_code", label: "Backup Shift", aliases: ["backup_shift_code", "backup shift code", "backup shift", "shift option 2", "shift_option_2"] },
   { key: "staff_code", label: "Staff Code", aliases: ["staff_code", "staff code", "staff_id", "staff id", "employee_code", "employee code", "كود الموظف"] },
   { key: "status", label: "Client Status", aliases: ["status", "client_status", "client status", "الحالة"] },
   { key: "next_step", label: "Next Step", aliases: ["next_step", "next step", "next action", "الخطوة التالية"] },
@@ -54,7 +57,7 @@ export const IMPORT_FIELD_REGISTRY = [
 ] as const satisfies readonly FieldDefinition[];
 
 export const CANONICAL_IMPORT_HEADERS = IMPORT_FIELD_REGISTRY.map((field) => field.key);
-export const IMPORT_SCHEMA_VERSION = "2026-10-04.1";
+export const IMPORT_SCHEMA_VERSION = "2026-10-04.2";
 export const IMPORT_TEMPLATE_ID = "career-gate-client-import";
 export const IMPORT_SCHEMA_HASH = createHash("sha256")
   .update(JSON.stringify(IMPORT_FIELD_REGISTRY.map((field) => ({ key: field.key, required: "required" in field && field.required === true }))))
@@ -138,10 +141,10 @@ function optionMatchesToken(option: Option, token: string, field: "site" | "job"
     .some((value) => value.trim().toLowerCase() === t);
 }
 
-function resolveSelection(row: IntakeRow): Selection[] {
-  const site = optional(pickImportValue(row, "site_code"));
-  const job = optional(pickImportValue(row, "job_id"));
-  const shift = optional(pickImportValue(row, "shift_code"));
+function resolveSelection(row: IntakeRow, keys: { site: RegistryKey; job: RegistryKey; shift: RegistryKey }): Selection[] {
+  const site = optional(pickImportValue(row, keys.site));
+  const job = optional(pickImportValue(row, keys.job));
+  const shift = optional(pickImportValue(row, keys.shift));
   if (!site && !job && !shift) return [];
 
   let candidates = options;
@@ -197,8 +200,8 @@ export function prepareImportDraft(row: IntakeRow): PreparedImportDraft {
 
   return {
     profile: profile.data,
-    primary: resolveSelection(row),
-    backup: [],
+    primary: resolveSelection(row, { site: "site_code", job: "job_id", shift: "shift_code" }),
+    backup: resolveSelection(row, { site: "backup_site_code", job: "backup_job_id", shift: "backup_shift_code" }),
     status: status.data,
     next_step: optional(pickImportValue(row, "next_step")),
     staff_code: optional(pickImportValue(row, "staff_code")),
@@ -226,4 +229,60 @@ export function requiredMissingFromDraft(value: unknown) {
   if (!parsed.success) return ["profile"];
   const profile = ProfileSchema.safeParse(parsed.data.profile);
   return profile.success ? [] : [...new Set(profile.error.issues.map((issue) => String(issue.path[0] ?? "profile")))];
+}
+
+export function normalizeEvidenceValue(field: string, value: string) {
+  const raw = value.normalize("NFKC").trim().toLowerCase();
+  if (field === "phone") return raw.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+  if (field === "email") return raw.replace(/\s+/g, "");
+  return raw.replace(/[\p{P}\p{S}]+/gu, " ").replace(/\s+/g, " ").trim();
+}
+
+function levenshtein(a: string, b: string) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    let left = i;
+    let diagonal = i - 1;
+    for (let j = 1; j <= b.length; j += 1) {
+      const up = prev[j];
+      const next = Math.min(left + 1, up + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diagonal = up;
+      prev[j] = next;
+      left = next;
+    }
+    prev[0] = i;
+  }
+  return prev[b.length];
+}
+
+export function evidenceMatchScore(field: string, left: string, right: string) {
+  const a = normalizeEvidenceValue(field, left);
+  const b = normalizeEvidenceValue(field, right);
+  if (!a || !b) return 0;
+  if (a === b) return 100;
+  const longest = Math.max(a.length, b.length);
+  return longest ? Math.max(0, Math.round((1 - levenshtein(a, b) / longest) * 100)) : 0;
+}
+
+export function readinessScore(args: {
+  requiredMissing: number;
+  blockingConflicts: number;
+  reviewerAssigned: boolean;
+  verificationCompleted: boolean;
+  documentConfirmed: boolean;
+  informationConfirmed: boolean;
+  documentCount: number;
+}) {
+  let score = 60;
+  score -= args.requiredMissing * 30;
+  score -= args.blockingConflicts * 35;
+  if (args.reviewerAssigned) score += 10;
+  if (args.verificationCompleted) score += 15;
+  if (args.documentConfirmed) score += 5;
+  if (args.informationConfirmed) score += 5;
+  if (args.documentCount > 0) score += 5;
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
