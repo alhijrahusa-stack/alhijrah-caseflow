@@ -57,6 +57,49 @@ Shift: NIGHT-A`;
     });
   });
 
+  it("scans supported facts across bullets, pipes and semicolon-separated source data", () => {
+    const source = "Availability: evenings | Applicant Name: Mary Ann Carter • Mobile number: (734) 555-0123 ; Email address: MARY.CARTER@EXAMPLE.COM | Warehouse: DET6 | Desired shift: NIGHT";
+    const result = extractDeterministicClient(source);
+    expect(result.row).toMatchObject({
+      full_name: "Mary Ann Carter",
+      phone: "7345550123",
+      email: "mary.carter@example.com",
+      appointment_availability: "evenings",
+      site_code: "DET6",
+      shift_code: "NIGHT",
+    });
+  });
+
+  it("ranks the strongest human-name candidate across the whole source instead of choosing the first clean line", () => {
+    const source = `Arabic preferred
+available after 6 PM
+Employment application
+MOHAMMED ABDULLAH HASSAN ALI
+Phone: 313-555-0107`;
+    const result = extractDeterministicClient(source);
+    expect(result.row.full_name).toBe("MOHAMMED ABDULLAH HASSAN ALI");
+    expect(result.row.phone).toBe("3135550107");
+  });
+
+  it("supports verified Arabic labels without inventing unsupported fields", () => {
+    const source = `الاسم الكامل: أحمد محمد علي حسن
+رقم الهاتف: (313) 555-0112
+البريد الإلكتروني: AHMED.TEST@EXAMPLE.COM
+المدينة: Dearborn
+الولاية: MI
+الرمز البريدي: 48126`;
+    const result = extractDeterministicClient(source);
+    expect(result.row).toMatchObject({
+      full_name: "أحمد محمد علي حسن",
+      phone: "3135550112",
+      email: "ahmed.test@example.com",
+      city: "Dearborn",
+      state: "MI",
+      zip: "48126",
+    });
+    expect(Object.prototype.hasOwnProperty.call(result.row, "ssn")).toBe(false);
+  });
+
   it("does not invent identity from unrelated operational text", () => {
     const result = extractDeterministicClient("night\navailable\nAmazon application\nhttps://example.com/status");
     expect(result.row.full_name).toBeUndefined();
@@ -68,6 +111,12 @@ Shift: NIGHT-A`;
     expect(result.row.date_of_birth).toBeUndefined();
     expect(result.row.full_name).toBe("Test Client");
     expect(result.row.phone).toBe("3135550199");
+  });
+
+  it("does not guess an unlabeled DOB when multiple valid dates appear", () => {
+    const result = extractDeterministicClient("Jane Marie Example\n01/02/1990\n03/04/2024\n313-555-0115");
+    expect(result.row.date_of_birth).toBeUndefined();
+    expect(result.row.full_name).toBe("Jane Marie Example");
   });
 
   it("rejects impossible calendar dates instead of normalizing them", () => {

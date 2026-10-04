@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
 
 const ACCEPT = "application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp";
+const MAX_FILES = 10;
+const MAX_TOTAL_BYTES = 25 * 1024 * 1024;
+
 type Stage = "DRAFT" | "CAPTURING" | "CAPTURED" | "ENRICHING" | "REVIEW_REQUIRED" | "READY";
 type SubmitResult = {
   case_id: string;
@@ -49,7 +52,7 @@ function statusTone(stage: Stage) {
   return "border-white/10 bg-white/[.025] text-slate-400";
 }
 
-const glassPanel = "rounded-2xl border border-white/[.075] bg-[linear-gradient(145deg,rgba(10,18,32,.82),rgba(4,9,18,.68))] shadow-[0_18px_60px_rgba(0,0,0,.28),inset_0_1px_0_rgba(255,255,255,.045)] backdrop-blur-xl";
+const glassPanel = "relative overflow-hidden rounded-[22px] border border-white/[.095] bg-[linear-gradient(145deg,rgba(13,25,46,.78),rgba(4,9,18,.68))] shadow-[0_24px_70px_-30px_rgba(0,0,0,.78),inset_0_1px_0_rgba(255,255,255,.055)] backdrop-blur-2xl transition-[border-color,box-shadow,transform] duration-200 motion-reduce:transition-none hover:border-white/[.125] hover:shadow-[0_30px_80px_-32px_rgba(0,0,0,.82),inset_0_1px_0_rgba(255,255,255,.065)]";
 
 export function MobileSmartImportForm({ staff }: { staff: { display_name: string } }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -64,10 +67,13 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   const [serverDraft, setServerDraft] = useState<Record<string, unknown> | null>(null);
   const [verification, setVerification] = useState<Record<string, unknown> | null>(null);
   const [completionPulse, setCompletionPulse] = useState(false);
-  const local = useMemo(() => extractDeterministicClient(notes), [notes]);
-  const totalMb = useMemo(() => files.reduce((sum, file) => sum + file.size, 0) / 1024 / 1024, [files]);
-  const busy = stage === "CAPTURING";
+  const deferredNotes = useDeferredValue(notes);
+  const local = useMemo(() => extractDeterministicClient(deferredNotes), [deferredNotes]);
+  const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
+  const totalMb = totalBytes / 1024 / 1024;
+  const busy = stage === "CAPTURING" || stage === "ENRICHING";
   const submitted = Boolean(result);
+  const localUpdating = deferredNotes !== notes;
 
   useEffect(() => {
     const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - sessionStart.current) / 1000)), 1000);
@@ -92,14 +98,21 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   });
 
   function flashCompletion() {
-    setCompletionPulse(true);
+    setCompletionPulse(false);
+    window.requestAnimationFrame(() => setCompletionPulse(true));
     if (completionTimer.current) window.clearTimeout(completionTimer.current);
     completionTimer.current = window.setTimeout(() => setCompletionPulse(false), 1300);
   }
 
   function addFiles(list: FileList | null) {
     if (!list || busy || submitted) return;
-    setFiles((current) => [...current, ...Array.from(list)].slice(0, 10));
+    const next = [...files, ...Array.from(list)].slice(0, MAX_FILES);
+    const nextBytes = next.reduce((sum, file) => sum + file.size, 0);
+    if (nextBytes > MAX_TOTAL_BYTES) {
+      setError("Files exceed the 25 MB total limit.");
+      return;
+    }
+    setFiles(next);
     setError(null);
   }
 
@@ -116,6 +129,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       setServerDraft(data.mapped_draft?.profile ?? null);
       setVerification(data.verification_result ?? null);
       setStage(data.verification_result?.processing_state === "REVIEW_REQUIRED" ? "REVIEW_REQUIRED" : "READY");
+      flashCompletion();
     } catch (e) {
       setError(e instanceof Error ? e.message : "AI enrichment unavailable; local data remains preserved.");
       setStage("REVIEW_REQUIRED");
@@ -178,20 +192,24 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#02050b] px-3 py-4 text-slate-200 sm:px-5 lg:px-7">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_20%_-10%,rgba(34,211,238,.08),transparent_30%),radial-gradient(circle_at_85%_10%,rgba(184,147,74,.06),transparent_24%),linear-gradient(180deg,#030711_0%,#02050b_55%,#03060d_100%)]" />
-      <div className="pointer-events-none fixed inset-0 opacity-[.18] [background-image:radial-gradient(circle_at_1px_1px,rgba(148,163,184,.12)_1px,transparent_0)] [background-size:28px_28px]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_-8%,rgba(34,211,238,.075),transparent_27%),radial-gradient(circle_at_84%_9%,rgba(184,147,74,.065),transparent_24%),linear-gradient(180deg,#030711_0%,#02050b_54%,#03060d_100%)]" />
+      <div className="pointer-events-none fixed -left-20 top-24 h-80 w-80 rounded-full bg-cyan-300/[.025] blur-3xl motion-safe:animate-[pulse_8s_ease-in-out_infinite]" />
+      <div className="pointer-events-none fixed -right-24 top-1/3 h-96 w-96 rounded-full bg-[#b8934a]/[.025] blur-3xl motion-safe:animate-[pulse_10s_ease-in-out_infinite]" />
+      <div className="pointer-events-none fixed inset-0 opacity-[.14] [background-image:radial-gradient(circle_at_1px_1px,rgba(148,163,184,.12)_1px,transparent_0)] [background-size:30px_30px]" />
 
-      <section className="relative mx-auto max-w-[1420px] space-y-4">
-        <header className={`${glassPanel} relative overflow-hidden p-5 sm:p-6`}>
-          <div className={`pointer-events-none absolute -top-px left-1/2 h-[2px] w-2/3 -translate-x-1/2 rounded-full bg-gradient-to-r from-transparent via-emerald-300 to-transparent blur-[1px] transition-all duration-700 ${completionPulse ? "scale-x-100 opacity-100" : "scale-x-0 opacity-0"}`} />
-          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#b8934a]/45 to-transparent" />
+      <section className="relative mx-auto max-w-[1480px] space-y-4">
+        <header className={`${glassPanel} p-5 sm:p-6`}>
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#b8934a]/50 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] overflow-hidden" aria-hidden="true">
+            <span className={`block h-full w-1/3 bg-gradient-to-r from-transparent via-cyan-200 to-emerald-200 shadow-[0_0_20px_rgba(34,211,238,.55)] transition-transform duration-1000 ease-out motion-reduce:transition-none ${completionPulse ? "translate-x-[300%]" : "-translate-x-full"}`} />
+          </div>
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="max-w-2xl">
-              <p className="text-[10px] font-bold tracking-[.23em] text-[#d4b06a]">CAREER GATE · EXECUTIVE INTAKE</p>
-              <h1 className="mt-1.5 text-2xl font-semibold tracking-[-.025em] text-white sm:text-[28px]">SMART CLIENT IMPORT</h1>
+              <div className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#d4b06a] shadow-[0_0_10px_rgba(212,176,106,.45)]" /><p className="text-[10px] font-bold tracking-[.23em] text-[#d4b06a]">CAREER GATE · EXECUTIVE INTAKE</p></div>
+              <h1 className="mt-2 text-2xl font-semibold tracking-[-.03em] text-white sm:text-[30px]">SMART CLIENT IMPORT</h1>
               <p className="mt-1.5 text-xs text-slate-500">Secure Internal Intake · Local Intelligence · Vision/OCR</p>
             </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-xl border border-white/[.055] bg-black/15 px-4 py-3 text-[10px] sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-2xl border border-white/[.07] bg-black/20 px-4 py-3 text-[10px] shadow-[inset_0_1px_0_rgba(255,255,255,.03)] sm:grid-cols-5">
               <Meta label="STAFF" value={result?.uploaded_by_name ?? staff.display_name} />
               <Meta label="FILES" value={String(files.length)} mono />
               <Meta label="SESSION" value={submitted ? "SUBMITTED" : "DRAFT"} />
@@ -199,38 +217,38 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
               <div><span className="block tracking-[.14em] text-slate-600">STATUS</span><span className={`mt-1 inline-flex rounded-md border px-2 py-1 font-mono text-[9px] ${statusTone(stage)}`}>{stage.replaceAll("_", " ")}</span></div>
             </div>
           </div>
-          {result && <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-white/[.06] pt-3 text-[10px] text-slate-500"><span>CASE <b className="ml-1 font-mono font-medium text-slate-300">{result.case_id}</b></span><span>UPLOADED <b className="ml-1 font-mono font-medium text-slate-300">{formatDate(result.created_at)}</b></span><span className="inline-flex items-center gap-1.5 text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />SOURCE CAPTURED</span></div>}
+          {result && <div aria-live="polite" className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-white/[.06] pt-3 text-[10px] text-slate-500"><span>CASE <b className="ml-1 font-mono font-medium text-slate-300">{result.case_id}</b></span><span>UPLOADED <b className="ml-1 font-mono font-medium text-slate-300">{formatDate(result.created_at)}</b></span><span className="inline-flex items-center gap-1.5 text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,.5)]" />SOURCE CAPTURED</span></div>}
         </header>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(370px,.82fr)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.16fr)_minmax(390px,.84fr)]">
           <div className="space-y-4">
             <section className={`${glassPanel} p-4 sm:p-5`}>
               <SectionTitle number="02" title="SOURCE" meta={`${files.length} files · ${totalMb.toFixed(2)} MB`} />
               <input ref={inputRef} className="hidden" type="file" accept={ACCEPT} multiple disabled={busy || submitted} onChange={(e) => addFiles(e.target.files)} />
-              <button type="button" disabled={busy || submitted} onClick={() => inputRef.current?.click()} className="group mt-3 flex min-h-24 w-full items-center justify-between overflow-hidden rounded-xl border border-dashed border-white/[.11] bg-[linear-gradient(135deg,rgba(255,255,255,.035),rgba(255,255,255,.012))] px-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,.035)] transition-all duration-150 hover:-translate-y-px hover:border-[#b8934a]/45 hover:bg-white/[.045] hover:shadow-[0_12px_30px_rgba(0,0,0,.22),inset_0_1px_0_rgba(255,255,255,.05)] disabled:cursor-not-allowed disabled:opacity-50"><span><strong className="block text-sm font-semibold tracking-[-.01em] text-slate-100">TAKE PHOTO / ADD FILES</strong><span className="mt-1.5 block text-[10px] text-slate-600">PDF · JPG · PNG · WebP · max 10 files · 25 MB total</span></span><span className="grid h-9 w-9 place-items-center rounded-lg border border-[#b8934a]/25 bg-[#b8934a]/[.06] text-lg text-[#d4b06a] transition group-hover:border-[#b8934a]/45 group-hover:bg-[#b8934a]/[.11]">＋</span></button>
-              {files.length > 0 && <div className="mt-3 space-y-2">{files.map((file, index) => <div key={`${file.name}-${file.size}-${index}`} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-white/[.06] bg-black/20 px-3.5 py-2.5"><div className="min-w-0"><strong className="block truncate text-xs font-medium text-slate-200">{file.name}</strong><span className="mt-0.5 block text-[10px] font-mono text-slate-600">{file.type || "file"} · {(file.size / 1024 / 1024).toFixed(2)} MB · {submitted ? "STORED" : "STAGED"}</span></div>{!submitted && <button type="button" className="rounded-md border border-red-300/15 px-2 py-1 text-[9px] font-semibold text-red-300 transition hover:bg-red-300/[.06]" onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}>REMOVE</button>}</div>)}</div>}
+              <button type="button" disabled={busy || submitted} onClick={() => inputRef.current?.click()} className="group relative mt-3 flex min-h-24 w-full items-center justify-between overflow-hidden rounded-2xl border border-dashed border-white/[.13] bg-[linear-gradient(135deg,rgba(255,255,255,.045),rgba(255,255,255,.014))] px-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,.045)] transition-all duration-200 motion-reduce:transition-none hover:-translate-y-0.5 hover:border-[#b8934a]/50 hover:bg-white/[.055] hover:shadow-[0_18px_38px_-20px_rgba(0,0,0,.72),inset_0_1px_0_rgba(255,255,255,.06)] disabled:cursor-not-allowed disabled:opacity-50"><span className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" /><span><strong className="block text-sm font-semibold tracking-[-.01em] text-slate-100">TAKE PHOTO / ADD FILES</strong><span className="mt-1.5 block text-[10px] text-slate-600">PDF · JPG · PNG · WebP · max 10 files · 25 MB total</span></span><span className="grid h-10 w-10 place-items-center rounded-xl border border-[#b8934a]/30 bg-[#b8934a]/[.07] text-lg text-[#d4b06a] shadow-[inset_0_1px_0_rgba(255,255,255,.04)] transition group-hover:scale-105 group-hover:border-[#b8934a]/55 group-hover:bg-[#b8934a]/[.13]">＋</span></button>
+              {files.length > 0 && <div className="mt-3 space-y-2">{files.map((file, index) => <div key={`${file.name}-${file.size}-${index}`} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-white/[.07] bg-black/25 px-3.5 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,.025)]"><div className="min-w-0"><strong className="block truncate text-xs font-medium text-slate-200">{file.name}</strong><span className="mt-0.5 block text-[10px] font-mono text-slate-600">{file.type || "file"} · {(file.size / 1024 / 1024).toFixed(2)} MB · {submitted ? "STORED" : "STAGED"}</span></div>{!submitted && <button type="button" className="rounded-md border border-red-300/15 px-2 py-1 text-[9px] font-semibold text-red-300 transition hover:bg-red-300/[.06]" onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}>REMOVE</button>}</div>)}</div>}
             </section>
 
             <section className={`${glassPanel} p-4 sm:p-5`}>
-              <div className="flex flex-wrap items-center justify-between gap-3"><SectionTitle number="03" title="CLIENT SOURCE DATA" meta="Raw submitted information" /><div className="flex flex-wrap gap-4 text-[9px] text-slate-600"><span>UPLOADED BY <b className="ml-1 text-slate-400">{result?.uploaded_by_name ?? staff.display_name}</b></span><span>UPLOADED AT <b className="ml-1 font-mono text-slate-400">{result ? formatDate(result.created_at) : "pending"}</b></span></div></div>
-              <div className="relative mt-3 overflow-hidden rounded-xl border border-white/[.075] bg-[#01040a]/80 shadow-[inset_0_1px_8px_rgba(0,0,0,.32)] focus-within:border-cyan-300/30">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/25 to-transparent" />
-                <textarea className="min-h-64 w-full resize-y bg-transparent p-4 font-mono text-[12px] leading-6 text-slate-100 outline-none placeholder:text-slate-700 disabled:opacity-70" maxLength={10000} value={notes} disabled={submitted} onChange={(e) => setNotes(e.target.value)} placeholder="Paste the client's known information here. Every supported fact is scanned locally; missing facts remain unresolved." />
+              <div className="flex flex-wrap items-center justify-between gap-3"><SectionTitle number="03" title="CLIENT SOURCE DATA" meta="Full-source deterministic scan" /><div className="flex flex-wrap gap-4 text-[9px] text-slate-600"><span>UPLOADED BY <b className="ml-1 text-slate-400">{result?.uploaded_by_name ?? staff.display_name}</b></span><span>UPLOADED AT <b className="ml-1 font-mono text-slate-400">{result ? formatDate(result.created_at) : "pending"}</b></span></div></div>
+              <div className="relative mt-3 overflow-hidden rounded-2xl border border-white/[.09] bg-[#01040a]/85 shadow-[inset_0_1px_12px_rgba(0,0,0,.38)] transition-colors duration-200 focus-within:border-cyan-300/35 focus-within:shadow-[inset_0_1px_12px_rgba(0,0,0,.38),0_0_0_1px_rgba(34,211,238,.04)]">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/30 to-transparent" />
+                <textarea className="min-h-72 w-full resize-y bg-transparent p-4 font-mono text-[12px] leading-6 text-slate-100 outline-none placeholder:text-slate-700 disabled:opacity-70" maxLength={10000} value={notes} disabled={submitted} onChange={(e) => setNotes(e.target.value)} placeholder="Paste all client information here. The local engine scans the full source, ranks identity candidates, and keeps uncertain facts for review instead of inventing them." />
               </div>
-              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-600"><span className="font-mono tabular-nums">{notes.length.toLocaleString()} / 10,000</span><span>Raw source remains visible even when AI is unavailable.</span></div>
+              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-600"><span className="font-mono tabular-nums">{notes.length.toLocaleString()} / 10,000</span><span className="inline-flex items-center gap-2"><span className={`h-1.5 w-1.5 rounded-full ${localUpdating ? "bg-cyan-300 motion-safe:animate-pulse" : notes.trim() ? "bg-emerald-300" : "bg-slate-700"}`} />{localUpdating ? "Scanning source…" : notes.trim() ? "Full source scanned locally" : "Raw source remains visible even when AI is unavailable"}</span></div>
             </section>
           </div>
 
           <aside className="space-y-4">
-            <section className={`${glassPanel} relative overflow-hidden p-4 sm:p-5`}>
-              <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/35 to-transparent" />
-              <SectionTitle number="05" title="LIVE INTELLIGENCE" meta={serverDraft ? "SERVER AUTHORITATIVE" : "LOCAL PREVIEW"} tone="cyan" />
+            <section className={`${glassPanel} p-4 sm:p-5`}>
+              <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent" />
+              <SectionTitle number="05" title="LIVE INTELLIGENCE" meta={serverDraft ? "SERVER AUTHORITATIVE" : localUpdating ? "SCANNING SOURCE" : "LOCAL PREVIEW"} tone="cyan" />
               <div className="mt-3 space-y-0.5">{extractedEntries.map(([key, value]) => {
                 const ev = local.evidence.find((item) => item.field_key === key);
-                return <div key={key} className="grid grid-cols-[108px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-2 transition hover:bg-white/[.025]"><span className="text-[9px] tracking-[.11em] text-slate-600">{FIELD_LABELS[key]}</span><span className="min-w-0 truncate font-mono text-[11px] text-slate-200">{String(value)}</span><span className={`rounded-md border px-1.5 py-0.5 text-[8px] font-mono ${serverDraft ? "border-cyan-300/20 text-cyan-200" : ev?.strength === "HIGH" ? "border-emerald-300/20 text-emerald-200" : "border-amber-300/20 text-amber-200"}`}>{serverDraft ? "SERVER" : ev?.strength ?? "REVIEW"}</span></div>;
+                return <div key={key} className="grid grid-cols-[108px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-transparent px-2 py-2 transition-all duration-150 hover:border-white/[.05] hover:bg-white/[.028]"><span className="text-[9px] tracking-[.11em] text-slate-600">{FIELD_LABELS[key]}</span><span className="min-w-0 truncate font-mono text-[11px] text-slate-200">{String(value)}</span><span className={`rounded-md border px-1.5 py-0.5 text-[8px] font-mono ${serverDraft ? "border-cyan-300/20 text-cyan-200" : ev?.strength === "HIGH" ? "border-emerald-300/20 text-emerald-200" : "border-amber-300/20 text-amber-200"}`}>{serverDraft ? "SERVER" : ev?.strength ?? "REVIEW"}</span></div>;
               })}</div>
-              {extractedEntries.length === 0 && <div className="grid min-h-32 place-items-center rounded-xl border border-white/[.05] bg-black/10 px-4 text-center text-xs text-slate-600">Awaiting recognizable client information.</div>}
-              <div className="mt-3 flex items-center justify-between border-t border-white/[.06] pt-3 text-[10px] text-slate-600"><span>LOCAL FIELDS</span><span className="rounded-md border border-white/[.06] bg-black/15 px-2 py-1 font-mono text-slate-300">{localFields}</span></div>
+              {extractedEntries.length === 0 && <div className="grid min-h-36 place-items-center rounded-2xl border border-white/[.055] bg-black/15 px-4 text-center text-xs text-slate-600"><div><span className="mx-auto mb-3 block h-7 w-7 rounded-full border border-cyan-300/15 bg-cyan-300/[.025] shadow-[0_0_20px_rgba(34,211,238,.04)]" /><span>Awaiting recognizable client information.</span></div></div>}
+              <div className="mt-3 flex items-center justify-between border-t border-white/[.06] pt-3 text-[10px] text-slate-600"><span>LOCAL FIELDS</span><span className="rounded-md border border-white/[.07] bg-black/20 px-2 py-1 font-mono text-slate-300">{localFields}</span></div>
             </section>
 
             <section className={`${glassPanel} p-4 sm:p-5`}>
@@ -244,15 +262,15 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
               </div>
             </section>
 
-            {(error || issues > 0 || stage === "REVIEW_REQUIRED") && <section className="rounded-2xl border border-amber-300/20 bg-[linear-gradient(145deg,rgba(77,54,10,.16),rgba(12,10,6,.66))] p-4 shadow-[0_16px_45px_rgba(0,0,0,.24)] backdrop-blur-xl"><SectionTitle number="06" title="ISSUES & RESOLUTION" meta={`${issues || 1} item requires review`} tone="amber" />{error && <p className="mt-3 text-xs leading-5 text-amber-100">{error}</p>}<p className="mt-2 text-[10px] text-slate-500">Local data, raw source, files, Staff identity and timestamp remain preserved.</p>{result && <button type="button" onClick={() => void enrich(result)} disabled={stage === "ENRICHING"} className="mt-3 rounded-lg border border-amber-300/30 bg-amber-300/[.045] px-3 py-2 text-[10px] font-semibold tracking-[.08em] text-amber-200 transition hover:-translate-y-px hover:bg-amber-300/[.08] disabled:opacity-50">RETRY EXTRACTION</button>}</section>}
+            {(error || issues > 0 || stage === "REVIEW_REQUIRED") && <section className="relative overflow-hidden rounded-[22px] border border-amber-300/20 bg-[linear-gradient(145deg,rgba(77,54,10,.16),rgba(12,10,6,.66))] p-4 shadow-[0_20px_55px_-30px_rgba(0,0,0,.8),inset_0_1px_0_rgba(255,255,255,.03)] backdrop-blur-2xl"><SectionTitle number="06" title="ISSUES & RESOLUTION" meta={`${issues || 1} item requires review`} tone="amber" />{error && <p className="mt-3 text-xs leading-5 text-amber-100">{error}</p>}<p className="mt-2 text-[10px] text-slate-500">Local data, raw source, files, Staff identity and timestamp remain preserved.</p>{result && <button type="button" onClick={() => void enrich(result)} disabled={stage === "ENRICHING"} className="mt-3 rounded-xl border border-amber-300/30 bg-amber-300/[.045] px-3 py-2 text-[10px] font-semibold tracking-[.08em] text-amber-200 transition-all duration-150 hover:-translate-y-px hover:bg-amber-300/[.08] disabled:opacity-50">RETRY EXTRACTION</button>}</section>}
           </aside>
         </div>
 
-        <section className={`${glassPanel} sticky bottom-3 z-20 overflow-hidden p-3.5`}>
-          <div className={`pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/80 to-transparent transition-all duration-700 ${completionPulse ? "opacity-100" : "opacity-0"}`} />
+        <section className={`${glassPanel} sticky bottom-3 z-20 p-3.5`}>
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] overflow-hidden" aria-hidden="true"><span className={`block h-full w-1/3 bg-gradient-to-r from-transparent via-cyan-200 to-emerald-200 shadow-[0_0_20px_rgba(34,211,238,.45)] transition-transform duration-1000 ease-out motion-reduce:transition-none ${completionPulse ? "translate-x-[300%]" : "-translate-x-full"}`} /></div>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-600"><span className="rounded-md border border-white/[.06] bg-black/15 px-2 py-1 font-mono">⌘/Ctrl + Enter</span><span>Submit</span><span className="text-slate-800">|</span><span>Source-first capture</span>{completionPulse && <span className="ml-1 inline-flex items-center gap-1.5 text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />CAPTURE COMPLETE</span>}</div>
-            <div className="flex flex-wrap gap-2">{submitted ? <><button type="button" onClick={reset} className="rounded-lg border border-white/10 bg-white/[.02] px-4 py-2.5 text-[10px] font-semibold tracking-[.12em] text-slate-300 transition hover:-translate-y-px hover:bg-white/[.045]">START ANOTHER</button><Link className="rounded-lg border border-[#b8934a]/45 bg-[#b8934a]/10 px-4 py-2.5 text-[10px] font-semibold tracking-[.12em] text-[#e3c884] shadow-[inset_0_1px_0_rgba(255,255,255,.04)] transition hover:-translate-y-px hover:bg-[#b8934a]/[.16]" href="/staff/import">OPEN SMART CAREER COLLECT CLIENT</Link></> : <><button type="button" onClick={reset} disabled={busy || (!notes && files.length === 0)} className="rounded-lg border border-white/10 bg-white/[.015] px-4 py-2.5 text-[10px] font-semibold tracking-[.12em] text-slate-400 transition hover:bg-white/[.04] disabled:opacity-35">CLEAR</button><button type="button" onClick={() => void submit()} disabled={busy || (!notes.trim() && files.length === 0)} className="rounded-lg border border-[#b8934a]/50 bg-[linear-gradient(180deg,rgba(184,147,74,.16),rgba(184,147,74,.08))] px-5 py-2.5 text-[10px] font-semibold tracking-[.14em] text-[#e5ca8a] shadow-[0_8px_24px_rgba(184,147,74,.08),inset_0_1px_0_rgba(255,255,255,.05)] transition duration-150 hover:-translate-y-px hover:border-[#d4b06a]/65 hover:bg-[#b8934a]/[.18] disabled:cursor-not-allowed disabled:opacity-35">{busy ? "CAPTURING…" : "SUBMIT"}</button></>}</div>
+            <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-600"><span className="rounded-md border border-white/[.07] bg-black/20 px-2 py-1 font-mono">⌘/Ctrl + Enter</span><span>Submit</span><span className="text-slate-800">|</span><span>Source-first capture</span>{completionPulse && <span aria-live="polite" className="ml-1 inline-flex items-center gap-1.5 text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,.5)]" />CAPTURE COMPLETE</span>}</div>
+            <div className="flex flex-wrap gap-2">{submitted ? <><button type="button" onClick={reset} className="rounded-xl border border-white/10 bg-white/[.025] px-4 py-2.5 text-[10px] font-semibold tracking-[.12em] text-slate-300 transition-all duration-150 hover:-translate-y-px hover:bg-white/[.05]">START ANOTHER</button><Link className="rounded-xl border border-[#b8934a]/50 bg-[linear-gradient(180deg,rgba(184,147,74,.16),rgba(184,147,74,.08))] px-4 py-2.5 text-[10px] font-semibold tracking-[.12em] text-[#e3c884] shadow-[0_10px_26px_-16px_rgba(184,147,74,.6),inset_0_1px_0_rgba(255,255,255,.05)] transition-all duration-150 hover:-translate-y-px hover:border-[#d4b06a]/65 hover:bg-[#b8934a]/[.18]" href="/staff/import">OPEN SMART CAREER COLLECT CLIENT</Link></> : <><button type="button" onClick={reset} disabled={busy || (!notes && files.length === 0)} className="rounded-xl border border-white/10 bg-white/[.018] px-4 py-2.5 text-[10px] font-semibold tracking-[.12em] text-slate-400 transition hover:bg-white/[.045] disabled:opacity-35">CLEAR</button><button type="button" onClick={() => void submit()} disabled={busy || (!notes.trim() && files.length === 0)} className="group relative overflow-hidden rounded-xl border border-[#b8934a]/55 bg-[linear-gradient(180deg,rgba(184,147,74,.18),rgba(184,147,74,.075))] px-5 py-2.5 text-[10px] font-semibold tracking-[.14em] text-[#e8cc94] shadow-[0_12px_30px_-18px_rgba(184,147,74,.65),inset_0_1px_0_rgba(255,255,255,.06)] transition-all duration-150 hover:-translate-y-px hover:border-[#d4b06a]/70 hover:bg-[#b8934a]/[.2] disabled:cursor-not-allowed disabled:opacity-35"><span className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-[#e8cc94]/50 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />{stage === "CAPTURING" ? "CAPTURING…" : "SUBMIT"}</button></>}</div>
           </div>
         </section>
       </section>
@@ -272,5 +290,5 @@ function SectionTitle({ number, title, meta, tone = "gold" }: { number: string; 
 function Pipeline({ label, state }: { label: string; state: "WAITING" | "RUNNING" | "COMPLETE" | "REVIEW REQUIRED" | "FAILED" }) {
   const tone = state === "COMPLETE" ? "bg-emerald-300 text-emerald-200" : state === "RUNNING" ? "bg-cyan-300 text-cyan-200" : state === "REVIEW REQUIRED" ? "bg-amber-300 text-amber-200" : state === "FAILED" ? "bg-red-300 text-red-200" : "bg-slate-700 text-slate-600";
   const [dot, text] = tone.split(" ");
-  return <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 transition hover:bg-white/[.02]"><span className="flex items-center gap-2 text-[10px] text-slate-400"><span className={`h-1.5 w-1.5 rounded-full ${dot} ${state === "RUNNING" ? "animate-pulse" : ""}`} />{label}</span><span className={`font-mono text-[9px] ${text}`}>{state}</span></div>;
+  return <div className="flex items-center justify-between gap-3 rounded-xl border border-transparent px-2 py-1.5 transition-all duration-150 hover:border-white/[.04] hover:bg-white/[.02]"><span className="flex items-center gap-2 text-[10px] text-slate-400"><span className={`h-1.5 w-1.5 rounded-full ${dot} ${state === "RUNNING" ? "motion-safe:animate-pulse" : ""}`} />{label}</span><span className={`font-mono text-[9px] ${text}`}>{state}</span></div>;
 }
