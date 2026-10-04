@@ -315,8 +315,9 @@ class LocalWhisper(AsrAdapter):
         return {"language": info.language, "language_probability": info.language_probability, "duration_s": info.duration, "segments": out}
 
     def transcribe(self, audio_path: str, context: dict[str, Any]) -> Any:
-        if get_settings().environment != "local":
-            raise ProviderError("Local Whisper runs only in ENVIRONMENT=local.", retryable=False)
+        s = get_settings()
+        if s.environment != "local" and s.asr_route != "self_hosted":
+            raise ProviderError("Local Whisper runs only in ENVIRONMENT=local or on the self-hosted route.", retryable=False)
         s = get_settings()
         _language(context.get("language_locale"))
         progress: Callable[[int, int, int, int], None] | None = context.get("on_progress")
