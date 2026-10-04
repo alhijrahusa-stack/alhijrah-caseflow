@@ -13,6 +13,8 @@ test.describe("Smart Career Collect Client", () => {
     await signIn(page.context(), baseURL!, "admin");
     await page.goto("/staff/import");
     await expect(page.getByRole("heading", { name: "SMART CAREER COLLECT CLIENT" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /NEW IMPORT BY SHEET/ }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /SMART CLIENT IMPORT BY LINK/ }).first()).toBeVisible();
 
     const csv = `full_name,phone,email\n${name},${phone},${email}\n`;
     await page.locator('input[type="file"]').first().setInputFiles({ name: "smart-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
@@ -23,7 +25,7 @@ test.describe("Smart Career Collect Client", () => {
     const stageResponsePromise = page.waitForResponse((response) =>
       response.request().method() === "POST" && new URL(response.url()).pathname === "/api/staff/universal-intake",
     );
-    await page.getByRole("button", { name: /STAGE SELECTED CASES/ }).click();
+    await page.getByRole("button", { name: /STAGE SELECTED/ }).click();
     const stageResponse = await stageResponsePromise;
     expect(stageResponse.status(), await stageResponse.text()).toBe(201);
     await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
@@ -48,8 +50,8 @@ test.describe("Smart Career Collect Client", () => {
     await queueRow.getByRole("button", { name: "OPEN / REVIEW" }).click();
     await expect(page.getByText("SMART CLIENT REVIEW", { exact: true })).toBeVisible();
 
-    await page.locator(".staff-picker-trigger").click();
-    await page.getByRole("option", { name: new RegExp(String(admin.display_name)) }).click();
+    await page.getByLabel("REVIEWED BY").selectOption(String(admin.id));
+    await expect(page.getByLabel("REVIEWED BY")).toHaveValue(String(admin.id));
     await page.getByRole("button", { name: "REVIEW", exact: true }).click();
     await page.getByRole("button", { name: "CHECK & VERIFY" }).click();
     await expect(page.getByText("MISSING DOCUMENT", { exact: true }).last()).toBeVisible();
@@ -59,8 +61,12 @@ test.describe("Smart Career Collect Client", () => {
     await page.getByRole("button", { name: "APPROVE FILE" }).click();
     await expect(page).toHaveURL(/\/staff\/client\/[0-9a-f-]+$/);
 
+    await page.reload();
+    await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     const [client] = await db()`select id,full_name,email from clients where full_name=${name} and deleted_at is null`;
     expect(client?.email).toBe(email);
+    const [{ n: clientCount }] = await db()`select count(*)::int as n from clients where email=${email} and deleted_at is null`;
+    expect(Number(clientCount)).toBe(1);
     const [approved] = await db()`select status,created_client_id from client_import_cases where created_client_id=${client.id}`;
     expect(approved?.status).toBe("APPROVED_FILE");
     const [followup] = await db()`select count(*)::int as n from tasks where client_id=${client.id} and title='Collect missing client documents'`;
