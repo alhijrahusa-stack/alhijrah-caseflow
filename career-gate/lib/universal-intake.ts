@@ -1,10 +1,13 @@
 import "server-only";
 import { z } from "zod";
 import { geminiExtract } from "@/lib/providers/gemini";
+import { visionJson } from "@/lib/providers/openai";
 import { ActionError } from "@/lib/service";
 import type { IntakeRow } from "@/lib/intake-file";
 
 const MAX_GOOGLE_SHEET_BYTES = 10 * 1024 * 1024;
+const BREAKER_THRESHOLD = 3;
+const BREAKER_COOLDOWN_MS = 15 * 60 * 1000;
 
 const OCR_FIELDS = [
   "full_name",
@@ -38,6 +41,24 @@ const OCR_FIELDS = [
 ] as const;
 
 const OCR_SCHEMA = {
+  type: "object",
+  properties: {
+    clients: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: Object.fromEntries(OCR_FIELDS.map((field) => [field, { type: ["string", "null"] }])),
+        required: [...OCR_FIELDS],
+        additionalProperties: false,
+      },
+      maxItems: 100,
+    },
+  },
+  required: ["clients"],
+  additionalProperties: false,
+};
+
+const GEMINI_OCR_SCHEMA = {
   type: "OBJECT",
   properties: {
     clients: {
@@ -68,24 +89,147 @@ For Amazon assignment fields, return site_code, job_id, shift_code and backup_* 
 Employment fields describe only the explicitly visible employment entry. Do not invent employer history.
 The output is staging evidence for human review, not canonical truth.`;
 
-export async function rowsFromImageOrPdf(bytes: Uint8Array, mimeType: string) {
+type BreakerState = "CLOSED" | "OPEN" | "HALF_OPEN";
+type Attempt = {
+  provider: "gemini" | "openai";
+  variant: string;
+  model: string | null;
+  result: "SUCCESS" | "FAILED" | "NOT_CONFIGURED" | "SKIPPED";
+  code: string | null;
+  duration_ms: number;
+};
+
+type ProviderDeps = {
+  gemini: typeof geminiExtract;
+  openai: typeof visionJson;
+  now: () => number;
+};
+
+let geminiFailures = 0;
+let geminiOpenedAt = 0;
+
+function breakerState(now = Date.now()): BreakerState {
+  if (!geminiOpenedAt) return "CLOSED";
+  if (now - geminiOpenedAt >= BREAKER_COOLDOWN_MS) return "HALF_OPEN";
+  return "OPEN";
+}
+
+function markGeminiSuccess() {
+  geminiFailures = 0;
+  geminiOpenedAt = 0;
+}
+
+function markGeminiFailure(now = Date.now()) {
+  geminiFailures += 1;
+  if (geminiFailures >= BREAKER_THRESHOLD && !geminiOpenedAt) geminiOpenedAt = now;
+}
+
+export function documentVisionCircuitState() {
+  return { state: breakerState(), consecutive_failures: geminiFailures, opened_at: geminiOpenedAt || null };
+}
+
+export function resetDocumentVisionCircuitForTest() {
+  geminiFailures = 0;
+  geminiOpenedAt = 0;
+}
+
+function parseRows(text: string) {
+  let json: unknown;
+  try { json = JSON.parse(text); }
+  catch { throw new Error("OCR provider returned invalid JSON"); }
+  const parsed = OcrResult.safeParse(json);
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "OCR output failed validation");
+  return parsed.data.clients.map((client) => Object.fromEntries(
+    OCR_FIELDS.map((field) => [field, client[field] ?? null]),
+  ) as IntakeRow);
+}
+
+export async function rowsFromImageOrPdfDetailed(
+  bytes: Uint8Array,
+  mimeType: string,
+  deps: ProviderDeps = { gemini: geminiExtract, openai: visionJson, now: () => Date.now() },
+) {
+  const attempts: Attempt[] = [];
+  const startedState = breakerState(deps.now());
   let lastMessage = "Document extraction failed";
-  for (const model of ["fast", "escalation"] as const) {
-    const result = await geminiExtract({ model, mimeType, data: bytes, prompt: OCR_PROMPT, responseSchema: OCR_SCHEMA });
-    if (!result.ok) {
-      lastMessage = result.message;
-      if (result.code === "NOT_CONFIGURED") throw new ActionError("ocr_not_configured", result.message, 503);
-      continue;
+  let geminiFailedThisRequest = false;
+
+  if (startedState !== "OPEN") {
+    for (const model of ["fast", "escalation"] as const) {
+      const t0 = performance.now();
+      const result = await deps.gemini({ model, mimeType, data: bytes, prompt: OCR_PROMPT, responseSchema: GEMINI_OCR_SCHEMA });
+      if (!result.ok) {
+        lastMessage = result.message;
+        attempts.push({
+          provider: "gemini",
+          variant: model,
+          model: result.model,
+          result: result.code === "NOT_CONFIGURED" ? "NOT_CONFIGURED" : "FAILED",
+          code: result.code,
+          duration_ms: Math.round(performance.now() - t0),
+        });
+        geminiFailedThisRequest = true;
+        continue;
+      }
+      try {
+        const rows = parseRows(result.text);
+        attempts.push({ provider: "gemini", variant: model, model: result.model, result: "SUCCESS", code: null, duration_ms: Math.round(performance.now() - t0) });
+        markGeminiSuccess();
+        return {
+          rows,
+          telemetry: { provider: "gemini" as const, fallback_used: false, breaker_state: breakerState(deps.now()), attempts },
+        };
+      } catch (error) {
+        lastMessage = error instanceof Error ? error.message : "OCR output failed validation";
+        attempts.push({ provider: "gemini", variant: model, model: result.model, result: "FAILED", code: "INVALID_OUTPUT", duration_ms: Math.round(performance.now() - t0) });
+        geminiFailedThisRequest = true;
+      }
     }
-    let json: unknown;
-    try { json = JSON.parse(result.text); } catch { lastMessage = "OCR provider returned invalid JSON"; continue; }
-    const parsed = OcrResult.safeParse(json);
-    if (!parsed.success) { lastMessage = parsed.error.issues[0]?.message ?? "OCR output failed validation"; continue; }
-    return parsed.data.clients.map((client) => Object.fromEntries(
-      OCR_FIELDS.map((field) => [field, client[field] ?? null]),
-    ) as IntakeRow);
+    if (geminiFailedThisRequest) markGeminiFailure(deps.now());
+  } else {
+    attempts.push({ provider: "gemini", variant: "breaker", model: null, result: "SKIPPED", code: "CIRCUIT_OPEN", duration_ms: 0 });
   }
-  throw new ActionError("ocr_failed", lastMessage, 422);
+
+  const openaiStart = performance.now();
+  const fallback = await deps.openai({
+    mimeType,
+    data: bytes,
+    prompt: OCR_PROMPT,
+    schemaName: "career_gate_client_document_extraction",
+    schema: OCR_SCHEMA,
+  });
+  if (fallback.ok) {
+    try {
+      const rows = parseRows(fallback.text);
+      attempts.push({ provider: "openai", variant: "fallback", model: fallback.model, result: "SUCCESS", code: null, duration_ms: Math.round(performance.now() - openaiStart) });
+      return {
+        rows,
+        telemetry: { provider: "openai" as const, fallback_used: true, breaker_state: breakerState(deps.now()), attempts },
+      };
+    } catch (error) {
+      lastMessage = error instanceof Error ? error.message : "OpenAI fallback returned invalid output";
+      attempts.push({ provider: "openai", variant: "fallback", model: fallback.model, result: "FAILED", code: "INVALID_OUTPUT", duration_ms: Math.round(performance.now() - openaiStart) });
+    }
+  } else {
+    lastMessage = fallback.message || lastMessage;
+    attempts.push({
+      provider: "openai",
+      variant: "fallback",
+      model: null,
+      result: fallback.code === "NOT_CONFIGURED" ? "NOT_CONFIGURED" : "FAILED",
+      code: fallback.code,
+      duration_ms: Math.round(performance.now() - openaiStart),
+    });
+  }
+
+  throw Object.assign(new ActionError("ocr_failed", lastMessage, 422), {
+    providerTelemetry: { provider: null, fallback_used: true, breaker_state: breakerState(deps.now()), attempts },
+  });
+}
+
+export async function rowsFromImageOrPdf(bytes: Uint8Array, mimeType: string) {
+  const result = await rowsFromImageOrPdfDetailed(bytes, mimeType);
+  return result.rows;
 }
 
 export function googleSheetCsvUrl(input: string) {

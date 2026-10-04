@@ -44,6 +44,49 @@ export async function agentJson(args: { system: string; input: string; schemaNam
   }
 }
 
+/** Structured document/image extraction through the already configured OpenAI Responses model. */
+export async function visionJson(args: {
+  mimeType: string;
+  data: Uint8Array;
+  prompt: string;
+  schemaName: string;
+  schema: unknown;
+  timeoutMs?: number;
+}): Promise<{ ok: true; text: string; model: string } | Fail> {
+  const { apiKey, agentModel } = registry.openai();
+  if (!apiKey || !agentModel) return { ok: false, code: "NOT_CONFIGURED", message: "OpenAI document fallback is NOT_CONFIGURED" };
+  const encoded = Buffer.from(args.data).toString("base64");
+  const source = args.mimeType === "application/pdf"
+    ? { type: "input_file", filename: "client-source.pdf", file_data: `data:application/pdf;base64,${encoded}` }
+    : { type: "input_image", image_url: `data:${args.mimeType};base64,${encoded}`, detail: "high" };
+  try {
+    const res = await fetch(`${BASE}/responses`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: agentModel,
+        instructions: args.prompt,
+        input: [{ role: "user", content: [source] }],
+        text: { format: { type: "json_schema", name: args.schemaName, schema: args.schema, strict: true } },
+      }),
+      signal: AbortSignal.timeout(args.timeoutMs ?? 45_000),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      output?: { type?: string; content?: { type?: string; text?: string }[] }[];
+      error?: { message?: string };
+    };
+    if (!res.ok) return { ok: false, code: "PROVIDER_ERROR", message: body.error?.message ?? `HTTP ${res.status}` };
+    const text = (body.output ?? [])
+      .flatMap((o) => o.content ?? [])
+      .filter((c) => c.type === "output_text")
+      .map((c) => c.text ?? "")
+      .join("");
+    return { ok: true, text, model: agentModel };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 export async function embed(texts: string[]): Promise<{ ok: true; vectors: number[][]; model: string } | Fail> {
   const { apiKey, embeddingModel, embeddingDimensions } = registry.openai();
   if (!apiKey || !embeddingModel || embeddingDimensions !== EMBEDDING_COLUMN_DIMENSIONS) {
