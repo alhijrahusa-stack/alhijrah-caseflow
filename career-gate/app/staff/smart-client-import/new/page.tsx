@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { MobileSmartImportForm } from "@/components/staff/MobileSmartImportForm";
+import { ExecutiveSmartImportForm } from "@/components/staff/ExecutiveSmartImportForm";
 import { getStaffSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -21,5 +21,5 @@ export default async function SmartClientImportMobilePage() {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login?next=%2Fstaff%2Fsmart-client-import%2Fnew");
   if (session.staff.role === "staff") redirect("/staff");
-  return <MobileSmartImportForm staff={{ display_name: session.staff.display_name }} />;
+  return <ExecutiveSmartImportForm staff={{ display_name: session.staff.display_name }} />;
 }
