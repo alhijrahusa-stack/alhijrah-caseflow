@@ -8,10 +8,10 @@ import {
   approveImportCase,
   getImportCase,
   listImportQueue,
-  saveImportReview,
   startImportReview,
   verifyImportCase,
 } from "@/lib/smart-client-import";
+import { saveImportReviewWithEvidence } from "@/lib/smart-client-review";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +67,9 @@ const ActionBody = z.discriminatedUnion("action", [
     action: z.literal("approve"), id: z.uuid(), reviewer_id: z.uuid(), draft: z.record(z.string(), z.unknown()),
     document_match_confirmed: z.boolean(), information_match_confirmed: z.boolean(),
   }),
+  z.object({ action: z.literal("archive"), id: z.uuid() }),
+  z.object({ action: z.literal("restore"), id: z.uuid() }),
+  z.object({ action: z.literal("soft_delete"), id: z.uuid(), case_number: z.string().min(1) }),
 ]);
 
 export async function POST(req: Request) {
@@ -77,7 +80,7 @@ export async function POST(req: Request) {
   try {
     const body = ActionBody.parse(await req.json());
     if (body.action === "start_review") return ok(await startImportReview(guard.session, body.id, body.reviewer_id), 200, traceId);
-    if (body.action === "save") return ok(await saveImportReview(guard.session, {
+    if (body.action === "save") return ok(await saveImportReviewWithEvidence(guard.session, {
       id: body.id,
       reviewerId: body.reviewer_id,
       draft: body.draft,
@@ -85,6 +88,24 @@ export async function POST(req: Request) {
       informationConfirmed: body.information_match_confirmed,
     }), 200, traceId);
     if (body.action === "verify") return ok(await verifyImportCase(guard.session, body.id), 200, traceId);
+    if (body.action === "archive") {
+      const [row] = await sql()`update client_import_cases set archived_at=coalesce(archived_at,now()) where id=${body.id} and deleted_at is null returning id,case_number,archived_at`;
+      if (!row) throw new ActionError("not_found", "Import case not found", 404);
+      return ok(row, 200, traceId);
+    }
+    if (body.action === "restore") {
+      const [row] = await sql()`update client_import_cases set archived_at=null where id=${body.id} and deleted_at is null returning id,case_number,archived_at`;
+      if (!row) throw new ActionError("not_found", "Import case not found", 404);
+      return ok(row, 200, traceId);
+    }
+    if (body.action === "soft_delete") {
+      const [row] = await sql()`select id,case_number,status,created_client_id from client_import_cases where id=${body.id} for update`;
+      if (!row) throw new ActionError("not_found", "Import case not found", 404);
+      if (String(row.case_number) !== body.case_number.trim()) throw new ActionError("confirmation_mismatch", "Type the exact case number to confirm deletion", 409);
+      if (row.status === "APPROVED_FILE" || row.created_client_id) throw new ActionError("delete_blocked", "Approved imports are retained for audit and cannot be deleted", 409);
+      const [deleted] = await sql()`update client_import_cases set deleted_at=now(),archived_at=coalesce(archived_at,now()) where id=${body.id} returning id,case_number,deleted_at`;
+      return ok(deleted, 200, traceId);
+    }
     return ok(await approveImportCase(guard.session, {
       id: body.id,
       reviewerId: body.reviewer_id,
