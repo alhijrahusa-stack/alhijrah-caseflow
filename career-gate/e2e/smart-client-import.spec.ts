@@ -53,7 +53,20 @@ test.describe("Smart Career Collect Client", () => {
     await page.getByLabel("REVIEWED BY").selectOption(String(admin.id));
     await expect(page.getByLabel("REVIEWED BY")).toHaveValue(String(admin.id));
     await page.getByRole("button", { name: "REVIEW", exact: true }).click();
+
+    const verifyResponsePromise = page.waitForResponse((response) => {
+      if (response.request().method() !== "POST" || new URL(response.url()).pathname !== "/api/staff/smart-client-import") return false;
+      try {
+        const body = response.request().postDataJSON() as { action?: string; id?: string } | null;
+        return body?.action === "verify" && body?.id === staged.id;
+      } catch {
+        return false;
+      }
+    });
     await page.getByRole("button", { name: "CHECK & VERIFY" }).click();
+    const verifyResponse = await verifyResponsePromise;
+    expect(verifyResponse.status(), await verifyResponse.text()).toBe(200);
+    await expect(page.getByText("Verification complete.", { exact: true })).toBeVisible();
     const [verifiedImport] = await db()`select status from client_import_cases where id=${staged.id}`;
     expect(verifiedImport?.status).toBe("MISSING_DOCUMENT");
 
