@@ -2,7 +2,7 @@ import { ActionError } from "@/lib/service";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { staffGuard } from "@/lib/staff-api";
-import { stageMobileImport } from "@/lib/smart-client-import";
+import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const notes = String(form.get("notes") ?? "");
     const files = form.getAll("files").filter((value): value is File => value instanceof File && value.size > 0);
     const idempotencyKey = req.headers.get("idempotency-key") ?? String(form.get("idempotency_key") ?? "");
-    const result = await stageMobileImport({ session: guard.session, notes, files, idempotencyKey });
+    const result = await stageMobileImportV2({ session: guard.session, notes, files, idempotencyKey });
     return ok(result, 201, traceId);
   } catch (error) {
     if (error instanceof ActionError) return err(error.code, error.message, error.status, traceId);
