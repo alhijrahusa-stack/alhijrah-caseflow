@@ -1,6 +1,6 @@
 import "server-only";
 import { getStaffSession, type StaffSession } from "@/lib/auth";
-import { clientOf, clientScope, roleAllows, type ActionName } from "@/lib/authz";
+import { clientOf, clientScope, roleAllows, staffPermissionAllows, type ActionName } from "@/lib/authz";
 import { err, ipHash } from "@/lib/http";
 import { hit, securityEvent } from "@/lib/ratelimit";
 
@@ -22,7 +22,7 @@ export async function staffGuard(req: Request, traceId: string, opts: { mutation
   return { session, response: null };
 }
 
-/** Role and client-scope check. Denials return 403 (or 404) and are logged. */
+/** Role is the upper bound; granular permission and client scope are enforced beneath it. */
 export async function authorize(
   req: Request,
   session: StaffSession,
@@ -37,6 +37,9 @@ export async function authorize(
     return { ok: false as const, response: err(status === 403 ? "forbidden" : "not_found", message, status, traceId) };
   };
   if (!roleAllows(session.staff.role, action)) return deny(403, "Your role does not allow this action", { role: session.staff.role });
+  if (!(await staffPermissionAllows(session.staff.id, action))) {
+    return deny(403, "Your access profile does not allow this action", { role: session.staff.role });
+  }
   let clientId = target.clientId ?? null;
   if (target.entity) {
     const ref = await clientOf(target.entity.table, target.entity.id);
