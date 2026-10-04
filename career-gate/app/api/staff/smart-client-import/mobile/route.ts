@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     const files = form.getAll("files").filter((value): value is File => value instanceof File && value.size > 0);
     const idempotencyKey = req.headers.get("idempotency-key") ?? String(form.get("idempotency_key") ?? "");
     const result = await stageMobileImportV2({ session: guard.session, notes, files, idempotencyKey });
-    return ok(result, 201, traceId);
+    return ok({ ...result, enrichment_url: `/api/staff/smart-client-import/${result.case_id}/retry` }, 202, traceId);
   } catch (error) {
     if (error instanceof ActionError) return err(error.code, error.message, error.status, traceId);
     return err("mobile_import_failed", error instanceof Error ? error.message : "Mobile import failed", 500, traceId);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sql } from "@/lib/db";
 import { ActionError } from "@/lib/service";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
@@ -17,6 +18,18 @@ export const dynamic = "force-dynamic";
 
 const Id = z.uuid();
 
+async function withUploaderMetadata<T extends { rows: Array<{ id: string }> }>(queue: T) {
+  const ids = queue.rows.map((row) => row.id);
+  if (!ids.length) return queue;
+  const meta = await sql()`
+    select c.id,c.created_by,s.display_name as uploaded_by_name
+    from client_import_cases c
+    left join staff s on s.id=c.created_by
+    where c.id = any(${ids}::uuid[])`;
+  const index = new Map(meta.map((row) => [String(row.id), { uploaded_by: String(row.created_by), uploaded_by_name: row.uploaded_by_name ? String(row.uploaded_by_name) : null }]));
+  return { ...queue, rows: queue.rows.map((row) => ({ ...row, ...(index.get(row.id) ?? { uploaded_by: null, uploaded_by_name: null }) })) };
+}
+
 export async function GET(req: Request) {
   const traceId = traceIdFrom(req);
   const guard = await staffGuard(req, traceId, { mutation: false });
@@ -25,12 +38,17 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
-    if (id) return ok(await getImportCase(guard.session, Id.parse(id)), 200, traceId);
-    return ok(await listImportQueue(guard.session, {
+    if (id) {
+      const detail = await getImportCase(guard.session, Id.parse(id));
+      const [creator] = await sql()`select display_name from staff where id=${String(detail.case.created_by)} limit 1`;
+      return ok({ ...detail, case: { ...detail.case, uploaded_by_name: creator?.display_name ? String(creator.display_name) : null } }, 200, traceId);
+    }
+    const queue = await listImportQueue(guard.session, {
       status: url.searchParams.get("status"),
       q: url.searchParams.get("q"),
       cursor: url.searchParams.get("cursor"),
-    }), 200, traceId);
+    });
+    return ok(await withUploaderMetadata(queue), 200, traceId);
   } catch (error) {
     if (error instanceof ActionError) return err(error.code, error.message, error.status, traceId);
     if (error instanceof z.ZodError) return err("invalid_id", "Invalid import case ID", 400, traceId);
