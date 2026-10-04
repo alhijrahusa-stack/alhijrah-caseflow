@@ -52,7 +52,10 @@ const OCR_SCHEMA = {
   required: ["clients"],
 };
 
-const ClientResult = z.object(Object.fromEntries(OCR_FIELDS.map((field) => [field, z.string().nullable()])) as Record<(typeof OCR_FIELDS)[number], z.ZodTypeAny>);
+const clientShape = Object.fromEntries(
+  OCR_FIELDS.map((field) => [field, z.string().nullable()]),
+) as unknown as Record<(typeof OCR_FIELDS)[number], z.ZodTypeAny>;
+const ClientResult = z.object(clientShape);
 const OcrResult = z.object({ clients: z.array(ClientResult).max(100) });
 
 const OCR_PROMPT = `Extract client application facts from this source into the provided schema.
