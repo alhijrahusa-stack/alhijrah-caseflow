@@ -91,3 +91,16 @@ def test_self_hosted_route_can_decode(monkeypatch, tmp_path):
     with pytest.raises(Exception) as exc:
         adapter.transcribe(str(wav), {"language_locale": "ar"})
     assert not (isinstance(exc.value, ProviderError) and "ENVIRONMENT=local" in str(exc.value))
+
+
+def test_thread_budget_respects_cgroup_quota(monkeypatch):
+    import os
+
+    from app import resources
+
+    monkeypatch.setattr(resources, "_cgroup_quota", lambda: 8.0)
+    monkeypatch.setattr(os, "cpu_count", lambda: 48)
+    monkeypatch.setattr(os, "sched_getaffinity", lambda pid: set(range(48)))
+    assert resources.effective_cpus() == 8 and resources.worker_threads() == 7
+    monkeypatch.setattr(resources, "_cgroup_quota", lambda: None)
+    assert resources.effective_cpus() == 48

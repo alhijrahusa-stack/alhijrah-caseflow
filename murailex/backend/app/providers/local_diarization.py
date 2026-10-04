@@ -21,6 +21,7 @@ from functools import lru_cache
 from typing import Any
 
 from ..config import get_settings
+from ..resources import worker_threads
 from .base import DiarizationAdapter, ProviderError, ProviderInfo
 
 log = logging.getLogger("murailex.diar")
@@ -127,7 +128,7 @@ class LocalDiarization(DiarizationAdapter):
         import sherpa_onnx
 
         s = get_settings()
-        threads = max(1, (os.cpu_count() or 2) - 1)
+        threads = worker_threads()
         cfg = sherpa_onnx.OfflineSpeakerDiarizationConfig(
             segmentation=sherpa_onnx.OfflineSpeakerSegmentationModelConfig(
                 pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(model=_path(SEGMENTATION)),
