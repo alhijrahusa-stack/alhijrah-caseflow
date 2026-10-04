@@ -28,6 +28,7 @@ from collections.abc import Callable
 from typing import Any
 
 from ..config import get_settings
+from ..resources import effective_cpus, worker_threads
 from .base import AsrAdapter, ProviderError, ProviderInfo
 
 _log = logging.getLogger("murailex.asr")
@@ -59,7 +60,7 @@ def _model(name: str) -> Any:
                 device="cpu",
                 compute_type=s.local_asr_compute_type,
                 # leave one core for the API/web app unless explicitly configured
-                cpu_threads=s.local_asr_threads or max(1, (os.cpu_count() or 4) - 1),
+                cpu_threads=s.local_asr_threads or worker_threads(),
             )
         return _MODELS[key]
 
@@ -108,10 +109,11 @@ def hardware_profile() -> dict[str, Any]:
         cuda = int(ctranslate2.get_cuda_device_count())
     except Exception:  # noqa: BLE001
         cuda = 0
-    cpus = os.cpu_count() or 1
+    cpus = effective_cpus()
     return {
         "profile": "CPU_PROFILE",
         "cpu_count": cpus,
+        "host_cpu_count": os.cpu_count() or 1,
         "cuda_devices_detected": cuda,
         "gpu_route": "not promoted (requires GPU self-test + benchmark evidence)" if cuda else "no GPU detected",
         "asr_threads": s.local_asr_threads or max(1, cpus - 1),

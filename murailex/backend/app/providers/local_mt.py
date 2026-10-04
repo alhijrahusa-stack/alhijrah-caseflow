@@ -14,6 +14,7 @@ import threading
 from functools import lru_cache
 
 from ..config import get_settings
+from ..resources import worker_threads
 from .base import ProviderError
 
 NAME = "local_opus_mt"
@@ -53,7 +54,7 @@ def _load(source: str, target: str):
     import sentencepiece as spm
 
     d = _dir(source, target)
-    threads = max(1, (os.cpu_count() or 2) - 1)
+    threads = worker_threads()
     translator = ctranslate2.Translator(d, device="cpu", compute_type="int8", inter_threads=1, intra_threads=threads)
     return translator, spm.SentencePieceProcessor(model_file=f"{d}/source.spm"), spm.SentencePieceProcessor(model_file=f"{d}/target.spm")
 
