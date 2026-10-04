@@ -24,6 +24,15 @@ RUN set -eux; m=/opt/murailex/models/mt; mkdir -p $m/src; \
       cp $m/src/$1/source.spm $m/src/$1/target.spm $m/src/$1/LICENSE $m/src/$1/README.md $m/$1/; \
     done; rm -rf $m/src
 ENV LOCAL_DIAR_DIR=/opt/murailex/models/diar LOCAL_MT_DIR=/opt/murailex/models/mt
+# Self-hosted engine route (no cloud transcription). Engine identity is pinned; routing stays
+# gated by the committed held-out benchmark runs (app/benchmarks) bound to the same engine
+# fingerprints, and by a real self-test of each route at worker start.
+ENV ASR_ROUTE=self_hosted \
+    LOCAL_ASR_MODEL_REVISION=edaa852ec7e145841d8ffdb056a99866b5f0a478 \
+    LOCAL_VERIFY_MODEL_REVISION=08e178d48790749d25932bbc082711ddcfdfbc4f \
+    BENCHMARK_ROUTING_APPROVED=true \
+    BENCHMARK_DATASET_VERSION=fleurs-ar_eg-test,ami-test-only_words \
+    BENCHMARK_HELD_OUT_RUN_ID=92a0a558-2133-50d3-8ec9-8be5277ec214,4252f189-5565-5b4d-8592-91ce7cd44d11,a88ae6c9-729f-5f11-9360-5de0488feb44
 COPY alembic.ini pyproject.toml ./
 COPY alembic ./alembic
 COPY app ./app

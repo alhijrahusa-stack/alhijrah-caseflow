@@ -270,7 +270,7 @@ class LocalWhisper(AsrAdapter):
             self.name,
             self.model_name(),
             self._role,
-            s.environment == "local",
+            s.environment == "local" or s.asr_route == "self_hosted",
             {
                 "runtime": "faster-whisper/CTranslate2",
                 **{k: v for k, v in material.items() if k != "decode"},
