@@ -152,12 +152,6 @@ function mergeEvidence(sources: SourceRow[]) {
   return { merged, evidence, conflicts };
 }
 
-function localSource(notes: string): SourceRow | null {
-  if (!notes.trim()) return null;
-  const local = extractDeterministicClient(notes);
-  return { row: local.row, source: "local_text", documentId: null, sourcePage: null };
-}
-
 export async function stageMobileImportV2(args: {
   session: StaffSession;
   notes: string;
