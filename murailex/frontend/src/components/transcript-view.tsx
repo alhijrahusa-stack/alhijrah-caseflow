@@ -27,13 +27,22 @@ export function segmentText(seg: Segment): string {
 function Token({ item, recordingId, onSeek, query }: { item: Item; recordingId: string; onSeek: (ms: number) => void; query: string }) {
   const { t } = useI18n();
   if (item.kind === "dispute") {
+    // The span stays explicitly unresolved and is not part of the canonical text. What the
+    // primary engine heard is shown in place, marked, so the record reads continuously
+    // instead of breaking into gaps; resolving it is one click away.
+    const primary = (item.provenance ?? []).find((p) => (p as { role?: string }).role === "primary_asr") as
+      | { text?: string }
+      | undefined;
+    const heard = (primary?.text ?? "").trim();
     return (
       <Link
         href={`/review/${recordingId}#d-${item.dispute_id}`}
-        className="mx-0.5 inline-flex items-center gap-1 rounded-md border border-danger/35 bg-danger/10 px-1.5 py-0.5 align-baseline text-[13px] font-medium text-danger hover:bg-danger/20"
+        title={t("disputed")}
+        className="mx-0.5 inline items-baseline rounded-sm bg-danger/10 px-0.5 align-baseline text-danger decoration-danger/70 decoration-dotted underline-offset-4 hover:bg-danger/20"
         data-testid="dispute-chip"
       >
-        <AlertTriangle className="size-3" /> {t("disputed")}
+        <AlertTriangle className="mb-0.5 inline size-3" />{" "}
+        {heard ? <bdi className="underline decoration-danger/70 decoration-dotted underline-offset-4">{heard}</bdi> : <span className="text-[13px] font-medium">{t("disputed")}</span>}
       </Link>
     );
   }

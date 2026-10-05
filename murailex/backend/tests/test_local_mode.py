@@ -152,3 +152,18 @@ def test_window_merge_keeps_boundary_words_exactly_once():
     words = [x["word"].strip() for seg in merged for x in seg["words"]]
     assert words == ["A", "B", "C"]
     assert [seg["window"] for seg in merged] == [0, 1]
+
+
+def test_decoding_is_pinned_deterministic_and_fingerprinted():
+    """The engine's default temperature fallback re-decodes a hard window by sampling, so the
+    same evidence yields different text run to run. Decoding stays at temperature 0, and that
+    is part of the engine fingerprint so a change re-triggers validation."""
+    from app.providers.local_whisper import TEMPERATURE, LocalWhisper
+
+    assert TEMPERATURE == 0.0
+    adapter = LocalWhisper("local_whisper", "local_asr_model", "primary_asr")
+    config = adapter.decode_config()
+    assert config["temperature"] == 0.0
+    assert config["vad_filter"] is False and config["condition_on_previous_text"] is False
+    assert config["initial_prompt"] is None and config["word_timestamps"] is True
+    assert "temperature" in adapter.fingerprint_material()["decode"]
