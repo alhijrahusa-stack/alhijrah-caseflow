@@ -66,4 +66,25 @@ describe("Smart Career Collect Client staging security", () => {
     const definition = String(constraint?.definition);
     for (const value of ["EXCELLENT","GOOD","FAIR","WEAK","NONE"]) expect(definition).toContain(value);
   });
+
+  it("stores the reviewed Smart preference fields canonically without forcing a default language", async () => {
+    const rows = await db`
+      select column_name,data_type,is_nullable,column_default
+      from information_schema.columns
+      where table_schema='public' and table_name='clients'
+        and column_name in (
+          'preferred_language','preferred_location','location_option_1','location_option_2',
+          'shift_days','shift_start_time','shift_end_time'
+        )
+      order by column_name`;
+    const byName = Object.fromEntries(rows.map((row) => [row.column_name, row]));
+    expect(byName.preferred_language?.is_nullable).toBe("YES");
+    expect(byName.preferred_language?.column_default).toBeNull();
+    expect(byName.preferred_location?.data_type).toBe("text");
+    expect(byName.location_option_1?.data_type).toBe("text");
+    expect(byName.location_option_2?.data_type).toBe("text");
+    expect(byName.shift_days?.data_type).toBe("ARRAY");
+    expect(byName.shift_start_time?.data_type).toBe("time without time zone");
+    expect(byName.shift_end_time?.data_type).toBe("time without time zone");
+  });
 });
