@@ -2,6 +2,7 @@ import "server-only";
 import { sql } from "@/lib/db";
 import type { StaffSession } from "@/lib/auth";
 import { ActionError } from "@/lib/service";
+import type { QueueRow } from "@/lib/smart-client-import";
 import { IMPORT_STATUSES, SMART_IMPORT_LIMITS, type ImportStatus } from "@/lib/smart-client-import-core";
 
 function assertManager(session: StaffSession) {
@@ -50,7 +51,7 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
       and (${cursor == null} or (c.created_at,c.id) < (${cursor?.createdAt ?? "9999-12-31T23:59:59.999Z"}::timestamptz,${cursor?.id ?? "ffffffff-ffff-ffff-ffff-ffffffffffff"}::uuid))
     order by c.created_at desc,c.id desc
     limit ${limit + 1}`;
-  const visible = rows.slice(0, limit);
+  const visible = rows.slice(0, limit) as unknown as QueueRow[];
   const next = rows.length > limit ? visible[visible.length - 1] : null;
   const counterRows = await sql()`select status,count(*)::int as count from client_import_cases where archived_at is null group by status`;
   const counters = Object.fromEntries(IMPORT_STATUSES.map((key) => [key, 0])) as Record<ImportStatus, number>;
