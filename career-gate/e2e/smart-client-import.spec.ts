@@ -47,12 +47,13 @@ test.describe("Smart Career Collect Client", () => {
     const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("xpath=ancestor::section[1]");
     const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
     await expect(queueRow).toBeVisible();
-    await queueRow.getByRole("button", { name: "OPEN / REVIEW" }).click();
+    await queueRow.getByRole("button", { name: "OPEN / EDIT" }).click();
     await expect(page.getByText("SMART CLIENT REVIEW", { exact: true })).toBeVisible();
 
     await page.getByLabel("REVIEWED BY").selectOption(String(admin.id));
     await expect(page.getByLabel("REVIEWED BY")).toHaveValue(String(admin.id));
-    await page.getByRole("button", { name: "REVIEW", exact: true }).click();
+    await page.getByRole("button", { name: "START REVIEW", exact: true }).click();
+    await expect(page.getByText("Review started.", { exact: true })).toBeVisible();
 
     const verifyResponsePromise = page.waitForResponse((response) => {
       if (response.request().method() !== "POST" || new URL(response.url()).pathname !== "/api/staff/smart-client-import") return false;
@@ -66,12 +67,13 @@ test.describe("Smart Career Collect Client", () => {
     await page.getByRole("button", { name: "CHECK & VERIFY" }).click();
     const verifyResponse = await verifyResponsePromise;
     expect(verifyResponse.status(), await verifyResponse.text()).toBe(200);
-    await expect(page.getByText("Verification complete.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Review saved and verification completed.", { exact: true })).toBeVisible();
     const [verifiedImport] = await db()`select status from client_import_cases where id=${staged.id}`;
     expect(verifiedImport?.status).toBe("MISSING_DOCUMENT");
 
     await page.getByText("CURRENT DOCUMENT STATUS REVIEWED", { exact: true }).click();
     await page.getByText("INFORMATION MATCH CONFIRMED", { exact: true }).click();
+    await expect(page.getByRole("button", { name: "APPROVE FILE" })).toBeVisible();
     await page.getByRole("button", { name: "APPROVE FILE" }).click();
     await expect(page).toHaveURL(/\/staff\/client\/[0-9a-f-]+$/);
 
@@ -85,6 +87,36 @@ test.describe("Smart Career Collect Client", () => {
     expect(approved?.status).toBe("APPROVED_FILE");
     const [followup] = await db()`select count(*)::int as n from tasks where client_id=${client.id} and title='Collect missing client documents'`;
     expect(Number(followup.n)).toBe(1);
+  });
+
+  test("archives an import softly from the active queue", async ({ page, baseURL }) => {
+    const token = Date.now().toString().slice(-7);
+    const name = `TEST Archive Import ${token}`;
+    const phone = `734${token}`.slice(0, 10).padEnd(10, "8");
+    await signIn(page.context(), baseURL!, "admin");
+    await page.goto("/staff/import");
+
+    const csv = `full_name,phone\n${name},${phone}\n`;
+    await page.locator('input[type="file"]').first().setInputFiles({ name: "archive-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await page.getByRole("button", { name: "PREVIEW" }).click();
+    await page.getByRole("button", { name: /STAGE SELECTED/ }).click();
+    await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
+
+    const [staged] = await db()`select id from client_import_cases where mapped_draft #>> '{profile,full_name}'=${name} order by created_at desc limit 1`;
+    expect(staged?.id).toBeTruthy();
+    const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("xpath=ancestor::section[1]");
+    const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
+    await expect(queueRow).toBeVisible();
+    page.once("dialog", async (dialog) => dialog.accept());
+    await queueRow.getByRole("button", { name: "ARCHIVE" }).click();
+    await expect(page.getByText("Import archived. Canonical client data was not deleted.", { exact: true })).toBeVisible();
+    await expect(queueRow).toHaveCount(0);
+
+    const [archived] = await db()`select archived_at,archived_by from client_import_cases where id=${staged.id}`;
+    expect(archived?.archived_at).toBeTruthy();
+    expect(archived?.archived_by).toBeTruthy();
+    const [{ n }] = await db()`select count(*)::int as n from client_import_cases where id=${staged.id}`;
+    expect(Number(n)).toBe(1);
   });
 
   test("mobile route is protected and preserves the login return path", async ({ page }) => {

@@ -56,8 +56,36 @@ export const ACTION_ROLES = {
 
 export type ActionName = keyof typeof ACTION_ROLES;
 
+export const STAFF_ELIGIBLE_PERMISSIONS = Object.freeze(
+  (Object.keys(ACTION_ROLES) as ActionName[]).filter((action) => (ACTION_ROLES[action] as readonly Role[]).includes("staff")),
+);
+const STAFF_ELIGIBLE = new Set<ActionName>(STAFF_ELIGIBLE_PERMISSIONS);
+
 export function roleAllows(role: Role, action: ActionName) {
   return (ACTION_ROLES[action] as readonly Role[]).includes(role);
+}
+
+/**
+ * Current authoritative authorization. Admin/manager keep the established role
+ * model. Staff are additionally constrained to the canonical staff-eligible
+ * registry and their current full/custom permission state. Lookup failure denies.
+ */
+export async function permissionAllows(session: StaffSession, action: ActionName) {
+  if (!roleAllows(session.staff.role, action)) return false;
+  if (session.staff.role !== "staff") return true;
+  if (!STAFF_ELIGIBLE.has(action)) return false;
+  try {
+    const [row] = await sql()`
+      select permission_mode, custom_permissions
+      from staff
+      where id=${session.staff.id} and active and role='staff'`;
+    if (!row) return false;
+    if (row.permission_mode === "full") return true;
+    if (row.permission_mode !== "custom" || !Array.isArray(row.custom_permissions)) return false;
+    return row.custom_permissions.includes(action);
+  } catch {
+    return false;
+  }
 }
 
 export type ClientScope = { ok: true; clientId: string } | { ok: false; status: 403 | 404; reason: string };

@@ -7,11 +7,11 @@ import { staffGuard } from "@/lib/staff-api";
 import {
   approveImportCase,
   getImportCase,
-  listImportQueue,
   saveImportReview,
   startImportReview,
   verifyImportCase,
 } from "@/lib/smart-client-import";
+import { archiveImportCase, assertImportNotArchived, listActiveImportQueue } from "@/lib/smart-import-archive";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,11 +39,13 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
     if (id) {
-      const detail = await getImportCase(guard.session, Id.parse(id));
+      const caseId = Id.parse(id);
+      await assertImportNotArchived(caseId);
+      const detail = await getImportCase(guard.session, caseId);
       const [creator] = await sql()`select display_name from staff where id=${String(detail.case.created_by)} limit 1`;
       return ok({ ...detail, case: { ...detail.case, uploaded_by_name: creator?.display_name ? String(creator.display_name) : null } }, 200, traceId);
     }
-    const queue = await listImportQueue(guard.session, {
+    const queue = await listActiveImportQueue(guard.session, {
       status: url.searchParams.get("status"),
       q: url.searchParams.get("q"),
       cursor: url.searchParams.get("cursor"),
@@ -67,6 +69,7 @@ const ActionBody = z.discriminatedUnion("action", [
     action: z.literal("approve"), id: z.uuid(), reviewer_id: z.uuid(), draft: z.record(z.string(), z.unknown()),
     document_match_confirmed: z.boolean(), information_match_confirmed: z.boolean(),
   }),
+  z.object({ action: z.literal("archive"), id: z.uuid() }),
 ]);
 
 export async function POST(req: Request) {
@@ -76,6 +79,8 @@ export async function POST(req: Request) {
   if (guard.session.staff.role === "staff") return err("forbidden", "Smart client import requires manager or admin access", 403, traceId);
   try {
     const body = ActionBody.parse(await req.json());
+    if (body.action === "archive") return ok(await archiveImportCase(guard.session, body.id), 200, traceId);
+    await assertImportNotArchived(body.id);
     if (body.action === "start_review") return ok(await startImportReview(guard.session, body.id, body.reviewer_id), 200, traceId);
     if (body.action === "save") return ok(await saveImportReview(guard.session, {
       id: body.id,

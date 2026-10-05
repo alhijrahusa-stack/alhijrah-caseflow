@@ -55,11 +55,22 @@ describe("Career Gate least-privilege table grants", () => {
       "public.enqueue_job(text,text,jsonb,text,text,integer,timestamp with time zone)",
       "public.next_client_ref()",
       "public.next_staff_code()",
+      "public.cg_update_staff_permissions(uuid,text,text[],timestamp with time zone,text)",
     ];
     for (const signature of signatures) {
       const [{ allowed }] = await db`
         select has_function_privilege('anon', ${signature}, 'EXECUTE') as allowed`;
       expect(allowed).toBe(false);
     }
+  });
+
+  it("exposes the audited B3 permission update helper only to authenticated callers", async () => {
+    const signature = "public.cg_update_staff_permissions(uuid,text,text[],timestamp with time zone,text)";
+    const [{ anon_allowed: anonAllowed, authenticated_allowed: authenticatedAllowed }] = await db`
+      select
+        has_function_privilege('anon', ${signature}, 'EXECUTE') as anon_allowed,
+        has_function_privilege('authenticated', ${signature}, 'EXECUTE') as authenticated_allowed`;
+    expect(anonAllowed).toBe(false);
+    expect(authenticatedAllowed).toBe(true);
   });
 });

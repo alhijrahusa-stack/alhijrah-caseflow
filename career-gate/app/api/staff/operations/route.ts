@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { withStaff } from "@/lib/auth";
+import { STAFF_ELIGIBLE_PERMISSIONS } from "@/lib/authz";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { staffGuard } from "@/lib/staff-api";
@@ -40,6 +41,13 @@ const Input = z.discriminatedUnion("operation", [
     commission_value: z.number().min(0).max(100000),
     eligible_for_round_robin: z.boolean(),
   }),
+  z.object({
+    operation: z.literal("update_staff_permissions"),
+    staff_id: id,
+    permission_mode: z.enum(["full", "custom"]),
+    custom_permissions: z.array(z.string().trim().min(1).max(80)).max(64).default([]),
+    expected_updated_at: z.iso.datetime({ offset: true }),
+  }),
 ]);
 
 function management(role: string) {
@@ -54,6 +62,32 @@ export async function POST(req: Request) {
   if (!parsed.success) return err("invalid_input", parsed.error.issues[0]?.message ?? "Invalid operation", 400, traceId);
   const input = parsed.data;
   const session = guard.session;
+
+  if (input.operation === "update_staff_permissions") {
+    if (!management(session.staff.role)) return err("forbidden", "Permission management requires manager or admin access", 403, traceId);
+    const eligible = new Set<string>(STAFF_ELIGIBLE_PERMISSIONS);
+    const permissions = [...new Set(input.custom_permissions)];
+    if (input.permission_mode === "custom" && permissions.some((permission) => !eligible.has(permission))) {
+      return err("invalid_permission", "Unknown or non-staff-eligible permission", 400, traceId);
+    }
+    try {
+      const result = await withStaff(session, async (tx) => {
+        const [row] = await tx`
+          select * from public.cg_update_staff_permissions(
+            ${input.staff_id},${input.permission_mode},${permissions},${input.expected_updated_at},${traceId}
+          )`;
+        return { staff_id: input.staff_id, ...row };
+      });
+      return ok(result, 200, traceId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "permission_update_failed";
+      if (message.includes("STAFF_PERMISSION_CONFLICT")) return err("permission_conflict", "Permissions changed in another session. Refresh and retry.", 409, traceId);
+      if (message.includes("STAFF_PERMISSION_TARGET_REQUIRED")) return err("invalid_permission_target", "Granular permissions apply only to staff-role accounts", 409, traceId);
+      if (message.includes("STAFF_NOT_FOUND")) return err("staff_not_found", "Active staff member not found", 404, traceId);
+      if (message.includes("FORBIDDEN")) return err("forbidden", "Permission management requires manager or admin access", 403, traceId);
+      return err("permission_update_failed", "Permission update failed safely", 409, traceId);
+    }
+  }
 
   try {
     const result = await withStaff(session, async (tx) => {

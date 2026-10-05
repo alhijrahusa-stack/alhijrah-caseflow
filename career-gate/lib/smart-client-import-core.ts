@@ -57,7 +57,7 @@ export const IMPORT_FIELD_REGISTRY = [
 ] as const satisfies readonly FieldDefinition[];
 
 export const CANONICAL_IMPORT_HEADERS = IMPORT_FIELD_REGISTRY.map((field) => field.key);
-export const IMPORT_SCHEMA_VERSION = "2026-10-04.2";
+export const IMPORT_SCHEMA_VERSION = "2026-10-05.1";
 export const IMPORT_TEMPLATE_ID = "career-gate-client-import";
 export const IMPORT_SCHEMA_HASH = createHash("sha256")
   .update(JSON.stringify(IMPORT_FIELD_REGISTRY.map((field) => ({ key: field.key, required: "required" in field && field.required === true }))))
@@ -110,6 +110,22 @@ export function pickImportValue(row: IntakeRow, field: RegistryKey) {
 function optional(value: string | null) {
   const clean = value?.trim();
   return clean ? clean.slice(0, SMART_IMPORT_LIMITS.maxCellLength) : null;
+}
+
+const STREET_SUFFIX = String.raw`(?:ST(?:REET)?|AVE(?:NUE)?|RD|ROAD|BLVD|BOULEVARD|DR(?:IVE)?|LN|LANE|CT|COURT|PL|PLACE|PKWY|PARKWAY|HWY|HIGHWAY|WAY|TER|TERRACE|CIR|CIRCLE)`;
+const COMBINED_US_ADDRESS = new RegExp(`^\\s*(.+\\b${STREET_SUFFIX}\\b(?:\\s+(?:APT|UNIT|STE|SUITE|#)\\s*[A-Z0-9-]+)?)\\s+([A-Za-z][A-Za-z .'-]{1,80}),?\\s+([A-Z]{2})\\s+(\\d{5}(?:-\\d{4})?)\\s*$`, "i");
+
+export function decomposeUsAddress(value: string | null) {
+  const clean = optional(value);
+  if (!clean || !/^\d/.test(clean)) return null;
+  const match = clean.match(COMBINED_US_ADDRESS);
+  if (!match) return null;
+  return {
+    street: match[1].trim(),
+    city: match[2].trim(),
+    state: match[3].toUpperCase(),
+    zip: match[4],
+  };
 }
 
 function normalizeLanguage(value: string | null) {
@@ -172,16 +188,22 @@ export function prepareImportDraft(row: IntakeRow): PreparedImportDraft {
       }]
     : [];
 
+  const directStreet = optional(pickImportValue(row, "street"));
+  const directCity = optional(pickImportValue(row, "city"));
+  const directState = optional(pickImportValue(row, "state"));
+  const directZip = optional(pickImportValue(row, "zip"));
+  const decomposed = (!directCity || !directState || !directZip) ? decomposeUsAddress(directStreet) : null;
+
   const profile = ProfileSchema.safeParse({
     full_name: pickImportValue(row, "full_name") ?? "",
     phone: pickImportValue(row, "phone") ?? "",
     email: optional(pickImportValue(row, "email")),
     date_of_birth: optional(pickImportValue(row, "date_of_birth")),
     preferred_language: normalizeLanguage(pickImportValue(row, "preferred_language")),
-    street: optional(pickImportValue(row, "street")),
-    city: optional(pickImportValue(row, "city")),
-    state: optional(pickImportValue(row, "state")),
-    zip: optional(pickImportValue(row, "zip")),
+    street: decomposed?.street ?? directStreet,
+    city: directCity ?? decomposed?.city ?? null,
+    state: directState ?? decomposed?.state ?? null,
+    zip: directZip ?? decomposed?.zip ?? null,
     appointment_availability: optional(pickImportValue(row, "appointment_availability")),
     amazon_worked_before: parseBoolean(pickImportValue(row, "amazon_worked_before")),
     amazon_worked_from: optional(pickImportValue(row, "amazon_worked_from")),

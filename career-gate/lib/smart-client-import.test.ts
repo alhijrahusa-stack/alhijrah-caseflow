@@ -3,6 +3,7 @@ import {
   CANONICAL_IMPORT_HEADERS,
   IMPORT_SCHEMA_HASH,
   IMPORT_STATUSES,
+  decomposeUsAddress,
   evidenceMatchScore,
   normalizeEvidenceValue,
   prepareImportDraft,
@@ -26,6 +27,36 @@ describe("Smart Career Collect Client canonical import contract", () => {
     expect(draft.status).toBe("new_intake");
     expect(draft.initial_note).toBe("Imported for review");
     expect(requiredMissingFromDraft(draft)).toEqual([]);
+  });
+
+  it("decomposes a deterministic combined US address without overriding explicit components", () => {
+    expect(decomposeUsAddress("12091 BLOOM ST DETROIT, MI 48212-3678")).toEqual({
+      street: "12091 BLOOM ST",
+      city: "DETROIT",
+      state: "MI",
+      zip: "48212-3678",
+    });
+    const draft = prepareImportDraft({
+      full_name: "Test Client",
+      phone: "3135550199",
+      address: "12091 BLOOM ST DETROIT, MI 48212-3678",
+    });
+    expect(draft.profile.street).toBe("12091 BLOOM ST");
+    expect(draft.profile.city).toBe("DETROIT");
+    expect(draft.profile.state).toBe("MI");
+    expect(draft.profile.zip).toBe("48212-3678");
+
+    const explicit = prepareImportDraft({
+      full_name: "Test Client",
+      phone: "3135550199",
+      address: "12091 BLOOM ST DETROIT, MI 48212-3678",
+      city: "Dearborn",
+      state: "MI",
+      zip: "48126",
+    });
+    expect(explicit.profile.city).toBe("Dearborn");
+    expect(explicit.profile.state).toBe("MI");
+    expect(explicit.profile.zip).toBe("48126");
   });
 
   it("rejects missing canonical minimum Client identity data", () => {
