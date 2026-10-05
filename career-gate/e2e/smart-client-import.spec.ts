@@ -90,6 +90,36 @@ test.describe("Smart Career Collect Client", () => {
     expect(Number(followup.n)).toBe(1);
   });
 
+  test("archives an import softly from the active queue", async ({ page, baseURL }) => {
+    const token = Date.now().toString().slice(-7);
+    const name = `TEST Archive Import ${token}`;
+    const phone = `734${token}`.slice(0, 10).padEnd(10, "8");
+    await signIn(page.context(), baseURL!, "admin");
+    await page.goto("/staff/import");
+
+    const csv = `full_name,phone\n${name},${phone}\n`;
+    await page.locator('input[type="file"]').first().setInputFiles({ name: "archive-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await page.getByRole("button", { name: "PREVIEW" }).click();
+    await page.getByRole("button", { name: /STAGE SELECTED/ }).click();
+    await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
+
+    const [staged] = await db()`select id from client_import_cases where mapped_draft #>> '{profile,full_name}'=${name} order by created_at desc limit 1`;
+    expect(staged?.id).toBeTruthy();
+    const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("xpath=ancestor::section[1]");
+    const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
+    await expect(queueRow).toBeVisible();
+    page.once("dialog", async (dialog) => dialog.accept());
+    await queueRow.getByRole("button", { name: "ARCHIVE" }).click();
+    await expect(page.getByText("Import archived. Canonical client data was not deleted.", { exact: true })).toBeVisible();
+    await expect(queueRow).toHaveCount(0);
+
+    const [archived] = await db()`select archived_at,archived_by from client_import_cases where id=${staged.id}`;
+    expect(archived?.archived_at).toBeTruthy();
+    expect(archived?.archived_by).toBeTruthy();
+    const [{ n }] = await db()`select count(*)::int as n from client_import_cases where id=${staged.id}`;
+    expect(Number(n)).toBe(1);
+  });
+
   test("mobile route is protected and preserves the login return path", async ({ page }) => {
     await page.context().clearCookies();
     await page.goto("/staff/smart-client-import/new");
