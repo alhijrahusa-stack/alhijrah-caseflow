@@ -320,7 +320,9 @@ export function prepareImportDraft(row: IntakeRow): PreparedImportDraft {
   const directState = optional(pickImportValue(row, "state"));
   const directZip = optional(pickImportValue(row, "zip"));
   const decomposed = (!directCity || !directState || !directZip) ? decomposeUsAddress(directStreet) : null;
-  const language = normalizeImportLanguage(pickImportValue(row, "preferred_language"));
+  const rawLanguage = pickImportValue(row, "preferred_language");
+  const language = normalizeImportLanguage(rawLanguage);
+  if (rawLanguage && !language) throw new Error("preferred_language: unsupported or malformed language code");
 
   const profile = ProfileSchema.safeParse({
     full_name: pickImportValue(row, "full_name") ?? "",
