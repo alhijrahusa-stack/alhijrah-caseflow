@@ -17,8 +17,8 @@ test.describe("Smart Career Collect Client", () => {
     await expect(page.getByRole("button", { name: /SMART CLIENT IMPORT BY LINK/ }).first()).toBeVisible();
 
     const csv = [
-      "full_name,phone,email,preferred_language,english_proficiency,address",
-      `${name},${phone},${email},English,Good,"28772 GOODSON ST, DETROIT, MI 48212-3768"`,
+      "full_name,phone,email,preferred_language,english_proficiency,address,preferred_location,location_option_2,shift_days,shift_start_time,shift_end_time",
+      `${name},${phone},${email},English,Good,"28772 GOODSON ST, DETROIT, MI 48212-3768",Romulus,Detroit,Thursday–Monday,6pm,4:30am`,
     ].join("\n");
     await page.locator('input[type="file"]').first().setInputFiles({ name: "smart-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await page.getByRole("button", { name: "PREVIEW" }).click();
@@ -48,6 +48,12 @@ test.describe("Smart Career Collect Client", () => {
     expect(staged?.mapped_draft?.profile?.city).toBe("DETROIT");
     expect(staged?.mapped_draft?.profile?.state).toBe("MI");
     expect(staged?.mapped_draft?.profile?.zip).toBe("48212-3768");
+    expect(staged?.mapped_draft?.review_fields?.preferred_location).toBe("Romulus");
+    expect(staged?.mapped_draft?.review_fields?.location_option_1).toBe("Romulus");
+    expect(staged?.mapped_draft?.review_fields?.location_option_2).toBe("Detroit");
+    expect(staged?.mapped_draft?.review_fields?.shift_days).toEqual(["THU", "FRI", "SAT", "SUN", "MON"]);
+    expect(staged?.mapped_draft?.review_fields?.shift_start_time).toBe("18:00");
+    expect(staged?.mapped_draft?.review_fields?.shift_end_time).toBe("04:30");
     expect(Array.isArray(staged?.field_evidence)).toBe(true);
     expect(staged.field_evidence.some((item: { field_key?: string; authority?: string }) => item.field_key === "preferred_language" && item.authority === "SOURCE")).toBe(true);
     expect(staged.field_evidence.some((item: { field_key?: string; authority?: string }) => item.field_key === "english_proficiency" && item.authority === "SOURCE")).toBe(true);
@@ -105,7 +111,10 @@ test.describe("Smart Career Collect Client", () => {
 
     await page.reload();
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
-    const [client] = await db()`select id,full_name,email,preferred_language,english_proficiency,street,city,state,zip from clients where full_name=${name} and deleted_at is null`;
+    const [client] = await db()`select id,full_name,email,preferred_language,english_proficiency,street,city,state,zip,
+      preferred_location,location_option_1,location_option_2,shift_days,
+      shift_start_time::text as shift_start_time,shift_end_time::text as shift_end_time
+      from clients where full_name=${name} and deleted_at is null`;
     expect(client?.email).toBe(email);
     expect(client?.preferred_language).toBe("es");
     expect(client?.english_proficiency).toBe("GOOD");
@@ -113,6 +122,12 @@ test.describe("Smart Career Collect Client", () => {
     expect(client?.city).toBe("DETROIT");
     expect(client?.state).toBe("MI");
     expect(client?.zip).toBe("48212-3768");
+    expect(client?.preferred_location).toBe("Romulus");
+    expect(client?.location_option_1).toBe("Romulus");
+    expect(client?.location_option_2).toBe("Detroit");
+    expect(client?.shift_days).toEqual(["THU", "FRI", "SAT", "SUN", "MON"]);
+    expect(client?.shift_start_time).toBe("18:00:00");
+    expect(client?.shift_end_time).toBe("04:30:00");
     const [{ n: clientCount }] = await db()`select count(*)::int as n from clients where email=${email} and deleted_at is null`;
     expect(Number(clientCount)).toBe(1);
     const [approved] = await db()`select status,created_client_id from client_import_cases where created_client_id=${client.id}`;
