@@ -10,6 +10,14 @@ import {
   readinessScore,
   requiredMissingFromDraft,
 } from "@/lib/smart-client-import-core";
+import {
+  normalizeEnglishProficiency,
+  normalizeImportLanguage,
+  normalizeShiftDays,
+  normalizeShiftTime,
+  parseShiftRange,
+} from "@/lib/smart-client-fields";
+import { extractDeterministicClient } from "@/lib/smart-client-local";
 import { buildCareerGateImportTemplate } from "@/lib/smart-client-template";
 
 describe("Smart Career Collect Client canonical import contract", () => {
@@ -19,37 +27,57 @@ describe("Smart Career Collect Client canonical import contract", () => {
       "Phone": "+1 (313) 555-0199",
       "Email": "TEST@EXAMPLE.COM",
       "Preferred Language": "English",
+      "English Proficiency": "Good",
       "Notes": "Imported for review",
     });
     expect(draft.profile.full_name).toBe("Test Client");
     expect(draft.profile.phone).toBe("3135550199");
     expect(draft.profile.email).toBe("test@example.com");
+    expect(draft.profile.preferred_language).toBe("en");
+    expect(draft.profile.english_proficiency).toBe("GOOD");
     expect(draft.status).toBe("new_intake");
     expect(draft.initial_note).toBe("Imported for review");
     expect(requiredMissingFromDraft(draft)).toEqual([]);
   });
 
-  it("decomposes a deterministic combined US address without overriding explicit components", () => {
-    expect(decomposeUsAddress("12091 BLOOM ST DETROIT, MI 48212-3678")).toEqual({
-      street: "12091 BLOOM ST",
+  it("rejects malformed explicit language while preserving every current valid domain code", () => {
+    expect(normalizeImportLanguage("English")).toBe("en");
+    expect(normalizeImportLanguage("Arabic")).toBe("ar");
+    expect(normalizeImportLanguage("Spanish")).toBe("es");
+    expect(normalizeImportLanguage("em")).toBeNull();
+    expect(() => prepareImportDraft({ full_name: "Test Client", phone: "3135550199", preferred_language: "em" })).toThrow(/preferred_language/);
+  });
+
+  it("normalizes English proficiency from English and Arabic source evidence", () => {
+    expect(normalizeEnglishProficiency("speaks English fluently")).toBe("EXCELLENT");
+    expect(normalizeEnglishProficiency("good")).toBe("GOOD");
+    expect(normalizeEnglishProficiency("intermediate")).toBe("FAIR");
+    expect(normalizeEnglishProficiency("limited English")).toBe("WEAK");
+    expect(normalizeEnglishProficiency("لا يتحدث الإنجليزية")).toBe("NONE");
+    expect(normalizeEnglishProficiency("unknown level")).toBeNull();
+  });
+
+  it("decomposes the exact production address fixture and preserves ZIP+4", () => {
+    expect(decomposeUsAddress("28772 GOODSON ST, DETROIT, MI 48212-3768")).toEqual({
+      street: "28772 GOODSON ST",
       city: "DETROIT",
       state: "MI",
-      zip: "48212-3678",
+      zip: "48212-3768",
     });
     const draft = prepareImportDraft({
       full_name: "Test Client",
       phone: "3135550199",
-      address: "12091 BLOOM ST DETROIT, MI 48212-3678",
+      address: "28772 GOODSON ST, DETROIT, MI 48212-3768",
     });
-    expect(draft.profile.street).toBe("12091 BLOOM ST");
+    expect(draft.profile.street).toBe("28772 GOODSON ST");
     expect(draft.profile.city).toBe("DETROIT");
     expect(draft.profile.state).toBe("MI");
-    expect(draft.profile.zip).toBe("48212-3678");
+    expect(draft.profile.zip).toBe("48212-3768");
 
     const explicit = prepareImportDraft({
       full_name: "Test Client",
       phone: "3135550199",
-      address: "12091 BLOOM ST DETROIT, MI 48212-3678",
+      address: "28772 GOODSON ST, DETROIT, MI 48212-3768",
       city: "Dearborn",
       state: "MI",
       zip: "48126",
@@ -57,6 +85,41 @@ describe("Smart Career Collect Client canonical import contract", () => {
     expect(explicit.profile.city).toBe("Dearborn");
     expect(explicit.profile.state).toBe("MI");
     expect(explicit.profile.zip).toBe("48126");
+  });
+
+  it("preserves the exact valid email local-part through deterministic extraction and draft normalization", () => {
+    const local = extractDeterministicClient("Full Name: Test Client\nPhone: 313-555-0199\nEmail: bbelalgv@gmail.com");
+    expect(local.row.email).toBe("bbelalgv@gmail.com");
+    const draft = prepareImportDraft({ ...local.row });
+    expect(draft.profile.email).toBe("bbelalgv@gmail.com");
+  });
+
+  it("normalizes week-boundary shift days and overnight shift times", () => {
+    expect(normalizeShiftDays("Thursday–Monday")).toEqual(["THU", "FRI", "SAT", "SUN", "MON"]);
+    expect(normalizeShiftDays("Wed, Thu, Fri, Sat")).toEqual(["WED", "THU", "FRI", "SAT"]);
+    expect(normalizeShiftTime("6pm")).toBe("18:00");
+    expect(normalizeShiftTime("4:30am")).toBe("04:30");
+    expect(parseShiftRange("6pm-4:30am")).toEqual({ start: "18:00", end: "04:30", overnight: true });
+    expect(parseShiftRange("18:00–04:30")).toEqual({ start: "18:00", end: "04:30", overnight: true });
+  });
+
+  it("extracts approved review fields locally without inventing values", () => {
+    const local = extractDeterministicClient([
+      "Full Name: Test Client",
+      "Phone: 313-555-0199",
+      "Preferred Language: English",
+      "English Proficiency: fluent",
+      "Preferred Location: DTW1",
+      "Shift Days: Thursday–Monday",
+      "Shift Start: 6pm",
+      "Shift End: 4:30am",
+    ].join("\n"));
+    expect(local.row.preferred_language).toBe("English");
+    expect(local.row.english_proficiency).toBe("fluent");
+    expect(local.row.site_code).toBe("DTW1");
+    expect(local.row.shift_days).toBe("Thursday–Monday");
+    expect(local.row.shift_start_time).toBe("6pm");
+    expect(local.row.shift_end_time).toBe("4:30am");
   });
 
   it("rejects missing canonical minimum Client identity data", () => {
@@ -68,13 +131,16 @@ describe("Smart Career Collect Client canonical import contract", () => {
     expect(IMPORT_SCHEMA_HASH).toMatch(/^[0-9a-f]{64}$/);
     expect(CANONICAL_IMPORT_HEADERS[0]).toBe("full_name");
     expect(CANONICAL_IMPORT_HEADERS[1]).toBe("phone");
+    expect(CANONICAL_IMPORT_HEADERS).toContain("english_proficiency");
+    expect(CANONICAL_IMPORT_HEADERS).toContain("shift_days");
+    expect(CANONICAL_IMPORT_HEADERS).toContain("shift_start_time");
+    expect(CANONICAL_IMPORT_HEADERS).toContain("shift_end_time");
     expect(CANONICAL_IMPORT_HEADERS).toContain("backup_site_code");
-    expect(CANONICAL_IMPORT_HEADERS).toContain("backup_shift_code");
   });
 
   it("normalizes evidence without silently resolving conflicts", () => {
     expect(normalizeEvidenceValue("phone", "+1 (313) 555-0199")).toBe("3135550199");
-    expect(normalizeEvidenceValue("email", " TEST@Example.com ")).toBe("test@example.com");
+    expect(normalizeEvidenceValue("email", " bbelalgv@gmail.com ")).toBe("bbelalgv@gmail.com");
     expect(evidenceMatchScore("full_name", "Abdullah Musaeed", "Abdullah Musaeed")).toBe(100);
     expect(evidenceMatchScore("full_name", "Abdullah Musaeed", "Abdullah Musaied")).toBeGreaterThan(80);
     expect(evidenceMatchScore("full_name", "Abdullah Musaeed", "Different Person")).toBeLessThan(50);

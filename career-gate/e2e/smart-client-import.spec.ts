@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { db, signIn, STAFF } from "./helpers";
 
 test.describe("Smart Career Collect Client", () => {
-  test("stages a sheet, reviews missing documents, approves once, and creates the canonical Client", async ({ page, baseURL }) => {
+  test("stages evidence, preserves a manual correction, approves once, and creates the canonical Client", async ({ page, baseURL }) => {
     const token = Date.now().toString().slice(-7);
     const name = `TEST Smart Collect ${token}`;
     const phone = `313${token}`.slice(0, 10).padEnd(10, "7");
@@ -16,7 +16,10 @@ test.describe("Smart Career Collect Client", () => {
     await expect(page.getByRole("button", { name: /NEW IMPORT BY SHEET/ }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /SMART CLIENT IMPORT BY LINK/ }).first()).toBeVisible();
 
-    const csv = `full_name,phone,email\n${name},${phone},${email}\n`;
+    const csv = [
+      "full_name,phone,email,preferred_language,english_proficiency,address",
+      `${name},${phone},${email},English,Good,"28772 GOODSON ST, DETROIT, MI 48212-3768"`,
+    ].join("\n");
     await page.locator('input[type="file"]').first().setInputFiles({ name: "smart-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await page.getByRole("button", { name: "PREVIEW" }).click();
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
@@ -31,13 +34,23 @@ test.describe("Smart Career Collect Client", () => {
     await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
 
     const [staged] = await db()`
-      select id,status,mapped_draft #>> '{profile,full_name}' as full_name
+      select id,status,mapped_draft,field_evidence
       from client_import_cases
       where mapped_draft #>> '{profile,full_name}'=${name}
       order by created_at desc
       limit 1`;
     expect(staged?.status).toBe("PENDING");
-    expect(staged?.full_name).toBe(name);
+    expect(staged?.mapped_draft?.profile?.full_name).toBe(name);
+    expect(staged?.mapped_draft?.profile?.email).toBe(email);
+    expect(staged?.mapped_draft?.profile?.preferred_language).toBe("en");
+    expect(staged?.mapped_draft?.profile?.english_proficiency).toBe("GOOD");
+    expect(staged?.mapped_draft?.profile?.street).toBe("28772 GOODSON ST");
+    expect(staged?.mapped_draft?.profile?.city).toBe("DETROIT");
+    expect(staged?.mapped_draft?.profile?.state).toBe("MI");
+    expect(staged?.mapped_draft?.profile?.zip).toBe("48212-3768");
+    expect(Array.isArray(staged?.field_evidence)).toBe(true);
+    expect(staged.field_evidence.some((item: { field_key?: string; authority?: string }) => item.field_key === "preferred_language" && item.authority === "SOURCE")).toBe(true);
+    expect(staged.field_evidence.some((item: { field_key?: string; authority?: string }) => item.field_key === "english_proficiency" && item.authority === "SOURCE")).toBe(true);
 
     const queueResponse = await page.request.get(`${baseURL}/api/staff/smart-client-import`);
     expect(queueResponse.status(), await queueResponse.text()).toBe(200);
@@ -49,11 +62,19 @@ test.describe("Smart Career Collect Client", () => {
     await expect(queueRow).toBeVisible();
     await queueRow.getByRole("button", { name: "OPEN / EDIT" }).click();
     await expect(page.getByText("SMART CLIENT REVIEW", { exact: true })).toBeVisible();
+    await expect(page.getByText("CLIENT DATA · VALIDATION MATRIX", { exact: true })).toBeVisible();
+    for (const field of ["FULL NAME","PHONE","EMAIL","DATE OF BIRTH","LANGUAGE","ENGLISH PROFICIENCY","STREET","CITY","STATE","ZIP","PREFERRED LOCATION","LOCATION OPTION 1","LOCATION OPTION 2","SHIFT DAYS","SHIFT START","SHIFT END"]) {
+      await expect(page.getByText(field, { exact: true }).first()).toBeVisible();
+    }
 
     await page.getByLabel("REVIEWED BY").selectOption(String(admin.id));
     await expect(page.getByLabel("REVIEWED BY")).toHaveValue(String(admin.id));
     await page.getByRole("button", { name: "START REVIEW", exact: true }).click();
     await expect(page.getByText("Review started.", { exact: true })).toBeVisible();
+
+    const languageInput = page.getByLabel("LANGUAGE", { exact: true });
+    await expect(languageInput).toHaveValue("en");
+    await languageInput.fill("es");
 
     const verifyResponsePromise = page.waitForResponse((response) => {
       if (response.request().method() !== "POST" || new URL(response.url()).pathname !== "/api/staff/smart-client-import") return false;
@@ -68,8 +89,13 @@ test.describe("Smart Career Collect Client", () => {
     const verifyResponse = await verifyResponsePromise;
     expect(verifyResponse.status(), await verifyResponse.text()).toBe(200);
     await expect(page.getByText("Review saved and verification completed.", { exact: true })).toBeVisible();
-    const [verifiedImport] = await db()`select status from client_import_cases where id=${staged.id}`;
+    const [verifiedImport] = await db()`select status,mapped_draft,field_evidence from client_import_cases where id=${staged.id}`;
     expect(verifiedImport?.status).toBe("MISSING_DOCUMENT");
+    expect(verifiedImport?.mapped_draft?.profile?.preferred_language).toBe("es");
+    const languageEvidence = verifiedImport.field_evidence.filter((item: { field_key?: string }) => item.field_key === "preferred_language");
+    expect(languageEvidence[0]?.authority).toBe("SOURCE");
+    expect(languageEvidence.at(-1)?.authority).toBe("MANUAL");
+    expect(languageEvidence.at(-1)?.source_type).toBe("manual_review");
 
     await page.getByText("CURRENT DOCUMENT STATUS REVIEWED", { exact: true }).click();
     await page.getByText("INFORMATION MATCH CONFIRMED", { exact: true }).click();
@@ -79,8 +105,14 @@ test.describe("Smart Career Collect Client", () => {
 
     await page.reload();
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
-    const [client] = await db()`select id,full_name,email from clients where full_name=${name} and deleted_at is null`;
+    const [client] = await db()`select id,full_name,email,preferred_language,english_proficiency,street,city,state,zip from clients where full_name=${name} and deleted_at is null`;
     expect(client?.email).toBe(email);
+    expect(client?.preferred_language).toBe("es");
+    expect(client?.english_proficiency).toBe("GOOD");
+    expect(client?.street).toBe("28772 GOODSON ST");
+    expect(client?.city).toBe("DETROIT");
+    expect(client?.state).toBe("MI");
+    expect(client?.zip).toBe("48212-3768");
     const [{ n: clientCount }] = await db()`select count(*)::int as n from clients where email=${email} and deleted_at is null`;
     expect(Number(clientCount)).toBe(1);
     const [approved] = await db()`select status,created_client_id from client_import_cases where created_client_id=${client.id}`;
@@ -119,9 +151,17 @@ test.describe("Smart Career Collect Client", () => {
     expect(Number(n)).toBe(1);
   });
 
-  test("mobile route is protected and preserves the login return path", async ({ page }) => {
+  test("mobile route is protected and exposes opt-in audio only after authentication", async ({ page, baseURL }) => {
     await page.context().clearCookies();
     await page.goto("/staff/smart-client-import/new");
     await expect(page).toHaveURL(/\/staff\/login\?next=%2Fstaff%2Fsmart-client-import%2Fnew/);
+
+    await signIn(page.context(), baseURL!, "admin");
+    await page.goto("/staff/smart-client-import/new");
+    const audio = page.getByRole("button", { name: "Enable audio" });
+    await expect(audio).toBeVisible();
+    await expect(audio).toHaveAttribute("aria-pressed", "false");
+    await audio.click();
+    await expect(page.getByRole("button", { name: "Disable audio" })).toHaveAttribute("aria-pressed", "true");
   });
 });

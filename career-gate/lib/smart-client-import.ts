@@ -4,7 +4,6 @@ import { z } from "zod";
 import { sql } from "@/lib/db";
 import type { StaffSession } from "@/lib/auth";
 import type { IntakeRow } from "@/lib/intake-file";
-import { ProfileSchema, StatusSchema, issuesMessage } from "@/lib/schemas";
 import {
   ActionError,
   findClientIdentityMatches,
@@ -21,6 +20,7 @@ import {
   IMPORT_STATUSES,
   SMART_IMPORT_LIMITS,
   importRowSummary,
+  normalizePreparedDraft,
   pickImportValue,
   prepareImportDraft,
   requiredMissingFromDraft,
@@ -30,17 +30,14 @@ import {
   type ImportStatus,
   type PreparedImportDraft,
 } from "@/lib/smart-client-import-core";
+import {
+  normalizeEnglishProficiency,
+  normalizeImportLanguage,
+  normalizeShiftDays,
+  normalizeShiftTime,
+} from "@/lib/smart-client-fields";
 
 const JsonObject = z.record(z.string(), z.unknown());
-const DraftSchema = z.object({
-  profile: z.unknown(),
-  primary: z.array(z.object({ site_code: z.string(), job_id: z.string(), shift_code: z.string() })).default([]),
-  backup: z.array(z.object({ site_code: z.string(), job_id: z.string(), shift_code: z.string() })).default([]),
-  status: z.string().default("new_intake"),
-  next_step: z.string().nullable().default(null),
-  staff_code: z.string().nullable().default(null),
-  initial_note: z.string().nullable().default(null),
-});
 
 export type QueueRow = {
   id: string;
@@ -57,6 +54,31 @@ export type QueueRow = {
   created_at: string;
   created_client_id: string | null;
 };
+
+const REVIEW_FIELD_SOURCE_KEYS = {
+  full_name: "full_name",
+  phone: "phone",
+  email: "email",
+  date_of_birth: "date_of_birth",
+  preferred_language: "preferred_language",
+  english_proficiency: "english_proficiency",
+  street: "street",
+  city: "city",
+  state: "state",
+  zip: "zip",
+  preferred_location: "site_code",
+  location_option_1: "site_code",
+  location_option_2: "backup_site_code",
+  shift_days: "shift_days",
+  shift_start_time: "shift_start_time",
+  shift_end_time: "shift_end_time",
+} as const;
+
+type ReviewFieldKey = keyof typeof REVIEW_FIELD_SOURCE_KEYS;
+const PROFILE_REVIEW_KEYS = new Set<ReviewFieldKey>([
+  "full_name", "phone", "email", "date_of_birth", "preferred_language", "english_proficiency",
+  "street", "city", "state", "zip",
+]);
 
 function assertManager(session: StaffSession) {
   if (session.staff.role === "staff") throw new ActionError("forbidden", "Smart client import requires manager or admin access", 403);
@@ -79,6 +101,78 @@ function jsonArray(value: unknown[]) {
 
 function identityKey(email: string | null | undefined, phone: string | null | undefined) {
   return { email: normalizeClientEmail(email), phone: normalizeClientPhone(phone) };
+}
+
+function draftFieldValue(draft: unknown, key: ReviewFieldKey) {
+  const record = (draft && typeof draft === "object" ? draft : {}) as Record<string, unknown>;
+  const profile = (record.profile && typeof record.profile === "object" ? record.profile : {}) as Record<string, unknown>;
+  const reviewFields = (record.review_fields && typeof record.review_fields === "object" ? record.review_fields : {}) as Record<string, unknown>;
+  return PROFILE_REVIEW_KEYS.has(key) ? profile[key] ?? null : reviewFields[key] ?? null;
+}
+
+function comparable(value: unknown) {
+  if (Array.isArray(value)) return JSON.stringify(value);
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+function sheetEvidence(row: IntakeRow, draft: PreparedImportDraft, source: ImportSourceType, sourceRow: number) {
+  return (Object.keys(REVIEW_FIELD_SOURCE_KEYS) as ReviewFieldKey[]).flatMap((fieldKey) => {
+    const sourceKey = REVIEW_FIELD_SOURCE_KEYS[fieldKey];
+    const sourceValue = pickImportValue(row, sourceKey);
+    const stagedValue = draftFieldValue(draft, fieldKey);
+    if (sourceValue == null && stagedValue == null) return [];
+    return [{
+      field_key: fieldKey,
+      value: sourceValue ?? stagedValue,
+      normalized_value: stagedValue,
+      source_type: source,
+      source_row: sourceRow,
+      verification_state: "MATCHED",
+      authority: "SOURCE",
+    }];
+  });
+}
+
+function mergeManualEvidence(existingValue: unknown, previousDraft: unknown, nextDraft: unknown, reviewerId: string) {
+  const existing = Array.isArray(existingValue) ? [...existingValue] : [];
+  const reviewedAt = new Date().toISOString();
+  for (const fieldKey of Object.keys(REVIEW_FIELD_SOURCE_KEYS) as ReviewFieldKey[]) {
+    const previous = draftFieldValue(previousDraft, fieldKey);
+    const next = draftFieldValue(nextDraft, fieldKey);
+    if (comparable(previous) === comparable(next)) continue;
+    existing.push({
+      field_key: fieldKey,
+      value: next,
+      source_type: "manual_review",
+      verification_state: "VERIFIED",
+      authority: "MANUAL",
+      reviewer_id: reviewerId,
+      reviewed_at: reviewedAt,
+      previous_value: previous,
+    });
+  }
+  return existing;
+}
+
+function sanitizeReviewDraft(value: unknown) {
+  const draft = structuredClone((value && typeof value === "object" ? value : {}) as Record<string, unknown>);
+  const profile = (draft.profile && typeof draft.profile === "object" ? { ...(draft.profile as Record<string, unknown>) } : {}) as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(profile, "preferred_language")) {
+    const raw = profile.preferred_language == null ? null : String(profile.preferred_language);
+    profile.preferred_language = normalizeImportLanguage(raw);
+  }
+  if (Object.prototype.hasOwnProperty.call(profile, "english_proficiency")) {
+    const raw = profile.english_proficiency == null ? null : String(profile.english_proficiency);
+    profile.english_proficiency = normalizeEnglishProficiency(raw);
+  }
+  draft.profile = profile;
+  const reviewFields = (draft.review_fields && typeof draft.review_fields === "object" ? { ...(draft.review_fields as Record<string, unknown>) } : {}) as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(reviewFields, "shift_days")) reviewFields.shift_days = normalizeShiftDays(reviewFields.shift_days as string | string[] | null | undefined);
+  if (Object.prototype.hasOwnProperty.call(reviewFields, "shift_start_time")) reviewFields.shift_start_time = normalizeShiftTime(reviewFields.shift_start_time == null ? null : String(reviewFields.shift_start_time));
+  if (Object.prototype.hasOwnProperty.call(reviewFields, "shift_end_time")) reviewFields.shift_end_time = normalizeShiftTime(reviewFields.shift_end_time == null ? null : String(reviewFields.shift_end_time));
+  draft.review_fields = reviewFields;
+  return draft;
 }
 
 async function identityIndex(rows: { email: string | null; phone: string | null }[]) {
@@ -172,12 +266,14 @@ export async function stageSheetRows(args: {
       const conflicts = row.existing_client_id
         ? [{ type: "IDENTITY", client_id: row.existing_client_id, client_ref: row.existing_client_ref, message: row.message }]
         : [];
+      const draft = row.draft as PreparedImportDraft;
+      const evidence = sheetEvidence(row.raw, draft, source, row.row);
       const [created] = await tx`
         insert into client_import_cases(
           batch_id,source_type,source_row,status,raw_input,mapped_draft,missing_fields,conflicts,field_evidence,verification_result,created_by
         ) values(
-          ${batch.id},${source},${row.row},'PENDING',${tx.json(row.raw as never)},${tx.json(row.draft as never)},'[]'::jsonb,
-          ${tx.json(conflicts as never)},'[]'::jsonb,
+          ${batch.id},${source},${row.row},'PENDING',${tx.json(row.raw as never)},${tx.json(draft as never)},'[]'::jsonb,
+          ${tx.json(conflicts as never)},${tx.json(evidence as never)},
           ${tx.json({ identity: row.identity, preview_result: row.result } as never)},${args.session.staff.id}
         ) returning id,status,source_row,created_at`;
       cases.push(created as never);
@@ -197,7 +293,10 @@ function supportedMobileMime(file: File) {
 }
 
 function canonicalEvidence(rows: { row: IntakeRow; source: string }[]) {
-  const fields = ["full_name","phone","email","date_of_birth","preferred_language","street","city","state","zip","site_code","job_id","shift_code"] as const;
+  const fields = [
+    "full_name","phone","email","date_of_birth","preferred_language","english_proficiency","street","city","state","zip",
+    "site_code","job_id","shift_code","shift_days","shift_start_time","shift_end_time","backup_site_code","backup_job_id","backup_shift_code",
+  ] as const;
   const merged: IntakeRow = {};
   const evidence: Record<string, unknown>[] = [];
   const conflicts: Record<string, unknown>[] = [];
@@ -208,10 +307,10 @@ function canonicalEvidence(rows: { row: IntakeRow; source: string }[]) {
     const unique = [...new Map(values.map((item) => [item.value.trim().toLowerCase(), item])).values()];
     if (unique.length === 1) {
       merged[field] = unique[0].value;
-      evidence.push({ field_key: field, value: unique[0].value, source_type: unique[0].source, verification_state: "MATCHED" });
+      evidence.push({ field_key: field, value: unique[0].value, source_type: unique[0].source, verification_state: "MATCHED", authority: "SOURCE" });
     } else if (unique.length > 1) {
       conflicts.push({ field_key: field, values: unique, type: "SOURCE_CONFLICT" });
-      for (const item of unique) evidence.push({ field_key: field, value: item.value, source_type: item.source, verification_state: "CONFLICT" });
+      for (const item of unique) evidence.push({ field_key: field, value: item.value, source_type: item.source, verification_state: "CONFLICT", authority: "SOURCE" });
     }
   }
   return { merged, evidence, conflicts };
@@ -220,18 +319,29 @@ function canonicalEvidence(rows: { row: IntakeRow; source: string }[]) {
 function partialDraft(row: IntakeRow, notes: string) {
   try { return prepareImportDraft({ ...row, initial_note: notes || row.initial_note || null }); }
   catch {
+    const rawLanguage = pickImportValue(row, "preferred_language");
     return {
       profile: {
         full_name: pickImportValue(row, "full_name") ?? "",
         phone: pickImportValue(row, "phone") ?? "",
         email: pickImportValue(row, "email"),
         date_of_birth: pickImportValue(row, "date_of_birth"),
-        preferred_language: pickImportValue(row, "preferred_language") ?? "en",
+        preferred_language: rawLanguage ? normalizeImportLanguage(rawLanguage) : "en",
+        english_proficiency: normalizeEnglishProficiency(pickImportValue(row, "english_proficiency")),
         street: pickImportValue(row, "street"), city: pickImportValue(row, "city"), state: pickImportValue(row, "state"), zip: pickImportValue(row, "zip"),
         appointment_availability: null, amazon_worked_before: null, amazon_worked_from: null, amazon_worked_to: null,
         amazon_applied_before: null, currently_amazon: null, via_agency: null, amazon_application_email: null, employment_history: [],
       },
-      primary: [], backup: [], status: "new_intake", next_step: null, staff_code: null, initial_note: notes || null,
+      primary: [], backup: [],
+      review_fields: {
+        preferred_location: pickImportValue(row, "site_code"),
+        location_option_1: pickImportValue(row, "site_code"),
+        location_option_2: pickImportValue(row, "backup_site_code"),
+        shift_days: normalizeShiftDays(pickImportValue(row, "shift_days")),
+        shift_start_time: normalizeShiftTime(pickImportValue(row, "shift_start_time")),
+        shift_end_time: normalizeShiftTime(pickImportValue(row, "shift_end_time")),
+      },
+      status: "new_intake", next_step: null, staff_code: null, initial_note: notes || null,
     };
   }
 }
@@ -422,14 +532,18 @@ export async function saveImportReview(session: StaffSession, args: {
   if (!JsonObject.safeParse(args.draft).success) throw new ActionError("invalid_draft", "Mapped draft must be an object", 400);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, args.reviewerId);
-    const [row] = await tx`select id,status,review_started_at from client_import_cases where id=${args.id} for update`;
+    const [row] = await tx`select id,status,review_started_at,mapped_draft,field_evidence from client_import_cases where id=${args.id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot be changed", 409);
-    const missing = requiredMissingFromDraft(args.draft);
+    const sanitizedDraft = sanitizeReviewDraft(args.draft);
+    let storedDraft: unknown = sanitizedDraft;
+    try { storedDraft = normalizePreparedDraft(sanitizedDraft); } catch { /* preserve reviewable invalid state; verify/approve remains authoritative */ }
+    const missing = requiredMissingFromDraft(storedDraft);
+    const evidence = mergeManualEvidence(row.field_evidence, row.mapped_draft, storedDraft, args.reviewerId);
     const [updated] = await tx`
       update client_import_cases set
         reviewer_id=${args.reviewerId},review_started_at=coalesce(review_started_at,now()),reviewed_at=now(),
-        mapped_draft=${tx.json(args.draft as never)},missing_fields=${tx.json(missing as never)},
+        mapped_draft=${tx.json(storedDraft as never)},missing_fields=${tx.json(missing as never)},field_evidence=${tx.json(evidence as never)},
         document_match_confirmed=${args.documentConfirmed},information_match_confirmed=${args.informationConfirmed},
         status=case when status='PENDING' then 'UNDER_REVIEW' else status end
       where id=${args.id}
@@ -439,21 +553,12 @@ export async function saveImportReview(session: StaffSession, args: {
 }
 
 function parseApprovedDraft(value: unknown): PreparedImportDraft {
-  const parsed = DraftSchema.safeParse(value);
-  if (!parsed.success) throw new ActionError("invalid_draft", parsed.error.issues[0]?.message ?? "Invalid mapped draft", 422);
-  const profile = ProfileSchema.safeParse(parsed.data.profile);
-  if (!profile.success) throw new ActionError("invalid_client", issuesMessage(profile.error), 422);
-  const status = StatusSchema.safeParse(parsed.data.status);
-  if (!status.success) throw new ActionError("invalid_status", "Invalid client status", 422);
-  return {
-    profile: profile.data,
-    primary: parsed.data.primary,
-    backup: parsed.data.backup,
-    status: status.data,
-    next_step: parsed.data.next_step?.trim() || null,
-    staff_code: parsed.data.staff_code?.trim() || null,
-    initial_note: parsed.data.initial_note?.trim() || null,
-  };
+  try {
+    return normalizePreparedDraft(value);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid mapped draft";
+    throw new ActionError("invalid_draft", message, 422);
+  }
 }
 
 async function resolveImportedStaff(tx: Tx, code: string | null) {
@@ -534,7 +639,7 @@ export async function approveImportCase(session: StaffSession, args: {
     if (!args.documentConfirmed || !args.informationConfirmed) throw new ActionError("confirmation_required", "Confirm document status and information match before approval", 409);
 
     const draft = parseApprovedDraft(args.draft);
-    const verificationRow = { ...row, mapped_draft: args.draft, reviewer_id: args.reviewerId } as Record<string, unknown>;
+    const verificationRow = { ...row, mapped_draft: draft, reviewer_id: args.reviewerId } as Record<string, unknown>;
     const verification = await verifyLockedCase(tx, verificationRow);
     if (!verification.result.approval_ready) {
       throw new ActionError("approval_blocked", verification.result.validation_error || "Resolve blocking conflicts before approval", 409);
@@ -587,7 +692,7 @@ export async function approveImportCase(session: StaffSession, args: {
 
     await tx`
       update client_import_cases set
-        reviewer_id=${args.reviewerId},reviewed_at=now(),mapped_draft=${tx.json(args.draft as never)},
+        reviewer_id=${args.reviewerId},reviewed_at=now(),mapped_draft=${tx.json(draft as never)},
         missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json([] as never)},verification_result=${tx.json(verification.result as never)},
         document_match_confirmed=true,information_match_confirmed=true,approved_by=${session.staff.id},approved_at=now(),created_client_id=${client.id},status='APPROVED_FILE'
       where id=${args.id}`;

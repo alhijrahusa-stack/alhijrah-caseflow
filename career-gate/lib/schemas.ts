@@ -10,6 +10,9 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD").refine
 );
 const optionalDate = isoDate.nullable().optional().or(z.literal("")).transform((v) => (v ? v : null));
 
+export const ENGLISH_PROFICIENCY_VALUES = ["EXCELLENT", "GOOD", "FAIR", "WEAK", "NONE"] as const;
+export const EnglishProficiencySchema = z.enum(ENGLISH_PROFICIENCY_VALUES).nullable().optional().transform((v) => v ?? null);
+
 export function normalizePhone(raw: string): string | null {
   const digits = raw.replace(/\D/g, "");
   if (digits.length === 10) return digits;
@@ -58,6 +61,7 @@ export const ProfileSchema = z
     email: z.email("Invalid email").max(200).nullable().optional().or(z.literal("")).transform((v) => (v ? v.toLowerCase() : null)),
     date_of_birth: optionalDate,
     preferred_language: z.enum(Object.keys(LANGUAGES) as [keyof typeof LANGUAGES]).default("en"),
+    english_proficiency: EnglishProficiencySchema,
     street: optionalText(200),
     city: optionalText(100),
     state: optionalText(40),
