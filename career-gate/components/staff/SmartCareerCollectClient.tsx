@@ -38,11 +38,15 @@ type QueueRow = {
 type Evidence = {
   field_key?: string;
   value?: unknown;
+  normalized_value?: unknown;
   source_type?: string;
   source_document_id?: string | null;
   source_page?: number | null;
   source_text_reference?: string | null;
   verification_state?: string;
+  authority?: "SOURCE" | "MANUAL" | string;
+  reviewer_id?: string | null;
+  reviewed_at?: string | null;
   match_score?: number;
   confidence?: number;
 };
@@ -69,17 +73,33 @@ type CaseDetail = {
   documents: { id: string; original_filename: string; mime_type: string; size_bytes: number; detected_document_type: string | null; extraction_metadata: Record<string, unknown>; created_at: string }[];
 };
 
+type ReviewField = { key: string; label: string; scope: "profile" | "review_fields"; required: boolean };
+
 const STATUSES: Status[] = ["PENDING", "UNDER_REVIEW", "MISSING_DOCUMENT", "APPROVED_FILE"];
 const STATUS_LABEL: Record<Status, string> = { PENDING: "PENDING", UNDER_REVIEW: "UNDER REVIEW", MISSING_DOCUMENT: "MISSING DOCUMENT", APPROVED_FILE: "APPROVED" };
 const ACCEPT = ".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const REATTACH_ACCEPT = "application/pdf,image/jpeg,image/png,image/webp";
-const PROFILE_FIELDS = [
-  ["full_name", "FULL NAME"], ["phone", "PHONE"], ["email", "EMAIL"], ["date_of_birth", "DATE OF BIRTH"],
-  ["street", "STREET"], ["city", "CITY"], ["state", "STATE"], ["zip", "ZIP"],
-] as const;
+const REVIEW_FIELDS: ReviewField[] = [
+  { key: "full_name", label: "FULL NAME", scope: "profile", required: true },
+  { key: "phone", label: "PHONE", scope: "profile", required: true },
+  { key: "email", label: "EMAIL", scope: "profile", required: false },
+  { key: "date_of_birth", label: "DATE OF BIRTH", scope: "profile", required: false },
+  { key: "preferred_language", label: "LANGUAGE", scope: "profile", required: false },
+  { key: "english_proficiency", label: "ENGLISH PROFICIENCY", scope: "profile", required: false },
+  { key: "street", label: "STREET", scope: "profile", required: false },
+  { key: "city", label: "CITY", scope: "profile", required: false },
+  { key: "state", label: "STATE", scope: "profile", required: false },
+  { key: "zip", label: "ZIP", scope: "profile", required: false },
+  { key: "preferred_location", label: "PREFERRED LOCATION", scope: "review_fields", required: false },
+  { key: "location_option_1", label: "LOCATION OPTION 1", scope: "review_fields", required: false },
+  { key: "location_option_2", label: "LOCATION OPTION 2", scope: "review_fields", required: false },
+  { key: "shift_days", label: "SHIFT DAYS", scope: "review_fields", required: false },
+  { key: "shift_start_time", label: "SHIFT START", scope: "review_fields", required: false },
+  { key: "shift_end_time", label: "SHIFT END", scope: "review_fields", required: false },
+];
 
 function errMessage(data: any, fallback: string) { return data?.error?.message ?? fallback; }
-function asText(value: unknown) { return typeof value === "string" ? value : value == null ? "" : String(value); }
+function asText(value: unknown) { return Array.isArray(value) ? value.join(", ") : typeof value === "string" ? value : value == null ? "" : String(value); }
 function operationalState(row: QueueRow) {
   if (row.status === "APPROVED_FILE") return "APPROVED";
   if (row.status === "MISSING_DOCUMENT") return "REVIEW REQUIRED";
@@ -95,17 +115,33 @@ function detailState(detail: CaseDetail, dirty: boolean) {
   if (detail.case.conflicts.length || detail.case.missing_fields.length) return "REVIEW REQUIRED";
   return "CHECK & VERIFY";
 }
+function latestEvidence(detail: CaseDetail, key: string) {
+  for (let i = detail.case.field_evidence.length - 1; i >= 0; i -= 1) {
+    if (detail.case.field_evidence[i]?.field_key === key) return detail.case.field_evidence[i];
+  }
+  return undefined;
+}
 function fieldState(detail: CaseDetail, key: string, value: unknown) {
   const missing = detail.case.missing_fields.some((item) => String(item) === key);
   const conflict = detail.case.conflicts.some((item) => item?.field_key === key || item?.field === key);
-  const evidence = detail.case.field_evidence.find((item) => item.field_key === key);
+  const evidence = latestEvidence(detail, key);
   const raw = String(evidence?.verification_state ?? "").toUpperCase();
-  let state = "REVIEW REQUIRED";
+  const authority = String(evidence?.authority ?? (evidence?.source_type === "manual_review" ? "MANUAL" : "SOURCE")).toUpperCase();
+  let state = "REVIEW";
   if (conflict || raw === "CONFLICT") state = "CONFLICT";
   else if (missing || !asText(value).trim()) state = "MISSING";
+  else if (authority === "MANUAL") state = "MANUAL";
   else if (["MATCHED", "VERIFIED"].includes(raw)) state = "VERIFIED";
-  const confidence = typeof evidence?.confidence === "number" && Number.isFinite(evidence.confidence) ? evidence.confidence : null;
-  return { state, confidence, evidence };
+  else if (value != null && asText(value).trim()) state = "DETECTED";
+  return { state, authority, evidence };
+}
+function stateClass(state: string) {
+  if (state === "VERIFIED") return "text-emerald-300";
+  if (state === "MANUAL") return "text-[#e3c884]";
+  if (state === "CONFLICT") return "text-red-300";
+  if (state === "MISSING") return "text-slate-500";
+  if (state === "DETECTED") return "text-cyan-300";
+  return "text-amber-300";
 }
 
 export function SmartCareerCollectClient() {
@@ -293,7 +329,17 @@ export function SmartCareerCollectClient() {
   }
 
   const profile = draft?.profile ?? {};
-  const setProfile = (key: string, value: string) => { setDraftDirty(true); setDraft((current) => current ? { ...current, profile: { ...(current.profile ?? {}), [key]: value || null } } : current); };
+  const reviewFields = draft?.review_fields ?? {};
+  function getField(field: ReviewField) { return field.scope === "profile" ? profile[field.key] : reviewFields[field.key]; }
+  function setField(field: ReviewField, value: string) {
+    setDraftDirty(true);
+    setDraft((current) => {
+      if (!current) return current;
+      if (field.scope === "profile") return { ...current, profile: { ...(current.profile ?? {}), [field.key]: value || null } };
+      const normalizedValue = field.key === "shift_days" ? value.split(",").map((item) => item.trim()).filter(Boolean) : value || null;
+      return { ...current, review_fields: { ...(current.review_fields ?? {}), [field.key]: normalizedValue } };
+    });
+  }
   const canApprove = Boolean(detail && draft && reviewerId && detail.case.review_started_at && !draftDirty && documentConfirmed && informationConfirmed && detail.case.verification_result?.approval_ready);
   const activeDocument = detail?.documents.find((doc) => doc.id === activeDocumentId) ?? detail?.documents[0] ?? null;
   const workflowState = detail ? detailState(detail, draftDirty) : null;
@@ -348,10 +394,10 @@ export function SmartCareerCollectClient() {
       <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-bold tracking-[.18em] text-amber-300">SMART CLIENT REVIEW</p><h2 className="text-xl font-semibold text-slate-100">{asText(profile.full_name) || "Unidentified client"}</h2><p className="mt-1 text-xs text-slate-500">{detail.case.id}</p></div><button className="ops-secondary-button" type="button" onClick={() => { setDetail(null); setDraft(null); setDraftDirty(false); }}>CLOSE</button></div>
       <div className="rounded-2xl border border-white/10 bg-black/10 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><span className="text-[10px] font-semibold tracking-[.16em] text-slate-500">WORKFLOW STATE</span><strong className="mt-1 block text-xl text-slate-100">{workflowState}</strong></div><div className="text-right text-xs text-slate-500"><div>{detail.case.missing_fields.length} missing</div><div>{detail.case.conflicts.length} conflicts</div><div>{detail.documents.length} source document{detail.documents.length === 1 ? "" : "s"}</div></div></div></div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,.78fr)_minmax(0,1.22fr)]">
         <div id="smart-document-viewer" className="rounded-2xl border border-white/10 bg-black/10 p-4"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold text-slate-200">DOCUMENT VIEWER</h3>{detail.case.status !== "APPROVED_FILE" && <><input ref={reattachRef} className="hidden" type="file" accept={REATTACH_ACCEPT} multiple onChange={(e) => void reattach(e.target.files)} /><button className="ops-secondary-button" type="button" disabled={Boolean(actionBusy)} onClick={() => reattachRef.current?.click()}>{actionBusy === "reattach" ? "PROCESSING…" : "RE-ATTACH"}</button></>}</div>{activeDocument ? <><div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-[#02070d]">{activeDocument.mime_type.startsWith("image/") ? <img className="max-h-[560px] w-full object-contain" src={`/api/staff/smart-client-import/document/${activeDocument.id}`} alt={activeDocument.original_filename} /> : <iframe title={activeDocument.original_filename} className="h-[560px] w-full" src={`/api/staff/smart-client-import/document/${activeDocument.id}`} />}</div><div className="mt-3 flex flex-wrap gap-2">{detail.documents.map((doc) => <button key={doc.id} className={`rounded-lg border px-2 py-1 text-[10px] ${activeDocument.id === doc.id ? "border-cyan-300/30 text-cyan-200" : "border-white/10 text-slate-500"}`} type="button" onClick={() => setActiveDocumentId(doc.id)}>{doc.original_filename}</button>)}</div></> : <p className="mt-3 rounded-xl border border-amber-300/15 bg-amber-300/[.04] p-4 text-xs text-amber-200">No source document attached. Missing documents remain follow-up items and are not fabricated.</p>}</div>
 
-        <div className="rounded-2xl border border-white/10 bg-black/10 p-4"><h3 className="text-sm font-semibold text-slate-200">CLIENT DATA · VALIDATION MATRIX</h3><div className="mt-3 space-y-2">{PROFILE_FIELDS.map(([key,label]) => { const info = fieldState(detail, key, profile[key]); return <div key={key} className="rounded-xl border border-white/[.08] bg-white/[.02] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><span className="text-[10px] font-semibold tracking-[.12em] text-slate-500">{label}</span><input id={`smart-field-${key}`} className="ops-input mt-1 w-full min-w-[240px]" value={asText(profile[key])} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setProfile(key, e.target.value)} /></div><div className="text-right"><strong className={info.state === "VERIFIED" ? "text-emerald-300" : info.state === "CONFLICT" ? "text-red-300" : info.state === "MISSING" ? "text-amber-300" : "text-cyan-300"}>{info.state}</strong><span className="mt-1 block text-[10px] text-slate-500">Source: {info.evidence?.source_type ?? "manual/staged"}</span>{info.confidence !== null && <span className="block text-[10px] text-slate-500">Confidence: {Math.round(info.confidence)}%</span>}</div></div><div className="mt-2 flex flex-wrap gap-2">{detail.case.status !== "APPROVED_FILE" && <button className="ops-secondary-button" type="button" onClick={() => focusField(key)}>EDIT</button>}{info.evidence?.source_document_id && <button className="ops-secondary-button" type="button" onClick={() => jumpToEvidence(info.evidence)}>VIEW SOURCE</button>}</div></div>; })}</div></div>
+        <div className="rounded-2xl border border-white/10 bg-black/10 p-4"><div className="flex flex-wrap items-end justify-between gap-2"><div><h3 className="text-sm font-semibold text-slate-200">CLIENT DATA · VALIDATION MATRIX</h3><p className="mt-1 text-[10px] text-slate-500">FIELD · STAGED VALUE · SOURCE STATE · VALIDATION STATE · SOURCE/MANUAL · EDIT</p></div><span className="rounded-full border border-white/10 px-2 py-1 text-[9px] text-slate-500">{REVIEW_FIELDS.length} REVIEWABLE FIELDS</span></div><div className="mt-3 space-y-2">{REVIEW_FIELDS.map((field) => { const value = getField(field); const info = fieldState(detail, field.key, value); return <div key={field.key} className={`rounded-xl border bg-white/[.02] p-3 ${info.state === "MANUAL" ? "border-[#b8934a]/30" : info.state === "CONFLICT" ? "border-red-300/20" : "border-white/[.08]"}`}><div className="grid gap-3 lg:grid-cols-[minmax(150px,.65fr)_minmax(220px,1.35fr)_120px_110px] lg:items-center"><div><span className="text-[9px] font-semibold tracking-[.12em] text-slate-500">FIELD</span><strong className="mt-1 block text-[11px] text-slate-200">{field.label}</strong>{field.required && <span className="mt-1 block text-[9px] text-amber-300">REQUIRED</span>}</div><label className="block"><span className="text-[9px] font-semibold tracking-[.12em] text-slate-500">STAGED VALUE</span><input id={`smart-field-${field.key}`} aria-label={field.label} className="ops-input mt-1 w-full" value={asText(value)} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setField(field, e.target.value)} /></label><div><span className="text-[9px] font-semibold tracking-[.12em] text-slate-500">VALIDATION</span><strong className={`mt-1 block text-[10px] ${stateClass(info.state)}`}>{info.state}</strong></div><div><span className="text-[9px] font-semibold tracking-[.12em] text-slate-500">AUTHORITY</span><strong className={`mt-1 block text-[10px] ${info.authority === "MANUAL" ? "text-[#e3c884]" : "text-cyan-200"}`}>{info.authority}</strong><span className="mt-1 block truncate text-[9px] text-slate-600">{info.evidence?.source_type ?? "staged"}</span></div></div><div className="mt-2 flex flex-wrap gap-2">{detail.case.status !== "APPROVED_FILE" && <button className="ops-secondary-button" type="button" onClick={() => focusField(field.key)}>EDIT</button>}{info.evidence?.source_document_id && <button className="ops-secondary-button" type="button" onClick={() => jumpToEvidence(info.evidence)}>VIEW SOURCE</button>}</div></div>; })}</div></div>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-black/10 p-4 space-y-3"><label className="text-xs font-semibold text-slate-300" htmlFor="smart-reviewer">REVIEWED BY</label><select id="smart-reviewer" className="ops-input w-full" value={reviewerId} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setReviewerId(e.target.value)}><option value="">Unassigned</option>{activeStaff.map((member) => <option key={member.id} value={member.id}>{member.display_name} · {member.staff_code ?? member.role}</option>)}</select><div className="flex flex-wrap gap-2">{detail.case.review_started_at && detail.case.status !== "APPROVED_FILE" && <button className="ops-secondary-button" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => mutate("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "save" ? "SAVING…" : "SAVE DRAFT"}</button>}</div></div>
@@ -359,7 +405,7 @@ export function SmartCareerCollectClient() {
       <div className="grid gap-3 md:grid-cols-2"><label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-xs text-slate-300"><input type="checkbox" className="mt-0.5" checked={documentConfirmed} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setDocumentConfirmed(e.target.checked)} /><span><strong className="block">CURRENT DOCUMENT STATUS REVIEWED</strong><span className="text-slate-500">Missing documents may remain outstanding after approval.</span></span></label><label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-xs text-slate-300"><input type="checkbox" className="mt-0.5" checked={informationConfirmed} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setInformationConfirmed(e.target.checked)} /><span><strong className="block">INFORMATION MATCH CONFIRMED</strong><span className="text-slate-500">Approved values match reviewed source evidence.</span></span></label></div>
 
       {detail.case.status === "APPROVED_FILE" && detail.case.created_client_id ? <Link className="ops-primary-button flex min-h-12 w-full items-center justify-center" href={`/staff/client/${detail.case.created_client_id}`}>OPEN CLIENT</Link> : !detail.case.review_started_at ? <button className="ops-primary-button min-h-12 w-full" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => mutate("start_review", { reviewer_id: reviewerId })}>{actionBusy === "start_review" ? "STARTING…" : "START REVIEW"}</button> : !canApprove ? <button className="ops-primary-button min-h-12 w-full" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => void saveAndVerify()}>{actionBusy === "verify" ? "VERIFYING…" : "CHECK & VERIFY"}</button> : <button className="ops-primary-button min-h-12 w-full" type="button" disabled={Boolean(actionBusy)} onClick={() => mutate("approve", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "approve" ? "CREATING CANONICAL CLIENT…" : "APPROVE FILE"}</button>}
-      {!canApprove && detail.case.review_started_at && detail.case.status !== "APPROVED_FILE" && <p className="text-xs text-slate-500">Approval requires current verification, both confirmations, valid minimum Client data, and no blocking conflict. Missing documents alone do not block approval.</p>}
+      {!canApprove && detail.case.review_started_at && detail.case.status !== "APPROVED_FILE" && <p className="text-xs text-slate-500">Approval requires current verification, both confirmations, valid minimum Client data, and no blocking conflict. Optional absent operational fields do not block approval.</p>}
     </section>}
   </div>;
 }
