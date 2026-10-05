@@ -24,7 +24,7 @@ const US_CITY_STATE_ZIP_RE = /^\s*([A-Za-z .'-]{2,}),?\s+([A-Z]{2})\s+(\d{5}(?:-
 const STREET_RE = /^\s*\d{1,6}\s+[A-Za-z0-9 .#'/-]{2,}(?:\b(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PKWY|PARKWAY|HWY|HIGHWAY|WAY|PL|PLACE|TER|TERRACE|CIR|CIRCLE)\b.*)$/i;
 const URL_RE = /(?:https?:\/\/|www\.|wa\.me\/)/i;
 const NON_NAME_TERMS_RE = /\b(?:night|morning|evening|afternoon|available|availability|english|arabic|spanish|yes|no|true|false|amazon|warehouse|shift|site|job|client|customer|application|resume|passport|license|address|street|city|state|zip|phone|email)\b/i;
-const LABEL_PREFIX_RE = /^(?:full\s*name|name|client\s*name|phone|mobile|cell|telephone|email|e-mail|dob|date\s*of\s*birth|birth\s*date|street|address|street\s*address|city|state|zip|zip\s*code|postal\s*code|preferred\s*language|language|appointment\s*availability|availability|available|site|site\s*code|preferred\s*location|location|job|job\s*id|amazon\s*job\s*id|shift|desired\s*shift|backup\s*site|backup\s*location|backup\s*job\s*id|backup\s*shift|amazon\s*application\s*email|amazon\s*worked\s*before|amazon\s*applied\s*before|currently\s*amazon|via\s*agency|company|employer|job\s*title|employment\s*from|employment\s*to|employment\s*kind|notes?|الاسم|الاسم\s*الكامل|رقم\s*الهاتف|الهاتف|البريد|البريد\s*الإلكتروني|ايميل|إيميل|تاريخ\s*الميلاد|العنوان|المدينة|الولاية|الرمز\s*البريدي|اللغة|المواعيد|موعد|الموقع|الشفت|الوردية)\b/i;
+const LABEL_PREFIX_RE = /^(?:full\s*name|name|client\s*name|phone|mobile|cell|telephone|email|e-mail|dob|date\s*of\s*birth|birth\s*date|street|address|street\s*address|city|state|zip|zip\s*code|postal\s*code|preferred\s*language|language|english\s*(?:proficiency|level)|appointment\s*availability|availability|available|site|site\s*code|preferred\s*location|location|job|job\s*id|amazon\s*job\s*id|shift|desired\s*shift|shift\s*days|shift\s*start|shift\s*end|backup\s*site|backup\s*location|backup\s*job\s*id|backup\s*shift|amazon\s*application\s*email|amazon\s*worked\s*before|amazon\s*applied\s*before|currently\s*amazon|via\s*agency|company|employer|job\s*title|employment\s*from|employment\s*to|employment\s*kind|notes?|الاسم|الاسم\s*الكامل|رقم\s*الهاتف|الهاتف|البريد|البريد\s*الإلكتروني|ايميل|إيميل|تاريخ\s*الميلاد|العنوان|المدينة|الولاية|الرمز\s*البريدي|اللغة|مستوى\s*الإنجليزية|مستوى\s*الانجليزية|المواعيد|موعد|الموقع|الشفت|الوردية|أيام\s*الشفت|ايام\s*الشفت|بداية\s*الشفت|نهاية\s*الشفت)\b/i;
 
 function clean(value: string) {
   return value.replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/\s+/g, " ").trim();
@@ -59,7 +59,7 @@ function parseDate(value: string) {
   const d = Number(m[2]);
   const y = Number(m[3]);
   const date = new Date(Date.UTC(y, mo - 1, d));
-  if (y < 1900 || y > 2100 || date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
+  if (y < 1900 || y > 2100 || date.getUTCFullYear() !== y || date.getUTCMonth() === mo || date.getUTCDate() !== d) return null;
   return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
@@ -202,6 +202,8 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
 
   const language = labeled(lines, ["preferred language", "language", "اللغة"]) ?? standaloneLanguage(lines);
   add(row, evidence, "preferred_language", language, language ? "HIGH" : "REVIEW", language);
+  const proficiency = labeled(lines, ["english proficiency", "english level", "مستوى الانجليزية", "مستوى الإنجليزية"]);
+  add(row, evidence, "english_proficiency", proficiency, proficiency ? "HIGH" : "REVIEW", proficiency);
   add(row, evidence, "appointment_availability", labeled(lines, ["appointment availability", "availability", "available", "schedule", "المواعيد", "موعد"]), "MEDIUM", null);
   add(row, evidence, "amazon_worked_before", labeled(lines, ["amazon worked before", "worked at amazon before", "previous amazon"]), "REVIEW", null);
   add(row, evidence, "amazon_worked_from", labeled(lines, ["amazon worked from", "worked from"]), "REVIEW", null);
@@ -218,6 +220,9 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
   add(row, evidence, "site_code", labeled(lines, ["site", "site code", "preferred location", "location", "warehouse", "الموقع"]), "REVIEW", null);
   add(row, evidence, "job_id", labeled(lines, ["job id", "job", "amazon job id", "requisition id"]), "REVIEW", null);
   add(row, evidence, "shift_code", labeled(lines, ["shift", "desired shift", "schedule shift", "الشفت", "الوردية"]), "REVIEW", null);
+  add(row, evidence, "shift_days", labeled(lines, ["shift days", "work days", "schedule days", "أيام الشفت", "ايام الشفت"]), "REVIEW", null);
+  add(row, evidence, "shift_start_time", labeled(lines, ["shift start", "shift start time", "start time", "بداية الشفت"]), "REVIEW", null);
+  add(row, evidence, "shift_end_time", labeled(lines, ["shift end", "shift end time", "end time", "نهاية الشفت"]), "REVIEW", null);
   add(row, evidence, "backup_site_code", labeled(lines, ["backup site", "backup location", "location option 2"]), "REVIEW", null);
   add(row, evidence, "backup_job_id", labeled(lines, ["backup job id", "job option 2"]), "REVIEW", null);
   add(row, evidence, "backup_shift_code", labeled(lines, ["backup shift", "shift option 2"]), "REVIEW", null);
