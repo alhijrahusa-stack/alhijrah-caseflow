@@ -102,10 +102,14 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   const hasSource = Boolean(notes.trim() || files.length);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(AUDIO_PREF_KEY);
-    setAudioEnabled(stored === "on");
+    const preferenceTimer = window.setTimeout(() => {
+      setAudioEnabled(window.localStorage.getItem(AUDIO_PREF_KEY) === "on");
+    }, 0);
     const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - sessionStart.current) / 1000)), 1000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(preferenceTimer);
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => () => {
