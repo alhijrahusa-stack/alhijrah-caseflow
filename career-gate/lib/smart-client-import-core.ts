@@ -235,6 +235,55 @@ function reviewFieldsFor(primary: Selection[], backup: Selection[]): SmartReview
   };
 }
 
+function normalizedReviewFields(input: z.infer<typeof ReviewFieldsInput>, fallback: SmartReviewFields): SmartReviewFields {
+  const daysRaw = input.shift_days;
+  const startRaw = input.shift_start_time;
+  const endRaw = input.shift_end_time;
+  const days = daysRaw == null ? fallback.shift_days : normalizeShiftDays(daysRaw);
+  const start = startRaw == null ? fallback.shift_start_time : normalizeShiftTime(startRaw);
+  const end = endRaw == null ? fallback.shift_end_time : normalizeShiftTime(endRaw);
+  if (daysRaw != null && String(Array.isArray(daysRaw) ? daysRaw.join(",") : daysRaw).trim() && !days) throw new Error("shift_days: invalid shift days");
+  if (startRaw != null && String(startRaw).trim() && !start) throw new Error("shift_start_time: invalid shift time");
+  if (endRaw != null && String(endRaw).trim() && !end) throw new Error("shift_end_time: invalid shift time");
+  return {
+    preferred_location: input.preferred_location?.trim() || fallback.preferred_location,
+    location_option_1: input.location_option_1?.trim() || fallback.location_option_1,
+    location_option_2: input.location_option_2?.trim() || fallback.location_option_2,
+    shift_days: days,
+    shift_start_time: start,
+    shift_end_time: end,
+  };
+}
+
+function reviewFieldsFromRow(row: IntakeRow): SmartReviewFields {
+  const rawDays = pickImportValue(row, "shift_days");
+  const rawStart = pickImportValue(row, "shift_start_time");
+  const rawEnd = pickImportValue(row, "shift_end_time");
+  const shiftDays = normalizeShiftDays(rawDays);
+  const shiftStart = normalizeShiftTime(rawStart);
+  const shiftEnd = normalizeShiftTime(rawEnd);
+  if (rawDays && !shiftDays) throw new Error("shift_days: invalid shift days");
+  if (rawStart && !shiftStart) throw new Error("shift_start_time: invalid shift time");
+  if (rawEnd && !shiftEnd) throw new Error("shift_end_time: invalid shift time");
+  const preferred = optional(pickImportValue(row, "site_code"));
+  return {
+    preferred_location: preferred,
+    location_option_1: preferred,
+    location_option_2: optional(pickImportValue(row, "backup_site_code")),
+    shift_days: shiftDays,
+    shift_start_time: shiftStart,
+    shift_end_time: shiftEnd,
+  };
+}
+
+function tryResolveSelection(row: IntakeRow, keys: { site: RegistryKey; job: RegistryKey; shift: RegistryKey; days?: RegistryKey; start?: RegistryKey; end?: RegistryKey }): Selection[] {
+  try {
+    return resolveSelection(row, keys);
+  } catch {
+    return [];
+  }
+}
+
 const ReviewFieldsInput = z.object({
   preferred_location: z.string().trim().max(200).nullable().optional(),
   location_option_1: z.string().trim().max(200).nullable().optional(),
@@ -259,40 +308,20 @@ export function normalizePreparedDraft(value: unknown): PreparedImportDraft {
   }).parse(value);
   const profile = ProfileSchema.parse(raw.profile);
   const status = StatusSchema.parse(raw.status);
-  const existing = reviewFieldsFor(raw.primary, raw.backup);
-  const requestedDays = raw.review_fields.shift_days == null ? existing.shift_days : normalizeShiftDays(raw.review_fields.shift_days);
-  const requestedStart = raw.review_fields.shift_start_time == null ? existing.shift_start_time : normalizeShiftTime(raw.review_fields.shift_start_time);
-  const requestedEnd = raw.review_fields.shift_end_time == null ? existing.shift_end_time : normalizeShiftTime(raw.review_fields.shift_end_time);
-  const primarySeed = raw.primary[0];
-  const requestedPrimarySite = raw.review_fields.preferred_location ?? raw.review_fields.location_option_1 ?? existing.preferred_location;
-  const requestedPrimary = {
-    site: requestedPrimarySite ?? primarySeed?.site_code ?? null,
-    job: primarySeed?.job_id ?? null,
-    shift: (raw.review_fields.shift_days != null || raw.review_fields.shift_start_time != null || raw.review_fields.shift_end_time != null)
-      ? null
-      : primarySeed?.shift_code ?? null,
-    days: requestedDays,
-    start: requestedStart,
-    end: requestedEnd,
-  };
-  const primary = (requestedPrimary.site || requestedPrimary.job || requestedPrimary.shift || requestedPrimary.days || requestedPrimary.start || requestedPrimary.end)
-    ? resolveSelectionTokens(requestedPrimary)
-    : [];
-  const backupSeed = raw.backup[0];
-  const requestedBackupSite = raw.review_fields.location_option_2 ?? existing.location_option_2;
-  const requestedBackup = {
-    site: requestedBackupSite ?? backupSeed?.site_code ?? null,
-    job: backupSeed?.job_id ?? null,
-    shift: backupSeed?.shift_code ?? null,
-  };
-  const backup = (requestedBackup.site || requestedBackup.job || requestedBackup.shift)
-    ? resolveSelectionTokens(requestedBackup)
-    : [];
+  const primary = raw.primary.map((selection) => {
+    if (!findOptionForSelection(selection)) throw new Error("primary: selected job preference is not an active catalog option");
+    return selection;
+  });
+  const backup = raw.backup.map((selection) => {
+    if (!findOptionForSelection(selection)) throw new Error("backup: selected job preference is not an active catalog option");
+    return selection;
+  });
+  const review_fields = normalizedReviewFields(raw.review_fields, reviewFieldsFor(primary, backup));
   return {
     profile,
     primary,
     backup,
-    review_fields: reviewFieldsFor(primary, backup),
+    review_fields,
     status,
     next_step: raw.next_step?.trim() || null,
     staff_code: raw.staff_code?.trim() || null,
@@ -329,7 +358,7 @@ export function prepareImportDraft(row: IntakeRow): PreparedImportDraft {
     phone: pickImportValue(row, "phone") ?? "",
     email: optional(pickImportValue(row, "email")),
     date_of_birth: optional(pickImportValue(row, "date_of_birth")),
-    preferred_language: language ?? undefined,
+    preferred_language: language ?? null,
     english_proficiency: normalizeEnglishProficiency(pickImportValue(row, "english_proficiency")),
     street: decomposed?.street ?? directStreet,
     city: directCity ?? decomposed?.city ?? null,
@@ -350,14 +379,15 @@ export function prepareImportDraft(row: IntakeRow): PreparedImportDraft {
   const rawStatus = optional(pickImportValue(row, "status")) ?? "new_intake";
   const status = StatusSchema.safeParse(rawStatus);
   if (!status.success) throw new Error(`status: ${status.error.issues[0]?.message ?? "invalid status"}`);
-  const primary = resolveSelection(row, { site: "site_code", job: "job_id", shift: "shift_code", days: "shift_days", start: "shift_start_time", end: "shift_end_time" });
-  const backup = resolveSelection(row, { site: "backup_site_code", job: "backup_job_id", shift: "backup_shift_code" });
+  const primary = tryResolveSelection(row, { site: "site_code", job: "job_id", shift: "shift_code", days: "shift_days", start: "shift_start_time", end: "shift_end_time" });
+  const backup = tryResolveSelection(row, { site: "backup_site_code", job: "backup_job_id", shift: "backup_shift_code" });
+  const reviewFields = reviewFieldsFromRow(row);
 
   return {
     profile: profile.data,
     primary,
     backup,
-    review_fields: reviewFieldsFor(primary, backup),
+    review_fields: normalizedReviewFields(reviewFields, reviewFieldsFor(primary, backup)),
     status: status.data,
     next_step: optional(pickImportValue(row, "next_step")),
     staff_code: optional(pickImportValue(row, "staff_code")),
