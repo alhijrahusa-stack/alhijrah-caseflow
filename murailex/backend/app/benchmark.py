@@ -6,6 +6,8 @@ from evidence text and is used only to compute explicitly labelled normalized me
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import unicodedata
 from collections import Counter
@@ -271,6 +273,24 @@ def aggregate_scores(scores: list[dict[str, Any]]) -> dict[str, Any]:
         }
     out["normalization_scope"] = "measurement_only"
     return out
+
+
+CORPUS_ID_VERSION = "murailex.corpus/1"
+
+
+def corpus_id(items: list[dict[str, Any]]) -> str:
+    """Identity of the exact evaluation corpus: every item's id, audio SHA-256 and human
+    reference. Two runs may only be compared when this matches, and it cannot match if the
+    data was substituted, regenerated or re-split."""
+    blob = json.dumps(
+        sorted(
+            [str(i["item_id"]), str(i["audio_sha256"]), str(i.get("ground_truth", ""))]
+            for i in items
+        ),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(blob.encode()).hexdigest()
 
 
 DER_PROTOCOL = "murailex.der/1: NIST DER, 10 ms frames, overlapped speech scored, no collar, optimal one-to-one speaker mapping, scored within UEM"

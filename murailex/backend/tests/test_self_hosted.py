@@ -39,8 +39,8 @@ def test_benchmark_gate_requires_persisted_fingerprint_bound_run(monkeypatch, tm
             "dataset_version": "unit-ds", "split": "held_out", "commit_sha": "x", "provider": "local_whisper",
             "model": primary.info().model, "locale": "ar", "parameters": {"engine_fingerprint": fp},
             "environment": {}, "audio_hours": 0.001,
-            "items": [{"item_id": "a", "ground_truth": "قال ذلك", "hypothesis": "قال ذلك", "human_ground_truth": True,
-                       "critical_reference": [], "critical_hypothesis": []}],
+            "items": [{"item_id": "a", "audio_sha256": "a" * 64, "ground_truth": "قال ذلك", "hypothesis": "قال ذلك",
+                       "human_ground_truth": True, "critical_reference": [], "critical_hypothesis": []}],
         }
         data = json.dumps(payload).encode()
         (tmp_path / "unit.json").write_bytes(data)
@@ -104,3 +104,30 @@ def test_thread_budget_respects_cgroup_quota(monkeypatch):
     assert resources.effective_cpus() == 8 and resources.worker_threads() == 7
     monkeypatch.setattr(resources, "_cgroup_quota", lambda: None)
     assert resources.effective_cpus() == 48
+
+
+def test_held_out_corpus_identity_is_pinned_and_verified(monkeypatch, tmp_path):
+    """A benchmark run may only be imported against the corpus it was measured on: the pin
+    covers every item id, audio hash and human reference, so substituted or regenerated data
+    cannot pass as the same evaluation."""
+    import json as _json
+
+    import pytest
+
+    from app import benchmark_import
+    from app.benchmark import corpus_id
+    from app.db import session_factory
+
+    items = [{"item_id": "a", "audio_sha256": "b" * 64, "ground_truth": "قال", "hypothesis": "قال",
+              "human_ground_truth": True, "critical_reference": [], "critical_hypothesis": []}]
+    payload = {"dataset_version": "d", "split": "held_out", "commit_sha": "x", "provider": "local_whisper",
+               "model": "m", "locale": "ar", "parameters": {}, "environment": {}, "items": items,
+               "corpus_id": corpus_id(items)}
+    monkeypatch.setattr(benchmark_import, "BENCH_DIR", str(tmp_path))
+    (tmp_path / "ok.json").write_text(_json.dumps(payload), encoding="utf-8")
+    with session_factory()() as db:
+        assert len(benchmark_import.import_benchmarks(db)) == 1
+    swapped = {**payload, "items": [{**items[0], "ground_truth": "شيء آخر"}]}
+    (tmp_path / "swapped.json").write_text(_json.dumps(swapped), encoding="utf-8")
+    with session_factory()() as db, pytest.raises(ValueError, match="corpus identity mismatch"):
+        benchmark_import.import_benchmarks(db)
