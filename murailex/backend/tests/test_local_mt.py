@@ -41,3 +41,19 @@ def test_real_translation_both_directions_and_long_input(mt_dir):
     (translated,), meta = local_mt.translate_batch([long_text], "ar", "en")
     assert meta["chunks"] > 1
     assert translated.lower().count("court") >= 30
+
+
+@needs_models
+def test_model_files_are_readable_by_an_unprivileged_service(mt_dir):
+    """The OPUS-MT release archives carry 0640 root-owned files. The service runs as an
+    unprivileged user, so every file it loads must be world-readable."""
+    import os
+    import stat
+
+    for direction in ("ar-en", "en-ar"):
+        for name in ("model.bin", "source.spm", "target.spm"):
+            path = os.path.join(mt_dir, direction, name)
+            if not os.path.exists(path):
+                continue
+            mode = stat.S_IMODE(os.stat(path).st_mode)
+            assert mode & stat.S_IROTH, f"{direction}/{name} is not world-readable ({oct(mode)})"
