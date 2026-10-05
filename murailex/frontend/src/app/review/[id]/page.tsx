@@ -165,6 +165,14 @@ export default function ReviewPage() {
   const [peaks, setPeaks] = useState<number[] | null>(null);
   const [speakers, setSpeakers] = useState<Record<string, { label: string }>>({});
 
+  // Resolving one region changes the disputes and nothing else, so only that list is
+  // refetched afterwards. Reloading the whole transcript each time cost 315 KiB per click on
+  // a 4-minute recording, and grows with the recording.
+  const refreshDisputes = useCallback(async () => {
+    const d = await api<{ disputes: Dispute[] }>(`/api/recordings/${id}/disputes`);
+    setDisputes(d.disputes);
+  }, [id]);
+
   const load = useCallback(async () => {
     const [r, d, tr] = await Promise.all([
       api<{ recording: Recording }>(`/api/recordings/${id}`, { schema: RecordingEnvelope }),
@@ -209,7 +217,7 @@ export default function ReviewPage() {
         </div>
         {shown.length === 0 && <p className="py-10 text-center text-sm text-fg-muted">{t("no_open_regions")}</p>}
         {shown.map((d) => (
-          <DisputeCard key={d.id} d={d} peaks={peaks} speakerLabel={d.speaker ? speakers[d.speaker]?.label ?? d.speaker : ""} onResolved={load} />
+          <DisputeCard key={d.id} d={d} peaks={peaks} speakerLabel={d.speaker ? speakers[d.speaker]?.label ?? d.speaker : ""} onResolved={refreshDisputes} />
         ))}
         <p className="text-center text-xs text-fg-subtle">{t("controlling")}</p>
       </div>
