@@ -41,3 +41,10 @@ registerHandler("intake_analysis", async (job) => {
   await intakeAgentFor(job.entity_id!, null, job.trace_id ?? job.id);
   return { status: "succeeded" };
 });
+
+registerHandler("smart_client_enrichment", async (job) => {
+  if (!job.entity_id) return { status: "failed_permanent", error: "Smart import enrichment is missing case id" };
+  const { enrichMobileImportCaseById } = await import("@/lib/smart-client-mobile");
+  await enrichMobileImportCaseById(job.entity_id, { traceId: job.trace_id ?? job.id, jobId: job.id });
+  return { status: "succeeded" };
+});

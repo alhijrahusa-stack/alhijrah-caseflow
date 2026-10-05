@@ -24,6 +24,36 @@ saherkagdop@gmail.com`;
     expect(localDisplayIdentity(source)).toBe("BELAL MAHMOOD HAMOOD HUSS AL BAADANI");
   });
 
+  it("decomposes the verified Production combined address into street, city, state and ZIP", () => {
+    const source = `EMAD ABDO AL WAJIH
+06-06-1985
+3138580058
+12091 BLOOM ST DETROIT, MI 48212-2876
+alwajehemad@gmail.com`;
+
+    const result = extractDeterministicClient(source);
+    expect(result.row.street).toBe("12091 BLOOM ST");
+    expect(result.row.city).toBe("DETROIT");
+    expect(result.row.state).toBe("MI");
+    expect(result.row.zip).toBe("48212-2876");
+    for (const field of ["street", "city", "state", "zip"]) {
+      const evidence = result.evidence.find((item) => item.field_key === field);
+      expect(evidence?.verification_state).toBe("MATCHED");
+      expect(evidence?.strength).toBe("HIGH");
+      expect(evidence?.source_text_reference).toBe("12091 BLOOM ST DETROIT, MI 48212-2876");
+    }
+  });
+
+  it("decomposes a labeled combined address and retains unit information in street", () => {
+    const result = extractDeterministicClient("Name: Test Client\nAddress: 3092 GOODSON ST UNIT2 HAMTRAMCK, MI 48212-3678");
+    expect(result.row).toMatchObject({
+      street: "3092 GOODSON ST UNIT2",
+      city: "HAMTRAMCK",
+      state: "MI",
+      zip: "48212-3678",
+    });
+  });
+
   it("extracts explicit supported operational fields across the full source text", () => {
     const source = `Name: Jane Marie Doe
 Phone: 313-555-0198

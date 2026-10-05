@@ -3,7 +3,7 @@ import type postgres from "postgres";
 import { sql } from "@/lib/db";
 import { log, newTraceId } from "@/lib/obs";
 
-export type JobType = "document_extraction" | "semantic_embedding" | "notification_send" | "audit_scan" | "intake_analysis";
+export type JobType = "document_extraction" | "semantic_embedding" | "notification_send" | "audit_scan" | "intake_analysis" | "smart_client_enrichment";
 export type Job = {
   id: string;
   type: JobType;
