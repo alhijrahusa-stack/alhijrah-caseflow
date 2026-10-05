@@ -40,4 +40,30 @@ describe("Smart Career Collect Client staging security", () => {
     expect(String(row?.definition)).toContain("MISSING_DOCUMENT");
     expect(String(row?.definition)).toContain("APPROVED_FILE");
   });
+
+  it("keeps field evidence in the existing staging model", async () => {
+    const rows = await db`
+      select column_name,data_type
+      from information_schema.columns
+      where table_schema='public' and table_name='client_import_cases'
+        and column_name in ('mapped_draft','field_evidence','reviewer_id','reviewed_at')
+      order by column_name`;
+    expect(rows.map((row) => row.column_name)).toEqual(["field_evidence", "mapped_draft", "reviewed_at", "reviewer_id"]);
+    expect(rows.find((row) => row.column_name === "field_evidence")?.data_type).toBe("jsonb");
+  });
+
+  it("stores English proficiency additively on the canonical Client", async () => {
+    const [column] = await db`
+      select data_type,is_nullable
+      from information_schema.columns
+      where table_schema='public' and table_name='clients' and column_name='english_proficiency'`;
+    expect(column?.data_type).toBe("text");
+    expect(column?.is_nullable).toBe("YES");
+    const [constraint] = await db`
+      select pg_get_constraintdef(oid) as definition
+      from pg_constraint
+      where conrelid='public.clients'::regclass and conname='clients_english_proficiency_check'`;
+    const definition = String(constraint?.definition);
+    for (const value of ["EXCELLENT","GOOD","FAIR","WEAK","NONE"]) expect(definition).toContain(value);
+  });
 });
