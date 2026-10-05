@@ -57,6 +57,48 @@ describe("Smart Career Collect Client canonical import contract", () => {
     expect(normalizeEnglishProficiency("unknown level")).toBeNull();
   });
 
+  it("keeps preferred language separate from English proficiency, including bounded typos", () => {
+    expect(normalizeEnglishProficiency("English is good")).toBe("GOOD");
+    expect(normalizeEnglishProficiency("Englis is goog")).toBe("GOOD");
+
+    const local = extractDeterministicClient([
+      "Full Name: Test Client",
+      "Phone: 313-555-0199",
+      "Englis is goog",
+    ].join("\n"));
+    expect(local.row.preferred_language).toBeUndefined();
+    expect(local.row.english_proficiency).toBe("Englis is goog");
+
+    const draft = prepareImportDraft(local.row);
+    expect(draft.profile.preferred_language).toBeNull();
+    expect(draft.profile.english_proficiency).toBe("GOOD");
+  });
+
+  it("extracts work location from shift context without reusing the residential city", () => {
+    const local = extractDeterministicClient([
+      "Full Name: Test Client",
+      "Phone: 313-555-0199",
+      "6461 MEAD ST",
+      "DEARBORN, MI 48126-2041",
+      "Romulus night shift",
+    ].join("\n"));
+    const draft = prepareImportDraft(local.row);
+    expect(draft.profile.city).toBe("DEARBORN");
+    expect(draft.review_fields.preferred_location).toBe("Romulus");
+    expect(draft.review_fields.location_option_1).toBe("Romulus");
+    expect(draft.review_fields.shift_days).toBeNull();
+    expect(draft.review_fields.shift_start_time).toBeNull();
+    expect(draft.review_fields.shift_end_time).toBeNull();
+  });
+
+  it("uses US weekday/weekend semantics and validates DOB business range", () => {
+    expect(normalizeShiftDays("Weekdays")).toEqual(["MON", "TUE", "WED", "THU", "FRI"]);
+    expect(normalizeShiftDays("Weekends")).toEqual(["SAT", "SUN"]);
+    expect(normalizeShiftDays("Every day")).toEqual(["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]);
+    expect(() => prepareImportDraft({ full_name: "Test Client", phone: "3135550199", date_of_birth: "1000-01-01" })).toThrow(/date_of_birth/i);
+    expect(() => prepareImportDraft({ full_name: "Test Client", phone: "3135550199", date_of_birth: "02\/30\/2020" })).toThrow(/date_of_birth/i);
+  });
+
   it("decomposes the exact production address fixture and preserves ZIP+4", () => {
     expect(decomposeUsAddress("28772 GOODSON ST, DETROIT, MI 48212-3768")).toEqual({
       street: "28772 GOODSON ST",
