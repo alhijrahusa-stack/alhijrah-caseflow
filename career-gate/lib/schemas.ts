@@ -60,7 +60,7 @@ export const ProfileSchema = z
     phone: Phone,
     email: z.email("Invalid email").max(200).nullable().optional().or(z.literal("")).transform((v) => (v ? v.toLowerCase() : null)),
     date_of_birth: optionalDate,
-    preferred_language: z.enum(Object.keys(LANGUAGES) as [keyof typeof LANGUAGES]).default("en"),
+    preferred_language: z.enum(Object.keys(LANGUAGES) as [keyof typeof LANGUAGES]).nullable().optional().transform((v) => v ?? null),
     english_proficiency: EnglishProficiencySchema,
     street: optionalText(200),
     city: optionalText(100),
