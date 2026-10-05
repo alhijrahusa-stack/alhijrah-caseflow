@@ -59,7 +59,7 @@ function parseDate(value: string) {
   const d = Number(m[2]);
   const y = Number(m[3]);
   const date = new Date(Date.UTC(y, mo - 1, d));
-  if (y < 1900 || y > 2100 || date.getUTCFullYear() !== y || date.getUTCMonth() === mo || date.getUTCDate() !== d) return null;
+  if (y < 1900 || y > 2100 || date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
   return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
