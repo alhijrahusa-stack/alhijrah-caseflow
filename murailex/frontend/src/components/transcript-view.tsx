@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Check, Copy, FileText, Pencil, Sparkles, UserRound } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { usePlayer } from "@/components/player";
 import { SummaryPanel } from "@/components/summary-panel";
@@ -91,6 +91,8 @@ export function TranscriptView({
   const { t, dir } = useI18n();
   const rtl = dir === "rtl";
   const player = usePlayer();
+  const activeRef = useRef<HTMLElement | null>(null);
+  const followedRef = useRef<string | null>(null);
   const [editing, setEditing] = useState<Segment | null>(null);
   const [draft, setDraft] = useState("");
   const [speakerFor, setSpeakerFor] = useState<Segment | null>(null);
@@ -106,6 +108,19 @@ export function TranscriptView({
   }, [content.segments, query, speakerFilter]);
 
   const speakerColor = useCallbackSpeakerColor(content);
+
+  // Follow the audio: keep the segment being played in view, once per segment and only while
+  // playing, so a reader scrolling by hand is never fought.
+  useEffect(() => {
+    const node = activeRef.current;
+    if (!player.playing || !node || followedRef.current === node.id) return;
+    followedRef.current = node.id;
+    const box = node.getBoundingClientRect();
+    if (box.top < 72 || box.bottom > window.innerHeight - 72) {
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      node.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+    }
+  }, [player.playing, player.timeMs]);
 
   async function saveText() {
     if (!editing) return;
@@ -205,6 +220,7 @@ export function TranscriptView({
                 <article
                   key={seg.id}
                   id={seg.id}
+                  ref={active ? activeRef : undefined}
                   className={cn(
                     "group relative overflow-hidden rounded-lg border px-3.5 py-3 transition-colors duration-150 sm:px-4",
                     active ? "border-primary/50 bg-primary/10" : "border-line bg-surface-2/40 hover:border-line-strong hover:bg-surface-2",
