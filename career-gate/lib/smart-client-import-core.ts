@@ -69,7 +69,7 @@ export const IMPORT_FIELD_REGISTRY = [
 ] as const satisfies readonly FieldDefinition[];
 
 export const CANONICAL_IMPORT_HEADERS = IMPORT_FIELD_REGISTRY.map((field) => field.key);
-export const IMPORT_SCHEMA_VERSION = "2026-10-05.2";
+export const IMPORT_SCHEMA_VERSION = "2026-10-05.3";
 export const IMPORT_TEMPLATE_ID = "career-gate-client-import";
 export const IMPORT_SCHEMA_HASH = createHash("sha256")
   .update(JSON.stringify(IMPORT_FIELD_REGISTRY.map((field) => ({ key: field.key, required: "required" in field && field.required === true }))))
@@ -265,20 +265,28 @@ export function normalizePreparedDraft(value: unknown): PreparedImportDraft {
   const requestedEnd = raw.review_fields.shift_end_time == null ? existing.shift_end_time : normalizeShiftTime(raw.review_fields.shift_end_time);
   const primarySeed = raw.primary[0];
   const requestedPrimarySite = raw.review_fields.preferred_location ?? raw.review_fields.location_option_1 ?? existing.preferred_location;
-  const primary = primarySeed
-    ? resolveSelectionTokens({
-        site: requestedPrimarySite ?? primarySeed.site_code,
-        job: primarySeed.job_id,
-        shift: (raw.review_fields.shift_days != null || raw.review_fields.shift_start_time != null || raw.review_fields.shift_end_time != null) ? null : primarySeed.shift_code,
-        days: requestedDays,
-        start: requestedStart,
-        end: requestedEnd,
-      })
+  const requestedPrimary = {
+    site: requestedPrimarySite ?? primarySeed?.site_code ?? null,
+    job: primarySeed?.job_id ?? null,
+    shift: (raw.review_fields.shift_days != null || raw.review_fields.shift_start_time != null || raw.review_fields.shift_end_time != null)
+      ? null
+      : primarySeed?.shift_code ?? null,
+    days: requestedDays,
+    start: requestedStart,
+    end: requestedEnd,
+  };
+  const primary = (requestedPrimary.site || requestedPrimary.job || requestedPrimary.shift || requestedPrimary.days || requestedPrimary.start || requestedPrimary.end)
+    ? resolveSelectionTokens(requestedPrimary)
     : [];
   const backupSeed = raw.backup[0];
   const requestedBackupSite = raw.review_fields.location_option_2 ?? existing.location_option_2;
-  const backup = backupSeed
-    ? resolveSelectionTokens({ site: requestedBackupSite ?? backupSeed.site_code, job: backupSeed.job_id, shift: backupSeed.shift_code })
+  const requestedBackup = {
+    site: requestedBackupSite ?? backupSeed?.site_code ?? null,
+    job: backupSeed?.job_id ?? null,
+    shift: backupSeed?.shift_code ?? null,
+  };
+  const backup = (requestedBackup.site || requestedBackup.job || requestedBackup.shift)
+    ? resolveSelectionTokens(requestedBackup)
     : [];
   return {
     profile,
