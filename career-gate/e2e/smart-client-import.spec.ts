@@ -47,12 +47,13 @@ test.describe("Smart Career Collect Client", () => {
     const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("xpath=ancestor::section[1]");
     const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
     await expect(queueRow).toBeVisible();
-    await queueRow.getByRole("button", { name: "OPEN / REVIEW" }).click();
+    await queueRow.getByRole("button", { name: "OPEN / EDIT" }).click();
     await expect(page.getByText("SMART CLIENT REVIEW", { exact: true })).toBeVisible();
 
     await page.getByLabel("REVIEWED BY").selectOption(String(admin.id));
     await expect(page.getByLabel("REVIEWED BY")).toHaveValue(String(admin.id));
-    await page.getByRole("button", { name: "REVIEW", exact: true }).click();
+    await page.getByRole("button", { name: "START REVIEW", exact: true }).click();
+    await expect(page.getByText("Review started.", { exact: true })).toBeVisible();
 
     const verifyResponsePromise = page.waitForResponse((response) => {
       if (response.request().method() !== "POST" || new URL(response.url()).pathname !== "/api/staff/smart-client-import") return false;
@@ -66,12 +67,14 @@ test.describe("Smart Career Collect Client", () => {
     await page.getByRole("button", { name: "CHECK & VERIFY" }).click();
     const verifyResponse = await verifyResponsePromise;
     expect(verifyResponse.status(), await verifyResponse.text()).toBe(200);
-    await expect(page.getByText("Verification complete.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Review saved and verification completed.", { exact: true })).toBeVisible();
     const [verifiedImport] = await db()`select status from client_import_cases where id=${staged.id}`;
     expect(verifiedImport?.status).toBe("MISSING_DOCUMENT");
 
     await page.getByText("CURRENT DOCUMENT STATUS REVIEWED", { exact: true }).click();
     await page.getByText("INFORMATION MATCH CONFIRMED", { exact: true }).click();
+    await page.getByRole("button", { name: "CHECK & VERIFY" }).click();
+    await expect(page.getByText("Review saved and verification completed.", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "APPROVE FILE" }).click();
     await expect(page).toHaveURL(/\/staff\/client\/[0-9a-f-]+$/);
 
