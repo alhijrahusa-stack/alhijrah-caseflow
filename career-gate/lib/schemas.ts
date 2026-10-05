@@ -84,8 +84,14 @@ export const ProfileSchema = z
     amazon_application_email: p.amazon_applied_before ? p.amazon_application_email : null,
   }))
   .superRefine((p, ctx) => {
-    if (p.date_of_birth && p.date_of_birth > new Date().toISOString().slice(0, 10)) {
-      ctx.addIssue({ code: "custom", path: ["date_of_birth"], message: "Date of birth is in the future" });
+    if (p.date_of_birth) {
+      const [year, month, day] = p.date_of_birth.split("-").map(Number);
+      const exact = new Date(Date.UTC(year, month - 1, day));
+      if (year < 1900 || year > 2100 || exact.getUTCFullYear() !== year || exact.getUTCMonth() !== month - 1 || exact.getUTCDate() !== day) {
+        ctx.addIssue({ code: "custom", path: ["date_of_birth"], message: "Invalid date of birth" });
+      } else if (p.date_of_birth > new Date().toISOString().slice(0, 10)) {
+        ctx.addIssue({ code: "custom", path: ["date_of_birth"], message: "Date of birth is in the future" });
+      }
     }
     if (p.amazon_worked_from && p.amazon_worked_to && p.amazon_worked_to < p.amazon_worked_from) {
       ctx.addIssue({ code: "custom", path: ["amazon_worked_to"], message: "Amazon end date is before start date" });
