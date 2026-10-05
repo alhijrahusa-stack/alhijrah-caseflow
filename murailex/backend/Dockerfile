@@ -22,7 +22,9 @@ RUN set -eux; m=/opt/murailex/models/mt; mkdir -p $m/src; \
       mkdir -p $m/src/$1 && unzip -q $m/src/$1.zip -d $m/src/$1; \
       ct2-opus-mt-converter --model_dir $m/src/$1 --output_dir $m/$1 --quantization int8; \
       cp $m/src/$1/source.spm $m/src/$1/target.spm $m/src/$1/LICENSE $m/src/$1/README.md $m/$1/; \
-    done; rm -rf $m/src
+    done; rm -rf $m/src; \
+    # the release archives carry 0640 root-owned files; the service runs unprivileged
+    chmod -R a+rX /opt/murailex/models
 ENV LOCAL_DIAR_DIR=/opt/murailex/models/diar LOCAL_MT_DIR=/opt/murailex/models/mt
 # Self-hosted engine route (no cloud transcription). Engine identity is pinned; routing stays
 # gated by the committed held-out benchmark runs (app/benchmarks) bound to the same engine
