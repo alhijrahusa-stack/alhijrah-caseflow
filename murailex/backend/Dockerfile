@@ -32,7 +32,7 @@ ENV ASR_ROUTE=self_hosted \
     LOCAL_VERIFY_MODEL_REVISION=08e178d48790749d25932bbc082711ddcfdfbc4f \
     BENCHMARK_ROUTING_APPROVED=true \
     BENCHMARK_DATASET_VERSION=fleurs-ar_eg-test,ami-test-only_words \
-    BENCHMARK_HELD_OUT_RUN_ID=92a0a558-2133-50d3-8ec9-8be5277ec214,4252f189-5565-5b4d-8592-91ce7cd44d11,a88ae6c9-729f-5f11-9360-5de0488feb44
+    BENCHMARK_HELD_OUT_RUN_ID=92a0a558-2133-50d3-8ec9-8be5277ec214,ea7093ea-e261-5c0d-a0c5-3ec10d9dc1b4,f5b44f9b-f98d-534b-97ed-51bcdd744d1a
 COPY alembic.ini pyproject.toml ./
 COPY alembic ./alembic
 COPY app ./app

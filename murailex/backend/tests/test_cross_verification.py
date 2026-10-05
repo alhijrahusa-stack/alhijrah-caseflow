@@ -59,3 +59,38 @@ def test_coverage_gap_region_is_hard_and_merges_into_overlapping_region():
                  "requires_independent_check": True, "speaker_raw": None}]
     merged = _add_coverage_regions(existing, primary, verifier, [])
     assert len(merged) == 1 and merged[0]["reasons"] == ["coverage_gap"] and merged[0]["start_ms"] == 3000 and merged[0]["hard"]
+
+
+def _region(**kw):
+    base = {"start_ms": 0, "end_ms": 1000, "columns": [0], "reasons": [], "risks": [], "critical": False, "hard": False}
+    return {**base, **kw}
+
+
+def _cand(role, text, provider="e"):
+    from app.pipeline import consensus as cons
+
+    toks = [{"text": w, "start_ms": 0, "end_ms": 100, "confidence": None} for w in text.split()]
+    return cons.candidate({"provider": provider, "model": "m", "run_id": provider}, toks, role)
+
+
+def test_critical_span_closes_only_on_exact_independent_agreement():
+    from app.pipeline.consensus import auto_resolution
+
+    crit = _region(risks=["money"], critical=True)
+    agree = [_cand("primary_asr", "دفعت خمسة آلاف", "a"), _cand("verification_asr", "دفعت خمسه الاف", "b")]
+    assert auto_resolution(crit, agree, 0.0) is agree[0]  # same comparison key: verification passed
+    differ = [_cand("primary_asr", "دفعت خمسة آلاف", "a"), _cand("verification_asr", "دفعت سبعة آلاف", "b")]
+    assert auto_resolution(crit, differ, 0.0) is None  # a number disagreement stays disputed
+    assert auto_resolution(_region(risks=["overlap"], reasons=["overlap"]), agree, 0.0) is None
+    assert auto_resolution(_region(reasons=["coverage_gap"]), agree, 0.0) is None
+    assert auto_resolution(crit, [agree[0]], 0.0) is None  # no independent engine: never closed
+
+
+def test_region_tokens_fall_back_to_overlap_when_timestamps_drift():
+    from app.pipeline.consensus import tokens_for_region
+
+    toks = [{"text": "a", "start_ms": 900, "end_ms": 2100}]  # midpoint 1500, outside 1000..1400
+    assert tokens_for_region(toks, 1000, 1400) == toks
+    inside = [{"text": "b", "start_ms": 1050, "end_ms": 1150}]
+    assert tokens_for_region(inside + toks, 1000, 1400) == inside  # midpoint selection wins
+    assert tokens_for_region(toks, 5000, 6000) == []

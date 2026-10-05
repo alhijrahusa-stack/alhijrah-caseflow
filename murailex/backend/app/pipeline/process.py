@@ -920,7 +920,7 @@ def process_recording(db: Session, rec: Recording) -> None:
                             "model": run.model,
                             "run_id": str(run.id),
                         },
-                        cons.tokens_in_window(
+                        cons.tokens_for_region(
                             norm.get("tokens", []),
                             region["start_ms"],
                             region["end_ms"],
@@ -941,6 +941,18 @@ def process_recording(db: Session, rec: Recording) -> None:
         if winner is not None:
             auto_closed += 1
             classified_region_columns.update(region_column_ids)
+            # Every primary token of this region stays traceable: the emitted words carry the
+            # winning engine's tokens, and any other primary engine's reading of the region is
+            # attached, per token, to the region's first word.
+            others = [
+                {
+                    "provider": c["provider"], "model": c["model"], "run_id": c["run_id"], "raw": t["text"],
+                    "start_ms": t["start_ms"], "end_ms": t["end_ms"], "confidence": t.get("confidence"),
+                }
+                for c in candidates
+                if c is not winner and c["role"] == "primary_asr"
+                for t in c["tokens"]
+            ]
             for token in winner["tokens"]:
                 region_items.append(
                     {
@@ -951,15 +963,32 @@ def process_recording(db: Session, rec: Recording) -> None:
                         "speaker": speaker,
                         "risks": region["risks"],
                         "source": "unanimous_verification",
-                        "review_state": "CONSENSUS",
+                        "review_state": "INDEPENDENTLY VERIFIED" if region.get("critical") else "CONSENSUS",
+                        # Per-token evidence for the engine whose words are emitted (keeps every
+                        # primary token traceable), plus what each engine read for the region.
                         "provenance": [
                             {
-                                "provider": candidate["provider"],
-                                "model": candidate["model"],
-                                "run_id": candidate["run_id"],
-                                "text": candidate["text"],
-                            }
-                            for candidate in candidates
+                                "provider": winner["provider"],
+                                "model": winner["model"],
+                                "run_id": winner["run_id"],
+                                "raw": token["text"],
+                                "start_ms": token["start_ms"],
+                                "end_ms": token["end_ms"],
+                                "confidence": token.get("confidence"),
+                            },
+                            *(
+                                {
+                                    "provider": candidate["provider"],
+                                    "model": candidate["model"],
+                                    "run_id": candidate["run_id"],
+                                    "role": candidate["role"],
+                                    "text": candidate["text"],
+                                    "agreed": True,
+                                }
+                                for candidate in candidates
+                                if candidate is not winner
+                            ),
+                            *(others if token is winner["tokens"][0] else ()),
                         ],
                     }
                 )

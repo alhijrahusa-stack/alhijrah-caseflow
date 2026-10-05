@@ -367,12 +367,22 @@ def lock(recording_id: str, p: Principal = Depends(current_principal), db: Sessi
     open_rows = db.execute(select(func.count()).select_from(Dispute).where(Dispute.recording_id == rec.id, Dispute.status == "open")).scalar_one()
     if open_ids or open_rows:
         raise HTTPException(409, f"{max(len(open_ids), open_rows)} disputed region(s) must be resolved before locking.")
+    # A critical item may be locked only once its targeted verification actually passed: a
+    # person resolved it, or two independent engines produced the same text for that exact
+    # span. Anything disputed, low-confidence or overlapped still needs a human.
     pending_critical = []
     reviewed_sources = {"human", "reviewer_accepted_candidate"}
     for seg in rev.content.get("segments", []):
         for item in seg.get("items", []):
             risks = set(item.get("risks") or [])
-            if risks & CRITICAL_RISKS and item.get("source") not in reviewed_sources:
+            if not risks & CRITICAL_RISKS:
+                continue
+            verified = item.get("source") in reviewed_sources or (
+                item.get("source") == "unanimous_verification"
+                and item.get("review_state") == "INDEPENDENTLY VERIFIED"
+                and item.get("evidence_state") != "LOW_CONFIDENCE"
+            )
+            if not verified:
                 pending_critical.append({"segment_id": seg.get("id"), "risks": sorted(risks & CRITICAL_RISKS)})
     if pending_critical:
         raise HTTPException(409, {"message": "Critical item(s) require human review before locking.", "items": pending_critical[:100]})

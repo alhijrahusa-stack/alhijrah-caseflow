@@ -36,6 +36,13 @@ _MODELS: dict[tuple[str, str, int], Any] = {}
 _LOCK = threading.Lock()
 _REVISIONS: dict[str, str] = {}
 
+# Deterministic decoding. The engine's default is a temperature fallback list: a window that
+# trips the compression-ratio or log-probability threshold is retried with temperature > 0,
+# which SAMPLES, so the same evidence decodes differently on every run (measured: 467 vs 432
+# words on one 4-minute recording, identical audio and configuration). Evidence has to be
+# reproducible, so decoding stays at temperature 0 and a hard window is left to the
+# independent verifier and human review rather than re-rolled.
+TEMPERATURE = 0.0
 WINDOWING_VERSION = "murailex.window/1"
 _SIL_START = re.compile(r"silence_start: (-?[0-9.]+)")
 _SIL_END = re.compile(r"silence_end: ([0-9.]+)")
@@ -241,6 +248,7 @@ class LocalWhisper(AsrAdapter):
             "no_speech_threshold": None,
             "condition_on_previous_text": False,
             "initial_prompt": None,
+            "temperature": TEMPERATURE,
             "windowing": {
                 "version": WINDOWING_VERSION,
                 "target_ms": s.local_asr_window_ms,
@@ -294,6 +302,7 @@ class LocalWhisper(AsrAdapter):
             no_speech_threshold=None,
             condition_on_previous_text=False,
             initial_prompt=None,
+            temperature=TEMPERATURE,
         )
         out = []
         for seg in segments:  # generator: decoding happens here, 30 s at a time

@@ -5,7 +5,7 @@ vi.mock("@/components/player", () => ({ usePlayer: () => ({ timeMs: 0, seek: vi.
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (k: string) => k, lang: "ar", dir: "rtl" }) }));
 vi.mock("next/link", () => ({ default: ({ children, ...rest }: { children: React.ReactNode; href: string }) => <a {...rest}>{children}</a> }));
 
-import { TranscriptView } from "@/components/transcript-view";
+import { TranscriptView, segmentText } from "@/components/transcript-view";
 import type { Content } from "@/lib/types";
 
 const content: Content = {
@@ -41,5 +41,40 @@ describe("TranscriptView", () => {
     expect(screen.getByText("[المتحدث 1]")).toBeTruthy();
     expect(screen.getByTestId("dispute-chip").getAttribute("href")).toBe("/review/r#d-d1");
     expect(screen.getByText("والله").closest("p")?.getAttribute("dir")).toBe("rtl");
+  });
+});
+
+describe("unresolved spans", () => {
+  it("shows what the primary engine heard, marked, instead of a gap", () => {
+    const item = {
+      kind: "dispute" as const,
+      text: "",
+      start_ms: 0,
+      end_ms: 900,
+      speaker: "S1",
+      risks: ["money"],
+      source: "consensus",
+      dispute_id: "d1",
+      provenance: [
+        { role: "primary_asr", provider: "local_whisper", text: "خمسة آلاف" },
+        { role: "verification_asr", provider: "local_whisper_verify", text: "خمسين ألف" },
+      ],
+    };
+    const seg = { id: "s1", speaker: "S1", start_ms: 0, end_ms: 900, items: [item] };
+    render(
+      <TranscriptView
+        recordingId="r1"
+        content={{ ...content, segments: [seg] }}
+        editable={false}
+        query=""
+        speakerFilter={null}
+        onChanged={() => undefined}
+      />,
+    );
+    const chip = screen.getAllByTestId("dispute-chip").find((c) => c.textContent?.includes("خمسة"))!;
+    expect(chip.textContent).toContain("خمسة آلاف");
+    expect(chip.getAttribute("href")).toContain("/review/r1");
+    // the canonical text copied out never includes an unresolved reading
+    expect(segmentText(seg)).toBe("");
   });
 });

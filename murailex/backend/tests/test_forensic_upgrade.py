@@ -71,13 +71,18 @@ def test_openai_verifier_region_level_no_synthetic_tokens():
     assert normalized["timestamp_source"] == "provider"
 
 
-def test_critical_region_never_auto_resolves():
+def test_critical_region_closes_only_when_the_independent_check_passes():
+    """A critical span is closed only by a passing targeted verification: an independent
+    engine reading the same span the same way. Any mismatch stays disputed."""
     meta = {"provider": "A", "model": "a", "run_id": "1"}
     verifier = {"provider": "V", "model": "v", "run_id": "2"}
     primary = consensus.candidate(meta, [tok("سالم")], "primary_asr")
-    checked = consensus.candidate(verifier, [tok("سالم")], "verification_asr")
     region = {"reasons": [], "risks": ["name"], "critical": True, "hard": False}
-    assert consensus.auto_resolution(region, [primary, checked], 0.6) is None
+    agreed = consensus.candidate(verifier, [tok("سالم")], "verification_asr")
+    assert consensus.auto_resolution(region, [primary, agreed], 0.6) is primary
+    other = consensus.candidate(verifier, [tok("سليم")], "verification_asr")
+    assert consensus.auto_resolution(region, [primary, other], 0.6) is None
+    assert consensus.auto_resolution(region, [primary], 0.6) is None
 
 
 def test_primary_disagreement_never_auto_resolves():
