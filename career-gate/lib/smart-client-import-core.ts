@@ -1,8 +1,16 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { options, type Option, type Selection } from "@/lib/catalog";
+import { options, optionKey, type Option, type Selection } from "@/lib/catalog";
 import type { IntakeRow } from "@/lib/intake-file";
 import { ProfileSchema, StatusSchema, issuesMessage } from "@/lib/schemas";
+import {
+  normalizeEnglishProficiency,
+  normalizeImportLanguage,
+  normalizeShiftDays,
+  normalizeShiftTime,
+  parseShiftRange,
+  type ShiftDayCode,
+} from "@/lib/smart-client-fields";
 
 export const IMPORT_STATUSES = ["PENDING", "UNDER_REVIEW", "MISSING_DOCUMENT", "APPROVED_FILE"] as const;
 export type ImportStatus = (typeof IMPORT_STATUSES)[number];
@@ -27,6 +35,7 @@ export const IMPORT_FIELD_REGISTRY = [
   { key: "email", label: "Email", aliases: ["email", "email_address", "email address", "البريد", "البريد الالكتروني", "البريد الإلكتروني"] },
   { key: "date_of_birth", label: "Date of Birth", aliases: ["date_of_birth", "date of birth", "dob", "birth_date", "birth date", "تاريخ الميلاد"] },
   { key: "preferred_language", label: "Preferred Language", aliases: ["preferred_language", "preferred language", "language", "اللغة"] },
+  { key: "english_proficiency", label: "English Proficiency", aliases: ["english_proficiency", "english proficiency", "english level", "english_level", "مستوى الانجليزية", "مستوى الإنجليزية"] },
   { key: "street", label: "Street", aliases: ["street", "address", "street_address", "street address", "العنوان"] },
   { key: "city", label: "City", aliases: ["city", "المدينة"] },
   { key: "state", label: "State", aliases: ["state", "الولاية"] },
@@ -47,6 +56,9 @@ export const IMPORT_FIELD_REGISTRY = [
   { key: "site_code", label: "Preferred Location / Site", aliases: ["site_code", "site code", "site", "preferred location", "preferred_location", "location option 1", "location_option_1", "location", "amazon_location", "amazon location", "work_location", "work location", "الموقع"] },
   { key: "job_id", label: "Job ID", aliases: ["job_id", "job id", "amazon_job_id", "amazon job id", "job"] },
   { key: "shift_code", label: "Desired Shift", aliases: ["shift_code", "shift code", "shift", "desired shift", "desired_shift", "shift_name", "shift name", "الشفت", "الوردية"] },
+  { key: "shift_days", label: "Shift Days", aliases: ["shift_days", "shift days", "work days", "schedule days", "ايام الشفت", "أيام الشفت"] },
+  { key: "shift_start_time", label: "Shift Start", aliases: ["shift_start_time", "shift start time", "shift start", "start time", "بداية الشفت"] },
+  { key: "shift_end_time", label: "Shift End", aliases: ["shift_end_time", "shift end time", "shift end", "end time", "نهاية الشفت"] },
   { key: "backup_site_code", label: "Location Option 2", aliases: ["backup_site_code", "backup site code", "backup location", "location option 2", "location_option_2"] },
   { key: "backup_job_id", label: "Backup Job ID", aliases: ["backup_job_id", "backup job id", "job option 2", "job_option_2"] },
   { key: "backup_shift_code", label: "Backup Shift", aliases: ["backup_shift_code", "backup shift code", "backup shift", "shift option 2", "shift_option_2"] },
@@ -57,7 +69,7 @@ export const IMPORT_FIELD_REGISTRY = [
 ] as const satisfies readonly FieldDefinition[];
 
 export const CANONICAL_IMPORT_HEADERS = IMPORT_FIELD_REGISTRY.map((field) => field.key);
-export const IMPORT_SCHEMA_VERSION = "2026-10-05.1";
+export const IMPORT_SCHEMA_VERSION = "2026-10-05.2";
 export const IMPORT_TEMPLATE_ID = "career-gate-client-import";
 export const IMPORT_SCHEMA_HASH = createHash("sha256")
   .update(JSON.stringify(IMPORT_FIELD_REGISTRY.map((field) => ({ key: field.key, required: "required" in field && field.required === true }))))
@@ -65,10 +77,20 @@ export const IMPORT_SCHEMA_HASH = createHash("sha256")
 
 type RegistryKey = (typeof IMPORT_FIELD_REGISTRY)[number]["key"];
 
+export type SmartReviewFields = {
+  preferred_location: string | null;
+  location_option_1: string | null;
+  location_option_2: string | null;
+  shift_days: ShiftDayCode[] | null;
+  shift_start_time: string | null;
+  shift_end_time: string | null;
+};
+
 export type PreparedImportDraft = {
   profile: z.output<typeof ProfileSchema>;
   primary: Selection[];
   backup: Selection[];
+  review_fields: SmartReviewFields;
   status: z.output<typeof StatusSchema>;
   next_step: string | null;
   staff_code: string | null;
@@ -113,7 +135,7 @@ function optional(value: string | null) {
 }
 
 const STREET_SUFFIX = String.raw`(?:ST(?:REET)?|AVE(?:NUE)?|RD|ROAD|BLVD|BOULEVARD|DR(?:IVE)?|LN|LANE|CT|COURT|PL|PLACE|PKWY|PARKWAY|HWY|HIGHWAY|WAY|TER|TERRACE|CIR|CIRCLE)`;
-const COMBINED_US_ADDRESS = new RegExp(`^\\s*(.+\\b${STREET_SUFFIX}\\b(?:\\s+(?:APT|UNIT|STE|SUITE|#)\\s*[A-Z0-9-]+)?)\\s+([A-Za-z][A-Za-z .'-]{1,80}),?\\s+([A-Z]{2})\\s+(\\d{5}(?:-\\d{4})?)\\s*$`, "i");
+const COMBINED_US_ADDRESS = new RegExp(`^\\s*(.+\\b${STREET_SUFFIX}\\b(?:\\s+(?:APT|UNIT|STE|SUITE|#)\\s*[A-Z0-9-]+)?)\\s*,?\\s+([A-Za-z][A-Za-z .'-]{1,80}),?\\s+([A-Z]{2})\\s+(\\d{5}(?:-\\d{4})?)\\s*$`, "i");
 
 export function decomposeUsAddress(value: string | null) {
   const clean = optional(value);
@@ -121,19 +143,11 @@ export function decomposeUsAddress(value: string | null) {
   const match = clean.match(COMBINED_US_ADDRESS);
   if (!match) return null;
   return {
-    street: match[1].trim(),
+    street: match[1].replace(/,\s*$/, "").trim(),
     city: match[2].trim(),
     state: match[3].toUpperCase(),
     zip: match[4],
   };
-}
-
-function normalizeLanguage(value: string | null) {
-  const v = value?.trim().toLowerCase();
-  if (!v) return "en";
-  if (["arabic", "العربية", "عربي", "ar"].includes(v)) return "ar";
-  if (["english", "الانجليزية", "الإنجليزية", "en"].includes(v)) return "en";
-  return v;
 }
 
 function parseBoolean(value: string | null) {
@@ -157,20 +171,125 @@ function optionMatchesToken(option: Option, token: string, field: "site" | "job"
     .some((value) => value.trim().toLowerCase() === t);
 }
 
-function resolveSelection(row: IntakeRow, keys: { site: RegistryKey; job: RegistryKey; shift: RegistryKey }): Selection[] {
+function sameDays(left: ShiftDayCode[] | null, right: ShiftDayCode[] | null) {
+  if (!left || !right) return false;
+  return left.length === right.length && left.every((day, index) => day === right[index]);
+}
+
+function optionShiftRange(option: Option) {
+  return parseShiftRange(option.hours);
+}
+
+function resolveSelectionTokens(args: {
+  site: string | null;
+  job: string | null;
+  shift: string | null;
+  days?: ShiftDayCode[] | null;
+  start?: string | null;
+  end?: string | null;
+}) {
+  if (!args.site && !args.job && !args.shift && !args.days && !args.start && !args.end) return [] as Selection[];
+  let candidates = options;
+  if (args.site) candidates = candidates.filter((option) => optionMatchesToken(option, args.site!, "site"));
+  if (args.job) candidates = candidates.filter((option) => optionMatchesToken(option, args.job!, "job"));
+  if (args.shift) candidates = candidates.filter((option) => optionMatchesToken(option, args.shift!, "shift"));
+  if (args.days) candidates = candidates.filter((option) => sameDays(normalizeShiftDays(option.days), args.days ?? null));
+  if (args.start || args.end) {
+    candidates = candidates.filter((option) => {
+      const range = optionShiftRange(option);
+      if (!range) return false;
+      return (!args.start || range.start === args.start) && (!args.end || range.end === args.end);
+    });
+  }
+  const matches = [...new Map(candidates.map((option) => [option.key, option])).values()];
+  if (matches.length === 0) throw new Error("No active Amazon catalog option matches the imported location/job/shift fields");
+  if (matches.length > 1) throw new Error("Imported location/job/shift is ambiguous; include enough exact location, job or shift detail");
+  return [{ site_code: matches[0].site_code, job_id: matches[0].job_id, shift_code: matches[0].shift_code }];
+}
+
+function resolveSelection(row: IntakeRow, keys: { site: RegistryKey; job: RegistryKey; shift: RegistryKey; days?: RegistryKey; start?: RegistryKey; end?: RegistryKey }): Selection[] {
   const site = optional(pickImportValue(row, keys.site));
   const job = optional(pickImportValue(row, keys.job));
   const shift = optional(pickImportValue(row, keys.shift));
-  if (!site && !job && !shift) return [];
+  const days = keys.days ? normalizeShiftDays(pickImportValue(row, keys.days)) : null;
+  const start = keys.start ? normalizeShiftTime(pickImportValue(row, keys.start)) : null;
+  const end = keys.end ? normalizeShiftTime(pickImportValue(row, keys.end)) : null;
+  return resolveSelectionTokens({ site, job, shift, days, start, end });
+}
 
-  let candidates = options;
-  if (site) candidates = candidates.filter((option) => optionMatchesToken(option, site, "site"));
-  if (job) candidates = candidates.filter((option) => optionMatchesToken(option, job, "job"));
-  if (shift) candidates = candidates.filter((option) => optionMatchesToken(option, shift, "shift"));
-  const matches = [...new Map(candidates.map((option) => [option.key, option])).values()];
-  if (matches.length === 0) throw new Error("No active Amazon catalog option matches the imported location/job/shift fields");
-  if (matches.length > 1) throw new Error("Imported location/job/shift is ambiguous; include exact site_code, job_id and shift_code");
-  return [{ site_code: matches[0].site_code, job_id: matches[0].job_id, shift_code: matches[0].shift_code }];
+function findOptionForSelection(selection: Selection | undefined) {
+  return selection ? options.find((option) => option.key === optionKey(selection)) ?? null : null;
+}
+
+function reviewFieldsFor(primary: Selection[], backup: Selection[]): SmartReviewFields {
+  const first = findOptionForSelection(primary[0]);
+  const second = findOptionForSelection(backup[0]);
+  const range = first ? optionShiftRange(first) : null;
+  return {
+    preferred_location: first?.site_code ?? null,
+    location_option_1: first?.site_code ?? null,
+    location_option_2: second?.site_code ?? null,
+    shift_days: first ? normalizeShiftDays(first.days) : null,
+    shift_start_time: range?.start ?? null,
+    shift_end_time: range?.end ?? null,
+  };
+}
+
+const ReviewFieldsInput = z.object({
+  preferred_location: z.string().trim().max(200).nullable().optional(),
+  location_option_1: z.string().trim().max(200).nullable().optional(),
+  location_option_2: z.string().trim().max(200).nullable().optional(),
+  shift_days: z.union([z.array(z.string()), z.string()]).nullable().optional(),
+  shift_start_time: z.string().trim().max(40).nullable().optional(),
+  shift_end_time: z.string().trim().max(40).nullable().optional(),
+}).partial();
+
+const SelectionInput = z.object({ site_code: z.string(), job_id: z.string(), shift_code: z.string() });
+
+export function normalizePreparedDraft(value: unknown): PreparedImportDraft {
+  const raw = z.object({
+    profile: z.unknown(),
+    primary: z.array(SelectionInput).default([]),
+    backup: z.array(SelectionInput).default([]),
+    review_fields: ReviewFieldsInput.optional().default({}),
+    status: z.string().default("new_intake"),
+    next_step: z.string().nullable().default(null),
+    staff_code: z.string().nullable().default(null),
+    initial_note: z.string().nullable().default(null),
+  }).parse(value);
+  const profile = ProfileSchema.parse(raw.profile);
+  const status = StatusSchema.parse(raw.status);
+  const existing = reviewFieldsFor(raw.primary, raw.backup);
+  const requestedDays = raw.review_fields.shift_days == null ? existing.shift_days : normalizeShiftDays(raw.review_fields.shift_days);
+  const requestedStart = raw.review_fields.shift_start_time == null ? existing.shift_start_time : normalizeShiftTime(raw.review_fields.shift_start_time);
+  const requestedEnd = raw.review_fields.shift_end_time == null ? existing.shift_end_time : normalizeShiftTime(raw.review_fields.shift_end_time);
+  const primarySeed = raw.primary[0];
+  const requestedPrimarySite = raw.review_fields.preferred_location ?? raw.review_fields.location_option_1 ?? existing.preferred_location;
+  const primary = primarySeed
+    ? resolveSelectionTokens({
+        site: requestedPrimarySite ?? primarySeed.site_code,
+        job: primarySeed.job_id,
+        shift: (raw.review_fields.shift_days != null || raw.review_fields.shift_start_time != null || raw.review_fields.shift_end_time != null) ? null : primarySeed.shift_code,
+        days: requestedDays,
+        start: requestedStart,
+        end: requestedEnd,
+      })
+    : [];
+  const backupSeed = raw.backup[0];
+  const requestedBackupSite = raw.review_fields.location_option_2 ?? existing.location_option_2;
+  const backup = backupSeed
+    ? resolveSelectionTokens({ site: requestedBackupSite ?? backupSeed.site_code, job: backupSeed.job_id, shift: backupSeed.shift_code })
+    : [];
+  return {
+    profile,
+    primary,
+    backup,
+    review_fields: reviewFieldsFor(primary, backup),
+    status,
+    next_step: raw.next_step?.trim() || null,
+    staff_code: raw.staff_code?.trim() || null,
+    initial_note: raw.initial_note?.trim() || null,
+  };
 }
 
 export function prepareImportDraft(row: IntakeRow): PreparedImportDraft {
@@ -193,13 +312,15 @@ export function prepareImportDraft(row: IntakeRow): PreparedImportDraft {
   const directState = optional(pickImportValue(row, "state"));
   const directZip = optional(pickImportValue(row, "zip"));
   const decomposed = (!directCity || !directState || !directZip) ? decomposeUsAddress(directStreet) : null;
+  const language = normalizeImportLanguage(pickImportValue(row, "preferred_language"));
 
   const profile = ProfileSchema.safeParse({
     full_name: pickImportValue(row, "full_name") ?? "",
     phone: pickImportValue(row, "phone") ?? "",
     email: optional(pickImportValue(row, "email")),
     date_of_birth: optional(pickImportValue(row, "date_of_birth")),
-    preferred_language: normalizeLanguage(pickImportValue(row, "preferred_language")),
+    preferred_language: language ?? undefined,
+    english_proficiency: normalizeEnglishProficiency(pickImportValue(row, "english_proficiency")),
     street: decomposed?.street ?? directStreet,
     city: directCity ?? decomposed?.city ?? null,
     state: directState ?? decomposed?.state ?? null,
@@ -219,11 +340,14 @@ export function prepareImportDraft(row: IntakeRow): PreparedImportDraft {
   const rawStatus = optional(pickImportValue(row, "status")) ?? "new_intake";
   const status = StatusSchema.safeParse(rawStatus);
   if (!status.success) throw new Error(`status: ${status.error.issues[0]?.message ?? "invalid status"}`);
+  const primary = resolveSelection(row, { site: "site_code", job: "job_id", shift: "shift_code", days: "shift_days", start: "shift_start_time", end: "shift_end_time" });
+  const backup = resolveSelection(row, { site: "backup_site_code", job: "backup_job_id", shift: "backup_shift_code" });
 
   return {
     profile: profile.data,
-    primary: resolveSelection(row, { site: "site_code", job: "job_id", shift: "shift_code" }),
-    backup: resolveSelection(row, { site: "backup_site_code", job: "backup_job_id", shift: "backup_shift_code" }),
+    primary,
+    backup,
+    review_fields: reviewFieldsFor(primary, backup),
     status: status.data,
     next_step: optional(pickImportValue(row, "next_step")),
     staff_code: optional(pickImportValue(row, "staff_code")),
@@ -247,10 +371,13 @@ export function sourceHash(input: unknown) {
 }
 
 export function requiredMissingFromDraft(value: unknown) {
-  const parsed = z.object({ profile: z.unknown() }).safeParse(value);
-  if (!parsed.success) return ["profile"];
-  const profile = ProfileSchema.safeParse(parsed.data.profile);
-  return profile.success ? [] : [...new Set(profile.error.issues.map((issue) => String(issue.path[0] ?? "profile")))];
+  try {
+    normalizePreparedDraft(value);
+    return [];
+  } catch (error) {
+    if (error instanceof z.ZodError) return [...new Set(error.issues.map((issue) => String(issue.path[0] ?? "profile")))];
+    return ["profile"];
+  }
 }
 
 export function normalizeEvidenceValue(field: string, value: string) {
