@@ -154,16 +154,18 @@ def test_window_merge_keeps_boundary_words_exactly_once():
     assert [seg["window"] for seg in merged] == [0, 1]
 
 
-def test_decoding_is_pinned_deterministic_and_fingerprinted():
-    """The engine's default temperature fallback re-decodes a hard window by sampling, so the
-    same evidence yields different text run to run. Decoding stays at temperature 0, and that
-    is part of the engine fingerprint so a change re-triggers validation."""
-    from app.providers.local_whisper import TEMPERATURE, LocalWhisper
+def test_decoding_is_reproducible_and_fingerprinted():
+    """The temperature fallback stays (it is what breaks Whisper's repetition loops) and the
+    sampler is seeded, so the same evidence decodes the same way every run. Both are part of
+    the engine fingerprint, so changing either re-validates the route."""
+    from app.providers.local_whisper import DECODE_SEED, TEMPERATURE, LocalWhisper
 
-    assert TEMPERATURE == 0.0
+    assert TEMPERATURE[0] == 0.0 and len(TEMPERATURE) > 1  # fallback retained
     adapter = LocalWhisper("local_whisper", "local_asr_model", "primary_asr")
     config = adapter.decode_config()
-    assert config["temperature"] == 0.0
+    assert config["temperature"] == list(TEMPERATURE)
+    assert config["decode_seed"] == DECODE_SEED
     assert config["vad_filter"] is False and config["condition_on_previous_text"] is False
     assert config["initial_prompt"] is None and config["word_timestamps"] is True
-    assert "temperature" in adapter.fingerprint_material()["decode"]
+    decode = adapter.fingerprint_material()["decode"]
+    assert "temperature" in decode and "decode_seed" in decode

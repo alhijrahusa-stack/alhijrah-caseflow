@@ -25,7 +25,7 @@ from pathlib import Path
 
 os.environ.setdefault("ENVIRONMENT", "local")
 
-from app.benchmark import ENTITY_EXTRACTION_VERSION, extract_numeric_entities  # noqa: E402
+from app.benchmark import CORPUS_ID_VERSION, ENTITY_EXTRACTION_VERSION, corpus_id, extract_numeric_entities  # noqa: E402
 from app.providers import registry  # noqa: E402
 from app.providers.local_whisper import LocalWhisper, hardware_profile  # noqa: E402
 
@@ -140,6 +140,8 @@ def main() -> None:
                 "parameters": info.parameters,
                 "environment": {**hardware_profile(), **perf},
                 "audio_hours": round(sum(x["duration_s"] for x in chosen) / 3600, 4),
+                "corpus_id": corpus_id(chosen),
+                "corpus_id_version": CORPUS_ID_VERSION,
                 "items": chosen,
                 "executed_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
             }

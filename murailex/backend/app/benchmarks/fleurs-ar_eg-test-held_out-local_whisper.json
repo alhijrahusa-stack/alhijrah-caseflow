@@ -1,25 +1,27 @@
 {
  "audio_hours": 0.217,
- "commit_sha": "e28c3e2",
+ "commit_sha": "d63be66",
+ "corpus_id": "f4a84caefd9f252b3083413818ecb6dfe131d01d6a0528f5102950bcc00c84a6",
+ "corpus_id_version": "murailex.corpus/1",
  "dataset_version": "fleurs-ar_eg-test",
  "environment": {
   "asr_threads": 3,
   "audio_seconds": 1420.247,
   "cpu_count": 4,
   "cuda_devices_detected": 0,
-  "decode_seconds": 2517.41,
+  "decode_seconds": 2276.276,
   "gpu_route": "no GPU detected",
   "host_cpu_count": 4,
-  "inference_rtf": 1.7725,
+  "inference_rtf": 1.6027,
   "long_job_fairness": "window-level checkpoints; queued jobs run in arrival order",
   "max_parallel_asr": 1,
-  "peak_rss_mb": 4197.9,
+  "peak_rss_mb": 4202.3,
   "profile": "CPU_PROFILE",
   "reserved_cores_for_ui_api": 1,
-  "rtf_scope": "120/120 items decoded fresh at temperature 0 (deterministic); 4-CPU sandbox under concurrent load",
+  "rtf_scope": "120/120 items decoded fresh at temperature 0 (deterministic); 4-CPU sandbox, seeded temperature fallback",
   "worker_priority": "nice 10 (launcher)"
  },
- "executed_at": "2026-10-05T01:31:47.729872+00:00",
+ "executed_at": "2026-10-05T03:13:38.886416+00:00",
  "items": [
   {
    "audio_sha256": "329446b56841db8d253c3bd29a1c42809ce4e293bc706590bdfa81a0aee05dd0",
@@ -38,7 +40,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 37.621,
+   "decode_s": 24.936,
    "duration_s": 13.32,
    "ground_truth": "وستشير الوثيقة، بحسب التسريب، إلى الخلاف على الحدود، التي تريدها فلسطين مبنية على حدود ما قبل حرب عام 1967 في الشرق الأوسط.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -95,7 +97,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 36.928,
+   "decode_s": 23.074,
    "duration_s": 13.92,
    "ground_truth": "على الرغم من أن كاتب هذا الجزء من النص غير معروف تحديداً، ولكننا نعلم أن المخطوطة الكبيرة (ذات مقاسات 29¾ بوصة × 24½ بوصة) كانت مخزّنة مطوية في بداية وجودها.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -122,7 +124,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 27.532,
+   "decode_s": 20.592,
    "duration_s": 13.26,
    "ground_truth": "فعلى سبيل المثال، تنسيق تصوير الصور الساكنة الأكثر شيوعاً في العالم هو 35 ميليمتراً، وهو حجم الفيلم المسيطر في نهاية عصر الفيلم التناظري.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -149,7 +151,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 26.267,
+   "decode_s": 20.771,
    "duration_s": 10.92,
    "ground_truth": "فعلى سبيل المثال، تنسيق تصوير الصور الساكنة الأكثر شيوعاً في العالم هو 35 ميليمتراً، وهو حجم الفيلم المسيطر في نهاية عصر الفيلم التناظري.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -186,7 +188,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 20.577,
+   "decode_s": 14.026,
    "duration_s": 7.38,
    "ground_truth": "في 15 آب 1940، غزا الحلفاء جنوب فرنسا، وسُمِّيَ الغَزْوُ بـ\"عملية دراغون\".",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -213,7 +215,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 22.943,
+   "decode_s": 16.518,
    "duration_s": 11.18,
    "ground_truth": "بدأ كومو، 53 عام حكمه في وقت مبكر هذا العام ووقع مشروع قانون الشهر الماضي يشرع الزواج من نفس الجنس.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -240,7 +242,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 22.23,
+   "decode_s": 16.272,
    "duration_s": 13.02,
    "ground_truth": "بدأ كومو، 53 عام حكمه في وقت مبكر هذا العام ووقع مشروع قانون الشهر الماضي يشرع الزواج من نفس الجنس.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -277,7 +279,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 20.277,
+   "decode_s": 15.492,
    "duration_s": 8.04,
    "ground_truth": "شهرتها بكونها مركز الفخامة بدأت في عام 400 بعد الميلاد واستمرت حتى عام 1100 بعد الميلاد.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -314,7 +316,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 21.575,
+   "decode_s": 16.098,
    "duration_s": 10.6,
    "ground_truth": "شهرتها بكونها مركز الفخامة بدأت في عام 400 بعد الميلاد واستمرت حتى عام 1100 بعد الميلاد.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -341,7 +343,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 30.72,
+   "decode_s": 22.063,
    "duration_s": 16.58,
    "ground_truth": "أصبح Eee PC من ASUS الذي أُطلق في وقت سابق في جميع أنحاء العالم لعوامل توفير التكاليف والقدرة الوظيفية، موضوعاً مثيراً في شهر تكنولوجيا المعلومات في تايبيه لعام 2007.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -368,7 +370,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 16.77,
+   "decode_s": 13.319,
    "duration_s": 9.36,
    "ground_truth": "أطلق رولاندو ميندوزا النار من بندقيته م16على السياح.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -405,7 +407,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 18.874,
+   "decode_s": 14.465,
    "duration_s": 8.72,
    "ground_truth": "وقد أخمدت فرق الإنقاذ النار في نهاية المطاف بحلول الساعة 11:35 مساء.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -432,7 +434,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 26.355,
+   "decode_s": 18.746,
    "duration_s": 14.88,
    "ground_truth": "كان يحكم فرنسا \"فيشي\". هؤلاء هم الشعب الفرنسي الذين صنعوا السلام مع الألمان في عام 1940 وعملوا مع الغزاة بدلاً من محاربتهم.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -459,7 +461,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 23.19,
+   "decode_s": 17.453,
    "duration_s": 11.1,
    "ground_truth": "يقع الأرخبيل علي بعد 120 كيلومتر من شمال شبه الجزيرة. الأكبر هي جزيرة الملك جورج وبها مستوطنة فيلا لاس إستريلاس.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -496,7 +498,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 19.129,
+   "decode_s": 14.483,
    "duration_s": 9.36,
    "ground_truth": "وخلال الليل تم عمل ما بين 150 و200 نسخة، تعرف الآن باسم \"نشرات دنلاب النقدية\".",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -533,7 +535,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 19.263,
+   "decode_s": 15.043,
    "duration_s": 7.38,
    "ground_truth": "وخلال الليل تم عمل ما بين 150 و200 نسخة، تعرف الآن باسم \"نشرات دنلاب النقدية\".",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -560,7 +562,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 39.478,
+   "decode_s": 28.828,
    "duration_s": 23.76,
    "ground_truth": "ومنذ عام 1988، توجّب أن تكون صناديق الاقتراع شفافة بحيث يمكن للناخبين والمراقبين أن يتأكدوا من عدم وجود مغلفات في بداية التصويت، وأنه لا يتم إضافة مغلفات إلا مغلفات الناخبين المسجلين والمصرّح لهم حسب الأصول والمفوضين.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -587,7 +589,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 40.507,
+   "decode_s": 28.619,
    "duration_s": 24.68,
    "ground_truth": "ومنذ عام 1988، توجّب أن تكون صناديق الاقتراع شفافة بحيث يمكن للناخبين والمراقبين أن يتأكدوا من عدم وجود مغلفات في بداية التصويت، وأنه لا يتم إضافة مغلفات إلا مغلفات الناخبين المسجلين والمصرّح لهم حسب الأصول والمفوضين.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -614,7 +616,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 24.989,
+   "decode_s": 19.301,
    "duration_s": 13.08,
    "ground_truth": "ومن المقرر أن يبدأ الجسر العمل بكامل طاقته في سبتمبر 2017، في نفس الوقت المتوقع عنده الانتهاء من نقاط التفتيش الجمركية البرازيلية.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -661,7 +663,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 17.468,
+   "decode_s": 18.055,
    "duration_s": 12.92,
    "ground_truth": "نسبة الأبعاد الخاصة بهذه الصورة تكون (عند القسمة على 12 للحصول على النسبة لأبسط عدد صحيح) إذن ستكون 3:2.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -682,7 +684,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 23.57,
+   "decode_s": 23.769,
    "duration_s": 14.64,
    "ground_truth": "فكّاها الطويلان كانا مرصعين بأكثر من 70 سناً يشبه الشفرات بالإضافة إلى مجموعة أخرى في سقف فمها، وهذا يعني أنه ليس هناك مفر لأي شيء يقف في طريقها.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -718,7 +720,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 15.763,
+   "decode_s": 15.247,
    "duration_s": 9.28,
    "ground_truth": "بين الساعة 10:00 إلى 11:00 مساءً بتوقيت الجبل، أُضرِمَ حريقٌ من قبل النزلاء في الفناء.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -755,7 +757,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 17.482,
+   "decode_s": 17.509,
    "duration_s": 7.98,
    "ground_truth": "وعلى الرغم من ذلك، فنظرا لبطء قنوات التواصل، قد تتأخر الأنماط في الغرب قدر ما يقارب 25 إلى 30 سنة.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -792,7 +794,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 22.164,
+   "decode_s": 22.251,
    "duration_s": 18.0,
    "ground_truth": "فشلت أربع متزلّجات ضمن فريق المعوقين من إكمال أشواطهن، وفشل 45 من إجمالي 117 متزلّجة في سباق التعرّج العملاق في الحصول على ترتيب في السباق.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -819,7 +821,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 17.622,
+   "decode_s": 17.007,
    "duration_s": 9.66,
    "ground_truth": "(Angel (2006، يشرح طريقة الاستمرارية كطريقةٍ يتم استخدامها لمساعدة المؤسسات على الوصول إلى مستوى أعلى من الأداء.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -851,7 +853,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 15.225,
+   "decode_s": 15.296,
    "duration_s": 7.92,
    "ground_truth": "وبحلول عام 1976، تمت استعادة ثلاثين في المائة من ماتشو بيتشو واستمرت أعمال الترميم حتى اليوم.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -883,7 +885,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 15.059,
+   "decode_s": 15.321,
    "duration_s": 11.34,
    "ground_truth": "وبحلول عام 1976، تمت استعادة ثلاثين في المائة من ماتشو بيتشو واستمرت أعمال الترميم حتى اليوم.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -910,7 +912,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 29.152,
+   "decode_s": 28.429,
    "duration_s": 17.52,
    "ground_truth": "صرح بيري بقوله \"سأعود إلى تكساس لتقييم نتائج المؤتمر الحزبي لهذه الليلة، وتحديد ما إذا كان هناك مسار لتقدمي في هذا السباق\"، لكنه قال لاحقاً أنه سيبقى في السباق وينافس في انتخابات كارولاينا الجنوبية في 21 من كانون الثاني.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -937,7 +939,7 @@
      "type": "number"
     }
    ],
-   "decode_s": 23.548,
+   "decode_s": 23.583,
    "duration_s": 16.26,
    "ground_truth": "تتفاوت سياسات الإلغاء، ولكن اعتباراً من أواخر آذار، لم تعد معظم سياسات الإلغاء المستندة إلى فيروس كورونا حتى تموز عام 2020، عندما كان من المقرر أن يتم تنظيم الألعاب الأوليمبية.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -952,7 +954,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 17.539,
+   "decode_s": 17.471,
    "duration_s": 9.96,
    "ground_truth": "السبائك هي بشكل أساسي خليط من اثنين أو أكثر من المعادن. لا تنسَ أن هناك العديد من العناصر في الجدول الدوري.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -967,7 +969,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 16.856,
+   "decode_s": 17.578,
    "duration_s": 9.0,
    "ground_truth": "السبائك هي بشكل أساسي خليط من اثنين أو أكثر من المعادن. لا تنسَ أن هناك العديد من العناصر في الجدول الدوري.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -982,7 +984,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 17.398,
+   "decode_s": 17.666,
    "duration_s": 11.16,
    "ground_truth": "السبائك هي بشكل أساسي خليط من اثنين أو أكثر من المعادن. لا تنسَ أن هناك العديد من العناصر في الجدول الدوري.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -997,7 +999,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 15.277,
+   "decode_s": 15.039,
    "duration_s": 8.58,
    "ground_truth": "قلّب المسحوقين الجافّين سوية ثم اعصرهما بأيدٍ مبللة نظيفة حتى تصبح على شكل كرة.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1012,7 +1014,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 20.234,
+   "decode_s": 20.379,
    "duration_s": 12.24,
    "ground_truth": "بصفة عامة، يمكن أن يظهر سلوكان عندما يبدأ المديرون في قيادة أقرانهم السابقين أحدهما هو محاولة البقاء \"مثل الآخرين\" (أو الأخريات).",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1027,7 +1029,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 19.707,
+   "decode_s": 20.493,
    "duration_s": 11.64,
    "ground_truth": "بصفة عامة، يمكن أن يظهر سلوكان عندما يبدأ المديرون في قيادة أقرانهم السابقين أحدهما هو محاولة البقاء \"مثل الآخرين\" (أو الأخريات).",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1042,7 +1044,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 20.361,
+   "decode_s": 20.359,
    "duration_s": 12.44,
    "ground_truth": "بصفة عامة، يمكن أن يظهر سلوكان عندما يبدأ المديرون في قيادة أقرانهم السابقين أحدهما هو محاولة البقاء \"مثل الآخرين\" (أو الأخريات).",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1057,7 +1059,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 16.377,
+   "decode_s": 16.424,
    "duration_s": 10.5,
    "ground_truth": "لا تجعل القماش يصبح ساخنًا أكثر من اللازم (مما قد يؤدي إلى انكماشه أو احتراقه في أسوأ الحالات).",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1072,7 +1074,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 17.131,
+   "decode_s": 16.514,
    "duration_s": 10.02,
    "ground_truth": "لا تجعل القماش يصبح ساخنًا أكثر من اللازم (مما قد يؤدي إلى انكماشه أو احتراقه في أسوأ الحالات).",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1087,7 +1089,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 23.278,
+   "decode_s": 22.028,
    "duration_s": 14.08,
    "ground_truth": "أثناء الحرب الثورية، شكلت الولايات الثلاث عشرة أولاً حكومة مركزية ضعيفة ـ وكان الكونغرس يشكل العنصر الوحيد فيها ـ في ظل النظام الأساسي للاتحاد الفيدرالي.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1102,7 +1104,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 16.944,
+   "decode_s": 16.541,
    "duration_s": 8.64,
    "ground_truth": "جميع الأسماء، بالإضافة إلى كلمة Sie بالنسبة لك، تبدأ دائماً بحرف كبير، حتى في منتصف الجملة.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1117,7 +1119,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 16.649,
+   "decode_s": 16.481,
    "duration_s": 7.56,
    "ground_truth": "جميع الأسماء، بالإضافة إلى كلمة Sie بالنسبة لك، تبدأ دائماً بحرف كبير، حتى في منتصف الجملة.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1132,7 +1134,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 18.249,
+   "decode_s": 17.534,
    "duration_s": 9.36,
    "ground_truth": "يوجد رسوم يومية للحفاظ على المنتزه والدخول إليه،أسوة بجميع المتنزهات الوطنية في جنوب إفريقيا.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1147,7 +1149,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 17.757,
+   "decode_s": 17.013,
    "duration_s": 11.22,
    "ground_truth": "يوجد رسوم يومية للحفاظ على المنتزه والدخول إليه،أسوة بجميع المتنزهات الوطنية في جنوب إفريقيا.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1162,7 +1164,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 14.384,
+   "decode_s": 14.214,
    "duration_s": 9.0,
    "ground_truth": "الحشرات الوحيدة التي لا يُمكنها طي أجنحتها اليوم هي اليعسوب وذبابة مايو.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1177,7 +1179,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 14.497,
+   "decode_s": 13.814,
    "duration_s": 10.44,
    "ground_truth": "الحشرات الوحيدة التي لا يُمكنها طي أجنحتها اليوم هي اليعسوب وذبابة مايو.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1192,7 +1194,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 15.188,
+   "decode_s": 14.071,
    "duration_s": 5.88,
    "ground_truth": "قامت فرقة إيروشميث بإلغاء باقي حفلاتهم في جولتهم الموسيقية.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1207,7 +1209,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 14.069,
+   "decode_s": 14.39,
    "duration_s": 5.7,
    "ground_truth": "قامت فرقة إيروشميث بإلغاء باقي حفلاتهم في جولتهم الموسيقية.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1222,7 +1224,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 20.081,
+   "decode_s": 19.587,
    "duration_s": 11.44,
    "ground_truth": "ونتيجة لذلك، يمكن أن يُسفر التآزر داخل المنظمة للتغلب على العقبات إلى نشوء إجراءات مبتكرة جديدة تُلبي احتياجات العميل.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1237,7 +1239,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 22.023,
+   "decode_s": 21.033,
    "duration_s": 11.16,
    "ground_truth": "جرت التقاليد على أن وظيفة القوّات البحريّة هي ضمان قدرة بلدك على نقل شعبك وبضائعه، بينما في الوقت نفسه، اعتراض قدرة عدوّك على نقل شعبه وبضائعه.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1252,7 +1254,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 22.595,
+   "decode_s": 21.792,
    "duration_s": 14.28,
    "ground_truth": "جرت التقاليد على أن وظيفة القوّات البحريّة هي ضمان قدرة بلدك على نقل شعبك وبضائعه، بينما في الوقت نفسه، اعتراض قدرة عدوّك على نقل شعبه وبضائعه.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1267,7 +1269,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 12.366,
+   "decode_s": 11.6,
    "duration_s": 2.367,
    "ground_truth": "أوروبا قارة صغيرة نسبياً ولكن فيها العديد من الدول المستقلة. وفي ظل الظروف العادية، فإن السفر عبر عدة بلدان يعني اضطرارك إلى المرور عبر طلبات الحصول على التأشيرة ومراقبة جوازات السفر عدة مرات.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1282,7 +1284,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 25.257,
+   "decode_s": 25.034,
    "duration_s": 16.26,
    "ground_truth": "أوروبا قارة صغيرة نسبياً ولكن فيها العديد من الدول المستقلة. وفي ظل الظروف العادية، فإن السفر عبر عدة بلدان يعني اضطرارك إلى المرور عبر طلبات الحصول على التأشيرة ومراقبة جوازات السفر عدة مرات.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1297,7 +1299,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 18.413,
+   "decode_s": 16.946,
    "duration_s": 10.02,
    "ground_truth": "تمتلك الشركات الأكبر طائراتها الخاصة، في بعض الخطوط، ولكن كانت هناك مشكلة للخطوط الأخرى والشركات الأصغر.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1312,7 +1314,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 17.489,
+   "decode_s": 16.804,
    "duration_s": 9.82,
    "ground_truth": "ويوضع الأطفال في إطار الرعاية الحاضنة لأسباب متنوعة تتراوح بين الإهمال والإيذاء وحتى الابتزاز.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1327,7 +1329,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 17.861,
+   "decode_s": 16.978,
    "duration_s": 9.66,
    "ground_truth": "ويوضع الأطفال في إطار الرعاية الحاضنة لأسباب متنوعة تتراوح بين الإهمال والإيذاء وحتى الابتزاز.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1342,7 +1344,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 15.471,
+   "decode_s": 14.975,
    "duration_s": 7.68,
    "ground_truth": "خُلِق كل شيء في الكون من مادة. خُلِقت كل المواد من جزيئات صغيرة تُسمي بالذرات.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1357,7 +1359,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 22.835,
+   "decode_s": 22.059,
    "duration_s": 13.68,
    "ground_truth": "وصف أحد المراقبين مدينة بيشكيك بأنها تغرق في حالة من \"فقدان السيطرة\"، حيث تجولت عصابات من الناس في الطرقات وقاموا بنهب مخازن السلع الاستهلاكية.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1372,7 +1374,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 22.648,
+   "decode_s": 22.242,
    "duration_s": 16.2,
    "ground_truth": "وصف أحد المراقبين مدينة بيشكيك بأنها تغرق في حالة من \"فقدان السيطرة\"، حيث تجولت عصابات من الناس في الطرقات وقاموا بنهب مخازن السلع الاستهلاكية.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1387,7 +1389,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 13.372,
+   "decode_s": 12.37,
    "duration_s": 6.3,
    "ground_truth": "إنه أنحف تحت ماريا وأكثر سمكاً تحت المرتفعات.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1402,7 +1404,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 13.376,
+   "decode_s": 12.661,
    "duration_s": 8.52,
    "ground_truth": "إنه أنحف تحت ماريا وأكثر سمكاً تحت المرتفعات.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1417,7 +1419,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 15.273,
+   "decode_s": 14.72,
    "duration_s": 7.38,
    "ground_truth": "أدى مارتيلي أمس القسم في مجلس انتخابي مؤقت جديد مكون من تسعة أعضاء.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1432,7 +1434,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 19.105,
+   "decode_s": 18.819,
    "duration_s": 11.92,
    "ground_truth": "ينتقد التقرير بشدة كل جوانب السياسة الحالية تقريباً للسلطة التنفيذية تجاه العراق، كما يحثّ على تغيير فوري في الاتجاه.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1447,7 +1449,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 19.992,
+   "decode_s": 19.475,
    "duration_s": 9.48,
    "ground_truth": "ينتقد التقرير بشدة كل جوانب السياسة الحالية تقريباً للسلطة التنفيذية تجاه العراق، كما يحثّ على تغيير فوري في الاتجاه.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1462,7 +1464,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 21.871,
+   "decode_s": 21.551,
    "duration_s": 11.82,
    "ground_truth": "تبحث هذه النظريات في الشيء الذي يجعل بعض الأشخاص يريدون الأشياء التي يفعلونها والأشياء في بيئتهم المحيطة التي تجعلهم يفعلون أو لا يفعلون أشياء معينة.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1477,7 +1479,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 21.312,
+   "decode_s": 20.861,
    "duration_s": 11.4,
    "ground_truth": "أُرسل القمر الصناعي إلى الفضاء بواسطة صاروخ. يستخدم العلماء التلسكوبات في الفضاء لأن الغلاف الجوي لكوكب الأرض يشوه بعض الضوء والرؤية.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1492,7 +1494,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 20.671,
+   "decode_s": 21.092,
    "duration_s": 12.02,
    "ground_truth": "أُرسل القمر الصناعي إلى الفضاء بواسطة صاروخ. يستخدم العلماء التلسكوبات في الفضاء لأن الغلاف الجوي لكوكب الأرض يشوه بعض الضوء والرؤية.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1507,7 +1509,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 27.975,
+   "decode_s": 27.569,
    "duration_s": 13.8,
    "ground_truth": "يتم إذاعة الإعلانات المنتظمة في المترو باللغة الكاتالونية فقط، بينما يتم إذاعة الاضطرابات غير المتوقعة بواسطة نظام آلي في مجموعة متنوعة من اللغات تشمل الإسبانية والإنجليزية والفرنسية والعربية واليابانية.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1522,7 +1524,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 19.54,
+   "decode_s": 18.683,
    "duration_s": 12.3,
    "ground_truth": "نظراً للتّضاريس تحت المياه، يتركّز التّدفق العائد في بضعة أقسام عميقةٍ، وقد يتشكّل تيارٌ سريعٌ إلى المياه العميقة هناك.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1537,7 +1539,7 @@
    "critical_extraction": "murailex.entities.numeric/1",
    "critical_hypothesis": [],
    "critical_reference": [],
-   "decode_s": 18.679,
+   "decode_s": 17.585,
    "duration_s": 10.16,
    "ground_truth": "الشوكولاتة الساخنة متوافقة مع المعايير البلجيكية. عصائر الفاكهة ممتازة على الرغم من أنها باهظة الثمن.",
    "ground_truth_reviewer": "corpus publisher (human transcription)",
@@ -1555,9 +1557,10 @@
   "compute_type": "int8",
   "condition_on_previous_text": false,
   "ctranslate2": "4.8.2",
+  "decode_seed": 20261005,
   "device": "cpu",
   "engine": "faster-whisper",
-  "engine_fingerprint": "c97b5e78d49294dafc70713f37a538c8b582f7dca3e598d37d7467a2a3df0b9b",
+  "engine_fingerprint": "9600e0459ce09c8fef8637cf206a1ffc7e278aabee953f10730afff7f61f31b2",
   "faster_whisper": "1.2.1",
   "initial_prompt": null,
   "language": "ar",
@@ -1567,7 +1570,14 @@
   "privacy_gate": "ON-DEVICE — audio is not transmitted",
   "runtime": "faster-whisper/CTranslate2",
   "task": "transcribe",
-  "temperature": 0.0,
+  "temperature": [
+   0.0,
+   0.2,
+   0.4,
+   0.6,
+   0.8,
+   1.0
+  ],
   "vad_filter": false,
   "windowing": {
    "overlap_ms": 15000,

@@ -36,13 +36,18 @@ _MODELS: dict[tuple[str, str, int], Any] = {}
 _LOCK = threading.Lock()
 _REVISIONS: dict[str, str] = {}
 
-# Deterministic decoding. The engine's default is a temperature fallback list: a window that
-# trips the compression-ratio or log-probability threshold is retried with temperature > 0,
-# which SAMPLES, so the same evidence decodes differently on every run (measured: 467 vs 432
-# words on one 4-minute recording, identical audio and configuration). Evidence has to be
-# reproducible, so decoding stays at temperature 0 and a hard window is left to the
-# independent verifier and human review rather than re-rolled.
-TEMPERATURE = 0.0
+# Reproducible decoding. Two properties have to hold together:
+#   * The temperature fallback must stay. A window that trips the compression-ratio or
+#     log-probability threshold is re-decoded at a higher temperature, which is what breaks
+#     Whisper's repetition loops. Pinning temperature to 0 removed that and produced a run of
+#     111 identical words on one real 4-minute recording.
+#   * The same evidence must decode the same way every time. Unseeded, that fallback samples:
+#     467 vs 432 words across two runs of that same recording, identical configuration.
+# So the fallback is kept and the sampler is seeded from a fixed constant before every window,
+# making each window reproducible on its own regardless of decode order or resumed checkpoints.
+TEMPERATURE = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
+DECODE_SEED = 20261005
+_DECODE_LOCK = threading.Lock()
 WINDOWING_VERSION = "murailex.window/1"
 _SIL_START = re.compile(r"silence_start: (-?[0-9.]+)")
 _SIL_END = re.compile(r"silence_end: ([0-9.]+)")
@@ -248,7 +253,8 @@ class LocalWhisper(AsrAdapter):
             "no_speech_threshold": None,
             "condition_on_previous_text": False,
             "initial_prompt": None,
-            "temperature": TEMPERATURE,
+            "temperature": list(TEMPERATURE),
+            "decode_seed": DECODE_SEED,
             "windowing": {
                 "version": WINDOWING_VERSION,
                 "target_ms": s.local_asr_window_ms,
@@ -291,21 +297,28 @@ class LocalWhisper(AsrAdapter):
         )
 
     def _decode(self, model: Any, path: str, offset_s: float) -> dict[str, Any]:
+        import ctranslate2
+
         s = get_settings()
-        segments, info = model.transcribe(
-            path,
-            language="ar",
-            task="transcribe",
-            beam_size=s.local_asr_beam_size,
-            word_timestamps=True,
-            vad_filter=False,
-            no_speech_threshold=None,
-            condition_on_previous_text=False,
-            initial_prompt=None,
-            temperature=TEMPERATURE,
-        )
+        # Seed and drain the generator under one lock: transcribe() is lazy, so the seed has to
+        # still be in force while the window is actually decoded.
+        with _DECODE_LOCK:
+            ctranslate2.set_random_seed(DECODE_SEED)
+            segments, info = model.transcribe(
+                path,
+                language="ar",
+                task="transcribe",
+                beam_size=s.local_asr_beam_size,
+                word_timestamps=True,
+                vad_filter=False,
+                no_speech_threshold=None,
+                condition_on_previous_text=False,
+                initial_prompt=None,
+                temperature=TEMPERATURE,
+            )
+            segments = list(segments)  # decode now, while the seed is in force
         out = []
-        for seg in segments:  # generator: decoding happens here, 30 s at a time
+        for seg in segments:
             out.append(
                 {
                     "id": seg.id,

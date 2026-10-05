@@ -18,7 +18,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from .benchmark import DER_PROTOCOL, aggregate_scores, critical_entity_accuracy, score_transcript
+from .benchmark import DER_PROTOCOL, aggregate_scores, corpus_id, critical_entity_accuracy, score_transcript
 from .forensic_models import BenchmarkRun
 
 log = logging.getLogger("murailex.benchmarks")
@@ -33,6 +33,10 @@ def _asr_row(rid: uuid.UUID, p: dict[str, Any]) -> BenchmarkRun:
     items = p["items"]
     if not items or any(i.get("human_ground_truth") is not True for i in items):
         raise ValueError("ASR benchmark items must all carry human ground truth")
+    pinned = p.get("corpus_id")
+    measured = corpus_id(items)
+    if pinned and pinned != measured:
+        raise ValueError(f"held-out corpus identity mismatch: pinned {pinned}, measured {measured}")
     metrics = aggregate_scores([score_transcript(i["ground_truth"], i["hypothesis"]) for i in items])
     ref = [e for i in items for e in i.get("critical_reference") or []]
     hyp = [e for i in items for e in i.get("critical_hypothesis") or []]
@@ -44,7 +48,7 @@ def _asr_row(rid: uuid.UUID, p: dict[str, Any]) -> BenchmarkRun:
         raw_cer=metrics["raw_cer"]["rate"], normalized_cer=metrics["normalized_cer"]["rate"],
         critical_entity_accuracy=critical_entity_accuracy(ref, hyp) if ref else None,
         inference_rtf={"value": (p.get("environment") or {}).get("inference_rtf"), "scope": (p.get("environment") or {}).get("rtf_scope")},
-        environment=p.get("environment") or {}, ground_truth_status="HUMAN VERIFIED",
+        environment={**(p.get("environment") or {}), "corpus_id": measured}, ground_truth_status="HUMAN VERIFIED",
         executed_at=datetime.fromisoformat(p["executed_at"]) if p.get("executed_at") else datetime.now(timezone.utc),
     )
 
