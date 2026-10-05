@@ -106,7 +106,6 @@ function mergeEvidence(sources: SourceRow[]) {
       const representative = group[0];
       merged[field] = representative.value;
       const multiSource = new Set(group.map((item) => `${item.source}:${item.documentId ?? "text"}`)).size > 1;
-      const confidence = multiSource ? 100 : 85;
       for (const item of group) {
         evidence.push({
           field_key: field,
@@ -116,7 +115,6 @@ function mergeEvidence(sources: SourceRow[]) {
           source_page: item.sourcePage,
           source_text_reference: null,
           match_score: 100,
-          confidence,
           verification_state: multiSource ? "MATCHED" : "REVIEW",
         });
       }
@@ -143,13 +141,31 @@ function mergeEvidence(sources: SourceRow[]) {
         source_page: item.sourcePage,
         source_text_reference: null,
         match_score: bestScore,
-        confidence: Math.min(79, bestScore),
         verification_state: "CONFLICT",
       });
     }
   }
 
   return { merged, evidence, conflicts };
+}
+
+function preserveReviewedDraft(current: unknown, incoming: ReturnType<typeof partialDraft>, reviewStarted: boolean) {
+  if (!reviewStarted || !current || typeof current !== "object") return incoming;
+  const currentDraft = current as Record<string, unknown>;
+  const currentProfile = currentDraft.profile && typeof currentDraft.profile === "object" ? currentDraft.profile as Record<string, unknown> : null;
+  if (!currentProfile) return incoming;
+  const incomingProfile = incoming.profile as Record<string, unknown>;
+  const profile = { ...incomingProfile };
+  for (const [key, value] of Object.entries(currentProfile)) {
+    if (value !== null && value !== undefined && value !== "") profile[key] = value;
+  }
+  return {
+    ...incoming,
+    ...currentDraft,
+    profile,
+    primary: Array.isArray(currentDraft.primary) ? currentDraft.primary : incoming.primary,
+    backup: Array.isArray(currentDraft.backup) ? currentDraft.backup : incoming.backup,
+  } as typeof incoming;
 }
 
 export async function stageMobileImportV2(args: {
@@ -271,7 +287,7 @@ export async function stageMobileImportV2(args: {
 export async function enrichMobileImportCase(session: StaffSession, caseId: string) {
   assertManager(session);
   const [caseRow] = await sql()`
-    select id,source_type,raw_input,status,created_by
+    select id,source_type,raw_input,status,created_by,mapped_draft,review_started_at
     from client_import_cases where id=${caseId}`;
   if (!caseRow) throw new ActionError("not_found", "Import case not found", 404);
   if (caseRow.source_type !== "mobile") throw new ActionError("invalid_source", "Extraction retry is only available for mobile smart imports", 409);
@@ -311,7 +327,8 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
   }
 
   const merged = mergeEvidence(sources);
-  const draft = partialDraft(merged.merged, notes);
+  const extractedDraft = partialDraft(merged.merged, notes);
+  const draft = preserveReviewedDraft(caseRow.mapped_draft, extractedDraft, Boolean(caseRow.review_started_at));
   const missing = requiredMissingFromDraft(draft);
   const aiState = docs.length === 0 ? "SKIPPED" : extractionErrors.length === docs.length ? "FAILED" : extractionErrors.length ? "PARTIAL" : "COMPLETE";
   const processingState = extractionErrors.length ? "REVIEW_REQUIRED" : "EXTRACTED";
@@ -322,6 +339,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     extraction_errors: extractionErrors,
     evidence_fields: merged.evidence.length,
     document_count: docs.length,
+    manual_precedence_applied: Boolean(caseRow.review_started_at),
     checked_at: new Date().toISOString(),
   };
 
