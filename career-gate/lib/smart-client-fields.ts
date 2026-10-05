@@ -21,13 +21,19 @@ export function normalizeImportLanguage(value: string | null | undefined): Smart
 }
 
 export function normalizeEnglishProficiency(value: string | null | undefined): EnglishProficiency | null {
-  const v = value?.normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
-  if (!v) return null;
-  if (["excellent", "fluent", "fluently", "very good", "very good english", "speaks english fluently", "ممتاز", "طليق", "طلاقة"].includes(v)) return "EXCELLENT";
-  if (["good", "speaks english well", "جيد", "جيد جدا", "جيد جداً"].includes(v)) return "GOOD";
+  const raw = value?.normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!raw) return null;
+
+  // Bounded corrections for observed source typos only. Do not use broad fuzzy matching.
+  const v = raw
+    .replace(/\benglis\b/g, "english")
+    .replace(/\bgoog\b/g, "good");
+
+  if (["excellent", "fluent", "fluently", "very good", "very good english", "speaks english fluently", "english is excellent", "native-level english", "ممتاز", "طليق", "طلاقة"].includes(v)) return "EXCELLENT";
+  if (["good", "speaks english well", "english is good", "english good", "good english", "جيد", "جيد جدا", "جيد جداً"].includes(v)) return "GOOD";
   if (["fair", "intermediate", "some english", "متوسط", "مقبول", "انجليزي متوسط", "إنجليزي متوسط"].includes(v)) return "FAIR";
-  if (["weak", "basic", "limited english", "ضعيف", "محدود", "انجليزي محدود", "إنجليزي محدود"].includes(v)) return "WEAK";
-  if (["none", "no english", "does not speak english", "بدون انجليزي", "بدون إنجليزي", "لا يتحدث الانجليزية", "لا يتحدث الإنجليزية"].includes(v)) return "NONE";
+  if (["weak", "basic", "limited english", "poor english", "english is weak", "ضعيف", "محدود", "انجليزي محدود", "إنجليزي محدود"].includes(v)) return "WEAK";
+  if (["none", "no english", "does not speak english", "zero english", "بدون انجليزي", "بدون إنجليزي", "لا يتحدث الانجليزية", "لا يتحدث الإنجليزية"].includes(v)) return "NONE";
   const upper = v.toUpperCase();
   return (ENGLISH_PROFICIENCY_VALUES as readonly string[]).includes(upper) ? (upper as EnglishProficiency) : null;
 }
@@ -54,6 +60,9 @@ export function normalizeShiftDays(value: string | readonly string[] | null | un
   }
   const raw = String(value ?? "").normalize("NFKC").trim().toLowerCase();
   if (!raw) return null;
+  if (/^weekdays?$/.test(raw)) return ["MON", "TUE", "WED", "THU", "FRI"];
+  if (/^weekends?$/.test(raw)) return ["SAT", "SUN"];
+  if (/^(?:daily|every\s*day|all\s*days)$/.test(raw)) return ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
   const range = raw.match(/^([a-z]+)\s*(?:-|–|—|through|to)\s*([a-z]+)$/i);
   if (range) {
     const start = DAY_ALIAS[range[1].toLowerCase()];
