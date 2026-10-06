@@ -3,6 +3,7 @@ import { withStaff } from "@/lib/auth";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { applyAccountDiscount, lockAccount, reconcileAccount, recordApplicationCompletion } from "@/lib/accounting-ledger";
+import { missingAccountingSchema } from "@/lib/accounting-schema";
 import { staffGuard } from "@/lib/staff-api";
 
 export const runtime = "nodejs";
@@ -227,6 +228,15 @@ export async function POST(req: Request) {
     if (message === "INVALID_COMMISSION_TRANSITION") return err("invalid_commission_transition", "Commission transition is not allowed", 409, traceId);
     if (message === "COMMISSION_PAYMENT_REFERENCE_REQUIRED") return err("payment_reference_required", "Payment reference is required", 400, traceId);
     if (message === "COMMISSION_REASON_REQUIRED") return err("commission_reason_required", "A reason is required", 400, traceId);
+    // Reads degrade when migration 033 has not been applied; writes must not.
+    if (missingAccountingSchema(message)) {
+      return err(
+        "accounting_schema_pending",
+        "This database does not have the application-completion and discount columns yet. Apply migration 033_application_completion_commission_ownership.sql, then retry.",
+        503,
+        traceId,
+      );
+    }
     if (message.includes("application_completion_locked_by_commission")) {
       return err("application_completion_locked", "Application ownership cannot change while a live commission is derived from it; cancel the commission first", 409, traceId);
     }

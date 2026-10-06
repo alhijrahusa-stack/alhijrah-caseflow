@@ -8,6 +8,7 @@ import {
   reconcileAccount,
   recordApplicationCompletion,
 } from "@/lib/accounting-ledger";
+import { ACCOUNT_NET_FEE, BALANCE_NET_FEE, CLIENT_FIELD, DISCOUNT_AMOUNT, missingAccountingSchema } from "@/lib/accounting-schema";
 import { ProfileSchema } from "@/lib/schemas";
 import { insertClient } from "@/lib/service";
 
@@ -287,5 +288,62 @@ describe("settlement stays reversible and idempotent", () => {
     }));
     const [{ count }] = await db`select count(*)::int count from commissions where client_id=${clientId}`;
     expect(count).toBe(1);
+  });
+});
+
+describe("deployment ordering: the code may reach production before migration 033", () => {
+  it("reads a pre-033 account as undiscounted instead of failing", async () => {
+    // A table shaped like `client_accounts` was before the migration.
+    await db`create temporary table pre033_accounts (id uuid, fee_amount numeric(10,2), payment_status text)`;
+    await db`insert into pre033_accounts values (gen_random_uuid(),150,'pending')`;
+    const [row] = await db.unsafe(
+      `select ${DISCOUNT_AMOUNT("a")} discount_amount, ${ACCOUNT_NET_FEE("a")} net_fee from pre033_accounts a`,
+    );
+    expect(Number(row.discount_amount)).toBe(0);
+    expect(Number(row.net_fee)).toBe(150);
+  });
+
+  it("reads a pre-033 balances row with the contracted fee as the net fee", async () => {
+    await db`create temporary table pre033_balances (account_id uuid, fee_amount numeric(10,2))`;
+    await db`insert into pre033_balances values (gen_random_uuid(),150)`;
+    const [row] = await db.unsafe(`select ${BALANCE_NET_FEE("b")} net_fee from pre033_balances b`);
+    expect(Number(row.net_fee)).toBe(150);
+  });
+
+  it("reads a pre-033 client as having no recorded completion, so no commission is attributed", async () => {
+    await db`create temporary table pre033_clients (id uuid, assigned_staff uuid)`;
+    await db`insert into pre033_clients values (gen_random_uuid(),gen_random_uuid())`;
+    const [row] = await db.unsafe(
+      `select ${CLIENT_FIELD("c", "application_completed_by")} application_completed_by,
+              ${CLIENT_FIELD("c", "application_status")} application_status
+       from pre033_clients c`,
+    );
+    expect(row.application_completed_by).toBeNull();
+    expect(row.application_status).toBeNull();
+  });
+
+  it("reads the real post-033 values through the same fragments", async () => {
+    const clientId = await makeClient("QA Synthetic Fragment Readback", null);
+    await withStaff(manager, (tx) => recordApplicationCompletion(tx, {
+      clientId, completedBy: completer.staff.id, completedOn: "2026-10-01", staffId: manager.staff.id, traceId: trace,
+    }));
+    await withStaff(manager, (tx) => applyAccountDiscount(tx, {
+      clientId, discountAmount: 25, reason: "QA synthetic fragment check", staffId: manager.staff.id, traceId: trace,
+    }));
+    const [row] = await db.unsafe(
+      `select ${DISCOUNT_AMOUNT("a")} discount_amount, ${ACCOUNT_NET_FEE("a")} net_fee,
+              ${CLIENT_FIELD("c", "application_completed_by")} application_completed_by
+       from client_accounts a join clients c on c.id=a.client_id where a.client_id=$1`,
+      [clientId],
+    );
+    expect(Number(row.discount_amount)).toBe(25);
+    expect(Number(row.net_fee)).toBe(125);
+    expect(row.application_completed_by).toBe(completer.staff.id);
+  });
+
+  it("recognises the write failure that a pre-033 database raises", () => {
+    expect(missingAccountingSchema('column "application_completed_by" of relation "clients" does not exist')).toBe(true);
+    expect(missingAccountingSchema('column "discount_amount" of relation "client_accounts" does not exist')).toBe(true);
+    expect(missingAccountingSchema('column "english_proficiency" of relation "clients" does not exist')).toBe(false);
   });
 });

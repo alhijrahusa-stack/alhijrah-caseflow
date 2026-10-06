@@ -1,5 +1,6 @@
 import "server-only";
 import { withStaff, type StaffSession } from "@/lib/auth";
+import { BALANCE_NET_FEE, CLIENT_FIELD, DISCOUNT_AMOUNT } from "@/lib/accounting-schema";
 
 export type ClientAccountSummary = {
   fee_amount: number;
@@ -26,14 +27,16 @@ export type ClientAccountSummary = {
 export async function clientAccountSummary(session: StaffSession, clientId: string): Promise<ClientAccountSummary> {
   return withStaff(session, async (tx) => {
     const [row] = await tx`
-      select b.fee_amount,b.discount_amount,b.net_fee,b.amount_paid,b.refund_amount,b.balance,b.payment_status,
-             a.discount_reason,
+      select b.fee_amount,${tx.unsafe(DISCOUNT_AMOUNT("b"))} discount_amount,${tx.unsafe(BALANCE_NET_FEE("b"))} net_fee,
+             b.amount_paid,b.refund_amount,b.balance,b.payment_status,
+             ${tx.unsafe(`to_jsonb(a)->>'discount_reason'`)} discount_reason,
              last_tx.payment_method,last_tx.payment_date,
              coalesce(cm.amount,0) commission_amount,cm.status commission_status,
              owner.staff_code,owner.display_name staff_name,
-             c.application_status,c.application_completed_by,
+             ${tx.unsafe(CLIENT_FIELD("c", "application_status"))} application_status,
+             ${tx.unsafe(CLIENT_FIELD("c", "application_completed_by"))} application_completed_by,
              completer.display_name application_completed_name,
-             (c.application_completed_at at time zone 'America/Detroit')::date::text application_completed_at
+             ${tx.unsafe(`(${CLIENT_FIELD("c", "application_completed_at")}::timestamptz at time zone 'America/Detroit')::date::text`)} application_completed_at
       from client_account_balances b
       join client_accounts a on a.id=b.account_id
       join clients c on c.id=a.client_id
@@ -48,7 +51,7 @@ export async function clientAccountSummary(session: StaffSession, clientId: stri
       -- fallback to the current assignment: showing the assigned staff member
       -- where no commission exists would name the wrong earner.
       left join staff owner on owner.id=cm.employee_id
-      left join staff completer on completer.id=c.application_completed_by
+      left join staff completer on completer.id=${tx.unsafe(CLIENT_FIELD("c", "application_completed_by"))}::uuid
       where a.client_id=${clientId}`;
     if (!row) return null;
     return {

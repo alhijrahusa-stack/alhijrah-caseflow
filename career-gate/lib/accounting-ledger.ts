@@ -1,6 +1,7 @@
 import "server-only";
 import { withStaff } from "@/lib/auth";
 import { commissionAmount, resolveCommissionOwner, type CommissionBlockReason } from "@/lib/accounting-commission";
+import { CLIENT_FIELD, DISCOUNT_AMOUNT } from "@/lib/accounting-schema";
 
 /**
  * The authoritative financial write path.
@@ -70,7 +71,8 @@ export async function reconcileAccount(tx: Tx, args: {
 
   if (balance?.payment_status === "paid") {
     const [client] = await tx`
-      select application_completed_by from clients where id=${account.client_id}`;
+      select ${tx.unsafe(CLIENT_FIELD("c", "application_completed_by"))} application_completed_by
+      from clients c where c.id=${account.client_id}`;
     // LOCKED RULE: the owner is the recorded application completer, never the
     // current assignment, the recorder, the uploader or the session.
     const owner = resolveCommissionOwner(client as { application_completed_by?: string | null } | undefined);
@@ -85,7 +87,7 @@ export async function reconcileAccount(tx: Tx, args: {
       if (!rule) {
         commissionBlocked = "NO_ACTIVE_COMMISSION_RULE";
       } else {
-        const netFee = Number(balance.net_fee);
+        const netFee = Number(balance.net_fee ?? balance.fee_amount);
         const amount = commissionAmount(rule as { commission_type: string; commission_value: unknown }, netFee);
         const inserted = await tx`
           insert into commissions(
@@ -125,7 +127,7 @@ export async function reconcileAccount(tx: Tx, args: {
 
 export async function lockAccount(tx: Tx, clientId: string) {
   const [account] = await tx`
-    select a.id,a.client_id,a.fee_amount,a.discount_amount,a.payment_status
+    select a.id,a.client_id,a.fee_amount,${tx.unsafe(DISCOUNT_AMOUNT("a"))} discount_amount,a.payment_status
     from client_accounts a join clients c on c.id=a.client_id
     where a.client_id=${clientId} and c.deleted_at is null
     for update of a`;

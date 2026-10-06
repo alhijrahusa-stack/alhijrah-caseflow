@@ -1,4 +1,5 @@
 import "server-only";
+import { ACCOUNT_NET_FEE } from "@/lib/accounting-schema";
 import { withStaff, type StaffSession } from "@/lib/auth";
 import type { OperationsClient, PipelineStage } from "@/lib/operations";
 
@@ -9,7 +10,7 @@ export async function activePipelineData(session:StaffSession):Promise<{stages:P
       select c.id,c.ref,c.full_name,c.phone,c.email,c.pipeline_stage,c.current_status,c.next_step,c.assigned_staff,c.created_at,c.updated_at,
              s.display_name assigned_name,s.staff_code,
              p.site_code,p.site_name,p.site_address,p.shift_code,p.shift_name,p.days shift_days,p.hours shift_hours,p.shift_period,p.auto_dispatched_at,p.pay_snapshot,
-             a.payment_status,(a.fee_amount - a.discount_amount) fee_amount
+             a.payment_status,${tx.unsafe(ACCOUNT_NET_FEE("a"))} fee_amount
       from clients c
       left join staff s on s.id=c.assigned_staff
       left join lateral (
