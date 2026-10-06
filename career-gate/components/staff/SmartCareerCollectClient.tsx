@@ -12,6 +12,7 @@ import {
   type SmartField,
 } from "@/components/staff/smart/field-contract";
 import { ValidationMatrix, type MatrixCommit } from "@/components/staff/smart/ValidationMatrix";
+import { assessApproval, readinessSummary } from "@/lib/smart-approval-readiness";
 
 type Status = "PENDING" | "UNDER_REVIEW" | "MISSING_DOCUMENT" | "APPROVED_FILE";
 type Workspace = "sheet" | "mobile";
@@ -323,23 +324,20 @@ export function SmartCareerCollectClient() {
     });
   }
   const readiness = useMemo(() => smartRequiredReadiness(getField), [getField]);
-  const canApprove = Boolean(detail && draft && reviewerId && detail.case.review_started_at && !draftDirty && documentConfirmed && informationConfirmed && detail.case.verification_result?.approval_ready);
-  const approvalBlockers = useMemo(() => {
-    if (!detail) return [];
-    const blockers: string[] = [];
-    if (!reviewerId) blockers.push("Select the reviewer completing this file.");
-    for (const label of readiness.missing) blockers.push(`${label} is a required Client field and is still empty.`);
-    if (detail.case.conflicts.length) blockers.push(`${detail.case.conflicts.length} blocking conflict${detail.case.conflicts.length === 1 ? "" : "s"} must be resolved.`);
-    if (draftDirty) blockers.push("Manual edits are unsaved; run CHECK & VERIFY to re-validate them.");
-    if (!documentConfirmed) blockers.push("Confirm the current document status.");
-    if (!informationConfirmed) blockers.push("Confirm the information match.");
-    const validationError = smartFieldText(detail.case.verification_result?.validation_error);
-    if (validationError) blockers.push(validationError);
-    else if (!draftDirty && !detail.case.verification_result?.approval_ready && readiness.complete === readiness.total && !detail.case.conflicts.length) {
-      blockers.push("Verification has not run against the current values yet.");
-    }
-    return blockers;
-  }, [detail, draftDirty, documentConfirmed, informationConfirmed, readiness, reviewerId]);
+  const assessment = useMemo(() => {
+    if (!detail || !draft) return null;
+    return assessApproval({
+      mappedDraft: draft,
+      conflicts: detail.case.conflicts,
+      reviewerAssigned: Boolean(reviewerId),
+      confirmationsRecorded: documentConfirmed && informationConfirmed,
+    });
+  }, [detail, draft, documentConfirmed, informationConfirmed, reviewerId]);
+  // Smart Review is an administrative stage: optional gaps warn, only a real system
+  // blocker withholds approval. The server re-checks at the approval mutation.
+  const canApprove = Boolean(detail && draft && assessment && assessment.readiness !== "BLOCKED" && detail.case.status !== "APPROVED_FILE");
+  const approvalBlockers = useMemo(() => assessment?.blockers.map((blocker) => blocker.message) ?? [], [assessment]);
+  const approvalWarnings = useMemo(() => assessment?.warnings ?? [], [assessment]);
   const activeDocument = detail?.documents.find((doc) => doc.id === activeDocumentId) ?? detail?.documents[0] ?? null;
   const workflowState = detail ? detailState(detail, draftDirty) : null;
 
@@ -468,11 +466,26 @@ export function SmartCareerCollectClient() {
         <label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-[13px] leading-6 text-slate-200"><input type="checkbox" className="mt-1 h-4 w-4" checked={informationConfirmed} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setInformationConfirmed(e.target.checked)} /><span><strong className="block">INFORMATION MATCH CONFIRMED</strong><span className="text-slate-400">Approved values match reviewed source evidence.</span></span></label>
       </div>
 
-      {approvalBlockers.length > 0 && detail.case.review_started_at && detail.case.status !== "APPROVED_FILE" && (
-        <ul aria-live="polite" className="rounded-2xl border border-amber-300/25 bg-amber-300/[.05] p-4 text-[13px] leading-6 text-amber-100">
-          <li className="mb-1 font-semibold tracking-[.1em] text-amber-200">APPROVAL IS BLOCKED BY</li>
+      {detail.case.status !== "APPROVED_FILE" && approvalBlockers.length > 0 && (
+        <ul role="alert" className="rounded-2xl border border-red-300/30 bg-red-300/[.06] p-4 text-[13px] leading-6 text-red-100">
+          <li className="mb-1 font-semibold tracking-[.1em] text-red-200">APPROVAL IS BLOCKED</li>
           {approvalBlockers.map((blocker) => <li key={blocker} className="ml-4 list-disc">{blocker}</li>)}
         </ul>
+      )}
+      {detail.case.status !== "APPROVED_FILE" && approvalBlockers.length === 0 && approvalWarnings.length > 0 && (
+        <details className="rounded-2xl border border-white/10 bg-black/10 p-4">
+          <summary className="cursor-pointer text-[13px] font-semibold text-slate-200">
+            {approvalWarnings.length} field{approvalWarnings.length === 1 ? "" : "s"} can be completed later
+            <span className="ml-2 font-normal text-slate-400">— this file can be approved now</span>
+          </summary>
+          <ul aria-live="polite" className="mt-2 space-y-1 text-[13px] leading-6 text-slate-300">
+            {approvalWarnings.map((warning) => (
+              <li key={warning.field} className="ml-4 list-disc">
+                <span className={warning.state === "REVIEW" ? "text-amber-200" : "text-slate-300"}>{warning.message}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       <div className="sticky bottom-3 z-10 rounded-2xl border border-[#b8934a]/25 bg-[linear-gradient(145deg,rgba(12,35,68,.9),rgba(4,11,25,.9))] p-3.5 shadow-[0_22px_60px_-28px_rgba(0,0,0,.85)] backdrop-blur-xl">
@@ -481,19 +494,18 @@ export function SmartCareerCollectClient() {
             <span className="font-mono text-[12px]">{readiness.complete} / {readiness.total} REQUIRED</span>
             <span aria-hidden="true" className="text-slate-600">|</span>
             <span className={draftDirty ? "text-amber-200" : "text-emerald-300"}>{draftDirty ? "Unsaved manual edits" : "No unsaved edits"}</span>
+            {assessment && detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span role="status" className={assessment.readiness === "BLOCKED" ? "text-red-200" : assessment.readiness === "READY_TO_APPROVE" ? "text-emerald-300" : "text-amber-200"}>{assessment.readiness.replace(/_/g, " ")} · {readinessSummary(assessment)}</span></>}
             {detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span className="rounded-md border border-white/[.08] bg-black/25 px-2 py-1 font-mono text-[11px]">⌘/Ctrl + Enter</span><span>Approve when ready</span></>}
           </div>
           <div className="flex flex-wrap gap-2">
             {detail.case.status === "APPROVED_FILE" && detail.case.created_client_id
               ? <Link className="ops-primary-button inline-flex min-h-12 items-center justify-center px-5 text-[14px]" href={`/staff/client/${detail.case.created_client_id}`}>OPEN CLIENT</Link>
-              : !detail.case.review_started_at
-                ? <button className="ops-primary-button min-h-12 px-5 text-[14px]" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => mutate("start_review", { reviewer_id: reviewerId })}>{actionBusy === "start_review" ? "STARTING…" : "START REVIEW"}</button>
-                : <>
+              : <>
+                    {!detail.case.review_started_at && <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => mutate("start_review", { reviewer_id: reviewerId })}>{actionBusy === "start_review" ? "STARTING…" : "START REVIEW"}</button>}
                     <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => mutate("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "save" ? "SAVING…" : "SAVE DRAFT"}</button>
                     <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={Boolean(actionBusy) || !detail.documents.length} onClick={() => void reExtract()}>{actionBusy === "re_extract" ? "RE-EXTRACTING…" : "RE-EXTRACT"}</button>
-                    {canApprove
-                      ? <button className="ops-primary-button min-h-12 px-5 text-[14px]" type="button" disabled={Boolean(actionBusy)} onClick={() => mutate("approve", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "approve" ? "CREATING CANONICAL CLIENT…" : "APPROVE FILE"}</button>
-                      : <button className="ops-primary-button min-h-12 px-5 text-[14px]" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => void saveAndVerify()}>{actionBusy === "verify" ? "VERIFYING…" : "CHECK & VERIFY"}</button>}
+                    <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => void saveAndVerify()}>{actionBusy === "verify" ? "VERIFYING…" : "CHECK & VERIFY"}</button>
+                    <button className="ops-primary-button min-h-12 px-5 text-[14px]" type="button" disabled={!canApprove || Boolean(actionBusy)} onClick={() => mutate("approve", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "approve" ? "CREATING CANONICAL CLIENT…" : "APPROVE FILE"}</button>
                   </>}
           </div>
         </div>

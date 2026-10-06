@@ -15,16 +15,16 @@ const db = postgres(process.env.DATABASE_URL!, { prepare: false, max: 1 });
 const tables = ["client_import_batches", "client_import_cases", "client_import_documents"] as const;
 const privileges = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"] as const;
 
-let admin: StaffSession;
+let manager: StaffSession;
 
 beforeAll(async () => {
   const authId = randomUUID();
-  await db`insert into auth.users (id,email) values (${authId},'smart-import-admin@test.invalid')`;
+  await db`insert into auth.users (id,email) values (${authId},'smart-import-manager@test.invalid')`;
   const [staff] = await db`
     insert into staff (display_name,email,role,auth_user_id,active)
-    values ('TEST Smart Import Admin','smart-import-admin@test.invalid','admin',${authId},true)
+    values ('TEST Smart Import Manager','smart-import-manager@test.invalid','manager',${authId},true)
     returning id,display_name,email,role`;
-  admin = { authUserId: authId, staff: staff as StaffSession["staff"] };
+  manager = { authUserId: authId, staff: staff as StaffSession["staff"] };
 });
 
 afterAll(async () => { await db.end(); });
@@ -112,7 +112,7 @@ describe("Smart Career Collect Client staging security", () => {
   it("carries a reviewed Smart file through staging, review and approval onto the canonical Client", async () => {
     const trace = "smart-import-approval-integration";
     const staged = await stageSheetRows({
-      session: admin,
+      session: manager,
       source: "csv",
       idempotencyKey: `smart-approval-${randomUUID()}`,
       rows: [{
@@ -144,16 +144,16 @@ describe("Smart Career Collect Client staging security", () => {
     expect(stagedCase.mapped_draft.review_fields.preferred_location).toBe("Romulus");
     expect(stagedCase.mapped_draft.review_fields.location_option_1).toBeNull();
 
-    await startImportReview(admin, caseId, admin.staff.id);
+    await startImportReview(manager, caseId, manager.staff.id);
 
     // A manual edit becomes the current authority without rewriting source evidence.
     const reviewedDraft = {
       ...stagedCase.mapped_draft,
       profile: { ...stagedCase.mapped_draft.profile, english_proficiency: "FAIR", preferred_language: "ar" },
     };
-    await saveImportReview({ ...admin }, {
+    await saveImportReview({ ...manager }, {
       id: caseId,
-      reviewerId: admin.staff.id,
+      reviewerId: manager.staff.id,
       draft: reviewedDraft,
       documentConfirmed: true,
       informationConfirmed: true,
@@ -164,18 +164,18 @@ describe("Smart Career Collect Client staging security", () => {
     const manual = reviewedEvidence.filter((entry) => entry.authority === "MANUAL");
     expect(manual.map((entry) => entry.field_key).sort()).toEqual(["english_proficiency", "preferred_language"]);
     for (const entry of manual) {
-      expect(entry.reviewer_id).toBe(admin.staff.id);
+      expect(entry.reviewer_id).toBe(manager.staff.id);
       expect(typeof entry.reviewed_at).toBe("string");
     }
     expect(reviewed.mapped_draft.profile.english_proficiency).toBe("FAIR");
     expect(reviewed.mapped_draft.profile.preferred_language).toBe("ar");
 
-    const verification = await verifyImportCase(admin, caseId);
+    const verification = await verifyImportCase(manager, caseId);
     expect(verification.client_schema_valid).toBe(true);
 
-    const approved = await approveImportCase(admin, {
+    const approved = await approveImportCase(manager, {
       id: caseId,
-      reviewerId: admin.staff.id,
+      reviewerId: manager.staff.id,
       draft: reviewed.mapped_draft,
       documentConfirmed: true,
       informationConfirmed: true,
@@ -207,9 +207,9 @@ describe("Smart Career Collect Client staging security", () => {
     expect(String(client.shift_end_time)).toBe("04:30:00");
 
     // Duplicate approval is idempotent and never creates a second Client.
-    const again = await approveImportCase(admin, {
+    const again = await approveImportCase(manager, {
       id: caseId,
-      reviewerId: admin.staff.id,
+      reviewerId: manager.staff.id,
       draft: reviewed.mapped_draft,
       documentConfirmed: true,
       informationConfirmed: true,
@@ -218,12 +218,114 @@ describe("Smart Career Collect Client staging security", () => {
     expect(again).toEqual({ client_id: approved.client_id, idempotent: true });
     const [{ count }] = await db`select count(*)::int as count from clients where phone='3135557781'`;
     expect(count).toBe(1);
-    await expect(saveImportReview(admin, {
+    await expect(saveImportReview(manager, {
       id: caseId,
-      reviewerId: admin.staff.id,
+      reviewerId: manager.staff.id,
       draft: reviewed.mapped_draft,
       documentConfirmed: true,
       informationConfirmed: true,
     })).rejects.toMatchObject({ code: "already_approved" });
+  });
+
+  it("restores the english_proficiency contract that production reported missing", async () => {
+    const [column] = await db`
+      select data_type,is_nullable,column_default
+      from information_schema.columns
+      where table_schema='public' and table_name='clients' and column_name='english_proficiency'`;
+    expect(column?.data_type).toBe("text");
+    expect(column?.is_nullable).toBe("YES");
+    expect(column?.column_default).toBeNull();
+    const [constraint] = await db`
+      select pg_get_constraintdef(oid) as definition
+      from pg_constraint
+      where conrelid='public.clients'::regclass and conname='clients_english_proficiency_check'`;
+    const definition = String(constraint?.definition);
+    for (const value of ["EXCELLENT", "GOOD", "FAIR", "WEAK", "NONE"]) expect(definition).toContain(value);
+  });
+
+  it("approves a file whose optional fields are all unset and persists NULL rather than invented values", async () => {
+    const staged = await stageSheetRows({
+      session: manager,
+      source: "csv",
+      idempotencyKey: `smart-optional-${randomUUID()}`,
+      rows: [{ full_name: "TEST Optional Only", phone: "3135557782" }],
+    });
+    const caseId = String(staged.cases[0].id);
+
+    // Approval needs neither a separate START REVIEW nor the two confirmations: it makes
+    // the legal PENDING -> UNDER_REVIEW transition itself and records the reviewer.
+    expect((await db`select status,reviewer_id from client_import_cases where id=${caseId}`)[0]).toMatchObject({ status: "PENDING", reviewer_id: null });
+    const approved = await approveImportCase(manager, {
+      id: caseId,
+      reviewerId: manager.staff.id,
+      draft: (await db`select mapped_draft from client_import_cases where id=${caseId}`)[0].mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+      traceId: "smart-optional-integration",
+    });
+    expect(approved.idempotent).toBe(false);
+
+    const [client] = await db`
+      select preferred_language,english_proficiency,preferred_location,location_option_1,location_option_2,
+             shift_days,shift_start_time,shift_end_time,deleted_at
+      from clients where id=${approved.client_id}`;
+    // Absent optional values persist as NULL; nothing is invented to satisfy approval.
+    for (const [key, value] of Object.entries(client)) {
+      if (key === "deleted_at") continue;
+      expect(value, key).toBeNull();
+    }
+    expect(client.deleted_at).toBeNull();
+
+    const [row] = await db`select status,reviewer_id,review_started_at,document_match_confirmed,information_match_confirmed,verification_result from client_import_cases where id=${caseId}`;
+    expect(row.status).toBe("APPROVED_FILE");
+    expect(row.reviewer_id).toBe(manager.staff.id);
+    expect(row.review_started_at).toBeTruthy();
+    // Confirmations are recorded as given; client_import_cases_approved_ck requires both.
+    expect(row.document_match_confirmed).toBe(true);
+    expect(row.information_match_confirmed).toBe(true);
+    expect(row.verification_result.readiness).toBe("APPROVE_WITH_WARNINGS");
+    expect(row.verification_result.blockers).toEqual([]);
+    expect(Array.isArray(row.verification_result.warnings)).toBe(true);
+    expect(row.verification_result.warnings.length).toBeGreaterThan(0);
+  });
+
+  it("blocks approval with the real database error when the persistence column is absent", async () => {
+    const staged = await stageSheetRows({
+      session: manager,
+      source: "csv",
+      idempotencyKey: `smart-schema-fail-${randomUUID()}`,
+      rows: [{ full_name: "TEST Schema Failure", phone: "3135557783", english_proficiency: "Good" }],
+    });
+    const caseId = String(staged.cases[0].id);
+    const draft = (await db`select mapped_draft from client_import_cases where id=${caseId}`)[0].mapped_draft;
+
+    // Reproduce exactly the production drift: the column the write needs is gone.
+    await db`alter table public.clients drop constraint if exists clients_english_proficiency_check`;
+    await db`alter table public.clients drop column english_proficiency`;
+    try {
+      await expect(approveImportCase(manager, {
+        id: caseId, reviewerId: manager.staff.id, draft,
+        documentConfirmed: true, informationConfirmed: true, traceId: "smart-schema-fail",
+      })).rejects.toThrow(/english_proficiency/);
+
+      // No Client and no fake approval survived the failure.
+      const [{ count: clients }] = await db`select count(*)::int as count from clients where phone='3135557783'`;
+      expect(clients).toBe(0);
+      const [row] = await db`select status,created_client_id from client_import_cases where id=${caseId}`;
+      expect(row.status).not.toBe("APPROVED_FILE");
+      expect(row.created_client_id).toBeNull();
+    } finally {
+      await db`alter table public.clients add column if not exists english_proficiency text null`;
+      await db`alter table public.clients add constraint clients_english_proficiency_check
+        check (english_proficiency is null or english_proficiency in ('EXCELLENT','GOOD','FAIR','WEAK','NONE'))`;
+    }
+
+    // With the column restored the same file approves.
+    const approved = await approveImportCase(manager, {
+      id: caseId, reviewerId: manager.staff.id, draft,
+      documentConfirmed: true, informationConfirmed: true, traceId: "smart-schema-fail-retry",
+    });
+    const [client] = await db`select english_proficiency from clients where id=${approved.client_id}`;
+    expect(client.english_proficiency).toBe("GOOD");
   });
 });

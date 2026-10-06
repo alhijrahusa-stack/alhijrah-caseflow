@@ -13,6 +13,7 @@ import {
   normalizeClientPhone,
   type Tx,
 } from "@/lib/service";
+import { assessApproval } from "@/lib/smart-approval-readiness";
 import { uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdf } from "@/lib/universal-intake";
 import {
@@ -552,15 +553,6 @@ export async function saveImportReview(session: StaffSession, args: {
   });
 }
 
-function parseApprovedDraft(value: unknown): PreparedImportDraft {
-  try {
-    return normalizePreparedDraft(value);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Invalid mapped draft";
-    throw new ActionError("invalid_draft", message, 422);
-  }
-}
-
 async function resolveImportedStaff(tx: Tx, code: string | null) {
   if (!code) return null;
   const [staff] = await tx`select id from staff where active and lower(coalesce(staff_code,''))=lower(${code}) limit 1`;
@@ -569,33 +561,45 @@ async function resolveImportedStaff(tx: Tx, code: string | null) {
 }
 
 async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
-  const missing = requiredMissingFromDraft(row.mapped_draft);
-  let draft: PreparedImportDraft | null = null;
-  let validationError: string | null = null;
-  try { draft = parseApprovedDraft(row.mapped_draft); } catch (error) { validationError = error instanceof Error ? error.message : "Invalid client data"; }
   const docs = await tx`select count(*)::int as count from client_import_documents where import_case_id=${String(row.id)}`;
   const documentCount = Number(docs[0]?.count ?? 0);
   const conflicts = Array.isArray(row.conflicts) ? row.conflicts as unknown[] : [];
   const blockingConflicts = [...conflicts];
+
+  // Identity is resolved first: a duplicate is a destructive-conflict blocker.
+  const persistable = assessApproval({ mappedDraft: row.mapped_draft });
   let identityMatches: Awaited<ReturnType<typeof findClientIdentityMatches>> = [];
-  if (draft) {
-    identityMatches = await findClientIdentityMatches(tx, draft.profile.email, draft.profile.phone, { lock: true });
+  if (persistable.draft) {
+    identityMatches = await findClientIdentityMatches(tx, persistable.draft.profile.email, persistable.draft.profile.phone, { lock: true });
     if (identityMatches.length) blockingConflicts.push({ type: "IDENTITY", client_id: identityMatches[0].id, client_ref: identityMatches[0].ref });
   }
-  const approvalReady = Boolean(draft && missing.length === 0 && blockingConflicts.length === 0);
+
+  const assessment = assessApproval({
+    mappedDraft: row.mapped_draft,
+    conflicts: blockingConflicts,
+    reviewerAssigned: Boolean(row.reviewer_id),
+  });
+  const approvalReady = assessment.readiness !== "BLOCKED";
+  // Optional gaps are reported, never used to withhold approval.
+  const missing = assessment.warnings.filter((warning) => warning.state === "MISSING").map((warning) => warning.field);
+
   return {
-    draft,
+    draft: assessment.draft,
     missing,
     documentCount,
     blockingConflicts,
+    assessment,
     result: {
       state: approvalReady ? (documentCount > 0 ? "READY" : "MISSING_DOCUMENT") : "REVIEW_REQUIRED",
       approval_ready: approvalReady,
-      client_schema_valid: Boolean(draft),
+      readiness: assessment.readiness,
+      blockers: assessment.blockers,
+      warnings: assessment.warnings,
+      client_schema_valid: Boolean(assessment.draft),
       document_count: documentCount,
       blocking_conflicts: blockingConflicts.length,
       identity: identityMatches.length ? "POSSIBLE_DUPLICATE" : "NEW",
-      validation_error: validationError,
+      validation_error: assessment.blockers[0]?.message ?? null,
       checked_at: new Date().toISOString(),
     },
   };
@@ -607,9 +611,12 @@ export async function verifyImportCase(session: StaffSession, id: string) {
     const [row] = await tx`select * from client_import_cases where id=${id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Import is already approved", 409);
-    if (!row.reviewer_id || !row.review_started_at) throw new ActionError("review_required", "Select a reviewer and start review first", 409);
     const verification = await verifyLockedCase(tx, row as Record<string, unknown>);
-    const nextStatus = verification.result.approval_ready && verification.documentCount === 0 ? "MISSING_DOCUMENT" : "UNDER_REVIEW";
+    // The case guard only allows PENDING -> UNDER_REVIEW, so a pending case verifies
+    // into UNDER_REVIEW regardless of its document count.
+    const nextStatus = row.status !== "PENDING" && verification.result.approval_ready && verification.documentCount === 0
+      ? "MISSING_DOCUMENT"
+      : "UNDER_REVIEW";
     await tx`
       update client_import_cases set missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json(verification.blockingConflicts as never)},
         verification_result=${tx.json(verification.result as never)},reviewed_at=now(),status=${nextStatus}
@@ -635,15 +642,29 @@ export async function approveImportCase(session: StaffSession, args: {
       if (row.created_client_id) return { client_id: String(row.created_client_id), idempotent: true };
       throw new ActionError("invalid_approved_state", "Approved import is missing its client reference", 500);
     }
-    if (!row.review_started_at) throw new ActionError("review_required", "Start review before approval", 409);
-    if (!args.documentConfirmed || !args.informationConfirmed) throw new ActionError("confirmation_required", "Confirm document status and information match before approval", 409);
-
-    const draft = parseApprovedDraft(args.draft);
-    const verificationRow = { ...row, mapped_draft: draft, reviewer_id: args.reviewerId } as Record<string, unknown>;
-    const verification = await verifyLockedCase(tx, verificationRow);
-    if (!verification.result.approval_ready) {
-      throw new ActionError("approval_blocked", verification.result.validation_error || "Resolve blocking conflicts before approval", 409);
+    // The case guard only permits PENDING -> UNDER_REVIEW, so approval performs that
+    // legal transition itself instead of requiring a separate START REVIEW step. The
+    // reviewer and the review start time are still recorded for the audit trail.
+    if (row.status === "PENDING") {
+      await tx`
+        update client_import_cases
+        set reviewer_id=${args.reviewerId},review_started_at=coalesce(review_started_at,now()),status='UNDER_REVIEW'
+        where id=${args.id}`;
+      row.status = "UNDER_REVIEW";
     }
+
+    if (!args.documentConfirmed || !args.informationConfirmed) {
+      throw new ActionError("confirmation_required", "Record both the document-status and information-match confirmations; an approved file cannot be stored without them.", 409);
+    }
+
+    const verificationRow = { ...row, mapped_draft: args.draft, reviewer_id: args.reviewerId } as Record<string, unknown>;
+    const verification = await verifyLockedCase(tx, verificationRow);
+    if (!verification.draft) {
+      throw new ActionError("approval_blocked", verification.result.validation_error || "This file cannot be saved as a Client yet", 409);
+    }
+    // Approve the persistable draft: optional values that cannot satisfy their canonical
+    // type were cleared and are reported as warnings, with their source evidence intact.
+    const draft = verification.draft;
 
     const assignedStaff = await resolveImportedStaff(tx, draft.staff_code);
     const client = await insertClient(tx, {
@@ -695,7 +716,9 @@ export async function approveImportCase(session: StaffSession, args: {
       update client_import_cases set
         reviewer_id=${args.reviewerId},reviewed_at=now(),mapped_draft=${tx.json(draft as never)},
         missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json([] as never)},verification_result=${tx.json(verification.result as never)},
-        document_match_confirmed=true,information_match_confirmed=true,approved_by=${session.staff.id},approved_at=now(),created_client_id=${client.id},status='APPROVED_FILE'
+        document_match_confirmed=${args.documentConfirmed},information_match_confirmed=${args.informationConfirmed},
+        review_started_at=coalesce(review_started_at,now()),
+        approved_by=${session.staff.id},approved_at=now(),created_client_id=${client.id},status='APPROVED_FILE'
       where id=${args.id}`;
     return { client_id: client.id, ref: client.ref, idempotent: false };
   });
