@@ -1,5 +1,4 @@
-import { LANGUAGES } from "@/lib/domain";
-import { ENGLISH_PROFICIENCY_VALUES } from "@/lib/schemas";
+import { ENGLISH_PROFICIENCY_VALUES, LANGUAGES } from "@/lib/domain";
 
 export type SmartLanguageCode = keyof typeof LANGUAGES;
 export type EnglishProficiency = (typeof ENGLISH_PROFICIENCY_VALUES)[number];
@@ -20,14 +19,46 @@ export function normalizeImportLanguage(value: string | null | undefined): Smart
   return Object.prototype.hasOwnProperty.call(LANGUAGES, v) ? (v as SmartLanguageCode) : null;
 }
 
+const DATE_SEPARATOR = String.raw`[-/.]`;
+const ISO_DATE_RE = new RegExp(`^(\\d{4})${DATE_SEPARATOR}(\\d{1,2})${DATE_SEPARATOR}(\\d{1,2})$`);
+const US_DATE_RE = new RegExp(`^(\\d{1,2})${DATE_SEPARATOR}(\\d{1,2})${DATE_SEPARATOR}(\\d{4})$`);
+
+/**
+ * Canonical Smart-path date normalizer. Accepts YYYY-MM-DD and US MM/DD/YYYY only and
+ * validates the real calendar date, so DD/MM/YYYY is never reinterpreted as a US date.
+ */
+export function normalizeSmartDate(value: string | null | undefined): string | null {
+  const raw = value?.normalize("NFKC").trim();
+  if (!raw) return null;
+  const iso = raw.match(ISO_DATE_RE);
+  const us = iso ? null : raw.match(US_DATE_RE);
+  const parts = iso
+    ? { year: Number(iso[1]), month: Number(iso[2]), day: Number(iso[3]) }
+    : us
+      ? { year: Number(us[3]), month: Number(us[1]), day: Number(us[2]) }
+      : null;
+  if (!parts) return null;
+  const { year, month, day } = parts;
+  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const exact = new Date(Date.UTC(year, month - 1, day));
+  if (exact.getUTCFullYear() !== year || exact.getUTCMonth() !== month - 1 || exact.getUTCDate() !== day) return null;
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 export function normalizeEnglishProficiency(value: string | null | undefined): EnglishProficiency | null {
-  const v = value?.normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
-  if (!v) return null;
-  if (["excellent", "fluent", "fluently", "very good", "very good english", "speaks english fluently", "ممتاز", "طليق", "طلاقة"].includes(v)) return "EXCELLENT";
-  if (["good", "speaks english well", "جيد", "جيد جدا", "جيد جداً"].includes(v)) return "GOOD";
+  const raw = value?.normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!raw) return null;
+
+  // Bounded corrections for observed source typos only. Do not use broad fuzzy matching.
+  const v = raw
+    .replace(/\benglis\b/g, "english")
+    .replace(/\bgoog\b/g, "good");
+
+  if (["excellent", "fluent", "fluently", "very good", "very good english", "speaks english fluently", "english is excellent", "native-level english", "ممتاز", "طليق", "طلاقة"].includes(v)) return "EXCELLENT";
+  if (["good", "speaks english well", "english is good", "english good", "good english", "جيد", "جيد جدا", "جيد جداً"].includes(v)) return "GOOD";
   if (["fair", "intermediate", "some english", "متوسط", "مقبول", "انجليزي متوسط", "إنجليزي متوسط"].includes(v)) return "FAIR";
-  if (["weak", "basic", "limited english", "ضعيف", "محدود", "انجليزي محدود", "إنجليزي محدود"].includes(v)) return "WEAK";
-  if (["none", "no english", "does not speak english", "بدون انجليزي", "بدون إنجليزي", "لا يتحدث الانجليزية", "لا يتحدث الإنجليزية"].includes(v)) return "NONE";
+  if (["weak", "basic", "limited english", "poor english", "english is weak", "ضعيف", "محدود", "انجليزي محدود", "إنجليزي محدود"].includes(v)) return "WEAK";
+  if (["none", "no english", "does not speak english", "zero english", "بدون انجليزي", "بدون إنجليزي", "لا يتحدث الانجليزية", "لا يتحدث الإنجليزية"].includes(v)) return "NONE";
   const upper = v.toUpperCase();
   return (ENGLISH_PROFICIENCY_VALUES as readonly string[]).includes(upper) ? (upper as EnglishProficiency) : null;
 }
@@ -54,6 +85,9 @@ export function normalizeShiftDays(value: string | readonly string[] | null | un
   }
   const raw = String(value ?? "").normalize("NFKC").trim().toLowerCase();
   if (!raw) return null;
+  if (/^weekdays?$/.test(raw)) return ["MON", "TUE", "WED", "THU", "FRI"];
+  if (/^weekends?$/.test(raw)) return ["SAT", "SUN"];
+  if (/^(?:daily|every\s*day|all\s*days)$/.test(raw)) return ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
   const range = raw.match(/^([a-z]+)\s*(?:-|–|—|through|to)\s*([a-z]+)$/i);
   if (range) {
     const start = DAY_ALIAS[range[1].toLowerCase()];

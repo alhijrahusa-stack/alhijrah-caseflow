@@ -55,7 +55,7 @@ export type QueueRow = {
   created_client_id: string | null;
 };
 
-const REVIEW_FIELD_SOURCE_KEYS = {
+export const REVIEW_FIELD_SOURCE_KEYS = {
   full_name: "full_name",
   phone: "phone",
   email: "email",
@@ -116,7 +116,7 @@ function comparable(value: unknown) {
   return String(value).trim();
 }
 
-function sheetEvidence(row: IntakeRow, draft: PreparedImportDraft, source: ImportSourceType, sourceRow: number) {
+export function sheetEvidence(row: IntakeRow, draft: PreparedImportDraft, source: ImportSourceType, sourceRow: number) {
   return (Object.keys(REVIEW_FIELD_SOURCE_KEYS) as ReviewFieldKey[]).flatMap((fieldKey) => {
     const sourceKey = REVIEW_FIELD_SOURCE_KEYS[fieldKey];
     const sourceValue = pickImportValue(row, sourceKey);
@@ -134,7 +134,7 @@ function sheetEvidence(row: IntakeRow, draft: PreparedImportDraft, source: Impor
   });
 }
 
-function mergeManualEvidence(existingValue: unknown, previousDraft: unknown, nextDraft: unknown, reviewerId: string) {
+export function mergeManualEvidence(existingValue: unknown, previousDraft: unknown, nextDraft: unknown, reviewerId: string) {
   const existing = Array.isArray(existingValue) ? [...existingValue] : [];
   const reviewedAt = new Date().toISOString();
   for (const fieldKey of Object.keys(REVIEW_FIELD_SOURCE_KEYS) as ReviewFieldKey[]) {
@@ -326,7 +326,7 @@ function partialDraft(row: IntakeRow, notes: string) {
         phone: pickImportValue(row, "phone") ?? "",
         email: pickImportValue(row, "email"),
         date_of_birth: pickImportValue(row, "date_of_birth"),
-        preferred_language: rawLanguage ? normalizeImportLanguage(rawLanguage) : "en",
+        preferred_language: rawLanguage ? normalizeImportLanguage(rawLanguage) : null,
         english_proficiency: normalizeEnglishProficiency(pickImportValue(row, "english_proficiency")),
         street: pickImportValue(row, "street"), city: pickImportValue(row, "city"), state: pickImportValue(row, "state"), zip: pickImportValue(row, "zip"),
         appointment_availability: null, amazon_worked_before: null, amazon_worked_from: null, amazon_worked_to: null,
@@ -651,6 +651,7 @@ export async function approveImportCase(session: StaffSession, args: {
       profile: draft.profile,
       primary: draft.primary,
       backup: draft.backup,
+      reviewFields: draft.review_fields,
       status: draft.status,
       nextStep: draft.next_step,
       assignedStaff,

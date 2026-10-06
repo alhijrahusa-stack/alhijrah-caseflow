@@ -3,6 +3,7 @@ import type postgres from "postgres";
 import { catalogVersion, resolvePreferences, type Selection } from "@/lib/catalog";
 import { DEFAULT_NEXT_STEP, type Status } from "@/lib/domain";
 import type { Profile } from "@/lib/schemas";
+import type { SmartReviewFields } from "@/lib/smart-client-import-core";
 
 export type Tx = postgres.TransactionSql;
 type Json = postgres.JSONValue;
@@ -65,6 +66,7 @@ export type NewClientInput = {
   profile: Profile;
   primary: Selection[];
   backup: Selection[];
+  reviewFields?: SmartReviewFields | null;
   status: Status;
   nextStep: string | null;
   assignedStaff: string | null;
@@ -150,13 +152,18 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
   const [client] = await tx`
     insert into clients (
       source, full_name, phone, email, date_of_birth, preferred_language, english_proficiency,
-      street, city, state, zip, appointment_availability,
+      street, city, state, zip,
+      preferred_location, location_option_1, location_option_2, shift_days, shift_start_time, shift_end_time,
+      appointment_availability,
       amazon_worked_before, amazon_worked_from, amazon_worked_to,
       amazon_applied_before, amazon_application_email, currently_amazon, via_agency,
       communication_consent, current_status, next_step, assigned_staff, created_by
     ) values (
       ${input.source}, ${p.full_name}, ${p.phone}, ${p.email}, ${p.date_of_birth},
-      ${p.preferred_language}, ${p.english_proficiency}, ${p.street}, ${p.city}, ${p.state}, ${p.zip}, ${p.appointment_availability},
+      ${p.preferred_language}, ${p.english_proficiency}, ${p.street}, ${p.city}, ${p.state}, ${p.zip},
+      ${input.reviewFields?.preferred_location ?? null}, ${input.reviewFields?.location_option_1 ?? null}, ${input.reviewFields?.location_option_2 ?? null},
+      ${input.reviewFields?.shift_days ?? null}, ${input.reviewFields?.shift_start_time ?? null}, ${input.reviewFields?.shift_end_time ?? null},
+      ${p.appointment_availability},
       ${p.amazon_worked_before}, ${p.amazon_worked_from}, ${p.amazon_worked_to},
       ${p.amazon_applied_before}, ${p.amazon_application_email}, ${p.currently_amazon}, ${p.via_agency},
       ${input.communicationConsent}, ${input.status},

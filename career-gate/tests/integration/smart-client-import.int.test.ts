@@ -1,10 +1,31 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
+import type { StaffSession } from "@/lib/auth";
+import {
+  approveImportCase,
+  saveImportReview,
+  stageSheetRows,
+  startImportReview,
+  verifyImportCase,
+} from "@/lib/smart-client-import";
 
 const db = postgres(process.env.DATABASE_URL!, { prepare: false, max: 1 });
 
 const tables = ["client_import_batches", "client_import_cases", "client_import_documents"] as const;
 const privileges = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"] as const;
+
+let admin: StaffSession;
+
+beforeAll(async () => {
+  const authId = randomUUID();
+  await db`insert into auth.users (id,email) values (${authId},'smart-import-admin@test.invalid')`;
+  const [staff] = await db`
+    insert into staff (display_name,email,role,auth_user_id,active)
+    values ('TEST Smart Import Admin','smart-import-admin@test.invalid','admin',${authId},true)
+    returning id,display_name,email,role`;
+  admin = { authUserId: authId, staff: staff as StaffSession["staff"] };
+});
 
 afterAll(async () => { await db.end(); });
 
@@ -65,5 +86,144 @@ describe("Smart Career Collect Client staging security", () => {
       where conrelid='public.clients'::regclass and conname='clients_english_proficiency_check'`;
     const definition = String(constraint?.definition);
     for (const value of ["EXCELLENT","GOOD","FAIR","WEAK","NONE"]) expect(definition).toContain(value);
+  });
+
+  it("stores the reviewed Smart preference fields canonically without forcing a default language", async () => {
+    const rows = await db`
+      select column_name,data_type,is_nullable,column_default
+      from information_schema.columns
+      where table_schema='public' and table_name='clients'
+        and column_name in (
+          'preferred_language','preferred_location','location_option_1','location_option_2',
+          'shift_days','shift_start_time','shift_end_time'
+        )
+      order by column_name`;
+    const byName = Object.fromEntries(rows.map((row) => [row.column_name, row]));
+    expect(byName.preferred_language?.is_nullable).toBe("YES");
+    expect(byName.preferred_language?.column_default).toBeNull();
+    expect(byName.preferred_location?.data_type).toBe("text");
+    expect(byName.location_option_1?.data_type).toBe("text");
+    expect(byName.location_option_2?.data_type).toBe("text");
+    expect(byName.shift_days?.data_type).toBe("ARRAY");
+    expect(byName.shift_start_time?.data_type).toBe("time without time zone");
+    expect(byName.shift_end_time?.data_type).toBe("time without time zone");
+  });
+
+  it("carries a reviewed Smart file through staging, review and approval onto the canonical Client", async () => {
+    const trace = "smart-import-approval-integration";
+    const staged = await stageSheetRows({
+      session: admin,
+      source: "csv",
+      idempotencyKey: `smart-approval-${randomUUID()}`,
+      rows: [{
+        full_name: "TEST Smart Approval",
+        phone: "3135557781",
+        email: "bbelalgv@gmail.com",
+        date_of_birth: "03/14/1990",
+        english_proficiency: "Englis is goog",
+        street: "28772 GOODSON ST",
+        city: "DETROIT",
+        state: "MI",
+        zip: "48212-3768",
+        site_code: "Romulus",
+        shift_days: "Thu-Mon",
+        shift_start_time: "6pm",
+        shift_end_time: "4:30am",
+      }],
+    });
+    expect(staged.staged).toBe(1);
+    const caseId = String(staged.cases[0].id);
+
+    // Source evidence is staged for the approved field contract under SOURCE authority.
+    const [stagedCase] = await db`select mapped_draft,field_evidence from client_import_cases where id=${caseId}`;
+    const sourceEvidence = stagedCase.field_evidence as { field_key: string; authority: string; value: string }[];
+    expect(sourceEvidence.some((entry) => entry.field_key === "english_proficiency" && entry.authority === "SOURCE" && entry.value === "Englis is goog")).toBe(true);
+    expect(stagedCase.mapped_draft.profile.english_proficiency).toBe("GOOD");
+    expect(stagedCase.mapped_draft.profile.date_of_birth).toBe("1990-03-14");
+    expect(stagedCase.mapped_draft.profile.preferred_language).toBeNull();
+    expect(stagedCase.mapped_draft.review_fields.preferred_location).toBe("Romulus");
+    expect(stagedCase.mapped_draft.review_fields.location_option_1).toBeNull();
+
+    await startImportReview(admin, caseId, admin.staff.id);
+
+    // A manual edit becomes the current authority without rewriting source evidence.
+    const reviewedDraft = {
+      ...stagedCase.mapped_draft,
+      profile: { ...stagedCase.mapped_draft.profile, english_proficiency: "FAIR", preferred_language: "ar" },
+    };
+    await saveImportReview({ ...admin }, {
+      id: caseId,
+      reviewerId: admin.staff.id,
+      draft: reviewedDraft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+    });
+    const [reviewed] = await db`select mapped_draft,field_evidence,status from client_import_cases where id=${caseId}`;
+    const reviewedEvidence = reviewed.field_evidence as { field_key: string; authority: string; value: string; reviewer_id?: string; reviewed_at?: string }[];
+    expect(reviewedEvidence.slice(0, sourceEvidence.length)).toEqual(sourceEvidence);
+    const manual = reviewedEvidence.filter((entry) => entry.authority === "MANUAL");
+    expect(manual.map((entry) => entry.field_key).sort()).toEqual(["english_proficiency", "preferred_language"]);
+    for (const entry of manual) {
+      expect(entry.reviewer_id).toBe(admin.staff.id);
+      expect(typeof entry.reviewed_at).toBe("string");
+    }
+    expect(reviewed.mapped_draft.profile.english_proficiency).toBe("FAIR");
+    expect(reviewed.mapped_draft.profile.preferred_language).toBe("ar");
+
+    const verification = await verifyImportCase(admin, caseId);
+    expect(verification.client_schema_valid).toBe(true);
+
+    const approved = await approveImportCase(admin, {
+      id: caseId,
+      reviewerId: admin.staff.id,
+      draft: reviewed.mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+      traceId: trace,
+    });
+    expect(approved.idempotent).toBe(false);
+
+    // All 16 approved fields land on the canonical Client row.
+    const [client] = await db`
+      select full_name,phone,email,date_of_birth,preferred_language,english_proficiency,
+             street,city,state,zip,preferred_location,location_option_1,location_option_2,
+             shift_days,shift_start_time,shift_end_time
+      from clients where id=${approved.client_id}`;
+    expect(client.full_name).toBe("TEST Smart Approval");
+    expect(client.phone).toBe("3135557781");
+    expect(client.email).toBe("bbelalgv@gmail.com");
+    expect(String(client.date_of_birth instanceof Date ? client.date_of_birth.toISOString().slice(0, 10) : client.date_of_birth)).toBe("1990-03-14");
+    expect(client.preferred_language).toBe("ar");
+    expect(client.english_proficiency).toBe("FAIR");
+    expect(client.street).toBe("28772 GOODSON ST");
+    expect(client.city).toBe("DETROIT");
+    expect(client.state).toBe("MI");
+    expect(client.zip).toBe("48212-3768");
+    expect(client.preferred_location).toBe("Romulus");
+    expect(client.location_option_1).toBeNull();
+    expect(client.location_option_2).toBeNull();
+    expect(client.shift_days).toEqual(["THU", "FRI", "SAT", "SUN", "MON"]);
+    expect(String(client.shift_start_time)).toBe("18:00:00");
+    expect(String(client.shift_end_time)).toBe("04:30:00");
+
+    // Duplicate approval is idempotent and never creates a second Client.
+    const again = await approveImportCase(admin, {
+      id: caseId,
+      reviewerId: admin.staff.id,
+      draft: reviewed.mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+      traceId: trace,
+    });
+    expect(again).toEqual({ client_id: approved.client_id, idempotent: true });
+    const [{ count }] = await db`select count(*)::int as count from clients where phone='3135557781'`;
+    expect(count).toBe(1);
+    await expect(saveImportReview(admin, {
+      id: caseId,
+      reviewerId: admin.staff.id,
+      draft: reviewed.mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+    })).rejects.toMatchObject({ code: "already_approved" });
   });
 });

@@ -1,4 +1,5 @@
 import type { IntakeRow } from "@/lib/intake-file";
+import { normalizeSmartDate } from "@/lib/smart-client-fields";
 
 export type LocalStrength = "HIGH" | "MEDIUM" | "REVIEW";
 export type LocalEvidence = {
@@ -38,29 +39,6 @@ function normalizeUsPhone(value: string) {
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
-}
-
-function parseDate(value: string) {
-  const v = value.trim();
-  let m = v.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-  if (m) {
-    const y = Number(m[1]);
-    const mo = Number(m[2]);
-    const d = Number(m[3]);
-    const date = new Date(Date.UTC(y, mo - 1, d));
-    if (y >= 1900 && y <= 2100 && date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d) {
-      return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
-    return null;
-  }
-  m = v.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-  if (!m) return null;
-  const mo = Number(m[1]);
-  const d = Number(m[2]);
-  const y = Number(m[3]);
-  const date = new Date(Date.UTC(y, mo - 1, d));
-  if (y < 1900 || y > 2100 || date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
-  return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
 function explodeSource(raw: string) {
@@ -116,19 +94,29 @@ function uniqueDateFromText(lines: string[]) {
   const candidates = new Set<string>();
   for (const line of lines) {
     for (const match of line.matchAll(new RegExp(DATE_TOKEN_RE.source, "gi"))) {
-      const parsed = parseDate(match[0]);
+      const parsed = normalizeSmartDate(match[0]);
       if (parsed) candidates.add(parsed);
     }
   }
   return candidates.size === 1 ? [...candidates][0] : null;
 }
 
-function standaloneLanguage(lines: string[]) {
+function contextualEnglishProficiency(lines: string[]) {
+  const explicit = labeled(lines, ["english proficiency", "english level", "مستوى الانجليزية", "مستوى الإنجليزية"]);
+  if (explicit) return explicit;
+  const proficiencyContext = /\benglis(?:h)?\b.*\b(?:excellent|fluent|fluently|good|goog|fair|intermediate|weak|limited|poor|none)\b/i;
+  const reversedContext = /\b(?:excellent|fluent|fluently|good|goog|fair|intermediate|weak|limited|poor|none)\b.*\benglis(?:h)?\b/i;
+  return lines.find((line) => proficiencyContext.test(line) || reversedContext.test(line)) ?? null;
+}
+
+function contextualPreferredLocation(lines: string[]) {
+  const explicit = labeled(lines, ["preferred location", "work location", "job location", "site", "site code", "warehouse", "الموقع"]);
+  if (explicit) return explicit;
+  const shiftContext = /^\s*([A-Za-z][A-Za-z .'-]{1,50}?)\s+(?:night|day|morning|evening|afternoon)\s+shift\b/i;
   for (const line of lines) {
-    const v = clean(line).toLowerCase();
-    if (["english", "en", "الانجليزية", "الإنجليزية"].includes(v)) return "en";
-    if (["arabic", "ar", "عربي", "العربية"].includes(v)) return "ar";
-    if (["spanish", "es", "español"].includes(v)) return "es";
+    if (STREET_RE.test(line) || US_CITY_STATE_ZIP_RE.test(line)) continue;
+    const match = line.match(shiftContext);
+    if (match?.[1]) return clean(match[1]);
   }
   return null;
 }
@@ -175,7 +163,7 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
   add(row, evidence, "email", emailMatch ? normalizeEmail(emailMatch) : null, labeledEmail && emailMatch ? "HIGH" : emailMatch ? "MEDIUM" : "REVIEW", emailMatch);
 
   const dobRaw = labeled(lines, ["dob", "date of birth", "birth date", "birthday", "تاريخ الميلاد"]);
-  const dob = dobRaw ? parseDate(dobRaw.match(DATE_TOKEN_RE)?.[0] ?? dobRaw) : uniqueDateFromText(lines);
+  const dob = dobRaw ? normalizeSmartDate(dobRaw.match(DATE_TOKEN_RE)?.[0] ?? dobRaw) : uniqueDateFromText(lines);
   add(row, evidence, "date_of_birth", dob, dobRaw && dob ? "HIGH" : dob ? "MEDIUM" : "REVIEW", dobRaw ?? dob);
 
   const streetLabeled = labeled(lines, ["street", "address", "street address", "home address", "العنوان"]);
@@ -200,9 +188,9 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
   add(row, evidence, "state", state, stateLabeled ? "HIGH" : state ? "MEDIUM" : "REVIEW", state);
   add(row, evidence, "zip", zip, zipLabeled ? "HIGH" : zip ? "MEDIUM" : "REVIEW", zip);
 
-  const language = labeled(lines, ["preferred language", "language", "اللغة"]) ?? standaloneLanguage(lines);
+  const language = labeled(lines, ["preferred language", "language", "اللغة"]);
   add(row, evidence, "preferred_language", language, language ? "HIGH" : "REVIEW", language);
-  const proficiency = labeled(lines, ["english proficiency", "english level", "مستوى الانجليزية", "مستوى الإنجليزية"]);
+  const proficiency = contextualEnglishProficiency(lines);
   add(row, evidence, "english_proficiency", proficiency, proficiency ? "HIGH" : "REVIEW", proficiency);
   add(row, evidence, "appointment_availability", labeled(lines, ["appointment availability", "availability", "available", "schedule", "المواعيد", "موعد"]), "MEDIUM", null);
   add(row, evidence, "amazon_worked_before", labeled(lines, ["amazon worked before", "worked at amazon before", "previous amazon"]), "REVIEW", null);
@@ -217,7 +205,8 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
   add(row, evidence, "job_title", labeled(lines, ["job title", "title", "position"]), "MEDIUM", null);
   add(row, evidence, "employment_from", labeled(lines, ["employment from", "job from"]), "REVIEW", null);
   add(row, evidence, "employment_to", labeled(lines, ["employment to", "job to"]), "REVIEW", null);
-  add(row, evidence, "site_code", labeled(lines, ["site", "site code", "preferred location", "location", "warehouse", "الموقع"]), "REVIEW", null);
+  const preferredLocation = contextualPreferredLocation(lines);
+  add(row, evidence, "site_code", preferredLocation, preferredLocation ? "MEDIUM" : "REVIEW", preferredLocation);
   add(row, evidence, "job_id", labeled(lines, ["job id", "job", "amazon job id", "requisition id"]), "REVIEW", null);
   add(row, evidence, "shift_code", labeled(lines, ["shift", "desired shift", "schedule shift", "الشفت", "الوردية"]), "REVIEW", null);
   add(row, evidence, "shift_days", labeled(lines, ["shift days", "work days", "schedule days", "أيام الشفت", "ايام الشفت"]), "REVIEW", null);

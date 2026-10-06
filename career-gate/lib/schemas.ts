@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LANGUAGES, STATUSES } from "@/lib/domain";
+import { ENGLISH_PROFICIENCY_VALUES, LANGUAGES, STATUSES } from "@/lib/domain";
 
 const trimmed = (max: number) => z.string().trim().max(max);
 const optionalText = (max: number) =>
@@ -10,7 +10,7 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD").refine
 );
 const optionalDate = isoDate.nullable().optional().or(z.literal("")).transform((v) => (v ? v : null));
 
-export const ENGLISH_PROFICIENCY_VALUES = ["EXCELLENT", "GOOD", "FAIR", "WEAK", "NONE"] as const;
+export { ENGLISH_PROFICIENCY_VALUES };
 export const EnglishProficiencySchema = z.enum(ENGLISH_PROFICIENCY_VALUES).nullable().optional().transform((v) => v ?? null);
 
 export function normalizePhone(raw: string): string | null {
@@ -60,7 +60,7 @@ export const ProfileSchema = z
     phone: Phone,
     email: z.email("Invalid email").max(200).nullable().optional().or(z.literal("")).transform((v) => (v ? v.toLowerCase() : null)),
     date_of_birth: optionalDate,
-    preferred_language: z.enum(Object.keys(LANGUAGES) as [keyof typeof LANGUAGES]).default("en"),
+    preferred_language: z.enum(Object.keys(LANGUAGES) as [keyof typeof LANGUAGES]).nullable().optional().transform((v) => v ?? null),
     english_proficiency: EnglishProficiencySchema,
     street: optionalText(200),
     city: optionalText(100),
@@ -84,8 +84,14 @@ export const ProfileSchema = z
     amazon_application_email: p.amazon_applied_before ? p.amazon_application_email : null,
   }))
   .superRefine((p, ctx) => {
-    if (p.date_of_birth && p.date_of_birth > new Date().toISOString().slice(0, 10)) {
-      ctx.addIssue({ code: "custom", path: ["date_of_birth"], message: "Date of birth is in the future" });
+    if (p.date_of_birth) {
+      const [year, month, day] = p.date_of_birth.split("-").map(Number);
+      const exact = new Date(Date.UTC(year, month - 1, day));
+      if (year < 1900 || year > 2100 || exact.getUTCFullYear() !== year || exact.getUTCMonth() !== month - 1 || exact.getUTCDate() !== day) {
+        ctx.addIssue({ code: "custom", path: ["date_of_birth"], message: "Invalid date of birth" });
+      } else if (p.date_of_birth > new Date().toISOString().slice(0, 10)) {
+        ctx.addIssue({ code: "custom", path: ["date_of_birth"], message: "Date of birth is in the future" });
+      }
     }
     if (p.amazon_worked_from && p.amazon_worked_to && p.amazon_worked_to < p.amazon_worked_from) {
       ctx.addIssue({ code: "custom", path: ["amazon_worked_to"], message: "Amazon end date is before start date" });
