@@ -6,13 +6,13 @@ import { useStaff } from "@/components/staff/StaffContext";
 import { DigitalHandshake, useDigitalHandshake } from "@/components/staff/smart/DigitalHandshake";
 import {
   SMART_FIELDS,
+  smartApprovalGate,
   smartFieldText,
   smartRequiredReadiness,
   type SmartEvidence,
   type SmartField,
 } from "@/components/staff/smart/field-contract";
 import { ValidationMatrix, type MatrixCommit } from "@/components/staff/smart/ValidationMatrix";
-import { assessApproval, readinessSummary } from "@/lib/smart-approval-readiness";
 
 type Status = "PENDING" | "UNDER_REVIEW" | "MISSING_DOCUMENT" | "APPROVED_FILE";
 type Workspace = "sheet" | "mobile";
@@ -326,17 +326,20 @@ export function SmartCareerCollectClient() {
   const readiness = useMemo(() => smartRequiredReadiness(getField), [getField]);
   const assessment = useMemo(() => {
     if (!detail || !draft) return null;
-    return assessApproval({
-      mappedDraft: draft,
-      conflicts: detail.case.conflicts,
+    const verification = detail.case.verification_result ?? {};
+    return smartApprovalGate({
+      read: getField,
+      conflicts: detail.case.conflicts.length,
       reviewerAssigned: Boolean(reviewerId),
       confirmationsRecorded: documentConfirmed && informationConfirmed,
+      serverBlockers: Array.isArray(verification.blockers) ? verification.blockers : [],
+      serverWarnings: draftDirty || !Array.isArray(verification.warnings) ? [] : verification.warnings,
     });
-  }, [detail, draft, documentConfirmed, informationConfirmed, reviewerId]);
+  }, [detail, draft, draftDirty, documentConfirmed, getField, informationConfirmed, reviewerId]);
   // Smart Review is an administrative stage: optional gaps warn, only a real system
   // blocker withholds approval. The server re-checks at the approval mutation.
-  const canApprove = Boolean(detail && draft && assessment && assessment.readiness !== "BLOCKED" && detail.case.status !== "APPROVED_FILE");
-  const approvalBlockers = useMemo(() => assessment?.blockers.map((blocker) => blocker.message) ?? [], [assessment]);
+  const canApprove = Boolean(detail && draft && assessment && !assessment.blocked && detail.case.status !== "APPROVED_FILE");
+  const approvalBlockers = useMemo(() => assessment?.blockers ?? [], [assessment]);
   const approvalWarnings = useMemo(() => assessment?.warnings ?? [], [assessment]);
   const activeDocument = detail?.documents.find((doc) => doc.id === activeDocumentId) ?? detail?.documents[0] ?? null;
   const workflowState = detail ? detailState(detail, draftDirty) : null;
@@ -494,7 +497,7 @@ export function SmartCareerCollectClient() {
             <span className="font-mono text-[12px]">{readiness.complete} / {readiness.total} REQUIRED</span>
             <span aria-hidden="true" className="text-slate-600">|</span>
             <span className={draftDirty ? "text-amber-200" : "text-emerald-300"}>{draftDirty ? "Unsaved manual edits" : "No unsaved edits"}</span>
-            {assessment && detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span role="status" className={assessment.readiness === "BLOCKED" ? "text-red-200" : assessment.readiness === "READY_TO_APPROVE" ? "text-emerald-300" : "text-amber-200"}>{assessment.readiness.replace(/_/g, " ")} · {readinessSummary(assessment)}</span></>}
+            {assessment && detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span role="status" className={assessment.readiness === "BLOCKED" ? "text-red-200" : assessment.readiness === "READY_TO_APPROVE" ? "text-emerald-300" : "text-amber-200"}>{assessment.readiness.replace(/_/g, " ")}{assessment.blocked ? ` · ${assessment.blockers[0]}` : assessment.warnings.length ? ` · ${assessment.warnings.length} field${assessment.warnings.length === 1 ? "" : "s"} can be completed later` : " · Ready to approve"}</span></>}
             {detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span className="rounded-md border border-white/[.08] bg-black/25 px-2 py-1 font-mono text-[11px]">⌘/Ctrl + Enter</span><span>Approve when ready</span></>}
           </div>
           <div className="flex flex-wrap gap-2">
