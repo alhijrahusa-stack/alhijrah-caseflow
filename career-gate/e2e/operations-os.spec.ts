@@ -122,6 +122,27 @@ test.describe.serial("Career Gate Operations OS core", () => {
     await expect(db()`update client_accounts set payment_status='refunded' where client_id=${clientId}`).rejects.toThrow(/projection_is_read_only/);
   });
 
+  test("a paid account earns no commission until the application completion is recorded, and the completer owns it", async ({ request }) => {
+    // LOCKED RULE: COMMISSION_OWNER = APPLICATION_COMPLETED_BY. The account is
+    // fully paid at this point, so the only thing missing is the owner.
+    const [none] = await db()`select count(*)::int n from commissions where client_id=${clientId}`;
+    expect(Number(none.n)).toBe(0);
+
+    const recorded = await postStaff(request, "admin", "/api/staff/accounting", {
+      operation: "record_application_completion",
+      client_id: clientId,
+      completed_by: staffId,
+      completed_on: new Date().toISOString().slice(0, 10),
+    });
+    expect(recorded.status, JSON.stringify(recorded.json)).toBe(200);
+    expect(recorded.json.client.application_status).toBe("completed");
+    expect(recorded.json.commission.employee_id).toBe(staffId);
+
+    // The commission belongs to the completer, not to whoever recorded the money.
+    const [adminStaff] = await db()`select id from staff where auth_user_id=${STAFF.admin}`;
+    expect(recorded.json.commission.employee_id).not.toBe(adminStaff.id);
+  });
+
   test("commission is versioned, generated from paid event and auditable through lifecycle", async ({ request }) => {
     const [rule] = await db()`select id,version,commission_type,commission_value from commission_rules where employee_id=${staffId} and active`;
     expect(rule.commission_type).toBe("fixed");
@@ -183,5 +204,22 @@ test.describe.serial("Career Gate Operations OS core", () => {
       receipt_document_id: null, related_transaction_id: null, reason: null, idempotency_key: randomUUID(),
     });
     expect(denied.status).toBe(403);
+  });
+
+  test("a discount reduces the net fee through the same write path and leaves the contracted fee intact", async ({ request }) => {
+    const applied = await postStaff(request, "manager", "/api/staff/accounting", {
+      operation: "apply_discount", client_id: clientId, discount_amount: 20, reason: "E2E goodwill discount",
+    });
+    expect(applied.status, JSON.stringify(applied.json)).toBe(200);
+    expect(Number(applied.json.balance.net_fee)).toBe(130);
+    expect(Number(applied.json.balance.balance)).toBe(0);
+    expect(applied.json.balance.payment_status).toBe("paid");
+
+    const [account] = await db()`select fee_amount,discount_amount,discount_reason from client_accounts where client_id=${clientId}`;
+    expect(Number(account.fee_amount)).toBe(150);
+    expect(Number(account.discount_amount)).toBe(20);
+    expect(account.discount_reason).toBe("E2E goodwill discount");
+
+    await expect(db()`update client_accounts set discount_amount=5 where client_id=${clientId}`).rejects.toThrow(/projection_is_read_only/);
   });
 });

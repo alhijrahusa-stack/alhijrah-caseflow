@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStaff } from "@/lib/auth";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
+import { applyAccountDiscount, lockAccount, reconcileAccount, recordApplicationCompletion } from "@/lib/accounting-ledger";
 import { staffGuard } from "@/lib/staff-api";
 
 export const runtime = "nodejs";
@@ -9,6 +10,7 @@ export const runtime = "nodejs";
 const id = z.uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const money = z.number().positive().max(1_000_000);
+const nonNegativeMoney = z.number().min(0).max(1_000_000);
 const nullableText = (max: number) => z.string().trim().max(max).nullable().optional();
 
 const Input = z.discriminatedUnion("operation", [
@@ -33,6 +35,20 @@ const Input = z.discriminatedUnion("operation", [
     payment_reference: nullableText(200),
     reason: nullableText(500),
   }),
+  // Records who completed the client's application. This is the sole source of
+  // commission ownership — see lib/accounting-commission.ts.
+  z.object({
+    operation: z.literal("record_application_completion"),
+    client_id: id,
+    completed_by: id,
+    completed_on: date,
+  }),
+  z.object({
+    operation: z.literal("apply_discount"),
+    client_id: id,
+    discount_amount: nonNegativeMoney,
+    reason: nullableText(500),
+  }),
 ]);
 
 function management(role: string) {
@@ -47,7 +63,15 @@ export async function POST(req: Request) {
   if (!parsed.success) return err("invalid_input", parsed.error.issues[0]?.message ?? "Invalid operation", 400, traceId);
   const input = parsed.data;
   const session = guard.session;
-  if (!management(session.staff.role)) return err("forbidden", "Management access required", 403, traceId);
+
+  // Recording one's own application completion is ordinary case work, so it is
+  // open to the staff member who did it. Everything that moves money is
+  // management-only. Nobody may record a completion for someone else unless
+  // they are management, which keeps the commission owner out of self-service.
+  const selfCompletion = input.operation === "record_application_completion" && input.completed_by === session.staff.id;
+  if (!management(session.staff.role) && !selfCompletion) {
+    return err("forbidden", "Management access required", 403, traceId);
+  }
 
   try {
     const result = await withStaff(session, async (tx) => {
@@ -56,12 +80,7 @@ export async function POST(req: Request) {
         if (input.transaction_type === "refund" && !input.related_transaction_id) throw new Error("REFUND_LINK_REQUIRED");
         if (input.transaction_type === "adjustment" && !input.direction) throw new Error("ADJUSTMENT_DIRECTION_REQUIRED");
 
-        const [account] = await tx`
-          select a.id,a.client_id,a.fee_amount,a.assigned_staff,c.assigned_staff client_owner
-          from client_accounts a join clients c on c.id=a.client_id
-          where a.client_id=${input.client_id} and c.deleted_at is null
-          for update of a`;
-        if (!account) throw new Error("ACCOUNT_NOT_FOUND");
+        const account = await lockAccount(tx, input.client_id);
 
         if (input.receipt_document_id) {
           const [doc] = await tx`select id from documents where id=${input.receipt_document_id} and client_id=${input.client_id}`;
@@ -120,76 +139,39 @@ export async function POST(req: Request) {
                           ${tx.json({ type: input.transaction_type, direction, amount: input.amount, status: "confirmed" })},${traceId})`;
         }
 
-        let [balance] = await tx`select * from client_account_balances where account_id=${account.id}`;
-        if (!balance) throw new Error("BALANCE_NOT_FOUND");
+        const settled = await reconcileAccount(tx, {
+          account,
+          staffId: session.staff.id,
+          traceId,
+          eligibilityDate: input.occurred_on,
+          refundRecorded: input.transaction_type === "refund",
+          triggerTransactionId: transaction.id,
+          paymentMethod: input.transaction_type === "payment" ? input.payment_method ?? null : null,
+          paymentDate: input.transaction_type === "payment" ? input.occurred_on : null,
+          receiptDocumentId: input.receipt_document_id ?? null,
+        });
 
-        const projectedStatus = Number(balance.balance) <= 0
-          ? "paid"
-          : input.transaction_type === "refund" && Number(balance.net_credits) <= 0
-            ? "refunded"
-            : "pending";
+        return { transaction, ...settled, idempotent };
+      }
 
-        // client_accounts is now compatibility projection only. The DB guard rejects
-        // financial writes unless the canonical ledger command enables this local flag.
-        await tx`select set_config('cg.finance_projection_sync','1',true)`;
-        await tx`
-          update client_accounts
-          set payment_status=${projectedStatus},
-              payment_method=case when ${input.transaction_type}='payment' then ${input.payment_method ?? null} else payment_method end,
-              payment_date=case when ${input.transaction_type}='payment' then ${input.occurred_on}::date else payment_date end,
-              receipt_document_id=coalesce(${input.receipt_document_id ?? null},receipt_document_id),
-              commission_amount=0,
-              commission_staff_id=null,
-              paid_at=case when ${projectedStatus}='paid' then coalesce(paid_at,now()) else null end,
-              updated_by=${session.staff.id}
-          where id=${account.id}`;
+      if (input.operation === "record_application_completion") {
+        return recordApplicationCompletion(tx, {
+          clientId: input.client_id,
+          completedBy: input.completed_by,
+          completedOn: input.completed_on,
+          staffId: session.staff.id,
+          traceId,
+        });
+      }
 
-        [balance] = await tx`select * from client_account_balances where account_id=${account.id}`;
-
-        let commission = null;
-        if (balance?.payment_status === "paid") {
-          const employeeId = account.assigned_staff ?? account.client_owner;
-          if (employeeId) {
-            const [rule] = await tx`
-              select id,version,commission_type,commission_value
-              from commission_rules where employee_id=${employeeId} and active
-              order by version desc limit 1`;
-            if (rule) {
-              const amount = rule.commission_type === "percent"
-                ? Math.round(Number(account.fee_amount) * Number(rule.commission_value)) / 100
-                : Number(rule.commission_value);
-              [commission] = await tx`
-                insert into commissions(
-                  employee_id,client_id,account_id,trigger_event,trigger_transaction_id,rule_id,rule_version,
-                  calculation_basis,commission_type,rate_value,amount,eligibility_date,status
-                ) values (
-                  ${employeeId},${input.client_id},${account.id},'account_paid',${transaction.id},${rule.id},${rule.version},
-                  ${account.fee_amount},${rule.commission_type},${rule.commission_value},${amount},${input.occurred_on}::date,'eligible'
-                )
-                on conflict(account_id,trigger_event) do nothing
-                returning id,employee_id,amount,status`;
-              if (commission) {
-                await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,new_value,trace_id)
-                         values(${input.client_id},'commission_created',${session.staff.id},'commission',${commission.id},
-                                ${tx.json({ employee_id: employeeId, amount, status: "eligible", rule_version: rule.version })},${traceId})`;
-              } else {
-                [commission] = await tx`select id,employee_id,amount,status from commissions where account_id=${account.id} and trigger_event='account_paid'`;
-              }
-            }
-          }
-        } else {
-          const reversed = await tx`
-            update commissions set status='reversed',cancel_reason='Account no longer fully paid',updated_at=now()
-            where account_id=${account.id} and trigger_event='account_paid' and status not in ('cancelled','reversed')
-            returning id,employee_id,amount,status`;
-          for (const row of reversed) {
-            await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,new_value,trace_id)
-                     values(${input.client_id},'commission_updated',${session.staff.id},'commission',${row.id},
-                            ${tx.json({ status: "reversed", reason: "Account no longer fully paid" })},${traceId})`;
-          }
-        }
-
-        return { transaction, balance, commission, idempotent };
+      if (input.operation === "apply_discount") {
+        return applyAccountDiscount(tx, {
+          clientId: input.client_id,
+          discountAmount: input.discount_amount,
+          reason: input.reason ?? null,
+          staffId: session.staff.id,
+          traceId,
+        });
       }
 
       const [commission] = await tx`
@@ -232,6 +214,10 @@ export async function POST(req: Request) {
     if (message === "REFUND_LINK_REQUIRED") return err("invalid_refund", "Refund must reference the original payment", 400, traceId);
     if (message === "ADJUSTMENT_DIRECTION_REQUIRED") return err("invalid_adjustment", "Adjustment direction is required", 400, traceId);
     if (message === "ACCOUNT_NOT_FOUND") return err("account_not_found", "Accounting record not found", 404, traceId);
+    if (message === "CLIENT_NOT_FOUND") return err("client_not_found", "Client was not found", 404, traceId);
+    if (message === "COMPLETION_STAFF_NOT_FOUND") return err("completion_staff_not_found", "The selected employee is not an active staff member", 400, traceId);
+    if (message === "DISCOUNT_REASON_REQUIRED") return err("discount_reason_required", "A reason is required for a discount", 400, traceId);
+    if (message === "DISCOUNT_EXCEEDS_FEE") return err("discount_exceeds_fee", "Discount cannot exceed the account fee", 400, traceId);
     if (message === "INVALID_RECEIPT") return err("invalid_receipt", "Receipt must belong to this client", 400, traceId);
     if (message === "RELATED_TRANSACTION_NOT_FOUND") return err("related_transaction_not_found", "Referenced transaction was not found", 404, traceId);
     if (message === "REFUND_EXCEEDS_PAYMENT") return err("refund_exceeds_payment", "Refund exceeds the remaining refundable amount", 409, traceId);
@@ -241,6 +227,9 @@ export async function POST(req: Request) {
     if (message === "INVALID_COMMISSION_TRANSITION") return err("invalid_commission_transition", "Commission transition is not allowed", 409, traceId);
     if (message === "COMMISSION_PAYMENT_REFERENCE_REQUIRED") return err("payment_reference_required", "Payment reference is required", 400, traceId);
     if (message === "COMMISSION_REASON_REQUIRED") return err("commission_reason_required", "A reason is required", 400, traceId);
+    if (message.includes("application_completion_locked_by_commission")) {
+      return err("application_completion_locked", "Application ownership cannot change while a live commission is derived from it; cancel the commission first", 409, traceId);
+    }
     return err("accounting_operation_failed", message, 409, traceId);
   }
 }
