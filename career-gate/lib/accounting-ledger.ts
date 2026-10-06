@@ -14,7 +14,7 @@ import { commissionAmount, resolveCommissionOwner, type CommissionBlockReason } 
 
 export type Tx = Parameters<Parameters<typeof withStaff>[1]>[0];
 
-export type AccountRow = { id: string; client_id: string; fee_amount: string | number; discount_amount: string | number };
+export type AccountRow = { id: string; client_id: string; fee_amount: string | number; discount_amount: string | number; payment_status: string };
 export type CommissionRow = { id: string; employee_id: string; amount: string | number; status: string };
 
 /**
@@ -38,9 +38,13 @@ export async function reconcileAccount(tx: Tx, args: {
   let [balance] = await tx`select * from client_account_balances where account_id=${account.id}`;
   if (!balance) throw new Error("BALANCE_NOT_FOUND");
 
+  // Settling for a reason other than a refund — a discount, or the application
+  // completion that first establishes an owner — must not silently downgrade an
+  // account that was already refunded back to merely pending.
+  const refunded = args.refundRecorded === true || account.payment_status === "refunded";
   const projectedStatus = Number(balance.balance) <= 0
     ? "paid"
-    : args.refundRecorded && Number(balance.net_credits) <= 0
+    : refunded && Number(balance.net_credits) <= 0
       ? "refunded"
       : "pending";
 
@@ -121,7 +125,7 @@ export async function reconcileAccount(tx: Tx, args: {
 
 export async function lockAccount(tx: Tx, clientId: string) {
   const [account] = await tx`
-    select a.id,a.client_id,a.fee_amount,a.discount_amount
+    select a.id,a.client_id,a.fee_amount,a.discount_amount,a.payment_status
     from client_accounts a join clients c on c.id=a.client_id
     where a.client_id=${clientId} and c.deleted_at is null
     for update of a`;

@@ -247,6 +247,35 @@ describe("settlement stays reversible and idempotent", () => {
     expect((await commissionOf(clientId))?.status).toBe("reversed");
   });
 
+  it("keeps a refunded account refunded when it settles again for another reason", async () => {
+    const clientId = await makeClient("QA Synthetic Refunded Hold", null);
+    await pay(manager, clientId, 150);
+    await withStaff(manager, async (tx) => {
+      const account = await lockAccount(tx, clientId);
+      const [payment] = await tx`select id from payment_transactions where client_id=${clientId} and transaction_type='payment'`;
+      await tx`
+        insert into payment_transactions(
+          account_id,client_id,transaction_type,direction,amount,status,occurred_at,related_transaction_id,reason,source,recorded_by,idempotency_key
+        ) values (
+          ${account.id},${clientId},'refund','debit',150,'confirmed','2026-10-07'::date::timestamptz,${payment.id as string},
+          'QA synthetic full refund','staff',${manager.staff.id},${randomUUID()}
+        )`;
+      return reconcileAccount(tx, {
+        account, staffId: manager.staff.id, traceId: trace, eligibilityDate: "2026-10-07", refundRecorded: true,
+      });
+    });
+    const [refundedView] = await db`select payment_status from client_account_balances where client_id=${clientId}`;
+    expect(refundedView.payment_status).toBe("refunded");
+
+    // Recording the application completion settles the account again; the
+    // refund must survive that, not read as a fresh unpaid balance.
+    const settled = await withStaff(manager, (tx) => recordApplicationCompletion(tx, {
+      clientId, completedBy: completer.staff.id, completedOn: "2026-10-08", staffId: manager.staff.id, traceId: trace,
+    }));
+    expect(settled.balance?.payment_status).toBe("refunded");
+    expect(settled.commission).toBeNull();
+  });
+
   it("never produces a second commission for the same account", async () => {
     const clientId = await makeClient("QA Synthetic Single Commission", null);
     await withStaff(manager, (tx) => recordApplicationCompletion(tx, {
