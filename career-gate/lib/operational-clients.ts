@@ -27,7 +27,7 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
     const [{total}] = await tx`select count(*)::int as total from clients c where ${where}`;
     const rows = await tx`
       select c.id,c.ref,c.full_name,c.phone,c.email,c.city,c.current_status,c.next_step,c.start_date,c.updated_at,c.assigned_staff,
-             s.display_name as assigned_name,p.site_code,p.site_name,p.job_id,p.job_title,p.shift_code,p.shift_name,a.payment_status,a.fee_amount
+             s.display_name as assigned_name,p.site_code,p.site_name,p.job_id,p.job_title,p.shift_code,p.shift_name,a.payment_status,(a.fee_amount - a.discount_amount) fee_amount
       from clients c
       left join staff s on s.id=c.assigned_staff
       left join lateral (
