@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   AddNoteForm, AppointmentForm, AssignForm, ContactedForm, DocumentForm, FollowupForm, NextStepForm, type Panel, StatusForm, TaskForm,
 } from "@/components/staff/ClientActions";
+import { ClientAccountPanel } from "@/components/staff/ClientAccountPanel";
 import { InlineField } from "@/components/staff/InlineField";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { useStaff } from "@/components/staff/StaffContext";
@@ -123,7 +124,7 @@ export function ClientFile({
               <span className="font-mono text-xs text-slate-500" data-testid="client-ref">{c.ref}</span>
               <StatusBadge status={c.current_status} />
               <span className="rounded-full border border-indigo-400/20 bg-indigo-400/[.07] px-2 py-1 text-[9px] capitalize text-indigo-200">{pipelineLabel(c.pipeline_stage)}</span>
-              {account?.payment_status === "paid" && <span className="rounded-full border border-emerald-400/25 bg-emerald-400/[.08] px-2 py-1 text-[9px] font-semibold text-emerald-300">Paid · ${account.fee_amount.toFixed(2)}</span>}
+              {account?.payment_status === "paid" && <span className="rounded-full border border-emerald-400/25 bg-emerald-400/[.08] px-2 py-1 text-[9px] font-semibold text-emerald-300">Paid · ${account.net_fee.toFixed(2)}</span>}
             </div>
           </div>
           <span className="text-xs text-slate-500">Handled by: <span data-testid="assigned-name">{c.assigned_name ?? "Unassigned"}</span></span>
@@ -140,19 +141,7 @@ export function ClientFile({
             <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Next Step</p>
             <div className="mt-1 text-sm" data-testid="next-step"><InlineField clientId={c.id} field="next_step" label="Next step" value={c.next_step} /></div>
           </div>
-          {account && (
-            <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Account</p>
-                {isManager && <Link href="/staff/accounting" className="text-[9px] text-cyan-300 hover:text-cyan-200">Open accounting</Link>}
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className={`rounded-full border px-2 py-1 text-[9px] font-semibold capitalize ${account.payment_status === "paid" ? "border-emerald-400/25 bg-emerald-400/[.08] text-emerald-300" : account.payment_status === "refunded" ? "border-red-400/25 bg-red-400/[.08] text-red-300" : "border-amber-400/25 bg-amber-400/[.08] text-amber-300"}`}>{account.payment_status}</span>
-                <strong className="text-sm text-slate-200">${account.fee_amount.toFixed(2)}</strong>
-                {account.payment_date && <span className="text-[9px] text-slate-500">{account.payment_date}</span>}
-              </div>
-            </div>
-          )}
+          {account && <ClientAccountPanel clientId={String(c.id)} account={account} />}
         </div>
       </div>
 

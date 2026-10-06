@@ -1,4 +1,5 @@
 import "server-only";
+import { BALANCE_NET_FEE, DISCOUNT_AMOUNT, JSON_FIELD } from "@/lib/accounting-schema";
 import { withStaff, type StaffSession } from "@/lib/auth";
 
 export type PipelineStage = {
@@ -69,11 +70,17 @@ export type AccountingRow = {
   site_code: string | null;
   site_name: string | null;
   fee_amount: number;
+  discount_amount: number;
+  net_fee: number;
+  discount_reason: string | null;
   amount_paid: number;
   refund_amount: number;
   net_credits: number;
   balance: number;
   payment_status: LedgerPaymentStatus;
+  application_status: string;
+  application_completed_by: string | null;
+  application_completed_name: string | null;
   assigned_staff: string | null;
   assigned_name: string | null;
   staff_code: string | null;
@@ -142,7 +149,12 @@ export async function accountingData(session: StaffSession) {
     const rows = await tx`
       select a.id account_id,a.client_id,c.ref,c.full_name,c.phone,c.email,c.created_at,
              p.site_code,p.site_name,
-             b.fee_amount,b.amount_paid,b.refund_amount,b.net_credits,b.balance,b.payment_status,
+             b.fee_amount,${tx.unsafe(DISCOUNT_AMOUNT("b"))} discount_amount,${tx.unsafe(BALANCE_NET_FEE("b"))} net_fee,
+             ${tx.unsafe(`to_jsonb(a)->>'discount_reason'`)} discount_reason,
+             b.amount_paid,b.refund_amount,b.net_credits,b.balance,b.payment_status,
+             ${tx.unsafe(JSON_FIELD("cj.j", "application_status"))} application_status,
+             ${tx.unsafe(JSON_FIELD("cj.j", "application_completed_by"))} application_completed_by,
+             completer.display_name application_completed_name,
              a.assigned_staff,owner.display_name assigned_name,owner.staff_code,
              cm.id commission_id,cm.employee_id commission_staff_id,cs.display_name commission_name,
              coalesce(cm.amount,0) commission_amount,cm.status commission_status,
@@ -151,6 +163,10 @@ export async function accountingData(session: StaffSession) {
       join client_account_balances b on b.account_id=a.id
       join clients c on c.id=a.client_id
       left join staff owner on owner.id=a.assigned_staff
+      -- The row is serialized once per client rather than once per reference;
+      -- this join disappears with the pre-033 fallback it exists for.
+      join lateral (select to_jsonb(c) j) cj on true
+      left join staff completer on completer.id=${tx.unsafe(JSON_FIELD("cj.j", "application_completed_by"))}::uuid
       left join commissions cm on cm.account_id=a.id and cm.trigger_event='account_paid'
       left join staff cs on cs.id=cm.employee_id
       left join lateral (
@@ -184,6 +200,8 @@ export async function accountingData(session: StaffSession) {
     return normalizeRows<AccountingRow>(rows).map((r) => ({
       ...r,
       fee_amount: Number(r.fee_amount),
+      discount_amount: Number(r.discount_amount),
+      net_fee: Number(r.net_fee),
       amount_paid: Number(r.amount_paid),
       refund_amount: Number(r.refund_amount),
       net_credits: Number(r.net_credits),

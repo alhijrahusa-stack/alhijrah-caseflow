@@ -22,14 +22,6 @@ const stage = z.enum([
 const Input = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("move_stage"), client_id: id, stage }),
   z.object({ operation: z.literal("request_transfer"), client_id: id, requested_owner: id.nullable().optional(), reason: z.string().trim().max(500).nullable().optional() }),
-  z.object({
-    operation: z.literal("update_payment"),
-    client_id: id,
-    payment_status: z.enum(["pending", "paid", "refunded"]),
-    payment_method: z.enum(["zelle", "bank_transfer", "cash", "card"]).nullable().optional(),
-    payment_date: date.nullable().optional(),
-    receipt_document_id: id.nullable().optional(),
-  }),
   z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250), staff_id: id.nullable() }),
   z.object({ operation: z.literal("reassign_client"), client_id: id, staff_id: id.nullable(), task_ids: z.array(id).max(100).default([]), reason: z.string().trim().max(500).nullable().optional() }),
   z.object({ operation: z.literal("confirm_started"), client_id: id, start_date: date }),
@@ -115,26 +107,6 @@ export async function POST(req: Request) {
                  values(${input.client_id},'transfer_requested',${session.staff.id},'ownership_transfer',${row.id},
                         ${tx.json({ requested_owner: input.requested_owner ?? session.staff.id, reason: input.reason ?? null })},${traceId})`;
         return { request_id: row.id };
-      }
-
-      if (input.operation === "update_payment") {
-        if (!management(session.staff.role)) throw new Error("FORBIDDEN");
-        if (input.payment_status === "paid" && (!input.payment_method || !input.payment_date)) throw new Error("PAYMENT_FIELDS_REQUIRED");
-        if (input.receipt_document_id) {
-          const [doc] = await tx`select id from documents where id=${input.receipt_document_id} and client_id=${input.client_id}`;
-          if (!doc) throw new Error("INVALID_RECEIPT");
-        }
-        const [before] = await tx`select * from client_accounts where client_id=${input.client_id} for update`;
-        if (!before) throw new Error("ACCOUNT_NOT_FOUND");
-        const [row] = await tx`
-          update client_accounts set payment_status=${input.payment_status},payment_method=${input.payment_method ?? null},
-              payment_date=${input.payment_date ?? null},receipt_document_id=coalesce(${input.receipt_document_id ?? null},receipt_document_id),updated_by=${session.staff.id}
-          where client_id=${input.client_id} returning id,payment_status,payment_method,payment_date,commission_amount`;
-        await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
-                 values(${input.client_id},'payment_updated',${session.staff.id},'client_account',${row.id},
-                        ${tx.json({ payment_status: before.payment_status, payment_method: before.payment_method, payment_date: before.payment_date })},
-                        ${tx.json({ payment_status: row.payment_status, payment_method: row.payment_method, payment_date: row.payment_date })},${traceId})`;
-        return { changed: true, account: row };
       }
 
       if (input.operation === "bulk_assign") {
@@ -242,9 +214,6 @@ export async function POST(req: Request) {
     const message = error instanceof Error ? error.message : "operation_failed";
     if (message === "FORBIDDEN") return err("forbidden", "This action requires management access", 403, traceId);
     if (message === "CLIENT_NOT_ACCESSIBLE") return err("not_found", "Client not found or not accessible", 404, traceId);
-    if (message === "PAYMENT_FIELDS_REQUIRED") return err("invalid_payment", "Paid requires payment method and payment date", 400, traceId);
-    if (message === "INVALID_RECEIPT") return err("invalid_receipt", "Receipt must belong to this client", 400, traceId);
-    if (message === "ACCOUNT_NOT_FOUND") return err("account_not_found", "Accounting record not found", 404, traceId);
     if (message === "STAFF_NOT_FOUND") return err("staff_not_found", "Active staff member not found", 404, traceId);
     if (message === "INVALID_START_STATE") return err("invalid_start_state", "Client must be Ready for First Day before confirming start", 409, traceId);
     if (message === "ALREADY_COMPLETED") return err("already_completed", "Client is already completed with a different start date", 409, traceId);

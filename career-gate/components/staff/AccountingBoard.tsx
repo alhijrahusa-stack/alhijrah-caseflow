@@ -159,7 +159,19 @@ function CommissionControl({ row }: { row: AccountingRow }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!row.commission_id || !row.commission_status) return <span className="text-xs text-slate-500">No commission generated</span>;
+  if (!row.commission_id || !row.commission_status) {
+    // The commission owner is the recorded application completer and nobody
+    // else, so an unrecorded completion is the reason, not an error.
+    return (
+      <span className="text-xs text-slate-500" data-testid="commission-absent">
+        {row.application_status === "completed"
+          ? row.payment_status === "paid"
+            ? "No commission generated; the owner has no active commission rule."
+            : "No commission yet; the account is not fully paid."
+          : "No commission: this application has no recorded completion, so it has no owner."}
+      </span>
+    );
+  }
 
   async function change(status: "approved" | "paid" | "cancelled" | "reversed") {
     setBusy(true); setError(null);
@@ -183,21 +195,24 @@ function CommissionControl({ row }: { row: AccountingRow }) {
   );
 }
 
-export function AccountingBoard({ rows, staff }: { rows: AccountingRow[]; staff: OperationsStaff[] }) {
+export function AccountingBoard({ rows, staff, initialClient = null }: { rows: AccountingRow[]; staff: OperationsStaff[]; initialClient?: string | null }) {
   const [status, setStatus] = useState("all");
   const [staffId, setStaffId] = useState("all");
   const [q, setQ] = useState("");
+  // Opening Accounting from a client file lands on that client's account.
+  const [clientFocus, setClientFocus] = useState(initialClient);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     return rows.filter((row) => {
+      if (clientFocus && row.client_id !== clientFocus) return false;
       if (status !== "all" && row.payment_status !== status) return false;
-      if (staffId !== "all" && row.assigned_staff !== staffId && row.commission_staff_id !== staffId) return false;
+      if (staffId !== "all" && row.assigned_staff !== staffId && row.commission_staff_id !== staffId && row.application_completed_by !== staffId) return false;
       if (!term) return true;
       return [row.full_name, row.ref, row.phone, row.email ?? "", row.site_code ?? "", row.site_name ?? ""]
         .some((value) => value.toLowerCase().includes(term));
     });
-  }, [rows, status, staffId, q]);
+  }, [rows, status, staffId, q, clientFocus]);
 
   const totals = useMemo(() => ({
     outstanding: filtered.reduce((n, r) => n + Math.max(0, r.balance), 0),
@@ -221,6 +236,11 @@ export function AccountingBoard({ rows, staff }: { rows: AccountingRow[]; staff:
           <input className="ops-input ops-search-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, phone, email, file or site" />
           <select className="ops-select" value={status} onChange={(e) => setStatus(e.target.value)}><option value="all">All accounts</option><option value="unpaid">Unpaid</option><option value="partially_paid">Partially paid</option><option value="paid">Paid</option><option value="refunded">Refunded</option></select>
           <select className="ops-select" value={staffId} onChange={(e) => setStaffId(e.target.value)}><option value="all">All staff</option>{staff.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</option>)}</select>
+          {clientFocus && (
+            <button type="button" className="ops-secondary-button" data-testid="clear-client-focus" onClick={() => setClientFocus(null)}>
+              Showing one client · show all
+            </button>
+          )}
         </div>
 
         <div className="ops-account-list">
@@ -230,10 +250,13 @@ export function AccountingBoard({ rows, staff }: { rows: AccountingRow[]; staff:
                 <div><Link href={`/staff/client/${row.client_id}`} className="ops-account-name">{row.full_name}</Link><code>{row.ref}</code></div>
                 <div><span>Status</span><strong className="capitalize">{row.payment_status.replace("_", " ")}</strong></div>
                 <div><span>Fee</span><strong>{money(row.fee_amount)}</strong></div>
+                <div><span>Discount</span><strong data-testid="row-discount">{money(row.discount_amount)}</strong></div>
+                <div><span>Net fee</span><strong data-testid="row-net-fee">{money(row.net_fee)}</strong></div>
                 <div><span>Paid</span><strong>{money(row.amount_paid)}</strong></div>
                 <div><span>Refunded</span><strong>{money(row.refund_amount)}</strong></div>
                 <div><span>Balance</span><strong>{money(row.balance)}</strong></div>
-                <div><span>Staff</span><strong>{row.staff_code ?? "—"} · {row.assigned_name ?? "Unassigned"}</strong></div>
+                <div><span>Assigned</span><strong>{row.staff_code ?? "—"} · {row.assigned_name ?? "Unassigned"}</strong></div>
+                <div><span>Application completed by</span><strong data-testid="row-completed-by">{row.application_completed_name ?? "Not recorded"}</strong></div>
               </div>
               <AccountEditor row={row} />
               <div className="mt-3 border-t border-white/5 pt-3"><p className="mb-2 text-[10px] uppercase tracking-wide text-slate-500">Commission</p><CommissionControl row={row} /></div>
