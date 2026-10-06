@@ -122,20 +122,28 @@ export function ClientAccountPanel({ clientId, account }: { clientId: string; ac
       </div>
 
       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
-        <dt className="text-slate-600">Paid</dt>
-        <dd className="text-right font-mono text-slate-300" data-testid="account-amount-paid">{money(account.amount_paid)}</dd>
-        <dt className="text-slate-600">Balance</dt>
-        <dd className="text-right font-mono text-slate-300" data-testid="account-balance">{money(account.balance)}</dd>
+        {account.amount_paid_visible && (
+          <>
+            <dt className="text-slate-600">Paid</dt>
+            <dd className="text-right font-mono text-slate-300" data-testid="account-amount-paid">{money(account.amount_paid)}</dd>
+            <dt className="text-slate-600">Balance</dt>
+            <dd className="text-right font-mono text-slate-300" data-testid="account-balance">{money(account.balance)}</dd>
+          </>
+        )}
         <dt className="text-slate-600">Application</dt>
         <dd className="text-right text-slate-300" data-testid="account-application">
           {completion ?? <span className="text-amber-300">Not recorded</span>}
         </dd>
-        <dt className="text-slate-600">Commission</dt>
-        <dd className="text-right text-slate-300" data-testid="account-commission">
-          {account.commission_status
-            ? `${money(account.commission_amount)} · ${account.staff_name ?? "—"} · ${account.commission_status}`
-            : "—"}
-        </dd>
+        {account.amount_paid_visible && (
+          <>
+            <dt className="text-slate-600">Commission</dt>
+            <dd className="text-right text-slate-300" data-testid="account-commission">
+              {account.commission_status
+                ? `${money(account.commission_amount)} · ${account.staff_name ?? "—"} · ${account.commission_status}`
+                : "—"}
+            </dd>
+          </>
+        )}
       </dl>
 
       {account.discount_reason && (

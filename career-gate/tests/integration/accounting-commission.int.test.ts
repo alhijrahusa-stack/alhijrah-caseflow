@@ -9,6 +9,7 @@ import {
   recordApplicationCompletion,
 } from "@/lib/accounting-ledger";
 import { ACCOUNT_NET_FEE, BALANCE_NET_FEE, CLIENT_FIELD, DISCOUNT_AMOUNT, missingAccountingSchema } from "@/lib/accounting-schema";
+import { clientAccountSummary } from "@/lib/client-account";
 import { ProfileSchema } from "@/lib/schemas";
 import { insertClient } from "@/lib/service";
 
@@ -345,5 +346,29 @@ describe("deployment ordering: the code may reach production before migration 03
     expect(missingAccountingSchema('column "application_completed_by" of relation "clients" does not exist')).toBe(true);
     expect(missingAccountingSchema('column "discount_amount" of relation "client_accounts" does not exist')).toBe(true);
     expect(missingAccountingSchema('column "english_proficiency" of relation "clients" does not exist')).toBe(false);
+  });
+});
+
+describe("commission detail is management-only", () => {
+  it("withholds the commission amount and earner from a non-management session", async () => {
+    const clientId = await makeClient("QA Synthetic Scope", completer.staff.id);
+    await withStaff(manager, (tx) => recordApplicationCompletion(tx, {
+      clientId, completedBy: completer.staff.id, completedOn: "2026-10-01", staffId: manager.staff.id, traceId: trace,
+    }));
+    await pay(manager, clientId, 150);
+
+    const asManager = await clientAccountSummary(manager, clientId);
+    expect(asManager?.amount_paid_visible).toBe(true);
+    expect(Number(asManager?.commission_amount)).toBe(20);
+    expect(asManager?.staff_name).toContain("acct-completer");
+
+    // The assigned staff member may open the file but is not management.
+    const asStaff = await clientAccountSummary(completer, clientId);
+    expect(asStaff?.amount_paid_visible).toBe(false);
+    expect(asStaff?.commission_amount).toBe(0);
+    expect(asStaff?.commission_status).toBeNull();
+    expect(asStaff?.staff_name).toBeNull();
+    // The completion itself is their own work and stays visible.
+    expect(asStaff?.application_completed_name).toContain("acct-completer");
   });
 });

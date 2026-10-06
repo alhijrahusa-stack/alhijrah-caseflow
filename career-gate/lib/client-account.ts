@@ -13,6 +13,8 @@ export type ClientAccountSummary = {
   payment_method: string | null;
   payment_date: string | null;
   discount_reason: string | null;
+  /** False for a non-management session, where the ledger detail is withheld. */
+  amount_paid_visible: boolean;
   commission_amount: number;
   commission_status: string | null;
   /** The commission owner: the employee who completed the application, or null. */
@@ -54,6 +56,10 @@ export async function clientAccountSummary(session: StaffSession, clientId: stri
       left join staff completer on completer.id=${tx.unsafe(CLIENT_FIELD("c", "application_completed_by"))}::uuid
       where a.client_id=${clientId}`;
     if (!row) return null;
+    // Commission is compensation data and the Accounting screen is management-only,
+    // so the ledger detail is withheld from a non-management session rather than
+    // merely hidden in the markup, where it would still reach the page payload.
+    const management = session.staff.role === "admin" || session.staff.role === "manager";
     return {
       fee_amount: Number(row.fee_amount),
       discount_amount: Number(row.discount_amount),
@@ -65,10 +71,11 @@ export async function clientAccountSummary(session: StaffSession, clientId: stri
       payment_method: row.payment_method as string | null,
       payment_date: row.payment_date as string | null,
       discount_reason: row.discount_reason as string | null,
-      commission_amount: Number(row.commission_amount),
-      commission_status: row.commission_status as string | null,
-      staff_code: row.staff_code as string | null,
-      staff_name: row.staff_name as string | null,
+      amount_paid_visible: management,
+      commission_amount: management ? Number(row.commission_amount) : 0,
+      commission_status: management ? (row.commission_status as string | null) : null,
+      staff_code: management ? (row.staff_code as string | null) : null,
+      staff_name: management ? (row.staff_name as string | null) : null,
       application_status: String(row.application_status ?? "not_started"),
       application_completed_by: row.application_completed_by as string | null,
       application_completed_name: row.application_completed_name as string | null,
