@@ -18,10 +18,24 @@ async function chooseStepTwo(page: Page) {
 }
 
 async function sign(page: Page) {
+  // The pad sizes its canvas on entering step 3 (`resizeSignature`), so a box
+  // measured while the step is still arriving can be stale by the time the
+  // pointer events land. `pointerdown` then misses the canvas, `drawing` never
+  // starts, and no amount of movement marks the signature. Measure only once the
+  // step is the active page and the canvas has settled at a stable width.
+  await expect(page.locator('.page.active[data-page="3"]')).toBeVisible();
   const canvas = page.locator("#signature");
   await canvas.scrollIntoViewIfNeeded();
-  const box = await canvas.boundingBox();
+
+  let box = await canvas.boundingBox();
+  await expect.poll(async () => {
+    const next = await canvas.boundingBox();
+    const settled = next && box && next.width > 0 && next.width === box.width && next.y === box.y;
+    box = next;
+    return settled ? next.width : 0;
+  }).toBeGreaterThan(0);
   if (!box) throw new Error("signature canvas has no bounding box");
+
   await page.mouse.move(box.x + 30, box.y + 50);
   await page.mouse.down();
   await page.mouse.move(box.x + 90, box.y + 80, { steps: 4 });
