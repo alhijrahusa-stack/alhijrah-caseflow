@@ -1,4 +1,5 @@
 import type { IntakeRow } from "@/lib/intake-file";
+import { normalizeSmartDate } from "@/lib/smart-client-fields";
 
 export type LocalStrength = "HIGH" | "MEDIUM" | "REVIEW";
 export type LocalEvidence = {
@@ -38,29 +39,6 @@ function normalizeUsPhone(value: string) {
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
-}
-
-function parseDate(value: string) {
-  const v = value.trim();
-  let m = v.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-  if (m) {
-    const y = Number(m[1]);
-    const mo = Number(m[2]);
-    const d = Number(m[3]);
-    const date = new Date(Date.UTC(y, mo - 1, d));
-    if (y >= 1900 && y <= 2100 && date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d) {
-      return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
-    return null;
-  }
-  m = v.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-  if (!m) return null;
-  const mo = Number(m[1]);
-  const d = Number(m[2]);
-  const y = Number(m[3]);
-  const date = new Date(Date.UTC(y, mo - 1, d));
-  if (y < 1900 || y > 2100 || date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
-  return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
 function explodeSource(raw: string) {
@@ -116,7 +94,7 @@ function uniqueDateFromText(lines: string[]) {
   const candidates = new Set<string>();
   for (const line of lines) {
     for (const match of line.matchAll(new RegExp(DATE_TOKEN_RE.source, "gi"))) {
-      const parsed = parseDate(match[0]);
+      const parsed = normalizeSmartDate(match[0]);
       if (parsed) candidates.add(parsed);
     }
   }
@@ -185,7 +163,7 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
   add(row, evidence, "email", emailMatch ? normalizeEmail(emailMatch) : null, labeledEmail && emailMatch ? "HIGH" : emailMatch ? "MEDIUM" : "REVIEW", emailMatch);
 
   const dobRaw = labeled(lines, ["dob", "date of birth", "birth date", "birthday", "تاريخ الميلاد"]);
-  const dob = dobRaw ? parseDate(dobRaw.match(DATE_TOKEN_RE)?.[0] ?? dobRaw) : uniqueDateFromText(lines);
+  const dob = dobRaw ? normalizeSmartDate(dobRaw.match(DATE_TOKEN_RE)?.[0] ?? dobRaw) : uniqueDateFromText(lines);
   add(row, evidence, "date_of_birth", dob, dobRaw && dob ? "HIGH" : dob ? "MEDIUM" : "REVIEW", dobRaw ?? dob);
 
   const streetLabeled = labeled(lines, ["street", "address", "street address", "home address", "العنوان"]);

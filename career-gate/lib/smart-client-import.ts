@@ -55,7 +55,7 @@ export type QueueRow = {
   created_client_id: string | null;
 };
 
-const REVIEW_FIELD_SOURCE_KEYS = {
+export const REVIEW_FIELD_SOURCE_KEYS = {
   full_name: "full_name",
   phone: "phone",
   email: "email",
@@ -116,7 +116,7 @@ function comparable(value: unknown) {
   return String(value).trim();
 }
 
-function sheetEvidence(row: IntakeRow, draft: PreparedImportDraft, source: ImportSourceType, sourceRow: number) {
+export function sheetEvidence(row: IntakeRow, draft: PreparedImportDraft, source: ImportSourceType, sourceRow: number) {
   return (Object.keys(REVIEW_FIELD_SOURCE_KEYS) as ReviewFieldKey[]).flatMap((fieldKey) => {
     const sourceKey = REVIEW_FIELD_SOURCE_KEYS[fieldKey];
     const sourceValue = pickImportValue(row, sourceKey);
@@ -134,7 +134,7 @@ function sheetEvidence(row: IntakeRow, draft: PreparedImportDraft, source: Impor
   });
 }
 
-function mergeManualEvidence(existingValue: unknown, previousDraft: unknown, nextDraft: unknown, reviewerId: string) {
+export function mergeManualEvidence(existingValue: unknown, previousDraft: unknown, nextDraft: unknown, reviewerId: string) {
   const existing = Array.isArray(existingValue) ? [...existingValue] : [];
   const reviewedAt = new Date().toISOString();
   for (const fieldKey of Object.keys(REVIEW_FIELD_SOURCE_KEYS) as ReviewFieldKey[]) {

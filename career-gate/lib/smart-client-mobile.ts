@@ -149,6 +149,35 @@ function mergeEvidence(sources: SourceRow[]) {
   return { merged, evidence, conflicts };
 }
 
+type EvidenceEntry = Record<string, unknown>;
+
+function evidenceIdentity(entry: EvidenceEntry) {
+  return JSON.stringify([entry.field_key ?? null, entry.value ?? null, entry.source_type ?? null, entry.authority ?? null]);
+}
+
+/**
+ * Field evidence is append-only history. Existing entries are never rewritten, and a later
+ * automatic extraction is not recorded for a field whose current authority is MANUAL, so the
+ * reviewed value stays the authority the review surface reads back.
+ */
+export function appendExtractionEvidence(existingValue: unknown, incoming: readonly EvidenceEntry[]) {
+  const existing = (Array.isArray(existingValue) ? existingValue : []).filter(
+    (entry): entry is EvidenceEntry => Boolean(entry) && typeof entry === "object",
+  );
+  const manualFields = new Set(
+    existing.filter((entry) => entry.authority === "MANUAL").map((entry) => String(entry.field_key)),
+  );
+  const seen = new Set(existing.map(evidenceIdentity));
+  const appended = incoming.filter((entry) => {
+    if (manualFields.has(String(entry.field_key))) return false;
+    const identity = evidenceIdentity(entry);
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+  return [...existing, ...appended];
+}
+
 function preserveReviewedDraft(current: unknown, incoming: ReturnType<typeof partialDraft>, reviewStarted: boolean) {
   if (!reviewStarted || !current || typeof current !== "object") return incoming;
   const currentDraft = current as Record<string, unknown>;
@@ -287,7 +316,7 @@ export async function stageMobileImportV2(args: {
 export async function enrichMobileImportCase(session: StaffSession, caseId: string) {
   assertManager(session);
   const [caseRow] = await sql()`
-    select id,source_type,raw_input,status,created_by,mapped_draft,review_started_at
+    select id,source_type,raw_input,status,created_by,mapped_draft,review_started_at,field_evidence
     from client_import_cases where id=${caseId}`;
   if (!caseRow) throw new ActionError("not_found", "Import case not found", 404);
   if (caseRow.source_type !== "mobile") throw new ActionError("invalid_source", "Extraction retry is only available for mobile smart imports", 409);
@@ -329,6 +358,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
   const merged = mergeEvidence(sources);
   const extractedDraft = partialDraft(merged.merged, notes);
   const draft = preserveReviewedDraft(caseRow.mapped_draft, extractedDraft, Boolean(caseRow.review_started_at));
+  const evidence = appendExtractionEvidence(caseRow.field_evidence, merged.evidence as EvidenceEntry[]);
   const missing = requiredMissingFromDraft(draft);
   const aiState = docs.length === 0 ? "SKIPPED" : extractionErrors.length === docs.length ? "FAILED" : extractionErrors.length ? "PARTIAL" : "COMPLETE";
   const processingState = extractionErrors.length ? "REVIEW_REQUIRED" : "EXTRACTED";
@@ -337,7 +367,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     local_state: "COMPLETE",
     ai_state: aiState,
     extraction_errors: extractionErrors,
-    evidence_fields: merged.evidence.length,
+    evidence_fields: evidence.length,
     document_count: docs.length,
     manual_precedence_applied: Boolean(caseRow.review_started_at),
     checked_at: new Date().toISOString(),
@@ -346,7 +376,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
   await sql()`
     update client_import_cases
     set mapped_draft=${sql().json(draft as never)},missing_fields=${sql().json(missing as never)},
-        conflicts=${sql().json(merged.conflicts as never)},field_evidence=${sql().json(merged.evidence as never)},
+        conflicts=${sql().json(merged.conflicts as never)},field_evidence=${sql().json(evidence as never)},
         verification_result=${sql().json(verificationResult as never)}
     where id=${caseId}`;
 
@@ -355,7 +385,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     mapped_draft: draft,
     missing_fields: missing,
     conflicts: merged.conflicts,
-    field_evidence: merged.evidence,
+    field_evidence: evidence,
     verification_result: verificationResult,
   };
 }

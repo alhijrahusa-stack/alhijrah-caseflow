@@ -8,6 +8,7 @@ import {
   normalizeImportLanguage,
   normalizeShiftDays,
   normalizeShiftTime,
+  normalizeSmartDate,
   parseShiftRange,
   type ShiftDayCode,
 } from "@/lib/smart-client-fields";
@@ -268,7 +269,7 @@ function reviewFieldsFromRow(row: IntakeRow): SmartReviewFields {
   const preferred = optional(pickImportValue(row, "site_code"));
   return {
     preferred_location: preferred,
-    location_option_1: preferred,
+    location_option_1: null,
     location_option_2: optional(pickImportValue(row, "backup_site_code")),
     shift_days: shiftDays,
     shift_start_time: shiftStart,
@@ -352,12 +353,15 @@ export function prepareImportDraft(row: IntakeRow): PreparedImportDraft {
   const rawLanguage = pickImportValue(row, "preferred_language");
   const language = normalizeImportLanguage(rawLanguage);
   if (rawLanguage && !language) throw new Error("preferred_language: unsupported or malformed language code");
+  const rawDateOfBirth = optional(pickImportValue(row, "date_of_birth"));
+  const dateOfBirth = normalizeSmartDate(rawDateOfBirth);
+  if (rawDateOfBirth && !dateOfBirth) throw new Error("date_of_birth: use YYYY-MM-DD or MM/DD/YYYY with a real calendar date");
 
   const profile = ProfileSchema.safeParse({
     full_name: pickImportValue(row, "full_name") ?? "",
     phone: pickImportValue(row, "phone") ?? "",
     email: optional(pickImportValue(row, "email")),
-    date_of_birth: optional(pickImportValue(row, "date_of_birth")),
+    date_of_birth: dateOfBirth,
     preferred_language: language ?? null,
     english_proficiency: normalizeEnglishProficiency(pickImportValue(row, "english_proficiency")),
     street: decomposed?.street ?? directStreet,
