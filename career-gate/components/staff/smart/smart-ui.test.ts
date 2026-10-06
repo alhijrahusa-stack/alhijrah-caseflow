@@ -15,8 +15,10 @@ import {
   smartAuthority,
   smartFieldStatus,
   smartProvenance,
+  smartApprovalGate,
   smartRequiredReadiness,
   type SmartEvidence,
+  type SmartField,
 } from "@/components/staff/smart/field-contract";
 import { localProvenance, readLocalFields, sourceMatchState } from "@/components/staff/smart/intelligence";
 import { validateField } from "@/components/staff/smart/ValidationMatrix";
@@ -297,5 +299,59 @@ describe("Validation Matrix field commit", () => {
     expect(validateField(field("preferred_language"), "")).toEqual({ value: null, error: null });
     expect(validateField(field("full_name"), "  Test Client  ")).toEqual({ value: "Test Client", error: null });
     expect(validateField(field("preferred_location"), "Romulus")).toEqual({ value: "Romulus", error: null });
+  });
+});
+
+describe("Smart Review approval gate (client-side read)", () => {
+  const identity = { full_name: "QA Synthetic Verification 20261006", phone: "3135550199" } as Record<string, unknown>;
+  const reader = (values: Record<string, unknown>) => (field: SmartField) => values[field.key] ?? null;
+  const ok = { conflicts: 0, reviewerAssigned: true, confirmationsRecorded: true };
+
+  it("allows approval when only optional fields are unset, and reports them as warnings", () => {
+    const gate = smartApprovalGate({ read: reader(identity), ...ok });
+    expect(gate.blocked).toBe(false);
+    expect(gate.readiness).toBe("APPROVE_WITH_WARNINGS");
+    expect(gate.blockers).toEqual([]);
+    const warned = gate.warnings.map((warning) => warning.field);
+    for (const field of ["preferred_language", "english_proficiency", "shift_days", "shift_start_time", "shift_end_time", "location_option_1", "location_option_2"]) {
+      expect(warned, field).toContain(field);
+    }
+  });
+
+  it("reports READY_TO_APPROVE when every reviewed field carries a value", () => {
+    const values: Record<string, unknown> = { ...identity };
+    for (const field of SMART_FIELDS) values[field.key] = values[field.key] ?? "set";
+    const gate = smartApprovalGate({ read: reader(values), ...ok });
+    expect(gate.readiness).toBe("READY_TO_APPROVE");
+    expect(gate.warnings).toEqual([]);
+  });
+
+  it("blocks only on the real conditions: identity, reviewer, confirmations, conflicts", () => {
+    expect(smartApprovalGate({ read: reader({ phone: "3135550199" }), ...ok }).blockers.join(" ")).toMatch(/Full Name is required/);
+    expect(smartApprovalGate({ read: reader({ full_name: "A B" }), ...ok }).blockers.join(" ")).toMatch(/Phone is required/);
+    expect(smartApprovalGate({ read: reader(identity), ...ok, reviewerAssigned: false }).blockers.join(" ")).toMatch(/reviewer/i);
+    expect(smartApprovalGate({ read: reader(identity), ...ok, confirmationsRecorded: false }).blockers.join(" ")).toMatch(/confirmations/i);
+    expect(smartApprovalGate({ read: reader(identity), ...ok, conflicts: 2 }).blockers.join(" ")).toMatch(/2 blocking conflicts/);
+    for (const gate of [
+      smartApprovalGate({ read: reader(identity), ...ok, reviewerAssigned: false }),
+      smartApprovalGate({ read: reader(identity), ...ok, confirmationsRecorded: false }),
+    ]) expect(gate.readiness).toBe("BLOCKED");
+  });
+
+  it("surfaces a server blocker verbatim and does not duplicate it", () => {
+    const message = 'Unable to save the Client: column "english_proficiency" of relation "clients" does not exist';
+    const gate = smartApprovalGate({ read: reader(identity), ...ok, serverBlockers: [{ message }, { message }] });
+    expect(gate.blocked).toBe(true);
+    expect(gate.blockers.filter((blocker) => blocker === message)).toHaveLength(1);
+  });
+
+  it("prefers the server's warnings when it has verified the current values", () => {
+    const gate = smartApprovalGate({
+      read: reader(identity),
+      ...ok,
+      serverWarnings: [{ field: "date_of_birth", state: "REVIEW", message: "Date of Birth could not be read as a valid value." }],
+    });
+    expect(gate.warnings).toEqual([{ field: "date_of_birth", state: "REVIEW", message: "Date of Birth could not be read as a valid value." }]);
+    expect(gate.readiness).toBe("APPROVE_WITH_WARNINGS");
   });
 });

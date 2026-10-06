@@ -175,6 +175,79 @@ export function smartAuthorityClass(authority: SmartFieldAuthority) {
   return authority === "MANUAL" ? "text-[#e3c884]" : "text-cyan-200";
 }
 
+export type SmartApprovalGate = {
+  blocked: boolean;
+  blockers: string[];
+  warnings: { field: string; state: "MISSING" | "REVIEW"; message: string }[];
+  readiness: "READY_TO_APPROVE" | "APPROVE_WITH_WARNINGS" | "BLOCKED";
+};
+
+/**
+ * The review surface's view of whether approval is available.
+ *
+ * This is a read of state the page already holds — no request, and deliberately no
+ * dependency on the zod-backed normalizer, which would pull the whole schema layer into
+ * the client bundle. It covers the conditions the client can see truthfully: the two
+ * reviewer confirmations and the reviewer itself (both required by
+ * `client_import_cases_approved_ck`), blocking conflicts, and whether canonical identity
+ * is still present after an unsaved inline edit. Everything the server alone can
+ * determine arrives in `serverBlockers` / `serverWarnings`. The server re-checks at the
+ * approval mutation and remains authoritative.
+ */
+export function smartApprovalGate(args: {
+  read: (field: SmartField) => unknown;
+  conflicts: number;
+  reviewerAssigned: boolean;
+  confirmationsRecorded: boolean;
+  serverBlockers?: readonly { message?: unknown }[];
+  serverWarnings?: readonly { field?: unknown; state?: unknown; message?: unknown }[];
+}): SmartApprovalGate {
+  const blockers: string[] = [];
+
+  for (const field of SMART_REQUIRED_FIELDS) {
+    if (!smartFieldText(args.read(field)).trim()) {
+      blockers.push(`${field.label} is required to create the Client and is still empty.`);
+    }
+  }
+  if (!args.reviewerAssigned) blockers.push("Select the reviewer this approval is recorded against.");
+  if (!args.confirmationsRecorded) {
+    blockers.push("Record both the document-status and information-match confirmations; an approved file cannot be stored without them.");
+  }
+  if (args.conflicts > 0) {
+    blockers.push(`${args.conflicts} blocking conflict${args.conflicts === 1 ? "" : "s"} must be resolved; approving now could create or overwrite the wrong Client.`);
+  }
+  for (const blocker of args.serverBlockers ?? []) {
+    const message = typeof blocker?.message === "string" ? blocker.message : "";
+    if (message && !blockers.includes(message)) blockers.push(message);
+  }
+
+  const warnings = (args.serverWarnings ?? [])
+    .map((warning) => ({
+      field: String(warning?.field ?? ""),
+      state: warning?.state === "REVIEW" ? ("REVIEW" as const) : ("MISSING" as const),
+      message: typeof warning?.message === "string" ? warning.message : "",
+    }))
+    .filter((warning) => warning.field && warning.message);
+
+  // Optional fields the reviewer has not filled are reported even before the server has
+  // re-verified, so the count the rail shows matches what the reviewer can see.
+  if (warnings.length === 0) {
+    for (const field of SMART_FIELDS) {
+      if (field.required) continue;
+      if (!smartFieldText(args.read(field)).trim()) {
+        warnings.push({ field: field.key, state: "MISSING", message: `${field.label} is not set and can be completed later.` });
+      }
+    }
+  }
+
+  return {
+    blocked: blockers.length > 0,
+    blockers,
+    warnings,
+    readiness: blockers.length > 0 ? "BLOCKED" : warnings.length > 0 ? "APPROVE_WITH_WARNINGS" : "READY_TO_APPROVE",
+  };
+}
+
 /** Required canonical fields that still have no value, for an honest N / N readout. */
 export function smartRequiredReadiness(read: (field: SmartField) => unknown) {
   const missing = SMART_REQUIRED_FIELDS.filter((field) => !smartFieldText(read(field)).trim());

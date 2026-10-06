@@ -283,8 +283,19 @@ test.describe("Smart Review experience", () => {
     await page.getByLabel("REVIEWED BY").selectOption(String(admin.id));
     await page.getByRole("button", { name: "START REVIEW", exact: true }).click();
     await expect(page.getByText("Review started.", { exact: true })).toBeVisible();
-    await expect(page.getByText("APPROVAL IS BLOCKED BY")).toBeVisible();
-    await expect(page.getByText(/Confirm the current document status/)).toBeVisible();
+    // Approval is withheld only by the database-backed confirmation requirement, not by
+    // the optional fields this file is missing.
+    await expect(page.getByText("APPROVAL IS BLOCKED")).toBeVisible();
+    await expect(page.getByText(/document-status and information-match confirmations/).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "APPROVE FILE" })).toBeDisabled();
+
+    // Recording the two confirmations is enough: missing optional fields only warn.
+    await page.getByText("CURRENT DOCUMENT STATUS REVIEWED", { exact: true }).click();
+    await page.getByText("INFORMATION MATCH CONFIRMED", { exact: true }).click();
+    await expect(page.getByText("APPROVAL IS BLOCKED")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "APPROVE FILE" })).toBeEnabled();
+    await expect(page.getByText(/fields? can be completed later/).first()).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "APPROVE WITH WARNINGS" }).first()).toBeVisible();
 
     // A row is read-only until it is opened, then edits inline.
     const proficiencyRow = page.locator('tr[data-field="english_proficiency"]');
