@@ -1352,3 +1352,70 @@ code, kbd, pre, .font-mono {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Smart path (Career Gate) ───────────────────────────────────────────────
+   Digital Handshake: one 1px light sweep per authoritative completion. Under
+   reduced motion it degrades to a short opacity fade with no travel. */
+@keyframes cg-handshake {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+@keyframes cg-handshake-fade {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* A newly resolved field value settles in place; the panel around it never moves. */
+@keyframes cg-field-resolve {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Ambient atmosphere stops costing anything while the tab is hidden or unfocused. */
+[data-cg-ambient="paused"] .cg-ambient {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cg-ambient {
+    animation: none !important;
+  }
+}
+
+/* Validation Matrix: a real table on tablet and desktop, stacked blocks on phones.
+   Native table semantics are kept in both layouts; only the presentation changes. */
+@media (max-width: 767px) {
+  .cg-matrix table,
+  .cg-matrix tbody,
+  .cg-matrix tr,
+  .cg-matrix td,
+  .cg-matrix th {
+    display: block;
+    width: 100%;
+  }
+
+  .cg-matrix thead {
+    display: none;
+  }
+
+  .cg-matrix tr {
+    padding: 10px 0;
+  }
+
+  .cg-matrix td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8fa3ba;
+  }
+
+  .cg-matrix td[data-label="Actions"] {
+    text-align: left;
+  }
+}

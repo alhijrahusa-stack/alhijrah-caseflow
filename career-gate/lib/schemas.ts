@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LANGUAGES, STATUSES } from "@/lib/domain";
+import { ENGLISH_PROFICIENCY_VALUES, LANGUAGES, STATUSES } from "@/lib/domain";
 
 const trimmed = (max: number) => z.string().trim().max(max);
 const optionalText = (max: number) =>
@@ -10,7 +10,7 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD").refine
 );
 const optionalDate = isoDate.nullable().optional().or(z.literal("")).transform((v) => (v ? v : null));
 
-export const ENGLISH_PROFICIENCY_VALUES = ["EXCELLENT", "GOOD", "FAIR", "WEAK", "NONE"] as const;
+export { ENGLISH_PROFICIENCY_VALUES };
 export const EnglishProficiencySchema = z.enum(ENGLISH_PROFICIENCY_VALUES).nullable().optional().transform((v) => v ?? null);
 
 export function normalizePhone(raw: string): string | null {

@@ -15,6 +15,12 @@ const config = [
     },
   },
   {
+    // The captured-file card previews a local blob: object URL, which never reaches the
+    // Next image optimizer.
+    files: ["components/staff/MobileSmartImportForm.tsx"],
+    rules: { "@next/next/no-img-element": "off" },
+  },
+  {
     files: ["lib/smart-client-import.ts"],
     rules: {
       "@typescript-eslint/no-unused-vars": ["error", { "varsIgnorePattern": "^jsonArray$" }],

@@ -158,6 +158,8 @@ export const POST_HIRE_STATUS_LABELS: Record<(typeof POST_HIRE_STATUSES)[number]
   blocked: "Blocked",
 };
 
+export const ENGLISH_PROFICIENCY_VALUES = ["EXCELLENT", "GOOD", "FAIR", "WEAK", "NONE"] as const;
+
 export const LANGUAGES = { en: "English", ar: "العربية", es: "Español" } as const;
 
 export const ROLES = ["admin", "manager", "staff"] as const;

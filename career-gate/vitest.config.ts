@@ -8,5 +8,5 @@ export default defineConfig({
       "server-only": fileURLToPath(new URL("./tests/server-only-stub.ts", import.meta.url)),
     },
   },
-  test: { include: ["lib/**/*.test.ts"], env: { TZ: "UTC" } },
+  test: { include: ["lib/**/*.test.ts", "components/**/*.test.ts"], env: { TZ: "UTC" } },
 });

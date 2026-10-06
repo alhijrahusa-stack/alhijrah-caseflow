@@ -1,5 +1,4 @@
-import { LANGUAGES } from "@/lib/domain";
-import { ENGLISH_PROFICIENCY_VALUES } from "@/lib/schemas";
+import { ENGLISH_PROFICIENCY_VALUES, LANGUAGES } from "@/lib/domain";
 
 export type SmartLanguageCode = keyof typeof LANGUAGES;
 export type EnglishProficiency = (typeof ENGLISH_PROFICIENCY_VALUES)[number];

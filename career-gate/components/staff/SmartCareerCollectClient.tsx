@@ -1,8 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStaff } from "@/components/staff/StaffContext";
+import { DigitalHandshake, useDigitalHandshake } from "@/components/staff/smart/DigitalHandshake";
+import {
+  SMART_FIELDS,
+  smartFieldText,
+  smartRequiredReadiness,
+  type SmartEvidence,
+  type SmartField,
+} from "@/components/staff/smart/field-contract";
+import { ValidationMatrix, type MatrixCommit } from "@/components/staff/smart/ValidationMatrix";
 
 type Status = "PENDING" | "UNDER_REVIEW" | "MISSING_DOCUMENT" | "APPROVED_FILE";
 type Workspace = "sheet" | "mobile";
@@ -35,21 +44,7 @@ type QueueRow = {
   created_at: string;
   created_client_id: string | null;
 };
-type Evidence = {
-  field_key?: string;
-  value?: unknown;
-  normalized_value?: unknown;
-  source_type?: string;
-  source_document_id?: string | null;
-  source_page?: number | null;
-  source_text_reference?: string | null;
-  verification_state?: string;
-  authority?: "SOURCE" | "MANUAL" | string;
-  reviewer_id?: string | null;
-  reviewed_at?: string | null;
-  match_score?: number;
-  confidence?: number;
-};
+type Evidence = SmartEvidence;
 type CaseDetail = {
   case: {
     id: string;
@@ -73,30 +68,10 @@ type CaseDetail = {
   documents: { id: string; original_filename: string; mime_type: string; size_bytes: number; detected_document_type: string | null; extraction_metadata: Record<string, unknown>; created_at: string }[];
 };
 
-type ReviewField = { key: string; label: string; scope: "profile" | "review_fields"; required: boolean };
-
 const STATUSES: Status[] = ["PENDING", "UNDER_REVIEW", "MISSING_DOCUMENT", "APPROVED_FILE"];
 const STATUS_LABEL: Record<Status, string> = { PENDING: "PENDING", UNDER_REVIEW: "UNDER REVIEW", MISSING_DOCUMENT: "MISSING DOCUMENT", APPROVED_FILE: "APPROVED" };
 const ACCEPT = ".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const REATTACH_ACCEPT = "application/pdf,image/jpeg,image/png,image/webp";
-const REVIEW_FIELDS: ReviewField[] = [
-  { key: "full_name", label: "FULL NAME", scope: "profile", required: true },
-  { key: "phone", label: "PHONE", scope: "profile", required: true },
-  { key: "email", label: "EMAIL", scope: "profile", required: false },
-  { key: "date_of_birth", label: "DATE OF BIRTH", scope: "profile", required: false },
-  { key: "preferred_language", label: "LANGUAGE", scope: "profile", required: false },
-  { key: "english_proficiency", label: "ENGLISH PROFICIENCY", scope: "profile", required: false },
-  { key: "street", label: "STREET", scope: "profile", required: false },
-  { key: "city", label: "CITY", scope: "profile", required: false },
-  { key: "state", label: "STATE", scope: "profile", required: false },
-  { key: "zip", label: "ZIP", scope: "profile", required: false },
-  { key: "preferred_location", label: "PREFERRED LOCATION", scope: "review_fields", required: false },
-  { key: "location_option_1", label: "LOCATION OPTION 1", scope: "review_fields", required: false },
-  { key: "location_option_2", label: "LOCATION OPTION 2", scope: "review_fields", required: false },
-  { key: "shift_days", label: "SHIFT DAYS", scope: "review_fields", required: false },
-  { key: "shift_start_time", label: "SHIFT START", scope: "review_fields", required: false },
-  { key: "shift_end_time", label: "SHIFT END", scope: "review_fields", required: false },
-];
 
 function errMessage(data: any, fallback: string) { return data?.error?.message ?? fallback; }
 function asText(value: unknown) { return Array.isArray(value) ? value.join(", ") : typeof value === "string" ? value : value == null ? "" : String(value); }
@@ -114,34 +89,6 @@ function detailState(detail: CaseDetail, dirty: boolean) {
   if (detail.case.verification_result?.approval_ready) return "READY FOR APPROVAL";
   if (detail.case.conflicts.length || detail.case.missing_fields.length) return "REVIEW REQUIRED";
   return "CHECK & VERIFY";
-}
-function latestEvidence(detail: CaseDetail, key: string) {
-  for (let i = detail.case.field_evidence.length - 1; i >= 0; i -= 1) {
-    if (detail.case.field_evidence[i]?.field_key === key) return detail.case.field_evidence[i];
-  }
-  return undefined;
-}
-function fieldState(detail: CaseDetail, key: string, value: unknown) {
-  const missing = detail.case.missing_fields.some((item) => String(item) === key);
-  const conflict = detail.case.conflicts.some((item) => item?.field_key === key || item?.field === key);
-  const evidence = latestEvidence(detail, key);
-  const raw = String(evidence?.verification_state ?? "").toUpperCase();
-  const authority = String(evidence?.authority ?? (evidence?.source_type === "manual_review" ? "MANUAL" : "SOURCE")).toUpperCase();
-  let state = "REVIEW";
-  if (conflict || raw === "CONFLICT") state = "CONFLICT";
-  else if (missing || !asText(value).trim()) state = "MISSING";
-  else if (authority === "MANUAL") state = "MANUAL";
-  else if (["MATCHED", "VERIFIED"].includes(raw)) state = "VERIFIED";
-  else if (value != null && asText(value).trim()) state = "DETECTED";
-  return { state, authority, evidence };
-}
-function stateClass(state: string) {
-  if (state === "VERIFIED") return "text-emerald-300";
-  if (state === "MANUAL") return "text-[#e3c884]";
-  if (state === "CONFLICT") return "text-red-300";
-  if (state === "MISSING") return "text-slate-500";
-  if (state === "DETECTED") return "text-cyan-300";
-  return "text-amber-300";
 }
 
 export function SmartCareerCollectClient() {
@@ -173,9 +120,13 @@ export function SmartCareerCollectClient() {
   const [notice, setNotice] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
+  const queueRequest = useRef(0);
+  const caseRequest = useRef(0);
+  const { sweep, trigger: handshake } = useDigitalHandshake();
 
   const mobilePath = "/staff/smart-client-import/new";
   const loadQueue = useCallback(async (cursor?: string | null, append = false) => {
+    const request = (queueRequest.current += 1);
     setQueueBusy(true);
     try {
       const params = new URLSearchParams();
@@ -185,11 +136,12 @@ export function SmartCareerCollectClient() {
       const res = await fetch(`/api/staff/smart-client-import?${params}`, { cache: "no-store" });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, `Queue failed (${res.status})`));
+      if (request !== queueRequest.current) return;
       setRows((current) => append ? [...current, ...data.rows] : data.rows);
       setCounters(data.counters);
       setNextCursor(data.next_cursor ?? null);
-    } catch (e) { setError(e instanceof Error ? e.message : "Queue failed"); }
-    finally { setQueueBusy(false); }
+    } catch (e) { if (request === queueRequest.current) setError(e instanceof Error ? e.message : "Queue failed"); }
+    finally { if (request === queueRequest.current) setQueueBusy(false); }
   }, [filter, search]);
 
   useEffect(() => {
@@ -206,11 +158,13 @@ export function SmartCareerCollectClient() {
   }, [loadQueue]);
 
   async function openCase(id: string) {
+    const request = (caseRequest.current += 1);
     setError(null); setActionBusy("open");
     try {
       const res = await fetch(`/api/staff/smart-client-import?id=${encodeURIComponent(id)}`, { cache: "no-store" });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, "Unable to open import"));
+      if (request !== caseRequest.current) return;
       const next = { case: data.case, documents: data.documents } as CaseDetail;
       setDetail(next); setDraft(structuredClone(next.case.mapped_draft)); setDraftDirty(false);
       setReviewerId(next.case.reviewer_id ?? "");
@@ -271,7 +225,12 @@ export function SmartCareerCollectClient() {
     setActionBusy(action); setError(null); setNotice(null);
     try {
       const data = await postAction(action, extra);
-      if (action === "approve" && data?.client_id) { window.location.href = `/staff/client/${data.client_id}`; return data; }
+      if (action === "approve" && data?.client_id) {
+        handshake("emerald");
+        window.location.assign(`/staff/client/${data.client_id}`);
+        return data;
+      }
+      if (action === "save") { setDraftDirty(false); handshake("gold"); }
       await Promise.all([openCase(detail.case.id), loadQueue()]);
       setNotice(action === "save" ? "Review saved." : action === "start_review" ? "Review started." : "Action completed.");
       return data;
@@ -286,9 +245,24 @@ export function SmartCareerCollectClient() {
       await postAction("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed });
       await postAction("verify");
       setDraftDirty(false);
+      handshake("emerald");
       await Promise.all([openCase(detail.case.id), loadQueue()]);
       setNotice("Review saved and verification completed.");
     } catch (e) { setError(e instanceof Error ? e.message : "Verification failed"); }
+    finally { setActionBusy(null); }
+  }
+
+  async function reExtract() {
+    if (!detail || actionBusy) return;
+    setActionBusy("re_extract"); setError(null); setNotice(null);
+    try {
+      const res = await fetch(`/api/staff/smart-client-import/${detail.case.id}/retry`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) throw new Error(errMessage(data, `Re-extraction failed (${res.status})`));
+      handshake("cyan");
+      await Promise.all([openCase(detail.case.id), loadQueue()]);
+      setNotice("Re-extraction completed. Reviewed values and their original evidence were preserved.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Re-extraction failed"); }
     finally { setActionBusy(null); }
   }
 
@@ -328,19 +302,44 @@ export function SmartCareerCollectClient() {
     finally { setActionBusy(null); }
   }
 
-  const profile = draft?.profile ?? {};
-  const reviewFields = draft?.review_fields ?? {};
-  function getField(field: ReviewField) { return field.scope === "profile" ? profile[field.key] : reviewFields[field.key]; }
-  function setField(field: ReviewField, value: string) {
+  const profile = useMemo(() => draft?.profile ?? {}, [draft]);
+  const reviewFields = useMemo(() => draft?.review_fields ?? {}, [draft]);
+  const getField = useCallback(
+    (field: SmartField) => (field.scope === "profile" ? profile[field.key] : reviewFields[field.key]),
+    [profile, reviewFields],
+  );
+
+  /**
+   * A committed matrix edit updates only that field in the staged draft. The value is
+   * already validated and canonical; persistence, MANUAL authority and the preserved
+   * source evidence all come from the existing review-save flow.
+   */
+  function commitField({ field, value }: MatrixCommit) {
     setDraftDirty(true);
     setDraft((current) => {
       if (!current) return current;
-      if (field.scope === "profile") return { ...current, profile: { ...(current.profile ?? {}), [field.key]: value || null } };
-      const normalizedValue = field.key === "shift_days" ? value.split(",").map((item) => item.trim()).filter(Boolean) : value || null;
-      return { ...current, review_fields: { ...(current.review_fields ?? {}), [field.key]: normalizedValue } };
+      if (field.scope === "profile") return { ...current, profile: { ...(current.profile ?? {}), [field.key]: value } };
+      return { ...current, review_fields: { ...(current.review_fields ?? {}), [field.key]: value } };
     });
   }
+  const readiness = useMemo(() => smartRequiredReadiness(getField), [getField]);
   const canApprove = Boolean(detail && draft && reviewerId && detail.case.review_started_at && !draftDirty && documentConfirmed && informationConfirmed && detail.case.verification_result?.approval_ready);
+  const approvalBlockers = useMemo(() => {
+    if (!detail) return [];
+    const blockers: string[] = [];
+    if (!reviewerId) blockers.push("Select the reviewer completing this file.");
+    for (const label of readiness.missing) blockers.push(`${label} is a required Client field and is still empty.`);
+    if (detail.case.conflicts.length) blockers.push(`${detail.case.conflicts.length} blocking conflict${detail.case.conflicts.length === 1 ? "" : "s"} must be resolved.`);
+    if (draftDirty) blockers.push("Manual edits are unsaved; run CHECK & VERIFY to re-validate them.");
+    if (!documentConfirmed) blockers.push("Confirm the current document status.");
+    if (!informationConfirmed) blockers.push("Confirm the information match.");
+    const validationError = smartFieldText(detail.case.verification_result?.validation_error);
+    if (validationError) blockers.push(validationError);
+    else if (!draftDirty && !detail.case.verification_result?.approval_ready && readiness.complete === readiness.total && !detail.case.conflicts.length) {
+      blockers.push("Verification has not run against the current values yet.");
+    }
+    return blockers;
+  }, [detail, draftDirty, documentConfirmed, informationConfirmed, readiness, reviewerId]);
   const activeDocument = detail?.documents.find((doc) => doc.id === activeDocumentId) ?? detail?.documents[0] ?? null;
   const workflowState = detail ? detailState(detail, draftDirty) : null;
 
@@ -349,7 +348,6 @@ export function SmartCareerCollectClient() {
     try { await navigator.clipboard.writeText(url); setNotice("Mobile import link copied."); }
     catch { setError("Unable to copy the mobile link."); }
   }
-  function focusField(key: string) { document.getElementById(`smart-field-${key}`)?.focus(); }
   function jumpToEvidence(evidence?: Evidence) {
     if (!evidence?.source_document_id) return;
     setActiveDocumentId(evidence.source_document_id);
@@ -390,22 +388,130 @@ export function SmartCareerCollectClient() {
       {nextCursor && <button className="ops-secondary-button" type="button" disabled={queueBusy} onClick={() => loadQueue(nextCursor, true)}>LOAD MORE</button>}
     </section>
 
-    {detail && draft && <section id="smart-review" className="ops-glass-card space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-bold tracking-[.18em] text-amber-300">SMART CLIENT REVIEW</p><h2 className="text-xl font-semibold text-slate-100">{asText(profile.full_name) || "Unidentified client"}</h2><p className="mt-1 text-xs text-slate-500">{detail.case.id}</p></div><button className="ops-secondary-button" type="button" onClick={() => { setDetail(null); setDraft(null); setDraftDirty(false); }}>CLOSE</button></div>
-      <div className="rounded-2xl border border-white/10 bg-black/10 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><span className="text-[10px] font-semibold tracking-[.16em] text-slate-500">WORKFLOW STATE</span><strong className="mt-1 block text-xl text-slate-100">{workflowState}</strong></div><div className="text-right text-xs text-slate-500"><div>{detail.case.missing_fields.length} missing</div><div>{detail.case.conflicts.length} conflicts</div><div>{detail.documents.length} source document{detail.documents.length === 1 ? "" : "s"}</div></div></div></div>
+    {detail && draft && <section id="smart-review" className="ops-glass-card relative space-y-5">
+      <DigitalHandshake sweep={sweep} />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,.78fr)_minmax(0,1.22fr)]">
-        <div id="smart-document-viewer" className="rounded-2xl border border-white/10 bg-black/10 p-4"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold text-slate-200">DOCUMENT VIEWER</h3>{detail.case.status !== "APPROVED_FILE" && <><input ref={reattachRef} className="hidden" type="file" accept={REATTACH_ACCEPT} multiple onChange={(e) => void reattach(e.target.files)} /><button className="ops-secondary-button" type="button" disabled={Boolean(actionBusy)} onClick={() => reattachRef.current?.click()}>{actionBusy === "reattach" ? "PROCESSING…" : "RE-ATTACH"}</button></>}</div>{activeDocument ? <><div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-[#02070d]">{activeDocument.mime_type.startsWith("image/") ? <img className="max-h-[560px] w-full object-contain" src={`/api/staff/smart-client-import/document/${activeDocument.id}`} alt={activeDocument.original_filename} /> : <iframe title={activeDocument.original_filename} className="h-[560px] w-full" src={`/api/staff/smart-client-import/document/${activeDocument.id}`} />}</div><div className="mt-3 flex flex-wrap gap-2">{detail.documents.map((doc) => <button key={doc.id} className={`rounded-lg border px-2 py-1 text-[10px] ${activeDocument.id === doc.id ? "border-cyan-300/30 text-cyan-200" : "border-white/10 text-slate-500"}`} type="button" onClick={() => setActiveDocumentId(doc.id)}>{doc.original_filename}</button>)}</div></> : <p className="mt-3 rounded-xl border border-amber-300/15 bg-amber-300/[.04] p-4 text-xs text-amber-200">No source document attached. Missing documents remain follow-up items and are not fabricated.</p>}</div>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[12px] font-bold tracking-[.18em] text-amber-300">SMART CLIENT REVIEW</p>
+          <h2 className="mt-1 text-[26px] font-semibold tracking-[-.02em] text-slate-50">{asText(profile.full_name) || "Unidentified client"}</h2>
+          <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-slate-400">
+            <div className="flex gap-1.5"><dt>CASE</dt><dd className="font-mono font-medium text-slate-200">{detail.case.id}</dd></div>
+            <div className="flex gap-1.5"><dt>SOURCE</dt><dd className="font-mono font-medium uppercase text-slate-200">{detail.case.source_type}{detail.case.source_row ? ` · ROW ${detail.case.source_row}` : ""}</dd></div>
+            <div className="flex gap-1.5"><dt>IMPORTED</dt><dd className="font-mono font-medium text-slate-200">{new Date(detail.case.created_at).toLocaleString("en-US", { timeZone: "America/Detroit" })}</dd></div>
+            <div className="flex gap-1.5"><dt>DOCUMENTS</dt><dd className="font-mono font-medium text-slate-200">{detail.documents.length}</dd></div>
+          </dl>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span role="status" className={`inline-flex min-h-11 items-center rounded-xl border px-3 font-mono text-[13px] font-semibold ${detail.case.status === "APPROVED_FILE" ? "border-emerald-300/35 bg-emerald-300/[.10] text-emerald-200" : draftDirty ? "border-amber-300/35 bg-amber-300/[.10] text-amber-200" : "border-cyan-300/30 bg-cyan-300/[.08] text-cyan-200"}`}>{workflowState}</span>
+          <button className="ops-secondary-button min-h-11" type="button" onClick={() => { setDetail(null); setDraft(null); setDraftDirty(false); }}>CLOSE</button>
+        </div>
+      </header>
 
-        <div className="rounded-2xl border border-white/10 bg-black/10 p-4"><div className="flex flex-wrap items-end justify-between gap-2"><div><h3 className="text-sm font-semibold text-slate-200">CLIENT DATA · VALIDATION MATRIX</h3><p className="mt-1 text-[10px] text-slate-500">FIELD · STAGED VALUE · SOURCE STATE · VALIDATION STATE · SOURCE/MANUAL · EDIT</p></div><span className="rounded-full border border-white/10 px-2 py-1 text-[9px] text-slate-500">{REVIEW_FIELDS.length} REVIEWABLE FIELDS</span></div><div className="mt-3 space-y-2">{REVIEW_FIELDS.map((field) => { const value = getField(field); const info = fieldState(detail, field.key, value); return <div key={field.key} className={`rounded-xl border bg-white/[.02] p-3 ${info.state === "MANUAL" ? "border-[#b8934a]/30" : info.state === "CONFLICT" ? "border-red-300/20" : "border-white/[.08]"}`}><div className="grid gap-3 lg:grid-cols-[minmax(150px,.65fr)_minmax(220px,1.35fr)_120px_110px] lg:items-center"><div><span className="text-[9px] font-semibold tracking-[.12em] text-slate-500">FIELD</span><strong className="mt-1 block text-[11px] text-slate-200">{field.label}</strong>{field.required && <span className="mt-1 block text-[9px] text-amber-300">REQUIRED</span>}</div><label className="block"><span className="text-[9px] font-semibold tracking-[.12em] text-slate-500">STAGED VALUE</span><input id={`smart-field-${field.key}`} aria-label={field.label} className="ops-input mt-1 w-full" value={asText(value)} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setField(field, e.target.value)} /></label><div><span className="text-[9px] font-semibold tracking-[.12em] text-slate-500">VALIDATION</span><strong className={`mt-1 block text-[10px] ${stateClass(info.state)}`}>{info.state}</strong></div><div><span className="text-[9px] font-semibold tracking-[.12em] text-slate-500">AUTHORITY</span><strong className={`mt-1 block text-[10px] ${info.authority === "MANUAL" ? "text-[#e3c884]" : "text-cyan-200"}`}>{info.authority}</strong><span className="mt-1 block truncate text-[9px] text-slate-600">{info.evidence?.source_type ?? "staged"}</span></div></div><div className="mt-2 flex flex-wrap gap-2">{detail.case.status !== "APPROVED_FILE" && <button className="ops-secondary-button" type="button" onClick={() => focusField(field.key)}>EDIT</button>}{info.evidence?.source_document_id && <button className="ops-secondary-button" type="button" onClick={() => jumpToEvidence(info.evidence)}>VIEW SOURCE</button>}</div></div>; })}</div></div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Stat label="REQUIRED FIELDS" value={`${readiness.complete} / ${readiness.total}`} tone={readiness.complete === readiness.total ? "emerald" : "amber"} />
+        <Stat label="BLOCKING CONFLICTS" value={String(detail.case.conflicts.length)} tone={detail.case.conflicts.length ? "red" : "emerald"} />
+        <Stat label="MISSING REPORTED" value={String(detail.case.missing_fields.length)} tone={detail.case.missing_fields.length ? "amber" : "emerald"} />
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-black/10 p-4 space-y-3"><label className="text-xs font-semibold text-slate-300" htmlFor="smart-reviewer">REVIEWED BY</label><select id="smart-reviewer" className="ops-input w-full" value={reviewerId} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setReviewerId(e.target.value)}><option value="">Unassigned</option>{activeStaff.map((member) => <option key={member.id} value={member.id}>{member.display_name} · {member.staff_code ?? member.role}</option>)}</select><div className="flex flex-wrap gap-2">{detail.case.review_started_at && detail.case.status !== "APPROVED_FILE" && <button className="ops-secondary-button" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => mutate("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "save" ? "SAVING…" : "SAVE DRAFT"}</button>}</div></div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,.78fr)_minmax(0,1.22fr)]">
+        <div id="smart-document-viewer" className="rounded-2xl border border-white/10 bg-black/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[14px] font-semibold tracking-[.1em] text-slate-100">DOCUMENT VIEWER</h3>
+            {detail.case.status !== "APPROVED_FILE" && <>
+              <input ref={reattachRef} className="sr-only" type="file" accept={REATTACH_ACCEPT} multiple onChange={(e) => void reattach(e.target.files)} />
+              <button className="ops-secondary-button min-h-11" type="button" disabled={Boolean(actionBusy)} onClick={() => reattachRef.current?.click()}>{actionBusy === "reattach" ? "PROCESSING…" : "RE-ATTACH"}</button>
+            </>}
+          </div>
+          {activeDocument ? <>
+            <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-[#02070d]">
+              {activeDocument.mime_type.startsWith("image/")
+                ? <img className="max-h-[560px] w-full object-contain" src={`/api/staff/smart-client-import/document/${activeDocument.id}`} alt={activeDocument.original_filename} />
+                : <iframe title={activeDocument.original_filename} className="h-[560px] w-full" src={`/api/staff/smart-client-import/document/${activeDocument.id}`} />}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">{detail.documents.map((doc) => <button key={doc.id} className={`min-h-11 rounded-lg border px-2.5 text-[13px] ${activeDocument.id === doc.id ? "border-cyan-300/35 text-cyan-200" : "border-white/12 text-slate-300"}`} type="button" aria-pressed={activeDocument.id === doc.id} onClick={() => setActiveDocumentId(doc.id)}>{doc.original_filename}</button>)}</div>
+          </> : <p className="mt-3 rounded-xl border border-amber-300/15 bg-amber-300/[.04] p-4 text-[13px] leading-6 text-amber-100">No source document attached. Missing documents remain follow-up items and are not fabricated.</p>}
+        </div>
 
-      <div className="grid gap-3 md:grid-cols-2"><label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-xs text-slate-300"><input type="checkbox" className="mt-0.5" checked={documentConfirmed} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setDocumentConfirmed(e.target.checked)} /><span><strong className="block">CURRENT DOCUMENT STATUS REVIEWED</strong><span className="text-slate-500">Missing documents may remain outstanding after approval.</span></span></label><label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-xs text-slate-300"><input type="checkbox" className="mt-0.5" checked={informationConfirmed} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setInformationConfirmed(e.target.checked)} /><span><strong className="block">INFORMATION MATCH CONFIRMED</strong><span className="text-slate-500">Approved values match reviewed source evidence.</span></span></label></div>
+        <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h3 className="text-[14px] font-semibold tracking-[.1em] text-slate-100">CLIENT DATA · VALIDATION MATRIX</h3>
+              <p className="mt-1 text-[12px] text-slate-400">Current value with its validation state, provenance and authority. A manual edit takes precedence over later automatic extraction.</p>
+            </div>
+            <span className="rounded-full border border-white/12 px-2.5 py-1 text-[12px] text-slate-300">{SMART_FIELDS.length} REVIEWED FIELDS</span>
+          </div>
+          <div className="mt-3">
+            <ValidationMatrix
+              read={getField}
+              onCommit={commitField}
+              evidence={detail.case.field_evidence}
+              missingFields={detail.case.missing_fields}
+              conflicts={detail.case.conflicts}
+              readOnly={detail.case.status === "APPROVED_FILE"}
+              onViewSource={jumpToEvidence}
+            />
+          </div>
+        </div>
+      </div>
 
-      {detail.case.status === "APPROVED_FILE" && detail.case.created_client_id ? <Link className="ops-primary-button flex min-h-12 w-full items-center justify-center" href={`/staff/client/${detail.case.created_client_id}`}>OPEN CLIENT</Link> : !detail.case.review_started_at ? <button className="ops-primary-button min-h-12 w-full" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => mutate("start_review", { reviewer_id: reviewerId })}>{actionBusy === "start_review" ? "STARTING…" : "START REVIEW"}</button> : !canApprove ? <button className="ops-primary-button min-h-12 w-full" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => void saveAndVerify()}>{actionBusy === "verify" ? "VERIFYING…" : "CHECK & VERIFY"}</button> : <button className="ops-primary-button min-h-12 w-full" type="button" disabled={Boolean(actionBusy)} onClick={() => mutate("approve", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "approve" ? "CREATING CANONICAL CLIENT…" : "APPROVE FILE"}</button>}
-      {!canApprove && detail.case.review_started_at && detail.case.status !== "APPROVED_FILE" && <p className="text-xs text-slate-500">Approval requires current verification, both confirmations, valid minimum Client data, and no blocking conflict. Optional absent operational fields do not block approval.</p>}
+      <div className="rounded-2xl border border-white/10 bg-black/10 p-4 space-y-3">
+        <label className="block text-[13px] font-semibold text-slate-200" htmlFor="smart-reviewer">REVIEWED BY</label>
+        <select id="smart-reviewer" className="ops-input min-h-11 w-full text-[14px]" value={reviewerId} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setReviewerId(e.target.value)}>
+          <option value="">Unassigned</option>
+          {activeStaff.map((member) => <option key={member.id} value={member.id}>{member.display_name} · {member.staff_code ?? member.role}</option>)}
+        </select>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-[13px] leading-6 text-slate-200"><input type="checkbox" className="mt-1 h-4 w-4" checked={documentConfirmed} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setDocumentConfirmed(e.target.checked)} /><span><strong className="block">CURRENT DOCUMENT STATUS REVIEWED</strong><span className="text-slate-400">Missing documents may remain outstanding after approval.</span></span></label>
+        <label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-[13px] leading-6 text-slate-200"><input type="checkbox" className="mt-1 h-4 w-4" checked={informationConfirmed} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setInformationConfirmed(e.target.checked)} /><span><strong className="block">INFORMATION MATCH CONFIRMED</strong><span className="text-slate-400">Approved values match reviewed source evidence.</span></span></label>
+      </div>
+
+      {approvalBlockers.length > 0 && detail.case.review_started_at && detail.case.status !== "APPROVED_FILE" && (
+        <ul aria-live="polite" className="rounded-2xl border border-amber-300/25 bg-amber-300/[.05] p-4 text-[13px] leading-6 text-amber-100">
+          <li className="mb-1 font-semibold tracking-[.1em] text-amber-200">APPROVAL IS BLOCKED BY</li>
+          {approvalBlockers.map((blocker) => <li key={blocker} className="ml-4 list-disc">{blocker}</li>)}
+        </ul>
+      )}
+
+      <div className="sticky bottom-3 z-10 rounded-2xl border border-[#b8934a]/25 bg-[linear-gradient(145deg,rgba(12,35,68,.9),rgba(4,11,25,.9))] p-3.5 shadow-[0_22px_60px_-28px_rgba(0,0,0,.85)] backdrop-blur-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-slate-400">
+            <span className="font-mono text-[12px]">{readiness.complete} / {readiness.total} REQUIRED</span>
+            <span aria-hidden="true" className="text-slate-600">|</span>
+            <span className={draftDirty ? "text-amber-200" : "text-emerald-300"}>{draftDirty ? "Unsaved manual edits" : "No unsaved edits"}</span>
+            {detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span className="rounded-md border border-white/[.08] bg-black/25 px-2 py-1 font-mono text-[11px]">⌘/Ctrl + Enter</span><span>Approve when ready</span></>}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {detail.case.status === "APPROVED_FILE" && detail.case.created_client_id
+              ? <Link className="ops-primary-button inline-flex min-h-12 items-center justify-center px-5 text-[14px]" href={`/staff/client/${detail.case.created_client_id}`}>OPEN CLIENT</Link>
+              : !detail.case.review_started_at
+                ? <button className="ops-primary-button min-h-12 px-5 text-[14px]" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => mutate("start_review", { reviewer_id: reviewerId })}>{actionBusy === "start_review" ? "STARTING…" : "START REVIEW"}</button>
+                : <>
+                    <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => mutate("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "save" ? "SAVING…" : "SAVE DRAFT"}</button>
+                    <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={Boolean(actionBusy) || !detail.documents.length} onClick={() => void reExtract()}>{actionBusy === "re_extract" ? "RE-EXTRACTING…" : "RE-EXTRACT"}</button>
+                    {canApprove
+                      ? <button className="ops-primary-button min-h-12 px-5 text-[14px]" type="button" disabled={Boolean(actionBusy)} onClick={() => mutate("approve", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "approve" ? "CREATING CANONICAL CLIENT…" : "APPROVE FILE"}</button>
+                      : <button className="ops-primary-button min-h-12 px-5 text-[14px]" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => void saveAndVerify()}>{actionBusy === "verify" ? "VERIFYING…" : "CHECK & VERIFY"}</button>}
+                  </>}
+          </div>
+        </div>
+      </div>
     </section>}
   </div>;
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone: "emerald" | "amber" | "red" }) {
+  const map = {
+    emerald: "border-emerald-300/25 text-emerald-200",
+    amber: "border-amber-300/25 text-amber-200",
+    red: "border-red-300/25 text-red-200",
+  } as const;
+  return (
+    <div className={`rounded-xl border bg-black/15 px-3 py-2.5 ${map[tone]}`}>
+      <span className="block text-[11px] font-semibold tracking-[.14em] text-slate-400">{label}</span>
+      <strong className="mt-1 block font-mono text-[16px] font-semibold">{value}</strong>
+    </div>
+  );
 }

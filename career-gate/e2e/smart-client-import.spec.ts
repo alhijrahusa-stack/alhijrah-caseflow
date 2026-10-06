@@ -49,7 +49,7 @@ test.describe("Smart Career Collect Client", () => {
     expect(staged?.mapped_draft?.profile?.state).toBe("MI");
     expect(staged?.mapped_draft?.profile?.zip).toBe("48212-3768");
     expect(staged?.mapped_draft?.review_fields?.preferred_location).toBe("Romulus");
-    expect(staged?.mapped_draft?.review_fields?.location_option_1).toBe("Romulus");
+    expect(staged?.mapped_draft?.review_fields?.location_option_1).toBeNull();
     expect(staged?.mapped_draft?.review_fields?.location_option_2).toBe("Detroit");
     expect(staged?.mapped_draft?.review_fields?.shift_days).toEqual(["THU", "FRI", "SAT", "SUN", "MON"]);
     expect(staged?.mapped_draft?.review_fields?.shift_start_time).toBe("18:00");
@@ -69,8 +69,12 @@ test.describe("Smart Career Collect Client", () => {
     await queueRow.getByRole("button", { name: "OPEN / EDIT" }).click();
     await expect(page.getByText("SMART CLIENT REVIEW", { exact: true })).toBeVisible();
     await expect(page.getByText("CLIENT DATA · VALIDATION MATRIX", { exact: true })).toBeVisible();
-    for (const field of ["FULL NAME","PHONE","EMAIL","DATE OF BIRTH","LANGUAGE","ENGLISH PROFICIENCY","STREET","CITY","STATE","ZIP","PREFERRED LOCATION","LOCATION OPTION 1","LOCATION OPTION 2","SHIFT DAYS","SHIFT START","SHIFT END"]) {
-      await expect(page.getByText(field, { exact: true }).first()).toBeVisible();
+    const matrix = page.getByRole("table", { name: /validation matrix/i });
+    for (const group of ["IDENTITY", "ADDRESS", "LANGUAGE & ENGLISH", "JOB PREFERENCES"]) {
+      await expect(matrix.getByText(group, { exact: true })).toBeVisible();
+    }
+    for (const field of ["Full Name","Phone","Email","Date of Birth","Preferred Language","English Proficiency","Street","City","State","ZIP","Preferred Location","Location Option 1","Location Option 2","Shift Days","Shift Start","Shift End"]) {
+      await expect(matrix.getByRole("rowheader", { name: new RegExp(`^${field}`) })).toBeVisible();
     }
 
     await page.getByLabel("REVIEWED BY").selectOption(String(admin.id));
@@ -78,9 +82,14 @@ test.describe("Smart Career Collect Client", () => {
     await page.getByRole("button", { name: "START REVIEW", exact: true }).click();
     await expect(page.getByText("Review started.", { exact: true })).toBeVisible();
 
-    const languageInput = page.getByLabel("LANGUAGE", { exact: true });
-    await expect(languageInput).toHaveValue("en");
-    await languageInput.fill("es");
+    const languageRow = page.locator('tr[data-field="preferred_language"]');
+    await expect(languageRow.locator('[data-label="Current value"]')).toHaveText("en");
+    await expect(languageRow.locator('[data-label="Authority"]')).toHaveText("SOURCE");
+    await languageRow.getByRole("button", { name: /^Edit Preferred Language/ }).click();
+    const languageSelect = page.getByLabel("Preferred Language", { exact: true });
+    await expect(languageSelect).toHaveValue("en");
+    await languageSelect.selectOption("es");
+    await expect(languageRow.locator('[data-label="Current value"]')).toHaveText("es");
 
     const verifyResponsePromise = page.waitForResponse((response) => {
       if (response.request().method() !== "POST" || new URL(response.url()).pathname !== "/api/staff/smart-client-import") return false;
@@ -123,7 +132,7 @@ test.describe("Smart Career Collect Client", () => {
     expect(client?.state).toBe("MI");
     expect(client?.zip).toBe("48212-3768");
     expect(client?.preferred_location).toBe("Romulus");
-    expect(client?.location_option_1).toBe("Romulus");
+    expect(client?.location_option_1).toBeNull();
     expect(client?.location_option_2).toBe("Detroit");
     expect(client?.shift_days).toEqual(["THU", "FRI", "SAT", "SUN", "MON"]);
     expect(client?.shift_start_time).toBe("18:00:00");
@@ -173,10 +182,10 @@ test.describe("Smart Career Collect Client", () => {
 
     await signIn(page.context(), baseURL!, "admin");
     await page.goto("/staff/smart-client-import/new");
-    const audio = page.getByRole("button", { name: "Enable audio" });
+    const audio = page.getByRole("button", { name: /Turn audio on/ });
     await expect(audio).toBeVisible();
     await expect(audio).toHaveAttribute("aria-pressed", "false");
     await audio.click();
-    await expect(page.getByRole("button", { name: "Disable audio" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: /Turn audio off/ })).toHaveAttribute("aria-pressed", "true");
   });
 });
