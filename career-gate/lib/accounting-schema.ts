@@ -36,8 +36,11 @@ export const ACCOUNT_NET_FEE = (alias: string) =>
 export const BALANCE_NET_FEE = (alias: string) =>
   `coalesce((to_jsonb(${alias})->>'net_fee')::numeric,${alias}.fee_amount)::numeric(10,2)`;
 
+/** A column added by migration 033, read off an already-serialized row. */
+export const JSON_FIELD = (jsonExpr: string, column: string) => `(${jsonExpr}->>'${column}')`;
+
 /** A `clients` column added by migration 033, NULL before it. */
-export const CLIENT_FIELD = (alias: string, column: string) => `(to_jsonb(${alias})->>'${column}')`;
+export const CLIENT_FIELD = (alias: string, column: string) => JSON_FIELD(`to_jsonb(${alias})`, column);
 
 /** The Postgres error a strict write raises when migration 033 is not applied. */
 export function missingAccountingSchema(message: string) {

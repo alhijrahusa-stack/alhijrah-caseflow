@@ -1,5 +1,5 @@
 import "server-only";
-import { BALANCE_NET_FEE, CLIENT_FIELD, DISCOUNT_AMOUNT } from "@/lib/accounting-schema";
+import { BALANCE_NET_FEE, DISCOUNT_AMOUNT, JSON_FIELD } from "@/lib/accounting-schema";
 import { withStaff, type StaffSession } from "@/lib/auth";
 
 export type PipelineStage = {
@@ -152,8 +152,8 @@ export async function accountingData(session: StaffSession) {
              b.fee_amount,${tx.unsafe(DISCOUNT_AMOUNT("b"))} discount_amount,${tx.unsafe(BALANCE_NET_FEE("b"))} net_fee,
              ${tx.unsafe(`to_jsonb(a)->>'discount_reason'`)} discount_reason,
              b.amount_paid,b.refund_amount,b.net_credits,b.balance,b.payment_status,
-             ${tx.unsafe(CLIENT_FIELD("c", "application_status"))} application_status,
-             ${tx.unsafe(CLIENT_FIELD("c", "application_completed_by"))} application_completed_by,
+             ${tx.unsafe(JSON_FIELD("cj.j", "application_status"))} application_status,
+             ${tx.unsafe(JSON_FIELD("cj.j", "application_completed_by"))} application_completed_by,
              completer.display_name application_completed_name,
              a.assigned_staff,owner.display_name assigned_name,owner.staff_code,
              cm.id commission_id,cm.employee_id commission_staff_id,cs.display_name commission_name,
@@ -163,7 +163,10 @@ export async function accountingData(session: StaffSession) {
       join client_account_balances b on b.account_id=a.id
       join clients c on c.id=a.client_id
       left join staff owner on owner.id=a.assigned_staff
-      left join staff completer on completer.id=${tx.unsafe(CLIENT_FIELD("c", "application_completed_by"))}::uuid
+      -- The row is serialized once per client rather than once per reference;
+      -- this join disappears with the pre-033 fallback it exists for.
+      join lateral (select to_jsonb(c) j) cj on true
+      left join staff completer on completer.id=${tx.unsafe(JSON_FIELD("cj.j", "application_completed_by"))}::uuid
       left join commissions cm on cm.account_id=a.id and cm.trigger_event='account_paid'
       left join staff cs on cs.id=cm.employee_id
       left join lateral (
