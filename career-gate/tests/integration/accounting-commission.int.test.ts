@@ -342,9 +342,15 @@ describe("deployment ordering: the code may reach production before migration 03
     expect(row.application_completed_by).toBe(completer.staff.id);
   });
 
-  it("recognises the write failure that a pre-033 database raises", () => {
+  it("recognises the write failure a database behind the code raises", () => {
+    // 033
     expect(missingAccountingSchema('column "application_completed_by" of relation "clients" does not exist')).toBe(true);
     expect(missingAccountingSchema('column "discount_amount" of relation "client_accounts" does not exist')).toBe(true);
+    // 034 — a percentage discount writes these, so they must report as pending
+    // rather than surfacing a raw column error to the operator.
+    expect(missingAccountingSchema('column "discount_input_type" of relation "client_accounts" does not exist')).toBe(true);
+    expect(missingAccountingSchema('column "discount_input_value" of relation "client_accounts" does not exist')).toBe(true);
+    // Unrelated columns are not claimed as a pending accounting migration.
     expect(missingAccountingSchema('column "english_proficiency" of relation "clients" does not exist')).toBe(false);
   });
 });

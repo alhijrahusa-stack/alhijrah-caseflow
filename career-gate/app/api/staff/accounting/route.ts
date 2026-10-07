@@ -239,11 +239,23 @@ export async function POST(req: Request) {
     if (message === "INVALID_COMMISSION_TRANSITION") return err("invalid_commission_transition", "Commission transition is not allowed", 409, traceId);
     if (message === "COMMISSION_PAYMENT_REFERENCE_REQUIRED") return err("payment_reference_required", "Payment reference is required", 400, traceId);
     if (message === "COMMISSION_REASON_REQUIRED") return err("commission_reason_required", "A reason is required", 400, traceId);
-    // Reads degrade when migration 033 has not been applied; writes must not.
+    // Reads degrade when the accounting schema is behind the code; writes must
+    // not, and must name the migration rather than leaking a column error.
     if (missingAccountingSchema(message)) {
       return err(
         "accounting_schema_pending",
-        "This database does not have the application-completion and discount columns yet. Apply migration 033_application_completion_commission_ownership.sql, then retry.",
+        "This database is missing accounting columns this operation writes. Apply the pending career-gate migrations (033 application completion and discount, 034 discount input metadata), then retry.",
+        503,
+        traceId,
+      );
+    }
+    // Migration 035 drops the migration-006 check that demanded a payment method
+    // on a paid account. Until it is applied, a settling waiver, credit
+    // adjustment or full discount cannot be recorded at all.
+    if (/client_accounts_check/.test(message)) {
+      return err(
+        "accounting_schema_pending",
+        "This account cannot be settled without a recorded payment until migration 035_account_projection_settlement_without_cash.sql is applied.",
         503,
         traceId,
       );
