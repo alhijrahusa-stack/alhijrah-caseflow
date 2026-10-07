@@ -42,7 +42,28 @@ export const JSON_FIELD = (jsonExpr: string, column: string) => `(${jsonExpr}->>
 /** A `clients` column added by migration 033, NULL before it. */
 export const CLIENT_FIELD = (alias: string, column: string) => JSON_FIELD(`to_jsonb(${alias})`, column);
 
-/** The Postgres error a strict write raises when migration 033 is not applied. */
+/**
+ * The Postgres error a strict write raises when the accounting schema is behind
+ * the code — migration 033's completion and discount columns, or 034's discount
+ * input metadata. Matching it is what turns a raw column error into
+ * `accounting_schema_pending`, naming the migration to apply.
+ */
+const SCHEMA_COLUMNS = [
+  // 033
+  "application_status",
+  "application_completed_by",
+  "application_completed_at",
+  "discount_amount",
+  "discount_reason",
+  "discount_updated_by",
+  "discount_updated_at",
+  // 034
+  "discount_input_type",
+  "discount_input_value",
+] as const;
+
+const MISSING_COLUMN = new RegExp(`column .*(${SCHEMA_COLUMNS.join("|")}).* does not exist`, "i");
+
 export function missingAccountingSchema(message: string) {
-  return /column .*(application_status|application_completed_by|application_completed_at|discount_amount|discount_reason|discount_updated_by|discount_updated_at).* does not exist/i.test(message);
+  return MISSING_COLUMN.test(message);
 }

@@ -1,4 +1,7 @@
 import "server-only";
+import { LEDGER_JSON, normalizeLedger, type PaymentTransactionRow } from "@/lib/accounting-ledger-read";
+
+export type { PaymentTransactionRow } from "@/lib/accounting-ledger-read";
 import { BALANCE_NET_FEE, DISCOUNT_AMOUNT, JSON_FIELD } from "@/lib/accounting-schema";
 import { withStaff, type StaffSession } from "@/lib/auth";
 
@@ -13,8 +16,7 @@ export type PipelineStage = {
 
 export type DispatchPeriod = "morning" | "evening" | "night" | "needs_manual_review";
 export type LedgerPaymentStatus = "unpaid" | "partially_paid" | "paid" | "refunded";
-export type TransactionType = "payment" | "refund" | "adjustment" | "waiver";
-export type TransactionDirection = "credit" | "debit";
+export type { TransactionDirection, TransactionType } from "@/lib/accounting-ledger-read";
 
 export type OperationsClient = {
   id: string;
@@ -44,20 +46,6 @@ export type OperationsClient = {
   fee_amount: number | null;
 };
 
-export type PaymentTransactionRow = {
-  id: string;
-  transaction_type: TransactionType;
-  direction: TransactionDirection;
-  amount: number;
-  status: "pending" | "confirmed" | "failed" | "voided" | "refunded";
-  payment_method: string | null;
-  occurred_at: string;
-  transaction_reference: string | null;
-  receipt_document_id: string | null;
-  reason: string | null;
-  source: string;
-  recorded_by_name: string | null;
-};
 
 export type AccountingRow = {
   account_id: string;
@@ -73,6 +61,8 @@ export type AccountingRow = {
   discount_amount: number;
   net_fee: number;
   discount_reason: string | null;
+  discount_input_type: "amount" | "percentage" | null;
+  discount_input_value: number | null;
   amount_paid: number;
   refund_amount: number;
   net_credits: number;
@@ -151,6 +141,8 @@ export async function accountingData(session: StaffSession) {
              p.site_code,p.site_name,
              b.fee_amount,${tx.unsafe(DISCOUNT_AMOUNT("b"))} discount_amount,${tx.unsafe(BALANCE_NET_FEE("b"))} net_fee,
              ${tx.unsafe(`to_jsonb(a)->>'discount_reason'`)} discount_reason,
+             ${tx.unsafe(`to_jsonb(a)->>'discount_input_type'`)} discount_input_type,
+             ${tx.unsafe(`(to_jsonb(a)->>'discount_input_value')::numeric`)} discount_input_value,
              b.amount_paid,b.refund_amount,b.net_credits,b.balance,b.payment_status,
              ${tx.unsafe(JSON_FIELD("cj.j", "application_status"))} application_status,
              ${tx.unsafe(JSON_FIELD("cj.j", "application_completed_by"))} application_completed_by,
@@ -175,25 +167,7 @@ export async function accountingData(session: StaffSession) {
         order by case p.rank when 'primary' then 0 else 1 end,p.preference_order
         limit 1
       ) p on true
-      left join lateral (
-        select jsonb_agg(jsonb_build_object(
-          'id',t.id,
-          'transaction_type',t.transaction_type,
-          'direction',t.direction,
-          'amount',t.amount,
-          'status',t.status,
-          'payment_method',t.payment_method,
-          'occurred_at',t.occurred_at,
-          'transaction_reference',t.transaction_reference,
-          'receipt_document_id',t.receipt_document_id,
-          'reason',t.reason,
-          'source',t.source,
-          'recorded_by_name',rs.display_name
-        ) order by t.occurred_at desc,t.created_at desc) transactions
-        from payment_transactions t
-        left join staff rs on rs.id=t.recorded_by
-        where t.account_id=a.id
-      ) tr on true
+      left join lateral (${tx.unsafe(LEDGER_JSON("a"))}) tr on true
       where c.deleted_at is null
       order by case b.payment_status when 'unpaid' then 0 when 'partially_paid' then 1 when 'paid' then 2 else 3 end,a.updated_at desc
       limit 1000`;
@@ -201,15 +175,14 @@ export async function accountingData(session: StaffSession) {
       ...r,
       fee_amount: Number(r.fee_amount),
       discount_amount: Number(r.discount_amount),
+      discount_input_value: r.discount_input_value == null ? null : Number(r.discount_input_value),
       net_fee: Number(r.net_fee),
       amount_paid: Number(r.amount_paid),
       refund_amount: Number(r.refund_amount),
       net_credits: Number(r.net_credits),
       balance: Number(r.balance),
       commission_amount: Number(r.commission_amount),
-      transactions: Array.isArray(r.transactions)
-        ? r.transactions.map((t) => ({ ...t, amount: Number(t.amount) }))
-        : [],
+      transactions: normalizeLedger(r.transactions),
     }));
   });
 }

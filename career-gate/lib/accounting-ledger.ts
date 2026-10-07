@@ -190,39 +190,87 @@ export async function recordApplicationCompletion(tx: Tx, args: {
  * is stored beside it, so the concession stays visible in the record. The net
  * fee changes, so the account is settled again through the same path.
  */
+export type DiscountInputType = "amount" | "percentage";
+
+/**
+ * Sets the client discount from what the operator entered.
+ *
+ * The contracted fee is left intact and the reduction is stored beside it, so
+ * the concession stays visible in the record. Both the original input and its
+ * effect are written in the same operation: a 20% concession stays legible as a
+ * percentage afterwards instead of becoming an anonymous dollar figure.
+ *
+ * The effective amount is computed by the database from the authoritative fee,
+ * in the column's own numeric type. A percentage the browser previewed is never
+ * the figure that is stored — binary floating point is not the currency
+ * contract, and the browser does not know the authoritative fee.
+ */
 export async function applyAccountDiscount(tx: Tx, args: {
   clientId: string;
-  discountAmount: number;
+  /** `amount` writes the value as given; `percentage` has the database derive it. */
+  discountType: DiscountInputType;
+  discountValue: number;
   reason: string | null;
   staffId: string;
   traceId: string;
 }) {
   const account = await lockAccount(tx, args.clientId);
   const reason = (args.reason ?? "").trim();
-  if (args.discountAmount > 0 && !reason) throw new Error("DISCOUNT_REASON_REQUIRED");
-  if (args.discountAmount > Number(account.fee_amount)) throw new Error("DISCOUNT_EXCEEDS_FEE");
 
+  if (args.discountType !== "amount" && args.discountType !== "percentage") throw new Error("DISCOUNT_TYPE_INVALID");
+  if (!Number.isFinite(args.discountValue) || args.discountValue < 0) throw new Error("DISCOUNT_VALUE_INVALID");
+  if (args.discountType === "percentage" && args.discountValue > 100) throw new Error("DISCOUNT_PERCENTAGE_OUT_OF_RANGE");
+
+  // The database rounds to the currency precision of the column the result
+  // lands in, from the fee it holds — not from anything the caller passed.
+  const [computed] = await tx`
+    select case
+             when ${args.discountType}='percentage'
+             then round(fee_amount * ${args.discountValue}::numeric / 100, 2)
+             else round(${args.discountValue}::numeric, 2)
+           end effective,
+           fee_amount
+    from client_accounts where id=${account.id}`;
+  const effective = Number(computed.effective);
+
+  if (effective > Number(computed.fee_amount)) throw new Error("DISCOUNT_EXCEEDS_FEE");
+  if (effective > 0 && !reason) throw new Error("DISCOUNT_REASON_REQUIRED");
+
+  const clearing = effective === 0;
   await tx`select set_config('cg.finance_projection_sync','1',true)`;
   await tx`
     update client_accounts
-    set discount_amount=${args.discountAmount},
-        discount_reason=${args.discountAmount > 0 ? reason : null},
-        discount_updated_by=${args.discountAmount > 0 ? args.staffId : null},
-        discount_updated_at=${args.discountAmount > 0 ? new Date().toISOString() : null},
+    set discount_amount=${effective},
+        discount_reason=${clearing ? null : reason},
+        discount_updated_by=${clearing ? null : args.staffId},
+        discount_updated_at=${clearing ? null : new Date().toISOString()},
+        discount_input_type=${clearing ? null : args.discountType},
+        discount_input_value=${clearing ? null : args.discountValue},
         updated_by=${args.staffId}
     where id=${account.id}`;
 
   await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
            values(${args.clientId},'client_discount_updated',${args.staffId},'client_account',${account.id},
                   ${tx.json({ discount_amount: Number(account.discount_amount) })},
-                  ${tx.json({ discount_amount: args.discountAmount, reason: reason || null })},${args.traceId})`;
+                  ${tx.json({
+                    discount_input_type: clearing ? null : args.discountType,
+                    discount_input_value: clearing ? null : args.discountValue,
+                    discount_amount: effective,
+                    reason: reason || null,
+                  })},${args.traceId})`;
 
   const settled = await reconcileAccount(tx, {
-    account: { ...account, discount_amount: args.discountAmount },
+    account: { ...account, discount_amount: effective },
     staffId: args.staffId,
     traceId: args.traceId,
     eligibilityDate: new Date().toISOString().slice(0, 10),
   });
 
-  return { account_id: account.id, discount_amount: args.discountAmount, ...settled };
+  return {
+    account_id: account.id,
+    discount_input_type: clearing ? null : args.discountType,
+    discount_input_value: clearing ? null : args.discountValue,
+    discount_amount: effective,
+    ...settled,
+  };
 }

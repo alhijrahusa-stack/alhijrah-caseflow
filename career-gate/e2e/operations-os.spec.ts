@@ -222,4 +222,57 @@ test.describe.serial("Career Gate Operations OS core", () => {
 
     await expect(db()`update client_accounts set discount_amount=5 where client_id=${clientId}`).rejects.toThrow(/projection_is_read_only/);
   });
+
+  test("a percentage discount is calculated by the server and keeps the entered input", async ({ request }) => {
+    // The browser never supplies the effective amount: only the type and the
+    // percentage. 20% of the $150 contracted fee is $30.
+    const applied = await postStaff(request, "manager", "/api/staff/accounting", {
+      operation: "apply_discount", client_id: clientId, discount_type: "percentage", discount_value: 20, reason: "E2E percentage concession",
+    });
+    expect(applied.status, JSON.stringify(applied.json)).toBe(200);
+    expect(Number(applied.json.discount_amount)).toBe(30);
+    expect(applied.json.discount_input_type).toBe("percentage");
+    expect(Number(applied.json.discount_input_value)).toBe(20);
+    expect(Number(applied.json.balance.net_fee)).toBe(120);
+
+    const [account] = await db()`select fee_amount,discount_amount,discount_input_type,discount_input_value from client_accounts where client_id=${clientId}`;
+    expect(Number(account.fee_amount)).toBe(150);
+    expect(Number(account.discount_amount)).toBe(30);
+    expect(account.discount_input_type).toBe("percentage");
+    expect(Number(account.discount_input_value)).toBe(20);
+
+    const over = await postStaff(request, "manager", "/api/staff/accounting", {
+      operation: "apply_discount", client_id: clientId, discount_type: "percentage", discount_value: 120, reason: "E2E must fail",
+    });
+    expect(over.status).toBe(400);
+  });
+
+  test("a waiver settles the account without inventing a payment method", async ({ request }) => {
+    // Before this change the projection check demanded a method and a date on a
+    // paid account, so a settling waiver could not be recorded at all.
+    const fresh = await submitIntake(request, intakeBody(`TEST Waiver Account ${Date.now()}`));
+    expect(fresh.res.status(), JSON.stringify(fresh.json)).toBe(201);
+    const [waiverClient] = await db()`select id from clients where ref=${fresh.json.ref}`;
+    const waiverClientId = waiverClient.id as string;
+    const stage = await postStaff(request, "admin", "/api/staff/operations", {
+      operation: "move_stage", client_id: waiverClientId, stage: "interview_passed",
+    });
+    expect(stage.status, JSON.stringify(stage.json)).toBe(200);
+
+    const waived = await postStaff(request, "manager", "/api/staff/accounting", {
+      operation: "record_transaction", client_id: waiverClientId, transaction_type: "waiver", direction: "credit",
+      amount: 150, payment_method: null, occurred_on: new Date().toISOString().slice(0, 10),
+      transaction_reference: null, receipt_document_id: null, related_transaction_id: null,
+      reason: "E2E full waiver", idempotency_key: randomUUID(),
+    });
+    expect(waived.status, JSON.stringify(waived.json)).toBe(200);
+    expect(Number(waived.json.balance.balance)).toBe(0);
+    expect(waived.json.balance.payment_status).toBe("paid");
+    // Settled, but no cash is claimed.
+    expect(Number(waived.json.balance.amount_paid)).toBe(0);
+    const [projection] = await db()`select payment_status,payment_method,payment_date from client_accounts where client_id=${waiverClientId}`;
+    expect(projection.payment_status).toBe("paid");
+    expect(projection.payment_method).toBeNull();
+    expect(projection.payment_date).toBeNull();
+  });
 });

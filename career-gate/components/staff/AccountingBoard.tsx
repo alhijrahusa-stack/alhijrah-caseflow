@@ -3,167 +3,51 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DOC_MAX_BYTES } from "@/lib/domain";
-import type { AccountingRow, OperationsStaff, TransactionDirection, TransactionType } from "@/lib/operations";
+import { FinancialActionForm, type FinancialAction } from "@/components/staff/accounting/FinancialActions";
+import { formatMoney, formatPercent } from "@/components/staff/accounting/money";
+import { TransactionHistory } from "@/components/staff/accounting/TransactionHistory";
+import { postAccounting, useFinancialMutation } from "@/components/staff/accounting/useFinancialMutation";
+import type { AccountingRow, OperationsStaff } from "@/lib/operations";
 
-type PaymentMethod = "zelle" | "bank_transfer" | "cash" | "card" | "other";
+/**
+ * Accounts & Commissions.
+ *
+ * Each row reads as a statement of the account, with its actions behind compact
+ * surfaces that open on demand. A full transaction editor is no longer mounted
+ * inside every row: a board of fifty accounts used to render fifty live forms,
+ * which buried the figures the page exists to show.
+ *
+ * The forms themselves are the shared ones the client file uses, so there is one
+ * payment flow, one refund flow and one discount flow in the product.
+ */
 
-async function postAccounting(body: Record<string, unknown>) {
-  const res = await fetch("/api/staff/accounting", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => null);
-  if (!res.ok || !data?.ok) throw new Error(data?.error?.message ?? `Request failed (${res.status})`);
-  return data;
-}
+const money = formatMoney;
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+const ACTION_TITLE: Record<FinancialAction, string> = {
+  payment: "Record payment",
+  discount: "Apply discount",
+  refund: "Record refund",
+  adjustment: "Record adjustment",
+  waiver: "Record waiver",
+  completion: "Record application completion",
+};
 
-function money(value: number) {
-  return `$${value.toFixed(2)}`;
-}
+type CommissionChange = "approved" | "paid" | "cancelled" | "reversed";
 
-function AccountEditor({ row }: { row: AccountingRow }) {
-  const router = useRouter();
-  const [type, setType] = useState<TransactionType>("payment");
-  const [direction, setDirection] = useState<TransactionDirection>("credit");
-  const [amount, setAmount] = useState(String(Math.max(0, row.balance).toFixed(2)));
-  const [method, setMethod] = useState<PaymentMethod | "">("");
-  const [date, setDate] = useState(today());
+/** Changes that pay out or undo money and so need an explicit confirmation. */
+const HIGH_RISK_COMMISSION = new Set<CommissionChange>(["paid", "cancelled", "reversed"]);
+
+function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: () => void }) {
+  const { outcome, run, reset, busy } = useFinancialMutation<{ commission?: { status?: string } }>();
   const [reference, setReference] = useState("");
   const [reason, setReason] = useState("");
-  const [relatedId, setRelatedId] = useState("");
-  const [receiptId, setReceiptId] = useState("");
-  const [receiptName, setReceiptName] = useState<string | null>(null);
-  const [operationKey, setOperationKey] = useState(() => crypto.randomUUID());
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const refundable = row.transactions.filter((t) => t.transaction_type === "payment" && t.status === "confirmed");
+  const [pending, setPending] = useState<CommissionChange | null>(null);
 
-  async function upload(file: File) {
-    if (file.size > DOC_MAX_BYTES) throw new Error("Receipt is larger than 4 MB");
-    if (!file.type.startsWith("image/") && file.type !== "application/pdf") throw new Error("Receipt must be an image or PDF");
-    const form = new FormData();
-    form.set("client_id", row.client_id);
-    form.set("doc_type", "other");
-    form.set("file", file);
-    const res = await fetch("/api/staff/documents", { method: "POST", body: form });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data?.ok) throw new Error(data?.error?.message ?? `Upload failed (${res.status})`);
-    setReceiptId(String(data.id));
-    setReceiptName(file.name);
-  }
-
-  async function handleReceipt(file: File | undefined) {
-    if (!file) return;
-    setBusy(true);
-    setError(null);
-    try { await upload(file); } catch (e) { setError(e instanceof Error ? e.message : "Upload failed"); }
-    finally { setBusy(false); }
-  }
-
-  function changeType(next: TransactionType) {
-    setType(next);
-    setDirection(next === "refund" ? "debit" : "credit");
-    setRelatedId(next === "refund" ? refundable[0]?.id ?? "" : "");
-    if (next === "payment") setAmount(String(Math.max(0, row.balance).toFixed(2)));
-    else if (next === "refund") setAmount(String((refundable[0]?.amount ?? 0).toFixed(2)));
-    else setAmount("0.00");
-    setMessage(null);
-    setError(null);
-  }
-
-  async function record() {
-    const numeric = Number(amount);
-    if (!Number.isFinite(numeric) || numeric <= 0) { setError("Enter an amount greater than zero"); return; }
-    setBusy(true);
-    setMessage(null);
-    setError(null);
-    try {
-      await postAccounting({
-        operation: "record_transaction",
-        client_id: row.client_id,
-        transaction_type: type,
-        direction: type === "adjustment" ? direction : null,
-        amount: numeric,
-        payment_method: method || null,
-        occurred_on: date,
-        transaction_reference: reference.trim() || null,
-        receipt_document_id: receiptId || null,
-        related_transaction_id: type === "refund" ? relatedId || null : null,
-        reason: reason.trim() || null,
-        idempotency_key: operationKey,
-      });
-      setMessage("Transaction recorded");
-      setOperationKey(crypto.randomUUID());
-      setReference("");
-      setReason("");
-      setReceiptId("");
-      setReceiptName(null);
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to record transaction");
-    } finally { setBusy(false); }
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="ops-account-editor">
-        <select className="ops-select" aria-label="Transaction type" value={type} onChange={(e) => changeType(e.target.value as TransactionType)}>
-          <option value="payment">Payment</option>
-          <option value="refund">Refund</option>
-          <option value="adjustment">Adjustment</option>
-          <option value="waiver">Waiver</option>
-        </select>
-        {type === "adjustment" && (
-          <select className="ops-select" aria-label="Adjustment direction" value={direction} onChange={(e) => setDirection(e.target.value as TransactionDirection)}>
-            <option value="credit">Credit</option><option value="debit">Debit</option>
-          </select>
-        )}
-        {type === "refund" && (
-          <select className="ops-select" aria-label="Original payment" value={relatedId} onChange={(e) => { setRelatedId(e.target.value); const tx = refundable.find((x) => x.id === e.target.value); if (tx) setAmount(tx.amount.toFixed(2)); }}>
-            <option value="">Original payment</option>
-            {refundable.map((tx) => <option key={tx.id} value={tx.id}>{money(tx.amount)} · {new Date(tx.occurred_at).toLocaleDateString()}</option>)}
-          </select>
-        )}
-        <input className="ops-input" aria-label="Transaction amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        {type === "payment" && (
-          <select className="ops-select" aria-label="Payment method" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod | "")}>
-            <option value="">Payment method</option><option value="zelle">Zelle</option><option value="bank_transfer">Bank Transfer</option><option value="cash">Cash</option><option value="card">Card</option><option value="other">Other</option>
-          </select>
-        )}
-        <input className="ops-input" aria-label="Transaction date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <input className="ops-input" aria-label="Transaction reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Transaction reference" />
-        <input className="ops-input" aria-label="Transaction reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={type === "payment" ? "Note (optional)" : "Reason"} />
-        <label className="ops-upload ops-receipt-drop">
-          <input type="file" accept="image/*,application/pdf" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; void handleReceipt(file); }} />
-          <span className="ops-receipt-icon" aria-hidden="true">⇧</span>
-          <span className="ops-receipt-copy"><strong>{receiptName ?? "Attach receipt"}</strong><small>Image or PDF · max 4 MB</small></span>
-        </label>
-        <button type="button" className="ops-primary-button" onClick={record} disabled={busy}>{busy ? "Recording…" : `Record ${type}`}</button>
-      </div>
-      {message && <span className="ops-success" role="status">{message}</span>}
-      {error && <span className="ops-inline-error" role="alert">{error}</span>}
-    </div>
-  );
-}
-
-function CommissionControl({ row }: { row: AccountingRow }) {
-  const router = useRouter();
-  const [reference, setReference] = useState("");
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   if (!row.commission_id || !row.commission_status) {
     // The commission owner is the recorded application completer and nobody
     // else, so an unrecorded completion is the reason, not an error.
     return (
-      <span className="text-xs text-slate-500" data-testid="commission-absent">
+      <span className="ops-note" data-testid="commission-absent">
         {row.application_status === "completed"
           ? row.payment_status === "paid"
             ? "No commission generated; the owner has no active commission rule."
@@ -173,29 +57,195 @@ function CommissionControl({ row }: { row: AccountingRow }) {
     );
   }
 
-  async function change(status: "approved" | "paid" | "cancelled" | "reversed") {
-    setBusy(true); setError(null);
-    try {
-      await postAccounting({ operation: "update_commission", commission_id: row.commission_id, status, payment_reference: reference.trim() || null, reason: reason.trim() || null });
-      router.refresh();
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to update commission"); }
-    finally { setBusy(false); }
+  const commissionId = row.commission_id;
+
+  async function change(status: CommissionChange) {
+    if (status === "paid" && !reference.trim()) { setPending(null); return; }
+    const ok = await run(() => postAccounting({
+      operation: "update_commission",
+      commission_id: commissionId,
+      status,
+      payment_reference: status === "paid" ? reference.trim() : null,
+      reason: status === "cancelled" || status === "reversed" ? reason.trim() || null : null,
+    }));
+    setPending(null);
+    if (ok) { reset(); onDone(); }
+  }
+
+  function request(status: CommissionChange) {
+    if (HIGH_RISK_COMMISSION.has(status)) { setPending(status); return; }
+    void change(status);
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase text-slate-300">{row.commission_status}</span>
-      <strong className="text-sm">{money(row.commission_amount)}</strong>
-      {row.commission_status === "eligible" && <button className="ops-primary-button" disabled={busy} onClick={() => void change("approved")}>Approve</button>}
-      {row.commission_status === "approved" && <><input className="ops-input" aria-label="Commission payment reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Payment reference" /><button className="ops-primary-button" disabled={busy} onClick={() => void change("paid")}>Mark paid</button></>}
-      {(row.commission_status === "eligible" || row.commission_status === "approved") && <><input className="ops-input" aria-label="Commission cancellation reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Cancellation reason" /><button className="ops-secondary-button" disabled={busy} onClick={() => void change("cancelled")}>Cancel</button></>}
-      {row.commission_status === "paid" && <><input className="ops-input" aria-label="Commission reversal reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reversal reason" /><button className="ops-secondary-button" disabled={busy} onClick={() => void change("reversed")}>Reverse</button></>}
-      {error && <span className="ops-inline-error" role="alert">{error}</span>}
+    <div className="ops-action-body">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase text-slate-300" data-testid="commission-status">{row.commission_status}</span>
+        <strong className="text-sm" data-testid="commission-amount">{money(row.commission_amount)}</strong>
+        <span className="ops-note">Owner: {row.commission_name ?? "—"}</span>
+      </div>
+
+      {row.commission_status === "approved" && (
+        <label className="ops-field">
+          <span>Payment reference</span>
+          <input className="ops-input" value={reference} onChange={(e) => setReference(e.target.value)} data-testid="commission-reference" />
+        </label>
+      )}
+      {(row.commission_status === "eligible" || row.commission_status === "approved" || row.commission_status === "paid") && (
+        <label className="ops-field">
+          <span>{row.commission_status === "paid" ? "Reversal reason" : "Cancellation reason"}</span>
+          <input className="ops-input" value={reason} onChange={(e) => setReason(e.target.value)} data-testid="commission-reason" />
+        </label>
+      )}
+
+      {pending && (
+        <div className="ops-confirm" data-testid="commission-confirmation">
+          <strong>Confirm {pending === "paid" ? "commission payment" : pending}</strong>
+          <dl>
+            <dt>Client</dt><dd>{row.full_name}</dd>
+            <dt>Owner</dt><dd>{row.commission_name ?? "—"}</dd>
+            <dt>Amount</dt><dd>{money(row.commission_amount)}</dd>
+            <dt>Effect</dt>
+            <dd>
+              {pending === "paid"
+                ? "Marks this commission as paid to the owner. Reversal is the only way back."
+                : pending === "cancelled"
+                  ? "Cancels the commission. It will not be paid."
+                  : "Reverses a paid commission."}
+            </dd>
+          </dl>
+          <div className="ops-action-bar">
+            <button type="button" className="ops-primary-button" disabled={busy} onClick={() => void change(pending)} data-testid="commission-confirm">
+              {busy ? "Working…" : `Confirm ${pending}`}
+            </button>
+            <button type="button" className="ops-secondary-button" disabled={busy} onClick={() => setPending(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {!pending && (
+        <div className="ops-action-bar">
+          {row.commission_status === "eligible" && (
+            <button type="button" className="ops-primary-button" disabled={busy} onClick={() => request("approved")} data-testid="commission-approve">Approve</button>
+          )}
+          {row.commission_status === "approved" && (
+            <button type="button" className="ops-primary-button" disabled={busy || !reference.trim()} onClick={() => request("paid")} data-testid="commission-pay">Mark paid</button>
+          )}
+          {(row.commission_status === "eligible" || row.commission_status === "approved") && (
+            <button type="button" className="ops-secondary-button" disabled={busy || !reason.trim()} onClick={() => request("cancelled")} data-testid="commission-cancel">Cancel</button>
+          )}
+          {row.commission_status === "paid" && (
+            <button type="button" className="ops-secondary-button" disabled={busy || !reason.trim()} onClick={() => request("reversed")} data-testid="commission-reverse">Reverse</button>
+          )}
+        </div>
+      )}
+
+      {outcome.state === "failed" && <p className="ops-inline-error" role="alert">{outcome.message}</p>}
+      {outcome.state === "unknown" && (
+        <p className="ops-inline-error" role="alert" data-testid="commission-unknown">
+          {outcome.message} <button type="button" className="ops-secondary-button" onClick={() => { reset(); onDone(); }}>Reload</button>
+        </p>
+      )}
     </div>
   );
 }
 
+type Panel = { kind: "action"; action: FinancialAction } | { kind: "commission" } | { kind: "ledger" };
+
+function AccountRow({ row, onDone }: { row: AccountingRow; onDone: () => void }) {
+  const [panel, setPanel] = useState<Panel | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const discountEntered = row.discount_input_type === "percentage"
+    ? formatPercent(row.discount_input_value)
+    : row.discount_input_type === "amount"
+      ? money(row.discount_input_value ?? 0)
+      : null;
+
+  const openAction = (action: FinancialAction) => () => {
+    setMoreOpen(false);
+    setPanel((current) => (current?.kind === "action" && current.action === action ? null : { kind: "action", action }));
+  };
+  const toggle = (next: Panel) => () => {
+    setMoreOpen(false);
+    setPanel((current) => (current?.kind === next.kind && next.kind !== "action" ? null : next));
+  };
+
+  return (
+    <article className="ops-account-row" data-testid="account-row">
+      <div className="ops-account-main-wide">
+        <div>
+          <span>Client</span>
+          <strong><Link href={`/staff/client/${row.client_id}`} className="ops-account-name">{row.full_name}</Link></strong>
+          <code>{row.ref}</code>
+        </div>
+        <div><span>Status</span><strong className="capitalize" data-testid="row-status">{row.payment_status.replace(/_/g, " ")}</strong></div>
+        <div><span>Application completed by</span><strong data-testid="row-completed-by">{row.application_completed_name ?? "Not recorded"}</strong></div>
+        <div><span>Original fee</span><strong data-testid="row-fee">{money(row.fee_amount)}</strong></div>
+        <div><span>Discount</span><strong data-testid="row-discount">{row.discount_amount > 0 ? `${money(row.discount_amount)}${discountEntered ? ` (${discountEntered})` : ""}` : "—"}</strong></div>
+        <div><span>Net fee</span><strong data-testid="row-net-fee">{money(row.net_fee)}</strong></div>
+        <div><span>Paid</span><strong data-testid="row-paid">{money(row.amount_paid)}</strong></div>
+        <div><span>Refunded</span><strong data-testid="row-refunded">{money(row.refund_amount)}</strong></div>
+        <div><span>Outstanding</span><strong data-testid="row-outstanding">{money(row.balance)}</strong></div>
+        <div><span>Commission staff</span><strong data-testid="row-commission-staff">{row.commission_name ?? "—"}</strong></div>
+        <div><span>Commission</span><strong data-testid="row-commission-amount">{row.commission_status ? money(row.commission_amount) : "—"}</strong></div>
+        <div><span>Commission status</span><strong data-testid="row-commission-status">{row.commission_status ?? "—"}</strong></div>
+      </div>
+
+      <div className="ops-action-bar">
+        <button type="button" className="ops-primary-button" onClick={openAction("payment")} data-testid="row-record-payment">Record Payment</button>
+        <Link href={`/staff/client/${row.client_id}`} className="ops-secondary-button" data-testid="row-view-client">View Client</Link>
+        <span className="ops-more">
+          <button type="button" className="ops-secondary-button" aria-expanded={moreOpen} onClick={() => setMoreOpen((v) => !v)} data-testid="row-more">More</button>
+          {moreOpen && (
+            <span className="ops-more-menu" role="menu">
+              <button type="button" role="menuitem" onClick={openAction("discount")} data-testid="row-discount-action">Apply Discount</button>
+              <button type="button" role="menuitem" onClick={openAction("refund")} data-testid="row-refund">Refund</button>
+              <button type="button" role="menuitem" onClick={openAction("adjustment")} data-testid="row-adjustment">Adjustment</button>
+              <button type="button" role="menuitem" onClick={openAction("waiver")} data-testid="row-waiver">Waiver</button>
+              <button type="button" role="menuitem" onClick={toggle({ kind: "commission" })} data-testid="row-commission">Commission</button>
+              <button type="button" role="menuitem" onClick={toggle({ kind: "ledger" })} data-testid="row-ledger">Ledger · {row.transactions.length}</button>
+            </span>
+          )}
+        </span>
+      </div>
+
+      {panel?.kind === "action" && (
+        <div className="ops-action-surface" data-testid={`action-surface-${panel.action}`}>
+          <p className="ops-action-title">{ACTION_TITLE[panel.action]}</p>
+          <FinancialActionForm
+            action={panel.action}
+            account={{
+              clientId: row.client_id,
+              clientName: row.full_name,
+              feeAmount: row.fee_amount,
+              outstanding: row.balance,
+              transactions: row.transactions,
+            }}
+            onDone={onDone}
+            onClose={() => setPanel(null)}
+          />
+        </div>
+      )}
+
+      {panel?.kind === "commission" && (
+        <div className="ops-action-surface" data-testid="commission-surface">
+          <p className="ops-action-title">Commission</p>
+          <CommissionControl row={row} onDone={onDone} />
+        </div>
+      )}
+
+      {panel?.kind === "ledger" && (
+        <div className="ops-action-surface" data-testid="ledger-surface">
+          <TransactionHistory clientId={row.client_id} transactions={row.transactions} />
+        </div>
+      )}
+    </article>
+  );
+}
+
 export function AccountingBoard({ rows, staff, initialClient = null }: { rows: AccountingRow[]; staff: OperationsStaff[]; initialClient?: string | null }) {
+  const router = useRouter();
   const [status, setStatus] = useState("all");
   const [staffId, setStaffId] = useState("all");
   const [q, setQ] = useState("");
@@ -223,7 +273,7 @@ export function AccountingBoard({ rows, staff, initialClient = null }: { rows: A
 
   return (
     <div className="ops-page">
-      <header className="ops-hero"><div><p className="ops-kicker">CAREER GATE · ACCOUNTS</p><h1>Accounts & Commissions</h1><p>Immutable transaction ledger, derived balances, and auditable commissions.</p></div></header>
+      <header className="ops-hero"><div><p className="ops-kicker">CAREER GATE · ACCOUNTS</p><h1>Accounts &amp; Commissions</h1><p>Immutable transaction ledger, derived balances, and auditable commissions.</p></div></header>
       <div className="ops-metric-grid">
         <div className="ops-metric"><span>Outstanding</span><strong>{money(totals.outstanding)}</strong></div>
         <div className="ops-metric"><span>Payments</span><strong>{money(totals.paid)}</strong></div>
@@ -244,31 +294,7 @@ export function AccountingBoard({ rows, staff, initialClient = null }: { rows: A
         </div>
 
         <div className="ops-account-list">
-          {filtered.map((row) => (
-            <article key={row.account_id} className="ops-account-row" data-testid="account-row">
-              <div className="ops-account-main">
-                <div><Link href={`/staff/client/${row.client_id}`} className="ops-account-name">{row.full_name}</Link><code>{row.ref}</code></div>
-                <div><span>Status</span><strong className="capitalize">{row.payment_status.replace("_", " ")}</strong></div>
-                <div><span>Fee</span><strong>{money(row.fee_amount)}</strong></div>
-                <div><span>Discount</span><strong data-testid="row-discount">{money(row.discount_amount)}</strong></div>
-                <div><span>Net fee</span><strong data-testid="row-net-fee">{money(row.net_fee)}</strong></div>
-                <div><span>Paid</span><strong>{money(row.amount_paid)}</strong></div>
-                <div><span>Refunded</span><strong>{money(row.refund_amount)}</strong></div>
-                <div><span>Balance</span><strong>{money(row.balance)}</strong></div>
-                <div><span>Assigned</span><strong>{row.staff_code ?? "—"} · {row.assigned_name ?? "Unassigned"}</strong></div>
-                <div><span>Application completed by</span><strong data-testid="row-completed-by">{row.application_completed_name ?? "Not recorded"}</strong></div>
-              </div>
-              <AccountEditor row={row} />
-              <div className="mt-3 border-t border-white/5 pt-3"><p className="mb-2 text-[10px] uppercase tracking-wide text-slate-500">Commission</p><CommissionControl row={row} /></div>
-              <details className="mt-3 border-t border-white/5 pt-3">
-                <summary className="cursor-pointer text-xs text-slate-400">Ledger · {row.transactions.length} transaction{row.transactions.length === 1 ? "" : "s"}</summary>
-                <div className="mt-2 space-y-2">
-                  {row.transactions.map((tx) => <div key={tx.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/5 bg-white/[.02] px-3 py-2 text-xs" data-testid="ledger-transaction"><strong className="capitalize">{tx.transaction_type}</strong><span>{tx.direction === "credit" ? "+" : "−"}{money(tx.amount)}</span><span>{tx.status}</span><span className="text-slate-500">{new Date(tx.occurred_at).toLocaleDateString()}</span>{tx.transaction_reference && <code>{tx.transaction_reference}</code>}{tx.recorded_by_name && <span className="text-slate-500">by {tx.recorded_by_name}</span>}</div>)}
-                  {!row.transactions.length && <p className="text-xs text-slate-500">No transactions recorded.</p>}
-                </div>
-              </details>
-            </article>
-          ))}
+          {filtered.map((row) => <AccountRow key={row.account_id} row={row} onDone={() => router.refresh()} />)}
           {!filtered.length && <div className="ops-empty-large">No accounts match this filter.</div>}
         </div>
       </section>

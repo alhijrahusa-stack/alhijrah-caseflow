@@ -297,3 +297,201 @@
 @media (prefers-reduced-motion: reduce) {
   .ops-page,.ops-client-card,.staff-nav-link { animation: none !important; transition: none !important; transform: none !important; }
 }
+
+/* ---------------------------------------------------------------------------
+   Compact financial action surfaces and the authoritative ledger.
+
+   These extend the existing ops vocabulary rather than introducing a second one:
+   the same glass surfaces, line colour, radii and type scale already used by
+   .ops-account-row and .ops-glass-card. They are shared by the Accounting board
+   and the client file, which is why they live here — operations.css is loaded by
+   the staff (app) layout that serves both.
+   --------------------------------------------------------------------------- */
+
+.ops-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border: 1px solid var(--ops-line, rgba(255,255,255,.08));
+  background: rgba(255,255,255,.03);
+  color: #c7d4e2;
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  cursor: pointer;
+  transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+.ops-secondary-button:hover:not(:disabled) { background: rgba(255,255,255,.055); color: #eaf1f8; }
+.ops-secondary-button:disabled { opacity: .5; cursor: not-allowed; }
+
+.ops-action-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
+.ops-action-bar .ops-primary-button,
+.ops-action-bar .ops-secondary-button { min-height: 32px; }
+
+.ops-more { position: relative; display: inline-flex; }
+.ops-more-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  inset-inline-end: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  min-width: 170px;
+  padding: 5px;
+  border: 1px solid var(--ops-line, rgba(255,255,255,.08));
+  border-radius: 12px;
+  background: rgba(10,16,26,.97);
+  box-shadow: 0 16px 38px rgba(0,0,0,.46);
+}
+.ops-more-menu button {
+  border: 0;
+  background: transparent;
+  color: #c7d4e2;
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 9px;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+.ops-more-menu button:hover { background: rgba(255,255,255,.06); color: #eaf1f8; }
+
+.ops-action-surface {
+  margin-top: 11px;
+  padding-top: 11px;
+  border-top: 1px solid var(--ops-line, rgba(255,255,255,.07));
+}
+.ops-action-surface > p.ops-action-title {
+  margin: 0 0 8px;
+  color: #8ea3b8;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.ops-action-body { display: grid; gap: 8px; }
+.ops-action-body .ops-field { display: grid; gap: 3px; }
+.ops-action-body .ops-field > span {
+  color: #6d8298;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.ops-action-body .ops-upload { margin-top: 2px; }
+
+.ops-note { margin: 0; color: #7b8fa4; font-size: 9px; line-height: 1.5; }
+
+.ops-confirm,
+.ops-canonical {
+  border: 1px solid var(--ops-line, rgba(255,255,255,.08));
+  border-radius: 12px;
+  background: rgba(255,255,255,.022);
+  padding: 9px 10px;
+}
+.ops-confirm { border-color: rgba(235,170,80,.26); background: rgba(235,170,80,.045); }
+.ops-canonical { border-color: rgba(110,231,183,.24); background: rgba(110,231,183,.04); }
+.ops-confirm > strong,
+.ops-canonical > strong { display: block; margin-bottom: 5px; color: #eaf1f8; font-size: 10px; }
+.ops-confirm dl,
+.ops-canonical dl {
+  display: grid;
+  grid-template-columns: minmax(74px,auto) 1fr;
+  gap: 2px 9px;
+  margin: 0;
+}
+.ops-confirm dt,
+.ops-canonical dt { color: #6d8298; font-size: 8px; text-transform: uppercase; letter-spacing: .05em; }
+.ops-confirm dd,
+.ops-canonical dd { margin: 0; color: #d8e2ed; font-size: 9px; overflow-wrap: anywhere; }
+
+.ops-ledger { display: grid; gap: 6px; }
+.ops-ledger-head {
+  margin: 0;
+  color: #6d8298;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.ops-ledger-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.ops-ledger-item {
+  border: 1px solid var(--ops-line, rgba(255,255,255,.055));
+  border-radius: 11px;
+  background: rgba(255,255,255,.016);
+  overflow: hidden;
+}
+.ops-ledger-row {
+  display: grid;
+  grid-template-columns: 74px 72px 84px 74px minmax(70px,1fr) 58px 86px;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  color: #d8e2ed;
+  font-size: 9px;
+  text-align: start;
+  cursor: pointer;
+  transition: background .14s ease;
+}
+.ops-ledger-row:hover { background: rgba(255,255,255,.035); }
+.ops-ledger-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ops-ledger-type { font-weight: 600; }
+.ops-ledger-amount { font-variant-numeric: tabular-nums; }
+.ops-ledger-date,
+.ops-ledger-method,
+.ops-ledger-ref,
+.ops-ledger-receipt,
+.ops-ledger-by { color: #8ea3b8; }
+.ops-ledger-detail {
+  display: grid;
+  grid-template-columns: minmax(96px,auto) 1fr;
+  gap: 3px 10px;
+  margin: 0;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--ops-line, rgba(255,255,255,.05));
+}
+.ops-ledger-detail dt { color: #6d8298; font-size: 8px; text-transform: uppercase; letter-spacing: .05em; }
+.ops-ledger-detail dd { margin: 0; color: #d8e2ed; font-size: 9px; overflow-wrap: anywhere; }
+.ops-receipt-link { color: #7cc4ff; text-decoration: none; }
+.ops-receipt-link:hover { text-decoration: underline; }
+
+.ops-account-main-wide {
+  display: grid;
+  grid-template-columns: minmax(170px,1.5fr) repeat(auto-fit,minmax(84px,1fr));
+  gap: 9px;
+  align-items: start;
+}
+.ops-account-main-wide > div > span {
+  display: block;
+  color: #5d7186;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.ops-account-main-wide > div > strong {
+  display: block;
+  margin-top: 3px;
+  color: #d8e2ed;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .ops-ledger-row { grid-template-columns: 70px 1fr 82px; }
+  .ops-ledger-row .ops-ledger-method,
+  .ops-ledger-row .ops-ledger-ref,
+  .ops-ledger-row .ops-ledger-receipt,
+  .ops-ledger-row .ops-ledger-by { display: none; }
+  .ops-account-main-wide { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .ops-more-menu { inset-inline-end: auto; inset-inline-start: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ops-secondary-button,
+  .ops-ledger-row { transition: none; }
+}
