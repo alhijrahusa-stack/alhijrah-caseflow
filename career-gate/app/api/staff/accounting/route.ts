@@ -47,7 +47,12 @@ const Input = z.discriminatedUnion("operation", [
   z.object({
     operation: z.literal("apply_discount"),
     client_id: id,
-    discount_amount: nonNegativeMoney,
+    // `discount_type` with `discount_value` is the current contract. A lone
+    // `discount_amount` still means an amount, so a caller written before
+    // percentages existed keeps working unchanged.
+    discount_type: z.enum(["amount", "percentage"]).optional(),
+    discount_value: nonNegativeMoney.optional(),
+    discount_amount: nonNegativeMoney.optional(),
     reason: nullableText(500),
   }),
 ]);
@@ -166,9 +171,12 @@ export async function POST(req: Request) {
       }
 
       if (input.operation === "apply_discount") {
+        const discountValue = input.discount_value ?? input.discount_amount;
+        if (discountValue == null) throw new Error("DISCOUNT_VALUE_INVALID");
         return applyAccountDiscount(tx, {
           clientId: input.client_id,
-          discountAmount: input.discount_amount,
+          discountType: input.discount_type ?? "amount",
+          discountValue,
           reason: input.reason ?? null,
           staffId: session.staff.id,
           traceId,
@@ -219,6 +227,9 @@ export async function POST(req: Request) {
     if (message === "COMPLETION_STAFF_NOT_FOUND") return err("completion_staff_not_found", "The selected employee is not an active staff member", 400, traceId);
     if (message === "DISCOUNT_REASON_REQUIRED") return err("discount_reason_required", "A reason is required for a discount", 400, traceId);
     if (message === "DISCOUNT_EXCEEDS_FEE") return err("discount_exceeds_fee", "Discount cannot exceed the account fee", 400, traceId);
+    if (message === "DISCOUNT_TYPE_INVALID") return err("discount_type_invalid", "Choose an amount or a percentage", 400, traceId);
+    if (message === "DISCOUNT_VALUE_INVALID") return err("discount_value_invalid", "Enter a discount value of zero or more", 400, traceId);
+    if (message === "DISCOUNT_PERCENTAGE_OUT_OF_RANGE") return err("discount_percentage_out_of_range", "A percentage discount cannot exceed 100%", 400, traceId);
     if (message === "INVALID_RECEIPT") return err("invalid_receipt", "Receipt must belong to this client", 400, traceId);
     if (message === "RELATED_TRANSACTION_NOT_FOUND") return err("related_transaction_not_found", "Referenced transaction was not found", 404, traceId);
     if (message === "REFUND_EXCEEDS_PAYMENT") return err("refund_exceeds_payment", "Refund exceeds the remaining refundable amount", 409, traceId);
