@@ -18,29 +18,44 @@ async function chooseStepTwo(page: Page) {
 }
 
 async function sign(page: Page) {
-  // The pad sizes its canvas on entering step 3 (`resizeSignature`), so a box
-  // measured while the step is still arriving can be stale by the time the
-  // pointer events land. `pointerdown` then misses the canvas, `drawing` never
-  // starts, and no amount of movement marks the signature. Measure only once the
-  // step is the active page and the canvas has settled at a stable width.
+  // Why this is not a plain mouse drag.
+  //
+  // Step 3 is taller than the viewport, so the signature canvas usually sits
+  // below the fold: it was measured at y=833 in a 720px viewport, with
+  // `elementsFromPoint` at that y returning nothing at all. `page.mouse` takes
+  // viewport coordinates, so a drag built from `boundingBox()` was being
+  // dispatched off-screen — the canvas received zero pointer events, `drawing`
+  // never became true, and nothing marked the signature. The step also keeps
+  // reflowing as the Arabic web font loads, which moved the canvas by over
+  // 100px between runs, so a box read once can be stale by the time it is used.
+  //
+  // `hover` fixes both: it is element-relative, scrolls the canvas into view at
+  // action time, and waits for a stable box before placing the pointer. The box
+  // for the drag is then read with the canvas already on screen. A stroke is
+  // additive, so repeating the gesture is harmless and is what a real person
+  // does when the first one does not take; the loop ends as soon as the page
+  // itself reports the signature.
+  //
+  // The assertion is unchanged: the pad must set `has`, and a pad that never
+  // does still fails.
   await expect(page.locator('.page.active[data-page="3"]')).toBeVisible();
   const canvas = page.locator("#signature");
-  await canvas.scrollIntoViewIfNeeded();
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
 
-  let box = await canvas.boundingBox();
-  await expect.poll(async () => {
-    const next = await canvas.boundingBox();
-    const settled = next && box && next.width > 0 && next.width === box.width && next.y === box.y;
-    box = next;
-    return settled ? next.width : 0;
-  }).toBeGreaterThan(0);
-  if (!box) throw new Error("signature canvas has no bounding box");
+  await expect
+    .poll(async () => {
+      await canvas.hover({ position: { x: 30, y: 50 } });
+      await page.mouse.down();
+      const box = await canvas.boundingBox();
+      if (box) {
+        await page.mouse.move(box.x + 90, box.y + 80, { steps: 4 });
+        await page.mouse.move(box.x + 150, box.y + 45, { steps: 4 });
+      }
+      await page.mouse.up();
+      return ((await page.locator("#sigWrap").getAttribute("class")) ?? "").includes("has");
+    }, { timeout: 15000, intervals: [150, 300, 600, 1000] })
+    .toBe(true);
 
-  await page.mouse.move(box.x + 30, box.y + 50);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 90, box.y + 80, { steps: 4 });
-  await page.mouse.move(box.x + 150, box.y + 45, { steps: 4 });
-  await page.mouse.up();
   await expect(page.locator("#sigWrap")).toHaveClass(/has/);
 }
 

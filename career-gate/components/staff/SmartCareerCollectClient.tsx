@@ -376,9 +376,28 @@ export function SmartCareerCollectClient() {
       <label className="block text-xs text-slate-400" htmlFor="google-sheet">GOOGLE SHEETS URL<input id="google-sheet" className="ops-input mt-1 w-full" value={sheetUrl} placeholder="https://docs.google.com/spreadsheets/d/..." onChange={(e) => { setSheetUrl(e.target.value); if (e.target.value.trim()) setFile(null); setPreview(null); }} /></label>
       {preview && <div className="space-y-3"><div className="grid grid-cols-2 gap-2 md:grid-cols-4">{[["TOTAL",preview.total],["VALID",preview.valid],["DUPLICATE",preview.duplicate],["INVALID",preview.invalid]].map(([label,value]) => <div key={label} className="rounded-xl border border-white/10 bg-black/10 p-3"><span className="text-[10px] text-slate-500">{label}</span><strong className="mt-1 block text-xl text-slate-100">{value}</strong></div>)}</div><div className="overflow-x-auto rounded-2xl border border-white/10"><table className="w-full min-w-[900px] text-left text-xs"><thead className="bg-black/15 text-slate-500"><tr><th className="p-3">STAGE</th><th className="p-3">ROW</th><th className="p-3">STATUS</th><th className="p-3">FULL NAME</th><th className="p-3">PHONE</th><th className="p-3">EMAIL</th><th className="p-3">SITE</th><th className="p-3">JOB</th><th className="p-3">SHIFT</th><th className="p-3">ISSUE</th></tr></thead><tbody>{preview.rows.map((row) => <tr key={row.row} className="border-t border-white/[.06]"><td className="p-3"><input aria-label={`Stage row ${row.row}`} type="checkbox" disabled={row.result === "INVALID"} checked={selectedRows.has(row.row)} onChange={(e) => setSelectedRows((current) => { const next = new Set(current); if (e.target.checked) next.add(row.row); else next.delete(row.row); return next; })} /></td><td className="p-3 font-mono text-slate-500">{row.row}</td><td className="p-3">{row.result}</td><td className="p-3">{row.full_name ?? "—"}</td><td className="p-3">{row.phone ?? "—"}</td><td className="p-3">{row.email ?? "—"}</td><td className="p-3">{row.site ?? "—"}</td><td className="p-3">{row.job ?? "—"}</td><td className="p-3">{row.shift ?? "—"}</td><td className="p-3 text-slate-500">{row.message ?? row.identity}</td></tr>)}</tbody></table></div><button className="ops-primary-button" type="button" disabled={stageBusy || selectedRows.size === 0} onClick={stagePreview}>{stageBusy ? "STAGING…" : `STAGE SELECTED (${selectedRows.size})`}</button></div>}
     </section> : <section className="ops-glass-card space-y-4">
-      <div><p className="text-[10px] font-bold tracking-[.18em] text-cyan-300">DOCUMENT INTAKE</p><h2 className="text-lg font-semibold text-slate-100">SMART CLIENT IMPORT BY LINK</h2><p className="text-xs text-slate-500">Photo / PDF / Text → deterministic extraction → provider enrichment → evidence → staged review.</p></div>
-      <div className="flex flex-wrap gap-2"><Link className="ops-primary-button" href={mobilePath}>OPEN MOBILE FORM</Link><button className="ops-secondary-button" type="button" onClick={copyMobileLink}>COPY LINK</button><button className="ops-secondary-button" type="button" aria-expanded={showQr} onClick={() => setShowQr((value) => !value)}>QR</button></div>
+      <div><p className="text-[10px] font-bold tracking-[.18em] text-cyan-300">DOCUMENT INTAKE</p><h2 className="text-xl font-semibold text-slate-100">SMART CLIENT IMPORT BY LINK</h2><p className="mt-1 text-[13px] text-slate-400">Photo / PDF / Text → deterministic extraction → provider enrichment → evidence → staged review.</p></div>
+
+      {/* Staff capture, unchanged. */}
+      <div className="flex flex-wrap items-center gap-2 border-t border-white/[.07] pt-4"><Link className="ops-primary-button min-h-11" href={mobilePath}>OPEN MOBILE FORM</Link><button className="ops-secondary-button min-h-11" type="button" onClick={copyMobileLink}>COPY LINK</button><button className="ops-secondary-button min-h-11" type="button" aria-expanded={showQr} onClick={() => setShowQr((value) => !value)}>QR</button></div>
       {showQr && <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-black/10 p-4"><img className="h-40 w-40 rounded-xl bg-white p-2" src="/api/staff/smart-client-import/qr" alt="Smart Client Import QR" /><div><strong className="text-slate-100">Secure mobile intake</strong><p className="mt-1 text-xs text-slate-500">Authenticated staff session required.</p></div></div>}
+
+      {/* Client self-intake, a distinct action with its own one-time link. */}
+      <div className="rounded-2xl border border-[#e3c884]/25 bg-gradient-to-b from-[#e3c884]/[.07] to-transparent p-4" data-testid="client-link-action">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold tracking-[.18em] text-[#e3c884]">CLIENT SELF-INTAKE</p>
+            <strong className="mt-1 block text-[15px] text-slate-100">CLIENT LINK</strong>
+            <p className="mt-1 text-[13px] text-slate-400">Client can track case status after submission</p>
+            <p className="mt-0.5 text-[13px] text-slate-400" dir="rtl">يمكن للعميل متابعة حالة الملف بعد الإرسال</p>
+          </div>
+          <Link className="ops-primary-button min-h-11 shrink-0" href={mobilePath}>OPEN CLIENT LINK</Link>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-slate-400">
+          <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-cyan-300" />Case Status available</span>
+          <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-300" />WhatsApp support available</span>
+        </div>
+      </div>
     </section>}
 
     <section className="ops-glass-card space-y-4">
