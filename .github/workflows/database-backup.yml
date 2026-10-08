@@ -29,12 +29,19 @@ jobs:
             exit 1
           fi
 
-      - name: Install PostgreSQL client
+      - name: Install PostgreSQL 17 client
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: Create read-only logical backup
         shell: bash
@@ -47,10 +54,16 @@ jobs:
           stamp="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
           file="backup/career-gate-${stamp}.dump"
 
-          pg_dump             --dbname="$SUPABASE_DB_URL"             --format=custom             --compress=9             --no-owner             --no-privileges             --file="$file"
+          /usr/lib/postgresql/17/bin/pg_dump \
+            --dbname="$SUPABASE_DB_URL" \
+            --format=custom \
+            --compress=9 \
+            --no-owner \
+            --no-privileges \
+            --file="$file"
 
           test -s "$file"
-          pg_restore --list "$file" >/dev/null
+          /usr/lib/postgresql/17/bin/pg_restore --list "$file" >/dev/null
           sha256sum "$file" | tee "$file.sha256"
 
           echo "BACKUP_FILE=$file" >> "$GITHUB_ENV"
