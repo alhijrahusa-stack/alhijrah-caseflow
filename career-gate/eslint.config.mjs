@@ -17,7 +17,7 @@ const config = [
   {
     // The captured-file card previews a local blob: object URL, which never reaches the
     // Next image optimizer.
-    files: ["components/staff/MobileSmartImportForm.tsx"],
+    files: ["components/staff/MobileSmartImportForm.tsx", "components/public/ClientIntakeForm.tsx"],
     rules: { "@next/next/no-img-element": "off" },
   },
   {
