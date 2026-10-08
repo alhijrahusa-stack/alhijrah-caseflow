@@ -1,0 +1,68 @@
+name: Career Gate Daily Database Backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 7 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: career-gate-daily-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Validate backup secret
+        shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::error::Required repository secret SUPABASE_DB_URL is not configured."
+            exit 1
+          fi
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Create read-only logical backup
+        shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p backup
+          stamp="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
+          file="backup/career-gate-${stamp}.dump"
+
+          pg_dump             --dbname="$SUPABASE_DB_URL"             --format=custom             --compress=9             --no-owner             --no-privileges             --file="$file"
+
+          test -s "$file"
+          pg_restore --list "$file" >/dev/null
+          sha256sum "$file" | tee "$file.sha256"
+
+          echo "BACKUP_FILE=$file" >> "$GITHUB_ENV"
+          echo "BACKUP_NAME=career-gate-${stamp}" >> "$GITHUB_ENV"
+
+      - name: Upload verified backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BACKUP_NAME }}
+          path: |
+            ${{ env.BACKUP_FILE }}
+            ${{ env.BACKUP_FILE }}.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
