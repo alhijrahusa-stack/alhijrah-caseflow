@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { ClientIntakeLinkPanel } from "@/components/staff/ClientIntakeLinkPanel";
 import { MobileSmartImportForm } from "@/components/staff/MobileSmartImportForm";
 import { getStaffSession } from "@/lib/auth";
 
@@ -21,5 +22,13 @@ export default async function SmartClientImportMobilePage() {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login?next=%2Fstaff%2Fsmart-client-import%2Fnew");
   if (session.staff.role === "staff") redirect("/staff");
-  return <MobileSmartImportForm staff={{ display_name: session.staff.display_name }} />;
+  // The link panel sits above the existing form; the form itself is unchanged.
+  return (
+    <>
+      <div className="mx-auto w-full max-w-[1180px] px-4 pt-5 sm:px-6">
+        <ClientIntakeLinkPanel />
+      </div>
+      <MobileSmartImportForm staff={{ display_name: session.staff.display_name }} />
+    </>
+  );
 }
