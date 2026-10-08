@@ -5,26 +5,49 @@ import type { ReactNode } from "react";
 /**
  * The shared surface for every client-facing intake state.
  *
- * It carries the Career Gate visual identity — dark navy, glass, soft luminous
- * borders, gold and cyan accents — and nothing operational. The ambient glows
- * are purely decorative and sit behind the content, so they never interfere
- * with reading or tapping.
+ * Premium light institutional glass: a soft blue-white field, architectural
+ * glass cards with controlled translucency, precision shadows and a restrained
+ * gold accent. The ambient washes are decorative only and sit behind the
+ * content, so they never interfere with reading or tapping.
  */
 export function ClientIntakeShell({ dir, children }: { dir: "rtl" | "ltr"; children: ReactNode }) {
   return (
     <div
       dir={dir}
-      className={`relative min-h-screen overflow-hidden bg-[#070b14] text-slate-100 ${dir === "rtl" ? "font-[family-name:var(--font-plex-arabic)]" : "font-[family-name:var(--font-inter)]"}`}
+      className={`relative min-h-screen overflow-hidden bg-[#f4f7fc] text-slate-800 ${
+        dir === "rtl" ? "font-[family-name:var(--font-plex-arabic)]" : "font-[family-name:var(--font-inter)]"
+      }`}
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-24 top-16 h-80 w-80 rounded-full bg-cyan-300/[.045] blur-3xl" />
-        <div className="absolute -right-28 top-1/3 h-96 w-96 rounded-full bg-[#b8934a]/[.04] blur-3xl" />
-        <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-cyan-400/[.025] blur-3xl" />
-        <div className="cg-ambient absolute left-[16%] top-[20%] h-1 w-1 rounded-full bg-cyan-200/30 motion-safe:animate-pulse" />
-        <div className="cg-ambient absolute right-[20%] top-[44%] h-1 w-1 rounded-full bg-[#e3c884]/30 motion-safe:animate-pulse" />
+        <div className="absolute -left-32 -top-24 h-[22rem] w-[22rem] rounded-full bg-[#2f6fd0]/[.09] blur-3xl" />
+        <div className="absolute -right-28 top-1/4 h-[26rem] w-[26rem] rounded-full bg-[#b8934a]/[.09] blur-3xl" />
+        <div className="absolute bottom-[-8rem] left-1/4 h-[20rem] w-[20rem] rounded-full bg-[#2f6fd0]/[.06] blur-3xl" />
       </div>
-      <main className="relative mx-auto w-full max-w-[760px] px-4 pb-16 pt-8 sm:px-6 sm:pt-12">{children}</main>
+      <main className="relative mx-auto w-full max-w-[760px] px-4 pb-28 pt-6 sm:px-6 sm:pt-10">{children}</main>
     </div>
+  );
+}
+
+/** A glass card. `tone` lifts the one surface that should draw the eye. */
+export function GlassCard({
+  tone = "plain",
+  className = "",
+  children,
+  ...rest
+}: {
+  tone?: "plain" | "accent" | "success";
+  className?: string;
+  children: ReactNode;
+} & React.HTMLAttributes<HTMLElement>) {
+  const tones = {
+    plain: "border-white/70 bg-white/80 shadow-[0_18px_44px_-28px_rgba(23,42,77,.28)]",
+    accent: "border-[#d8b96a]/45 bg-gradient-to-b from-[#fdf6e6]/95 to-white/85 shadow-[0_22px_52px_-26px_rgba(184,147,74,.42)]",
+    success: "border-emerald-300/50 bg-gradient-to-b from-emerald-50/95 to-white/90 shadow-[0_22px_52px_-26px_rgba(16,122,87,.3)]",
+  } as const;
+  return (
+    <section {...rest} className={`rounded-3xl border p-5 backdrop-blur-xl sm:p-7 ${tones[tone]} ${className}`}>
+      {children}
+    </section>
   );
 }
 
@@ -32,10 +55,10 @@ export function ClientIntakeShell({ dir, children }: { dir: "rtl" | "ltr"; child
 export function ClientIntakeBrand({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="h-9 w-[3px] rounded-full bg-gradient-to-b from-[#e3c884] via-[#b8934a] to-transparent" />
+      <span aria-hidden="true" className="h-10 w-[3px] rounded-full bg-gradient-to-b from-[#c79f4f] via-[#b8934a] to-[#b8934a]/0" />
       <div className="min-w-0">
-        <p className="truncate text-[15px] font-semibold tracking-tight text-white">{title}</p>
-        <p className="truncate text-[11px] text-slate-400">{subtitle}</p>
+        <p className="truncate text-[16px] font-semibold tracking-tight text-slate-900">{title}</p>
+        <p className="truncate text-[12px] text-slate-500">{subtitle}</p>
       </div>
     </div>
   );

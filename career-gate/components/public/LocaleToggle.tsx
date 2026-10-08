@@ -2,14 +2,17 @@
 
 import type { IntakeLocale } from "@/components/public/intake-copy";
 
-/** Arabic / English, one control, Arabic first because it is the default. */
+/**
+ * Arabic / English, one control, Arabic first because it is the default.
+ * Switching is immediate and touches no form state.
+ */
 export function LocaleToggle({ locale, onChange }: { locale: IntakeLocale; onChange: (next: IntakeLocale) => void }) {
   return (
     <div
       dir="ltr"
       role="group"
       aria-label="Language / اللغة"
-      className="flex items-center gap-1 rounded-full border border-white/[.08] bg-white/[.03] p-1 backdrop-blur"
+      className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/85 p-1 shadow-[0_8px_22px_-18px_rgba(23,42,77,.4)] backdrop-blur"
     >
       {(["ar", "en"] as const).map((value) => (
         <button
@@ -18,10 +21,10 @@ export function LocaleToggle({ locale, onChange }: { locale: IntakeLocale; onCha
           onClick={() => onChange(value)}
           aria-pressed={locale === value}
           data-testid={`locale-${value}`}
-          className={`min-h-[36px] min-w-[72px] rounded-full px-3 text-[12px] font-semibold transition ${
+          className={`min-h-[40px] min-w-[76px] rounded-full px-3 text-[13px] font-semibold transition-[background-color,color] duration-200 motion-reduce:transition-none ${
             locale === value
-              ? "bg-[#e3c884]/15 text-[#f3dda4] shadow-[0_0_18px_-6px_rgba(227,200,132,.5)]"
-              : "text-slate-400 hover:text-slate-200"
+              ? "bg-[#2f6fd0] text-white shadow-[0_8px_20px_-12px_rgba(47,111,208,.8)]"
+              : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
           }`}
         >
           {value === "ar" ? "العربية" : "English"}

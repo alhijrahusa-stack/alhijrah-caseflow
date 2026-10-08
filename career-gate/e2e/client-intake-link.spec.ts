@@ -91,14 +91,14 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     // Arabic by default, right to left.
     await expect(page.locator("div[dir]").first()).toHaveAttribute("dir", "rtl");
     await expect(page.getByTestId("intake-source")).toContainText("أدخل بياناتك هنا");
-    await expect(page.getByTestId("intake-upload")).toContainText("ارفع الوثائق");
+    await expect(page.getByTestId("intake-upload")).toContainText("ارفع الوثائق هنا");
     await expect(page.getByTestId("intake-submit")).toHaveText("إرسال");
 
     // One page, both languages.
     await page.getByTestId("locale-en").click();
     await expect(page.locator("div[dir]").first()).toHaveAttribute("dir", "ltr");
-    await expect(page.getByTestId("intake-source")).toContainText("Enter your details here");
-    await expect(page.getByTestId("intake-upload")).toContainText("Upload Documents");
+    await expect(page.getByTestId("intake-source")).toContainText("Enter your information here");
+    await expect(page.getByTestId("intake-upload")).toContainText("Upload your documents here");
     await expect(page.getByTestId("intake-submit")).toHaveText("Submit");
 
     // Camera capture is a dedicated input, so a phone opens the camera.
@@ -124,6 +124,134 @@ test.describe.serial("Career Gate one-time client intake link", () => {
 
     // Not indexable: the URL carries a secret.
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  });
+
+  test("the Smart Guide is local, step-aware, minimizable and reopenable", async ({ page }) => {
+    const link = await issueLink(staffPage);
+    let guidanceRequests = 0;
+    page.on("request", (request) => { if (/guide|assist|chat|llm/i.test(request.url())) guidanceRequests += 1; });
+
+    await page.goto(`/intake/${link.token}`);
+    await page.getByTestId("locale-en").click();
+    const guide = page.getByTestId("smart-guide");
+    await expect(guide).toContainText("Smart Guide");
+    await expect(page.getByTestId("smart-guide-message")).toContainText("Welcome");
+
+    // The message follows the client's context, with no request of its own.
+    await page.getByTestId("intake-source-text").fill("Hana Guide Tester");
+    await expect(page.getByTestId("smart-guide-message")).toContainText("documents");
+    await page.getByTestId("intake-choose-files").setInputFiles({ name: "doc.png", mimeType: "image/png", buffer: PNG_1x1 });
+    await expect(page.getByTestId("smart-guide-message")).toContainText("ready");
+
+    // A validation problem moves it to the issue hint.
+    await page.getByTestId("intake-field-phone").fill("12");
+    await expect(page.getByTestId("smart-guide-message")).toContainText("correct the field");
+
+    // Minimizable and reopenable, never blocking.
+    await page.getByTestId("smart-guide-minimize").click();
+    await expect(guide).toHaveCount(0);
+    await page.getByTestId("smart-guide-open").click();
+    await expect(page.getByTestId("smart-guide")).toBeVisible();
+
+    expect(guidanceRequests).toBe(0);
+
+    // Arabic guidance is the exact required wording.
+    await page.getByTestId("locale-ar").click();
+    await page.getByTestId("intake-field-phone").fill("");
+    await page.getByTestId("intake-source-text").fill("");
+    await expect(page.getByTestId("smart-guide")).toContainText("الموجّه الذكي");
+  });
+
+  test("inline validation is exact, blocks submit, and never loses what was typed", async ({ page }) => {
+    const link = await issueLink(staffPage);
+    await page.goto(`/intake/${link.token}`);
+    await page.getByTestId("locale-en").click();
+
+    await page.getByTestId("intake-source-text").fill("Lina Validation Tester\nphone 313-555-0133");
+    await expect(page.getByTestId("intake-field-phone")).toHaveValue("3135550133");
+    // A field the extraction did not find is still offered, empty, so the
+    // client can supply it rather than being unable to.
+    await expect(page.getByTestId("intake-field-email")).toHaveValue("");
+    await expect(page.getByTestId("intake-field-zip")).toHaveValue("");
+
+    await page.getByTestId("intake-field-phone").fill("12345");
+    await expect(page.getByTestId("intake-error-phone")).toHaveText("Enter a valid 10-digit US phone number.");
+    await expect(page.getByTestId("intake-field-phone")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("intake-submit")).toBeDisabled();
+
+    // Correcting it clears the error and re-enables submit; the source is intact.
+    await page.getByTestId("intake-field-phone").fill("3135550144");
+    await expect(page.getByTestId("intake-error-phone")).toHaveCount(0);
+    await expect(page.getByTestId("intake-submit")).toBeEnabled();
+    await expect(page.getByTestId("intake-source-text")).toHaveValue(/Lina Validation Tester/);
+
+    // Mobile-appropriate input affordances.
+    await expect(page.getByTestId("intake-field-phone")).toHaveAttribute("inputmode", "tel");
+    await expect(page.getByTestId("intake-field-email")).toHaveAttribute("type", "email");
+  });
+
+  test("a chosen document previews locally and can be replaced or removed before submit", async ({ page }) => {
+    const link = await issueLink(staffPage);
+    await page.goto(`/intake/${link.token}`);
+    await page.getByTestId("locale-en").click();
+
+    await page.getByTestId("intake-choose-files").setInputFiles({ name: "front.png", mimeType: "image/png", buffer: PNG_1x1 });
+    const card = page.getByTestId("intake-file");
+    await expect(card).toHaveCount(1);
+    // Previewed from a local object URL — nothing was uploaded yet.
+    await expect(card.getByTestId("intake-file-preview")).toHaveAttribute("src", /^blob:/);
+
+    // Replace swaps the file in place, keeping exactly one attachment.
+    await card.getByTestId("intake-file-replace").click();
+    await page.locator('input[type="file"][aria-hidden="true"]').setInputFiles({ name: "back.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 qa") });
+    await expect(page.getByTestId("intake-file")).toHaveCount(1);
+    await expect(page.getByTestId("intake-file")).toContainText("back.pdf");
+    // A PDF has no image preview, so the generic document mark is shown instead.
+    await expect(page.getByTestId("intake-file-preview")).toHaveCount(0);
+
+    await page.getByTestId("intake-file-remove").click();
+    await expect(page.getByTestId("intake-file")).toHaveCount(0);
+  });
+
+  test("form state survives a language switch", async ({ page }) => {
+    const link = await issueLink(staffPage);
+    await page.goto(`/intake/${link.token}`);
+    const typed = "Maya State Keeper\nphone 313-555-0122";
+    await page.getByTestId("intake-source-text").fill(typed);
+    await page.getByTestId("intake-choose-files").setInputFiles({ name: "kept.png", mimeType: "image/png", buffer: PNG_1x1 });
+    await page.getByTestId("intake-field-city").fill("Dearborn");
+
+    await page.getByTestId("locale-en").click();
+    await expect(page.getByTestId("intake-source-text")).toHaveValue(typed);
+    await expect(page.getByTestId("intake-field-city")).toHaveValue("Dearborn");
+    await expect(page.getByTestId("intake-file")).toHaveCount(1);
+
+    await page.getByTestId("locale-ar").click();
+    await expect(page.getByTestId("intake-source-text")).toHaveValue(typed);
+    await expect(page.getByTestId("intake-field-city")).toHaveValue("Dearborn");
+    await expect(page.getByTestId("intake-file")).toHaveCount(1);
+  });
+
+  test("mobile layout has no horizontal scroll and touch targets are large enough", async ({ page }) => {
+    const link = await issueLink(staffPage);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/intake/${link.token}`);
+    await page.getByTestId("intake-source-text").fill("Rana Mobile Tester\nphone 313-555-0111");
+
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+
+    for (const id of ["intake-submit", "locale-ar", "locale-en"]) {
+      const target = page.getByTestId(id);
+      if ((await target.count()) === 0) continue;
+      const box = await target.first().boundingBox();
+      expect(box!.height, id).toBeGreaterThanOrEqual(40);
+    }
+    // Measured through the inputs they wrap, so this holds in either language.
+    for (const id of ["intake-choose-files", "intake-take-photo"]) {
+      const box = await page.locator(`label:has([data-testid="${id}"])`).boundingBox();
+      expect(box!.height, id).toBeGreaterThanOrEqual(44);
+    }
   });
 
   test("opening and refreshing the link does not consume it", async ({ page }) => {
@@ -180,9 +308,14 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     const success = page.getByTestId("intake-success");
     await expect(success).toBeVisible({ timeout: 30000 });
     await expect(success).toContainText("submitted successfully");
-    await expect(success).toContainText("cannot be used again");
+    await expect(success).toContainText("closed after successful use");
     // No internal identifier is shown.
     expect(await success.innerText()).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/);
+
+    // The two client-safe next steps, pointing at the existing destinations.
+    await expect(success.getByTestId("intake-case-status")).toHaveAttribute("href", "/status");
+    await expect(success.getByTestId("intake-whatsapp")).toHaveAttribute("href", /^https:\/\/wa\.me\/1\d{10}$/);
+    await expect(success.getByTestId("intake-closed-note")).toContainText("closed after successful use");
 
     // The link is spent and points at the case it created.
     const [row] = await db()`select status,used_at,import_case_id from client_import_links where id=${link.id}`;
