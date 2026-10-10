@@ -9,7 +9,20 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { options } from "@/lib/catalog";
 import { LANGUAGES } from "@/lib/domain";
 import { dateOnly, dateTime, formatPhone } from "@/lib/format";
-import { Card, Dl, SmallBtn, useRowAction, yn, type Row } from "./common";
+import { Card, SmallBtn, useRowAction, yn, type Row } from "./common";
+
+function ProfileGrid({ rows }: { rows: [string, React.ReactNode][] }) {
+  return (
+    <dl className="cg-profile-info-grid">
+      {rows.map(([label, value]) => (
+        <div key={label} className="cg-profile-info-cell">
+          <dt>{label}</dt>
+          <dd>{value ?? "—"}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 export function ClientInfo({ c, authorization }: { c: Row; authorization: Row | null }) {
   const f = (field: string, label: string, extra: Partial<Parameters<typeof InlineField>[0]> = {}) => (
@@ -17,7 +30,7 @@ export function ClientInfo({ c, authorization }: { c: Row; authorization: Row | 
   );
   return (
     <Card title="Client Information" id="client-info">
-      <Dl rows={[
+      <ProfileGrid rows={[
         ["Full name", f("full_name", "Full name")],
         ["Phone", f("phone", "Phone", { type: "tel", display: formatPhone(c.phone) })],
         ["Email", f("email", "Email", { type: "email" })],
@@ -48,7 +61,7 @@ export function ClientInfo({ c, authorization }: { c: Row; authorization: Row | 
 export function AmazonHistory({ c }: { c: Row }) {
   return (
     <Card title="Amazon History" id="amazon-history">
-      <Dl rows={[
+      <ProfileGrid rows={[
         ["Worked at Amazon", yn(c.amazon_worked_before)],
         ...(c.amazon_worked_before ? [["Dates", `${dateOnly(c.amazon_worked_from)} – ${dateOnly(c.amazon_worked_to)}`] as [string, string]] : []),
         ["Applied before", yn(c.amazon_applied_before)],

@@ -75,17 +75,20 @@ test.describe("Smart Client Import experience", () => {
 
     const intelligence = page.getByRole("region", { name: "LIVE INTELLIGENCE" });
     await expect(intelligence).toBeVisible();
-    for (const group of ["IDENTITY", "ADDRESS", "LANGUAGE & ENGLISH", "JOB PREFERENCES"]) {
+    for (const group of ["IDENTITY", "ADDRESS", "LANGUAGE & ENGLISH"]) {
       await expect(intelligence.getByRole("heading", { name: group })).toBeVisible();
     }
+    // Job preference fields have one dedicated surface and are intentionally
+    // not repeated inside Live Intelligence.
+    await expect(page.getByRole("region", { name: "JOB PREFERENCES" })).toBeVisible();
 
-    const field = (key: string) => intelligence.locator(`[data-field="${key}"]`);
+    const field = (key: string) => page.locator(`[data-field="${key}"]`);
     const value = (key: string) => field(key).locator("[data-value]");
     const state = (key: string) => field(key).locator("[data-state]");
     const provenance = (key: string) => field(key).locator("[data-provenance]");
     const authority = (key: string) => field(key).locator("[data-authority]");
 
-    // Every one of the sixteen fields is present as a name/value pair.
+    // Every one of the sixteen canonical fields is present exactly once as a name/value pair.
     for (const key of ["full_name","phone","email","date_of_birth","street","city","state","zip","preferred_language","english_proficiency","preferred_location","location_option_1","location_option_2","shift_days","shift_start_time","shift_end_time"]) {
       await expect(field(key)).toHaveCount(1);
     }

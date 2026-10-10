@@ -89,6 +89,13 @@ const JOB_PREFERENCE_FIELDS: readonly SmartField[] = SMART_FIELD_GROUPS
   .flatMap((group) => group.fields)
   .filter((field) => field.key !== "preferred_language");
 
+const CORE_INTELLIGENCE_GROUPS = SMART_FIELD_GROUPS
+  .map((group) => ({
+    ...group,
+    fields: group.fields.filter((field) => !JOB_PREFERENCE_FIELDS.some((preference) => preference.key === field.key)),
+  }))
+  .filter((group) => group.fields.length > 0);
+
 /** Level 2 depth: a major functional panel. */
 const PANEL =
   "relative overflow-hidden rounded-[22px] border border-[#b8934a]/[.14] bg-[linear-gradient(145deg,rgba(12,35,68,.76),rgba(4,11,25,.72))] shadow-[0_24px_70px_-30px_rgba(0,0,0,.78),inset_0_1px_0_rgba(255,255,255,.065)] backdrop-blur-xl transition-transform duration-200 will-change-transform motion-reduce:transition-none hover:-translate-y-[3px] hover:scale-[1.004] hover:border-[#d4b06a]/25 focus-within:translate-y-0 focus-within:scale-100";
@@ -511,7 +518,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
               <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/45 to-transparent" />
               <PanelTitle id="smart-live-intelligence" number="04" title="LIVE INTELLIGENCE" meta={serverDraft ? "SERVER AUTHORITATIVE" : sourceSettling ? "READING SOURCE" : "LOCAL INTERPRETATION"} tone="cyan" />
               <div className="mt-3 space-y-4">
-                {SMART_FIELD_GROUPS.map((group) => (
+                {CORE_INTELLIGENCE_GROUPS.map((group) => (
                   <div key={group.title}>
                     <div className="mb-1.5 flex items-center gap-2">
                       <h3 className="text-[12px] font-semibold tracking-[.16em] text-[#e3c884]">{group.title}</h3>

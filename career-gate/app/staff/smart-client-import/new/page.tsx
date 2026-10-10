@@ -22,10 +22,9 @@ export default async function SmartClientImportMobilePage() {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login?next=%2Fstaff%2Fsmart-client-import%2Fnew");
   if (session.staff.role === "staff") redirect("/staff");
-  // The link panel sits above the existing form; the form itself is unchanged.
   return (
     <>
-      <div className="mx-auto w-full max-w-[1180px] px-4 pt-5 sm:px-6">
+      <div id="client-self-intake" className="mx-auto w-full max-w-[1180px] scroll-mt-28 px-4 pt-5 sm:px-6">
         <ClientIntakeLinkPanel />
       </div>
       <MobileSmartImportForm staff={{ display_name: session.staff.display_name }} />

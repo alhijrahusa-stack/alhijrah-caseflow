@@ -53,6 +53,7 @@ export function ClientAccountPanel({ clientId, account }: { clientId: string; ac
   const router = useRouter();
   const [action, setAction] = useState<FinancialAction | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   if (!account) return null;
 
@@ -72,119 +73,137 @@ export function ClientAccountPanel({ clientId, account }: { clientId: string; ac
   };
 
   return (
-    <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3" data-testid="client-account-panel">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Account</p>
-        {isManager && (
-          <Link
-            href={`/staff/accounting?client=${encodeURIComponent(clientId)}`}
-            className="text-[9px] text-cyan-300 hover:text-cyan-200"
-            data-testid="open-accounting"
-          >
-            Open accounting
-          </Link>
-        )}
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span
-          className={`rounded-full border px-2 py-1 text-[9px] font-semibold capitalize ${STATUS_CLASS[account.payment_status] ?? STATUS_CLASS.unpaid}`}
-          data-testid="account-payment-status"
-        >
-          {account.payment_status.replace(/_/g, " ")}
-        </span>
-        <strong className="text-sm text-slate-200" data-testid="account-net-fee">{formatMoney(account.net_fee)}</strong>
-        {account.payment_date && <span className="text-[9px] text-slate-500" data-testid="account-last-payment">Last payment {account.payment_date}</span>}
-      </div>
-
-      <div className="ops-account-main-wide mt-3">
-        <Figure label="Application" value={completion ?? "Not recorded"} testId="account-application" />
-        <Figure label="Original fee" value={formatMoney(account.fee_amount)} testId="account-fee" />
-        <Figure
-          label="Discount"
-          value={account.discount_amount > 0 ? `${formatMoney(account.discount_amount)}${discountEntered ? ` (${discountEntered})` : ""}` : "—"}
-          testId="account-discount"
-        />
-        <Figure label="Net fee" value={formatMoney(account.net_fee)} testId="account-net-fee-figure" />
-        {account.amount_paid_visible && (
-          <>
-            <Figure label="Paid" value={formatMoney(account.amount_paid)} testId="account-amount-paid" />
-            <Figure label="Refunded" value={formatMoney(account.refund_amount)} testId="account-refunded" />
-            <Figure label="Outstanding" value={formatMoney(account.balance)} testId="account-balance" />
-          </>
-        )}
-        <Figure label="Receipt" value={account.transactions.some((t) => t.receipt_document_id) ? "Attached" : "None"} testId="account-receipt-status" />
-        {account.amount_paid_visible && (
-          <Figure
-            label="Commission"
-            value={account.commission_status
-              ? `${formatMoney(account.commission_amount)} · ${account.staff_name ?? "—"} · ${account.commission_status}`
-              : "—"}
-            testId="account-commission"
-          />
-        )}
-      </div>
-
-      {account.discount_reason && (
-        <p className="mt-2 text-[9px] text-slate-500" data-testid="account-discount-reason">Discount reason: {account.discount_reason}</p>
-      )}
-
-      <div className="ops-action-bar">
-        {isManager && (
-          <button type="button" className="ops-primary-button" data-testid="action-record-payment" onClick={open("payment")}>
-            Record Payment
-          </button>
-        )}
-        <button type="button" className="ops-secondary-button" data-testid="action-record-completion" onClick={open("completion")}>
-          Record Application Completion
-        </button>
-        {isManager && (
-          <button type="button" className="ops-secondary-button" data-testid="action-apply-discount" onClick={open("discount")}>
-            Apply Discount
-          </button>
-        )}
-        {isManager && (
-          <span className="ops-more">
-            <button type="button" className="ops-secondary-button" aria-expanded={moreOpen} data-testid="action-more" onClick={() => setMoreOpen((v) => !v)}>
-              More
-            </button>
-            {moreOpen && (
-              <span className="ops-more-menu" role="menu">
-                <button type="button" role="menuitem" data-testid="action-refund" onClick={open("refund")}>Refund</button>
-                <button type="button" role="menuitem" data-testid="action-adjustment" onClick={open("adjustment")}>Adjustment</button>
-                <button type="button" role="menuitem" data-testid="action-waiver" onClick={open("waiver")}>Waiver</button>
-              </span>
+    <section className="cg-account-orbit" data-testid="client-account-panel" data-expanded={expanded}>
+      <div className="cg-account-orbit-head">
+        <div className="min-w-0">
+          <p className="cg-account-kicker">CLIENT ACCOUNT</p>
+          <div className="mt-1 flex flex-wrap items-baseline gap-2">
+            <span
+              className={`rounded-full border px-2 py-1 text-[9px] font-semibold capitalize ${STATUS_CLASS[account.payment_status] ?? STATUS_CLASS.unpaid}`}
+              data-testid="account-payment-status"
+            >
+              {account.payment_status.replace(/_/g, " ")}
+            </span>
+            <strong className="text-[15px] text-slate-100" data-testid="account-net-fee">{formatMoney(account.net_fee)}</strong>
+            {account.amount_paid_visible && (
+              <span className="text-[11px] text-slate-500">Outstanding <strong className="inline font-medium text-slate-300" data-testid="account-balance">{formatMoney(account.balance)}</strong></span>
             )}
-          </span>
-        )}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {isManager && (
+            <Link href={`/staff/accounting?client=${encodeURIComponent(clientId)}`} className="cg-account-link" data-testid="open-accounting">
+              Accounting
+            </Link>
+          )}
+          <button
+            type="button"
+            className="cg-account-toggle"
+            aria-expanded={expanded}
+            aria-controls="client-account-details"
+            onClick={() => setExpanded((value) => !value)}
+          >
+            <span>{expanded ? "Hide" : "View"}</span>
+            <svg viewBox="0 0 20 20" aria-hidden="true" className={expanded ? "rotate-180" : ""}>
+              <path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      {action && (
-        <div className="ops-action-surface" data-testid={`action-surface-${action}`}>
-          <p className="ops-action-title">{ACTION_TITLE[action]}</p>
-          <FinancialActionForm
-            action={action}
-            account={{
-              clientId,
-              clientName: account.application_completed_name ?? "this client",
-              feeAmount: account.fee_amount,
-              outstanding: account.balance,
-              transactions: account.transactions,
-            }}
-            staffOptions={isManager ? activeStaff : activeStaff.filter((s) => s.id === me.id)}
-            selfStaffId={me.id}
-            canChooseCompleter={isManager}
-            onDone={() => router.refresh()}
-            onClose={() => setAction(null)}
-          />
-        </div>
-      )}
+      <div className="cg-account-glance" aria-label="Account at a glance">
+        <Figure label="Original" value={formatMoney(account.fee_amount)} testId="account-fee" />
+        <Figure label="Net" value={formatMoney(account.net_fee)} testId="account-net-fee-figure" />
+        {account.amount_paid_visible && <Figure label="Paid" value={formatMoney(account.amount_paid)} testId="account-amount-paid" />}
+        <Figure label="Application" value={completion ?? "Open"} testId="account-application" />
+      </div>
 
-      {account.amount_paid_visible && account.transactions.length > 0 && (
-        <div className="ops-action-surface">
-          <TransactionHistory clientId={clientId} transactions={account.transactions} />
+      <div id="client-account-details" className="cg-account-details" hidden={!expanded}>
+        <div className="ops-account-main-wide mt-3">
+          <Figure
+            label="Discount"
+            value={account.discount_amount > 0 ? `${formatMoney(account.discount_amount)}${discountEntered ? ` (${discountEntered})` : ""}` : "—"}
+            testId="account-discount"
+          />
+          {account.amount_paid_visible && (
+            <>
+              <Figure label="Refunded" value={formatMoney(account.refund_amount)} testId="account-refunded" />
+              <Figure label="Outstanding" value={formatMoney(account.balance)} testId="account-balance-detail" />
+            </>
+          )}
+          <Figure label="Receipt" value={account.transactions.some((t) => t.receipt_document_id) ? "Attached" : "None"} testId="account-receipt-status" />
+          {account.amount_paid_visible && (
+            <Figure
+              label="Commission"
+              value={account.commission_status
+                ? `${formatMoney(account.commission_amount)} · ${account.staff_name ?? "—"} · ${account.commission_status}`
+                : "—"}
+              testId="account-commission"
+            />
+          )}
         </div>
-      )}
-    </div>
+
+        {account.discount_reason && (
+          <p className="mt-2 text-[9px] text-slate-500" data-testid="account-discount-reason">Discount reason: {account.discount_reason}</p>
+        )}
+
+        <div className="ops-action-bar">
+          {isManager && (
+            <button type="button" className="ops-primary-button" data-testid="action-record-payment" onClick={open("payment")}>
+              Record Payment
+            </button>
+          )}
+          <button type="button" className="ops-secondary-button" data-testid="action-record-completion" onClick={open("completion")}>
+            Record Application Completion
+          </button>
+          {isManager && (
+            <button type="button" className="ops-secondary-button" data-testid="action-apply-discount" onClick={open("discount")}>
+              Apply Discount
+            </button>
+          )}
+          {isManager && (
+            <span className="ops-more">
+              <button type="button" className="ops-secondary-button" aria-expanded={moreOpen} data-testid="action-more" onClick={() => setMoreOpen((v) => !v)}>
+                More
+              </button>
+              {moreOpen && (
+                <span className="ops-more-menu" role="menu">
+                  <button type="button" role="menuitem" data-testid="action-refund" onClick={open("refund")}>Refund</button>
+                  <button type="button" role="menuitem" data-testid="action-adjustment" onClick={open("adjustment")}>Adjustment</button>
+                  <button type="button" role="menuitem" data-testid="action-waiver" onClick={open("waiver")}>Waiver</button>
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+
+        {action && (
+          <div className="ops-action-surface" data-testid={`action-surface-${action}`}>
+            <p className="ops-action-title">{ACTION_TITLE[action]}</p>
+            <FinancialActionForm
+              action={action}
+              account={{
+                clientId,
+                clientName: account.application_completed_name ?? "this client",
+                feeAmount: account.fee_amount,
+                outstanding: account.balance,
+                transactions: account.transactions,
+              }}
+              staffOptions={isManager ? activeStaff : activeStaff.filter((s) => s.id === me.id)}
+              selfStaffId={me.id}
+              canChooseCompleter={isManager}
+              onDone={() => router.refresh()}
+              onClose={() => setAction(null)}
+            />
+          </div>
+        )}
+
+        {account.amount_paid_visible && account.transactions.length > 0 && (
+          <div className="ops-action-surface">
+            <TransactionHistory clientId={clientId} transactions={account.transactions} />
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

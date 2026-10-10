@@ -382,20 +382,13 @@ export function SmartCareerCollectClient() {
       <div className="flex flex-wrap items-center gap-2 border-t border-white/[.07] pt-4"><Link className="ops-primary-button min-h-11" href={mobilePath}>OPEN MOBILE FORM</Link><button className="ops-secondary-button min-h-11" type="button" onClick={copyMobileLink}>COPY LINK</button><button className="ops-secondary-button min-h-11" type="button" aria-expanded={showQr} onClick={() => setShowQr((value) => !value)}>QR</button></div>
       {showQr && <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-black/10 p-4"><img className="h-40 w-40 rounded-xl bg-white p-2" src="/api/staff/smart-client-import/qr" alt="Smart Client Import QR" /><div><strong className="text-slate-100">Secure mobile intake</strong><p className="mt-1 text-xs text-slate-500">Authenticated staff session required.</p></div></div>}
 
-      {/* Client self-intake, a distinct action with its own one-time link. */}
-      <div className="rounded-2xl border border-[#e3c884]/25 bg-gradient-to-b from-[#e3c884]/[.07] to-transparent p-4" data-testid="client-link-action">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
+      <div className="rounded-2xl border border-[#e3c884]/20 bg-gradient-to-b from-[#e3c884]/[.055] to-transparent p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
             <p className="text-[10px] font-bold tracking-[.18em] text-[#e3c884]">CLIENT SELF-INTAKE</p>
-            <strong className="mt-1 block text-[15px] text-slate-100">CLIENT LINK</strong>
-            <p className="mt-1 text-[13px] text-slate-400">Client can track case status after submission</p>
-            <p className="mt-0.5 text-[13px] text-slate-400" dir="rtl">يمكن للعميل متابعة حالة الملف بعد الإرسال</p>
+            <p className="mt-1 text-[13px] text-slate-400">One canonical one-time client link. Generate and manage it from the intake surface.</p>
           </div>
-          <Link className="ops-primary-button min-h-11 shrink-0" href={mobilePath}>OPEN CLIENT LINK</Link>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-slate-400">
-          <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-cyan-300" />Case Status available</span>
-          <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-300" />WhatsApp support available</span>
+          <Link className="ops-secondary-button min-h-11" href="/staff/smart-client-import/new#client-self-intake">MANAGE CLIENT LINK</Link>
         </div>
       </div>
     </section>}

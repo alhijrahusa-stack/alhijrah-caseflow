@@ -169,11 +169,13 @@ test.describe.serial("Accounting and Client financial surfaces", () => {
     const panel = page.getByTestId("client-account-panel");
     await expect(panel).toBeVisible();
     await expect(panel.getByTestId("account-fee")).toHaveText("$150.00");
+    await expect(panel.getByTestId("account-balance")).toHaveText("$80.00");
+    // Detailed finance stays intentionally collapsed until staff asks for it.
+    await panel.getByRole("button", { name: "View" }).click();
     // The same canonical figures the Accounting board renders.
     await expect(panel.getByTestId("account-discount")).toContainText("$30.00");
     await expect(panel.getByTestId("account-discount")).toContainText("20%");
     await expect(panel.getByTestId("account-net-fee-figure")).toHaveText("$120.00");
-    await expect(panel.getByTestId("account-balance")).toHaveText("$80.00");
     await expect(panel.getByTestId("transaction-history")).toBeVisible();
 
     await expect(panel.getByTestId("action-surface-payment")).toHaveCount(0);

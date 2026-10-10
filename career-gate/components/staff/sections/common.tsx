@@ -6,12 +6,12 @@ export type Row = Record<string, any>; // eslint-disable-line @typescript-eslint
 
 export function Card({ title, id, actions, children }: { title: string; id: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section id={id} className="rounded-lg border border-slate-200 bg-white" data-testid={`section-${id}`} aria-labelledby={`${id}-title`}>
-      <header className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
+    <section id={id} className="cg-surface-card" data-testid={`section-${id}`} aria-labelledby={`${id}-title`}>
+      <header className="cg-surface-card-header">
         <h2 id={`${id}-title`} className="text-sm font-semibold">{title}</h2>
         {actions}
       </header>
-      <div className="p-4 text-sm">{children}</div>
+      <div className="cg-surface-card-body">{children}</div>
     </section>
   );
 }
@@ -30,7 +30,7 @@ export function Dl({ rows }: { rows: [string, React.ReactNode][] }) {
 }
 
 export function SmallBtn(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button type="button" {...props} className={`rounded border border-slate-300 px-2 py-0.5 text-xs hover:bg-slate-50 disabled:opacity-50 ${props.className ?? ""}`} />;
+  return <button type="button" {...props} className={`cg-mini-glass-button ${props.className ?? ""}`} />;
 }
 
 export const yn = (v: boolean | null | undefined) => (v === true ? "Yes" : v === false ? "No" : "UNKNOWN / NOT PROVIDED");

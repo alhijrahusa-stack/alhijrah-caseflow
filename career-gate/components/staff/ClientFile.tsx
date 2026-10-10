@@ -14,7 +14,6 @@ import { StatusBadge } from "@/components/staff/StatusBadge";
 import { SoftDelete } from "@/components/staff/SoftDelete";
 import { StatusTimeline } from "@/components/staff/StatusTimeline";
 import type { Row } from "@/components/staff/sections/common";
-import { Card } from "@/components/staff/sections/common";
 import { Documents } from "@/components/staff/sections/Documents";
 import { Activity, Alerts, Assessments, IntakeAgent, Messages } from "@/components/staff/sections/Insight";
 import { AmazonHistory, ClientInfo, EmploymentHistory, Preferences } from "@/components/staff/sections/Profile";
@@ -88,7 +87,7 @@ export function ClientFile({
   const openPanel = (p: Panel) => () => {
     replaceTab(panelTab[p]);
     setPanel(p);
-    setTimeout(() => document.getElementById("action-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    setTimeout(() => document.getElementById("action-panel")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
   };
 
   const quick: [Panel, string, boolean][] = [
@@ -96,6 +95,25 @@ export function ClientFile({
     ["contacted", "Mark Contacted", true], ["status", "Change Status", isManager], ["next_step", "Set Next Step", true],
     ["followup", "Add Follow-Up", true], ["assign", "Assign Staff", isManager],
   ];
+
+  const actionWeight: Partial<Record<Status, Panel[]>> = {
+    new_intake: ["document", "next_step", "contacted"],
+    needs_review: ["document", "task", "next_step"],
+    ready_to_apply: ["next_step", "task", "contacted"],
+    application_in_progress: ["task", "contacted", "next_step"],
+    assessment_required: ["task", "contacted", "next_step"],
+    appointment_required: ["appointment", "contacted", "task"],
+    appointment_scheduled: ["appointment", "task", "contacted"],
+    i9_available: ["document", "task", "next_step"],
+    post_hire_tasks: ["task", "followup", "contacted"],
+    ready_for_first_day: ["followup", "contacted", "task"],
+  };
+  const promoted = actionWeight[c.current_status as Status] ?? [];
+  const orderedQuick = [...quick].sort(([a], [b]) => {
+    const ai = promoted.indexOf(a);
+    const bi = promoted.indexOf(b);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+  });
 
   const statusEvents = data.activity
     .filter((l) => l.action === "status_changed" || l.action === "status_overridden")
@@ -145,26 +163,31 @@ export function ClientFile({
         </div>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto rounded-2xl border border-white/[.06] bg-white/[.018] p-1.5" aria-label="Client file sections">
+      <div className="cg-profile-tabs" aria-label="Client file sections">
         {tabs.map((item) => (
-          <button key={item.id} type="button" className="staff-tab whitespace-nowrap rounded-xl px-3 py-2 text-xs font-medium" data-active={tab === item.id} onClick={() => replaceTab(item.id)}>
+          <button key={item.id} type="button" className="staff-tab cg-profile-tab whitespace-nowrap" data-active={tab === item.id} onClick={() => replaceTab(item.id)}>
             {item.label}{item.count != null && <span className="ml-1.5 font-mono text-[9px] text-slate-600">{item.count}</span>}
           </button>
         ))}
       </div>
 
-      <div className="sticky top-[72px] z-20 -mx-4 flex flex-wrap gap-2 border-y border-white/[.06] bg-[#08090D]/95 px-4 py-2 backdrop-blur lg:-mx-6 lg:px-6" data-testid="quick-actions">
-        <Link href={`/staff/client/${c.id}/edit`} aria-label="Edit Client" className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5">Correct Data</Link>
-        {quick.filter(([, , allowed]) => allowed).map(([p, label]) => (
-          <button key={p} type="button" onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
-            className={`rounded-xl border px-3 py-1.5 text-xs ${panel === p ? "border-indigo-400/50 bg-indigo-500/10 text-indigo-200" : "border-white/10 text-slate-300 hover:bg-white/5"}`}>
-            {label}
-          </button>
-        ))}
-        <Link href={`/staff/client/${c.id}/status-preview`} className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5" data-testid="open-status-page">Open Status Page</Link>
+      <div className="cg-command-deck" data-testid="quick-actions" aria-label="Client command deck">
+        <div className="cg-command-track">
+          <span className="cg-command-context" aria-hidden="true">COMMAND</span>
+          <Link href={`/staff/client/${c.id}/edit`} aria-label="Edit Client" className="cg-command-button cg-command-primary">Correct Data</Link>
+          {orderedQuick.filter(([, , allowed]) => allowed).map(([p, label], index) => (
+            <button key={p} type="button" onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
+              data-promoted={index < promoted.length}
+              className={`cg-command-button ${panel === p ? "cg-command-active" : ""}`}>
+              <span className="cg-command-signal" aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+          <Link href={`/staff/client/${c.id}/status-preview`} className="cg-command-button" data-testid="open-status-page">Open Status Page</Link>
+        </div>
       </div>
 
-      <div id="action-panel">
+      <div id="action-panel" className="relative z-40 scroll-mt-40">
         {panel === "document" && <DocumentForm clientId={c.id} onDone={close} />}
         {panel === "appointment" && <AppointmentForm clientId={c.id} onDone={close} />}
         {panel === "note" && <AddNoteForm clientId={c.id} onDone={close} />}
@@ -181,7 +204,18 @@ export function ClientFile({
       {tab === "profile" && (
         <div className="grid gap-4 xl:grid-cols-3">
           <div className="space-y-4 xl:col-span-2">
-            <Card title="Status Timeline" id="status-timeline"><StatusTimeline created={{ at: c.created_at, status: createdStatus }} events={statusEvents} current={c.current_status} /></Card>
+            <section className="cg-status-stage" id="status-timeline" data-testid="section-status-timeline" aria-labelledby="status-timeline-title">
+              <header className="cg-status-stage-header">
+                <div>
+                  <p className="cg-status-kicker">LIVING WORKFLOW</p>
+                  <h2 id="status-timeline-title">Status Timeline</h2>
+                </div>
+                <span className="cg-status-live"><span aria-hidden="true" /> LIVE PATH</span>
+              </header>
+              <div className="cg-status-stage-body">
+                <StatusTimeline created={{ at: c.created_at, status: createdStatus }} events={statusEvents} current={c.current_status} />
+              </div>
+            </section>
             <EmploymentHistory rows={data.employment} editHref={`/staff/client/${c.id}/edit`} />
           </div>
           <div className="space-y-4"><ClientInfo c={c} authorization={data.authorization} /><AmazonHistory c={c} /></div>
