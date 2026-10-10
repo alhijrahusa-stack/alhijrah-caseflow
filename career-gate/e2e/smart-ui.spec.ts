@@ -148,7 +148,7 @@ test.describe("Smart Client Import experience", () => {
     await page.locator("#smart-source-text").fill(`Full Name: ${name}\nPhone: 313${token}`.slice(0, 200));
 
     await page.getByRole("button", { name: "SUBMIT" }).click();
-    await expect(page.getByText("SOURCE CAPTURED")).toBeVisible();
+    await expect(page.getByText("SOURCE CAPTURED", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "OPEN SMART CAREER COLLECT CLIENT" })).toBeVisible();
 
     const [staged] = await db()`select id,status from client_import_cases where mapped_draft #>> '{profile,full_name}'=${name} order by created_at desc limit 1`;
