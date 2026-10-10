@@ -166,6 +166,10 @@ test.describe.serial("Accounting and Client financial surfaces", () => {
 
   test("the client file shows the same account and opens Accounting in its context", async () => {
     await page.goto(`/staff/client/${clientId}`);
+    const accountToggle = page.getByRole("button", { name: /Client Account/ });
+    await expect(accountToggle).toHaveAttribute("aria-expanded", "false");
+    await accountToggle.click();
+    await expect(accountToggle).toHaveAttribute("aria-expanded", "true");
     const panel = page.getByTestId("client-account-panel");
     await expect(panel).toBeVisible();
     await expect(panel.getByTestId("account-fee")).toHaveText("$150.00");
@@ -193,7 +197,10 @@ test.describe.serial("Accounting and Client financial surfaces", () => {
     });
 
     await page.goto(`/staff/client/${clientId}`);
+    const accountToggle = page.getByRole("button", { name: /Client Account/ });
+    await accountToggle.click();
     const panel = page.getByTestId("client-account-panel");
+    await expect(panel).toBeVisible();
     await expect(panel.getByTestId("account-application")).toContainText(String(staff.display_name));
 
     // Settle whatever the account still owes, read from the authoritative
