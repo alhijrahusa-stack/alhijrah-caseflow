@@ -142,7 +142,7 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label" htmlFor="appt_when">Or a specific date &amp; time (Michigan time)</label>
-            <QuickDateTime ariaLabel="Appointment date and time" value={when} onChange={setWhen} />
+            <QuickDateTime ariaLabel="Or a specific date & time (Michigan time)" value={when} onChange={setWhen} />
           </div>
           <div>
             <label className="label" htmlFor="appt_location">Location</label>
@@ -188,7 +188,7 @@ export function TaskForm({ clientId, onDone }: { clientId: string | null; onDone
           </div>
           <div>
             <label className="label" htmlFor="task_due">Due</label>
-            <QuickDateTime ariaLabel="Task due date and time" value={due} onChange={setDue} />
+            <QuickDateTime ariaLabel="Due" value={due} onChange={setDue} />
           </div>
         </div>
       </Shell>
@@ -217,7 +217,7 @@ export function ContactedForm({ clientId, onDone }: FormProps) {
           </div>
           <div>
             <label className="label" htmlFor="contact_followup">Follow-up date (optional)</label>
-            <QuickDate ariaLabel="Contact follow-up date" min={todayInOffice()} value={followup} onChange={setFollowup} />
+            <QuickDate ariaLabel="Follow-up date (optional)" min={todayInOffice()} value={followup} onChange={setFollowup} />
           </div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor="contact_result">Result</label>
@@ -243,7 +243,7 @@ export function FollowupForm({ clientId, onDone }: FormProps) {
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <label className="label" htmlFor="fu_due">Due date</label>
-            <QuickDate ariaLabel="Follow-up due date" value={due} onChange={setDue} required />
+            <QuickDate ariaLabel="Due date" value={due} onChange={setDue} required />
           </div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor="fu_reason">Reason</label>
