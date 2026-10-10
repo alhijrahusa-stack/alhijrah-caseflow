@@ -67,7 +67,6 @@ export function ClientFile({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [panel, setPanel] = useState<Panel | null>(initialPanel);
-  const [accountExpanded, setAccountExpanded] = useState(false);
 
   const urlTab = searchParams.get("tab");
   const tab: ClientTab = validTab(urlTab)
@@ -173,22 +172,9 @@ export function ClientFile({
             </div>
           </article>
           {account && (
-            <article className="cg-client-account-summary">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="cg-command-card-label">Client Account</p>
-                  <div className="mt-2 flex flex-wrap items-baseline gap-2">
-                    <span className="cg-account-status">{account.payment_status}</span>
-                    <strong className="text-lg text-slate-50">${account.net_fee.toFixed(2)}</strong>
-                    <span className="text-[11px] text-slate-400">Outstanding ${account.balance.toFixed(2)}</span>
-                  </div>
-                </div>
-                <button type="button" className="cg-account-toggle" aria-expanded={accountExpanded} onClick={() => setAccountExpanded((value) => !value)}>
-                  {accountExpanded ? "Hide" : "View"}
-                </button>
-              </div>
-              {accountExpanded && <div className="mt-3"><ClientAccountPanel clientId={String(c.id)} account={account} /></div>}
-            </article>
+            <div className="cg-client-account-summary">
+              <ClientAccountPanel clientId={String(c.id)} account={account} />
+            </div>
           )}
         </div>
       </section>
