@@ -68,6 +68,8 @@ export function ClientFile({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [panel, setPanel] = useState<Panel | null>(initialPanel);
+  const [accountExpanded, setAccountExpanded] = useState(false);
+  const [actionsExpanded, setActionsExpanded] = useState(false);
 
   const urlTab = searchParams.get("tab");
   const tab: ClientTab = validTab(urlTab)
@@ -132,7 +134,7 @@ export function ClientFile({
           <span className="ml-auto"><RealtimeRefresher clientId={c.id} /></span>
         </div>
 
-        <div className={`mt-4 grid gap-4 ${account ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
             <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Current Status</p>
             <div className="mt-2" data-testid="current-status"><StatusBadge status={c.current_status} /></div>
@@ -141,7 +143,7 @@ export function ClientFile({
             <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Next Step</p>
             <div className="mt-1 text-sm" data-testid="next-step"><InlineField clientId={c.id} field="next_step" label="Next step" value={c.next_step} /></div>
           </div>
-          {account && <ClientAccountPanel clientId={String(c.id)} account={account} />}
+          {account && <div className="lg:col-span-2 rounded-2xl border border-cyan-300/15 bg-gradient-to-br from-cyan-400/[.07] to-transparent p-3"><button type="button" aria-expanded={accountExpanded} onClick={() => setAccountExpanded(!accountExpanded)} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 hover:bg-white/[.05]"><span>Client Account <span className="ml-2 text-xs font-normal text-slate-400">{account.payment_status}</span></span><span className="text-cyan-200">{accountExpanded ? "Hide details −" : "View account +"}</span></button>{accountExpanded && <div className="mt-3"><ClientAccountPanel clientId={String(c.id)} account={account} /></div>}</div>}
         </div>
       </div>
 
@@ -153,15 +155,21 @@ export function ClientFile({
         ))}
       </div>
 
-      <div className="sticky top-[72px] z-20 -mx-4 flex flex-wrap gap-2 border-y border-white/[.06] bg-[#08090D]/95 px-4 py-2 backdrop-blur lg:-mx-6 lg:px-6" data-testid="quick-actions">
-        <Link href={`/staff/client/${c.id}/edit`} aria-label="Edit Client" className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5">Correct Data</Link>
-        {quick.filter(([, , allowed]) => allowed).map(([p, label]) => (
-          <button key={p} type="button" onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
-            className={`rounded-xl border px-3 py-1.5 text-xs ${panel === p ? "border-indigo-400/50 bg-indigo-500/10 text-indigo-200" : "border-white/10 text-slate-300 hover:bg-white/5"}`}>
-            {label}
-          </button>
-        ))}
-        <Link href={`/staff/client/${c.id}/status-preview`} className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5" data-testid="open-status-page">Open Status Page</Link>
+      <div className="sticky top-[72px] z-20 -mx-4 rounded-2xl border border-white/10 bg-[#0b1424]/95 px-4 py-3 shadow-[0_12px_40px_rgba(0,0,0,.32)] backdrop-blur-xl lg:-mx-6 lg:px-6" data-testid="quick-actions">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[11px] font-semibold uppercase tracking-[.16em] text-slate-300">Client Commands</span>
+          <button type="button" onClick={() => setActionsExpanded(!actionsExpanded)} aria-expanded={actionsExpanded} aria-controls="client-command-sheet" className="rounded-xl border border-cyan-300/25 bg-gradient-to-b from-white/[.13] to-white/[.035] px-4 py-2 text-xs font-semibold text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,.2),0_5px_20px_rgba(0,0,0,.22)] transition hover:border-cyan-200/50 focus-visible:outline-2 focus-visible:outline-cyan-300">{actionsExpanded ? "Close commands −" : "All commands +"}</button>
+        </div>
+        <div id="client-command-sheet" className={`mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin] ${actionsExpanded ? "flex-wrap" : "flex-nowrap"}`}>
+          <Link href={`/staff/client/${c.id}/edit`} aria-label="Edit Client" className="shrink-0 rounded-xl border border-white/20 bg-gradient-to-b from-white/[.13] to-white/[.025] px-4 py-2.5 text-xs font-medium text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,.12)] transition hover:border-cyan-300/40 hover:bg-white/10">Correct Data</Link>
+          {quick.filter(([, , allowed]) => allowed).map(([p, label]) => (
+            <button key={p} type="button" onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
+              className={`shrink-0 rounded-xl border px-4 py-2.5 text-xs font-medium shadow-[inset_0_1px_0_rgba(255,255,255,.12),0_5px_18px_rgba(0,0,0,.15)] transition focus-visible:outline-2 focus-visible:outline-cyan-300 ${panel === p ? "border-cyan-300/60 bg-cyan-400/15 text-cyan-100" : "border-white/15 bg-gradient-to-b from-white/[.11] to-white/[.025] text-slate-200 hover:border-cyan-300/40 hover:bg-white/10"}`}>
+              {label}
+            </button>
+          ))}
+          <Link href={`/staff/client/${c.id}/status-preview`} className="shrink-0 rounded-xl border border-white/15 bg-gradient-to-b from-white/[.11] to-white/[.025] px-4 py-2.5 text-xs text-slate-200 hover:border-cyan-300/40" data-testid="open-status-page">Open Status Page</Link>
+        </div>
       </div>
 
       <div id="action-panel">
