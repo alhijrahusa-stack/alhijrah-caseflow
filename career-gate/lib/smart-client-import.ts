@@ -15,7 +15,7 @@ import {
 } from "@/lib/service";
 import { assessApproval } from "@/lib/smart-approval-readiness";
 import { uploadObject, removeObject } from "@/lib/storage";
-import { rowsFromImageOrPdf } from "@/lib/universal-intake";
+import { rowsFromImageOrPdf, rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
 import {
   IMPORT_SOURCE_TYPES,
   IMPORT_STATUSES,
@@ -293,7 +293,7 @@ function supportedMobileMime(file: File) {
   return ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(mime);
 }
 
-function canonicalEvidence(rows: { row: IntakeRow; source: string }[]) {
+function canonicalEvidence(rows: { row: IntakeRow; source: string; confidence?: Record<string, number> }[]) {
   const fields = [
     "full_name","phone","email","date_of_birth","preferred_language","english_proficiency","street","city","state","zip",
     "site_code","job_id","shift_code","shift_days","shift_start_time","shift_end_time","backup_site_code","backup_job_id","backup_shift_code",
@@ -303,15 +303,15 @@ function canonicalEvidence(rows: { row: IntakeRow; source: string }[]) {
   const conflicts: Record<string, unknown>[] = [];
   for (const field of fields) {
     const values = rows
-      .map((source) => ({ value: pickImportValue(source.row, field), source: source.source }))
-      .filter((item): item is { value: string; source: string } => Boolean(item.value));
+      .map((source) => ({ value: pickImportValue(source.row, field), source: source.source, confidence_score: source.confidence?.[field] ?? null }))
+      .filter((item): item is { value: string; source: string; confidence_score: number | null } => Boolean(item.value));
     const unique = [...new Map(values.map((item) => [item.value.trim().toLowerCase(), item])).values()];
     if (unique.length === 1) {
       merged[field] = unique[0].value;
-      evidence.push({ field_key: field, value: unique[0].value, source_type: unique[0].source, verification_state: "MATCHED", authority: "SOURCE" });
+      evidence.push({ field_key: field, value: unique[0].value, source_type: unique[0].source, verification_state: "MATCHED", authority: "SOURCE", confidence_score: unique[0].confidence_score });
     } else if (unique.length > 1) {
       conflicts.push({ field_key: field, values: unique, type: "SOURCE_CONFLICT" });
-      for (const item of unique) evidence.push({ field_key: field, value: item.value, source_type: item.source, verification_state: "CONFLICT", authority: "SOURCE" });
+      for (const item of unique) evidence.push({ field_key: field, value: item.value, source_type: item.source, verification_state: "CONFLICT", authority: "SOURCE", confidence_score: item.confidence_score });
     }
   }
   return { merged, evidence, conflicts };
@@ -364,8 +364,8 @@ export async function stageMobileImport(args: {
     if (!supportedMobileMime(file)) throw new ActionError("unsupported_file", "Mobile intake supports PDF, JPG, PNG and WebP", 415);
   }
 
-  const extracted: { row: IntakeRow; source: string; error?: string }[] = [];
-  const fileData: { file: File; bytes: Uint8Array; sha256: string; extractedRows: IntakeRow[]; extractionError: string | null }[] = [];
+  const extracted: { row: IntakeRow; source: string; confidence?: Record<string, number>; error?: string }[] = [];
+  const fileData: { file: File; bytes: Uint8Array; sha256: string; extractedRows: IntakeRow[]; confidence: Record<string, number>; extractionError: string | null }[] = [];
   if (notes) {
     try {
       const rows = await rowsFromImageOrPdf(new TextEncoder().encode(notes), "text/plain");
@@ -378,11 +378,17 @@ export async function stageMobileImport(args: {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     let rows: IntakeRow[] = [];
+    let confidence: Record<string, number> = {};
     let extractionError: string | null = null;
-    try { rows = await rowsFromImageOrPdf(bytes, file.type); }
-    catch (error) { extractionError = error instanceof Error ? error.message : "Extraction failed"; }
-    if (rows[0]) extracted.push({ row: rows[0], source: file.name || file.type });
-    fileData.push({ file, bytes, sha256, extractedRows: rows, extractionError });
+    try {
+      const detailed = await rowsFromImageOrPdfDetailed(bytes, file.type);
+      rows = detailed.map((item) => item.row);
+      confidence = { ...(detailed[0]?.confidence ?? {}) };
+    } catch (error) {
+      extractionError = error instanceof Error ? error.message : "Extraction failed";
+    }
+    if (rows[0]) extracted.push({ row: rows[0], source: file.name || file.type, confidence });
+    fileData.push({ file, bytes, sha256, extractedRows: rows, confidence, extractionError });
   }
 
   const merged = canonicalEvidence(extracted);
@@ -424,7 +430,12 @@ export async function stageMobileImport(args: {
       await sql()`
         insert into client_import_documents(import_case_id,storage_reference,original_filename,mime_type,size_bytes,sha256,detected_document_type,extraction_metadata,uploaded_by)
         values(${created.caseId},${path},${safeFilename(entry.file.name || "upload")},${entry.file.type},${entry.file.size},${entry.sha256},'other',
-          ${sql().json({ extracted_rows: entry.extractedRows.length, extraction_error: entry.extractionError } as never)},${args.session.staff.id})`;
+          ${sql().json({ extracted_rows: entry.extractedRows.length, confidence: entry.confidence, extraction_error: entry.extractionError } as never)},${args.session.staff.id})`;
+      await sql()`
+        insert into system_jobs(job_type,status,import_case_id,source_name,provider,confidence,result,error,created_by,completed_at)
+        values('smart_document_extraction',${entry.extractionError ? "FAILED" : "COMPLETED"},${created.caseId},${safeFilename(entry.file.name || "upload")},'gemini',
+          ${sql().json(entry.confidence as never)},${sql().json({ extracted_rows: entry.extractedRows.length, sha256: entry.sha256 } as never)},
+          ${entry.extractionError},${args.session.staff.id},now())`;
     }
   } catch (error) {
     for (const path of uploadedPaths) await removeObject(path).catch(() => undefined);
