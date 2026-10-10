@@ -59,7 +59,7 @@ export function Appointments({ appts, onAdd }: { appts: Row[]; onAdd: (() => voi
             <thead><tr><th>When</th><th>Type</th><th>With</th><th>Location</th><th>Status</th><th /></tr></thead>
             <tbody>
               {appts.map((x) => (
-                <tr key={x.id} data-testid="appointment-row">
+                <tr id={`appointment-${String(x.id)}`} key={x.id} data-testid="appointment-row" className="scroll-mt-28">
                   <td className="whitespace-nowrap">{dateTime(x.scheduled_at)}<span className="block text-xs text-slate-500">until {dateTime(x.ends_at).split(", ").pop()} · {x.timezone}</span></td>
                   <td>{x.appointment_type}{x.notes && <span className="block text-xs text-slate-500">{x.notes}</span>}</td>
                   <td>{x.resource_key === "office" ? "Office" : "Staff member"}</td>
@@ -121,7 +121,7 @@ export function Tasks({ tasks, onAdd }: { tasks: Row[]; onAdd: () => void }) {
             <thead><tr><th>Task</th><th>Assigned</th><th>Due</th><th>Status</th><th /></tr></thead>
             <tbody>
               {tasks.map((t) => (
-                <tr key={t.id} data-testid="task-row">
+                <tr id={`task-${String(t.id)}`} key={t.id} data-testid="task-row" className="scroll-mt-28">
                   <td>{t.title}{t.description && <span className="block text-xs text-slate-500">{t.description}</span>}</td>
                   <td>{t.assigned_to_name ?? "—"}</td>
                   <td className="whitespace-nowrap">{dateTime(t.due_at)}</td>
@@ -179,7 +179,7 @@ export function Followups({ followups, onAdd }: { followups: Row[]; onAdd: () =>
           <thead><tr><th>Due</th><th>Reason</th><th>Status</th><th /></tr></thead>
           <tbody>
             {followups.map((f) => (
-              <tr key={f.id} data-testid="followup-row">
+              <tr id={`followup-${String(f.id)}`} key={f.id} data-testid="followup-row" className="scroll-mt-28">
                 <td className="whitespace-nowrap">{dateOnly(f.due_date)}</td>
                 <td>{f.reason}{f.completion_note && <span className="block text-xs text-slate-500">{f.completion_note}</span>}</td>
                 <td data-testid="followup-status">{f.status}{f.completed_at && <span className="block text-xs text-slate-500">{f.completed_by_name} · {dateTime(f.completed_at)}</span>}</td>
