@@ -24,19 +24,19 @@ export type ClientNextAction = {
 export type NextActionSnapshot = {
   current_status: Status;
   next_step: string | null;
-  requirement_id: string | null;
+  requirement_id?: string | null;
   requirement_title: string | null;
   requirement_status: string | null;
-  document_id: string | null;
+  document_id?: string | null;
   document_name: string | null;
   document_status: string | null;
-  overdue_task_id: string | null;
+  overdue_task_id?: string | null;
   overdue_task_title: string | null;
   overdue_task_due_at: string | null;
-  overdue_followup_id: string | null;
+  overdue_followup_id?: string | null;
   overdue_followup_reason: string | null;
   overdue_followup_due_date: string | null;
-  next_appointment_id: string | null;
+  next_appointment_id?: string | null;
   next_appointment_at: string | null;
 };
 
