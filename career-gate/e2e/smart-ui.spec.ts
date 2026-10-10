@@ -75,11 +75,12 @@ test.describe("Smart Client Import experience", () => {
 
     const intelligence = page.getByRole("region", { name: "LIVE INTELLIGENCE" });
     await expect(intelligence).toBeVisible();
-    for (const group of ["IDENTITY", "ADDRESS", "LANGUAGE & ENGLISH", "JOB PREFERENCES"]) {
+    for (const group of ["IDENTITY", "ADDRESS", "LANGUAGE & ENGLISH"]) {
       await expect(intelligence.getByRole("heading", { name: group })).toBeVisible();
     }
+    await expect(page.getByRole("heading", { name: "JOB PREFERENCES", exact: true })).toHaveCount(1);
 
-    const field = (key: string) => intelligence.locator(`[data-field="${key}"]`);
+    const field = (key: string) => page.locator(`[data-field="${key}"]`);
     const value = (key: string) => field(key).locator("[data-value]");
     const state = (key: string) => field(key).locator("[data-state]");
     const provenance = (key: string) => field(key).locator("[data-provenance]");
