@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAction } from "@/components/forms/useAction";
+import { QuickDate, QuickDateTime } from "@/components/staff/QuickDate";
 import { StaffPicker } from "@/components/staff/StaffPicker";
 import { useStaff } from "@/components/staff/StaffContext";
 import { Button } from "@/components/ui/Button";
@@ -141,7 +142,7 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label" htmlFor="appt_when">Or a specific date &amp; time (Michigan time)</label>
-            <input id="appt_when" type="datetime-local" className="input" value={when} onChange={(e) => setWhen(e.target.value)} />
+            <QuickDateTime ariaLabel="Appointment date and time" value={when} onChange={setWhen} />
           </div>
           <div>
             <label className="label" htmlFor="appt_location">Location</label>
@@ -187,7 +188,7 @@ export function TaskForm({ clientId, onDone }: { clientId: string | null; onDone
           </div>
           <div>
             <label className="label" htmlFor="task_due">Due</label>
-            <input id="task_due" type="datetime-local" className="input" value={due} onChange={(e) => setDue(e.target.value)} />
+            <QuickDateTime ariaLabel="Task due date and time" value={due} onChange={setDue} />
           </div>
         </div>
       </Shell>
@@ -216,7 +217,7 @@ export function ContactedForm({ clientId, onDone }: FormProps) {
           </div>
           <div>
             <label className="label" htmlFor="contact_followup">Follow-up date (optional)</label>
-            <input id="contact_followup" type="date" min={todayInOffice()} className="input" value={followup} onChange={(e) => setFollowup(e.target.value)} />
+            <QuickDate ariaLabel="Contact follow-up date" min={todayInOffice()} value={followup} onChange={setFollowup} />
           </div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor="contact_result">Result</label>
@@ -242,7 +243,7 @@ export function FollowupForm({ clientId, onDone }: FormProps) {
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <label className="label" htmlFor="fu_due">Due date</label>
-            <input id="fu_due" type="date" required className="input" value={due} onChange={(e) => setDue(e.target.value)} />
+            <QuickDate ariaLabel="Follow-up due date" value={due} onChange={setDue} required />
           </div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor="fu_reason">Reason</label>
