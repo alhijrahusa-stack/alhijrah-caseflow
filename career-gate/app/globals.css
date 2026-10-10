@@ -1419,3 +1419,11 @@ code, kbd, pre, .font-mono {
     text-align: left;
   }
 }
+
+/* Client status progression: GPU-friendly illumination, reduced-motion safe. */
+@keyframes cg-timeline-flow { 0% { transform: translateY(-100%); opacity: 0; } 20% { opacity: .9; } 80% { opacity: .9; } 100% { transform: translateY(100%); opacity: 0; } }
+@keyframes cg-timeline-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(103,232,249,.35), 0 0 12px rgba(103,232,249,.55); } 50% { box-shadow: 0 0 0 9px rgba(103,232,249,0), 0 0 23px rgba(103,232,249,.75); } }
+.living-timeline { overflow: hidden; }
+.living-timeline-beam { animation: cg-timeline-flow 3s ease-in-out infinite; transform-origin: center; }
+.living-timeline-current { animation: cg-timeline-pulse 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .living-timeline-beam, .living-timeline-current { animation: none !important; } }
