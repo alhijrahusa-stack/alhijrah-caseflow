@@ -86,7 +86,7 @@ export function ClientAccountPanel({ clientId, account }: { clientId: string; ac
             </span>
             <strong className="text-[15px] text-slate-100" data-testid="account-net-fee">{formatMoney(account.net_fee)}</strong>
             {account.amount_paid_visible && (
-              <span className="text-[11px] text-slate-500" data-testid="account-balance">Outstanding {formatMoney(account.balance)}</span>
+              <span className="text-[11px] text-slate-500">Outstanding <strong className="inline font-medium text-slate-300" data-testid="account-balance">{formatMoney(account.balance)}</strong></span>
             )}
           </div>
         </div>
@@ -115,7 +115,7 @@ export function ClientAccountPanel({ clientId, account }: { clientId: string; ac
         <Figure label="Original" value={formatMoney(account.fee_amount)} testId="account-fee" />
         <Figure label="Net" value={formatMoney(account.net_fee)} testId="account-net-fee-figure" />
         {account.amount_paid_visible && <Figure label="Paid" value={formatMoney(account.amount_paid)} testId="account-amount-paid" />}
-        <Figure label="Application" value={completion ? "Completed" : "Open"} testId="account-application" />
+        <Figure label="Application" value={completion ?? "Open"} testId="account-application" />
       </div>
 
       <div id="client-account-details" className="cg-account-details" hidden={!expanded}>
