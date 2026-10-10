@@ -60,6 +60,25 @@ test.describe.serial("office workflow", () => {
     await page.getByRole("button", { name: "Profile", exact: true }).click();
   });
 
+  test("client command layer and timeline remain operational on mobile", async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: "Profile", exact: true }).click();
+    await expect(page.getByTestId("quick-actions")).toBeVisible();
+    await expect(page.getByRole("button", { name: "All commands +" })).toBeVisible();
+    await page.getByRole("button", { name: "All commands +" }).click();
+    await expect(page.getByTestId("quick-actions").getByRole("button", { name: "Add Document" })).toBeVisible();
+    await expect(page.getByTestId("status-timeline")).toBeVisible();
+    const box = await page.getByTestId("status-timeline").boundingBox();
+    expect(box).toBeTruthy();
+    expect(box!.width).toBeLessThanOrEqual(390);
+    const accountToggle = page.getByRole("button", { name: /Client Account/ });
+    await expect(accountToggle).toBeVisible();
+    await expect(accountToggle).toHaveAttribute("aria-expanded", "false");
+    await accountToggle.click();
+    await expect(accountToggle).toHaveAttribute("aria-expanded", "true");
+    await page.setViewportSize({ width: 1280, height: 900 });
+  });
+
   test("inline editing saves only on server success and rolls back on failure", async () => {
     await page.getByTestId("inline-appointment_availability").click();
     await page.getByTestId("inline-edit-appointment_availability").getByLabel("Appointment availability").fill("Mornings only");
