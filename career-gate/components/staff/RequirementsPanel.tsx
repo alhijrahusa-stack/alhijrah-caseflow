@@ -35,7 +35,7 @@ function RequirementRow({ row }: { row: Row }) {
   }
 
   return (
-    <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3" data-testid="requirement-row">
+    <div id={`requirement-${String(row.id)}`} className="scroll-mt-28 rounded-xl border border-white/[.06] bg-white/[.02] p-3" data-testid="requirement-row">
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-slate-200">{String(row.title)}</strong><code className="text-[9px] text-slate-600">{String(row.requirement_key)}</code></div>
