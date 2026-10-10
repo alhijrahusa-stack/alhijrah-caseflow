@@ -193,7 +193,9 @@ test.describe.serial("office workflow", () => {
     await page.getByTestId("form-status").getByRole("button", { name: "Save status" }).click();
     await expect(page.getByTestId("current-status")).toContainText("Ready to Apply");
     await expect(page.getByTestId("status-timeline")).toContainText("New Intake");
-    await expect(page.getByTestId("status-timeline")).toContainText("Application in Progress (possible next)");
+    const timeline = page.getByTestId("status-timeline");
+    await expect(timeline).toContainText("Application in Progress");
+    await expect(timeline.getByText("POSSIBLE NEXT", { exact: true }).last()).toBeVisible();
 
     await page.getByTestId("quick-actions").getByRole("button", { name: "Set Next Step" }).click();
     await page.getByTestId("form-next-step").getByLabel(/Next step \(shown/).fill(`Bring two IDs ${RUN}`);
