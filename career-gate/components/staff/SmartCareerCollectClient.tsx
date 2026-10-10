@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ClientIntakeLinkPanel } from "@/components/staff/ClientIntakeLinkPanel";
 import { useStaff } from "@/components/staff/StaffContext";
 import { DigitalHandshake, useDigitalHandshake } from "@/components/staff/smart/DigitalHandshake";
 import {
@@ -383,7 +382,15 @@ export function SmartCareerCollectClient() {
       <div className="flex flex-wrap items-center gap-2 border-t border-white/[.07] pt-4"><Link className="ops-primary-button min-h-11" href={mobilePath}>OPEN MOBILE FORM</Link><button className="ops-secondary-button min-h-11" type="button" onClick={copyMobileLink}>COPY LINK</button><button className="ops-secondary-button min-h-11" type="button" aria-expanded={showQr} onClick={() => setShowQr((value) => !value)}>QR</button></div>
       {showQr && <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-black/10 p-4"><img className="h-40 w-40 rounded-xl bg-white p-2" src="/api/staff/smart-client-import/qr" alt="Smart Client Import QR" /><div><strong className="text-slate-100">Secure mobile intake</strong><p className="mt-1 text-xs text-slate-500">Authenticated staff session required.</p></div></div>}
 
-      <ClientIntakeLinkPanel />
+      <div className="rounded-2xl border border-[#e3c884]/20 bg-gradient-to-b from-[#e3c884]/[.055] to-transparent p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-bold tracking-[.18em] text-[#e3c884]">CLIENT SELF-INTAKE</p>
+            <p className="mt-1 text-[13px] text-slate-400">One canonical one-time client link. Generate and manage it from the intake surface.</p>
+          </div>
+          <Link className="ops-secondary-button min-h-11" href="/staff/smart-client-import/new#client-self-intake">MANAGE CLIENT LINK</Link>
+        </div>
+      </div>
     </section>}
 
     <section className="ops-glass-card space-y-4">
