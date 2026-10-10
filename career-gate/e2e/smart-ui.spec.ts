@@ -86,7 +86,7 @@ test.describe("Smart Client Import experience", () => {
     const provenance = (key: string) => field(key).locator("[data-provenance]");
     const authority = (key: string) => field(key).locator("[data-authority]");
 
-    // Every canonical field is present exactly once across the unified Client Intelligence + Job Preferences surfaces.
+    // Every canonical Client field is present exactly once across the unified Client Intelligence + Job Preferences surfaces.
     for (const key of ["full_name","phone","email","date_of_birth","street","city","state","zip","preferred_language","english_proficiency","preferred_location","location_option_1","location_option_2","shift_days","shift_start_time","shift_end_time"]) {
       await expect(field(key)).toHaveCount(1);
     }
