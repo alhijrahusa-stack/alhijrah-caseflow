@@ -55,7 +55,7 @@ export function QuickDate({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-1.5" aria-label={`${ariaLabel} quick choices`}>
+      <div className="flex flex-wrap gap-1.5" aria-label="Quick date shortcuts">
         {presets.map(([label, date]) => (
           <button key={label} type="button" disabled={disabled || Boolean(min && date < min)} className={chip}
             onClick={() => onChange(date)}>
@@ -105,7 +105,7 @@ export function QuickDateTime({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-1.5" aria-label={`${ariaLabel} quick choices`}>
+      <div className="flex flex-wrap gap-1.5" aria-label="Quick date/time shortcuts">
         {presets.map(([label, resolve]) => (
           <button key={label} type="button" disabled={disabled} className={chip} onClick={() => onChange(resolve())}>
             {label}
