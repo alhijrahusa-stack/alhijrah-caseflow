@@ -1,3 +1,11 @@
+/* Action panels sit above the client content while controls such as StaffPicker are open.
+   The top application chrome stays above them at z-index 50. */
+#action-panel {
+  position: relative;
+  z-index: 35;
+  isolation: isolate;
+}
+
 /* Client-file action overlays must remain above later glass/blur stacking contexts. */
 [data-testid="form-assign"] {
   position: relative;
