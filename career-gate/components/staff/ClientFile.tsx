@@ -18,7 +18,7 @@ import { Card } from "@/components/staff/sections/common";
 import { Documents } from "@/components/staff/sections/Documents";
 import { Activity, Alerts, Assessments, IntakeAgent, Messages } from "@/components/staff/sections/Insight";
 import { AmazonHistory, ClientInfo, EmploymentHistory, Preferences } from "@/components/staff/sections/Profile";
-import { Appointments, Contacts, Followups, Notes, PostHire, Tasks } from "@/components/staff/sections/Work";
+import { Appointments, Contacts, Followups, Notes, Tasks } from "@/components/staff/sections/Work";
 import type { ClientAccountSummary } from "@/lib/client-account";
 import type { Status } from "@/lib/domain";
 
@@ -183,7 +183,6 @@ export function ClientFile({
           <div className="space-y-4 xl:col-span-2">
             <Card title="Status Timeline" id="status-timeline"><StatusTimeline created={{ at: c.created_at, status: createdStatus }} events={statusEvents} current={c.current_status} /></Card>
             <EmploymentHistory rows={data.employment} editHref={`/staff/client/${c.id}/edit`} />
-            <PostHire clientId={c.id} items={data.postHire} startDate={c.start_date} />
           </div>
           <div className="space-y-4"><ClientInfo c={c} authorization={data.authorization} /><AmazonHistory c={c} /></div>
         </div>
