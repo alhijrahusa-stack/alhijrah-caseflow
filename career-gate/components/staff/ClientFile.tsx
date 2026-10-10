@@ -67,6 +67,7 @@ export function ClientFile({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [panel, setPanel] = useState<Panel | null>(initialPanel);
+  const [accountExpanded, setAccountExpanded] = useState(false);
 
   const urlTab = searchParams.get("tab");
   const tab: ClientTab = validTab(urlTab)
@@ -133,35 +134,64 @@ export function ClientFile({
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-4">
-      <div className="staff-glass-strong rounded-2xl p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/[.055] text-sm font-semibold text-slate-200">{String(c.full_name).trim().slice(0, 1).toUpperCase()}</div>
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold" data-testid="client-name">{c.full_name}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs text-slate-500" data-testid="client-ref">{c.ref}</span>
-              <StatusBadge status={c.current_status} />
-              <span className="rounded-full border border-indigo-400/20 bg-indigo-400/[.07] px-2 py-1 text-[9px] capitalize text-indigo-200">{pipelineLabel(c.pipeline_stage)}</span>
-              {account?.payment_status === "paid" && <span className="rounded-full border border-emerald-400/25 bg-emerald-400/[.08] px-2 py-1 text-[9px] font-semibold text-emerald-300">Paid · ${account.net_fee.toFixed(2)}</span>}
+      <section className="cg-client-hero" aria-labelledby="client-name-heading">
+        <div className="cg-client-hero-aura" aria-hidden="true" />
+        <div className="cg-client-identity">
+          <div className="cg-client-avatar" aria-hidden="true">{String(c.full_name).trim().slice(0, 1).toUpperCase()}</div>
+          <div className="min-w-0 flex-1">
+            <div className="cg-client-identity-line">
+              <p className="cg-client-kicker">CLIENT 360 · COMMAND CENTER</p>
+              <span className="cg-live-client"><span aria-hidden="true" /> Live Client</span>
             </div>
+            <h1 id="client-name-heading" className="cg-client-name" data-testid="client-name">{c.full_name}</h1>
+            <div className="cg-client-meta">
+              <span className="cg-client-ref" data-testid="client-ref">{c.ref}</span>
+              <StatusBadge status={c.current_status} />
+              <span className="cg-client-pipeline">{pipelineLabel(c.pipeline_stage)}</span>
+              {account?.payment_status === "paid" && <span className="cg-client-paid">Paid · ${account.net_fee.toFixed(2)}</span>}
+            </div>
+            <p className="cg-client-handler">Handled by: <strong data-testid="assigned-name">{c.assigned_name ?? "Unassigned"}</strong></p>
           </div>
-          <span className="text-xs text-slate-500">Handled by: <span data-testid="assigned-name">{c.assigned_name ?? "Unassigned"}</span></span>
-          {c.deleted_at && <span className="rounded bg-red-950/50 px-2 py-1 text-xs text-red-300">Deleted: {c.delete_reason}</span>}
-          <span className="ml-auto"><RealtimeRefresher clientId={c.id} /></span>
+          <div className="cg-client-live-slot"><RealtimeRefresher clientId={c.id} /></div>
         </div>
 
-        <div className={`mt-4 grid gap-4 ${account ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
-          <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
-            <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Current Status</p>
-            <div className="mt-2" data-testid="current-status"><StatusBadge status={c.current_status} /></div>
-          </div>
-          <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
-            <p className="text-[10px] uppercase tracking-[.14em] text-slate-600">Next Step</p>
-            <div className="mt-1 text-sm" data-testid="next-step"><InlineField clientId={c.id} field="next_step" label="Next step" value={c.next_step} /></div>
-          </div>
-          {account && <ClientAccountPanel clientId={String(c.id)} account={account} />}
+        {c.deleted_at && <div className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[.06] px-3 py-2 text-xs text-red-200">Deleted: {c.delete_reason}</div>}
+
+        <div className="cg-client-command-grid">
+          <article className="cg-client-command-card">
+            <div className="cg-command-card-icon" aria-hidden="true">◈</div>
+            <div>
+              <p className="cg-command-card-label">Current Status</p>
+              <div className="mt-2" data-testid="current-status"><StatusBadge status={c.current_status} /></div>
+            </div>
+          </article>
+          <article className="cg-client-command-card cg-client-command-card-primary">
+            <div className="cg-command-card-icon" aria-hidden="true">↗</div>
+            <div className="min-w-0">
+              <p className="cg-command-card-label">Next Step</p>
+              <div className="mt-1 text-sm font-medium text-slate-100" data-testid="next-step"><InlineField clientId={c.id} field="next_step" label="Next step" value={c.next_step} /></div>
+            </div>
+          </article>
+          {account && (
+            <article className="cg-client-account-summary">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="cg-command-card-label">Client Account</p>
+                  <div className="mt-2 flex flex-wrap items-baseline gap-2">
+                    <span className="cg-account-status">{account.payment_status}</span>
+                    <strong className="text-lg text-slate-50">${account.net_fee.toFixed(2)}</strong>
+                    <span className="text-[11px] text-slate-400">Outstanding ${account.outstanding.toFixed(2)}</span>
+                  </div>
+                </div>
+                <button type="button" className="cg-account-toggle" aria-expanded={accountExpanded} onClick={() => setAccountExpanded((value) => !value)}>
+                  {accountExpanded ? "Hide" : "View"}
+                </button>
+              </div>
+              {accountExpanded && <div className="mt-3"><ClientAccountPanel clientId={String(c.id)} account={account} /></div>}
+            </article>
+          )}
         </div>
-      </div>
+      </section>
 
       <div className="cg-profile-tabs" aria-label="Client file sections">
         {tabs.map((item) => (
