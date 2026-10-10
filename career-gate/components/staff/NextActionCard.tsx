@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ClientNextAction } from "@/lib/next-action";
 
 const tone = {
@@ -19,7 +20,12 @@ export function NextActionCard({ action }: { action: ClientNextAction }) {
         <div className="flex gap-2 text-xs font-semibold uppercase tracking-wide">
           <span className="rounded-full border border-white/10 bg-black/10 px-3 py-1">Owner · {action.action_owner}</span>
           <span className="rounded-full border border-white/10 bg-black/10 px-3 py-1">{action.urgency}</span>
-        </div>
+                {action.target && (
+          <Link href={`?tab=${action.target.tab}#${action.target.anchor}`}
+            className="rounded-xl border border-white/15 bg-white/[.06] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[.11] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40">
+            {action.target.label}
+          </Link>
+        )}
       </div>
       {(action.due_at || action.blockers.length > 0) && (
         <div className="mt-4 grid gap-3 md:grid-cols-2">
