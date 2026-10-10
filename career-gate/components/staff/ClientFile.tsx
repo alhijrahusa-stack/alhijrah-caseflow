@@ -87,7 +87,7 @@ export function ClientFile({
   const openPanel = (p: Panel) => () => {
     replaceTab(panelTab[p]);
     setPanel(p);
-    setTimeout(() => document.getElementById("action-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    setTimeout(() => document.getElementById("action-panel")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
   };
 
   const quick: [Panel, string, boolean][] = [
@@ -187,7 +187,7 @@ export function ClientFile({
         </div>
       </div>
 
-      <div id="action-panel">
+      <div id="action-panel" className="relative z-40 scroll-mt-40">
         {panel === "document" && <DocumentForm clientId={c.id} onDone={close} />}
         {panel === "appointment" && <AppointmentForm clientId={c.id} onDone={close} />}
         {panel === "note" && <AddNoteForm clientId={c.id} onDone={close} />}
