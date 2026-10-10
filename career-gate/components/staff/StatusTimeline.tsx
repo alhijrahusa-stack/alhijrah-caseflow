@@ -57,6 +57,7 @@ export function StatusTimeline({ created, events, current }: {
   const containerRef = useRef<HTMLOListElement>(null);
   const nodeRefs = useRef(new Map<string, HTMLSpanElement>());
   const [points, setPoints] = useState<Point[]>([]);
+  const [bounds, setBounds] = useState({ width: 1, height: 1 });
   const [reducedMotion, setReducedMotion] = useState(false);
 
   const items = useMemo<TimelineItem[]>(() => {
@@ -118,6 +119,7 @@ export function StatusTimeline({ created, events, current }: {
         return { x, y, color: statusColor(item.status), offset };
       }).filter((point): point is Point => Boolean(point));
       setPoints(next);
+      setBounds({ width: Math.max(1, container.clientWidth), height: Math.max(1, container.scrollHeight) });
     };
 
     measure();
@@ -132,8 +134,7 @@ export function StatusTimeline({ created, events, current }: {
   }, [items]);
 
   const path = buildPath(points);
-  const height = Math.max(1, containerRef.current?.scrollHeight ?? 1);
-  const width = Math.max(1, containerRef.current?.clientWidth ?? 1);
+  const { width, height } = bounds;
 
   return (
     <ol ref={containerRef} className="cg-living-timeline" data-testid="status-timeline" aria-label="Client status timeline">
