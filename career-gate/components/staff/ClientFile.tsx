@@ -14,7 +14,6 @@ import { StatusBadge } from "@/components/staff/StatusBadge";
 import { SoftDelete } from "@/components/staff/SoftDelete";
 import { StatusTimeline } from "@/components/staff/StatusTimeline";
 import type { Row } from "@/components/staff/sections/common";
-import { Card } from "@/components/staff/sections/common";
 import { Documents } from "@/components/staff/sections/Documents";
 import { Activity, Alerts, Assessments, IntakeAgent, Messages } from "@/components/staff/sections/Insight";
 import { AmazonHistory, ClientInfo, EmploymentHistory, Preferences } from "@/components/staff/sections/Profile";
