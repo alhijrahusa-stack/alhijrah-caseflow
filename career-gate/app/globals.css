@@ -2096,3 +2096,9 @@ code, kbd, pre, .font-mono {
     animation: none !important;
   }
 }
+
+
+/* Timeline is presentational: it must never cover an operational form or picker. */
+.cg-living-timeline {
+  pointer-events: none;
+}
