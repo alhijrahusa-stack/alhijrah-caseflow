@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { QuickDate, QuickDateTime } from "@/components/staff/QuickDate";
 import { useStaff } from "@/components/staff/StaffContext";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
@@ -36,7 +37,7 @@ export function AppointmentRowActions({ appt }: { appt: Row }) {
           const ok = await a.go({ action: "update_appointment", appointment_id: appt.id, scheduled_at: fromLocalInput(when).toISOString(), location: location || null, notes: notes || null });
           if (ok) setEditing(false);
         }}>
-          <input aria-label="New date and time" type="datetime-local" className="input py-1" value={when} onChange={(e) => setWhen(e.target.value)} required />
+          <QuickDateTime ariaLabel="New date and time" value={when} onChange={setWhen} required />
           <input aria-label="Location" className="input py-1" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
           <input aria-label="Notes" className="input py-1" placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           <SmallBtn type="submit" disabled={a.pending}>Save changes</SmallBtn>
@@ -207,7 +208,7 @@ function PostHireRow({ clientId, item, row, startDate, canEdit }: { clientId: st
         </select>
       </td>
       <td className="space-y-1">
-        {item === "start_date" && <input aria-label="Start date" type="date" className="input py-1" value={date} disabled={!canEdit} onChange={(e) => setDate(e.target.value)} />}
+        {item === "start_date" && <QuickDate ariaLabel="Start date" value={date} onChange={setDate} disabled={!canEdit} />}
         <input aria-label={`${POST_HIRE_LABELS[item]} note`} className="input py-1" placeholder="What is confirmed, by whom" value={note} disabled={!canEdit} onChange={(e) => setNote(e.target.value)} />
       </td>
       <td className="text-xs text-slate-500">{row ? `${row.staff_name ?? "—"} · ${dateTime(row.updated_at)}` : "—"}</td>
@@ -223,11 +224,11 @@ function PostHireRow({ clientId, item, row, startDate, canEdit }: { clientId: st
   );
 }
 
-export function PostHire({ clientId, items, startDate }: { clientId: string; items: Row[]; startDate: string | null }) {
+export function PostHire({ clientId, items, startDate, embedded = false }: { clientId: string; items: Row[]; startDate: string | null; embedded?: boolean }) {
   const { isManager } = useStaff();
   const byItem = new Map(items.map((r) => [r.item, r]));
-  return (
-    <Card title="Post-Hire Tasks" id="post-hire">
+  const content = (
+    <>
       <p className="mb-2 text-xs text-slate-500">Record only what the client or employer actually confirmed. Nothing here is inferred.</p>
       <div className="overflow-x-auto">
         <table className="table">
@@ -239,6 +240,8 @@ export function PostHire({ clientId, items, startDate }: { clientId: string; ite
           </tbody>
         </table>
       </div>
-    </Card>
+    </>
   );
+  if (embedded) return <div id="post-hire">{content}</div>;
+  return <Card title="Post-Hire Tasks" id="post-hire">{content}</Card>;
 }
