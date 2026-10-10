@@ -221,11 +221,37 @@ function PostHireRow({ clientId, item, row, startDate, canEdit }: { clientId: st
           <button className="cg-workflow-save" type="button" disabled={a.pending} onClick={() => a.go({
             action: "update_post_hire", client_id: clientId, item, status, note: note || null,
             ...(item === "start_date" ? { start_date: date || null } : {}),
-          })}>{a.pending ? "Saving…" : "Save changes"}</button>
+          })}>{a.pending ? "Saving…" : "Save"}</button>
         )}
       </div>
     </article>
   );
 }
 
-export function PostHire({ clientId, items, startDate, embedded = false }
+export function PostHire({ clientId, items, startDate, embedded = false }: { clientId: string; items: Row[]; startDate: string | null; embedded?: boolean }) {
+  const { isManager } = useStaff();
+  const byItem = new Map(items.map((r) => [r.item, r]));
+  const completed = POST_HIRE_ITEMS.filter((item) => byItem.get(item)?.status === "completed").length;
+  const percent = POST_HIRE_ITEMS.length ? Math.round((completed / POST_HIRE_ITEMS.length) * 100) : 0;
+  const content = (
+    <div className="cg-workflow-matrix">
+      <div className="cg-workflow-telemetry">
+        <div>
+          <p className="cg-workflow-kicker">EXECUTIVE WORKFLOW MATRIX</p>
+          <p className="mt-1 text-xs text-slate-400">Record only verified confirmations. Nothing is inferred.</p>
+        </div>
+        <div className="cg-workflow-progress">
+          <div className="cg-workflow-progress-copy"><strong>{percent}%</strong><span>{completed}/{POST_HIRE_ITEMS.length} complete</span></div>
+          <div className="cg-workflow-progress-track" aria-label={`${percent}% complete`}><span style={{ width: `${percent}%` }} /></div>
+        </div>
+      </div>
+      <div className="cg-workflow-pods">
+        {POST_HIRE_ITEMS.map((item) => (
+          <PostHireRow key={`${item}-${byItem.get(item)?.updated_at ?? ""}-${startDate ?? ""}`} clientId={clientId} item={item} row={byItem.get(item)} startDate={startDate} canEdit={isManager} />
+        ))}
+      </div>
+    </div>
+  );
+  if (embedded) return <div id="post-hire">{content}</div>;
+  return <Card title="Post-Hire Tasks" id="post-hire">{content}</Card>;
+}
