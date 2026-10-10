@@ -184,6 +184,8 @@ test.describe("Smart Career Collect Client", () => {
     await page.goto("/staff/smart-client-import/new");
     const audio = page.getByRole("button", { name: /Turn audio on/ });
     await expect(audio).toBeVisible();
+    await expect(page.getByText("JOB PREFERENCES", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("English Proficiency", { exact: true })).toHaveCount(1);
     await expect(audio).toHaveAttribute("aria-pressed", "false");
     await audio.click();
     await expect(page.getByRole("button", { name: /Turn audio off/ })).toHaveAttribute("aria-pressed", "true");
