@@ -431,6 +431,11 @@ export async function stageMobileImport(args: {
         insert into client_import_documents(import_case_id,storage_reference,original_filename,mime_type,size_bytes,sha256,detected_document_type,extraction_metadata,uploaded_by)
         values(${created.caseId},${path},${safeFilename(entry.file.name || "upload")},${entry.file.type},${entry.file.size},${entry.sha256},'other',
           ${sql().json({ extracted_rows: entry.extractedRows.length, confidence: entry.confidence, extraction_error: entry.extractionError } as never)},${args.session.staff.id})`;
+      await sql()`
+        insert into system_jobs(job_type,status,import_case_id,source_name,provider,confidence,result,error,created_by,completed_at)
+        values('smart_document_extraction',${entry.extractionError ? "FAILED" : "COMPLETED"},${created.caseId},${safeFilename(entry.file.name || "upload")},'gemini',
+          ${sql().json(entry.confidence as never)},${sql().json({ extracted_rows: entry.extractedRows.length, sha256: entry.sha256 } as never)},
+          ${entry.extractionError},${args.session.staff.id},now())`;
     }
   } catch (error) {
     for (const path of uploadedPaths) await removeObject(path).catch(() => undefined);
