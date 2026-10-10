@@ -89,7 +89,7 @@ export function Documents({ docs, extractions, onAdd }: { docs: Row[]; extractio
             const ex = extractions.find((e) => e.document_id === d.id);
             const advisories = ((d.quality?.advisories as string[]) ?? []).join(", ");
             return (
-              <article key={d.id} className="flex gap-3 rounded-md border border-slate-200 p-3" data-testid="document-row">
+              <article id={`document-${String(d.id)}`} key={d.id} className="scroll-mt-28 flex gap-3 rounded-md border border-slate-200 p-3" data-testid="document-row">
                 <div className="h-24 w-20 shrink-0 overflow-hidden rounded bg-slate-100">
                   {d.has_thumbnail ? (
                     // eslint-disable-next-line @next/next/no-img-element
