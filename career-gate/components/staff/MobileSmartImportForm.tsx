@@ -85,9 +85,8 @@ const STATUS_TONE: Record<TelemetryStatus, string> = {
 
 /** Captured job preferences and English proficiency, in contract order. */
 const JOB_PREFERENCE_FIELDS: readonly SmartField[] = SMART_FIELD_GROUPS
-  .filter((group) => group.title === "JOB PREFERENCES" || group.title === "LANGUAGE & ENGLISH")
-  .flatMap((group) => group.fields)
-  .filter((field) => field.key !== "preferred_language");
+  .filter((group) => group.title === "JOB PREFERENCES")
+  .flatMap((group) => group.fields);
 
 /** Level 2 depth: a major functional panel. */
 const PANEL =
@@ -498,7 +497,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                 path that persists a reviewed value, so nothing here is UI-only. */}
             <section className={`${PANEL} p-4 sm:p-5 xl:order-none`} aria-labelledby="smart-job-preferences">
               <PanelTitle id="smart-job-preferences" number="03" title="JOB PREFERENCES" meta={serverDraft ? "SERVER AUTHORITATIVE" : "AS CAPTURED"} />
-              <p className="mt-2 text-xs leading-5 text-slate-400">Captured job preferences and English proficiency. Edit them with manual authority in Smart Review after the file is staged.</p>
+              <p className="mt-2 text-xs leading-5 text-slate-400">Captured job preferences. Language and English proficiency appear once in Client Intelligence, matching the canonical Client profile.</p>
               <div className="mt-3">
                 <IntelligenceList fields={JOB_PREFERENCE_FIELDS} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} />
               </div>
@@ -511,7 +510,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
               <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/45 to-transparent" />
               <PanelTitle id="smart-live-intelligence" number="04" title="LIVE INTELLIGENCE" meta={serverDraft ? "SERVER AUTHORITATIVE" : sourceSettling ? "READING SOURCE" : "LOCAL INTERPRETATION"} tone="cyan" />
               <div className="mt-3 space-y-4">
-                {SMART_FIELD_GROUPS.map((group) => (
+                {SMART_FIELD_GROUPS.filter((group) => group.title !== "JOB PREFERENCES").map((group) => (
                   <div key={group.title}>
                     <div className="mb-1.5 flex items-center gap-2">
                       <h3 className="text-[12px] font-semibold tracking-[.16em] text-[#e3c884]">{group.title}</h3>
