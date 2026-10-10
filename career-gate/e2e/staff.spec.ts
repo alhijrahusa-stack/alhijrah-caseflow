@@ -60,6 +60,20 @@ test.describe.serial("office workflow", () => {
     await page.getByRole("button", { name: "Profile", exact: true }).click();
   });
 
+  test("Client 360 executive surface remains usable on mobile", async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/staff/client/${clientId}?tab=profile`);
+    await expect(page.getByTestId("client-hero")).toBeVisible();
+    await expect(page.getByTestId("client-name")).toBeVisible();
+    const hero = await page.getByTestId("client-hero").boundingBox();
+    expect(hero).not.toBeNull();
+    expect(hero!.x).toBeGreaterThanOrEqual(0);
+    expect(hero!.x + hero!.width).toBeLessThanOrEqual(391);
+    await expect(page.getByTestId("quick-actions")).toBeVisible();
+    await expect(page.locator(".cg-profile-info-grid").first()).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 900 });
+  });
+
   test("inline editing saves only on server success and rolls back on failure", async () => {
     await page.getByTestId("inline-appointment_availability").click();
     await page.getByTestId("inline-edit-appointment_availability").getByLabel("Appointment availability").fill("Mornings only");
