@@ -304,7 +304,7 @@ function canonicalEvidence(rows: { row: IntakeRow; source: string; confidence?: 
   for (const field of fields) {
     const values = rows
       .map((source) => ({ value: pickImportValue(source.row, field), source: source.source, confidence_score: source.confidence?.[field] ?? null }))
-      .filter((item): item is { value: string; source: string } => Boolean(item.value));
+      .filter((item): item is { value: string; source: string; confidence_score: number | null } => Boolean(item.value));
     const unique = [...new Map(values.map((item) => [item.value.trim().toLowerCase(), item])).values()];
     if (unique.length === 1) {
       merged[field] = unique[0].value;
