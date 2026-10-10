@@ -180,7 +180,7 @@ export function ClientFile({
                   <div className="mt-2 flex flex-wrap items-baseline gap-2">
                     <span className="cg-account-status">{account.payment_status}</span>
                     <strong className="text-lg text-slate-50">${account.net_fee.toFixed(2)}</strong>
-                    <span className="text-[11px] text-slate-400">Outstanding ${account.outstanding.toFixed(2)}</span>
+                    <span className="text-[11px] text-slate-400">Outstanding ${account.balance.toFixed(2)}</span>
                   </div>
                 </div>
                 <button type="button" className="cg-account-toggle" aria-expanded={accountExpanded} onClick={() => setAccountExpanded((value) => !value)}>
