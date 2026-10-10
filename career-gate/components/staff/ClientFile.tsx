@@ -134,7 +134,7 @@ export function ClientFile({
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-4">
-      <section className="cg-client-hero" aria-labelledby="client-name-heading">
+      <section className="cg-client-hero" data-testid="client-hero" aria-labelledby="client-name-heading">
         <div className="cg-client-hero-aura" aria-hidden="true" />
         <div className="cg-client-identity">
           <div className="cg-client-avatar" aria-hidden="true">{String(c.full_name).trim().slice(0, 1).toUpperCase()}</div>
