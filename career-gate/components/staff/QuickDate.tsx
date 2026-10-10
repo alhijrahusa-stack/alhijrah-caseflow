@@ -91,12 +91,11 @@ export function QuickDateTime({
 }) {
   const today = todayInOffice();
   const tomorrow = addDays(today, 1);
-  const plus30 = toLocalInput(new Date(Date.now() + 30 * 60 * 1000)).slice(0, 16);
   const presets = [
-    ["Now +30m", plus30],
-    ["Today 3 PM", atTime(today, 15)],
-    ["Tomorrow 9 AM", atTime(tomorrow, 9)],
-    ["Tomorrow 1 PM", atTime(tomorrow, 13)],
+    ["Now +30m", () => toLocalInput(new Date(Date.now() + 30 * 60 * 1000)).slice(0, 16)],
+    ["Today 3 PM", () => atTime(today, 15)],
+    ["Tomorrow 9 AM", () => atTime(tomorrow, 9)],
+    ["Tomorrow 1 PM", () => atTime(tomorrow, 13)],
   ] as const;
 
   let preview = "";
@@ -107,8 +106,8 @@ export function QuickDateTime({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5" aria-label={`${ariaLabel} quick choices`}>
-        {presets.map(([label, local]) => (
-          <button key={label} type="button" disabled={disabled} className={chip} onClick={() => onChange(local)}>
+        {presets.map(([label, resolve]) => (
+          <button key={label} type="button" disabled={disabled} className={chip} onClick={() => onChange(resolve())}>
             {label}
           </button>
         ))}
