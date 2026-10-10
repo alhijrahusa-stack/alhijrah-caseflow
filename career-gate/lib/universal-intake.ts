@@ -68,7 +68,7 @@ const clientShape = Object.fromEntries(
 ) as unknown as Record<(typeof OCR_FIELDS)[number], z.ZodTypeAny>;
 const ConfidenceResult = z.object(Object.fromEntries(
   OCR_FIELDS.map((field) => [field, z.number().min(0).max(1).nullable()]),
-) as Record<(typeof OCR_FIELDS)[number], z.ZodTypeAny>);
+) as unknown as Record<(typeof OCR_FIELDS)[number], z.ZodTypeAny>);
 const ClientResult = z.object({ ...clientShape, confidence: ConfidenceResult });
 const OcrResult = z.object({ clients: z.array(ClientResult).max(100) });
 
