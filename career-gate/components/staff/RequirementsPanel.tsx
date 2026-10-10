@@ -24,7 +24,6 @@ function RequirementRow({ row }: { row: Row }) {
   const [due, setDue] = useState(row.due_at ? String(row.due_at).slice(0, 10) : "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const standaloneRows = rows.filter((row) => !String(row.requirement_key ?? "").startsWith("post_hire:"));
 
   async function save() {
     setBusy(true); setError(null);
@@ -63,6 +62,7 @@ export function RequirementsPanel({ clientId, rows, readiness, postHire, startDa
   const [due, setDue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const standaloneRows = rows.filter((row) => !String(row.requirement_key ?? "").startsWith("post_hire:"));
 
   async function create() {
     setBusy(true); setError(null);
