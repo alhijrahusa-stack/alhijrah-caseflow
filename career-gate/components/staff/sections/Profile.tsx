@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { shiftLabel } from "@/components/forms/PreferenceSteps";
 import { InlineField } from "@/components/staff/InlineField";
 import { useStaff } from "@/components/staff/StaffContext";
@@ -15,26 +15,50 @@ export function ClientInfo({ c, authorization }: { c: Row; authorization: Row | 
   const f = (field: string, label: string, extra: Partial<Parameters<typeof InlineField>[0]> = {}) => (
     <InlineField clientId={c.id} field={field} label={label} value={c[field] ?? null} {...extra} />
   );
+  const identity = [
+    ["Full name", f("full_name", "Full name")],
+    ["Phone", f("phone", "Phone", { type: "tel", display: formatPhone(c.phone) })],
+    ["Email", f("email", "Email", { type: "email" })],
+    ["Date of birth", f("date_of_birth", "Date of birth", { type: "date", display: c.date_of_birth ? dateOnly(c.date_of_birth) : undefined })],
+    ["Language", f("preferred_language", "Language", { options: Object.entries(LANGUAGES).map(([value, label]) => ({ value, label })), display: LANGUAGES[c.preferred_language as keyof typeof LANGUAGES] })],
+    ["Availability", f("appointment_availability", "Appointment availability", { multiline: true })],
+  ] as const;
+  const address = [
+    ["Street", f("street", "Street")],
+    ["City", f("city", "City")],
+    ["State", f("state", "State")],
+    ["ZIP", f("zip", "ZIP")],
+  ] as const;
+  const record = [
+    ["Contact consent", c.communication_consent ? "Yes" : "No"],
+    ["Source", c.source === "public_intake" ? "Online application" : `Office${c.created_by_name ? ` (${c.created_by_name})` : ""}`],
+    ["Created", dateTime(c.created_at)],
+    ["Last updated", dateTime(c.updated_at)],
+  ] as const;
+
+  const group = (title: string, rows: readonly (readonly [string, ReactNode])[]) => (
+    <section className="rounded-2xl border border-white/[.07] bg-gradient-to-br from-white/[.045] to-white/[.012] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,.04)]">
+      <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-500">{title}</h3>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div key={label} className="min-w-0 rounded-xl border border-white/[.055] bg-black/[.08] px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-[.12em] text-slate-600">{label}</div>
+            <div className="mt-1 min-w-0 break-words text-[13px] leading-6 text-slate-200">{value}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+
   return (
     <Card title="Client Information" id="client-info">
-      <Dl rows={[
-        ["Full name", f("full_name", "Full name")],
-        ["Phone", f("phone", "Phone", { type: "tel", display: formatPhone(c.phone) })],
-        ["Email", f("email", "Email", { type: "email" })],
-        ["Date of birth", f("date_of_birth", "Date of birth", { type: "date", display: c.date_of_birth ? dateOnly(c.date_of_birth) : undefined })],
-        ["Language", f("preferred_language", "Language", { options: Object.entries(LANGUAGES).map(([value, label]) => ({ value, label })), display: LANGUAGES[c.preferred_language as keyof typeof LANGUAGES] })],
-        ["Street", f("street", "Street")],
-        ["City", f("city", "City")],
-        ["State", f("state", "State")],
-        ["ZIP", f("zip", "ZIP")],
-        ["Availability", f("appointment_availability", "Appointment availability", { multiline: true })],
-        ["Contact consent", c.communication_consent ? "Yes" : "No"],
-        ["Source", c.source === "public_intake" ? "Online application" : `Office${c.created_by_name ? ` (${c.created_by_name})` : ""}`],
-        ["Created", dateTime(c.created_at)],
-        ["Last updated", dateTime(c.updated_at)],
-      ]} />
+      <div className="grid gap-3 lg:grid-cols-2">
+        {group("Identity", identity)}
+        {group("Address", address)}
+        <div className="lg:col-span-2">{group("Record", record)}</div>
+      </div>
       {authorization ? (
-        <p className="mt-3 rounded bg-slate-50 p-2 text-xs text-slate-600" data-testid="authorization-record">
+        <p className="mt-3 rounded-xl border border-white/[.06] bg-white/[.025] p-3 text-xs text-slate-500" data-testid="authorization-record">
           Authorization v{authorization.authorization_version} signed “{authorization.signature}” (printed: {authorization.printed_name}) at{" "}
           {dateTime(authorization.signed_at)} (server time). Text SHA-256 {String(authorization.authorization_sha256).slice(0, 12)}…
         </p>
