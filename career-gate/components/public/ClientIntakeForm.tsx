@@ -61,7 +61,8 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const [edits, setEdits] = useState<Detected>({});
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [duplicateEmail, setDuplicateEmail] = useState(false);
+  const [existingCaseNumber, setExistingCaseNumber] = useState("");
+  const [duplicateIdentity, setDuplicateIdentity] = useState(false);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -111,8 +112,11 @@ export function ClientIntakeForm({ token }: { token: string }) {
 
   useEffect(() => {
     const email = (effective.email ?? "").trim().toLowerCase();
-    if (!email || validateIntakeField("email", email, t)) {
-      setDuplicateEmail(false);
+    const caseNumber = existingCaseNumber.trim().toUpperCase();
+    const validEmail = email && !validateIntakeField("email", email, t) ? email : "";
+    const validCase = /^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber) ? caseNumber : "";
+    if (!validEmail && !validCase) {
+      setDuplicateIdentity(false);
       setCheckingDuplicate(false);
       return;
     }
@@ -123,13 +127,13 @@ export function ClientIntakeForm({ token }: { token: string }) {
         const res = await fetch(`/api/public/client-intake/${encodeURIComponent(token)}/duplicate`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email: validEmail || undefined, caseNumber: validCase || undefined }),
           signal: controller.signal,
         });
         const data = await res.json().catch(() => null);
-        if (res.ok && data?.ok) setDuplicateEmail(data.duplicate === true);
+        if (res.ok && data?.ok) setDuplicateIdentity(data.duplicate === true);
       } catch {
-        if (!controller.signal.aborted) setDuplicateEmail(false);
+        if (!controller.signal.aborted) setDuplicateIdentity(false);
       } finally {
         if (!controller.signal.aborted) setCheckingDuplicate(false);
       }
@@ -138,11 +142,11 @@ export function ClientIntakeForm({ token }: { token: string }) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [effective.email, t, token]);
+  }, [effective.email, existingCaseNumber, t, token]);
 
   const started = Boolean(sourceText.trim());
   const hasAnything = started || attachments.length > 0;
-  const blocked = Object.keys(fieldErrors).length > 0 || duplicateEmail;
+  const blocked = Object.keys(fieldErrors).length > 0 || duplicateIdentity;
 
   /**
    * Once the client has entered anything, every reviewed field is shown — the
@@ -255,12 +259,13 @@ export function ClientIntakeForm({ token }: { token: string }) {
         if (value) form.set(`field_${field}`, value);
       }
       for (const item of attachments) form.append("files", item.file);
+      if (existingCaseNumber.trim()) form.set("case_number", existingCaseNumber.trim().toUpperCase());
 
       const res = await fetch(`/api/public/client-intake/${encodeURIComponent(token)}`, { method: "POST", body: form });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
         if (data?.error?.code === "duplicate_application") {
-          setDuplicateEmail(true);
+          setDuplicateIdentity(true);
           setError(null);
           return;
         }
@@ -432,6 +437,17 @@ export function ClientIntakeForm({ token }: { token: string }) {
       <GlassCard className="mt-6" data-testid="intake-source">
         <h2 className="text-[20px] font-semibold tracking-tight text-slate-900 sm:text-[22px]">{t.sourceHeading}</h2>
         <p className="mt-2 text-[14px] leading-relaxed text-slate-500">{t.sourceHelper}</p>
+        <label className="mt-4 grid gap-1.5">
+          <span className="text-[13px] font-medium text-slate-600">{t.existingCaseLabel}</span>
+          <input
+            value={existingCaseNumber}
+            onChange={(event) => setExistingCaseNumber(event.target.value.toUpperCase().slice(0, 20))}
+            placeholder={t.existingCasePlaceholder}
+            autoComplete="off"
+            data-testid="intake-existing-case-number"
+            className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3.5 font-mono text-[16px] tracking-[.03em] text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
+          />
+        </label>
         <textarea
           value={sourceText}
           onChange={(event) => setSourceText(event.target.value.slice(0, SMART_IMPORT_LIMITS.maxRawTextLength))}
@@ -515,7 +531,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
             {t.checkingDuplicate}
           </p>
         )}
-        {duplicateEmail && (
+        {duplicateIdentity && (
           <div className="mt-3 rounded-2xl border border-[#ff9f1a]/35 bg-[#fff8eb] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(255,132,0,.6)]" role="alert" data-testid="intake-duplicate-alert">
             <p className="text-[16px] font-semibold text-[#0a2d63]">{t.duplicateHeading}</p>
             <p className="mx-auto mt-1.5 max-w-[46ch] text-[13.5px] leading-relaxed text-slate-700">{t.duplicateBody}</p>
@@ -530,7 +546,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
             </a>
           </div>
         )}
-        {error && !duplicateEmail && (
+        {error && !duplicateIdentity && (
           <p className="mt-3 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-center text-[14px] text-red-800" role="alert" data-testid="intake-error">
             {error}
           </p>
