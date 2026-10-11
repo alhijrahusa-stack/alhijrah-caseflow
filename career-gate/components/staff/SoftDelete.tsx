@@ -2,10 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 
 /** Management-only recoverable archive action. Records and documents are retained. */
 export function SoftDelete({ clientId, compact = false }: { clientId: string; compact?: boolean }) {
   const router = useRouter();
+  const onMutated = useTargetedMutation();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
@@ -28,7 +30,7 @@ export function SoftDelete({ clientId, compact = false }: { clientId: string; co
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.ok) throw new Error(data?.error?.message ?? "Archive failed");
       router.push("/staff/clients");
-      router.refresh();
+      onMutated("archive", clientId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Archive failed");
     } finally {

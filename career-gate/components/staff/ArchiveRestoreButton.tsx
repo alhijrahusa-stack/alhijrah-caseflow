@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 import { useState } from "react";
 
 export function ArchiveRestoreButton({ clientId }: { clientId: string }) {
-  const router = useRouter();
+  const onMutated = useTargetedMutation();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,7 +20,7 @@ export function ArchiveRestoreButton({ clientId }: { clientId: string }) {
       });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.ok) throw new Error(data?.error?.message ?? "Restore failed");
-      router.refresh();
+      onMutated("restore", clientId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Restore failed");
     } finally {

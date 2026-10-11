@@ -1,12 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 import { useToast } from "@/components/ui/Toast";
 
 /** Resolve / Ignore via POST /api/audit/alerts/[id]. Ignore requires a reason. */
-export function AlertActions({ id }: { id: string }) {
-  const router = useRouter();
+export function AlertActions({ id, clientId = null }: { id: string; clientId?: string | null }) {
+  const onMutated = useTargetedMutation();
   const toast = useToast();
   const [mode, setMode] = useState<"resolve" | "ignore" | null>(null);
   const [text, setText] = useState("");
@@ -23,7 +23,7 @@ export function AlertActions({ id }: { id: string }) {
     if (!data?.ok) return toast("error", data?.error?.message ?? "Could not update alert");
     toast("success", mode === "ignore" ? "Alert ignored" : "Alert resolved");
     setMode(null);
-    router.refresh();
+    onMutated(mode === "ignore" ? "ignore_alert" : "resolve_alert", clientId);
   };
   return (
     <div className="space-y-1">

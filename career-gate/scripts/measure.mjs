@@ -145,10 +145,17 @@ if (!READ_ONLY) {
   if (!databaseUrl) throw new Error("DATABASE_URL is required when PERF_READ_ONLY is not 1");
   const db = postgres(databaseUrl, { max: 1 });
 
-  let lastClient = null;
-  [{ id: lastClient }] = await db`
+  // The intake above is refused when the running server reads the real job
+  // catalog, which has no openings, so there may be no TEST Perf client. Fall
+  // back to any synthetic client rather than aborting the whole measurement.
+  const [perfClient] = await db`
     select id from clients where full_name like 'TEST Perf %' order by created_at desc limit 1
   `;
+  const [fallbackClient] = perfClient ? [perfClient] : await db`
+    select id from clients where full_name like 'TEST %' and deleted_at is null order by created_at desc limit 1
+  `;
+  const lastClient = (perfClient ?? fallbackClient)?.id ?? null;
+  if (!lastClient) throw new Error("no synthetic client available to measure against");
 
   results.push(await measure("client search (GET /api/staff/search)", () =>
     fetch(`${BASE}/api/staff/search?q=TEST`, { headers: staff })));
@@ -174,6 +181,22 @@ if (!READ_ONLY) {
       headers: { "content-type": "application/json", "x-forwarded-for": ip() },
       body: JSON.stringify({ identifier: "CG-1999-000000" }),
     }), 10));
+
+  // Targeted realtime update vs. the full route refresh it replaces. The
+  // comparison is the point: same client, same change, one scoped payload set
+  // instead of the whole client file.
+  results.push(await measure("client file full route render (GET /staff/client/[id]) — the old refresh path", () =>
+    fetch(`${BASE}/staff/client/${lastClient}`, { headers: staff, redirect: "manual" })));
+
+  for (const [label, payloads] of [
+    ["note added (notes,activity)", "notes,activity"],
+    ["task changed (tasks,nextAction)", "tasks,nextAction"],
+    ["document reviewed (documents,extractions,requirements,nextAction,activity)", "documents,extractions,requirements,postHire,assessments,nextAction,activity"],
+    ["payment recorded (account,nextAction,activity)", "account,nextAction,activity"],
+  ]) {
+    results.push(await measure(`targeted update — ${label} (GET /api/staff/client-resource)`, () =>
+      fetch(`${BASE}/api/staff/client-resource?client_id=${lastClient}&payloads=${payloads}`, { headers: staff })));
+  }
 
   await new Promise((resolve) => setTimeout(resolve, 2000));
 

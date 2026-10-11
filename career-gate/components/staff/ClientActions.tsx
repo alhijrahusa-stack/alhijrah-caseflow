@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAction } from "@/components/forms/useAction";
+import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 import { QuickDate, QuickDateTime } from "@/components/staff/QuickDate";
 import { StaffPicker } from "@/components/staff/StaffPicker";
 import { useStaff } from "@/components/staff/StaffContext";
@@ -336,7 +336,7 @@ export function AssignForm({ clientId, current, onDone }: FormProps & { current:
 }
 
 export function DocumentForm({ clientId, onDone }: FormProps) {
-  const router = useRouter();
+  const onMutated = useTargetedMutation();
   const toast = useToast();
   const [docType, setDocType] = useState<(typeof DOC_TYPES)[number]>("photo_id");
   const [file, setFile] = useState<File | null>(null);
@@ -363,7 +363,7 @@ export function DocumentForm({ clientId, onDone }: FormProps) {
         return;
       }
       toast("success", "Document uploaded; processing queued");
-      router.refresh();
+      onMutated("upload_document", clientId);
       onDone();
     }}>
       <Shell title="Add document" testId="form-document" error={error} pending={pending} onCancel={onDone} submitLabel="Upload">

@@ -42,6 +42,13 @@ export type AccountContext = {
 /** Actions that move money irreversibly enough to need an explicit confirmation. */
 const HIGH_RISK = new Set<FinancialAction>(["refund", "waiver"]);
 
+/** The accounting operation a financial action posts, for targeted updates. */
+export function operationFor(action: FinancialAction): string {
+  if (action === "completion") return "record_application_completion";
+  if (action === "discount") return "apply_discount";
+  return "record_transaction";
+}
+
 type CanonicalResult = {
   transaction?: { transaction_type?: string; amount?: string | number; transaction_reference?: string | null; payment_method?: string | null; receipt_document_id?: string | null };
   balance?: { payment_status?: string; balance?: string | number; net_fee?: string | number };

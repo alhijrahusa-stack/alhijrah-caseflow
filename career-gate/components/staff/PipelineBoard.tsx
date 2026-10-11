@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { DispatchPeriod, OperationsClient, PipelineStage } from "@/lib/operations";
+import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 
 function legacyShiftPeriod(hours: string | null): DispatchPeriod {
   if (!hours) return "needs_manual_review";
@@ -139,7 +139,7 @@ function DispatchLane({ title, subtitle, clients, tone }: {
 }
 
 export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; clients: OperationsClient[] }) {
-  const router = useRouter();
+  const onMutated = useTargetedMutation();
   const [rows, setRows] = useState(clients);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -158,7 +158,7 @@ export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; cl
     setRows((current) => current.map((x) => x.id === client.id ? { ...x, pipeline_stage: nextStage } : x));
     try {
       await operation({ operation: "move_stage", client_id: client.id, stage: nextStage });
-      router.refresh();
+      onMutated("move_stage", String(client.id));
     } catch (e) {
       setRows((current) => current.map((x) => x.id === client.id ? { ...x, pipeline_stage: previous } : x));
       setError(e instanceof Error ? e.message : "Unable to move client");

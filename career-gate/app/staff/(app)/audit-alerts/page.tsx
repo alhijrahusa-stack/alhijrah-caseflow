@@ -39,7 +39,7 @@ export default async function AuditAlertsPage({ searchParams }: { searchParams: 
                   <td className="max-w-xs text-xs"><code className="break-all">{JSON.stringify(a.evidence)}</code></td>
                   <td>{a.recommended_action}</td>
                   <td className="whitespace-nowrap">{dateTime(a.created_at)}</td>
-                  <td>{status === "open" ? <AlertActions id={a.id} /> : <span className="text-xs">{a.resolved_by_name ?? "System"} · {a.resolution_note}</span>}</td>
+                  <td>{status === "open" ? <AlertActions id={a.id} clientId={a.client_id ?? null} /> : <span className="text-xs">{a.resolved_by_name ?? "System"} · {a.resolution_note}</span>}</td>
                 </tr>
               ))}
             </tbody>
