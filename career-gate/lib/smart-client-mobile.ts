@@ -6,7 +6,7 @@ import type { IntakeRow } from "@/lib/intake-file";
 import { ActionError, normalizeClientEmail } from "@/lib/service";
 import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
-import type { DocumentFieldEvidence } from "@/lib/providers/document-intelligence-types";
+import type { DocumentFieldEvidence, DocumentProviderName } from "@/lib/providers/document-intelligence-types";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
 import {
   SMART_IMPORT_LIMITS,
@@ -32,7 +32,7 @@ type SourceRow = {
   sourcePage: number | null;
   confidence?: Record<string, number>;
   fieldEvidence?: DocumentFieldEvidence[];
-  providerName?: "regula" | "microblink";
+  providerName?: DocumentProviderName;
   providerVersion?: string;
   authenticity?: Record<string, unknown>;
   quality?: Record<string, unknown>;
@@ -116,7 +116,7 @@ function mergeEvidence(sources: SourceRow[]) {
         sourcePage: number | null;
         confidenceScore: number | null;
         providerEvidence: DocumentFieldEvidence | null;
-        providerName: "regula" | "microblink" | null;
+        providerName: DocumentProviderName | null;
         providerVersion: string | null;
       } => Boolean(item.value));
     if (!values.length) continue;
@@ -437,7 +437,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     rows: IntakeRow[];
     confidence: Record<string, number>;
     fieldEvidence: DocumentFieldEvidence[];
-    providerName: "regula" | "microblink" | null;
+    providerName: DocumentProviderName | null;
     providerVersion: string | null;
     documentType: string | null;
     country: string | null;
@@ -451,7 +451,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     let rows: IntakeRow[] = [];
     let confidence: Record<string, number> = {};
     let fieldEvidence: DocumentFieldEvidence[] = [];
-    let providerName: "regula" | "microblink" | null = null;
+    let providerName: DocumentProviderName | null = null;
     let providerVersion: string | null = null;
     let documentType: string | null = null;
     let country: string | null = null;
