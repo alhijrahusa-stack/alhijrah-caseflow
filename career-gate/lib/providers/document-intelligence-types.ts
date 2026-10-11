@@ -1,4 +1,5 @@
 import type { IntakeRow } from "@/lib/intake-file";
+import type { MrzValidation } from "@/lib/document-validation/mrz";
 
 export type DocumentProviderName = "regula" | "microblink" | "deterministic";
 export type VerificationState = "PASSED" | "FAILED" | "NOT_PERFORMED" | "UNSUPPORTED" | "REVIEW";
@@ -66,6 +67,7 @@ export type DocumentExtraction = {
   country: string | null;
   quality: DocumentQuality;
   authenticity: DocumentAuthenticity;
+  mrz: MrzValidation | null;
   traceId: string | null;
 };
 
