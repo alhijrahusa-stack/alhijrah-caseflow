@@ -89,6 +89,7 @@ test("public HTML application submits and stores an idempotent case without phon
   expect(first.status, JSON.stringify(first.result)).toBe(201);
   expect(first.result.ok).toBe(true);
   expect(first.result.caseNumber).toMatch(/^ALH-\d{8}-[A-Z0-9]{4}$/);
+  expect(first.result.systemId).toMatch(/^CG-\d{4}-\d{6}$/);
   const duplicate = await post("Shared-A", firstUid);
   expect(duplicate.status).toBe(200);
   expect(duplicate.result.caseNumber).toBe(first.result.caseNumber);
@@ -184,6 +185,7 @@ test.describe("Career Gate public intake presentation system", () => {
           ok: true,
           duplicate: false,
           caseNumber: "ALH-20261001-TEST",
+          systemId: "CG-2026-012345",
           trackingUrl: "/career-gate.html?track=1&case=ALH-20261001-TEST",
           submittedAt: "2026-10-01T00:15:00.000Z"
         })
@@ -201,6 +203,7 @@ test.describe("Career Gate public intake presentation system", () => {
     expect(posts).toBe(1);
     expect(elapsed).toBeLessThan(5000);
     await expect(page.locator("#receiptCase")).toHaveText("ALH-20261001-TEST");
+    await expect(page.locator("#receiptSystemId")).toHaveText("System ID: CG-2026-012345");
     await expect(page.locator("#receiptTime")).not.toContainText("—");
     await expect(page.locator("#receiptCard")).toContainText("CAREER GATE");
     await expect(page.locator("#receiptCard")).toContainText("313-919-4192");
