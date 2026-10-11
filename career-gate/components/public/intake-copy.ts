@@ -14,6 +14,7 @@ export type IntakeLocale = "ar" | "en";
 /** The office WhatsApp number from the existing office configuration. */
 export const OFFICE_WHATSAPP_DIGITS = OFFICE.whatsapp.replace(/\D/g, "");
 export const OFFICE_WHATSAPP_URL = `https://wa.me/1${OFFICE_WHATSAPP_DIGITS}`;
+export const OFFICE_WHATSAPP_DISPLAY = OFFICE.whatsapp;
 
 /** The existing client-safe status destination. */
 export const CASE_STATUS_PATH = "/status";
@@ -88,6 +89,9 @@ export const INTAKE_COPY = {
     totalTooLarge: "إجمالي حجم الملفات أكبر من الحد المسموح (25 ميجابايت).",
     unsupported: "نوع الملف غير مدعوم. المدعوم: PDF و JPG و PNG و WEBP.",
     genericError: "تعذر الإرسال. حاول مرة أخرى. بياناتك محفوظة.",
+    duplicateHeading: "هذا الملف قُدِّم مسبقًا",
+    duplicateBody: "يوجد طلب مرتبط بهذا البريد الإلكتروني بالفعل. لا تُنشئ طلبًا جديدًا. تواصل مع خدمة العملاء على واتساب.",
+    checkingDuplicate: "جارٍ التحقق من البريد الإلكتروني…",
     invalidPhone: "أدخل رقم هاتف أمريكي صحيح من عشر أرقام.",
     invalidEmail: "أدخل بريدًا إلكترونيًا صحيحًا.",
     invalidZip: "أدخل رمزًا بريديًا صحيحًا.",
@@ -175,6 +179,9 @@ export const INTAKE_COPY = {
     totalTooLarge: "The files total more than the 25 MB limit.",
     unsupported: "That file type is not supported. Supported: PDF, JPG, PNG, WEBP.",
     genericError: "Your information could not be submitted. Please try again — nothing you entered was lost.",
+    duplicateHeading: "This application was already submitted",
+    duplicateBody: "An application is already linked to this email address. Do not create another application. Contact Customer Service on WhatsApp.",
+    checkingDuplicate: "Checking this email…",
     invalidPhone: "Enter a valid 10-digit US phone number.",
     invalidEmail: "Enter a valid email address.",
     invalidZip: "Enter a valid ZIP code.",
