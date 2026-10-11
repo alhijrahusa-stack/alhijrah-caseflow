@@ -5,6 +5,7 @@ import { ClientIntakeBrand, ClientIntakeShell, GlassCard } from "@/components/pu
 import {
   CASE_STATUS_PATH,
   INTAKE_COPY,
+  OFFICE_WHATSAPP_DISPLAY,
   OFFICE_WHATSAPP_URL,
   type IntakeLocale,
 } from "@/components/public/intake-copy";
@@ -60,6 +61,8 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const [edits, setEdits] = useState<Detected>({});
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateEmail, setDuplicateEmail] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [extractionNotice, setExtractionNotice] = useState<string | null>(null);
@@ -106,9 +109,40 @@ export function ClientIntakeForm({ token }: { token: string }) {
     return out;
   }, [effective, t]);
 
+  useEffect(() => {
+    const email = (effective.email ?? "").trim().toLowerCase();
+    if (!email || validateIntakeField("email", email, t)) {
+      setDuplicateEmail(false);
+      setCheckingDuplicate(false);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setCheckingDuplicate(true);
+      try {
+        const res = await fetch(`/api/public/client-intake/${encodeURIComponent(token)}/duplicate`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email }),
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.ok) setDuplicateEmail(data.duplicate === true);
+      } catch {
+        if (!controller.signal.aborted) setDuplicateEmail(false);
+      } finally {
+        if (!controller.signal.aborted) setCheckingDuplicate(false);
+      }
+    }, 450);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [effective.email, t, token]);
+
   const started = Boolean(sourceText.trim());
   const hasAnything = started || attachments.length > 0;
-  const blocked = Object.keys(fieldErrors).length > 0;
+  const blocked = Object.keys(fieldErrors).length > 0 || duplicateEmail;
 
   /**
    * Once the client has entered anything, every reviewed field is shown — the
@@ -225,6 +259,11 @@ export function ClientIntakeForm({ token }: { token: string }) {
       const res = await fetch(`/api/public/client-intake/${encodeURIComponent(token)}`, { method: "POST", body: form });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
+        if (data?.error?.code === "duplicate_application") {
+          setDuplicateEmail(true);
+          setError(null);
+          return;
+        }
         // Nothing the client entered is cleared: the exact reason is shown and
         // they can correct and retry.
         setError(typeof data?.error?.message === "string" ? data.error.message : t.genericError);
@@ -471,7 +510,27 @@ export function ClientIntakeForm({ token }: { token: string }) {
       {/* 4 — Submit */}
       <div className="mt-6">
         <p className="text-center text-[13px] leading-relaxed text-slate-500">{t.submitHelper}</p>
-        {error && (
+        {checkingDuplicate && (
+          <p className="mt-3 rounded-2xl border border-[#2f6fd0]/20 bg-[#eef5ff] px-4 py-3 text-center text-[14px] text-[#194b91]" role="status" data-testid="intake-duplicate-checking">
+            {t.checkingDuplicate}
+          </p>
+        )}
+        {duplicateEmail && (
+          <div className="mt-3 rounded-2xl border border-[#ff9f1a]/35 bg-[#fff8eb] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(255,132,0,.6)]" role="alert" data-testid="intake-duplicate-alert">
+            <p className="text-[16px] font-semibold text-[#0a2d63]">{t.duplicateHeading}</p>
+            <p className="mx-auto mt-1.5 max-w-[46ch] text-[13.5px] leading-relaxed text-slate-700">{t.duplicateBody}</p>
+            <a
+              href={OFFICE_WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-white px-4 text-[14px] font-semibold text-emerald-800 shadow-[0_10px_24px_-18px_rgba(16,122,87,.55)]"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 11.7a7.9 7.9 0 0 1-11.6 7l-4 1.2 1.2-3.9A7.9 7.9 0 1 1 20 11.7Z" /></svg>
+              <span>{t.whatsappOffice} · {OFFICE_WHATSAPP_DISPLAY}</span>
+            </a>
+          </div>
+        )}
+        {error && !duplicateEmail && (
           <p className="mt-3 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-center text-[14px] text-red-800" role="alert" data-testid="intake-error">
             {error}
           </p>
@@ -479,7 +538,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
         <button
           type="button"
           onClick={() => void submit()}
-          disabled={busy || blocked}
+          disabled={busy || blocked || checkingDuplicate}
           data-testid="intake-submit"
           className="mt-4 flex min-h-[58px] w-full items-center justify-center rounded-2xl border border-[#1f4f9c]/40 bg-gradient-to-b from-[#3f7fe0] to-[#2258b4] text-[17px] font-semibold text-white shadow-[0_20px_44px_-20px_rgba(34,88,180,.75)] transition-[filter,opacity] duration-200 hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none"
         >
