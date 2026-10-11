@@ -61,7 +61,7 @@ function parseResponse(payload: unknown, traceId: string | null): DocumentExtrac
   const fullName = deepFind(extraction, ["fullName", "name"]);
   const firstName = deepFind(extraction, ["firstName", "givenName", "givenNames"]);
   const lastName = deepFind(extraction, ["lastName", "surname", "familyName"]);
-  row.full_name = fullName ?? [firstName, lastName].filter(Boolean).join(" ") || null;
+  row.full_name = fullName ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
   row.date_of_birth = deepFind(extraction, ["dateOfBirth", "birthDate"]);
   row.street = deepFind(extraction, ["address", "street", "residentialAddress"]);
   row.city = deepFind(extraction, ["city", "placeOfResidence"]);
@@ -139,7 +139,8 @@ export async function microblinkExtract(args: {
   const base = cfg.url.replace(/\/$/, "");
   const endpoint = base.endsWith("/api/v3/verify") ? base : `${base}/api/v3/verify`;
   const form = new FormData();
-  form.append("imageFirstSide", new Blob([args.data], { type: args.mimeType }), args.filename ?? "document");
+  const bytes = args.data.buffer.slice(args.data.byteOffset, args.data.byteOffset + args.data.byteLength) as ArrayBuffer;
+  form.append("imageFirstSide", new Blob([bytes], { type: args.mimeType }), args.filename ?? "document");
   form.append("configuration", new Blob([JSON.stringify({
     verification: {
       useCase: {
