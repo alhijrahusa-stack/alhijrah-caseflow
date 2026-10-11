@@ -106,6 +106,7 @@ export function SmartCareerCollectClient() {
   const [stageBusy, setStageBusy] = useState(false);
   const [queueBusy, setQueueBusy] = useState(false);
   const [filter, setFilter] = useState<Status | "ALL">("ALL");
+  const [archiveView, setArchiveView] = useState(false);
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [counters, setCounters] = useState<Record<Status, number>>({ PENDING: 0, UNDER_REVIEW: 0, MISSING_DOCUMENT: 0, APPROVED_FILE: 0 });
@@ -131,7 +132,8 @@ export function SmartCareerCollectClient() {
     setQueueBusy(true);
     try {
       const params = new URLSearchParams();
-      if (filter !== "ALL") params.set("status", filter);
+      if (archiveView) params.set("archive", "1");
+      else if (filter !== "ALL") params.set("status", filter);
       if (search.trim()) params.set("q", search.trim());
       if (cursor) params.set("cursor", cursor);
       const res = await fetch(`/api/staff/smart-client-import?${params}`, { cache: "no-store" });
@@ -139,11 +141,11 @@ export function SmartCareerCollectClient() {
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, `Queue failed (${res.status})`));
       if (request !== queueRequest.current) return;
       setRows((current) => append ? [...current, ...data.rows] : data.rows);
-      setCounters(data.counters);
+      if (data.counters) setCounters(data.counters);
       setNextCursor(data.next_cursor ?? null);
     } catch (e) { if (request === queueRequest.current) setError(e instanceof Error ? e.message : "Queue failed"); }
     finally { if (request === queueRequest.current) setQueueBusy(false); }
-  }, [filter, search]);
+  }, [archiveView, filter, search]);
 
   useEffect(() => {
     const debounce = window.setTimeout(() => void loadQueue(), 140);
@@ -394,10 +396,14 @@ export function SmartCareerCollectClient() {
     </section>}
 
     <section className="ops-glass-card space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold text-slate-100">IMPORT QUEUE</h2><p className="text-xs text-slate-500">Live staged files · canonical Client created only after approval.</p></div><div className="flex flex-wrap gap-2"><button className={`ops-secondary-button ${filter === "ALL" ? "ring-1 ring-cyan-300/30" : ""}`} type="button" onClick={() => setFilter("ALL")}>ALL</button><input className="ops-input min-w-56" aria-label="Search imports" placeholder="Name, phone, email, Import ID" value={search} onChange={(e) => setSearch(e.target.value)} /></div></div>
-      <div className="flex flex-wrap gap-2">{STATUSES.map((status) => <button key={status} type="button" onClick={() => setFilter(status)} className={`rounded-full border px-3 py-2 text-[10px] font-semibold ${filter === status ? "border-amber-300/35 bg-amber-300/[.08] text-amber-200" : "border-white/10 text-slate-500"}`}>{STATUS_LABEL[status]} · {counters[status]}</button>)}</div>
+      <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold text-slate-100">IMPORT QUEUE</h2><p className="text-xs text-slate-500">Live staged files · canonical Client created only after approval.</p></div><div className="flex flex-wrap gap-2">
+          <button className={`ops-secondary-button ${!archiveView ? "ring-1 ring-cyan-300/30" : ""}`} type="button" onClick={() => { setArchiveView(false); setFilter("ALL"); }}>ACTIVE QUEUE</button>
+          <button className={`ops-secondary-button ${archiveView ? "ring-1 ring-amber-300/40" : ""}`} type="button" onClick={() => setArchiveView(true)}>APPROVED / ARCHIVE</button>
+          <input className="ops-input min-w-56" aria-label="Search imports" placeholder="Name, phone, email, Import ID" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div></div>
+      {!archiveView && <div className="flex flex-wrap gap-2">{STATUSES.map((status) => <button key={status} type="button" onClick={() => setFilter(status)} className={`rounded-full border px-3 py-2 text-[10px] font-semibold ${filter === status ? "border-amber-300/35 bg-amber-300/[.08] text-amber-200" : "border-white/10 text-slate-500"}`}>{STATUS_LABEL[status]} · {counters[status]}</button>)}</div>}
       <div className="overflow-x-auto rounded-2xl border border-white/10"><table className="w-full min-w-[1040px] text-left text-xs"><thead className="bg-black/15 text-slate-500"><tr><th className="p-3">CLIENT</th><th className="p-3">SUBMITTED</th><th className="p-3">SOURCE</th><th className="p-3">STATUS</th><th className="p-3">ISSUES</th><th className="p-3">REVIEWER</th><th className="p-3">ACTION</th></tr></thead><tbody>{queueBusy && rows.length === 0 ? Array.from({length:3}).map((_,i) => <tr key={i} className="border-t border-white/[.06]"><td colSpan={7} className="p-3"><div className="h-8 animate-pulse rounded-lg bg-white/[.05] motion-reduce:animate-none" /></td></tr>) : rows.map((row) => <tr key={row.id} className="border-t border-white/[.06]"><td className="p-3"><strong className="block text-slate-200">{row.full_name || "Unidentified client"}</strong><span className="font-mono text-[10px] text-slate-600">{row.id}</span></td><td className="p-3 whitespace-nowrap text-slate-400">{new Date(row.created_at).toLocaleString("en-US", { timeZone: "America/Detroit" })}</td><td className="p-3 uppercase text-slate-400">{row.source_type}</td><td className="p-3 text-slate-300">{operationalState(row)}</td><td className="p-3">{row.issue_count}</td><td className="p-3">{row.reviewer_name ?? "—"}</td><td className="p-3"><div className="flex flex-wrap gap-2">{row.created_client_id ? <Link className="font-semibold text-amber-200" href={`/staff/client/${row.created_client_id}`}>OPEN CLIENT</Link> : <button className="ops-secondary-button" type="button" disabled={Boolean(actionBusy)} onClick={() => openCase(row.id)}>OPEN / EDIT</button>}<button className="ops-secondary-button" type="button" disabled={Boolean(actionBusy)} onClick={() => void archiveRow(row.id)}>{actionBusy === `archive:${row.id}` ? "ARCHIVING…" : "ARCHIVE"}</button></div></td></tr>)}</tbody></table></div>
-      {!queueBusy && rows.length === 0 && <div className="rounded-xl border border-white/10 p-6 text-center"><p className="text-sm text-slate-400">No imports match this view.</p><button type="button" className="ops-secondary-button mt-3" onClick={() => { setFilter("ALL"); setSearch(""); }}>SHOW ALL IMPORTS</button></div>}
+      {!queueBusy && rows.length === 0 && <div className="rounded-xl border border-white/10 p-6 text-center"><p className="text-sm text-slate-400">No imports match this view.</p><button type="button" className="ops-secondary-button mt-3" onClick={() => { setArchiveView(false); setFilter("ALL"); setSearch(""); }}>SHOW ACTIVE IMPORTS</button></div>}
       {nextCursor && <button className="ops-secondary-button" type="button" disabled={queueBusy} onClick={() => loadQueue(nextCursor, true)}>LOAD MORE</button>}
     </section>
 

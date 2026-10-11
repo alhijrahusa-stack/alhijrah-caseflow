@@ -13,5 +13,5 @@ export function ConfirmStartedControl({clientId}:{clientId:string}){
     setBusy(false);
     if(response?.ok)router.refresh();
   }
-  return <div className="flex gap-2"><input type="date" className="input" value={startDate} onChange={(e)=>setStartDate(e.target.value)} disabled={busy}/><button type="button" className="ops-primary-button" disabled={busy||!startDate} onClick={()=>void run()}>{busy?"Saving…":"Confirm Started"}</button></div>;
+  return <div className="flex gap-2"><input type="date" className="input" value={startDate} onChange={(e)=>setStartDate(e.target.value)} disabled={busy}/><button type="button" className="ops-primary-button" disabled={busy||!startDate} onClick={()=>void run()}>{busy?"Saving…":"Confirm Placement & Move to Active Work"}</button></div>;
 }

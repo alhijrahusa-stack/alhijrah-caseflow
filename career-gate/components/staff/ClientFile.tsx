@@ -234,7 +234,7 @@ export function ClientFile({
             </section>
             <EmploymentHistory rows={data.employment} editHref={`/staff/client/${c.id}/edit`} />
           </div>
-          <div className="space-y-4"><ClientInfo c={c} authorization={data.authorization} /><AmazonHistory c={c} /></div>
+          <div className="space-y-4"><ClientInfo c={c} authorization={data.authorization} preferences={data.preferences} /><AmazonHistory c={c} /></div>
         </div>
       )}
 

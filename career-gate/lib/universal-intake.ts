@@ -91,7 +91,7 @@ The output is staging evidence for human review, not canonical truth.`;
 export async function rowsFromImageOrPdfDetailed(bytes: Uint8Array, mimeType: string): Promise<DocumentExtraction[]> {
   let lastMessage = "Document extraction failed";
   for (const model of ["fast", "escalation"] as const) {
-    const result = await geminiExtract({ model, mimeType, data: bytes, prompt: OCR_PROMPT, responseSchema: OCR_SCHEMA });
+    const result = await geminiExtract({ model, mimeType, data: bytes, prompt: OCR_PROMPT, responseSchema: OCR_SCHEMA, timeoutMs: model === "fast" ? 18_000 : 22_000 });
     if (!result.ok) {
       lastMessage = result.message;
       if (result.code === "NOT_CONFIGURED") throw new ActionError("ocr_not_configured", result.message, 503);

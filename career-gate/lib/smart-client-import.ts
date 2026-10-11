@@ -729,7 +729,8 @@ export async function approveImportCase(session: StaffSession, args: {
         missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json([] as never)},verification_result=${tx.json(verification.result as never)},
         document_match_confirmed=${args.documentConfirmed},information_match_confirmed=${args.informationConfirmed},
         review_started_at=coalesce(review_started_at,now()),
-        approved_by=${session.staff.id},approved_at=now(),created_client_id=${client.id},status='APPROVED_FILE'
+        approved_by=${session.staff.id},approved_at=now(),created_client_id=${client.id},status='APPROVED_FILE',
+        archived_at=coalesce(archived_at,now()),archived_by=coalesce(archived_by,${session.staff.id})
       where id=${args.id}`;
     return { client_id: client.id, ref: client.ref, idempotent: false };
   });

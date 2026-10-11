@@ -24,10 +24,11 @@ function ProfileGrid({ rows }: { rows: [string, React.ReactNode][] }) {
   );
 }
 
-export function ClientInfo({ c, authorization }: { c: Row; authorization: Row | null }) {
+export function ClientInfo({ c, authorization, preferences = [] }: { c: Row; authorization: Row | null; preferences?: Row[] }) {
   const f = (field: string, label: string, extra: Partial<Parameters<typeof InlineField>[0]> = {}) => (
     <InlineField clientId={c.id} field={field} label={label} value={c[field] ?? null} {...extra} />
   );
+  const primary = preferences.find((p) => p.rank === "primary") ?? preferences[0] ?? null;
   return (
     <Card title="Client Information" id="client-info">
       <ProfileGrid rows={[
@@ -41,6 +42,9 @@ export function ClientInfo({ c, authorization }: { c: Row; authorization: Row | 
         ["State", f("state", "State")],
         ["ZIP", f("zip", "ZIP")],
         ["Availability", f("appointment_availability", "Appointment availability", { multiline: true })],
+        ["Preferred Location", primary?.site_name ?? primary?.site_code ?? "—"],
+        ["Shift Days", primary?.days ?? "—"],
+        ["Shift Time", primary?.hours ?? primary?.shift_name ?? primary?.shift_code ?? "—"],
         ["Contact consent", c.communication_consent ? "Yes" : "No"],
         ["Source", c.source === "public_intake" ? "Online application" : `Office${c.created_by_name ? ` (${c.created_by_name})` : ""}`],
         ["Created", dateTime(c.created_at)],

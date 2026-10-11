@@ -47,7 +47,9 @@ type SubmitResult = {
   uploaded_by_name: string;
   mapped_draft?: { profile?: Record<string, unknown>; review_fields?: Record<string, unknown> };
   verification_result?: Record<string, unknown>;
-  enrichment_url?: string;
+  field_evidence?: SmartEvidence[];
+  enrichment_url?: string | null;
+  enrichment_error?: string | null;
 };
 type IssueAction = "ADD_FILES" | "RETRY_EXTRACTION";
 type Issue = { id: string; scope: string; problem: string; action: string; actionKind?: IssueAction; actionLabel?: string };
@@ -295,11 +297,15 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
         uploaded_by_name: data.uploaded_by_name ?? staff.display_name,
         mapped_draft: data.mapped_draft,
         verification_result: data.verification_result,
+        field_evidence: Array.isArray(data.field_evidence) ? data.field_evidence : [],
         enrichment_url: data.enrichment_url,
+        enrichment_error: data.enrichment_error ?? null,
       };
       setResult(captured);
       setServerDraft(combineDraft(data.mapped_draft));
+      setServerEvidence(Array.isArray(data.field_evidence) ? data.field_evidence : []);
       setVerification(data.verification_result ?? null);
+      if (data.enrichment_error) setError(String(data.enrichment_error));
       setDocuments((current) => advanceDocuments(current, { uploadState: "STORED", processingState: "WAITING" }));
       setStage("CAPTURED");
       handshake("cyan");

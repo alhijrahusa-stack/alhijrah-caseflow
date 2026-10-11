@@ -5,7 +5,7 @@ import { sql } from "@/lib/db";
 import type { IntakeRow } from "@/lib/intake-file";
 import { ActionError } from "@/lib/service";
 import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
-import { rowsFromImageOrPdf } from "@/lib/universal-intake";
+import { rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
 import {
   SMART_IMPORT_LIMITS,
@@ -24,7 +24,7 @@ const EVIDENCE_FIELDS = [
   "employment_to", "site_code", "job_id", "shift_code", "backup_site_code", "backup_job_id", "backup_shift_code",
 ] as const;
 
-type SourceRow = { row: IntakeRow; source: string; documentId: string | null; sourcePage: number | null };
+type SourceRow = { row: IntakeRow; source: string; documentId: string | null; sourcePage: number | null; confidence?: Record<string, number> };
 
 type FileCapture = {
   file: File;
@@ -89,8 +89,9 @@ function mergeEvidence(sources: SourceRow[]) {
         source: source.source,
         documentId: source.documentId,
         sourcePage: source.sourcePage,
+        confidenceScore: source.confidence?.[field] ?? null,
       }))
-      .filter((item): item is { value: string; source: string; documentId: string | null; sourcePage: number | null } => Boolean(item.value));
+      .filter((item): item is { value: string; source: string; documentId: string | null; sourcePage: number | null; confidenceScore: number | null } => Boolean(item.value));
     if (!values.length) continue;
 
     const grouped = new Map<string, typeof values>();
@@ -116,6 +117,7 @@ function mergeEvidence(sources: SourceRow[]) {
           source_text_reference: null,
           match_score: 100,
           verification_state: multiSource ? "MATCHED" : "REVIEW",
+          confidence_score: item.confidenceScore,
         });
       }
       continue;
@@ -142,6 +144,7 @@ function mergeEvidence(sources: SourceRow[]) {
         source_text_reference: null,
         match_score: bestScore,
         verification_state: "CONFLICT",
+        confidence_score: item.confidenceScore,
       });
     }
   }
@@ -337,22 +340,68 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     set verification_result=coalesce(verification_result,'{}'::jsonb) || ${sql().json({ processing_state: "AI_PROCESSING", local_state: "COMPLETE", ai_state: "PROCESSING" } as never)}
     where id=${caseId}`;
 
-  for (const doc of docs) {
+  type DocResult = {
+    doc: Record<string, unknown>;
+    rows: IntakeRow[];
+    confidence: Record<string, number>;
+    extractionError: string | null;
+  };
+
+  async function processDocument(doc: Record<string, unknown>): Promise<DocResult> {
+    const started = Date.now();
     let rows: IntakeRow[] = [];
+    let confidence: Record<string, number> = {};
     let extractionError: string | null = null;
     try {
       const bytes = await downloadObject(String(doc.storage_reference));
-      rows = await rowsFromImageOrPdf(bytes, String(doc.mime_type));
-      if (rows[0]) sources.push({ row: rows[0], source: String(doc.original_filename), documentId: String(doc.id), sourcePage: null });
-      if (rows.length > 1) extractionErrors.push({ source: doc.original_filename, code: "MULTIPLE_CLIENTS_DETECTED", count: rows.length });
+      const detailed = await rowsFromImageOrPdfDetailed(bytes, String(doc.mime_type));
+      rows = detailed.map((item) => item.row);
+      confidence = { ...(detailed[0]?.confidence ?? {}) };
     } catch (error) {
       extractionError = error instanceof Error ? error.message : "Extraction failed";
-      extractionErrors.push({ source: doc.original_filename, code: "EXTRACTION_FAILED", message: extractionError });
     }
     await sql()`
+      insert into system_jobs(job_type,status,import_case_id,source_name,provider,confidence,result,error,created_by,completed_at)
+      values('smart_document_extraction',${extractionError ? "FAILED" : "COMPLETED"},${caseId},${String(doc.original_filename)},'gemini',
+        ${sql().json(confidence as never)},
+        ${sql().json({ extracted_rows: rows.length, duration_ms: Date.now() - started } as never)},
+        ${extractionError},${session.staff.id},now())`;
+    await sql()`
       update client_import_documents
-      set extraction_metadata=${sql().json({ extracted_rows: rows.length, extraction_error: extractionError, processing_state: extractionError ? "FAILED" : "EXTRACTED" } as never)}
-      where id=${doc.id}`;
+      set extraction_metadata=${sql().json({
+        extracted_rows: rows.length,
+        confidence,
+        extraction_error: extractionError,
+        processing_state: extractionError ? "FAILED" : "EXTRACTED",
+        completed_at: new Date().toISOString(),
+      } as never)}
+      where id=${String(doc.id)}`;
+    return { doc, rows, confidence, extractionError };
+  }
+
+  const results: DocResult[] = [];
+  for (let index = 0; index < docs.length; index += 2) {
+    const chunk = docs.slice(index, index + 2) as unknown as Record<string, unknown>[];
+    results.push(...await Promise.all(chunk.map(processDocument)));
+  }
+
+  for (const result of results) {
+    const doc = result.doc;
+    if (result.rows[0]) {
+      sources.push({
+        row: result.rows[0],
+        source: String(doc.original_filename),
+        documentId: String(doc.id),
+        sourcePage: null,
+        confidence: result.confidence,
+      });
+    }
+    if (result.rows.length > 1) {
+      extractionErrors.push({ source: doc.original_filename, code: "MULTIPLE_CLIENTS_DETECTED", count: result.rows.length });
+    }
+    if (result.extractionError) {
+      extractionErrors.push({ source: doc.original_filename, code: "EXTRACTION_FAILED", message: result.extractionError });
+    }
   }
 
   const merged = mergeEvidence(sources);
@@ -360,7 +409,8 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
   const draft = preserveReviewedDraft(caseRow.mapped_draft, extractedDraft, Boolean(caseRow.review_started_at));
   const evidence = appendExtractionEvidence(caseRow.field_evidence, merged.evidence as EvidenceEntry[]);
   const missing = requiredMissingFromDraft(draft);
-  const aiState = docs.length === 0 ? "SKIPPED" : extractionErrors.length === docs.length ? "FAILED" : extractionErrors.length ? "PARTIAL" : "COMPLETE";
+  const failedDocuments = results.filter((item) => item.extractionError).length;
+  const aiState = docs.length === 0 ? "SKIPPED" : failedDocuments === docs.length ? "FAILED" : failedDocuments ? "PARTIAL" : "COMPLETE";
   const processingState = extractionErrors.length ? "REVIEW_REQUIRED" : "EXTRACTED";
   const verificationResult = {
     processing_state: processingState,
@@ -369,6 +419,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     extraction_errors: extractionErrors,
     evidence_fields: evidence.length,
     document_count: docs.length,
+    provider: "gemini",
     manual_precedence_applied: Boolean(caseRow.review_started_at),
     checked_at: new Date().toISOString(),
   };

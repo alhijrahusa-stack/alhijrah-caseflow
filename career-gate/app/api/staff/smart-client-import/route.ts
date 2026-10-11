@@ -11,7 +11,7 @@ import {
   startImportReview,
   verifyImportCase,
 } from "@/lib/smart-client-import";
-import { archiveImportCase, assertImportNotArchived, listActiveImportQueue } from "@/lib/smart-import-archive";
+import { archiveImportCase, assertImportNotArchived, listActiveImportQueue, listArchivedImportQueue } from "@/lib/smart-import-archive";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,6 +44,13 @@ export async function GET(req: Request) {
       const detail = await getImportCase(guard.session, caseId);
       const [creator] = await sql()`select display_name from staff where id=${String(detail.case.created_by)} limit 1`;
       return ok({ ...detail, case: { ...detail.case, uploaded_by_name: creator?.display_name ? String(creator.display_name) : null } }, 200, traceId);
+    }
+    if (url.searchParams.get("archive") === "1") {
+      const queue = await listArchivedImportQueue(guard.session, {
+        q: url.searchParams.get("q"),
+        cursor: url.searchParams.get("cursor"),
+      });
+      return ok(await withUploaderMetadata(queue), 200, traceId);
     }
     const queue = await listActiveImportQueue(guard.session, {
       status: url.searchParams.get("status"),
