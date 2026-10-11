@@ -6,6 +6,9 @@ import type { IntakeRow } from "@/lib/intake-file";
 import { ActionError, normalizeClientEmail } from "@/lib/service";
 import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
+import type { DocumentFieldEvidence, DocumentProviderName } from "@/lib/providers/document-intelligence-types";
+import type { MrzValidation } from "@/lib/document-validation/mrz";
+import { analyzeDocumentMetadata, type DocumentMetadata } from "@/lib/document-validation/metadata";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
 import {
   SMART_IMPORT_LIMITS,
@@ -24,7 +27,18 @@ const EVIDENCE_FIELDS = [
   "employment_to", "site_code", "job_id", "shift_code", "backup_site_code", "backup_job_id", "backup_shift_code",
 ] as const;
 
-type SourceRow = { row: IntakeRow; source: string; documentId: string | null; sourcePage: number | null; confidence?: Record<string, number> };
+type SourceRow = {
+  row: IntakeRow;
+  source: string;
+  documentId: string | null;
+  sourcePage: number | null;
+  confidence?: Record<string, number>;
+  fieldEvidence?: DocumentFieldEvidence[];
+  providerName?: DocumentProviderName;
+  providerVersion?: string;
+  authenticity?: Record<string, unknown>;
+  quality?: Record<string, unknown>;
+};
 
 type FileCapture = {
   file: File;
@@ -84,14 +98,29 @@ function mergeEvidence(sources: SourceRow[]) {
 
   for (const field of EVIDENCE_FIELDS) {
     const values = sources
-      .map((source) => ({
-        value: pickImportValue(source.row, field),
-        source: source.source,
-        documentId: source.documentId,
-        sourcePage: source.sourcePage,
-        confidenceScore: source.confidence?.[field] ?? null,
-      }))
-      .filter((item): item is { value: string; source: string; documentId: string | null; sourcePage: number | null; confidenceScore: number | null } => Boolean(item.value));
+      .map((source) => {
+        const providerEvidence = source.fieldEvidence?.find((entry) => entry.field_name === field) ?? null;
+        return {
+          value: pickImportValue(source.row, field),
+          source: source.source,
+          documentId: source.documentId,
+          sourcePage: providerEvidence?.page_index ?? source.sourcePage,
+          confidenceScore: providerEvidence?.recognition_probability ?? source.confidence?.[field] ?? null,
+          providerEvidence,
+          providerName: source.providerName ?? null,
+          providerVersion: source.providerVersion ?? null,
+        };
+      })
+      .filter((item): item is {
+        value: string;
+        source: string;
+        documentId: string | null;
+        sourcePage: number | null;
+        confidenceScore: number | null;
+        providerEvidence: DocumentFieldEvidence | null;
+        providerName: DocumentProviderName | null;
+        providerVersion: string | null;
+      } => Boolean(item.value));
     if (!values.length) continue;
 
     const grouped = new Map<string, typeof values>();
@@ -116,8 +145,21 @@ function mergeEvidence(sources: SourceRow[]) {
           source_page: item.sourcePage,
           source_text_reference: null,
           match_score: 100,
-          verification_state: multiSource ? "MATCHED" : "REVIEW",
+          verification_state: item.providerEvidence?.review_state === "NEEDS_REVIEW"
+            ? "REVIEW"
+            : multiSource ? "MATCHED" : "REVIEW",
           confidence_score: item.confidenceScore,
+          provider_name: item.providerEvidence?.provider_name ?? item.providerName,
+          provider_version: item.providerEvidence?.provider_version ?? item.providerVersion,
+          document_type: item.providerEvidence?.document_type ?? null,
+          country: item.providerEvidence?.country ?? null,
+          bounding_region: item.providerEvidence?.bounding_region ?? null,
+          validation_result: item.providerEvidence?.validation_result ?? "NOT_PERFORMED",
+          checksum_result: item.providerEvidence?.checksum_result ?? "NOT_PERFORMED",
+          cross_source_result: item.providerEvidence?.cross_source_result ?? "NOT_PERFORMED",
+          authenticity_result: item.providerEvidence?.authenticity_result ?? "NOT_PERFORMED",
+          review_state: item.providerEvidence?.review_state ?? "NEEDS_REVIEW",
+          trace_id: item.providerEvidence?.trace_id ?? null,
         });
       }
       continue;
@@ -145,6 +187,17 @@ function mergeEvidence(sources: SourceRow[]) {
         match_score: bestScore,
         verification_state: "CONFLICT",
         confidence_score: item.confidenceScore,
+        provider_name: item.providerEvidence?.provider_name ?? item.providerName,
+        provider_version: item.providerEvidence?.provider_version ?? item.providerVersion,
+        document_type: item.providerEvidence?.document_type ?? null,
+        country: item.providerEvidence?.country ?? null,
+        bounding_region: item.providerEvidence?.bounding_region ?? null,
+        validation_result: item.providerEvidence?.validation_result ?? "NOT_PERFORMED",
+        checksum_result: item.providerEvidence?.checksum_result ?? "NOT_PERFORMED",
+        cross_source_result: item.providerEvidence?.cross_source_result ?? "NOT_PERFORMED",
+        authenticity_result: item.providerEvidence?.authenticity_result ?? "NOT_PERFORMED",
+        review_state: "NEEDS_REVIEW",
+        trace_id: item.providerEvidence?.trace_id ?? null,
       });
     }
   }
@@ -288,7 +341,7 @@ export async function stageMobileImportV2(args: {
     const [batch] = await tx`
       insert into client_import_batches(source_type,source_file_hash,idempotency_key,created_by,metadata)
       values('mobile',${sourceHash({ notes, files: fileData.map((entry) => ({ name: entry.file.name, sha256: entry.sha256 })) })},${key},${args.session.staff.id},
-             ${tx.json({ file_count: args.files.length, raw_text_present: Boolean(notes), extraction_engine: "local_first_gemini_enrichment" } as never)}) returning id`;
+             ${tx.json({ file_count: args.files.length, raw_text_present: Boolean(notes), extraction_engine: "local_first_regula_9_9_microblink_4000_4_0_fallback" } as never)}) returning id`;
     const [caseRow] = await tx`
       insert into client_import_cases(batch_id,source_type,status,raw_input,mapped_draft,missing_fields,conflicts,field_evidence,verification_result,created_by)
       values(${batch.id},'mobile','PENDING',${tx.json({ notes } as never)},${tx.json(preDraft as never)},${tx.json(preMissing as never)},
@@ -385,6 +438,16 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     doc: Record<string, unknown>;
     rows: IntakeRow[];
     confidence: Record<string, number>;
+    fieldEvidence: DocumentFieldEvidence[];
+    providerName: DocumentProviderName | null;
+    providerVersion: string | null;
+    documentType: string | null;
+    country: string | null;
+    authenticity: Record<string, unknown> | null;
+    quality: Record<string, unknown> | null;
+    mrz: MrzValidation | null;
+    documentMetadata: DocumentMetadata | null;
+    cacheHit: boolean;
     extractionError: string | null;
   };
 
@@ -392,38 +455,172 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     const started = Date.now();
     let rows: IntakeRow[] = [];
     let confidence: Record<string, number> = {};
+    let fieldEvidence: DocumentFieldEvidence[] = [];
+    let providerName: DocumentProviderName | null = null;
+    let providerVersion: string | null = null;
+    let documentType: string | null = null;
+    let country: string | null = null;
+    let authenticity: Record<string, unknown> | null = null;
+    let quality: Record<string, unknown> | null = null;
+    let mrz: MrzValidation | null = null;
+    let documentMetadata: DocumentMetadata | null = null;
+    let cacheHit = false;
     let extractionError: string | null = null;
-    try {
-      const bytes = await downloadObject(String(doc.storage_reference));
-      const detailed = await rowsFromImageOrPdfDetailed(bytes, String(doc.mime_type));
-      rows = detailed.map((item) => item.row);
-      confidence = { ...(detailed[0]?.confidence ?? {}) };
-    } catch (error) {
-      extractionError = error instanceof Error ? error.message : "Extraction failed";
+
+    const cached = doc.extraction_metadata && typeof doc.extraction_metadata === "object"
+      ? doc.extraction_metadata as Record<string, unknown>
+      : null;
+    const cachedProvider = cached?.provider === "regula" || cached?.provider === "microblink"
+      ? cached.provider
+      : null;
+    const cachedVersion = typeof cached?.provider_version === "string" ? cached.provider_version : null;
+    const versionCurrent = (cachedProvider === "regula" && cachedVersion === "9.9")
+      || (cachedProvider === "microblink" && cachedVersion === "4000.4.0");
+    const cachedRow = cached?.extracted_row && typeof cached.extracted_row === "object"
+      ? cached.extracted_row as IntakeRow
+      : null;
+
+    if (cached?.processing_state === "EXTRACTED" && versionCurrent && cachedRow) {
+      cacheHit = true;
+      rows = [cachedRow];
+      confidence = cached.confidence && typeof cached.confidence === "object"
+        ? cached.confidence as Record<string, number>
+        : {};
+      fieldEvidence = Array.isArray(cached.field_evidence)
+        ? cached.field_evidence as DocumentFieldEvidence[]
+        : [];
+      providerName = cachedProvider;
+      providerVersion = cachedVersion;
+      documentType = typeof cached.document_type === "string" ? cached.document_type : null;
+      country = typeof cached.country === "string" ? cached.country : null;
+      authenticity = cached.authenticity && typeof cached.authenticity === "object"
+        ? cached.authenticity as Record<string, unknown>
+        : null;
+      quality = cached.quality && typeof cached.quality === "object"
+        ? cached.quality as Record<string, unknown>
+        : null;
+      mrz = cached.mrz && typeof cached.mrz === "object" ? cached.mrz as MrzValidation : null;
+      documentMetadata = cached.document_metadata && typeof cached.document_metadata === "object"
+        ? cached.document_metadata as DocumentMetadata
+        : null;
+    } else {
+      try {
+        const bytes = await downloadObject(String(doc.storage_reference));
+        const metadataPromise = analyzeDocumentMetadata(bytes, String(doc.mime_type));
+        const detailed = await rowsFromImageOrPdfDetailed(bytes, String(doc.mime_type), {
+          filename: String(doc.original_filename),
+          traceId: caseId,
+        });
+        documentMetadata = await metadataPromise;
+        rows = detailed.map((item) => item.row);
+        const first = detailed[0];
+        confidence = { ...(first?.confidence ?? {}) };
+        fieldEvidence = first?.fieldEvidence ?? [];
+        providerName = first?.provider.name ?? null;
+        providerVersion = first?.provider.version ?? null;
+        documentType = first?.documentType ?? null;
+        country = first?.country ?? null;
+        authenticity = first?.authenticity as unknown as Record<string, unknown> ?? null;
+        quality = first?.quality as unknown as Record<string, unknown> ?? null;
+        mrz = first?.mrz ?? null;
+      } catch (error) {
+        extractionError = error instanceof Error ? error.message : "Extraction failed";
+      }
     }
+
     await sql()`
       insert into system_jobs(job_type,status,import_case_id,source_name,provider,confidence,result,error,created_by,completed_at)
-      values('smart_document_extraction',${extractionError ? "FAILED" : "COMPLETED"},${caseId},${String(doc.original_filename)},'gemini',
+      values('smart_document_extraction',${extractionError ? "FAILED" : "COMPLETED"},${caseId},${String(doc.original_filename)},${providerName ?? "regula"},
         ${sql().json(confidence as never)},
-        ${sql().json({ extracted_rows: rows.length, duration_ms: Date.now() - started } as never)},
+        ${sql().json({
+          extracted_rows: rows.length,
+          duration_ms: Date.now() - started,
+          cache_hit: cacheHit,
+          provider_version: providerVersion,
+          document_type: documentType,
+          country,
+          authenticity,
+          quality,
+          mrz,
+          document_metadata: documentMetadata,
+          evidence_fields: fieldEvidence.length,
+        } as never)},
         ${extractionError},${session.staff.id},now())`;
-    await sql()`
-      update client_import_documents
-      set extraction_metadata=${sql().json({
-        extracted_rows: rows.length,
-        confidence,
-        extraction_error: extractionError,
-        processing_state: extractionError ? "FAILED" : "EXTRACTED",
-        completed_at: new Date().toISOString(),
-      } as never)}
-      where id=${String(doc.id)}`;
-    return { doc, rows, confidence, extractionError };
+
+    if (!cacheHit || extractionError) {
+      await sql()`
+        update client_import_documents
+        set extraction_metadata=${sql().json({
+          extracted_rows: rows.length,
+          extracted_row: rows[0] ?? null,
+          confidence,
+          provider: providerName,
+          provider_version: providerVersion,
+          document_type: documentType,
+          country,
+          authenticity,
+          quality,
+          mrz,
+          document_metadata: documentMetadata,
+          field_evidence: fieldEvidence,
+          extraction_error: extractionError,
+          processing_state: extractionError ? "FAILED" : "EXTRACTED",
+          completed_at: new Date().toISOString(),
+        } as never)}
+        where id=${String(doc.id)}`;
+    }
+
+    return {
+      doc,
+      rows,
+      confidence,
+      fieldEvidence,
+      providerName,
+      providerVersion,
+      documentType,
+      country,
+      authenticity,
+      quality,
+      mrz,
+      documentMetadata,
+      cacheHit,
+      extractionError,
+    };
   }
 
   const results: DocResult[] = [];
   for (let index = 0; index < docs.length; index += 2) {
     const chunk = docs.slice(index, index + 2) as unknown as Record<string, unknown>[];
     results.push(...await Promise.all(chunk.map(processDocument)));
+  }
+
+  const identityFingerprint = (row: IntakeRow | undefined) => {
+    if (!row) return null;
+    const name = pickImportValue(row, "full_name")?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
+    const dob = pickImportValue(row, "date_of_birth")?.trim() ?? "";
+    if (!name && !dob) return null;
+    return createHash("sha256").update(`${name}|${dob}`).digest("hex");
+  };
+  const fingerprints = new Set(results.map((result) => identityFingerprint(result.rows[0])).filter((value): value is string => Boolean(value)));
+  if (fingerprints.size > 1) {
+    extractionErrors.push({
+      code: "DOCUMENT_IDENTITY_MISMATCH",
+      message: "Uploaded documents appear to belong to different applicant identities and require review.",
+    });
+  }
+
+  for (const result of results) {
+    const fingerprint = identityFingerprint(result.rows[0]);
+    const associationKey = fingerprint
+      ? createHash("sha256").update(`${caseId}|${fingerprint}|${result.documentType ?? "unknown"}`).digest("hex")
+      : `isolated:${String(result.doc.id)}`;
+    await sql()`
+      update client_import_documents
+      set extraction_metadata=coalesce(extraction_metadata,'{}'::jsonb) || ${sql().json({
+        association_key: associationKey,
+        association_state: fingerprint ? "IDENTITY_BOUND" : "ISOLATED_UNVERIFIED",
+      } as never)}
+      where id=${String(result.doc.id)}`;
   }
 
   for (const result of results) {
@@ -435,6 +632,11 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
         documentId: String(doc.id),
         sourcePage: null,
         confidence: result.confidence,
+        fieldEvidence: result.fieldEvidence,
+        providerName: result.providerName ?? undefined,
+        providerVersion: result.providerVersion ?? undefined,
+        authenticity: result.authenticity ?? undefined,
+        quality: result.quality ?? undefined,
       });
     }
     if (result.rows.length > 1) {
@@ -452,7 +654,16 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
   const missing = requiredMissingFromDraft(draft);
   const failedDocuments = results.filter((item) => item.extractionError).length;
   const aiState = docs.length === 0 ? "SKIPPED" : failedDocuments === docs.length ? "FAILED" : failedDocuments ? "PARTIAL" : "COMPLETE";
-  const processingState = extractionErrors.length ? "REVIEW_REQUIRED" : "EXTRACTED";
+  const evidenceNeedsReview = merged.evidence.some((entry) =>
+    entry.review_state === "NEEDS_REVIEW"
+    || entry.validation_result === "FAILED"
+    || entry.checksum_result === "FAILED"
+    || entry.cross_source_result === "FAILED"
+    || entry.authenticity_result === "FAILED",
+  );
+  const processingState = extractionErrors.length || merged.conflicts.length || evidenceNeedsReview
+    ? "REVIEW_REQUIRED"
+    : "EXTRACTED";
   const verificationResult = {
     processing_state: processingState,
     local_state: "COMPLETE",
@@ -460,7 +671,8 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     extraction_errors: extractionErrors,
     evidence_fields: evidence.length,
     document_count: docs.length,
-    provider: "gemini",
+    provider: [...new Set(results.map((item) => item.providerName).filter(Boolean))].join("+") || null,
+    provider_versions: [...new Set(results.map((item) => item.providerVersion).filter(Boolean))],
     manual_precedence_applied: Boolean(caseRow.review_started_at),
     checked_at: new Date().toISOString(),
   };

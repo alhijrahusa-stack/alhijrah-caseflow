@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DigitalHandshake, useDigitalHandshake } from "@/components/staff/smart/DigitalHandshake";
+import { BezierProgress, type ProgressStage } from "@/components/shared/BezierProgress";
 import {
   SMART_FIELD_GROUPS,
   smartAuthorityClass,
@@ -346,6 +347,43 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
 
   const readiness = useMemo(() => smartRequiredReadiness(readField), [readField]);
 
+  const pipelineStages = useMemo<ProgressStage[]>(() => [
+    {
+      label: "CAPTURE",
+      state: submitted ? "COMPLETED" : stage === "CAPTURING" ? "RUNNING" : hasSource ? "COMPLETED" : "PENDING",
+    },
+    {
+      label: "EXTRACT",
+      state: stage === "ENRICHING" || sourceSettling ? "RUNNING"
+        : stage === "REVIEW_REQUIRED" ? "NEEDS_REVIEW"
+        : stage === "READY" ? "COMPLETED"
+        : "PENDING",
+    },
+    {
+      label: "AUTOFILL",
+      state: serverDraft ? "COMPLETED"
+        : stage === "ENRICHING" ? "RUNNING"
+        : stage === "REVIEW_REQUIRED" ? "NEEDS_REVIEW"
+        : "PENDING",
+    },
+    {
+      label: "REVIEW",
+      state: stage === "REVIEW_REQUIRED" ? "NEEDS_REVIEW"
+        : stage === "READY" ? "COMPLETED"
+        : "PENDING",
+    },
+    {
+      label: "STAGE",
+      state: submitted ? "COMPLETED" : stage === "CAPTURING" ? "RUNNING" : "PENDING",
+    },
+    {
+      label: "READY",
+      state: stage === "READY" ? "COMPLETED"
+        : stage === "REVIEW_REQUIRED" ? "NEEDS_REVIEW"
+        : "PENDING",
+    },
+  ], [hasSource, serverDraft, sourceSettling, stage, submitted]);
+
   function runIssueAction(kind: IssueAction) {
     if (kind === "ADD_FILES") { inputRef.current?.click(); return; }
     if (result) void enrich(result, documents);
@@ -542,14 +580,13 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
 
             <section className={`${PANEL} p-4 sm:p-5`} aria-labelledby="smart-pipeline">
               <PanelTitle id="smart-pipeline" number="05" title="PROCESSING PIPELINE" meta="Actual operational state" />
-              <ol className="mt-3 space-y-2">
-                <PipelineStage label="SOURCE CAPTURE" state={submitted ? "COMPLETE" : stage === "CAPTURING" ? "RUNNING" : hasSource ? "COMPLETE" : "WAITING"} />
-                <PipelineStage label="LOCAL EXTRACTION" state={sourceSettling ? "RUNNING" : notes.trim() ? "COMPLETE" : "WAITING"} />
-                <PipelineStage label="DOCUMENT PROCESSING" state={!documents.length ? "WAITING" : stage === "ENRICHING" ? "RUNNING" : stage === "REVIEW_REQUIRED" ? "REVIEW REQUIRED" : stage === "READY" ? "COMPLETE" : "WAITING"} />
-                <PipelineStage label="ENRICHMENT" state={!documents.length ? "WAITING" : stage === "ENRICHING" ? "RUNNING" : stage === "REVIEW_REQUIRED" ? "REVIEW REQUIRED" : stage === "READY" ? "COMPLETE" : "WAITING"} />
-                <PipelineStage label="STAGING" state={submitted ? "COMPLETE" : stage === "CAPTURING" ? "RUNNING" : "WAITING"} />
-                <PipelineStage label="REVIEW READINESS" state={stage === "READY" ? "COMPLETE" : stage === "REVIEW_REQUIRED" ? "REVIEW REQUIRED" : "WAITING"} />
-              </ol>
+              <div className="mt-3">
+                <BezierProgress
+                  stages={pipelineStages}
+                  title="LIVE WORKFLOW"
+                  trailing={<span className="font-mono text-[10px] text-cyan-200">{status.replace(/_/g, " ")}</span>}
+                />
+              </div>
             </section>
 
             <section
@@ -580,36 +617,55 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
           </aside>
         </div>
 
-        <section className={`${PANEL} sticky bottom-3 z-20 order-3 p-4`} aria-label="Smart Client Import actions">
+        <section className={`${PANEL} sticky bottom-3 z-20 order-3 p-4`} aria-label="Intelligent Command Sheet" data-testid="intelligent-command-sheet">
           <DigitalHandshake sweep={sweep} />
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-400">
-              <span className="rounded-md border border-white/[.08] bg-black/25 px-2 py-1 font-mono text-[11px]">⌘/Ctrl + Enter</span>
-              <span>Submit</span>
-              <span aria-hidden="true" className="text-slate-600">|</span>
-              <span className={hasSource ? "text-emerald-300" : ""}>{submitted ? "Source captured and staged" : hasSource ? "Source captured, not yet submitted" : "Source-first capture"}</span>
-              <span aria-hidden="true" className="text-slate-600">|</span>
-              <span className="font-mono text-[11px]">{readiness.complete} / {readiness.total} REQUIRED</span>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#ff9f1a] shadow-[0_0_14px_rgba(255,159,26,.55)]" aria-hidden="true" />
+                <p className="text-[11px] font-bold tracking-[.18em] text-[#f3c56a]">INTELLIGENT COMMAND</p>
+              </div>
+              <p className="mt-1.5 text-[14px] font-medium text-slate-100">
+                {submitted
+                  ? "Capture complete. Continue to staff review."
+                  : busy
+                    ? "Processing the current operation. No duplicate action is available."
+                    : !hasSource
+                      ? "Add the client source or identity document."
+                      : stage === "REVIEW_REQUIRED"
+                        ? "Resolve the flagged extraction issue or retry the provider."
+                        : "Source is ready to stage for Smart Review."}
+              </p>
+              <p className="mt-1 font-mono text-[11px] text-slate-400">{readiness.complete}/{readiness.total} REQUIRED · {status.replace(/_/g, " ")}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {!submitted && hasSource && !busy && (
+                <button type="button" onClick={reset} className="min-h-11 rounded-xl border border-white/12 bg-white/[.02] px-4 text-[13px] font-semibold tracking-[.08em] text-slate-300 transition hover:bg-white/[.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300">
+                  CLEAR
+                </button>
+              )}
               {submitted ? (
-                <>
-                  <button type="button" onClick={reset} className="min-h-11 rounded-xl border border-white/12 bg-white/[.03] px-4 text-[13px] font-semibold tracking-[.1em] text-slate-200 transition hover:bg-white/[.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 active:translate-y-px active:scale-[.985]">START ANOTHER</button>
-                  <Link className="inline-flex min-h-11 items-center rounded-xl border border-[#d4b06a]/55 bg-[linear-gradient(180deg,rgba(184,147,74,.22),rgba(184,147,74,.1))] px-4 text-[13px] font-semibold tracking-[.1em] text-[#f0d99d] shadow-[0_10px_26px_-16px_rgba(184,147,74,.6)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e3c884]" href="/staff/import">OPEN SMART CAREER COLLECT CLIENT</Link>
-                </>
+                <Link className="inline-flex min-h-12 items-center rounded-xl border border-[#ff9f1a]/55 bg-[linear-gradient(180deg,rgba(255,159,26,.24),rgba(255,132,0,.10))] px-5 text-[13px] font-semibold tracking-[.1em] text-[#ffd18a] shadow-[0_12px_32px_-18px_rgba(255,132,0,.72)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffb347]" href="/staff/import">
+                  OPEN STAFF REVIEW
+                </Link>
+              ) : !hasSource ? (
+                <button type="button" onClick={() => inputRef.current?.click()} className="inline-flex min-h-12 items-center rounded-xl border border-[#ff9f1a]/55 bg-[linear-gradient(180deg,rgba(255,159,26,.24),rgba(255,132,0,.10))] px-5 text-[13px] font-semibold tracking-[.1em] text-[#ffd18a] shadow-[0_12px_32px_-18px_rgba(255,132,0,.72)] transition hover:brightness-110">
+                  UPLOAD DOCUMENT
+                </button>
+              ) : stage === "REVIEW_REQUIRED" && result ? (
+                <button type="button" onClick={() => void enrich(result, documents)} className="inline-flex min-h-12 items-center rounded-xl border border-amber-300/45 bg-amber-300/[.08] px-5 text-[13px] font-semibold tracking-[.1em] text-amber-100 transition hover:bg-amber-300/[.14] disabled:opacity-45">
+                  RETRY EXTRACTION
+                </button>
               ) : (
-                <>
-                  <button type="button" onClick={reset} disabled={busy || !hasSource} className="min-h-11 rounded-xl border border-white/12 bg-white/[.02] px-4 text-[13px] font-semibold tracking-[.1em] text-slate-300 transition hover:bg-white/[.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 active:translate-y-px active:scale-[.985] disabled:opacity-40">CLEAR</button>
-                  <button
-                    type="button"
-                    onClick={() => void submit()}
-                    disabled={busy || !hasSource}
-                    className="inline-flex min-h-11 min-w-[9.5rem] items-center justify-center gap-2 rounded-xl border border-[#d4b06a]/65 bg-[linear-gradient(180deg,rgba(184,147,74,.26),rgba(184,147,74,.12))] px-5 text-[14px] font-semibold tracking-[.12em] text-[#f3dda4] shadow-[0_12px_30px_-18px_rgba(184,147,74,.75)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e3c884] active:translate-y-px active:scale-[.985] disabled:opacity-40"
-                  >
-                    {stage === "CAPTURING" && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#f3dda4] motion-safe:animate-pulse" />}
-                    {stage === "CAPTURING" ? "SUBMITTING" : "SUBMIT"}
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => void submit()}
+                  disabled={busy}
+                  className="inline-flex min-h-12 min-w-[11rem] items-center justify-center gap-2 rounded-xl border border-[#ff9f1a]/60 bg-[linear-gradient(180deg,rgba(255,159,26,.26),rgba(255,132,0,.12))] px-5 text-[14px] font-semibold tracking-[.11em] text-[#ffd18a] shadow-[0_14px_34px_-18px_rgba(255,132,0,.72)] transition hover:brightness-110 disabled:opacity-45"
+                >
+                  {busy && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#ffd18a] motion-safe:animate-pulse" />}
+                  {busy ? "PROCESSING" : "STAGE FOR REVIEW"}
+                </button>
               )}
             </div>
           </div>
@@ -733,23 +789,6 @@ function Chip({ tone, children }: { tone: "emerald" | "cyan" | "amber" | "red" |
   return <span className={`rounded border px-1.5 py-0.5 font-mono text-[11px] ${map[tone]}`}>{children}</span>;
 }
 
-function PipelineStage({ label, state }: { label: string; state: "WAITING" | "RUNNING" | "COMPLETE" | "REVIEW REQUIRED" | "FAILED" }) {
-  const tone =
-    state === "COMPLETE" ? { dot: "bg-emerald-300", text: "text-emerald-200" }
-    : state === "RUNNING" ? { dot: "bg-cyan-300", text: "text-cyan-200" }
-    : state === "REVIEW REQUIRED" ? { dot: "bg-amber-300", text: "text-amber-200" }
-    : state === "FAILED" ? { dot: "bg-red-300", text: "text-red-200" }
-    : { dot: "bg-slate-600", text: "text-slate-400" };
-  return (
-    <li className="flex items-center justify-between gap-3 rounded-xl border border-transparent px-2 py-2 hover:border-white/[.05] hover:bg-white/[.02]">
-      <span className="flex items-center gap-2 text-[13px] text-slate-200">
-        <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${tone.dot} ${state === "RUNNING" ? "motion-safe:animate-pulse" : ""}`} />
-        {label}
-      </span>
-      <span className={`font-mono text-[12px] font-semibold ${tone.text}`}>{state}</span>
-    </li>
-  );
-}
 
 /**
  * One Live Intelligence row. Missing supported fields stay visible, and the value is

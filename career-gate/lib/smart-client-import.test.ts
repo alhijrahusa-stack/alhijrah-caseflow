@@ -290,6 +290,43 @@ describe("Smart Career Collect Client canonical import contract", () => {
     expect(unchanged).toEqual(merged);
   });
 
+  it("retains provider/model/document context when a reviewer corrects extracted data", () => {
+    const previous = prepareImportDraft({ full_name: "TEST CLIENT", phone: "3135550199", date_of_birth: "1990-01-01" });
+    const next = { ...previous, profile: { ...previous.profile, date_of_birth: "1990-01-02" } };
+    const evidence = [{
+      field_key: "date_of_birth",
+      value: "1990-01-01",
+      authority: "SOURCE",
+      source_type: "document",
+      provider_name: "regula",
+      provider_version: "9.9",
+      document_type: "Driver License",
+      country: "USA",
+      source_document_id: "doc-1",
+      confidence_score: 97.3,
+      validation_result: "PASSED",
+      authenticity_result: "PASSED",
+    }];
+
+    const merged = mergeManualEvidence(evidence, previous, next, "reviewer-1");
+    expect(merged.at(-1)).toMatchObject({
+      field_key: "date_of_birth",
+      authority: "MANUAL",
+      previous_value: "1990-01-01",
+      value: "1990-01-02",
+      correction_context: {
+        provider_name: "regula",
+        provider_version: "9.9",
+        document_type: "Driver License",
+        country: "USA",
+        source_document_id: "doc-1",
+        recognition_probability: 97.3,
+        previous_validation_result: "PASSED",
+        previous_authenticity_result: "PASSED",
+      },
+    });
+  });
+
   it("keeps a later automatic extraction from displacing a manually reviewed field", () => {
     const stored = [
       { field_key: "english_proficiency", value: "Englis is goog", source_type: "csv", authority: "SOURCE", verification_state: "MATCHED" },

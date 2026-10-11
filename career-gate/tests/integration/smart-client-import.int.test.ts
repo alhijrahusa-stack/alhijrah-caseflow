@@ -383,6 +383,97 @@ describe("Smart Career Collect Client staging security", () => {
     expect(count).toBe(2);
   });
 
+  it("does not treat a shared phone alone as proof of the same applicant", async () => {
+    const sharedPhone = "3135558831";
+
+    const first = await stageSheetRows({
+      session: manager,
+      source: "csv",
+      idempotencyKey: `shared-phone-a-${randomUUID()}`,
+      rows: [{
+        full_name: "TEST Shared Phone Alpha",
+        phone: sharedPhone,
+        email: `shared-phone-alpha-${randomUUID()}@test.invalid`,
+        date_of_birth: "1984-02-02",
+      }],
+    });
+    const firstId = String(first.cases[0].id);
+    const [firstCase] = await db`select mapped_draft from client_import_cases where id=${firstId}`;
+    await approveImportCase(manager, {
+      id: firstId,
+      reviewerId: manager.staff.id,
+      draft: firstCase.mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+      traceId: "shared-phone-alpha",
+    });
+
+    const secondRow = {
+      full_name: "TEST Shared Phone Beta",
+      phone: sharedPhone,
+      email: `shared-phone-beta-${randomUUID()}@test.invalid`,
+      date_of_birth: "1994-10-10",
+    };
+    const [preview] = await previewImportRows(manager, [secondRow]);
+    expect(preview.result).toBe("VALID");
+    expect(preview.identity).toBe("NEW");
+    expect(preview.existing_client_ref).toBeNull();
+
+    const second = await stageSheetRows({
+      session: manager,
+      source: "csv",
+      idempotencyKey: `shared-phone-b-${randomUUID()}`,
+      rows: [secondRow],
+    });
+    const secondId = String(second.cases[0].id);
+    const [secondCase] = await db`select mapped_draft from client_import_cases where id=${secondId}`;
+    const approved = await approveImportCase(manager, {
+      id: secondId,
+      reviewerId: manager.staff.id,
+      draft: secondCase.mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+      traceId: "shared-phone-beta",
+    });
+    expect(approved.idempotent).toBe(false);
+  });
+
+  it("blocks a shared phone when another applicant signal also matches", async () => {
+    const sharedPhone = "3135558832";
+    const first = await stageSheetRows({
+      session: manager,
+      source: "csv",
+      idempotencyKey: `same-phone-a-${randomUUID()}`,
+      rows: [{
+        full_name: "TEST Same Phone Identity",
+        phone: sharedPhone,
+        email: `same-phone-a-${randomUUID()}@test.invalid`,
+        date_of_birth: "1988-08-08",
+      }],
+    });
+    const firstId = String(first.cases[0].id);
+    const [firstCase] = await db`select mapped_draft from client_import_cases where id=${firstId}`;
+    await approveImportCase(manager, {
+      id: firstId,
+      reviewerId: manager.staff.id,
+      draft: firstCase.mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+      traceId: "same-phone-first",
+    });
+
+    const repeatRow = {
+      full_name: "TEST Same Phone Identity",
+      phone: sharedPhone,
+      email: `same-phone-b-${randomUUID()}@test.invalid`,
+      date_of_birth: "1999-09-09",
+    };
+    const [preview] = await previewImportRows(manager, [repeatRow]);
+    expect(preview.result).toBe("DUPLICATE");
+    expect(preview.identity).toBe("POSSIBLE_DUPLICATE");
+    expect(preview.existing_client_ref).toBeTruthy();
+  });
+
   it("still blocks the same applicant when email and identity match an existing file", async () => {
     const email = `same-applicant-${randomUUID()}@test.invalid`;
     const first = await stageSheetRows({

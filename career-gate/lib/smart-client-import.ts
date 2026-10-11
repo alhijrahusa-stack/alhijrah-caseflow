@@ -143,6 +143,13 @@ export function mergeManualEvidence(existingValue: unknown, previousDraft: unkno
     const previous = draftFieldValue(previousDraft, fieldKey);
     const next = draftFieldValue(nextDraft, fieldKey);
     if (comparable(previous) === comparable(next)) continue;
+
+    const priorSource = [...existing].reverse().find((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const evidence = entry as Record<string, unknown>;
+      return evidence.field_key === fieldKey && evidence.authority !== "MANUAL";
+    }) as Record<string, unknown> | undefined;
+
     existing.push({
       field_key: fieldKey,
       value: next,
@@ -152,6 +159,16 @@ export function mergeManualEvidence(existingValue: unknown, previousDraft: unkno
       reviewer_id: reviewerId,
       reviewed_at: reviewedAt,
       previous_value: previous,
+      correction_context: priorSource ? {
+        provider_name: priorSource.provider_name ?? null,
+        provider_version: priorSource.provider_version ?? null,
+        document_type: priorSource.document_type ?? null,
+        country: priorSource.country ?? null,
+        source_document_id: priorSource.source_document_id ?? null,
+        recognition_probability: priorSource.confidence_score ?? priorSource.recognition_probability ?? null,
+        previous_validation_result: priorSource.validation_result ?? null,
+        previous_authenticity_result: priorSource.authenticity_result ?? null,
+      } : null,
     });
   }
   return existing;
@@ -242,8 +259,8 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
       return Boolean(identity.phone && m.phone === identity.phone);
     });
 
-    // A phone is an identity signal in its own right. An email is not: it may
-    // serve a whole family, so it counts only when another signal agrees.
+    // Neither email nor phone is sufficient by itself. A contact signal
+    // becomes a duplicate only when another applicant signal corroborates it.
     const sharesApplicant = (match: IdentityMatch) =>
       sameApplicant(applicant, applicantIdentity({
         fullName: match.full_name,
@@ -251,7 +268,20 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
         phone: match.phone,
       }));
     const emailDuplicates = emailMatches.filter(sharesApplicant);
-    const rowMatches = [...new Set([...phoneMatches, ...emailDuplicates])];
+    const phoneDuplicates = phoneMatches.filter((match) => {
+      const other = applicantIdentity({
+        fullName: match.full_name,
+        dateOfBirth: match.date_of_birth,
+        phone: match.phone,
+      });
+      const m = identityKey(match.email, match.phone);
+      return Boolean(
+        (applicant.fullName && other.fullName === applicant.fullName)
+        || (applicant.dateOfBirth && other.dateOfBirth === applicant.dateOfBirth)
+        || (identity.email && m.email === identity.email)
+      );
+    });
+    const rowMatches = [...new Set([...phoneDuplicates, ...emailDuplicates])];
 
     // Same email, no agreeing identity signal: a different applicant using a
     // relative's address. Allowed, and surfaced so staff can see why.

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClientIntakeBrand, ClientIntakeShell, GlassCard } from "@/components/public/ClientIntakeShell";
+import { BezierProgress, type ProgressStage } from "@/components/shared/BezierProgress";
 import {
   CASE_STATUS_PATH,
   INTAKE_COPY,
@@ -71,6 +72,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const [extracting, setExtracting] = useState(false);
   const [extractionNotice, setExtractionNotice] = useState<string | null>(null);
   const [importedFields, setImportedFields] = useState<ClientEditableField[]>([]);
+  const [providerReviewFields, setProviderReviewFields] = useState<ClientEditableField[]>([]);
   const [caseNumber, setCaseNumber] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [touchedDocuments, setTouchedDocuments] = useState(false);
@@ -158,7 +160,6 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const started = Boolean(sourceText.trim());
   const hasAnything = started || attachments.length > 0;
   const blocked = Object.keys(fieldErrors).length > 0 || duplicateIdentity;
-
   /**
    * Once the client has entered anything, every reviewed field is shown — the
    * detected ones filled, the rest empty. Showing only what was detected would
@@ -170,6 +171,29 @@ export function ClientIntakeForm({ token }: { token: string }) {
     () => new Set<ClientEditableField>(showReview ? CLIENT_EDITABLE_FIELDS : []),
     [showReview],
   );
+
+  const publicStages = useMemo<ProgressStage[]>(() => [
+    { label: "UPLOAD", state: attachments.length ? "COMPLETED" : "PENDING" },
+    {
+      label: "EXTRACT",
+      state: extracting ? "RUNNING"
+        : importedFields.length ? "COMPLETED"
+        : attachments.length && extractionNotice ? "NEEDS_REVIEW"
+        : "PENDING",
+    },
+    { label: "AUTOFILL", state: importedFields.length ? "COMPLETED" : "PENDING" },
+    {
+      label: "MISSING",
+      state: showReview
+        ? Object.keys(fieldErrors).length ? "NEEDS_REVIEW" : "COMPLETED"
+        : "PENDING",
+    },
+    { label: "REVIEW", state: duplicateIdentity ? "NEEDS_REVIEW" : showReview && !blocked ? "COMPLETED" : "PENDING" },
+    { label: "CONFIRM", state: busy ? "COMPLETED" : "PENDING" },
+    { label: "SUBMIT", state: busy ? "RUNNING" : done ? "COMPLETED" : "PENDING" },
+    { label: "SUCCESS", state: done ? "COMPLETED" : "PENDING" },
+  ], [attachments.length, blocked, busy, done, duplicateIdentity, extracting, extractionNotice, fieldErrors, importedFields.length, showReview]);
+
 
   // One deterministic lookup: the context follows what the client has done.
   const guideContext: GuideContext = blocked
@@ -199,9 +223,16 @@ export function ClientIntakeForm({ token }: { token: string }) {
       const keys = Object.keys(fields).filter((field): field is ClientEditableField =>
         (CLIENT_EDITABLE_FIELDS as readonly string[]).includes(field),
       );
+      const reviewKeys = (Array.isArray(data.review_fields) ? data.review_fields : []).filter(
+        (field: unknown): field is ClientEditableField =>
+          typeof field === "string" && (CLIENT_EDITABLE_FIELDS as readonly string[]).includes(field),
+      );
       setEdits((current) => ({ ...fields, ...current }));
       setImportedFields(keys);
-      setExtractionNotice(keys.length ? t.importedSuccess : t.noDataImported);
+      setProviderReviewFields(reviewKeys);
+      setExtractionNotice(
+        reviewKeys.length ? t.importedNeedsReview : keys.length ? t.importedSuccess : t.noDataImported,
+      );
     } catch {
       setExtractionNotice(t.extractionUnavailable);
     } finally {
@@ -307,27 +338,33 @@ export function ClientIntakeForm({ token }: { token: string }) {
     return (
       <ClientIntakeShell dir={t.dir}>
         {header}
+        <div className="mt-6">
+          <BezierProgress
+            title="APPLICATION WORKFLOW"
+            stages={publicStages.map((stage) => ({ ...stage, state: "COMPLETED" }))}
+          />
+        </div>
         <GlassCard tone="success" className="mt-8 text-center" data-testid="intake-success" role="status">
-          <div aria-hidden="true" className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-emerald-400/40 bg-emerald-100 text-emerald-700">
+          <div aria-hidden="true" className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-emerald-400/40 bg-emerald-400/15 text-emerald-200">
             <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12.8 9.4 17 19 7.4" /></svg>
           </div>
-          <h1 className="mt-5 text-[23px] font-semibold tracking-tight text-slate-900 sm:text-[27px]">{t.successHeading}</h1>
-          <p className="mx-auto mt-3 max-w-[48ch] text-[15px] leading-relaxed text-slate-600">{t.successBody}</p>
-          <p className="mx-auto mt-2 max-w-[48ch] text-[14px] leading-relaxed text-slate-500">{t.successGuidance}</p>
+          <h1 className="mt-5 text-[23px] font-semibold tracking-tight text-slate-50 sm:text-[27px]">{t.successHeading}</h1>
+          <p className="mx-auto mt-3 max-w-[48ch] text-[15px] leading-relaxed text-slate-300">{t.successBody}</p>
+          <p className="mx-auto mt-2 max-w-[48ch] text-[14px] leading-relaxed text-slate-400">{t.successGuidance}</p>
           {caseNumber && (
-            <div className="mx-auto mt-5 max-w-sm rounded-2xl border border-[#ff9f1a]/35 bg-gradient-to-b from-[#fff8eb] to-white px-5 py-4 shadow-[0_18px_42px_-28px_rgba(255,132,0,.65)]" data-testid="intake-case-number">
-              <p className="text-[12px] font-semibold uppercase tracking-[.12em] text-slate-500">{t.caseNumberLabel}</p>
-              <p className="mt-1 font-mono text-[22px] font-semibold tracking-[.04em] text-[#0a2d63]">{caseNumber}</p>
+            <div className="mx-auto mt-5 max-w-sm rounded-2xl border border-[#ff9f1a]/35 bg-gradient-to-b from-[#10294a] to-[#071a31] px-5 py-4 shadow-[0_18px_42px_-28px_rgba(255,132,0,.65)]" data-testid="intake-case-number">
+              <p className="text-[12px] font-semibold uppercase tracking-[.12em] text-slate-400">{t.caseNumberLabel}</p>
+              <p className="mt-1 font-mono text-[22px] font-semibold tracking-[.04em] text-[#dbeafe]">{caseNumber}</p>
             </div>
           )}
 
           {sharedEmailWarning && (
-            <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-[#2f6fd0]/25 bg-[#eef5ff] px-5 py-4 text-center" data-testid="intake-shared-email-success">
-              <p className="text-[15px] font-semibold text-[#0a2d63]">{t.sharedEmailHeading}</p>
-              <p className="mt-1.5 text-[13.5px] leading-relaxed text-slate-700">{t.sharedEmailBody}</p>
+            <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-[#2f6fd0]/25 bg-[#0a274c]/80 px-5 py-4 text-center" data-testid="intake-shared-email-success">
+              <p className="text-[15px] font-semibold text-[#dbeafe]">{t.sharedEmailHeading}</p>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-slate-200">{t.sharedEmailBody}</p>
               <a
                 href={`${OFFICE_EMAIL_URL}?subject=${encodeURIComponent(`Career Gate — New email for ${caseNumber ?? "new case"}`)}&body=${encodeURIComponent(`Case Number: ${caseNumber ?? ""}\nPlease update this file with my new email address:\n`)}`}
-                className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-white px-4 text-[14px] font-semibold text-[#194b91]"
+                className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-[#071a31]/88 px-4 text-[14px] font-semibold text-[#bfdbfe]"
               >
                 <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6.5h16v11H4z" /><path d="m5 8 7 5 7-5" /></svg>
                 <span>{t.emailCustomerService} · {OFFICE_EMAIL_DISPLAY}</span>
@@ -349,14 +386,14 @@ export function ClientIntakeForm({ token }: { token: string }) {
               target="_blank"
               rel="noopener noreferrer"
               data-testid="intake-whatsapp"
-              className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-emerald-500/35 bg-white px-4 text-[15px] font-semibold text-emerald-800 shadow-[0_10px_28px_-18px_rgba(16,122,87,.5)] transition-colors duration-200 hover:bg-emerald-50 motion-reduce:transition-none"
+              className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-emerald-500/35 bg-[#071a31]/88 px-4 text-[15px] font-semibold text-emerald-200 shadow-[0_10px_28px_-18px_rgba(16,122,87,.5)] transition-colors duration-200 hover:bg-emerald-400/10 motion-reduce:transition-none"
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 11.7a7.9 7.9 0 0 1-11.6 7l-4 1.2 1.2-3.9A7.9 7.9 0 1 1 20 11.7Z" /></svg>
               {t.whatsappOffice}
             </a>
           </div>
 
-          <p className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-[13px] text-slate-500" data-testid="intake-closed-note">
+          <p className="mt-5 rounded-xl border border-white/10 bg-[#061426]/80 px-4 py-2.5 text-[13px] text-slate-400" data-testid="intake-closed-note">
             {t.successClosed}
           </p>
         </GlassCard>
@@ -370,19 +407,27 @@ export function ClientIntakeForm({ token }: { token: string }) {
       {header}
 
       <div className="mt-7">
-        <h1 className="text-[24px] font-semibold tracking-tight text-slate-900 sm:text-[28px]">{t.heading}</h1>
-        <p className="mt-2 max-w-[56ch] text-[14px] leading-relaxed text-slate-500">{t.lead}</p>
+        <h1 className="text-[24px] font-semibold tracking-tight text-slate-50 sm:text-[28px]">{t.heading}</h1>
+        <p className="mt-2 max-w-[56ch] text-[14px] leading-relaxed text-slate-400">{t.lead}</p>
+      </div>
+
+      <div className="mt-5">
+        <BezierProgress
+          title={locale === "ar" ? "مسار التقديم المباشر" : "LIVE APPLICATION WORKFLOW"}
+          stages={publicStages}
+          trailing={<span className="font-mono text-[10px] text-[#ffb347]">{busy ? t.submitting : blocked ? t.guideIssue : hasAnything ? t.guideReview : t.guideStart}</span>}
+        />
       </div>
 
       {/* 1 — Document first: extract and auto-fill */}
       <GlassCard tone="accent" className="mt-5" data-testid="intake-upload">
         <div className="flex items-start gap-3">
-          <div aria-hidden="true" className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#d8b96a]/50 bg-white text-[#9c7a2e] shadow-[0_8px_20px_-14px_rgba(184,147,74,.7)]">
+          <div aria-hidden="true" className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#d8b96a]/50 bg-[#071a31]/88 text-[#9c7a2e] shadow-[0_8px_20px_-14px_rgba(184,147,74,.7)]">
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 16.5V5.5" /><path d="M7.8 9.7 12 5.5l4.2 4.2" /><path d="M5 16.5v1.8A2.2 2.2 0 0 0 7.2 20.5h9.6a2.2 2.2 0 0 0 2.2-2.2v-1.8" /></svg>
           </div>
           <div className="min-w-0">
-            <h2 className="text-[21px] font-semibold tracking-tight text-slate-900 sm:text-[24px]">{t.uploadHeading}</h2>
-            <p className="mt-1.5 text-[14px] leading-relaxed text-slate-600">{t.uploadHelper}</p>
+            <h2 className="text-[21px] font-semibold tracking-tight text-slate-50 sm:text-[24px]">{t.uploadHeading}</h2>
+            <p className="mt-1.5 text-[14px] leading-relaxed text-slate-300">{t.uploadHelper}</p>
           </div>
         </div>
 
@@ -394,19 +439,19 @@ export function ClientIntakeForm({ token }: { token: string }) {
           </label>
 
           {/* The device's own camera, through a capture input — no SDK. */}
-          <label className="flex min-h-[56px] cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#2f6fd0]/40 bg-white px-4 text-[16px] font-semibold text-[#1f4f9c] shadow-[0_10px_26px_-18px_rgba(47,111,208,.6)] transition-colors duration-200 hover:bg-[#f2f7ff] focus-within:ring-4 focus-within:ring-[#2f6fd0]/20 motion-reduce:transition-none">
+          <label className="flex min-h-[56px] cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#2f6fd0]/40 bg-[#071a31]/88 px-4 text-[16px] font-semibold text-[#1f4f9c] shadow-[0_10px_26px_-18px_rgba(47,111,208,.6)] transition-colors duration-200 hover:bg-[#f2f7ff] focus-within:ring-4 focus-within:ring-[#2f6fd0]/20 motion-reduce:transition-none">
             <input type="file" accept="image/*" capture="environment" className="sr-only" data-testid="intake-take-photo" onChange={(event) => { admit(event.target.files); event.target.value = ""; }} />
             <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3.5" y="7" width="17" height="12.5" rx="2.4" /><circle cx="12" cy="13.2" r="3.1" /><path d="M9 7l1.2-2h3.6L15 7" /></svg>
             {t.takePhoto}
           </label>
         </div>
-        <p className="mt-3 text-[12px] text-slate-500">{t.uploadFormats}</p>
+        <p className="mt-3 text-[12px] text-slate-400">{t.uploadFormats}</p>
         {(extracting || extractionNotice) && (
           <div
             className={`mt-4 flex items-center gap-3 rounded-2xl border px-4 py-3 text-[14px] shadow-[0_10px_28px_-22px_rgba(10,45,99,.45)] ${
               extracting
-                ? "border-[#2f6fd0]/25 bg-[#eef5ff] text-[#194b91]"
-                : "border-[#ff9f1a]/30 bg-[#fff8eb] text-[#754300]"
+                ? "border-[#2f6fd0]/25 bg-[#0a274c]/80 text-[#bfdbfe]"
+                : "border-[#ff9f1a]/30 bg-[#2a2112]/75 text-[#754300]"
             }`}
             role="status"
             data-testid="intake-extraction-status"
@@ -423,24 +468,24 @@ export function ClientIntakeForm({ token }: { token: string }) {
 
         {attachments.length > 0 && (
           <div className="mt-5">
-            <p className="text-[12px] font-semibold uppercase tracking-[.1em] text-slate-500">{t.filesHeading}</p>
+            <p className="text-[12px] font-semibold uppercase tracking-[.1em] text-slate-400">{t.filesHeading}</p>
             <ul className="mt-2.5 grid gap-2">
               {attachments.map((item) => (
-                <li key={item.id} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-[0_6px_18px_-14px_rgba(23,42,77,.3)]" data-testid="intake-file">
-                  <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-slate-400">
+                <li key={item.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#071a31]/88 px-3 py-2.5 shadow-[0_6px_18px_-14px_rgba(23,42,77,.3)]" data-testid="intake-file">
+                  <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10 bg-[#061426]/80 text-slate-400">
                     {item.previewUrl
                       ? <img src={item.previewUrl} alt="" className="h-full w-full object-cover" data-testid="intake-file-preview" />
                       : <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M7 3.5h7L19 8.5v12H7Z" /><path d="M14 3.5v5h5" /></svg>}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] text-slate-800">{item.file.name}</span>
-                    <span className="mt-0.5 block font-mono text-[11px] text-slate-500">{formatBytes(item.file.size)}</span>
+                    <span className="block truncate text-[15px] text-slate-100">{item.file.name}</span>
+                    <span className="mt-0.5 block font-mono text-[11px] text-slate-400">{formatBytes(item.file.size)}</span>
                   </span>
                   <button
                     type="button"
                     onClick={() => { replacingId.current = item.id; replaceInput.current?.click(); }}
                     data-testid="intake-file-replace"
-                    className="min-h-[40px] shrink-0 rounded-xl border border-slate-300 px-3 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:bg-slate-50 motion-reduce:transition-none"
+                    className="min-h-[40px] shrink-0 rounded-xl border border-white/15 px-3 text-[12px] font-semibold text-slate-300 transition-colors duration-200 hover:bg-[#061426]/80 motion-reduce:transition-none"
                   >
                     {t.replace}
                   </button>
@@ -448,7 +493,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
                     type="button"
                     onClick={() => remove(item.id)}
                     data-testid="intake-file-remove"
-                    className="min-h-[40px] shrink-0 rounded-xl border border-slate-300 px-3 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:border-red-300 hover:bg-red-50 hover:text-red-700 motion-reduce:transition-none"
+                    className="min-h-[40px] shrink-0 rounded-xl border border-white/15 px-3 text-[12px] font-semibold text-slate-300 transition-colors duration-200 hover:border-red-400/35 hover:bg-red-950/35 hover:text-red-300 motion-reduce:transition-none"
                   >
                     {t.remove}
                   </button>
@@ -461,10 +506,10 @@ export function ClientIntakeForm({ token }: { token: string }) {
 
       {/* 2 — Complete anything the document did not provide */}
       <GlassCard className="mt-6" data-testid="intake-source">
-        <h2 className="text-[20px] font-semibold tracking-tight text-slate-900 sm:text-[22px]">{t.sourceHeading}</h2>
-        <p className="mt-2 text-[14px] leading-relaxed text-slate-500">{t.sourceHelper}</p>
+        <h2 className="text-[20px] font-semibold tracking-tight text-slate-50 sm:text-[22px]">{t.sourceHeading}</h2>
+        <p className="mt-2 text-[14px] leading-relaxed text-slate-400">{t.sourceHelper}</p>
         <label className="mt-4 grid gap-1.5">
-          <span className="text-[13px] font-medium text-slate-600">{t.existingCaseLabel}</span>
+          <span className="text-[13px] font-medium text-slate-300">{t.existingCaseLabel}</span>
           <input
             value={existingCaseNumber}
             onChange={(event) => {
@@ -475,7 +520,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
             placeholder={t.existingCasePlaceholder}
             autoComplete="off"
             data-testid="intake-existing-case-number"
-            className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3.5 font-mono text-[16px] tracking-[.03em] text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
+            className="min-h-[48px] w-full rounded-xl border border-white/15 bg-[#071a31]/88 px-3.5 font-mono text-[16px] tracking-[.03em] text-slate-100 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
           />
         </label>
         <textarea
@@ -485,17 +530,17 @@ export function ClientIntakeForm({ token }: { token: string }) {
           rows={9}
           aria-label={t.sourceHeading}
           data-testid="intake-source-text"
-          className="mt-4 w-full resize-y rounded-2xl border border-slate-300 bg-white p-4 text-[16px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
+          className="mt-4 w-full resize-y rounded-2xl border border-white/15 bg-[#071a31]/88 p-4 text-[16px] leading-relaxed text-slate-100 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
         />
       </GlassCard>
 
       {/* 3 — Review what was understood */}
       <GlassCard className="mt-5" data-testid="intake-detected">
-        <h2 className="text-[19px] font-semibold tracking-tight text-slate-900 sm:text-[21px]">{t.detectedHeading}</h2>
-        <p className="mt-2 text-[14px] leading-relaxed text-slate-500">{t.detectedHelper}</p>
+        <h2 className="text-[19px] font-semibold tracking-tight text-slate-50 sm:text-[21px]">{t.detectedHeading}</h2>
+        <p className="mt-2 text-[14px] leading-relaxed text-slate-400">{t.detectedHelper}</p>
 
         {visible.size === 0 ? (
-          <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-[14px] text-slate-500" data-testid="intake-detected-empty">
+          <p className="mt-4 rounded-2xl border border-white/10 bg-[#061426]/80 px-4 py-6 text-center text-[14px] text-slate-400" data-testid="intake-detected-empty">
             {t.detectedEmpty}
           </p>
         ) : (
@@ -506,17 +551,21 @@ export function ClientIntakeForm({ token }: { token: string }) {
               const label = group.key === "identity" ? t.groupIdentity : group.key === "contact" ? t.groupContact : group.key === "address" ? t.groupAddress : t.groupLanguage;
               return (
                 <fieldset key={group.key} className="grid gap-2.5 sm:grid-cols-2" data-group={group.key}>
-                  <legend className="col-span-full text-[12px] font-semibold uppercase tracking-[.1em] text-slate-500">{label}</legend>
+                  <legend className="col-span-full text-[12px] font-semibold uppercase tracking-[.1em] text-slate-400">{label}</legend>
                   {fields.map((field) => {
                     const problem = fieldErrors[field];
                     const input = FIELD_INPUT[field];
                     return (
                       <label key={field} className="grid gap-1.5" data-field={field}>
-                        <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-slate-600">
+                        <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-slate-300">
                           <span>{t.fields[field]}</span>
                           {importedFields.includes(field) && (
-                            <span className="rounded-full border border-[#ff9f1a]/30 bg-[#fff4df] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.08em] text-[#9a5a00]">
-                              {t.importedField}
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.08em] ${
+                              providerReviewFields.includes(field)
+                                ? "border-amber-300/35 bg-amber-300/[.08] text-amber-100"
+                                : "border-[#ff9f1a]/30 bg-[#34240f]/80 text-[#ffd18a]"
+                            }`}>
+                              {providerReviewFields.includes(field) ? t.needsReviewField : t.importedField}
                             </span>
                           )}
                         </span>
@@ -535,16 +584,18 @@ export function ClientIntakeForm({ token }: { token: string }) {
                           aria-invalid={problem ? true : undefined}
                           aria-describedby={problem ? `intake-error-${field}` : undefined}
                           data-testid={`intake-field-${field}`}
-                          className={`min-h-[48px] w-full rounded-xl border bg-white px-3.5 text-[16px] text-slate-800 focus:outline-none focus:ring-4 ${
+                          className={`min-h-[48px] w-full rounded-xl border bg-[#071a31]/88 px-3.5 text-[16px] text-slate-100 focus:outline-none focus:ring-4 ${
                             problem
                               ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
-                              : importedFields.includes(field)
-                                ? "border-[#ff9f1a]/55 bg-[#fffdf8] focus:border-[#ff8a00] focus:ring-[#ff9f1a]/15"
-                                : "border-slate-300 focus:border-[#2f6fd0] focus:ring-[#2f6fd0]/15"
+                              : providerReviewFields.includes(field)
+                                ? "border-amber-300/50 bg-amber-300/[.04] focus:border-amber-300 focus:ring-amber-300/15"
+                                : importedFields.includes(field)
+                                  ? "border-[#ff9f1a]/55 bg-[#0b203a]/90 focus:border-[#ff8a00] focus:ring-[#ff9f1a]/15"
+                                : "border-white/15 focus:border-[#2f6fd0] focus:ring-[#2f6fd0]/15"
                           }`}
                         />
                         {problem && (
-                          <span id={`intake-error-${field}`} role="alert" data-testid={`intake-error-${field}`} className="flex items-start gap-1.5 text-[12.5px] text-red-700">
+                          <span id={`intake-error-${field}`} role="alert" data-testid={`intake-error-${field}`} className="flex items-start gap-1.5 text-[12.5px] text-red-300">
                             <svg aria-hidden="true" viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="12" cy="12" r="8.5" /><path d="M12 8v4.5" /><path d="M12 16h.01" /></svg>
                             {problem}
                           </span>
@@ -561,19 +612,19 @@ export function ClientIntakeForm({ token }: { token: string }) {
 
       {/* 4 — Submit */}
       <div className="mt-6">
-        <p className="text-center text-[13px] leading-relaxed text-slate-500">{t.submitHelper}</p>
+        <p className="text-center text-[13px] leading-relaxed text-slate-400">{t.submitHelper}</p>
         {checkingDuplicate && (
-          <p className="mt-3 rounded-2xl border border-[#2f6fd0]/20 bg-[#eef5ff] px-4 py-3 text-center text-[14px] text-[#194b91]" role="status" data-testid="intake-duplicate-checking">
+          <p className="mt-3 rounded-2xl border border-[#2f6fd0]/20 bg-[#0a274c]/80 px-4 py-3 text-center text-[14px] text-[#bfdbfe]" role="status" data-testid="intake-duplicate-checking">
             {t.checkingDuplicate}
           </p>
         )}
         {sharedEmailWarning && !duplicateIdentity && (
-          <div className="mt-3 rounded-2xl border border-[#2f6fd0]/25 bg-[#eef5ff] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(47,111,208,.55)]" role="status" data-testid="intake-shared-email-alert">
-            <p className="text-[16px] font-semibold text-[#0a2d63]">{t.sharedEmailHeading}</p>
-            <p className="mx-auto mt-1.5 max-w-[48ch] text-[13.5px] leading-relaxed text-slate-700">{t.sharedEmailBody}</p>
+          <div className="mt-3 rounded-2xl border border-[#2f6fd0]/25 bg-[#0a274c]/80 px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(47,111,208,.55)]" role="status" data-testid="intake-shared-email-alert">
+            <p className="text-[16px] font-semibold text-[#dbeafe]">{t.sharedEmailHeading}</p>
+            <p className="mx-auto mt-1.5 max-w-[48ch] text-[13.5px] leading-relaxed text-slate-200">{t.sharedEmailBody}</p>
             <a
               href={OFFICE_EMAIL_URL}
-              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-white px-4 text-[14px] font-semibold text-[#194b91] shadow-[0_10px_24px_-18px_rgba(47,111,208,.55)]"
+              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-[#071a31]/88 px-4 text-[14px] font-semibold text-[#bfdbfe] shadow-[0_10px_24px_-18px_rgba(47,111,208,.55)]"
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6.5h16v11H4z" /><path d="m5 8 7 5 7-5" /></svg>
               <span>{t.emailCustomerService} · {OFFICE_EMAIL_DISPLAY}</span>
@@ -581,14 +632,14 @@ export function ClientIntakeForm({ token }: { token: string }) {
           </div>
         )}
         {duplicateIdentity && (
-          <div className="mt-3 rounded-2xl border border-[#ff9f1a]/35 bg-[#fff8eb] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(255,132,0,.6)]" role="alert" data-testid="intake-duplicate-alert">
-            <p className="text-[16px] font-semibold text-[#0a2d63]">{t.duplicateHeading}</p>
-            <p className="mx-auto mt-1.5 max-w-[46ch] text-[13.5px] leading-relaxed text-slate-700">{t.duplicateBody}</p>
+          <div className="mt-3 rounded-2xl border border-[#ff9f1a]/35 bg-[#2a2112]/75 px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(255,132,0,.6)]" role="alert" data-testid="intake-duplicate-alert">
+            <p className="text-[16px] font-semibold text-[#dbeafe]">{t.duplicateHeading}</p>
+            <p className="mx-auto mt-1.5 max-w-[46ch] text-[13.5px] leading-relaxed text-slate-200">{t.duplicateBody}</p>
             <a
               href={OFFICE_WHATSAPP_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-white px-4 text-[14px] font-semibold text-emerald-800 shadow-[0_10px_24px_-18px_rgba(16,122,87,.55)]"
+              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-[#071a31]/88 px-4 text-[14px] font-semibold text-emerald-200 shadow-[0_10px_24px_-18px_rgba(16,122,87,.55)]"
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 11.7a7.9 7.9 0 0 1-11.6 7l-4 1.2 1.2-3.9A7.9 7.9 0 1 1 20 11.7Z" /></svg>
               <span>{t.whatsappOffice} · {OFFICE_WHATSAPP_DISPLAY}</span>
@@ -596,7 +647,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
           </div>
         )}
         {error && !duplicateIdentity && (
-          <p className="mt-3 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-center text-[14px] text-red-800" role="alert" data-testid="intake-error">
+          <p className="mt-3 rounded-2xl border border-red-400/35 bg-red-950/35 px-4 py-3 text-center text-[14px] text-red-200" role="alert" data-testid="intake-error">
             {error}
           </p>
         )}
@@ -614,7 +665,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
           target="_blank"
           rel="noopener noreferrer"
           data-testid="intake-whatsapp-help"
-          className="mt-3 flex min-h-[44px] items-center justify-center gap-2 text-[13.5px] font-medium text-emerald-800 underline-offset-4 hover:underline"
+          className="mt-3 flex min-h-[44px] items-center justify-center gap-2 text-[13.5px] font-medium text-emerald-200 underline-offset-4 hover:underline"
         >
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 11.7a7.9 7.9 0 0 1-11.6 7l-4 1.2 1.2-3.9A7.9 7.9 0 1 1 20 11.7Z" /></svg>
           {t.whatsappOffice}

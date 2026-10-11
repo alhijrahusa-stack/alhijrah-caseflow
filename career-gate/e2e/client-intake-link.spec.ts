@@ -107,6 +107,14 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     await expect(camera).toHaveAttribute("accept", "image/*");
     await expect(page.getByTestId("intake-choose-files")).toHaveAttribute("accept", /application\/pdf/);
 
+    // The progress path is a real state surface, not a time-based animation.
+    const workflow = page.getByTestId("bezier-progress");
+    await expect(workflow).toBeVisible();
+    for (const stage of ["UPLOAD", "EXTRACT", "AUTOFILL", "MISSING", "REVIEW", "CONFIRM", "SUBMIT", "SUCCESS"]) {
+      await expect(workflow.locator("ol")).toContainText(stage);
+    }
+    await expect(page.locator('img[src="/brand/career-gate.webp"]')).toBeVisible();
+
     // Nothing staff-facing is on the page. The word "review" appears in the
     // client's own instruction ("review the detected data"), so what matters is
     // that no staff control, internal status or internal identifier is present.

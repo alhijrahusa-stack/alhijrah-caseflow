@@ -18,6 +18,17 @@ export const registry = {
     fastModel: env("DOCUMENT_VISION_FAST_MODEL"),
     escalationModel: env("DOCUMENT_VISION_ESCALATION_MODEL"),
   }),
+  regula: () => ({
+    url: env("REGULA_DOCUMENT_READER_URL"),
+    authorization: env("REGULA_DOCUMENT_READER_AUTHORIZATION"),
+    version: "9.9",
+  }),
+  microblink: () => ({
+    url: env("MICROBLINK_VERIFY_URL"),
+    authorization: env("MICROBLINK_VERIFY_AUTHORIZATION"),
+    mode: env("MICROBLINK_VERIFY_MODE") === "cloud" ? ("cloud" as const) : ("self_hosted" as const),
+    version: "4000.4.0",
+  }),
   openai: () => ({
     apiKey: env("OPENAI_API_KEY"),
     agentModel: env("OPENAI_AGENT_MODEL"),
@@ -50,6 +61,8 @@ export const EMBEDDING_COLUMN_DIMENSIONS = 1536;
 export function providerStates() {
   const s = registry.supabase();
   const v = registry.documentVision();
+  const rg = registry.regula();
+  const mb = registry.microblink();
   const o = registry.openai();
   const w = registry.whatsapp();
   const t = registry.twilio();
@@ -61,6 +74,8 @@ export function providerStates() {
     realtime: st(Boolean(s.url && s.anonKey)),
     document_vision_fast: st(Boolean(v.apiKey && v.fastModel)),
     document_vision_escalation: st(Boolean(v.apiKey && v.escalationModel)),
+    regula_document_reader: st(Boolean(rg.url)),
+    microblink_verify: st(Boolean(mb.url && (mb.mode === "self_hosted" || mb.authorization))),
     agent_llm: st(Boolean(o.apiKey && o.agentModel)),
     embeddings: st(Boolean(o.apiKey && o.embeddingModel && o.embeddingDimensions === EMBEDDING_COLUMN_DIMENSIONS)),
     whatsapp_meta: st(Boolean(w.token && w.phoneId && w.apiVersion && w.templateLang)),

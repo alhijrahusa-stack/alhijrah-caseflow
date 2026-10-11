@@ -129,14 +129,22 @@ export async function findClientIdentityMatches(
        left join staff s on s.id=c.assigned_staff
       where c.deleted_at is null
         and (
-          ($2::text is not null and regexp_replace(coalesce(c.phone,''),'\\D','','g')=$2)
-          or (
+          (
             $1::text is not null
             and lower(trim(coalesce(c.email,'')))=$1
             and (
               ($3::text is not null and lower(regexp_replace(trim(coalesce(c.full_name,'')),'\\s+',' ','g'))=$3)
               or ($4::text is not null and c.date_of_birth::text=$4)
               or ($2::text is not null and regexp_replace(coalesce(c.phone,''),'\\D','','g')=$2)
+            )
+          )
+          or (
+            $2::text is not null
+            and regexp_replace(coalesce(c.phone,''),'\\D','','g')=$2
+            and (
+              ($3::text is not null and lower(regexp_replace(trim(coalesce(c.full_name,'')),'\\s+',' ','g'))=$3)
+              or ($4::text is not null and c.date_of_birth::text=$4)
+              or ($1::text is not null and lower(trim(coalesce(c.email,'')))=$1)
             )
           )
         )
@@ -167,7 +175,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
     }
     throw new ActionError(
       "duplicate_application",
-      "An application already exists for this phone number or email. Use Track Status or contact the office instead of submitting another application.",
+      "An application already exists for this verified applicant identity. Use Track Status or contact the office instead of submitting another application.",
       409,
     );
   }
