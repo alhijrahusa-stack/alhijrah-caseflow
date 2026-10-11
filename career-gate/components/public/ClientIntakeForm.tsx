@@ -5,6 +5,8 @@ import { ClientIntakeBrand, ClientIntakeShell, GlassCard } from "@/components/pu
 import {
   CASE_STATUS_PATH,
   INTAKE_COPY,
+  OFFICE_EMAIL_DISPLAY,
+  OFFICE_EMAIL_URL,
   OFFICE_WHATSAPP_DISPLAY,
   OFFICE_WHATSAPP_URL,
   type IntakeLocale,
@@ -63,6 +65,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [existingCaseNumber, setExistingCaseNumber] = useState("");
   const [duplicateIdentity, setDuplicateIdentity] = useState(false);
+  const [sharedEmailWarning, setSharedEmailWarning] = useState(false);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -117,6 +120,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
     const validCase = /^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber) ? caseNumber : "";
     if (!validEmail && !validCase) {
       setDuplicateIdentity(false);
+      setSharedEmailWarning(false);
       setCheckingDuplicate(false);
       return;
     }
@@ -127,13 +131,25 @@ export function ClientIntakeForm({ token }: { token: string }) {
         const res = await fetch(`/api/public/client-intake/${encodeURIComponent(token)}/duplicate`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email: validEmail || undefined, caseNumber: validCase || undefined }),
+          body: JSON.stringify({
+            email: validEmail || undefined,
+            caseNumber: validCase || undefined,
+            fullName: effective.full_name || undefined,
+            dateOfBirth: effective.date_of_birth || undefined,
+            phone: effective.phone || undefined,
+          }),
           signal: controller.signal,
         });
         const data = await res.json().catch(() => null);
-        if (res.ok && data?.ok) setDuplicateIdentity(data.duplicate === true);
+        if (res.ok && data?.ok) {
+          setDuplicateIdentity(data.duplicate === true);
+          setSharedEmailWarning(data.shared_email === true);
+        }
       } catch {
-        if (!controller.signal.aborted) setDuplicateIdentity(false);
+        if (!controller.signal.aborted) {
+          setDuplicateIdentity(false);
+          setSharedEmailWarning(false);
+        }
       } finally {
         if (!controller.signal.aborted) setCheckingDuplicate(false);
       }
@@ -142,7 +158,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [effective.email, existingCaseNumber, t, token]);
+  }, [effective.email, effective.full_name, effective.date_of_birth, effective.phone, existingCaseNumber, t, token]);
 
   const started = Boolean(sourceText.trim());
   const hasAnything = started || attachments.length > 0;
@@ -275,6 +291,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
         return;
       }
       setCaseNumber(typeof data.case_number === "string" ? data.case_number : null);
+      setSharedEmailWarning(data.shared_email_warning === true);
       setDone(true);
     } catch {
       setError(t.genericError);
@@ -306,6 +323,20 @@ export function ClientIntakeForm({ token }: { token: string }) {
             <div className="mx-auto mt-5 max-w-sm rounded-2xl border border-[#ff9f1a]/35 bg-gradient-to-b from-[#fff8eb] to-white px-5 py-4 shadow-[0_18px_42px_-28px_rgba(255,132,0,.65)]" data-testid="intake-case-number">
               <p className="text-[12px] font-semibold uppercase tracking-[.12em] text-slate-500">{t.caseNumberLabel}</p>
               <p className="mt-1 font-mono text-[22px] font-semibold tracking-[.04em] text-[#0a2d63]">{caseNumber}</p>
+            </div>
+          )}
+
+          {sharedEmailWarning && (
+            <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-[#2f6fd0]/25 bg-[#eef5ff] px-5 py-4 text-center" data-testid="intake-shared-email-success">
+              <p className="text-[15px] font-semibold text-[#0a2d63]">{t.sharedEmailHeading}</p>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-slate-700">{t.sharedEmailBody}</p>
+              <a
+                href={`${OFFICE_EMAIL_URL}?subject=${encodeURIComponent(`Career Gate — New email for ${caseNumber ?? "new case"}`)}&body=${encodeURIComponent(`Case Number: ${caseNumber ?? ""}\nPlease update this file with my new email address:\n`)}`}
+                className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-white px-4 text-[14px] font-semibold text-[#194b91]"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6.5h16v11H4z" /><path d="m5 8 7 5 7-5" /></svg>
+                <span>{t.emailCustomerService} · {OFFICE_EMAIL_DISPLAY}</span>
+              </a>
             </div>
           )}
 
@@ -530,6 +561,19 @@ export function ClientIntakeForm({ token }: { token: string }) {
           <p className="mt-3 rounded-2xl border border-[#2f6fd0]/20 bg-[#eef5ff] px-4 py-3 text-center text-[14px] text-[#194b91]" role="status" data-testid="intake-duplicate-checking">
             {t.checkingDuplicate}
           </p>
+        )}
+        {sharedEmailWarning && !duplicateIdentity && (
+          <div className="mt-3 rounded-2xl border border-[#2f6fd0]/25 bg-[#eef5ff] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(47,111,208,.55)]" role="status" data-testid="intake-shared-email-alert">
+            <p className="text-[16px] font-semibold text-[#0a2d63]">{t.sharedEmailHeading}</p>
+            <p className="mx-auto mt-1.5 max-w-[48ch] text-[13.5px] leading-relaxed text-slate-700">{t.sharedEmailBody}</p>
+            <a
+              href={OFFICE_EMAIL_URL}
+              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-white px-4 text-[14px] font-semibold text-[#194b91] shadow-[0_10px_24px_-18px_rgba(47,111,208,.55)]"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6.5h16v11H4z" /><path d="m5 8 7 5 7-5" /></svg>
+              <span>{t.emailCustomerService} · {OFFICE_EMAIL_DISPLAY}</span>
+            </a>
+          </div>
         )}
         {duplicateIdentity && (
           <div className="mt-3 rounded-2xl border border-[#ff9f1a]/35 bg-[#fff8eb] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(255,132,0,.6)]" role="alert" data-testid="intake-duplicate-alert">
