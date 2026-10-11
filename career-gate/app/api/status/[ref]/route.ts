@@ -10,7 +10,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ ref: string }>
   const r = decodeURIComponent(ref).trim().toUpperCase();
   const token = (await cookies()).get(STATUS_COOKIE)?.value;
   const subject = await sessionStatusSubject(r, token);
-  if (!clientId) return err("unauthorized", "Verification required", 401);
+  if (!subject) return err("unauthorized", "Verification required", 401);
   const s = subject.clientId ? await publicStatus(subject.clientId) : subject.importCaseId ? await publicImportStatus(subject.importCaseId) : null;
   if (!s) return err("not_found", "File not found", 404);
   return ok({ status: s });
