@@ -246,25 +246,45 @@ export async function stageMobileImportV2(args: {
       };
     }
 
-    const publicEmail = normalizeClientEmail((preDraft.profile as { email?: string | null }).email);
+    const publicProfile = preDraft.profile as {
+      full_name?: string | null;
+      phone?: string | null;
+      email?: string | null;
+      date_of_birth?: string | null;
+    };
+    const publicEmail = normalizeClientEmail(publicProfile.email);
     if (publicEmail && key.startsWith("client-link:")) {
-      await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-public-email:${publicEmail}`}, 0))`;
-      const [duplicate] = await tx`
+      const publicName = publicProfile.full_name?.trim().toLowerCase().replace(/\s+/g, " ") || null;
+      const publicPhone = publicProfile.phone?.replace(/\D/g, "") || null;
+      const publicDob = publicProfile.date_of_birth?.trim() || null;
+      await tx\`select pg_advisory_xact_lock(hashtextextended(\${\`cg-public-email:\${publicEmail}\`}, 0))\`;
+      const [duplicate] = await tx\`
         select ref from clients
-        where deleted_at is null and lower(trim(coalesce(email,'')))=${publicEmail}
+        where deleted_at is null
+          and lower(trim(coalesce(email,'')))=\${publicEmail}
+          and (
+            (\${publicName}::text is not null and lower(regexp_replace(trim(coalesce(full_name,'')),'\\s+',' ','g'))=\${publicName})
+            or (\${publicDob}::text is not null and date_of_birth::text=\${publicDob})
+            or (\${publicPhone}::text is not null and regexp_replace(coalesce(phone,''),'\\D','','g')=\${publicPhone})
+          )
         union all
         select public_ref as ref from client_import_cases
-        where created_client_id is null
-          and lower(trim(coalesce(mapped_draft #>> '{profile,email}','')))=${publicEmail}
-        limit 1`;
+        where lower(trim(coalesce(mapped_draft #>> '{profile,email}','')))=\${publicEmail}
+          and (
+            (\${publicName}::text is not null and lower(regexp_replace(trim(coalesce(mapped_draft #>> '{profile,full_name}','')),'\\s+',' ','g'))=\${publicName})
+            or (\${publicDob}::text is not null and coalesce(mapped_draft #>> '{profile,date_of_birth}','')=\${publicDob})
+            or (\${publicPhone}::text is not null and regexp_replace(coalesce(mapped_draft #>> '{profile,phone}',''),'\\D','','g')=\${publicPhone})
+          )
+        limit 1\`;
       if (duplicate) {
         throw new ActionError(
           "duplicate_application",
-          "An application has already been submitted with this email. Please contact Customer Service on WhatsApp.",
+          "An existing application matches this applicant. Please contact Customer Service on WhatsApp.",
           409,
         );
       }
     }
+
     const [batch] = await tx`
       insert into client_import_batches(source_type,source_file_hash,idempotency_key,created_by,metadata)
       values('mobile',${sourceHash({ notes, files: fileData.map((entry) => ({ name: entry.file.name, sha256: entry.sha256 })) })},${key},${args.session.staff.id},
