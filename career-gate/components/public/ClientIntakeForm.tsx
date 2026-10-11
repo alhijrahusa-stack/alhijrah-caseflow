@@ -258,10 +258,16 @@ export function ClientIntakeForm({ token }: { token: string }) {
           <h1 className="mt-5 text-[23px] font-semibold tracking-tight text-slate-900 sm:text-[27px]">{t.successHeading}</h1>
           <p className="mx-auto mt-3 max-w-[48ch] text-[15px] leading-relaxed text-slate-600">{t.successBody}</p>
           <p className="mx-auto mt-2 max-w-[48ch] text-[14px] leading-relaxed text-slate-500">{t.successGuidance}</p>
+          {caseNumber && (
+            <div className="mx-auto mt-5 max-w-sm rounded-2xl border border-[#ff9f1a]/35 bg-gradient-to-b from-[#fff8eb] to-white px-5 py-4 shadow-[0_18px_42px_-28px_rgba(255,132,0,.65)]" data-testid="intake-case-number">
+              <p className="text-[12px] font-semibold uppercase tracking-[.12em] text-slate-500">{t.caseNumberLabel}</p>
+              <p className="mt-1 font-mono text-[22px] font-semibold tracking-[.04em] text-[#0a2d63]">{caseNumber}</p>
+            </div>
+          )}
 
           <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
             <a
-              href={CASE_STATUS_PATH}
+              href={caseNumber ? `${CASE_STATUS_PATH}?ref=${encodeURIComponent(caseNumber)}` : CASE_STATUS_PATH}
               data-testid="intake-case-status"
               className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-[#2f6fd0]/35 bg-[#2f6fd0] px-4 text-[15px] font-semibold text-white shadow-[0_14px_34px_-18px_rgba(47,111,208,.7)] transition-[filter] duration-200 hover:brightness-105 motion-reduce:transition-none"
             >
