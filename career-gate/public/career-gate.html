@@ -2980,6 +2980,7 @@ html[dir="ltr"] .lbl{
       <div><label class="lbl">تاريخ البدء المتوقع</label><input id="startDate" type="date"></div>
     </div>
     <div class="divider">تفضيلات الدوام والشفتات</div>
+    <div id="liveAvailabilityStatus" class="ocr-status" role="status" aria-live="polite">يتم التحقق من كتالوج فرص Amazon في Michigan...</div>
     <div class="shift-category-title">نوع الدوام المفضل <span class="req">*</span></div>
     <div class="shift-deck" id="workTypeDeck"></div>
     <div id="shiftSelector" style="display:none"><div class="shift-category-title">الشفت المتاح <span class="req">*</span></div><div class="shift-deck" id="shiftDeck"></div></div>
@@ -3205,6 +3206,7 @@ function bind(){
   $('#statusModal').addEventListener('click',e=>{if(e.target===$('#statusModal'))$('#closeTrack').click()});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#statusModal').hidden)$('#closeTrack').click()});
   $('#form').onsubmit=submit;
+  void loadVerifiedAvailability();
   $('#newApplication').onclick=()=>{localStorage.removeItem(CONFIG.storageKey);location.href='/apply'};
   $('#downloadReceipt').onclick=downloadReceipt;
 }
@@ -3244,6 +3246,23 @@ function setStep(n,manageViewport=true){
   }
 }
 
+async function loadVerifiedAvailability(){
+  const el=$('#liveAvailabilityStatus');if(!el)return;
+  try{
+    const response=await fetch('/api/application/options',{cache:'no-store'});
+    const body=await response.json();
+    if(!response.ok||!body?.ok)throw new Error('Catalog unavailable');
+    state.verifiedOpenings=Array.isArray(body.openings)?body.openings:[];
+    const count=state.verifiedOpenings.length;
+    el.textContent=count?(state.locale==='ar'?'الفرص المؤكدة من كتالوج Amazon: ':'Verified Amazon openings: ')+count+
+      (state.locale==='ar'?'؛ سيتم تأكيد العرض النهائي حسب الفرع والشفت.':' — final site and shift subject to listing.'):
+      (state.locale==='ar'?'لا توجد فرص Amazon مؤكدة في الكتالوج الحالي. اختيار الفرع والشفت تفضيل فقط، وليس عرض توظيف أو تأكيد راتب.':
+      'No verified Amazon openings in the current catalog. Location and shift are preferences, not a job offer or confirmed pay.');
+  }catch{
+    el.textContent=state.locale==='ar'?'تعذر تحديث كتالوج Amazon. سجّل تفضيلاتك وسيتم التحقق من الفرص قبل اعتمادها.':
+      'Amazon catalog unavailable. Record preferences; openings must be verified before confirmation.';
+  }
+}
 async function runDocumentAutofill(){
   const file=state.files.find(f=>['application/pdf','image/jpeg','image/png','image/webp'].includes(f.type));
   if(!file||!$('#ocrConsent').checked||!val('documentType'))return;
