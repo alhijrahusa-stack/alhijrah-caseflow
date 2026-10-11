@@ -36,6 +36,7 @@ export async function rowsFromImageOrPdfDetailed(
       country: null,
       quality: { overall: "NOT_PERFORMED", checks: [] },
       authenticity: { overall: "NOT_PERFORMED", checks: [] },
+      mrz: null,
       traceId: options.traceId ?? null,
     }];
   }
