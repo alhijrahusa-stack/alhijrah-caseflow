@@ -242,7 +242,10 @@ test.describe("Career Gate public intake presentation system", () => {
     await page.locator("#trackBtn").click();
     await expect(page.locator("#trackResult")).toContainText("Current Status");
     await expect(page.locator("#trackResult")).toContainText("Needs Review");
+    await page.locator("#closeTrack").click();
+    await expect(page.locator("#statusModal")).toBeHidden();
     await page.locator("#langAr").click();
+    await page.locator("#openTrack").click();
     await page.locator("#trackBtn").click();
     await expect(page.locator("#trackResult")).toContainText("الحالة الحالية");
     await expect(page.locator("#trackResult")).toContainText("بحاجة للمراجعة");
