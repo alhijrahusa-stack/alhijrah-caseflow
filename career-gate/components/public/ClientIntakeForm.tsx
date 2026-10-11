@@ -346,6 +346,22 @@ export function ClientIntakeForm({ token }: { token: string }) {
           </label>
         </div>
         <p className="mt-3 text-[12px] text-slate-500">{t.uploadFormats}</p>
+        {(extracting || extractionNotice) && (
+          <div
+            className={`mt-4 flex items-center gap-3 rounded-2xl border px-4 py-3 text-[14px] shadow-[0_10px_28px_-22px_rgba(10,45,99,.45)] ${
+              extracting
+                ? "border-[#2f6fd0]/25 bg-[#eef5ff] text-[#194b91]"
+                : "border-[#ff9f1a]/30 bg-[#fff8eb] text-[#754300]"
+            }`}
+            role="status"
+            data-testid="intake-extraction-status"
+          >
+            <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+              extracting ? "bg-[#2f6fd0] motion-safe:animate-pulse" : "bg-[#ff8a00]"
+            }`} />
+            <span>{extracting ? t.extractingDocument : extractionNotice}</span>
+          </div>
+        )}
 
         {/* One hidden input serves every Replace action. */}
         <input ref={replaceInput} type="file" accept={ACCEPT_ATTR} className="sr-only" aria-hidden="true" tabIndex={-1} onChange={(event) => { replace(event.target.files); event.target.value = ""; }} />
@@ -411,7 +427,14 @@ export function ClientIntakeForm({ token }: { token: string }) {
                     const input = FIELD_INPUT[field];
                     return (
                       <label key={field} className="grid gap-1.5" data-field={field}>
-                        <span className="text-[13px] font-medium text-slate-600">{t.fields[field]}</span>
+                        <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-slate-600">
+                          <span>{t.fields[field]}</span>
+                          {importedFields.includes(field) && (
+                            <span className="rounded-full border border-[#ff9f1a]/30 bg-[#fff4df] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.08em] text-[#9a5a00]">
+                              {t.importedField}
+                            </span>
+                          )}
+                        </span>
                         <input
                           value={effective[field] ?? ""}
                           onChange={(event) => setEdits((current) => ({ ...current, [field]: event.target.value.slice(0, 200) }))}
@@ -424,7 +447,9 @@ export function ClientIntakeForm({ token }: { token: string }) {
                           className={`min-h-[48px] w-full rounded-xl border bg-white px-3.5 text-[16px] text-slate-800 focus:outline-none focus:ring-4 ${
                             problem
                               ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
-                              : "border-slate-300 focus:border-[#2f6fd0] focus:ring-[#2f6fd0]/15"
+                              : importedFields.includes(field)
+                                ? "border-[#ff9f1a]/55 bg-[#fffdf8] focus:border-[#ff8a00] focus:ring-[#ff9f1a]/15"
+                                : "border-slate-300 focus:border-[#2f6fd0] focus:ring-[#2f6fd0]/15"
                           }`}
                         />
                         {problem && (
