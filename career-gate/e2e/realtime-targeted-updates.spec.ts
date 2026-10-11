@@ -75,10 +75,9 @@ test.describe.serial("realtime targeted updates", () => {
     await page.fill("#note_text", note);
     scoped.length = 0;
     routeRefreshes.length = 0;
-    await page.getByRole("button", { name: "Add note" }).click();
+    await page.getByTestId("form-note").getByRole("button", { name: "Add note", exact: true }).click();
 
-    // The note arrives through the scoped refetch, not a full page render.
-    await expect(page.getByText(note)).toBeVisible();
+    // The refetch is the update path: it must happen, and the route must not.
     await expect.poll(() => scoped.length, { timeout: 10_000 }).toBeGreaterThan(0);
 
     const asked = new URL(scoped[0]).searchParams;
@@ -89,6 +88,11 @@ test.describe.serial("realtime targeted updates", () => {
     expect(routeRefreshes, "the normal update path must not refresh the route").toEqual([]);
     // The fallback never ran, so no recovery reason was recorded.
     await expect(page.getByTestId("realtime-state")).toHaveAttribute("data-recovery", "");
+
+    // The patched data really rendered: the note is in the client file now.
+    await page.getByRole("button", { name: /Notes \/ Tasks \/ Contacts/ }).click();
+    await expect(page.getByTestId("note-row").first()).toContainText(note);
+    expect(routeRefreshes).toEqual([]);
   });
 
   test("a mutation on one client does not refetch another client", async ({ context, page, baseURL, request }) => {

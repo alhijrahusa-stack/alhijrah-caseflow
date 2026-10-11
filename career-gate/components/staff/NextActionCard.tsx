@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { NEXT_ACTION_SURFACE } from "@/components/staff/realtime/surfaces";
+import { useTargetedPayloads } from "@/components/staff/realtime/useTargetedUpdate";
 import type { ClientNextAction } from "@/lib/next-action";
 
 const tone = {
@@ -8,7 +12,25 @@ const tone = {
   none: "border-emerald-300/20 bg-emerald-300/5 text-emerald-100",
 } as const;
 
-export function NextActionCard({ action }: { action: ClientNextAction }) {
+/**
+ * Replaces the whole card from a targeted refetch. The next action is derived
+ * server-side from the entire workflow, so there is nothing to merge: the
+ * server's answer is the answer.
+ */
+function applyNextAction(current: ClientNextAction, payloads: Record<string, unknown>): ClientNextAction {
+  const next = payloads.nextAction;
+  return next && typeof next === "object" ? (next as ClientNextAction) : current;
+}
+
+export function NextActionCard({ action: serverAction, clientId }: { action: ClientNextAction; clientId: string }) {
+  // ONE NEXT ACTION: anything that moves workflow state invalidates this card,
+  // and it refetches only the derived action.
+  const action = useTargetedPayloads<ClientNextAction>({
+    resources: NEXT_ACTION_SURFACE.resources,
+    clientId,
+    initial: serverAction,
+    apply: applyNextAction,
+  });
   return (
     <section className={`rounded-2xl border p-5 ${tone[action.urgency]}`} aria-labelledby="next-action-heading">
       <div className="flex flex-wrap items-start justify-between gap-3">

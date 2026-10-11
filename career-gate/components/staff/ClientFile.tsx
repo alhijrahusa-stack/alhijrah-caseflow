@@ -9,6 +9,7 @@ import {
 import { ClientAccountPanel } from "@/components/staff/ClientAccountPanel";
 import { InlineField } from "@/components/staff/InlineField";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
+import { CLIENT_FILE_SURFACE } from "@/components/staff/realtime/surfaces";
 import { useTargetedPayloads } from "@/components/staff/realtime/useTargetedUpdate";
 import { useStaff } from "@/components/staff/StaffContext";
 import { StatusBadge } from "@/components/staff/StatusBadge";
@@ -21,7 +22,6 @@ import { AmazonHistory, ClientInfo, EmploymentHistory, Preferences } from "@/com
 import { Appointments, Contacts, Followups, Notes, Tasks } from "@/components/staff/sections/Work";
 import type { ClientAccountSummary } from "@/lib/client-account";
 import type { Status } from "@/lib/domain";
-import type { Resource } from "@/lib/realtime-resources";
 
 export type ClientFileData = {
   client: Row; employment: Row[]; preferences: Row[]; documents: Row[]; extractions: Row[]; appointments: Row[]; notes: Row[];
@@ -43,12 +43,6 @@ const panelTab: Record<Panel, ClientTab> = {
   followup: "work",
   assign: "profile",
 };
-
-/** Resources this surface renders, and therefore reacts to. */
-const RENDERED: readonly Resource[] = [
-  "client_identity", "preferences", "account", "appointments", "tasks", "followups",
-  "notes", "documents", "alerts", "readiness", "placement", "activity", "import_cases",
-];
 
 /** Client-file slices that arrive as a list and replace the rendered one. */
 const LIST_SLICES = [
@@ -113,7 +107,7 @@ export function ClientFile({
   // prop, and only then may the targeted patches be discarded.
   const serverState = useMemo<LiveState>(() => ({ data: serverData, account: serverAccount }), [serverData, serverAccount]);
   const live = useTargetedPayloads<LiveState>({
-    resources: RENDERED,
+    resources: CLIENT_FILE_SURFACE.resources,
     clientId: typeof serverData.client.id === "string" ? serverData.client.id : null,
     initial: serverState,
     apply: applyPayloads,

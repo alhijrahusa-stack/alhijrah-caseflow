@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { QuickDate } from "@/components/staff/QuickDate";
+import { REQUIREMENTS_SURFACE } from "@/components/staff/realtime/surfaces";
 import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 import { useTargetedPayloads } from "@/components/staff/realtime/useTargetedUpdate";
 import { useStaff } from "@/components/staff/StaffContext";
 import { PostHire } from "@/components/staff/sections/Work";
 import type { Row } from "@/components/staff/sections/common";
-import type { Resource } from "@/lib/realtime-resources";
 
 const STATUSES = ["missing", "pending_review", "complete", "rejected", "expired", "not_applicable"] as const;
 
@@ -19,9 +19,6 @@ async function postRequirement(body: Record<string, unknown>) {
   if (!res.ok || !data?.ok) throw new Error(data?.error?.message ?? `Request failed (${res.status})`);
   return data;
 }
-
-/** Readiness is the only resource this panel renders. */
-const RENDERED: readonly Resource[] = ["readiness"];
 
 type ReadinessState = { rows: Row[]; readiness: Readiness; postHire: Row[] };
 
@@ -73,7 +70,7 @@ export function RequirementsPanel({ clientId, rows, readiness, postHire, startDa
   // Stable across client re-renders; a new server render replaces it.
   const serverState = useMemo<ReadinessState>(() => ({ rows, readiness, postHire }), [rows, readiness, postHire]);
   const live = useTargetedPayloads<ReadinessState>({
-    resources: RENDERED,
+    resources: REQUIREMENTS_SURFACE.resources,
     clientId,
     initial: serverState,
     apply: applyReadiness,

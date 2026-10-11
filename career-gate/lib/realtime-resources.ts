@@ -41,6 +41,7 @@ export const RESOURCES = [
   "documents",
   "alerts",
   "import_cases",
+  "assessments",
   "readiness",
   "next_action",
   "activity",
@@ -133,9 +134,10 @@ export const MUTATION_RESOURCES: Record<string, readonly Resource[]> = {
   // Requirements, assessments and post-hire all feed readiness and the next action
   create_requirement: ["readiness", "next_action", "activity"],
   update_requirement: ["readiness", "next_action", "activity"],
-  update_assessment: ["readiness", "next_action", "activity"],
-  add_standard_assessments: ["readiness", "next_action", "activity"],
-  update_post_hire: ["placement", "next_action", "activity"],
+  update_assessment: ["assessments", "readiness", "next_action", "activity"],
+  add_standard_assessments: ["assessments", "readiness", "next_action", "activity"],
+  // A post-hire item is also a requirement: migration 019 syncs the two.
+  update_post_hire: ["placement", "readiness", "next_action", "activity"],
 
   // PAYMENT -> ledger, account, finance KPI, activity
   record_transaction: ["account", "finance", "next_action", "activity"],
@@ -240,7 +242,7 @@ export function affects(rendered: readonly Resource[], changed: readonly Resourc
  * else, so a change to one entity costs one scoped query set.
  */
 export const RESOURCE_PAYLOADS: Record<Resource, readonly string[]> = {
-  client_identity: ["client"],
+  client_identity: ["client", "employment", "authorization"],
   preferences: ["preferences"],
   account: ["account"],
   appointments: ["appointments"],
@@ -250,12 +252,15 @@ export const RESOURCE_PAYLOADS: Record<Resource, readonly string[]> = {
   documents: ["documents", "extractions"],
   alerts: ["alerts"],
   import_cases: ["client", "documents"],
-  readiness: ["requirements", "postHire", "assessments"],
+  assessments: ["assessments"],
+  readiness: ["requirements", "postHire"],
   next_action: ["nextAction"],
-  activity: ["activity"],
+  // The client file's insight timeline: the log, the last agent run and the
+  // notification record all move together.
+  activity: ["activity", "agentRun", "notifications"],
   attention: [],
   finance: ["account"],
-  placement: ["client", "postHire"],
+  placement: ["client"],
   pipeline: ["client"],
 };
 
