@@ -8,6 +8,7 @@ import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
 import type { DocumentFieldEvidence, DocumentProviderName } from "@/lib/providers/document-intelligence-types";
 import type { MrzValidation } from "@/lib/document-validation/mrz";
+import { analyzeDocumentMetadata, type DocumentMetadata } from "@/lib/document-validation/metadata";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
 import {
   SMART_IMPORT_LIMITS,
@@ -445,6 +446,8 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     authenticity: Record<string, unknown> | null;
     quality: Record<string, unknown> | null;
     mrz: MrzValidation | null;
+    documentMetadata: DocumentMetadata | null;
+    cacheHit: boolean;
     extractionError: string | null;
   };
 
@@ -460,27 +463,71 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     let authenticity: Record<string, unknown> | null = null;
     let quality: Record<string, unknown> | null = null;
     let mrz: MrzValidation | null = null;
+    let documentMetadata: DocumentMetadata | null = null;
+    let cacheHit = false;
     let extractionError: string | null = null;
-    try {
-      const bytes = await downloadObject(String(doc.storage_reference));
-      const detailed = await rowsFromImageOrPdfDetailed(bytes, String(doc.mime_type), {
-        filename: String(doc.original_filename),
-        traceId: caseId,
-      });
-      rows = detailed.map((item) => item.row);
-      const first = detailed[0];
-      confidence = { ...(first?.confidence ?? {}) };
-      fieldEvidence = first?.fieldEvidence ?? [];
-      providerName = first?.provider.name ?? null;
-      providerVersion = first?.provider.version ?? null;
-      documentType = first?.documentType ?? null;
-      country = first?.country ?? null;
-      authenticity = first?.authenticity as unknown as Record<string, unknown> ?? null;
-      quality = first?.quality as unknown as Record<string, unknown> ?? null;
-      mrz = first?.mrz ?? null;
-    } catch (error) {
-      extractionError = error instanceof Error ? error.message : "Extraction failed";
+
+    const cached = doc.extraction_metadata && typeof doc.extraction_metadata === "object"
+      ? doc.extraction_metadata as Record<string, unknown>
+      : null;
+    const cachedProvider = cached?.provider === "regula" || cached?.provider === "microblink"
+      ? cached.provider
+      : null;
+    const cachedVersion = typeof cached?.provider_version === "string" ? cached.provider_version : null;
+    const versionCurrent = (cachedProvider === "regula" && cachedVersion === "9.9")
+      || (cachedProvider === "microblink" && cachedVersion === "4000.4.0");
+    const cachedRow = cached?.extracted_row && typeof cached.extracted_row === "object"
+      ? cached.extracted_row as IntakeRow
+      : null;
+
+    if (cached?.processing_state === "EXTRACTED" && versionCurrent && cachedRow) {
+      cacheHit = true;
+      rows = [cachedRow];
+      confidence = cached.confidence && typeof cached.confidence === "object"
+        ? cached.confidence as Record<string, number>
+        : {};
+      fieldEvidence = Array.isArray(cached.field_evidence)
+        ? cached.field_evidence as DocumentFieldEvidence[]
+        : [];
+      providerName = cachedProvider;
+      providerVersion = cachedVersion;
+      documentType = typeof cached.document_type === "string" ? cached.document_type : null;
+      country = typeof cached.country === "string" ? cached.country : null;
+      authenticity = cached.authenticity && typeof cached.authenticity === "object"
+        ? cached.authenticity as Record<string, unknown>
+        : null;
+      quality = cached.quality && typeof cached.quality === "object"
+        ? cached.quality as Record<string, unknown>
+        : null;
+      mrz = cached.mrz && typeof cached.mrz === "object" ? cached.mrz as MrzValidation : null;
+      documentMetadata = cached.document_metadata && typeof cached.document_metadata === "object"
+        ? cached.document_metadata as DocumentMetadata
+        : null;
+    } else {
+      try {
+        const bytes = await downloadObject(String(doc.storage_reference));
+        const metadataPromise = analyzeDocumentMetadata(bytes, String(doc.mime_type));
+        const detailed = await rowsFromImageOrPdfDetailed(bytes, String(doc.mime_type), {
+          filename: String(doc.original_filename),
+          traceId: caseId,
+        });
+        documentMetadata = await metadataPromise;
+        rows = detailed.map((item) => item.row);
+        const first = detailed[0];
+        confidence = { ...(first?.confidence ?? {}) };
+        fieldEvidence = first?.fieldEvidence ?? [];
+        providerName = first?.provider.name ?? null;
+        providerVersion = first?.provider.version ?? null;
+        documentType = first?.documentType ?? null;
+        country = first?.country ?? null;
+        authenticity = first?.authenticity as unknown as Record<string, unknown> ?? null;
+        quality = first?.quality as unknown as Record<string, unknown> ?? null;
+        mrz = first?.mrz ?? null;
+      } catch (error) {
+        extractionError = error instanceof Error ? error.message : "Extraction failed";
+      }
     }
+
     await sql()`
       insert into system_jobs(job_type,status,import_case_id,source_name,provider,confidence,result,error,created_by,completed_at)
       values('smart_document_extraction',${extractionError ? "FAILED" : "COMPLETED"},${caseId},${String(doc.original_filename)},${providerName ?? "regula"},
@@ -488,33 +535,41 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
         ${sql().json({
           extracted_rows: rows.length,
           duration_ms: Date.now() - started,
+          cache_hit: cacheHit,
           provider_version: providerVersion,
           document_type: documentType,
           country,
           authenticity,
           quality,
           mrz,
+          document_metadata: documentMetadata,
           evidence_fields: fieldEvidence.length,
         } as never)},
         ${extractionError},${session.staff.id},now())`;
-    await sql()`
-      update client_import_documents
-      set extraction_metadata=${sql().json({
-            extracted_rows: rows.length,
-            confidence,
-            provider: providerName,
-            provider_version: providerVersion,
-            document_type: documentType,
-            country,
-            authenticity,
-            quality,
-            mrz,
-            field_evidence: fieldEvidence,
-            extraction_error: extractionError,
-            processing_state: extractionError ? "FAILED" : "EXTRACTED",
-            completed_at: new Date().toISOString(),
-          } as never)}
-      where id=${String(doc.id)}`;
+
+    if (!cacheHit || extractionError) {
+      await sql()`
+        update client_import_documents
+        set extraction_metadata=${sql().json({
+          extracted_rows: rows.length,
+          extracted_row: rows[0] ?? null,
+          confidence,
+          provider: providerName,
+          provider_version: providerVersion,
+          document_type: documentType,
+          country,
+          authenticity,
+          quality,
+          mrz,
+          document_metadata: documentMetadata,
+          field_evidence: fieldEvidence,
+          extraction_error: extractionError,
+          processing_state: extractionError ? "FAILED" : "EXTRACTED",
+          completed_at: new Date().toISOString(),
+        } as never)}
+        where id=${String(doc.id)}`;
+    }
+
     return {
       doc,
       rows,
@@ -527,6 +582,8 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
       authenticity,
       quality,
       mrz,
+      documentMetadata,
+      cacheHit,
       extractionError,
     };
   }
