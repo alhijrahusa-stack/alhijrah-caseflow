@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
 import type { StaffSession } from "@/lib/auth";
+import { publicImportStatus } from "@/lib/public-status";
 import {
   approveImportCase,
   saveImportReview,
@@ -135,7 +136,7 @@ describe("Smart Career Collect Client staging security", () => {
     const caseId = String(staged.cases[0].id);
 
     // Source evidence is staged for the approved field contract under SOURCE authority.
-    const [stagedCase] = await db`select mapped_draft,field_evidence from client_import_cases where id=${caseId}`;
+    const [stagedCase] = await db`select public_ref,mapped_draft,field_evidence from client_import_cases where id=${caseId}`;
     const sourceEvidence = stagedCase.field_evidence as { field_key: string; authority: string; value: string }[];
     expect(sourceEvidence.some((entry) => entry.field_key === "english_proficiency" && entry.authority === "SOURCE" && entry.value === "Englis is goog")).toBe(true);
     expect(stagedCase.mapped_draft.profile.english_proficiency).toBe("GOOD");
@@ -185,10 +186,11 @@ describe("Smart Career Collect Client staging security", () => {
 
     // All 16 approved fields land on the canonical Client row.
     const [client] = await db`
-      select full_name,phone,email,date_of_birth,preferred_language,english_proficiency,
+      select ref,full_name,phone,email,date_of_birth,preferred_language,english_proficiency,
              street,city,state,zip,preferred_location,location_option_1,location_option_2,
              shift_days,shift_start_time,shift_end_time
       from clients where id=${approved.client_id}`;
+    expect(client.ref).toBe(stagedCase.public_ref);
     expect(client.full_name).toBe("TEST Smart Approval");
     expect(client.phone).toBe("3135557781");
     expect(client.email).toBe("bbelalgv@gmail.com");
@@ -287,6 +289,147 @@ describe("Smart Career Collect Client staging security", () => {
     expect(row.verification_result.blockers).toEqual([]);
     expect(Array.isArray(row.verification_result.warnings)).toBe(true);
     expect(row.verification_result.warnings.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the public Case Number stable before and after approval", async () => {
+    const staged = await stageSheetRows({
+      session: manager,
+      source: "csv",
+      idempotencyKey: `stable-ref-${randomUUID()}`,
+      rows: [{
+        full_name: "TEST Stable Ref",
+        phone: "3135558801",
+        email: "stable-ref@test.invalid",
+        date_of_birth: "1991-02-03",
+      }],
+    });
+    const caseId = String(staged.cases[0].id);
+    const [before] = await db`select public_ref,mapped_draft from client_import_cases where id=${caseId}`;
+    expect(String(before.public_ref)).toMatch(/^CG-\d{4}-\d{6}$/);
+
+    const pendingStatus = await publicImportStatus(caseId);
+    expect(pendingStatus?.ref).toBe(before.public_ref);
+    expect(pendingStatus?.status_label).toBeTruthy();
+
+    const approved = await approveImportCase(manager, {
+      id: caseId,
+      reviewerId: manager.staff.id,
+      draft: before.mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+      traceId: "stable-ref-integration",
+    });
+    const [client] = await db`select ref from clients where id=${approved.client_id}`;
+    expect(client.ref).toBe(before.public_ref);
+  });
+
+  it("allows a different applicant to use an email already attached to another file", async () => {
+    const sharedEmail = `family-${randomUUID()}@test.invalid`;
+
+    const first = await stageSheetRows({
+      session: manager,
+      source: "csv",
+      idempotencyKey: `shared-email-a-${randomUUID()}`,
+      rows: [{
+        full_name: "TEST Shared Email Alpha",
+        phone: "3135558811",
+        email: sharedEmail,
+        date_of_birth: "1985-01-01",
+      }],
+    });
+    const firstId = String(first.cases[0].id);
+    const [firstCase] = await db`select mapped_draft from client_import_cases where id=${firstId}`;
+    await approveImportCase(manager, {
+      id: firstId,
+      reviewerId: manager.staff.id,
+      draft: firstCase.mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+      traceId: "shared-email-alpha",
+    });
+
+    const second = await stageSheetRows({
+      session: manager,
+      source: "csv",
+      idempotencyKey: `shared-email-b-${randomUUID()}`,
+      rows: [{
+        full_name: "TEST Shared Email Beta",
+        phone: "3135558812",
+        email: sharedEmail,
+        date_of_birth: "1993-09-09",
+      }],
+    });
+    const secondId = String(second.cases[0].id);
+    const [secondCase] = await db`select public_ref,mapped_draft from client_import_cases where id=${secondId}`;
+
+    const verification = await verifyImportCase(manager, secondId);
+    expect(verification.identity).toBe("NEW");
+
+    const approved = await approveImportCase(manager, {
+      id: secondId,
+      reviewerId: manager.staff.id,
+      draft: secondCase.mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+      traceId: "shared-email-beta",
+    });
+    const [secondClient] = await db`select ref,email,phone from clients where id=${approved.client_id}`;
+    expect(secondClient.ref).toBe(secondCase.public_ref);
+    expect(secondClient.email).toBe(sharedEmail);
+    expect(secondClient.phone).toBe("3135558812");
+
+    const [{ count }] = await db`select count(*)::int as count from clients where lower(email)=lower(${sharedEmail})`;
+    expect(count).toBe(2);
+  });
+
+  it("still blocks the same applicant when email and identity match an existing file", async () => {
+    const email = `same-applicant-${randomUUID()}@test.invalid`;
+    const first = await stageSheetRows({
+      session: manager,
+      source: "csv",
+      idempotencyKey: `same-applicant-a-${randomUUID()}`,
+      rows: [{
+        full_name: "TEST Same Applicant",
+        phone: "3135558821",
+        email,
+        date_of_birth: "1990-04-04",
+      }],
+    });
+    const firstId = String(first.cases[0].id);
+    const [firstCase] = await db`select mapped_draft from client_import_cases where id=${firstId}`;
+    await approveImportCase(manager, {
+      id: firstId,
+      reviewerId: manager.staff.id,
+      draft: firstCase.mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+      traceId: "same-applicant-first",
+    });
+
+    const second = await stageSheetRows({
+      session: manager,
+      source: "csv",
+      idempotencyKey: `same-applicant-b-${randomUUID()}`,
+      rows: [{
+        full_name: "TEST Same Applicant",
+        phone: "3135558822",
+        email,
+        date_of_birth: "1990-04-04",
+      }],
+    });
+    const secondId = String(second.cases[0].id);
+    const [secondCase] = await db`select mapped_draft from client_import_cases where id=${secondId}`;
+
+    const verification = await verifyImportCase(manager, secondId);
+    expect(verification.identity).toBe("POSSIBLE_DUPLICATE");
+    await expect(approveImportCase(manager, {
+      id: secondId,
+      reviewerId: manager.staff.id,
+      draft: secondCase.mapped_draft,
+      documentConfirmed: true,
+      informationConfirmed: true,
+      traceId: "same-applicant-second",
+    })).rejects.toMatchObject({ code: "not_ready" });
   });
 
   it("blocks approval with the real database error when the persistence column is absent", async () => {
