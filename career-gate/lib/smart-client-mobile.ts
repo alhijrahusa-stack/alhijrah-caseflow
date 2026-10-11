@@ -257,25 +257,25 @@ export async function stageMobileImportV2(args: {
       const publicName = publicProfile.full_name?.trim().toLowerCase().replace(/\s+/g, " ") || null;
       const publicPhone = publicProfile.phone?.replace(/\D/g, "") || null;
       const publicDob = publicProfile.date_of_birth?.trim() || null;
-      await tx\`select pg_advisory_xact_lock(hashtextextended(\${\`cg-public-email:\${publicEmail}\`}, 0))\`;
-      const [duplicate] = await tx\`
+      await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-public-email:${publicEmail}`}, 0))`;
+      const [duplicate] = await tx`
         select ref from clients
         where deleted_at is null
-          and lower(trim(coalesce(email,'')))=\${publicEmail}
+          and lower(trim(coalesce(email,'')))=${publicEmail}
           and (
-            (\${publicName}::text is not null and lower(regexp_replace(trim(coalesce(full_name,'')),'\\s+',' ','g'))=\${publicName})
-            or (\${publicDob}::text is not null and date_of_birth::text=\${publicDob})
-            or (\${publicPhone}::text is not null and regexp_replace(coalesce(phone,''),'\\D','','g')=\${publicPhone})
+            (${publicName}::text is not null and lower(regexp_replace(trim(coalesce(full_name,'')),'\\s+',' ','g'))=${publicName})
+            or (${publicDob}::text is not null and date_of_birth::text=${publicDob})
+            or (${publicPhone}::text is not null and regexp_replace(coalesce(phone,''),'\\D','','g')=${publicPhone})
           )
         union all
         select public_ref as ref from client_import_cases
-        where lower(trim(coalesce(mapped_draft #>> '{profile,email}','')))=\${publicEmail}
+        where lower(trim(coalesce(mapped_draft #>> '{profile,email}','')))=${publicEmail}
           and (
-            (\${publicName}::text is not null and lower(regexp_replace(trim(coalesce(mapped_draft #>> '{profile,full_name}','')),'\\s+',' ','g'))=\${publicName})
-            or (\${publicDob}::text is not null and coalesce(mapped_draft #>> '{profile,date_of_birth}','')=\${publicDob})
-            or (\${publicPhone}::text is not null and regexp_replace(coalesce(mapped_draft #>> '{profile,phone}',''),'\\D','','g')=\${publicPhone})
+            (${publicName}::text is not null and lower(regexp_replace(trim(coalesce(mapped_draft #>> '{profile,full_name}','')),'\\s+',' ','g'))=${publicName})
+            or (${publicDob}::text is not null and coalesce(mapped_draft #>> '{profile,date_of_birth}','')=${publicDob})
+            or (${publicPhone}::text is not null and regexp_replace(coalesce(mapped_draft #>> '{profile,phone}',''),'\\D','','g')=${publicPhone})
           )
-        limit 1\`;
+        limit 1`;
       if (duplicate) {
         throw new ActionError(
           "duplicate_application",
