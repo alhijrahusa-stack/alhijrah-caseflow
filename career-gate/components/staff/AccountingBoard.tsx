@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { FinancialActionForm, type FinancialAction } from "@/components/staff/accounting/FinancialActions";
+import { FinancialActionForm, type FinancialAction, operationFor } from "@/components/staff/accounting/FinancialActions";
 import { formatMoney, formatPercent } from "@/components/staff/accounting/money";
 import { TransactionHistory } from "@/components/staff/accounting/TransactionHistory";
 import { postAccounting, useFinancialMutation } from "@/components/staff/accounting/useFinancialMutation";
+import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 import type { AccountingRow, OperationsStaff } from "@/lib/operations";
 
 /**
@@ -37,7 +37,7 @@ type CommissionChange = "approved" | "paid" | "cancelled" | "reversed";
 /** Changes that pay out or undo money and so need an explicit confirmation. */
 const HIGH_RISK_COMMISSION = new Set<CommissionChange>(["paid", "cancelled", "reversed"]);
 
-function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: () => void }) {
+function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: (operation: string) => void }) {
   const { outcome, run, reset, busy } = useFinancialMutation<{ commission?: { status?: string } }>();
   const [reference, setReference] = useState("");
   const [reason, setReason] = useState("");
@@ -69,7 +69,7 @@ function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: () => 
       reason: status === "cancelled" || status === "reversed" ? reason.trim() || null : null,
     }));
     setPending(null);
-    if (ok) { reset(); onDone(); }
+    if (ok) { reset(); onDone("update_commission"); }
   }
 
   function request(status: CommissionChange) {
@@ -143,7 +143,7 @@ function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: () => 
       {outcome.state === "failed" && <p className="ops-inline-error" role="alert">{outcome.message}</p>}
       {outcome.state === "unknown" && (
         <p className="ops-inline-error" role="alert" data-testid="commission-unknown">
-          {outcome.message} <button type="button" className="ops-secondary-button" onClick={() => { reset(); onDone(); }}>Reload</button>
+          {outcome.message} <button type="button" className="ops-secondary-button" onClick={() => { reset(); onDone("update_commission"); }}>Reload</button>
         </p>
       )}
     </div>
@@ -152,7 +152,7 @@ function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: () => 
 
 type Panel = { kind: "action"; action: FinancialAction } | { kind: "commission" } | { kind: "ledger" };
 
-function AccountRow({ row, onDone }: { row: AccountingRow; onDone: () => void }) {
+function AccountRow({ row, onDone }: { row: AccountingRow; onDone: (operation: string) => void }) {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -222,7 +222,7 @@ function AccountRow({ row, onDone }: { row: AccountingRow; onDone: () => void })
               outstanding: row.balance,
               transactions: row.transactions,
             }}
-            onDone={onDone}
+            onDone={() => onDone(operationFor(panel.action))}
             onClose={() => setPanel(null)}
           />
         </div>
@@ -245,7 +245,7 @@ function AccountRow({ row, onDone }: { row: AccountingRow; onDone: () => void })
 }
 
 export function AccountingBoard({ rows, staff, initialClient = null }: { rows: AccountingRow[]; staff: OperationsStaff[]; initialClient?: string | null }) {
-  const router = useRouter();
+  const onMutated = useTargetedMutation();
   const [status, setStatus] = useState("all");
   const [staffId, setStaffId] = useState("all");
   const [q, setQ] = useState("");
@@ -294,7 +294,7 @@ export function AccountingBoard({ rows, staff, initialClient = null }: { rows: A
         </div>
 
         <div className="ops-account-list">
-          {filtered.map((row) => <AccountRow key={row.account_id} row={row} onDone={() => router.refresh()} />)}
+          {filtered.map((row) => <AccountRow key={row.account_id} row={row} onDone={(operation) => onMutated(operation, row.client_id)} />)}
           {!filtered.length && <div className="ops-empty-large">No accounts match this filter.</div>}
         </div>
       </section>

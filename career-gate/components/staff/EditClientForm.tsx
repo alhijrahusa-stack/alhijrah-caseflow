@@ -91,8 +91,9 @@ export function EditClientForm({ client, employment, preferences }: { client: R;
     if (nextStep.trim() !== client.next_step && !(await run({ ...base, action: "set_next_step", next_step: nextStep }))) return;
     if (isManager && assigned !== (client.assigned_staff ?? "") && !(await run({ ...base, action: "assign_staff", staff_id: assigned || null }))) return;
     sessionStorage.removeItem(draftKey);
+    // Each `run` above already published its resources on the targeted path,
+    // and the staff app renders dynamically, so the push is enough.
     router.push(`/staff/client/${client.id}`);
-    router.refresh();
   }
 
   return (

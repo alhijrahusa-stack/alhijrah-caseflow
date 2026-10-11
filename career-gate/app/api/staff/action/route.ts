@@ -49,7 +49,10 @@ export async function POST(req: Request) {
         if (clientId) await runAudit(clientId, traceId).catch((e) => console.error(e));
         await processJobs(10).catch((e) => console.error(e));
       });
-      return ok({ action: a.action, ...result }, 200, traceId);
+      // The resolved client id lets the caller scope its targeted UI update;
+      // entity-targeted actions (task_id, document_id, ...) carry no client_id
+      // in the request. The caller was already authorized for this client.
+      return ok({ action: a.action, ...result, client_id: clientId ?? null }, 200, traceId);
     } catch (e) {
       if (e instanceof ActionError) return err(e.code, e.message, e.status, traceId);
       return dbErrorResponse(e, traceId);

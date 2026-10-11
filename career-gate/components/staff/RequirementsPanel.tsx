@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { QuickDate } from "@/components/staff/QuickDate";
+import { REQUIREMENTS_SURFACE } from "@/components/staff/realtime/surfaces";
+import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
+import { useTargetedPayloads } from "@/components/staff/realtime/useTargetedUpdate";
 import { useStaff } from "@/components/staff/StaffContext";
 import { PostHire } from "@/components/staff/sections/Work";
 import type { Row } from "@/components/staff/sections/common";
@@ -18,8 +20,19 @@ async function postRequirement(body: Record<string, unknown>) {
   return data;
 }
 
-function RequirementRow({ row }: { row: Row }) {
-  const router = useRouter();
+type ReadinessState = { rows: Row[]; readiness: Readiness; postHire: Row[] };
+
+/** Patches only the readiness payloads a targeted update delivered. */
+function applyReadiness(current: ReadinessState, payloads: Record<string, unknown>): ReadinessState {
+  return {
+    rows: Array.isArray(payloads.requirements) ? (payloads.requirements as Row[]) : current.rows,
+    readiness: "readiness" in payloads ? (payloads.readiness as Readiness) : current.readiness,
+    postHire: Array.isArray(payloads.postHire) ? (payloads.postHire as Row[]) : current.postHire,
+  };
+}
+
+function RequirementRow({ row, clientId }: { row: Row; clientId: string }) {
+  const onMutated = useTargetedMutation();
   const [status, setStatus] = useState(String(row.status));
   const [due, setDue] = useState(row.due_at ? String(row.due_at).slice(0, 10) : "");
   const [busy, setBusy] = useState(false);
@@ -29,7 +42,7 @@ function RequirementRow({ row }: { row: Row }) {
     setBusy(true); setError(null);
     try {
       await postRequirement({ operation: "update_requirement", requirement_id: row.id, status, due_on: due || null });
-      router.refresh();
+      onMutated("update_requirement", clientId);
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to update requirement"); }
     finally { setBusy(false); }
   }
@@ -53,7 +66,15 @@ function RequirementRow({ row }: { row: Row }) {
 
 export function RequirementsPanel({ clientId, rows, readiness, postHire, startDate }: { clientId: string; rows: Row[]; readiness: Readiness; postHire: Row[]; startDate: string | null }) {
   const { isManager } = useStaff();
-  const router = useRouter();
+  const onMutated = useTargetedMutation();
+  // Stable across client re-renders; a new server render replaces it.
+  const serverState = useMemo<ReadinessState>(() => ({ rows, readiness, postHire }), [rows, readiness, postHire]);
+  const live = useTargetedPayloads<ReadinessState>({
+    resources: REQUIREMENTS_SURFACE.resources,
+    clientId,
+    initial: serverState,
+    apply: applyReadiness,
+  });
   const [showNew, setShowNew] = useState(false);
   const [key, setKey] = useState("");
   const [title, setTitle] = useState("");
@@ -62,13 +83,14 @@ export function RequirementsPanel({ clientId, rows, readiness, postHire, startDa
   const [due, setDue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const standaloneRows = rows.filter((row) => !String(row.requirement_key ?? "").startsWith("post_hire:"));
+  const standaloneRows = live.rows.filter((row) => !String(row.requirement_key ?? "").startsWith("post_hire:"));
 
   async function create() {
     setBusy(true); setError(null);
     try {
       await postRequirement({ operation: "create_requirement", client_id: clientId, requirement_key: key, title, why: why || null, completion_rule: rule || null, due_on: due || null, status: "missing" });
-      setKey(""); setTitle(""); setWhy(""); setRule(""); setDue(""); setShowNew(false); router.refresh();
+      setKey(""); setTitle(""); setWhy(""); setRule(""); setDue(""); setShowNew(false);
+      onMutated("create_requirement", clientId);
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to create requirement"); }
     finally { setBusy(false); }
   }
@@ -77,7 +99,7 @@ export function RequirementsPanel({ clientId, rows, readiness, postHire, startDa
     <section className="staff-glass rounded-2xl p-4" data-testid="section-requirements">
       <div className="flex flex-wrap items-center gap-3">
         <div><p className="text-[10px] uppercase tracking-[.14em] text-slate-500">Unified Workflow</p><h2 className="text-base font-semibold">Readiness / Post-Hire</h2></div>
-        <div className="ms-auto text-right"><strong className="text-2xl text-slate-100">{readiness?.readiness_percent == null ? "—" : `${readiness.readiness_percent}%`}</strong><p className="text-[10px] text-slate-500">{readiness ? `${readiness.completed_requirements}/${readiness.total_requirements} complete` : "No requirements generated"}</p></div>
+        <div className="ms-auto text-right"><strong className="text-2xl text-slate-100">{live.readiness?.readiness_percent == null ? "—" : `${live.readiness.readiness_percent}%`}</strong><p className="text-[10px] text-slate-500">{live.readiness ? `${live.readiness.completed_requirements}/${live.readiness.total_requirements} complete` : "No requirements generated"}</p></div>
         {isManager && <button type="button" className="ops-secondary-button" onClick={() => setShowNew((v) => !v)}>{showNew ? "Cancel" : "Add requirement"}</button>}
       </div>
       {showNew && (
@@ -91,8 +113,8 @@ export function RequirementsPanel({ clientId, rows, readiness, postHire, startDa
           {error && <p className="ops-inline-error md:col-span-2" role="alert">{error}</p>}
         </div>
       )}
-      <div className="mt-4 border-t border-white/[.06] pt-4"><PostHire clientId={clientId} items={postHire} startDate={startDate} embedded /></div>
-      <div className="mt-4 space-y-2">{standaloneRows.map((row) => <RequirementRow key={String(row.id)} row={row} />)}{!standaloneRows.length && <p className="text-xs text-slate-500">No additional requirements.</p>}</div>
+      <div className="mt-4 border-t border-white/[.06] pt-4"><PostHire clientId={clientId} items={live.postHire} startDate={startDate} embedded /></div>
+      <div className="mt-4 space-y-2">{standaloneRows.map((row) => <RequirementRow key={String(row.id)} row={row} clientId={clientId} />)}{!standaloneRows.length && <p className="text-xs text-slate-500">No additional requirements.</p>}</div>
     </section>
   );
 }

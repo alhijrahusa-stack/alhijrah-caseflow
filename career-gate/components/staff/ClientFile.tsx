@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AddNoteForm, AppointmentForm, AssignForm, ContactedForm, DocumentForm, FollowupForm, NextStepForm, type Panel, StatusForm, TaskForm,
 } from "@/components/staff/ClientActions";
 import { ClientAccountPanel } from "@/components/staff/ClientAccountPanel";
 import { InlineField } from "@/components/staff/InlineField";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
+import { CLIENT_FILE_SURFACE } from "@/components/staff/realtime/surfaces";
+import { useTargetedPayloads } from "@/components/staff/realtime/useTargetedUpdate";
 import { useStaff } from "@/components/staff/StaffContext";
 import { StatusBadge } from "@/components/staff/StatusBadge";
 import { SoftDelete } from "@/components/staff/SoftDelete";
@@ -42,6 +44,46 @@ const panelTab: Record<Panel, ClientTab> = {
   assign: "profile",
 };
 
+/** Client-file slices that arrive as a list and replace the rendered one. */
+const LIST_SLICES = [
+  "employment", "preferences", "documents", "extractions", "appointments", "notes",
+  "tasks", "contacts", "followups", "postHire", "assessments", "activity",
+  "notifications", "alerts", "references",
+] as const;
+
+type LiveState = { data: ClientFileData; account: ClientAccountSummary };
+
+/**
+ * Patches only the slices a targeted update delivered. Anything the update did
+ * not carry is left exactly as the server rendered it.
+ */
+function applyPayloads(current: LiveState, payloads: Record<string, unknown>): LiveState {
+  const data: ClientFileData = { ...current.data };
+  let touched = false;
+  if (payloads.client && typeof payloads.client === "object") {
+    data.client = payloads.client as Row;
+    touched = true;
+  }
+  for (const key of LIST_SLICES) {
+    const value = payloads[key];
+    if (Array.isArray(value)) {
+      (data as unknown as Record<string, unknown>)[key] = value as Row[];
+      touched = true;
+    }
+  }
+  for (const key of ["authorization", "agentRun"] as const) {
+    if (key in payloads) {
+      (data as unknown as Record<string, unknown>)[key] = (payloads[key] ?? null) as Row | null;
+      touched = true;
+    }
+  }
+  const account = payloads.account !== undefined
+    ? (payloads.account as ClientAccountSummary)
+    : current.account;
+  if (!touched && account === current.account) return current;
+  return { data, account };
+}
+
 function pipelineLabel(value: unknown) {
   return String(value ?? "portal_intake").replace(/_/g, " ");
 }
@@ -51,8 +93,8 @@ function validTab(value: string | null): value is ClientTab {
 }
 
 export function ClientFile({
-  data,
-  account = null,
+  data: serverData,
+  account: serverAccount = null,
   initialPanel = null,
   initialTab = null,
 }: {
@@ -61,6 +103,17 @@ export function ClientFile({
   initialPanel?: ClientPanel | null;
   initialTab?: ClientTab | null;
 }) {
+  // Stable across client re-renders: only a new server render changes either
+  // prop, and only then may the targeted patches be discarded.
+  const serverState = useMemo<LiveState>(() => ({ data: serverData, account: serverAccount }), [serverData, serverAccount]);
+  const live = useTargetedPayloads<LiveState>({
+    resources: CLIENT_FILE_SURFACE.resources,
+    clientId: typeof serverData.client.id === "string" ? serverData.client.id : null,
+    initial: serverState,
+    apply: applyPayloads,
+  });
+  const data = live.data;
+  const account = live.account;
   const { client: c } = data;
   const { isManager, isAdmin } = useStaff();
   const router = useRouter();

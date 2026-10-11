@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FinancialActionForm, type FinancialAction } from "@/components/staff/accounting/FinancialActions";
+import { FinancialActionForm, type FinancialAction, operationFor } from "@/components/staff/accounting/FinancialActions";
 import { formatMoney, formatPercent } from "@/components/staff/accounting/money";
 import { TransactionHistory } from "@/components/staff/accounting/TransactionHistory";
+import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 import { useStaff } from "@/components/staff/StaffContext";
 import type { ClientAccountSummary } from "@/lib/client-account";
 
@@ -50,7 +50,7 @@ function Figure({ label, value, testId }: { label: string; value: string; testId
 
 export function ClientAccountPanel({ clientId, account }: { clientId: string; account: ClientAccountSummary }) {
   const { me, isManager, activeStaff } = useStaff();
-  const router = useRouter();
+  const onMutated = useTargetedMutation();
   const [action, setAction] = useState<FinancialAction | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -192,7 +192,7 @@ export function ClientAccountPanel({ clientId, account }: { clientId: string; ac
               staffOptions={isManager ? activeStaff : activeStaff.filter((s) => s.id === me.id)}
               selfStaffId={me.id}
               canChooseCompleter={isManager}
-              onDone={() => router.refresh()}
+              onDone={() => onMutated(operationFor(action), clientId)}
               onClose={() => setAction(null)}
             />
           </div>

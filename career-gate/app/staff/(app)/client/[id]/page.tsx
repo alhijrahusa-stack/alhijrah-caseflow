@@ -45,7 +45,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const gateJob = gateJobAccount ? JSON.parse(JSON.stringify(gateJobAccount)) as GateJobAccountCardData : null;
   return (
     <div className="space-y-4">
-      {nextAction && <NextActionCard action={nextAction} />}
+      {nextAction && <NextActionCard action={nextAction} clientId={id} />}
       <ClientFile data={JSON.parse(JSON.stringify(data)) as ClientFileData} account={account} initialPanel={initialPanel} initialTab={initialTab} />
       <GateJobAccountCard account={gateJob} />
       <RequirementsPanel clientId={id} rows={JSON.parse(JSON.stringify(requirementData.requirements))} readiness={requirementData.readiness} postHire={JSON.parse(JSON.stringify(data.postHire))} startDate={data.client.start_date ? String(data.client.start_date) : null} />

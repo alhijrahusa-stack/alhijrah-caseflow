@@ -1,15 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { startTransition, useState } from "react";
+import { publishMutation } from "@/components/staff/realtime/update-bus";
 import { useToast } from "@/components/ui/Toast";
 
-type Ok = { ok: true; [k: string]: unknown };
+type Ok = { ok: true; client_id?: string | null; [k: string]: unknown };
 type Fail = { ok: false; error: { code: string; message: string } };
 
 /**
  * Posts to /api/staff/action. Success is shown only after the server
  * confirms; failures keep a persistent inline error and raise a toast.
+ *
+ * On success the affected resources are published on the targeted update path,
+ * scoped to the client the server resolved. `router.refresh()` runs only as
+ * the recovery fallback, when no mounted surface owns those resources or the
+ * mutation is not in the resource graph.
  */
 export function useAction(opts: { successMessage?: string | null } = {}) {
   const router = useRouter();
@@ -30,7 +36,14 @@ export function useAction(opts: { successMessage?: string | null } = {}) {
       if (!data) throw new Error(`Request failed (${res.status})`);
       if (!data.ok) throw new Error(data.error.message);
       if (success !== null) toast("success", success ?? "Saved");
-      router.refresh();
+      const clientId = typeof data.client_id === "string"
+        ? data.client_id
+        : typeof payload.client_id === "string"
+          ? payload.client_id
+          : null;
+      if (publishMutation(String(payload.action ?? ""), clientId) !== null) {
+        startTransition(() => { router.refresh(); });
+      }
       return data;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Request failed";
