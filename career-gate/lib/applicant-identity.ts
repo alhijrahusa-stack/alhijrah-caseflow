@@ -49,10 +49,9 @@ export function applicantIdentity(input: {
   };
 }
 
-/** At least two independent signals are required for a confirmed duplicate. */
+/** Existing helper: whether any identity evidence is present. */
 export function hasIdentitySignal(identity: ApplicantIdentity): boolean {
-  return [identity.fullName, identity.dateOfBirth, identity.phone && identity.phone.length >= 7 ? identity.phone : null]
-    .filter(Boolean).length >= 2;
+  return Boolean(identity.fullName || identity.dateOfBirth || identity.phone);
 }
 
 /**
