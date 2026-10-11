@@ -83,7 +83,12 @@ test.describe.serial("realtime targeted updates", () => {
     const asked = new URL(scoped[0]).searchParams;
     expect(asked.get("client_id")).toBe(clientId);
     const payloads = (asked.get("payloads") ?? "").split(",").sort();
-    expect(payloads).toEqual(["activity", "notes"]);
+    // A note touches the note list and the insight timeline, and nothing else:
+    // no tasks, no documents, no account, no readiness.
+    expect(payloads).toEqual(["activity", "agentRun", "notes", "notifications"]);
+    for (const untouched of ["tasks", "documents", "account", "requirements", "appointments", "preferences"]) {
+      expect(payloads, `a note must not refetch ${untouched}`).not.toContain(untouched);
+    }
 
     expect(routeRefreshes, "the normal update path must not refresh the route").toEqual([]);
     // The fallback never ran, so no recovery reason was recorded.
