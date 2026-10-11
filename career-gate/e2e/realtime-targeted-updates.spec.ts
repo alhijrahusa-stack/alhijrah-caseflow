@@ -63,9 +63,12 @@ test.describe.serial("realtime targeted updates", () => {
     const routeRefreshes: string[] = [];
     page.on("request", (req) => {
       const url = req.url();
-      if (url.includes(CLIENT_RESOURCE)) scoped.push(url);
-      // A `router.refresh()` re-requests the page itself as an RSC payload.
-      else if (url.includes(`/staff/client/${clientId}`) && url.includes("_rsc=")) routeRefreshes.push(url);
+      if (url.includes(CLIENT_RESOURCE)) { scoped.push(url); return; }
+      // A `router.refresh()` re-requests this page itself as an RSC payload.
+      // Match the path exactly: the command deck prefetches the client's edit
+      // and status-preview pages, and those are navigations, not refreshes.
+      const parsed = new URL(url);
+      if (parsed.pathname === `/staff/client/${clientId}` && parsed.searchParams.has("_rsc")) routeRefreshes.push(url);
     });
 
     await page.goto(`/staff/client/${clientId}?action=note`);
