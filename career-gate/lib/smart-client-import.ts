@@ -400,8 +400,8 @@ export async function stageMobileImport(args: {
   const created = await sql().begin(async (tx) => {
     const [existing] = await tx`select id from client_import_batches where created_by=${args.session.staff.id} and idempotency_key=${key}`;
     if (existing) {
-      const [caseRow] = await tx`select id,status from client_import_cases where batch_id=${existing.id} order by created_at limit 1`;
-      return { batchId: String(existing.id), caseId: String(caseRow.id), idempotent: true };
+      const [caseRow] = await tx`select id,status,public_ref from client_import_cases where batch_id=${existing.id} order by created_at limit 1`;
+      return { batchId: String(existing.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: true };
     }
     const [batch] = await tx`
       insert into client_import_batches(source_type,source_file_hash,idempotency_key,created_by,metadata)
@@ -416,10 +416,10 @@ export async function stageMobileImport(args: {
         ${batch.id},'mobile','PENDING',${tx.json({ notes } as never)},${tx.json(draft as never)},${tx.json(missing as never)},
         ${tx.json(merged.conflicts as never)},${tx.json(merged.evidence as never)},
         ${tx.json({ extraction_errors: extractionErrors } as never)},${args.session.staff.id}
-      ) returning id`;
-    return { batchId: String(batch.id), caseId: String(caseRow.id), idempotent: false };
+      ) returning id,public_ref`;
+    return { batchId: String(batch.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: false };
   });
-  if (created.idempotent) return { batch_id: created.batchId, case_id: created.caseId, idempotent: true };
+  if (created.idempotent) return { batch_id: created.batchId, case_id: created.caseId, public_ref: created.publicRef, idempotent: true };
 
   const uploadedPaths: string[] = [];
   try {
@@ -446,7 +446,7 @@ export async function stageMobileImport(args: {
     });
     throw error;
   }
-  return { batch_id: created.batchId, case_id: created.caseId, idempotent: false };
+  return { batch_id: created.batchId, case_id: created.caseId, public_ref: created.publicRef, idempotent: false };
 }
 
 function decodeCursor(value: string | null) {
@@ -650,7 +650,7 @@ export async function approveImportCase(session: StaffSession, args: {
     const [row] = await tx`select * from client_import_cases where id=${args.id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.status === "APPROVED_FILE") {
-      if (row.created_client_id) return { client_id: String(row.created_client_id), idempotent: true };
+      if (row.created_client_id) return { client_id: String(row.created_client_id), ref: String(row.public_ref), idempotent: true };
       throw new ActionError("invalid_approved_state", "Approved import is missing its client reference", 500);
     }
     // The case guard only permits PENDING -> UNDER_REVIEW, so approval performs that
@@ -689,6 +689,7 @@ export async function approveImportCase(session: StaffSession, args: {
       assignedStaff,
       createdBy: session.staff.id,
       communicationConsent: false,
+      ref: String(row.public_ref),
     }, { staffId: session.staff.id, traceId: args.traceId });
 
     if (draft.initial_note) {
