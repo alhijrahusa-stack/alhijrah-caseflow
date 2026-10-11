@@ -128,7 +128,7 @@ test.describe("Smart Client Import experience", () => {
     await expect(issues.getByText(/Something went wrong/i)).toHaveCount(0);
   });
 
-  test("telemetry reports the real status and the pipeline reports real stages", async ({ page }) => {
+  test("telemetry and the Bezier path report real workflow stages", async ({ page }) => {
     await page.goto("/staff/smart-client-import/new");
     const status = page.getByRole("status").first();
     await expect(status).toHaveText("CAPTURING");
@@ -137,11 +137,18 @@ test.describe("Smart Client Import experience", () => {
     await expect(status).toHaveText("READY TO SUBMIT");
 
     const pipeline = page.getByRole("region", { name: "PROCESSING PIPELINE" });
-    for (const stage of ["SOURCE CAPTURE", "LOCAL EXTRACTION", "DOCUMENT PROCESSING", "ENRICHMENT", "STAGING", "REVIEW READINESS"]) {
-      await expect(pipeline.getByText(stage, { exact: true })).toBeVisible();
+    const bezier = pipeline.getByTestId("bezier-progress");
+    await expect(bezier).toBeVisible();
+    const accessibleState = bezier.locator("ol");
+    for (const stage of ["CAPTURE", "EXTRACT", "AUTOFILL", "REVIEW", "STAGE", "READY"]) {
+      await expect(accessibleState).toContainText(stage);
     }
-    await expect(pipeline.getByText("COMPLETE").first()).toBeVisible();
-    await expect(pipeline.getByText("WAITING").first()).toBeVisible();
+    await expect(accessibleState).toContainText("CAPTURE: COMPLETED");
+
+    const command = page.getByTestId("intelligent-command-sheet");
+    await expect(command).toBeVisible();
+    await expect(command).toContainText("Source is ready to stage for Smart Review.");
+    await expect(command.getByRole("button", { name: "STAGE FOR REVIEW" })).toBeEnabled();
   });
 
   test("submits captured source, runs the Digital Handshake and stages one case", async ({ page }) => {
@@ -150,9 +157,9 @@ test.describe("Smart Client Import experience", () => {
     await page.goto("/staff/smart-client-import/new");
     await page.locator("#smart-source-text").fill(`Full Name: ${name}\nPhone: 313${token}`.slice(0, 200));
 
-    await page.getByRole("button", { name: "SUBMIT" }).click();
+    await page.getByRole("button", { name: "STAGE FOR REVIEW" }).click();
     await expect(page.getByText("SOURCE CAPTURED", { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "OPEN SMART CAREER COLLECT CLIENT" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "OPEN STAFF REVIEW" })).toBeVisible();
 
     const [staged] = await db()`select id,status from client_import_cases where mapped_draft #>> '{profile,full_name}'=${name} order by created_at desc limit 1`;
     expect(staged?.id).toBeTruthy();
