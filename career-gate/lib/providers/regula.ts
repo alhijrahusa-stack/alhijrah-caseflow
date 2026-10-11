@@ -269,7 +269,7 @@ export async function regulaExtract(args: {
       headers,
       body: JSON.stringify({
         processParam: {
-          scenario: "FullProcess",
+          scenario: "FullAuth",
           doublePageSpread: true,
           dateFormat: "yyyy-MM-dd",
           resultTypeOutput: [9, 20, 30, 33, 36, 61, 62, 85],
