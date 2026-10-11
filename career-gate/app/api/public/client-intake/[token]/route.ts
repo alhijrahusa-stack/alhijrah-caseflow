@@ -82,8 +82,8 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
       return err("link_not_closed", "Your information was received but the link could not be closed. Please contact the office.", 409, traceId);
     }
 
-    // Nothing internal is returned: no case id, no batch id, no staff identity.
-    return ok({ received: true }, 201, traceId);
+    // Return only the client-safe public reference. Internal UUIDs and staff identity stay private.
+    return ok({ received: true, case_number: result.public_ref }, 201, traceId);
   } catch (error) {
     // The submission failed, so the link goes back to ACTIVE and the client may
     // try again while it has not expired.
