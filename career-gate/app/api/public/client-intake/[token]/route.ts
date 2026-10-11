@@ -2,6 +2,7 @@ import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { ActionError } from "@/lib/service";
 import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
+import { findPublicDuplicateByEmail } from "@/lib/public-intake-duplicate";
 import {
   CLIENT_EDITABLE_FIELDS,
   claimIntakeLink,
@@ -66,7 +67,19 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
     // The client's corrections are written as canonical labelled lines ahead of
     // the text they typed, so an edit wins over what was detected in the free
     // text while the existing parser stays authoritative for everything else.
-    const notes = composeIntakeSource(sourceText, readEdits(form));
+    const edits = readEdits(form);
+    const duplicate = await findPublicDuplicateByEmail(edits.email);
+    if (duplicate.exists) {
+      await releaseIntakeLink(link.id);
+      return err(
+        "duplicate_application",
+        "An application has already been submitted with this email. Please contact Customer Service on WhatsApp.",
+        409,
+        traceId,
+      );
+    }
+
+    const notes = composeIntakeSource(sourceText, edits);
 
     const result = await stageMobileImportV2({
       session: link.issuer,
