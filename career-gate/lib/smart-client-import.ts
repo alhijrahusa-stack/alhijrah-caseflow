@@ -650,7 +650,7 @@ export async function approveImportCase(session: StaffSession, args: {
     const [row] = await tx`select * from client_import_cases where id=${args.id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.status === "APPROVED_FILE") {
-      if (row.created_client_id) return { client_id: String(row.created_client_id), ref: String(row.public_ref), idempotent: true };
+      if (row.created_client_id) return { client_id: String(row.created_client_id), idempotent: true };
       throw new ActionError("invalid_approved_state", "Approved import is missing its client reference", 500);
     }
     // The case guard only permits PENDING -> UNDER_REVIEW, so approval performs that
