@@ -4,6 +4,7 @@ import type { StaffSession } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import type { IntakeRow } from "@/lib/intake-file";
 import { ActionError, normalizeClientEmail } from "@/lib/service";
+import { findPublicDuplicate } from "@/lib/public-intake-duplicate";
 import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
@@ -205,6 +206,7 @@ export async function stageMobileImportV2(args: {
   notes: string;
   files: File[];
   idempotencyKey: string;
+  caseNumber?: string | null;
 }) {
   assertManager(args.session);
   const notes = args.notes.trim().slice(0, SMART_IMPORT_LIMITS.maxRawTextLength);
@@ -253,33 +255,23 @@ export async function stageMobileImportV2(args: {
       date_of_birth?: string | null;
     };
     const publicEmail = normalizeClientEmail(publicProfile.email);
-    if (publicEmail && key.startsWith("client-link:")) {
-      const publicName = publicProfile.full_name?.trim().toLowerCase().replace(/\s+/g, " ") || null;
-      const publicPhone = publicProfile.phone?.replace(/\D/g, "") || null;
-      const publicDob = publicProfile.date_of_birth?.trim() || null;
-      await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-public-email:${publicEmail}`}, 0))`;
-      const [duplicate] = await tx`
-        select ref from clients
-        where deleted_at is null
-          and lower(trim(coalesce(email,'')))=${publicEmail}
-          and (
-            (${publicName}::text is not null and lower(regexp_replace(trim(coalesce(full_name,'')),'\\s+',' ','g'))=${publicName})
-            or (${publicDob}::text is not null and date_of_birth::text=${publicDob})
-            or (${publicPhone}::text is not null and regexp_replace(coalesce(phone,''),'\\D','','g')=${publicPhone})
-          )
-        union all
-        select public_ref as ref from client_import_cases
-        where lower(trim(coalesce(mapped_draft #>> '{profile,email}','')))=${publicEmail}
-          and (
-            (${publicName}::text is not null and lower(regexp_replace(trim(coalesce(mapped_draft #>> '{profile,full_name}','')),'\\s+',' ','g'))=${publicName})
-            or (${publicDob}::text is not null and coalesce(mapped_draft #>> '{profile,date_of_birth}','')=${publicDob})
-            or (${publicPhone}::text is not null and regexp_replace(coalesce(mapped_draft #>> '{profile,phone}',''),'\\D','','g')=${publicPhone})
-          )
-        limit 1`;
-      if (duplicate) {
+    if (key.startsWith("client-link:")) {
+      // Use the canonical email lock also held by Client creation and the DB
+      // guard. Recheck both canonical and staged rows inside this transaction.
+      if (publicEmail) {
+        await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-email:${publicEmail}`}, 0))`;
+      }
+      const match = await findPublicDuplicate({
+        email: publicEmail,
+        caseNumber: args.caseNumber,
+        fullName: publicProfile.full_name,
+        dateOfBirth: publicProfile.date_of_birth,
+        phone: publicProfile.phone,
+      }, tx);
+      if (match.exists) {
         throw new ActionError(
           "duplicate_application",
-          "An existing application matches this applicant. Please contact Customer Service on WhatsApp.",
+          "An existing application matches this applicant or Case Number. Please contact Customer Service on WhatsApp.",
           409,
         );
       }
