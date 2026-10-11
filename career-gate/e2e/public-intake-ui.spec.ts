@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { db, RUN, uniqueIp } from "./helpers";
 
 // Runtime assertions are intentionally unchanged; this commit re-triggers PR checks after restoring intake initialization.
 async function fillStepOne(page: Page) {
@@ -68,6 +69,38 @@ async function reachReview(page: Page) {
   await sign(page);
   await expect(page.locator('.page.active[data-page="4"]')).toBeVisible();
 }
+
+test("public HTML application submits and stores an idempotent case without phone-only merging", async ({ request }) => {
+  const email = `public-html-${RUN}@test.invalid`;
+  const common = {
+    service: "employment", firstName: "TEST", phone: "3135550148", email,
+    workType: "Full-Time", shiftCode: "FHD", branch: "DET3",
+    branchName: "Pontiac - DET3", signature: { captured: true, type: "image/png" }, consent: true,
+  };
+  const post = async (lastName: string, uid: string) => {
+    const response = await request.post("/api/application", {
+      data: { ...common, lastName, uid },
+      headers: { "x-forwarded-for": uniqueIp() },
+    });
+    return { status: response.status(), result: await response.json() };
+  };
+  const firstUid = `public-html-one-${RUN}`;
+  const first = await post("Shared-A", firstUid);
+  expect(first.status, JSON.stringify(first.result)).toBe(201);
+  expect(first.result.ok).toBe(true);
+  expect(first.result.caseNumber).toMatch(/^ALH-\d{8}-[A-Z0-9]{4}$/);
+  const duplicate = await post("Shared-A", firstUid);
+  expect(duplicate.status).toBe(200);
+  expect(duplicate.result.caseNumber).toBe(first.result.caseNumber);
+  const existing = await post("Shared-A", `public-html-same-${RUN}`);
+  expect(existing.status).toBe(409);
+  expect(existing.result.code).toBe("existing_applicant");
+  const other = await post("Shared-B", `public-html-other-${RUN}`);
+  expect(other.status, JSON.stringify(other.result)).toBe(201);
+  expect(other.result.caseNumber).not.toBe(first.result.caseNumber);
+  const apps = await db()`select case_number from career_gate_applications where submission_uid in (${firstUid}, ${`public-html-other-${RUN}`})`;
+  expect(apps).toHaveLength(2);
+});
 
 test.describe("Career Gate public intake presentation system", () => {
   test("AR/EN switch is complete at the shell level and preserves active state", async ({ page }) => {
