@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { db, RUN, uniqueIp } from "./helpers";
 
 // Runtime assertions are intentionally unchanged; this commit re-triggers PR checks after restoring intake initialization.
 async function fillStepOne(page: Page) {
@@ -20,7 +21,7 @@ async function chooseStepTwo(page: Page) {
 async function sign(page: Page) {
   // Why this is not a plain mouse drag.
   //
-  // Step 3 is taller than the viewport, so the signature canvas usually sits
+  // Step 4 contains the consent and signature area; the signature canvas can sit
   // below the fold: it was measured at y=833 in a 720px viewport, with
   // `elementsFromPoint` at that y returning nothing at all. `page.mouse` takes
   // viewport coordinates, so a drag built from `boundingBox()` was being
@@ -38,7 +39,7 @@ async function sign(page: Page) {
   //
   // The assertion is unchanged: the pad must set `has`, and a pad that never
   // does still fails.
-  await expect(page.locator('.page.active[data-page="3"]')).toBeVisible();
+  await expect(page.locator('.page.active[data-page="4"]')).toBeVisible();
   const canvas = page.locator("#signature");
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
 
@@ -64,10 +65,43 @@ async function reachReview(page: Page) {
   await page.locator('[data-next="2"]').click();
   await chooseStepTwo(page);
   await page.locator('[data-next="3"]').click();
-  await sign(page);
   await page.locator('[data-next="4"]').click();
+  await sign(page);
   await expect(page.locator('.page.active[data-page="4"]')).toBeVisible();
 }
+
+test("public HTML application submits and stores an idempotent case without phone-only merging", async ({ request }) => {
+  const email = `public-html-${RUN}@test.invalid`;
+  const common = {
+    service: "employment", firstName: "TEST", phone: "3135550148", email,
+    workType: "Full-Time", shiftCode: "FHD", branch: "DET3",
+    branchName: "Pontiac - DET3", signature: { captured: true, type: "image/png" }, consent: true,
+  };
+  const post = async (lastName: string, uid: string) => {
+    const response = await request.post("/api/application", {
+      data: { ...common, lastName, uid },
+      headers: { "x-forwarded-for": uniqueIp() },
+    });
+    return { status: response.status(), result: await response.json() };
+  };
+  const firstUid = `public-html-one-${RUN}`;
+  const first = await post("Shared-A", firstUid);
+  expect(first.status, JSON.stringify(first.result)).toBe(201);
+  expect(first.result.ok).toBe(true);
+  expect(first.result.caseNumber).toMatch(/^ALH-\d{8}-[A-Z0-9]{4}$/);
+  expect(first.result.systemId).toMatch(/^CG-\d{4}-\d{6}$/);
+  const duplicate = await post("Shared-A", firstUid);
+  expect(duplicate.status).toBe(200);
+  expect(duplicate.result.caseNumber).toBe(first.result.caseNumber);
+  const existing = await post("Shared-A", `public-html-same-${RUN}`);
+  expect(existing.status).toBe(409);
+  expect(existing.result.code).toBe("existing_applicant");
+  const other = await post("Shared-B", `public-html-other-${RUN}`);
+  expect(other.status, JSON.stringify(other.result)).toBe(201);
+  expect(other.result.caseNumber).not.toBe(first.result.caseNumber);
+  const apps = await db()`select case_number from career_gate_applications where submission_uid in (${firstUid}, ${`public-html-other-${RUN}`})`;
+  expect(apps).toHaveLength(2);
+});
 
 test.describe("Career Gate public intake presentation system", () => {
   test("AR/EN switch is complete at the shell level and preserves active state", async ({ page }) => {
@@ -116,14 +150,16 @@ test.describe("Career Gate public intake presentation system", () => {
 
     await page.locator("#docs").setInputFiles({ name: "resume.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") });
     await page.locator("#photo").setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: Buffer.from("fake-png") });
+    await page.locator('[data-next="4"]').click();
     await sign(page);
 
     await page.locator("#langEn").click();
     expect(await page.locator("#docs").evaluate((el: HTMLInputElement) => el.files?.length ?? 0)).toBe(1);
     expect(await page.locator("#photo").evaluate((el: HTMLInputElement) => el.files?.length ?? 0)).toBe(1);
     await expect(page.locator("#sigWrap")).toHaveClass(/has/);
-    await expect(page.locator('.page.active[data-page="3"]')).toBeVisible();
+    await expect(page.locator('.page.active[data-page="4"]')).toBeVisible();
 
+    await page.locator('[data-step="3"]').click();
     await page.locator('[data-next="4"]').click();
     await expect(page.locator("#reviewClientName")).toContainText("عبدالله");
     await expect(page.locator("#reviewDocumentsGrid")).toContainText("resume.pdf");
@@ -149,6 +185,7 @@ test.describe("Career Gate public intake presentation system", () => {
           ok: true,
           duplicate: false,
           caseNumber: "ALH-20261001-TEST",
+          systemId: "CG-2026-012345",
           trackingUrl: "/career-gate.html?track=1&case=ALH-20261001-TEST",
           submittedAt: "2026-10-01T00:15:00.000Z"
         })
@@ -166,9 +203,10 @@ test.describe("Career Gate public intake presentation system", () => {
     expect(posts).toBe(1);
     expect(elapsed).toBeLessThan(5000);
     await expect(page.locator("#receiptCase")).toHaveText("ALH-20261001-TEST");
+    await expect(page.locator("#receiptSystemId")).toHaveText("System ID: CG-2026-012345");
     await expect(page.locator("#receiptTime")).not.toContainText("—");
     await expect(page.locator("#receiptCard")).toContainText("CAREER GATE");
-    await expect(page.locator("#receiptCard")).toContainText("313-919-4292");
+    await expect(page.locator("#receiptCard")).toContainText("313-919-4192");
   });
 
   test("tracking states localize and render only after the server response", async ({ page }) => {
@@ -196,15 +234,34 @@ test.describe("Career Gate public intake presentation system", () => {
     });
     await page.goto("/career-gate.html");
     await page.locator("#langEn").click();
+    await expect(page.locator("#statusModal")).toBeHidden();
+    await page.locator("#openTrack").click();
+    await expect(page.locator("#statusModal")).toBeVisible();
     await expect(page.locator("#trackResult")).toBeEmpty();
     await page.locator("#trackValue").fill("ALH-20261001-TRACK");
     await page.locator("#trackBtn").click();
     await expect(page.locator("#trackResult")).toContainText("Current Status");
     await expect(page.locator("#trackResult")).toContainText("Needs Review");
+    await page.locator("#closeTrack").click();
+    await expect(page.locator("#statusModal")).toBeHidden();
     await page.locator("#langAr").click();
+    await page.locator("#openTrack").click();
     await page.locator("#trackBtn").click();
     await expect(page.locator("#trackResult")).toContainText("الحالة الحالية");
     await expect(page.locator("#trackResult")).toContainText("بحاجة للمراجعة");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#statusModal")).toBeHidden();
+  });
+
+  test("progress reflects completed fields and preferred language survives navigation", async ({ page }) => {
+    await page.goto("/career-gate.html");
+    await expect(page.locator("#progressPctView")).toHaveText("0%");
+    await fillStepOne(page);
+    await page.locator("#preferredLanguage").selectOption("en");
+    await expect(page.locator("#progressPctView")).toHaveText("50%");
+    await page.locator('[data-next="2"]').click();
+    await page.locator('[data-step="1"]').click();
+    await expect(page.locator("#preferredLanguage")).toHaveValue("en");
   });
 
   test("narrow mobile has no horizontal overflow and exposes accessible progress/language controls", async ({ browser, baseURL }) => {

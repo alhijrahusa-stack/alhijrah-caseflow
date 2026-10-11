@@ -2853,6 +2853,17 @@ html[dir="ltr"] .lbl{
     transition-duration:.001ms !important;
   }
 }
+
+/* Public Intake modal: isolated, non-destructive, accessible dismissal. */
+.career-status-modal[hidden]{display:none!important}
+.career-status-modal{position:fixed;z-index:9999;inset:0;display:grid;place-items:center;padding:18px;background:rgba(2,9,24,.78);backdrop-filter:blur(20px)}
+.career-status-dialog{position:relative;width:min(760px,100%);max-height:90vh;overflow:auto;border:1px solid rgba(197,160,89,.55);border-radius:24px;background:linear-gradient(135deg,rgba(12,27,53,.97),rgba(5,15,33,.97));box-shadow:0 28px 90px rgba(0,0,0,.5)}
+.career-status-dialog .tracker{margin:0;border:0;box-shadow:none}
+.career-status-close{position:sticky;z-index:2;top:10px;float:left;margin:10px;font-size:24px}
+.career-footer-status{display:flex;justify-content:center;margin-top:18px}
+.career-footer-status .btn{border-color:#C5A059;color:#efd8b0;background:#0A122C;min-height:48px}
+@media(max-width:640px){.career-status-dialog{width:100%;border-radius:20px}.career-footer-status .btn{width:100%}}
+.receipt-system-id{font:600 13px/1.7 var(--mono);color:#d8bd88;letter-spacing:.04em;direction:ltr;text-align:start;margin:6px 0}
 </style>
 </head>
 <body>
@@ -2887,34 +2898,6 @@ html[dir="ltr"] .lbl{
   </div>
 </section>
 
-<section class="panel tracker" id="trackingSection">
-  <div class="pad">
-    <div class="trackTitle">
-      <div class="trackIcon" aria-hidden="true">⌕</div>
-      <div>
-        <h2>متابعة حالة الملف</h2>
-        <div class="muted">تحقق من حالة طلبك بعد تقديمه.</div>
-      </div>
-    </div>
-    <div class="trackGrid">
-      <div>
-        <label class="lbl" for="trackType">طريقة البحث</label>
-        <select id="trackType">
-          <option value="case">رقم الملف</option>
-          <option value="email">البريد الإلكتروني</option>
-          <option value="phone">رقم الجوال</option>
-        </select>
-      </div>
-      <div>
-        <label class="lbl" for="trackValue">حالة ملفك بعد تقديم الطلب</label>
-        <input id="trackValue" placeholder="ALH-2026..." autocomplete="off">
-      </div>
-      <button class="btn cyan" type="button" id="trackBtn">بحث</button>
-    </div>
-    <div id="trackResult"></div>
-  </div>
-</section>
-
 <section class="progress-glass" id="formProgress" aria-label="تقدم نموذج التقديم">
   <div class="progress-head">
     <div class="progress-label">FORM PROGRESS</div>
@@ -2943,7 +2926,7 @@ html[dir="ltr"] .lbl{
     <div class="divider">اختيار الخدمة</div>
     <div class="servicegrid">
       <label class="service selected"><input type="radio" name="service" value="employment" data-label="قسم التوظيف" checked><strong>قسم التوظيف</strong><small>بدء طلب التقديم على وظيفة.</small></label>
-      <label class="service"><input type="radio" name="service" value="appeal_amazon" data-label="تقديم طلب استئناف"><strong>تقديم طلب استئناف</strong><small>طلب استئناف لقرار الفصل من شركة أمازون.</small></label>
+      
     </div>
     <div class="divider">الهوية</div>
     <div class="grid g2">
@@ -2959,6 +2942,7 @@ html[dir="ltr"] .lbl{
     <div class="grid g2">
       <div><label class="lbl">رقم واتساب <span class="req">*</span></label><input id="phone" required inputmode="tel" placeholder="+1 313..." autocomplete="tel"></div>
       <div><label class="lbl">البريد الإلكتروني <span class="req">*</span></label><input id="email" required type="email" placeholder="name@example.com" autocomplete="email"></div>
+      <div><label class="lbl" for="preferredLanguage">اللغة المفضلة · Preferred Language</label><select id="preferredLanguage"><option value="ar">العربية</option><option value="en">English</option><option value="es">Español</option></select></div>
     </div>
     <div class="divider">العنوان</div>
     <div class="grid g2">
@@ -3022,10 +3006,7 @@ html[dir="ltr"] .lbl{
       <div><label class="lbl">المستندات</label><input id="docs" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp"><div class="muted">حتى 8 ملفات، 4MB لكل ملف.</div><div class="filelist" id="docsList"></div></div>
       <div><label class="lbl">صورة العميل</label><input id="photo" type="file" accept=".jpg,.jpeg,.png,.webp"><div class="preview-thumbs" id="photoPreview"></div></div>
     </div>
-    <div class="divider">التوقيع</div>
-    <label class="lbl">التوقيع <span class="req">*</span></label>
-    <div class="sigwrap" id="sigWrap"><canvas id="signature"></canvas><div class="placeholder">وقّع هنا</div></div>
-    <div style="display:flex;gap:10px;margin-top:10px;align-items:center"><button class="btn ghost" type="button" id="sigClear">مسح</button><span class="muted">التوقيع مطلوب قبل الإرسال.</span></div>
+
   </div>
   <div class="bar"><button class="btn ghost" type="button" data-prev="2">→ السابق</button><span class="meta">STEP 3 OF 4</span><span class="spacer"></span><button class="btn primary" type="button" data-next="4">مراجعة الطلب ←</button></div>
 </section>
@@ -3044,22 +3025,57 @@ html[dir="ltr"] .lbl{
       <article class="legal-card"><h4 id="protectionTitle">إقرار حماية البيانات</h4><p id="protectionText">تتم معالجة البيانات والوثائق إلكترونيًا لغرض معالجة الطلب والتحقق التشغيلي والامتثال الإداري، وفق آليات الحماية الفعلية المطبقة في النظام.</p></article>
       <article class="legal-card"><h4 id="sharingTitle">حدود المشاركة</h4><p id="sharingText">يقتصر استخدام ومشاركة البيانات على ما يلزم لإتمام إجراءات الطلب والتحقق التشغيلي والامتثال الإداري وضمن الجهات المشاركة فعليًا في معالجة الطلب.</p></article>
     </div>
+    <div class="divider">التوقيع</div>
+    <label class="lbl">التوقيع <span class="req">*</span></label>
+    <div class="sigwrap" id="sigWrap"><canvas id="signature"></canvas><div class="placeholder">وقّع هنا</div></div>
+    <div style="display:flex;gap:10px;margin-top:10px;align-items:center"><button class="btn ghost" type="button" id="sigClear">مسح</button><span class="muted">التوقيع مطلوب قبل الإرسال.</span></div>
     <label class="choice review-consent" id="consentChoice"><input type="checkbox" id="consent" required><span class="box"></span><span id="consentText">أقر بصحة البيانات وأوافق صراحةً على تقديم الطلب وفق المعلومات الظاهرة أعلاه.</span></label>
   </div>
   <div class="bar"><button class="btn ghost" type="button" data-prev="3" id="reviewPrevious">→ السابق</button><span class="meta" id="reviewStepMeta">الخطوة 4 من 4</span><span class="spacer"></span><button class="btn green submit-control" id="submitBtn" type="submit"><span class="submit-label">إرسال الطلب</span><span class="submit-spinner" aria-hidden="true"></span></button></div>
 </section>
 </form>
-<footer class="contact-footer" id="contactFooter"><div class="contact-footer-head"><span class="contact-title" id="contactTitle">بيانات التواصل</span><span class="contact-brand">CAREER GATE</span></div><div class="contact-grid"><a href="https://wa.me/13139194292" target="_blank" rel="noopener"><span id="contactWhatsappLabel">WhatsApp</span><strong dir="ltr">313-919-4292</strong></a><a href="tel:+13133393566"><span id="contactCallLabel">اتصال</span><strong dir="ltr">313-339-3566</strong></a><a href="mailto:careergate.official@gmail.com"><span>Email</span><strong dir="ltr">careergate.official@gmail.com</strong></a></div></footer>
+<footer class="contact-footer" id="contactFooter"><div class="contact-footer-head"><span class="contact-title" id="contactTitle">بيانات التواصل</span><span class="contact-brand">CAREER GATE</span></div><div class="contact-grid"><a href="https://wa.me/13139194192" target="_blank" rel="noopener"><span id="contactWhatsappLabel">WhatsApp</span><strong dir="ltr">313-919-4192</strong></a><a href="tel:+13133393566"><span id="contactCallLabel">اتصال</span><strong dir="ltr">313-339-3566</strong></a><a href="mailto:careergate.official@gmail.com"><span>Email</span><strong dir="ltr">careergate.official@gmail.com</strong></a></div><div class="career-footer-status"><button type="button" id="openTrack" class="btn ghost">متابعة حالة الطلب · Check Application Status</button></div></footer>
+<div class="career-status-modal" id="statusModal" role="dialog" aria-modal="true" aria-label="متابعة حالة الملف" hidden>
+ <div class="career-status-dialog"><button type="button" class="btn ghost career-status-close" id="closeTrack" aria-label="إغلاق">×</button>
+ <section class="panel tracker" id="trackingSection">
+  <div class="pad">
+    <div class="trackTitle">
+      <div class="trackIcon" aria-hidden="true">⌕</div>
+      <div>
+        <h2>متابعة حالة الملف</h2>
+        <div class="muted">تحقق من حالة طلبك بعد تقديمه.</div>
+      </div>
+    </div>
+    <div class="trackGrid">
+      <div>
+        <label class="lbl" for="trackType">طريقة البحث</label>
+        <select id="trackType">
+          <option value="case">رقم الملف</option>
+          <option value="email">البريد الإلكتروني</option>
+          <option value="phone">رقم الجوال</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl" for="trackValue">حالة ملفك بعد تقديم الطلب</label>
+        <input id="trackValue" placeholder="ALH-2026..." autocomplete="off">
+      </div>
+      <button class="btn cyan" type="button" id="trackBtn">بحث</button>
+    </div>
+    <div id="trackResult"></div>
+  </div>
+</section>
+ </div>
+</div>
 </div>
 
-<section class="receipt-screen" id="receiptScreen"><div class="receipt-shell"><div class="receipt" id="receiptCard"><div class="receipt-brand-row"><img src="/brand/alhijrah-services.webp" alt="" class="receipt-office-logo" aria-hidden="true"><div class="receipt-brand-center"><img src="/brand/career-gate.webp" alt="Career Gate" class="receipt-career-logo"><span>CAREER GATE</span></div><div class="receipt-language language-toggle" role="group" aria-label="Language"><button type="button" data-locale="ar">العربية</button><span>|</span><button type="button" data-locale="en">EN</button></div></div><div class="receipt-head"><div class="receipt-photo" id="receiptPhoto">A</div><div><div class="eyebrow" id="receiptEyebrow">APPLICATION RECEIVED</div><h2 id="receiptName"></h2><div class="statusPill" id="receiptStatus">تم استلام طلبك بنجاح</div><p class="receipt-confirmation" id="receiptConfirmation">تم تسجيل طلبك وإحالته للمراجعة الأولية. احتفظ برقم الملف لمتابعة حالة الطلب.</p><div class="receipt-case" id="receiptCase"></div><div class="receipt-time" id="receiptTime"></div></div></div><div class="receipt-grid" id="receiptGrid"></div><div class="receipt-contact-mini"><a href="https://wa.me/13139194292" target="_blank" rel="noopener"><span>WhatsApp</span><strong dir="ltr">313-919-4292</strong></a><a href="tel:+13133393566"><span id="receiptCallLabel">اتصال</span><strong dir="ltr">313-339-3566</strong></a><a href="mailto:careergate.official@gmail.com"><span>Email</span><strong dir="ltr">careergate.official@gmail.com</strong></a></div></div><div class="receipt-actions"><button class="btn primary" id="downloadReceipt" type="button">حفظ البطاقة</button><a class="btn green" id="whatsappLink" target="_blank" rel="noopener">واتساب</a><button class="btn ghost" id="newApplication" type="button">طلب جديد</button></div></div></section>
+<section class="receipt-screen" id="receiptScreen"><div class="receipt-shell"><div class="receipt" id="receiptCard"><div class="receipt-brand-row"><img src="/brand/alhijrah-services.webp" alt="" class="receipt-office-logo" aria-hidden="true"><div class="receipt-brand-center"><img src="/brand/career-gate.webp" alt="Career Gate" class="receipt-career-logo"><span>CAREER GATE</span></div><div class="receipt-language language-toggle" role="group" aria-label="Language"><button type="button" data-locale="ar">العربية</button><span>|</span><button type="button" data-locale="en">EN</button></div></div><div class="receipt-head"><div class="receipt-photo" id="receiptPhoto">A</div><div><div class="eyebrow" id="receiptEyebrow">APPLICATION RECEIVED</div><h2 id="receiptName"></h2><div class="statusPill" id="receiptStatus">تم استلام طلبك بنجاح</div><p class="receipt-confirmation" id="receiptConfirmation">تم تسجيل طلبك وإحالته للمراجعة الأولية. احتفظ برقم الملف لمتابعة حالة الطلب.</p><div class="receipt-case" id="receiptCase"></div><div class="receipt-system-id" id="receiptSystemId"></div><div class="receipt-time" id="receiptTime"></div></div></div><div class="receipt-grid" id="receiptGrid"></div><div class="receipt-contact-mini"><a href="https://wa.me/13139194192" target="_blank" rel="noopener"><span>WhatsApp</span><strong dir="ltr">313-919-4192</strong></a><a href="tel:+13133393566"><span id="receiptCallLabel">اتصال</span><strong dir="ltr">313-339-3566</strong></a><a href="mailto:careergate.official@gmail.com"><span>Email</span><strong dir="ltr">careergate.official@gmail.com</strong></a></div></div><div class="receipt-actions"><button class="btn primary" id="downloadReceipt" type="button">حفظ البطاقة</button><a class="btn green" id="whatsappLink" target="_blank" rel="noopener">واتساب</a><button class="btn ghost" id="newApplication" type="button">طلب جديد</button></div></div></section>
 
 <div class="toastwrap" id="toasts"></div>
 
 <script>
 (()=>{'use strict';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
-const CONFIG={storageKey:'alhijrah.career.form.v43',officeWhatsApp:'13139194292',maxFiles:8,maxBytes:4*1024*1024};
+const CONFIG={storageKey:'alhijrah.career.form.v43',officeWhatsApp:'13139194192',maxFiles:8,maxBytes:4*1024*1024};
 const EDUCATION=['','No Formal Education','Primary School','Middle School','High School','Vocational Diploma','Associate Degree','Bachelor Degree','Master Degree','Doctorate','Other'];
 const JOBS=['','Warehouse Associate','Stow Associate','Problem Solve','Team Leader','Picker','Packer','Sorter','Amazon Delivery Driver','Other'];
 const SKILLS=['Stow','Team leader','Problem Solve'];
@@ -3141,9 +3157,9 @@ function bind(){
     }
     if(t.name==='shift'||t.id==='branch')updatePay();
     if(t.id==='trackType')trackPlaceholder();
-    save()
+    save();updateProgressTelemetry()
   });
-  $('#form').addEventListener('input',debounce(save,300));
+  $('#form').addEventListener('input',debounce(()=>{save();updateProgressTelemetry()},300));
   $$('[data-next]').forEach(b=>b.onclick=()=>{if(validateStep(state.step))setStep(+b.dataset.next,true)});
   $$('[data-prev]').forEach(b=>b.onclick=()=>setStep(+b.dataset.prev,true));
   $$('[data-step]').forEach(b=>b.onclick=()=>setStep(+b.dataset.step,true));
@@ -3170,6 +3186,10 @@ function bind(){
   $('#sigClear').onclick=clearSignature;
   $('#nearest').onclick=suggestNearest;
   $('#trackBtn').onclick=track;
+  $('#openTrack').onclick=()=>{$('#statusModal').hidden=false;$('#trackValue').focus()};
+  $('#closeTrack').onclick=()=>{$('#statusModal').hidden=true;$('#openTrack').focus()};
+  $('#statusModal').addEventListener('click',e=>{if(e.target===$('#statusModal'))$('#closeTrack').click()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#statusModal').hidden)$('#closeTrack').click()});
   $('#form').onsubmit=submit;
   $('#newApplication').onclick=()=>{localStorage.removeItem(CONFIG.storageKey);location.href='/apply'};
   $('#downloadReceipt').onclick=downloadReceipt;
@@ -3196,12 +3216,10 @@ function setStep(n,manageViewport=true){
     b.classList.toggle('done',i+1<state.step);
     b.setAttribute('aria-current',i+1===state.step?'step':'false')
   });
-  const pct=Math.round(state.step/4*100);
-  $('#progress').style.width=pct+'%';
-  $('#progressPctView').textContent=pct+'%';
+  updateProgressTelemetry();
   $('#progressStepView').textContent=`STEP ${state.step} OF 4`;
   $('#progressCurrentView').textContent=`CURRENT STEP · ${String(state.step).padStart(2,'0')}`;
-  if(state.step===3)setTimeout(()=>resizeSignature(true),0);
+  if(state.step===4)setTimeout(()=>resizeSignature(true),0);
   if(state.step===4)renderReview();
   if(manageViewport){
     requestAnimationFrame(()=>{
@@ -3210,6 +3228,16 @@ function setStep(n,manageViewport=true){
       window.scrollTo({top,behavior:'smooth'})
     })
   }
+}
+function updateProgressTelemetry(){
+  const complete=[
+    Boolean(val('firstName')),Boolean(val('lastName')),Boolean(val('email')),Boolean(val('phone')),
+    Boolean($('input[name=workType]:checked')),Boolean($('input[name=shift]:checked')),
+    Boolean(sig.has),Boolean($('#consent').checked)
+  ];
+  const pct=Math.round(complete.filter(Boolean).length/complete.length*100);
+  $('#progress').style.width=pct+'%';
+  $('#progressPctView').textContent=pct+'%';
 }
 function validateStep(n){
   let ok=true;
@@ -3259,7 +3287,7 @@ function collect(){
     serviceLabel:$('input[name=service]:checked')?.dataset.label||'',
     firstName:val('firstName'),lastName:val('lastName'),dob:val('dob'),
     nationality:val('nationality'),gender:val('gender'),phone:val('phone'),
-    email:val('email').toLowerCase(),address1:val('address1'),address2:val('address2'),
+    email:val('email').toLowerCase(),preferredLanguage:val('preferredLanguage')||'ar',address1:val('address1'),address2:val('address2'),
     city:val('city'),state:val('state'),zip:val('zip'),
     employmentStatus:val('employmentStatus'),hasExperience:val('hasExperience'),
     englishLevel:val('englishLevel'),education:val('education'),lastTitle:val('lastTitle'),
@@ -3402,7 +3430,7 @@ function clearSignature(){
   const r=sig.canvas.getBoundingClientRect();
   sig.ctx.clearRect(0,0,r.width,r.height);
   sig.has=false;
-  $('#sigWrap').classList.remove('has')
+  $('#sigWrap').classList.remove('has');updateProgressTelemetry()
 }
 function renderPhoto(){
   const el=$('#photoPreview');
@@ -3440,7 +3468,7 @@ function restore(){
   try{
     const d=JSON.parse(localStorage.getItem(CONFIG.storageKey)||'null');
     if(!d)return;
-    ['firstName','lastName','dob','nationality','gender','phone','email','address1','address2','city','state','zip','employmentStatus','hasExperience','englishLevel','education','lastTitle','startDate'].forEach(k=>{if($('#'+k)&&d[k]!=null)$('#'+k).value=d[k]});
+    ['firstName','lastName','dob','nationality','gender','phone','email','preferredLanguage','address1','address2','city','state','zip','employmentStatus','hasExperience','englishLevel','education','lastTitle','startDate'].forEach(k=>{if($('#'+k)&&d[k]!=null)$('#'+k).value=d[k]});
     if(d.service){
       const e=$(`input[name=service][value="${CSS.escape(d.service)}"]`);
       if(e){e.checked=true;e.closest('label').classList.add('selected')}
@@ -3514,15 +3542,15 @@ function trackPlaceholder(){const type=$('#trackType').value,ph={case:'ALH-2026.
 function renderShifts(type){$('#shiftDeck').innerHTML=(SHIFTS[type]||[]).map(s=>{const d=localizeShift(s);return`<label class="shift-card"><input type="radio" name="shift" value="${esc(s.code)}"><span class="shift-pay">${formatPay(s.total)}<small>/hr</small></span><span class="shift-code">${esc(s.code)}</span><span class="shift-name">${esc(d.name)}</span><span class="shift-days">${esc(d.days)}</span><span class="shift-time">${esc(d.time)}</span></label>`}).join('')}
 function renderPay(){let rows=[];Object.entries(SHIFTS).forEach(([type,list])=>list.forEach(s=>{const d=localizeShift(s);rows.push(`<tr><td>${esc(state.locale==='ar'?(WORK_AR[type]||type):type)}</td><td>${esc(d.name)}</td><td>${formatPay(s.base)}</td><td>${s.diff===null?'N/A':formatPay(s.diff)}</td><td>${formatPay(s.total)}</td></tr>`)}));const h=state.locale==='ar'?['فئة الشفت','نوع الشفت','الأجر الأساسي','العلاوة','الإجمالي']:['Work Type','Shift','Base Pay','Differential','Total'];$('#payTable').innerHTML='<table><thead><tr>'+h.map(x=>`<th>${esc(x)}</th>`).join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table>'}
 function refreshDynamicDecks(){const wt=$('input[name=workType]:checked')?.value||'',sh=$('input[name=shift]:checked')?.value||'',sk=new Set($$('input[name=skills]:checked').map(x=>x.value)),dp=new Set($$('input[name=docPrefs]:checked').map(x=>x.value));$('#workTypeDeck').innerHTML=WORK_TYPES.map(x=>`<label class="shift-card"><input type="radio" name="workType" value="${esc(x[0])}"><span class="shift-code">${esc(x[0])}</span><span class="shift-name">${esc(state.locale==='ar'?(WORK_AR[x[0]]||x[1]):x[0])}</span></label>`).join('');if(wt){const e=$(`input[name=workType][value="${CSS.escape(wt)}"]`);if(e){e.checked=true;e.closest('label').classList.add('selected');renderShifts(wt);$('#shiftSelector').style.display='block';const se=$(`input[name=shift][value="${CSS.escape(sh)}"]`);if(se){se.checked=true;se.closest('label').classList.add('selected')}}}$('#skills').innerHTML=SKILLS.map(v=>`<label class="choice"><input type="checkbox" name="skills" value="${esc(v)}" ${sk.has(v)?'checked':''}><span class="box"></span><span>${esc(state.locale==='ar'?(SKILL_AR[v]||v):v)}</span></label>`).join('');$('#docPrefs').innerHTML=DOC_PREFS.map(v=>`<label class="choice"><input type="checkbox" name="docPrefs" value="${esc(v)}" ${dp.has(v)?'checked':''}><span class="box"></span><span>${esc(docPrefLabel(v))}</span></label>`).join('');$$('.choice input:checked,.shift-card input:checked').forEach(e=>e.closest('label')?.classList.add('selected'))}
-function localizeProgress(){const pct=Math.round(state.step/4*100);$('#progressPctView').textContent=pct+'%';$('#progressStepView').textContent=tr('stepOf',state.step);$('#progressCurrentView').textContent=`${tr('currentStep')} · ${String(state.step).padStart(2,'0')}`;$('#formProgress').setAttribute('role','progressbar');$('#formProgress').setAttribute('aria-valuemin','1');$('#formProgress').setAttribute('aria-valuemax','4');$('#formProgress').setAttribute('aria-valuenow',String(state.step));setMetaText()}
+function localizeProgress(){updateProgressTelemetry();$('#progressStepView').textContent=tr('stepOf',state.step);$('#progressCurrentView').textContent=`${tr('currentStep')} · ${String(state.step).padStart(2,'0')}`;$('#formProgress').setAttribute('role','progressbar');$('#formProgress').setAttribute('aria-valuemin','1');$('#formProgress').setAttribute('aria-valuemax','4');$('#formProgress').setAttribute('aria-valuenow',String(state.step));setMetaText()}
 function localizeStatic(){document.documentElement.lang=state.locale;document.documentElement.dir=state.locale==='ar'?'rtl':'ltr';document.title=tr('title');$('#languageToggle')?.setAttribute('aria-label',state.locale==='ar'?'اختيار اللغة':'Select language');$('.receipt-language')?.setAttribute('aria-label',state.locale==='ar'?'اختيار اللغة':'Select language');$('#officeName').textContent=tr('office');$('#portalLabel').textContent=tr('portal');$$('.language-toggle button[data-locale]').forEach(b=>{const a=b.dataset.locale===state.locale;b.classList.toggle('active',a);b.setAttribute('aria-pressed',a?'true':'false')});$('.hero-kicker').textContent=tr('heroKicker');$('.title').textContent=tr('heroTitle');$('.lead').textContent=tr('heroLead');$('.trackTitle h2').textContent=tr('trackingTitle');$('.trackTitle .muted').textContent=tr('trackingLead');setLabelFor('trackType',tr('searchBy'));setLabelFor('trackValue',tr('trackValue'));$('#trackBtn').textContent=tr('search');const tt=$('#trackType'),tv=tt.value;tt.innerHTML=[['case',tr('caseNumber')],['email',tr('emailAddress')],['phone',tr('phoneNumber')]].map(x=>`<option value="${x[0]}">${esc(x[1])}</option>`).join('');tt.value=tv;$('.progress-label').textContent=tr('formProgress');$$('.stepbtn').forEach((b,i)=>{b.querySelector('strong').textContent=tr('steps')[i];b.querySelector('small').textContent=tr('stepOf',i+1)});const pages=$$('.page');pages[0].querySelector('.section-title').textContent=tr('personal');pages[1].querySelector('.section-title').textContent=tr('experience');pages[2].querySelector('.section-title').textContent=tr('documents');const p1=pages[0].querySelectorAll('.divider');[tr('serviceChoice'),tr('identity'),tr('contact'),tr('address')].forEach((x,i)=>{if(p1[i])p1[i].textContent=x});$$('input[name=service]').forEach(e=>{const lab=e.closest('.service'),employment=e.value==='employment';lab.querySelector('strong').textContent=employment?tr('employmentService'):tr('appealService');lab.querySelector('small').textContent=employment?tr('employmentServiceDesc'):tr('appealServiceDesc')});setLabelFor('firstName',tr('firstName'),true);setLabelFor('lastName',tr('lastName'),true);setLabelFor('dob',tr('dob'));setLabelFor('nationality',tr('nationality'));setLabelFor('gender',tr('gender'));setLabelFor('phone',tr('whatsapp'),true);setLabelFor('email',tr('email'),true);setLabelFor('address1',tr('address'));setLabelFor('address2',tr('address2'));setLabelFor('city',tr('city'));setLabelFor('state',tr('state'));setLabelFor('zip',tr('zip'));const nat=$('#nationality'),natv=nat.value;nat.innerHTML=`<option value="">${esc(tr('select'))}</option>`+Object.keys(COUNTRY_AR).map(v=>`<option value="${esc(v)}">${esc(state.locale==='ar'?COUNTRY_AR[v]:v)}</option>`).join('');nat.value=natv;const gender=$('#gender'),gv=gender.value;gender.innerHTML=`<option value="">${esc(tr('select'))}</option>`+Object.keys(GENDER_AR).map(v=>`<option value="${esc(v)}">${esc(state.locale==='ar'?GENDER_AR[v]:v)}</option>`).join('');gender.value=gv;setLabelFor('employmentStatus',tr('employmentStatus'));setLabelFor('hasExperience',tr('priorExperience'));setLabelFor('englishLevel',tr('englishLevel'));setLabelFor('education',tr('education'));setLabelFor('lastTitle',tr('lastTitle'));setLabelFor('startDate',tr('expectedStart'));const emp=$('#employmentStatus'),ev=emp.value;emp.innerHTML=`<option value="">${esc(tr('select'))}</option>`+Object.keys(EMPLOYMENT_AR).map(v=>`<option value="${esc(v)}">${esc(state.locale==='ar'?EMPLOYMENT_AR[v]:v)}</option>`).join('');emp.value=ev;const hx=$('#hasExperience'),hxv=hx.value;hx.innerHTML=`<option value="">${esc(tr('select'))}</option><option value="Yes">${state.locale==='ar'?'نعم':'Yes'}</option><option value="No">${state.locale==='ar'?'لا':'No'}</option>`;hx.value=hxv;const en=$('#englishLevel'),env=en.value;en.innerHTML=`<option value="">${esc(tr('select'))}</option>`+Object.keys(ENGLISH_AR).map(v=>`<option value="${esc(v)}">${esc(state.locale==='ar'?ENGLISH_AR[v]:v)}</option>`).join('');en.value=env;preserveOptionValue('education',[['',tr('select')],...EDUCATION.filter(Boolean).map(v=>[v,state.locale==='ar'?(EDUCATION_AR[v]||v):v])]);preserveOptionValue('lastTitle',[['',tr('select')],...JOBS.filter(Boolean).map(v=>[v,state.locale==='ar'?(JOB_AR[v]||v):v])]);const p2=pages[1].querySelectorAll('.divider');[tr('workShiftPrefs'),tr('payTable'),tr('preferredLocations'),tr('skills')].forEach((x,i)=>{if(p2[i])p2[i].textContent=x});const st=pages[1].querySelectorAll('.shift-category-title');if(st[0])st[0].innerHTML=esc(tr('workType'))+' <span class="req">*</span>';if(st[1])st[1].innerHTML=esc(tr('availableShift'))+' <span class="req">*</span>';const pn=pages[1].querySelector('.pay-table + .muted');if(pn)pn.textContent=tr('payNote');setLabelFor('location1',tr('location1'));setLabelFor('location2',tr('location2'));setLabelFor('location3',tr('location3'));const p3=pages[2].querySelectorAll('.divider');[tr('workSite'),tr('documentDelivery'),tr('uploadFiles'),tr('signature')].forEach((x,i)=>{if(p3[i])p3[i].textContent=x});setLabelFor('branch',tr('branch'));setLabelFor('expectedPay',tr('expectedPay'));$('#nearest').textContent=tr('nearest');setLabelFor('docs',tr('files'));setLabelFor('photo',tr('clientPhoto'));const fl=$('#docs').parentElement.querySelector('.muted');if(fl)fl.textContent=tr('fileLimit');const sl=$('#sigWrap').previousElementSibling;if(sl?.classList.contains('lbl'))sl.innerHTML=esc(tr('signature'))+' <span class="req">*</span>';$('#sigWrap .placeholder').textContent=tr('signHere');$('#sigClear').textContent=tr('clear');const sh=$('#sigClear').nextElementSibling;if(sh)sh.textContent=tr('signatureRequired');$$('[data-next="2"],[data-next="3"]').forEach(b=>b.textContent=state.locale==='ar'?tr('next')+' ←':tr('next')+' →');$('[data-next="4"]').textContent=state.locale==='ar'?tr('reviewRequest')+' ←':tr('reviewRequest')+' →';$$('[data-prev]').forEach(b=>b.textContent=state.locale==='ar'?'→ '+tr('previous'):'← '+tr('previous'));$('#reviewTitle').textContent=tr('review');$('#reviewIntro').textContent=tr('reviewIntro');$('#reviewPersonalHeading').textContent=tr('personal');$('#reviewExperienceHeading').textContent=tr('experience');$('#reviewDocumentsHeading').textContent=tr('documents');$$('.review-edit').forEach(b=>b.textContent=tr('edit'));$('#declarationTitle').textContent=tr('userDeclaration');$('#declarationText').textContent=tr('declaration');$('#protectionTitle').textContent=tr('dataProtection');$('#protectionText').textContent=tr('protection');$('#sharingTitle').textContent=tr('sharingLimits');$('#sharingText').textContent=tr('sharing');$('#consentText').textContent=tr('consent');$('#contactTitle').textContent=tr('contactTitle');$('#contactCallLabel').textContent=tr('call');trackPlaceholder();renderPay();refreshDynamicDecks();localizeProgress();if(state.step===4)renderReview();if(lastPayload&&$('#receiptScreen').classList.contains('active'))showReceipt(lastPayload,true)}
 function switchLocale(locale){if(locale!=='ar'&&locale!=='en')return;state.locale=locale;try{localStorage.setItem(LOCALE_KEY,locale)}catch{}localizeStatic()}
 function reviewItem(label,value,cls=''){if(value==null||value===''||(Array.isArray(value)&&!value.length))return'';const d=Array.isArray(value)?value.join(' · '):String(value);return`<div class="review-item ${cls}"><label>${esc(label)}</label><strong dir="auto">${esc(d)}</strong></div>`}
 function renderReview(){const p=collect(),s=selectedShift(),sd=localizeShift(s),b=branch(),full=[p.firstName,p.lastName].filter(Boolean).join(' ')||'—';$('#reviewClientName').textContent=full;const photo=$('#reviewPhoto');photo.textContent=((p.firstName[0]||'')+(p.lastName[0]||'')).toUpperCase()||'A';if(state.photo){const im=document.createElement('img');im.src=URL.createObjectURL(state.photo);photo.textContent='';photo.appendChild(im)}const addr=[p.address1,p.address2,p.city,p.state,p.zip].filter(Boolean).join(', ');const personal=[[tr('name'),full],[tr('dob'),p.dob],[tr('nationality'),localizedDomain(p.nationality,COUNTRY_AR)],[tr('gender'),localizedDomain(p.gender,GENDER_AR)],[tr('whatsapp'),p.phone],[tr('email'),p.email],[tr('address'),addr]];$('#reviewPersonalGrid').innerHTML=personal.map(x=>reviewItem(x[0],x[1],x[0]===tr('address')?'wide':'')).join('');const exp=[[tr('service'),p.service==='employment'?tr('employmentService'):tr('appealService')],[tr('employmentStatus'),localizedDomain(p.employmentStatus,EMPLOYMENT_AR)],[tr('priorExperience'),p.hasExperience?(state.locale==='ar'?(p.hasExperience==='Yes'?'نعم':'لا'):p.hasExperience):''],[tr('englishLevel'),localizedDomain(p.englishLevel,ENGLISH_AR)],[tr('education'),state.locale==='ar'?(EDUCATION_AR[p.education]||p.education):p.education],[tr('lastTitle'),state.locale==='ar'?(JOB_AR[p.lastTitle]||p.lastTitle):p.lastTitle],[tr('expectedStart'),p.startDate],[tr('workTypeLabel'),state.locale==='ar'?(WORK_AR[p.workType]||p.workType):p.workType],[tr('selectedShift'),sd?.name||''],[tr('shiftDays'),sd?.days||''],[tr('shiftHours'),sd?.time||''],[tr('expectedPay'),p.expectedPay],[tr('site'),b?.name||''],[tr('siteAddress'),b?.address||''],[tr('preferredLocations'),p.preferredLocations],[tr('skills'),p.skills.map(v=>state.locale==='ar'?(SKILL_AR[v]||v):v)]];$('#reviewExperienceGrid').innerHTML=exp.map(x=>reviewItem(x[0],x[1],Array.isArray(x[1])?'wide':'')).join('');const docs=[[tr('documentDelivery'),p.docPrefs.map(docPrefLabel)],[tr('files'),p.files.map(f=>f.name)],[tr('clientPhoto'),state.photo?state.photo.name:''],[tr('signature'),sig.has?tr('complete'):tr('incomplete')],[tr('authorization'),$('#consent').checked?tr('complete'):tr('incomplete')]];$('#reviewDocumentsGrid').innerHTML=docs.map(x=>reviewItem(x[0],x[1],Array.isArray(x[1])?'wide':'')).join('')||reviewItem(tr('files'),tr('noFiles'));$('#reviewStepMeta').textContent=tr('stepOf',4);$('#submitBtn .submit-label').textContent=submitInFlight?tr('submitting'):tr('submit')}
-function validateStep(n){let ok=true,first=null;const req=id=>{const e=$('#'+id),good=!!val(id);e.classList.toggle('invalid',!good);if(!good&&!first)first=e;ok=good&&ok};if(n===1){req('firstName');req('lastName');req('phone');req('email');if(!/^\+?[\d\s().-]{10,20}$/.test(val('phone'))){const e=$('#phone');e.classList.add('invalid');first=first||e;ok=false}if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('email'))){const e=$('#email');e.classList.add('invalid');first=first||e;ok=false}}if(n===2){if(!$('input[name=workType]:checked')||!$('input[name=shift]:checked'))ok=false}if(n===3){if(!sig.has)ok=false}if(n===4&&!$('#consent').checked){$('#consentChoice').classList.add('invalid');first=first||$('#consent');ok=false}else if(n===4)$('#consentChoice').classList.remove('invalid');if(!ok){toast(tr('required'),'errt');if(first&&first.offsetParent!==null)setTimeout(()=>first.focus(),40)}return ok}
+function validateStep(n){let ok=true,first=null;const req=id=>{const e=$('#'+id),good=!!val(id);e.classList.toggle('invalid',!good);if(!good&&!first)first=e;ok=good&&ok};if(n===1){req('firstName');req('lastName');req('phone');req('email');if(!/^\+?[\d\s().-]{10,20}$/.test(val('phone'))){const e=$('#phone');e.classList.add('invalid');first=first||e;ok=false}if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('email'))){const e=$('#email');e.classList.add('invalid');first=first||e;ok=false}}if(n===2){if(!$('input[name=workType]:checked')||!$('input[name=shift]:checked'))ok=false}if(n===4){if(!sig.has){first=first||$('#signature');ok=false}}if(n===4&&!$('#consent').checked){$('#consentChoice').classList.add('invalid');first=first||$('#consent');ok=false}else if(n===4)$('#consentChoice').classList.remove('invalid');if(!ok){toast(tr('required'),'errt');if(first&&first.offsetParent!==null)setTimeout(()=>first.focus(),40)}return ok}
 const __baseSetStep=setStep;setStep=function(n,manageViewport=true){__baseSetStep(n,false);localizeProgress();if(state.step===4)renderReview();if(manageViewport){requestAnimationFrame(()=>{const anchor=$('#formProgress');if(!anchor)return;const top=Math.max(0,anchor.getBoundingClientRect().top+window.scrollY-10);window.scrollTo({top,behavior:'auto'})})}};
 async function uploadAssets(token){const tasks=state.files.map(f=>()=>uploadFile(token,f,f.name));if(state.photo)tasks.push(()=>uploadFile(token,state.photo,'client-photo-'+state.photo.name));if(sig.has)tasks.push(async()=>{const blob=await new Promise(res=>sig.canvas.toBlob(res,'image/png'));if(blob)await uploadFile(token,blob,'signature.png')});let failed=0,index=0,start=performance.now();const workers=Array.from({length:Math.min(3,tasks.length||1)},async()=>{while(true){const i=index++;if(i>=tasks.length)return;try{await tasks[i]()}catch{failed++}}});await Promise.all(workers);submitMetrics.uploadMs=Math.round(performance.now()-start);if(failed)toast(tr('uploadPartial',failed),'errt')}
-async function submit(e){e.preventDefault();if(submitInFlight)return;if(!validateStep(1)){setStep(1,true);return}if(!validateStep(2)){setStep(2,true);return}if(!validateStep(3)){setStep(3,true);return}if(!validateStep(4)){setStep(4,true);return}const payload=collect();if(payload.honeypot)return;submitInFlight=true;const btn=$('#submitBtn');btn.disabled=true;btn.classList.add('is-submitting');btn.querySelector('.submit-label').textContent=tr('submitting');$('#statusView').textContent='Submitting';const totalStart=performance.now();try{const requestStart=performance.now(),r=await fetch('/api/application',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});submitMetrics.requestMs=Math.round(performance.now()-requestStart);const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.message||'Submission failed');if(!j.duplicate&&j.upload_token)await uploadAssets(j.upload_token);payload.caseNumber=j.caseNumber;payload.trackingUrl=j.trackingUrl;payload.submittedAt=j.submittedAt||null;lastPayload=payload;$('#caseView').textContent=j.caseNumber;$('#statusView').textContent=j.duplicate?'Duplicate':'Submitted';localStorage.removeItem(CONFIG.storageKey);submitMetrics.totalMs=Math.round(performance.now()-totalStart);showReceipt(payload)}catch(x){$('#statusView').textContent='Draft';toast(tr('submitFailed')+': '+(x?.message||''),'errt')}finally{submitInFlight=false;btn.disabled=false;btn.classList.remove('is-submitting');btn.querySelector('.submit-label').textContent=tr('submit')}}
+async function submit(e){e.preventDefault();if(submitInFlight)return;if(!validateStep(1)){setStep(1,true);return}if(!validateStep(2)){setStep(2,true);return}if(!validateStep(3)){setStep(3,true);return}if(!validateStep(4)){setStep(4,true);return}const payload=collect();if(payload.honeypot)return;submitInFlight=true;const btn=$('#submitBtn');btn.disabled=true;btn.classList.add('is-submitting');btn.querySelector('.submit-label').textContent=tr('submitting');$('#statusView').textContent='Submitting';const totalStart=performance.now();try{const requestStart=performance.now(),r=await fetch('/api/application',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});submitMetrics.requestMs=Math.round(performance.now()-requestStart);const j=await r.json();if(!r.ok||!j.ok)throw new Error((j.message||'Submission failed')+(j.trace_id?' · Ref: '+j.trace_id:''));if(!j.upload_available&&(state.files.length||state.photo||sig.has))toast(state.locale==='ar'?'تم تسجيل الطلب لكن رفع المرفقات يحتاج مساعدة الدعم.':'Application submitted; please contact support to finish attachments.','errt');if(!j.duplicate&&j.upload_token)await uploadAssets(j.upload_token);payload.caseNumber=j.caseNumber;payload.systemId=j.systemId||null;payload.trackingUrl=j.trackingUrl;payload.submittedAt=j.submittedAt||null;lastPayload=payload;$('#caseView').textContent=j.caseNumber;$('#statusView').textContent=j.duplicate?'Duplicate':'Submitted';localStorage.removeItem(CONFIG.storageKey);submitMetrics.totalMs=Math.round(performance.now()-totalStart);showReceipt(payload)}catch(x){$('#statusView').textContent='Draft';toast(tr('submitFailed')+': '+(x?.message||''),'errt')}finally{submitInFlight=false;btn.disabled=false;btn.classList.remove('is-submitting');btn.querySelector('.submit-label').textContent=tr('submit')}}
 async function track(){const type=$('#trackType').value,value=val('trackValue');if(!value)return toast(tr('enterSearch'),'errt');$('#trackResult').innerHTML=`<div class="muted" style="margin-top:14px">${esc(tr('searching'))}</div>`;try{const r=await fetch('/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,value})});const j=await r.json();if(!r.ok||!j.ok){$('#trackResult').innerHTML=`<div class="cardGlass"><div class="pad">${esc(tr('notFound'))}</div></div>`;return}renderTrack(j.application,j.updates||[])}catch{$('#trackResult').innerHTML=`<div class="cardGlass"><div class="pad">${esc(tr('trackError'))}</div></div>`}}
 
 const DOC_STATUS_AR={missing:'مفقود',pending:'قيد الانتظار',processing:'قيد المعالجة',needs_reupload:'يلزم إعادة الرفع',needs_review:'بحاجة للمراجعة',verified:'تم التحقق',rejected:'مرفوض'};
@@ -3537,7 +3565,7 @@ function bindLocalizedUploads(){
 }
 
 function formatSubmissionTime(iso){const zone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';if(!iso)return{display:'—',zone};const d=new Date(iso),locale=state.locale==='ar'?'ar':'en-US';let display;try{display=new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeStyle:'short',timeZone:zone}).format(d)}catch{display=d.toLocaleString()}return{display,zone}}
-function showReceipt(p,preserveScroll=false){$('#appShell').style.display='none';$('#receiptScreen').classList.add('active');const initials=(p.firstName?.[0]||'')+(p.lastName?.[0]||''),photo=$('#receiptPhoto');photo.textContent=initials.toUpperCase()||'A';if(state.photo){const img=document.createElement('img');img.src=URL.createObjectURL(state.photo);photo.textContent='';photo.appendChild(img)}$('#receiptEyebrow').textContent=tr('receiptEyebrow');$('#receiptName').textContent=[p.firstName,p.lastName].filter(Boolean).join(' ');$('#receiptStatus').textContent=tr('receiptSuccess');$('#receiptConfirmation').textContent=tr('receiptConfirmation');$('#receiptCase').textContent=p.caseNumber||'—';const st=formatSubmissionTime(p.submittedAt);$('#receiptTime').textContent=`${st.display} · ${st.zone}`;const s=selectedShift(),sd=localizeShift(s);const rows=[[tr('service'),p.service==='employment'?tr('employmentService'):tr('appealService')],[tr('email'),p.email],[tr('phoneNumber'),p.phone],[tr('workTypeLabel'),state.locale==='ar'?(WORK_AR[p.workType]||p.workType):p.workType],[tr('selectedShift'),sd?.name||p.shift],[tr('shiftDays'),sd?.days||p.shiftDays],[tr('shiftHours'),sd?.time||p.shiftHours],[tr('expectedPay'),p.expectedPay],[tr('site'),p.branchName],[tr('siteAddress'),p.branchAddress],[tr('submitted'),st.display],[tr('timeZone'),st.zone]];$('#receiptGrid').innerHTML=rows.filter(x=>x[1]).map(x=>`<div class="receipt-item"><label>${esc(x[0])}</label><div dir="auto">${esc(x[1])}</div></div>`).join('');$('#whatsappLink').href='https://wa.me/'+CONFIG.officeWhatsApp+'?text='+encodeURIComponent((state.locale==='ar'?'تم تقديم طلب توظيف. رقم الملف: ':'Job application submitted. Case number: ')+(p.caseNumber||''));$('#downloadReceipt').textContent=tr('saveCard');$('#whatsappLink').textContent='WhatsApp';$('#newApplication').textContent=tr('newApplication');$('#receiptCallLabel').textContent=tr('call');$$('.receipt-language button[data-locale]').forEach(b=>{const a=b.dataset.locale===state.locale;b.classList.toggle('active',a);b.setAttribute('aria-pressed',a?'true':'false')});if(!preserveScroll)scrollTo(0,0)}
+function showReceipt(p,preserveScroll=false){$('#appShell').style.display='none';$('#receiptScreen').classList.add('active');const initials=(p.firstName?.[0]||'')+(p.lastName?.[0]||''),photo=$('#receiptPhoto');photo.textContent=initials.toUpperCase()||'A';if(state.photo){const img=document.createElement('img');img.src=URL.createObjectURL(state.photo);photo.textContent='';photo.appendChild(img)}$('#receiptEyebrow').textContent=tr('receiptEyebrow');$('#receiptName').textContent=[p.firstName,p.lastName].filter(Boolean).join(' ');$('#receiptStatus').textContent=tr('receiptSuccess');$('#receiptConfirmation').textContent=tr('receiptConfirmation');$('#receiptCase').textContent=p.caseNumber||'—';$('#receiptSystemId').textContent=p.systemId?'System ID: '+p.systemId:'';const st=formatSubmissionTime(p.submittedAt);$('#receiptTime').textContent=`${st.display} · ${st.zone}`;const s=selectedShift(),sd=localizeShift(s);const rows=[[tr('service'),p.service==='employment'?tr('employmentService'):tr('appealService')],[tr('email'),p.email],[tr('phoneNumber'),p.phone],[tr('workTypeLabel'),state.locale==='ar'?(WORK_AR[p.workType]||p.workType):p.workType],[tr('selectedShift'),sd?.name||p.shift],[tr('shiftDays'),sd?.days||p.shiftDays],[tr('shiftHours'),sd?.time||p.shiftHours],[tr('expectedPay'),p.expectedPay],[tr('site'),p.branchName],[tr('siteAddress'),p.branchAddress],[tr('submitted'),st.display],[tr('timeZone'),st.zone]];$('#receiptGrid').innerHTML=rows.filter(x=>x[1]).map(x=>`<div class="receipt-item"><label>${esc(x[0])}</label><div dir="auto">${esc(x[1])}</div></div>`).join('');$('#whatsappLink').href='https://wa.me/'+CONFIG.officeWhatsApp+'?text='+encodeURIComponent((state.locale==='ar'?'تم تقديم طلب توظيف. رقم الملف: ':'Job application submitted. Case number: ')+(p.caseNumber||''));$('#downloadReceipt').textContent=tr('saveCard');$('#whatsappLink').textContent='WhatsApp';$('#newApplication').textContent=tr('newApplication');$('#receiptCallLabel').textContent=tr('call');$$('.receipt-language button[data-locale]').forEach(b=>{const a=b.dataset.locale===state.locale;b.classList.toggle('active',a);b.setAttribute('aria-pressed',a?'true':'false')});if(!preserveScroll)scrollTo(0,0)}
 function suggestNearest(){if(!navigator.geolocation)return toast(tr('geoUnsupported'),'errt');navigator.geolocation.getCurrentPosition(p=>{const d=(a,b,c,d)=>{const R=3958.8,rad=x=>x*Math.PI/180,x=rad(c-a),y=rad(d-b),q=Math.sin(x/2)**2+Math.cos(rad(a))*Math.cos(rad(c))*Math.sin(y/2)**2;return 2*R*Math.atan2(Math.sqrt(q),Math.sqrt(1-q))};const n=BRANCHES.map(b=>({...b,d:d(p.coords.latitude,p.coords.longitude,b.lat,b.lon)})).sort((a,b)=>a.d-b.d)[0];$('#branch').value=n.code;updatePay();toast(tr('nearestChosen',n.name),'ok')},()=>toast(tr('geoFailed'),'errt'),{timeout:7000,maximumAge:120000})}
 function downloadReceipt(){if(!window.html2canvas)return toast(tr('toolError'),'errt');html2canvas($('#receiptCard'),{scale:Math.max(2,Math.min(3,devicePixelRatio||2)),backgroundColor:'#08101f'}).then(c=>{const a=document.createElement('a');a.download='Career-Gate-'+(lastPayload?.caseNumber||'Receipt')+'.png';a.href=c.toDataURL('image/png');a.click()}).catch(()=>toast(tr('saveError'),'errt'))}
 function setupFocusLaser(){const laser=document.createElement('div');laser.className='form-focus-laser';document.body.appendChild(laser);let active=null;const update=()=>{if(!active||matchMedia('(max-width:900px)').matches||matchMedia('(prefers-reduced-motion: reduce)').matches){laser.classList.remove('visible');return}const a=$('#formProgress')?.getBoundingClientRect(),r=active.getBoundingClientRect();if(!a||a.bottom<0||a.top>innerHeight||r.bottom<0||r.top>innerHeight){laser.classList.remove('visible');return}const sx=a.left+a.width/2,sy=Math.min(a.bottom,innerHeight-8),ex=r.left+r.width/2,ey=r.top+r.height/2,dx=ex-sx,dy=ey-sy,len=Math.hypot(dx,dy),ang=Math.atan2(dy,dx)*180/Math.PI;laser.style.left=sx+'px';laser.style.top=sy+'px';laser.style.width=len+'px';laser.style.transform=`rotate(${ang}deg)`;laser.classList.add('visible')};document.addEventListener('focusin',e=>{if(e.target.matches('#form input,#form select,#form textarea,#form button')){active=e.target;active.classList.add('active-control-laser');update()}});document.addEventListener('focusout',e=>{e.target.classList?.remove('active-control-laser');active=null;laser.classList.remove('visible')});addEventListener('scroll',update,{passive:true});addEventListener('resize',update,{passive:true})}

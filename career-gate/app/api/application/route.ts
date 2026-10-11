@@ -7,7 +7,7 @@ import { err, ipHash } from "@/lib/http";
 import { claimKey, completeKey } from "@/lib/idempotency";
 import { traceIdFrom } from "@/lib/obs";
 import { hit } from "@/lib/ratelimit";
-import { findClientIdentityMatches, logActivity, normalizeClientPhone, type Tx } from "@/lib/service";
+import { lockClientIdentity, logActivity, normalizeClientPhone, type Tx } from "@/lib/service";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -34,6 +34,7 @@ const Payload = z.object({
   gender: z.string().trim().max(60).optional().default(""),
   phone: z.string().trim().min(7).max(40),
   email: z.string().trim().email().max(200),
+  preferredLanguage: z.enum(["ar", "en", "es"]).optional().default("ar"),
   address1: z.string().trim().max(200).optional().default(""),
   address2: z.string().trim().max(200).optional().default(""),
   city: z.string().trim().max(100).optional().default(""),
@@ -125,34 +126,22 @@ async function insertApplication(tx: Tx, clientId: string, d: Intake) {
 async function upsertOperationalClient(tx: Tx, d: Intake, digits: string): Promise<{ client: ClientRow; reused: boolean }> {
   const email = d.email.trim().toLowerCase();
   const fullName = `${d.firstName} ${d.lastName}`.trim();
+  const normalizedName = fullName.replace(/\s+/g, " ").toLowerCase();
   const street = [d.address1, d.address2].filter(Boolean).join(", ") || null;
-  const matches = await findClientIdentityMatches(tx, email, digits, { lock: true, forUpdate: true });
+  const dob = dateOrNull(d.dob);
 
-  if (matches.length > 1) {
-    throw new IdentityConflictError("The submitted email and phone belong to different existing client files.");
-  }
-
-  if (matches.length === 1) {
-    const existing = matches[0];
-    const [client] = await tx`
-      update clients set
-        full_name = ${fullName},
-        phone = ${digits},
-        email = ${email},
-        date_of_birth = ${dateOrNull(d.dob)},
-        preferred_language = 'ar',
-        street = ${street},
-        city = ${nullable(d.city)},
-        state = ${nullable(d.state)},
-        zip = ${nullable(d.zip)},
-        communication_consent = true,
-        current_status = 'new_intake',
-        next_step = ${DEFAULT_NEXT_STEP.new_intake},
-        start_date = ${dateOrNull(d.startDate)},
-        updated_at = now()
-      where id = ${existing.id}
-      returning id, ref, created_at`;
-    return { client: client as ClientRow, reused: true };
+  // Email is only a candidate identity key; shared family/office email is permitted.
+  // Phone alone must never overwrite or merge another applicant's client record.
+  await lockClientIdentity(tx, email, null);
+  const [sameApplicant] = await tx`
+    select id from clients
+    where deleted_at is null
+      and lower(trim(email)) = ${email}
+      and lower(regexp_replace(trim(full_name), '\\s+', ' ', 'g')) = ${normalizedName}
+      and (${dob}::date is null or date_of_birth is null or date_of_birth = ${dob}::date)
+    limit 1 for update`;
+  if (sameApplicant) {
+    throw new IdentityConflictError("A prior application for this applicant needs staff review.");
   }
 
   const [client] = await tx`
@@ -160,7 +149,7 @@ async function upsertOperationalClient(tx: Tx, d: Intake, digits: string): Promi
       source, full_name, phone, email, date_of_birth, preferred_language, street, city, state, zip,
       communication_consent, current_status, next_step, start_date
     ) values (
-      'public_intake', ${fullName}, ${digits}, ${email}, ${dateOrNull(d.dob)}, 'ar',
+      'public_intake', ${fullName}, ${digits}, ${email}, ${dob}, ${d.preferredLanguage || 'ar'},
       ${street}, ${nullable(d.city)}, ${nullable(d.state)}, ${nullable(d.zip)},
       true, 'new_intake', ${DEFAULT_NEXT_STEP.new_intake}, ${dateOrNull(d.startDate)}
     )
@@ -178,6 +167,12 @@ export async function POST(req: Request) {
   const d = parsed.data;
   if (!d.signature.captured) return NextResponse.json({ ok: false, message: "Signature is required" }, { status: 400 });
 
+  if (d.zip && !/^\d{5}(-\d{4})?$/.test(d.zip)) {
+    return NextResponse.json({ ok: false, code: "invalid_zip", message: "Enter a valid five-digit US ZIP code." }, { status: 400 });
+  }
+  if (d.dob && !dateOrNull(d.dob)) {
+    return NextResponse.json({ ok: false, code: "invalid_date", message: "Enter a valid date of birth." }, { status: 400 });
+  }
   const digits = normalizeClientPhone(d.phone) ?? "";
   if (digits.length < 10 || digits.length > 15) {
     return NextResponse.json({ ok: false, message: "Enter a valid phone number" }, { status: 400 });
@@ -229,6 +224,7 @@ export async function POST(req: Request) {
       const body = {
         ok: true,
         caseNumber: app.case_number,
+        systemId: client.ref,
         trackingUrl: `/career-gate.html?track=1&case=${encodeURIComponent(app.case_number)}`,
         submittedAt: new Date(app.created_at).toISOString(),
         client_id: client.id,
@@ -244,7 +240,15 @@ export async function POST(req: Request) {
 
     const body = out.body;
     const clientId = String(body.client_id ?? "");
-    const uploadToken = clientId ? await newUploadGrant(clientId) : undefined;
+    let uploadToken: string | undefined;
+    if (clientId) {
+      try {
+        uploadToken = await newUploadGrant(clientId);
+      } catch (grantError) {
+        // The application transaction already committed. Never report a false submit failure.
+        console.error("application_upload_grant_failed", { traceId, grantError });
+      }
+    }
     const caseNumber = String(body.caseNumber ?? "");
 
     return NextResponse.json({
@@ -252,18 +256,22 @@ export async function POST(req: Request) {
       duplicate: out.kind === "replay",
       existingCase: out.kind === "replay" ? caseNumber : undefined,
       caseNumber,
+      systemId: body.systemId,
       trackingUrl: body.trackingUrl,
       submittedAt: body.submittedAt,
       upload_token: uploadToken,
+      upload_available: Boolean(uploadToken),
     }, { status: out.kind === "new" ? 201 : 200 });
   } catch (e) {
     console.error(e);
     if (e instanceof IdentityConflictError) {
       return NextResponse.json({
         ok: false,
-        message: "This email and phone are linked to different client files. Contact the office to resolve the client record before submitting.",
+        code: "existing_applicant",
+        message: "An application for this applicant already exists. Please contact customer service for assistance.",
+        trace_id: traceId,
       }, { status: 409 });
     }
-    return NextResponse.json({ ok: false, message: "Could not submit the application." }, { status: 500 });
+    return NextResponse.json({ ok: false, code: "submission_failed", message: "Could not submit the application. Please retry without changing your information.", trace_id: traceId }, { status: 500 });
   }
 }
