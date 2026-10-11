@@ -2854,6 +2854,14 @@ html[dir="ltr"] .lbl{
   }
 }
 
+/* Identity intake extraction — explicit opt-in, no silent overwrites. */
+.ocr-permission{min-height:72px;margin:0;border:1px solid rgba(197,160,89,.4);border-radius:16px;padding:12px;background:rgba(197,160,89,.07)}
+.ocr-permission span:last-child{font-size:13px;line-height:1.6}
+.ocr-status{margin:12px 0;padding:12px 16px;border:1px solid rgba(197,160,89,.3);border-radius:14px;background:rgba(10,18,44,.83);color:#ecd7ab;font-size:13px}
+.ocr-status[data-state="loading"]{border-color:#52c4cf}.ocr-status[data-state="failed"]{border-color:#e47671}
+.ocr-suggestions{display:flex;flex-wrap:wrap;gap:8px}
+.ocr-suggestion{padding:7px 10px;border:1px solid rgba(197,160,89,.35);border-radius:12px;color:#f0d7ae;font-size:12px}
+[data-ocr-confidence]{border-color:#C5A059!important}
 /* Public Intake modal: isolated, non-destructive, accessible dismissal. */
 .career-status-modal[hidden]{display:none!important}
 .career-status-modal{position:fixed;z-index:9999;inset:0;display:grid;place-items:center;padding:18px;background:rgba(2,9,24,.78);backdrop-filter:blur(20px)}
@@ -2864,6 +2872,19 @@ html[dir="ltr"] .lbl{
 .career-footer-status .btn{border-color:#C5A059;color:#efd8b0;background:#0A122C;min-height:48px}
 @media(max-width:640px){.career-status-dialog{width:100%;border-radius:20px}.career-footer-status .btn{width:100%}}
 .receipt-system-id{font:600 13px/1.7 var(--mono);color:#d8bd88;letter-spacing:.04em;direction:ltr;text-align:start;margin:6px 0}
+/* Architectural Light Mode: customer receipt only; no impact on staff workspace. */
+.receipt-screen{background:radial-gradient(circle at 15% 12%,rgba(197,160,89,.14),transparent 38rem),linear-gradient(180deg,#F8FAFC,#eff3f7);min-height:100vh;color:#0A122C}
+.receipt-screen .receipt{background:linear-gradient(145deg,rgba(255,255,255,.96),rgba(248,250,252,.93))!important;border:1px solid rgba(197,160,89,.57)!important;box-shadow:0 26px 70px rgba(25,42,63,.12),inset 0 1px 0 rgba(255,255,255,.98);color:#0A122C}
+.receipt-screen .receipt-brand-row{border-bottom-color:rgba(197,160,89,.22)}
+.receipt-screen .receipt-head h2,.receipt-screen .receipt-item div,.receipt-screen .receipt-item strong{color:#0A122C}
+.receipt-screen .receipt .eyebrow,.receipt-screen .receipt-item label,.receipt-screen .receipt-confirmation,.receipt-screen .receipt-time{color:#526176}
+.receipt-screen .receipt-item{background:linear-gradient(138deg,rgba(255,255,255,.93),rgba(245,248,252,.91));border:1px solid rgba(197,160,89,.29);box-shadow:0 5px 18px rgba(14,30,51,.035);border-radius:17px}
+.receipt-screen .receipt-case,.receipt-screen .receipt-system-id{color:#98753e!important}
+.receipt-screen .receipt-photo{background:#fff;border:1px solid #C5A059;color:#0A122C}
+.receipt-screen .receipt-contact-mini a{border-color:rgba(197,160,89,.42);background:rgba(255,255,255,.89);color:#0A122C}
+.receipt-screen .statusPill{background:rgba(48,131,96,.1);color:#186846;border-color:rgba(48,131,96,.3)}
+.receipt-screen .receipt-language button{color:#0A122C}
+.receipt-screen .receipt-actions .btn{box-shadow:0 8px 20px rgba(10,18,44,.1)}
 </style>
 </head>
 <body>
@@ -2972,6 +2993,7 @@ html[dir="ltr"] .lbl{
       <div><label class="lbl">تاريخ البدء المتوقع</label><input id="startDate" type="date"></div>
     </div>
     <div class="divider">تفضيلات الدوام والشفتات</div>
+    <div id="liveAvailabilityStatus" class="ocr-status" role="status" aria-live="polite">يتم التحقق من كتالوج فرص Amazon في Michigan...</div>
     <div class="shift-category-title">نوع الدوام المفضل <span class="req">*</span></div>
     <div class="shift-deck" id="workTypeDeck"></div>
     <div id="shiftSelector" style="display:none"><div class="shift-category-title">الشفت المتاح <span class="req">*</span></div><div class="shift-deck" id="shiftDeck"></div></div>
@@ -3002,6 +3024,12 @@ html[dir="ltr"] .lbl{
     <div class="divider">طريقة إرسال المستندات</div>
     <div class="choicegrid" id="docPrefs"></div>
     <div class="divider">رفع الملفات</div>
+    <div class="grid g2" style="margin:12px 0">
+      <div><label class="lbl" for="documentType">Document Type · نوع المستند</label><select id="documentType"><option value="">— اختر المستند —</option><option value="driver_license">Driver License</option><option value="state_id">State ID</option><option value="green_card">Green Card</option><option value="us_passport">U.S. Passport</option><option value="ead">Employment Authorization Document (EAD)</option></select><label class="lbl" for="identityDoc">Identity Document · مستند الهوية</label><input id="identityDoc" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"><div class="muted">PDF / JPEG / PNG / WEBP · max 4 MB</div></div>
+      <label class="choice ocr-permission"><input id="ocrConsent" type="checkbox"><span class="box"></span><span>أوافق على تحليل المستند إلكترونياً لاستخراج المعلومات للمراجعة والتعديل · I consent to assisted document reading for editable auto-fill.</span></label>
+    </div>
+    <div class="ocr-status" id="ocrStatus" role="status" aria-live="polite">Upload → Auto-Fill → Review. بياناتك المكتوبة لن تُستبدل تلقائياً.</div>
+    <div id="ocrSuggestions" class="ocr-suggestions" aria-live="polite"></div>
     <div class="grid g2">
       <div><label class="lbl">المستندات</label><input id="docs" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp"><div class="muted">حتى 8 ملفات، 4MB لكل ملف.</div><div class="filelist" id="docsList"></div></div>
       <div><label class="lbl">صورة العميل</label><input id="photo" type="file" accept=".jpg,.jpeg,.png,.webp"><div class="preview-thumbs" id="photoPreview"></div></div>
@@ -3097,7 +3125,7 @@ const SHIFTS={
 'Reduced Time':[{code:'RT',name:'RT (ليل)',days:'الخميس – السبت',time:'06:30 م – 07:00 ص',base:20.50,diff:2,total:22.50}],
 'Part-Time':[{code:'Sunrise',name:'Sunrise Sort (فجر)',days:'أيام متغيرة',time:'04:00 ص – 08:00 ص',base:20.50,diff:0,total:20.50},{code:'Day',name:'Day Sort (نهار)',days:'أيام متغيرة',time:'09:00 ص – 01:00 م',base:20.50,diff:0,total:20.50},{code:'Twilight',name:'Twilight Sort (مساء)',days:'أيام متغيرة',time:'06:00 م – 10:00 م',base:20.50,diff:1,total:21.50},{code:'Night',name:'Night Sort (ليل)',days:'أيام متغيرة',time:'11:30 م – 03:30 ص',base:20.50,diff:1,total:21.50}],
 'Flex':[{code:'FlexPT',name:'FlexPT',days:'اختيار مرن',time:'الحد الأدنى 4 ساعات أسبوعياً',base:20.50,diff:null,total:'20.50+'},{code:'FlexRT',name:'FlexRT',days:'اختيار مرن',time:'الحد الأدنى 30 ساعة أسبوعياً',base:20.50,diff:null,total:'20.50+'}]};
-const state={step:1,uid:'UID-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,7).toUpperCase(),files:[],photo:null};
+const state={step:1,uid:'UID-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,7).toUpperCase(),files:[],photo:null,identityDoc:null};
 let sig={canvas:null,ctx:null,drawing:false,last:null,has:false};
 let lastPayload=null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -3155,7 +3183,7 @@ function bind(){
       renderShifts(t.value);
       $('#shiftSelector').style.display='block'
     }
-    if(t.name==='shift'||t.id==='branch')updatePay();
+    if(t.name==='shift'||t.id==='branch'){updatePay();if(t.id==='branch'){refreshDynamicDecks();renderPay()}}
     if(t.id==='trackType')trackPlaceholder();
     save();updateProgressTelemetry()
   });
@@ -3191,6 +3219,7 @@ function bind(){
   $('#statusModal').addEventListener('click',e=>{if(e.target===$('#statusModal'))$('#closeTrack').click()});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#statusModal').hidden)$('#closeTrack').click()});
   $('#form').onsubmit=submit;
+  void loadVerifiedAvailability();
   $('#newApplication').onclick=()=>{localStorage.removeItem(CONFIG.storageKey);location.href='/apply'};
   $('#downloadReceipt').onclick=downloadReceipt;
 }
@@ -3229,6 +3258,65 @@ function setStep(n,manageViewport=true){
     })
   }
 }
+
+async function loadVerifiedAvailability(){
+  const el=$('#liveAvailabilityStatus');if(!el)return;
+  try{
+    const response=await fetch('/api/application/options',{cache:'no-store'});
+    const body=await response.json();
+    if(!response.ok||!body?.ok)throw new Error('Catalog unavailable');
+    state.verifiedOpenings=Array.isArray(body.openings)?body.openings:[];
+    refreshDynamicDecks();renderPay();updatePay();
+    const count=state.verifiedOpenings.length;
+    el.textContent=count?(state.locale==='ar'?'الفرص المؤكدة من كتالوج Amazon: ':'Verified Amazon openings: ')+count+
+      (state.locale==='ar'?'؛ سيتم تأكيد العرض النهائي حسب الفرع والشفت.':' — final site and shift subject to listing.'):
+      (state.locale==='ar'?'لا توجد فرص Amazon مؤكدة في الكتالوج الحالي. اختيار الفرع والشفت تفضيل فقط، وليس عرض توظيف أو تأكيد راتب.':
+      'No verified Amazon openings in the current catalog. Location and shift are preferences, not a job offer or confirmed pay.');
+  }catch{
+    el.textContent=state.locale==='ar'?'تعذر تحديث كتالوج Amazon. سجّل تفضيلاتك وسيتم التحقق من الفرص قبل اعتمادها.':
+      'Amazon catalog unavailable. Record preferences; openings must be verified before confirmation.';
+  }
+}
+async function runDocumentAutofill(){
+  const file=state.identityDoc;
+  if(!file||!$('#ocrConsent').checked||!val('documentType'))return;
+  const serial=(state.ocrRequestId||0)+1;state.ocrRequestId=serial;
+  const status=$('#ocrStatus'),list=$('#ocrSuggestions');status.dataset.state='loading';
+  status.textContent=state.locale==='ar'?'جارٍ استخراج الحقول للمراجعة...':'Extracting reviewable fields...';list.textContent='';
+  const form=new FormData();form.set('file',file);form.set('document_type',val('documentType'));form.set('ocr_consent','yes');
+  try{
+    const response=await fetch('/api/application/extract',{method:'POST',body:form});
+    const body=await response.json().catch(()=>null);
+    if(serial!==state.ocrRequestId)return;
+    if(!response.ok||!body?.ok)throw new Error(body?.error?.message||'Document extraction unavailable');
+    const data=body.fields||{},confidence=body.confidence||{};let filled=0,needsReview=0;
+    function propose(id,value,score){
+      const el=$('#'+id);if(!el||!value)return;
+      if(el.value.trim()||score<75){
+        const chip=document.createElement('span');chip.className='ocr-suggestion';
+        chip.textContent=id+' · '+score+'% · '+(state.locale==='ar'?'مراجعة':'Review');
+        list.appendChild(chip);needsReview++;return;
+      }
+      el.value=value;el.dataset.ocrConfidence=String(score);filled++;
+    }
+    for(const [src,id] of Object.entries({date_of_birth:'dob',phone:'phone',email:'email',street:'address1',city:'city',state:'state',zip:'zip',preferred_language:'preferredLanguage'}))
+      if(data[src])propose(id,String(data[src]),Number(confidence[src]||0));
+    if(data.full_name){
+      const parts=String(data.full_name).trim().split(/\s+/).filter(Boolean),score=Number(confidence.full_name||0);
+      if(parts.length>=2){propose('firstName',parts[0],score);propose('lastName',parts.slice(1).join(' '),score)}
+      else needsReview++;
+    }
+    status.dataset.state='ready';
+    status.textContent=(state.locale==='ar'?'اكتمل الاستخراج: ':'Extraction complete: ')+filled+
+      (state.locale==='ar'?' حقول قابلة للتعديل؛ ':' editable fields; ')+needsReview+
+      (state.locale==='ar'?' تحتاج مراجعة. هذا ليس تحققاً من الهوية.':' need review. Identity is NOT verified.');
+    updateProgressTelemetry();save();if(state.step===4)renderReview();
+  }catch(e){
+    if(serial!==state.ocrRequestId)return;
+    status.dataset.state='failed';
+    status.textContent=(state.locale==='ar'?'تعذر الاستخراج، يمكنك إكمال البيانات يدوياً. ':'Auto-fill unavailable; continue manually. ')+(e?.message||'');
+  }
+}
 function updateProgressTelemetry(){
   const complete=[
     Boolean(val('firstName')),Boolean(val('lastName')),Boolean(val('email')),Boolean(val('phone')),
@@ -3262,7 +3350,7 @@ function validateStep(n){
   return ok
 }
 function renderShifts(type){
-  $('#shiftDeck').innerHTML=(SHIFTS[type]||[]).map(s=>`<label class="shift-card"><input type="radio" name="shift" value="${esc(s.code)}"><span class="shift-pay">${formatPay(s.total)}<small>/hr</small></span><span class="shift-code">${esc(s.code)}</span><span class="shift-name">${esc(s.name)}</span><span class="shift-days">${esc(s.days)}</span><span class="shift-time">${esc(s.time)}</span></label>`).join('')
+  $('#shiftDeck').innerHTML=(SHIFTS[type]||[]).map(s=>`<label class="shift-card"><input type="radio" name="shift" value="${esc(s.code)}"><span class="shift-pay">${esc((state.verifiedOpenings||[]).find(o=>o.site_code===branch().code&&o.shift_code===s.code)?.pay||(state.locale==='ar'?'تفضيل غير مؤكد':'Preference only'))}</span><span class="shift-code">${esc(s.code)}</span><span class="shift-name">${esc(s.name)}</span><span class="shift-days">${esc(s.days)}</span><span class="shift-time">${esc(s.time)}</span></label>`).join('')
 }
 function renderPay(){
   let rows=[];
@@ -3277,7 +3365,9 @@ function branch(){return BRANCHES.find(x=>x.code===$('#branch').value)||BRANCHES
 function formatPay(x){return typeof x==='number'?'$'+x.toFixed(2):'$'+String(x).replace(/^\$/,'')}
 function updatePay(){
   const s=selectedShift();
-  $('#expectedPay').value=formatPay(s?s.total:branch().base)+' / hr'
+  const verified=(state.verifiedOpenings||[]).find(o=>o.site_code===branch().code&&o.shift_code===s?.code);
+  $('#expectedPay').value=verified?.pay||'';
+  $('#expectedPay').placeholder=state.locale==='en'?'Awaiting verified published pay':'الأجر بانتظار التحقق من المصدر';
 }
 function collect(){
   const s=selectedShift(),b=branch();
@@ -3293,15 +3383,16 @@ function collect(){
     englishLevel:val('englishLevel'),education:val('education'),lastTitle:val('lastTitle'),
     startDate:val('startDate'),workType:s?.type||$('input[name=workType]:checked')?.value||'',
     shiftCode:s?.code||'',shift:s?.name||'',shiftName:s?.name||'',selectedShift:s?.name||'',
-    shiftDays:s?.days||'',shiftHours:s?.time||'',basePay:s?formatPay(s.base):'',
-    shiftDifferential:s?(s.diff===null?'N/A':formatPay(s.diff)):'',
-    totalPay:s?formatPay(s.total):'',branch:b.code,branchName:b.name,branchAddress:b.address,
+    shiftDays:s?.days||'',shiftHours:s?.time||'',basePay:'',
+    shiftDifferential:'',
+    totalPay:val('expectedPay'),branch:b.code,branchName:b.name,branchAddress:b.address,
     expectedPay:val('expectedPay'),
     preferredLocations:[val('location1'),val('location2'),val('location3')].filter(Boolean),
     location1Score:'',location2Score:'',location3Score:'',
     skills:$$('input[name=skills]:checked').map(x=>x.value),
     docPrefs:$$('input[name=docPrefs]:checked').map(x=>x.value),
     files:state.files.map(f=>({name:f.name,type:f.type,size:f.size})),
+    identityDocument:state.identityDoc?{name:state.identityDoc.name,type:state.identityDoc.type,size:state.identityDoc.size,documentType:val('documentType')}:null,
     photo:state.photo?{name:state.photo.name,type:state.photo.type,size:state.photo.size}:null,
     signature:{captured:sig.has,type:'image/png'},consent:$('#consent').checked,
     userAgent:navigator.userAgent,honeypot:val('website')
@@ -3338,10 +3429,10 @@ async function submit(e){
     btn.textContent='إرسال الطلب'
   }
 }
-async function uploadFile(token,file,name){
+async function uploadFile(token,file,name,docType='other'){
   const fd=new FormData();
   fd.set('upload_token',token);
-  fd.set('doc_type','other');
+  fd.set('doc_type',docType);
   fd.set('file',file,name||file.name);
   const r=await fetch('/api/intake/documents',{method:'POST',body:fd});
   const j=await r.json().catch(()=>null);
@@ -3539,17 +3630,17 @@ function setMetaText(){$$('.bar .meta').forEach(m=>m.textContent=tr('stepOf',+m.
 function preserveOptionValue(id,entries){const el=$('#'+id);if(!el)return;const current=el.value;fillSelect(el,entries);if(entries.some(x=>x[0]===current))el.value=current}
 function docPrefLabel(v){const m={'Upload through form':'uploadForm','Send by WhatsApp':'sendWhatsapp','Send by email':'sendEmail','Deliver in person':'deliverPerson','Need help submitting':'needHelp'};return tr(m[v]||v)}
 function trackPlaceholder(){const type=$('#trackType').value,ph={case:'ALH-2026...',email:'name@example.com',phone:'+1 313...'};$('#trackValue').placeholder=ph[type]||'';$('#trackValue').dir=['case','email','phone'].includes(type)?'ltr':'auto'}
-function renderShifts(type){$('#shiftDeck').innerHTML=(SHIFTS[type]||[]).map(s=>{const d=localizeShift(s);return`<label class="shift-card"><input type="radio" name="shift" value="${esc(s.code)}"><span class="shift-pay">${formatPay(s.total)}<small>/hr</small></span><span class="shift-code">${esc(s.code)}</span><span class="shift-name">${esc(d.name)}</span><span class="shift-days">${esc(d.days)}</span><span class="shift-time">${esc(d.time)}</span></label>`}).join('')}
-function renderPay(){let rows=[];Object.entries(SHIFTS).forEach(([type,list])=>list.forEach(s=>{const d=localizeShift(s);rows.push(`<tr><td>${esc(state.locale==='ar'?(WORK_AR[type]||type):type)}</td><td>${esc(d.name)}</td><td>${formatPay(s.base)}</td><td>${s.diff===null?'N/A':formatPay(s.diff)}</td><td>${formatPay(s.total)}</td></tr>`)}));const h=state.locale==='ar'?['فئة الشفت','نوع الشفت','الأجر الأساسي','العلاوة','الإجمالي']:['Work Type','Shift','Base Pay','Differential','Total'];$('#payTable').innerHTML='<table><thead><tr>'+h.map(x=>`<th>${esc(x)}</th>`).join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table>'}
+function renderShifts(type){$('#shiftDeck').innerHTML=(SHIFTS[type]||[]).map(s=>{const d=localizeShift(s);return`<label class="shift-card"><input type="radio" name="shift" value="${esc(s.code)}"><span class="shift-pay">${esc((state.verifiedOpenings||[]).find(o=>o.site_code===branch().code&&o.shift_code===s.code)?.pay||(state.locale==='ar'?'تفضيل غير مؤكد':'Preference only'))}</span><span class="shift-code">${esc(s.code)}</span><span class="shift-name">${esc(d.name)}</span><span class="shift-days">${esc(d.days)}</span><span class="shift-time">${esc(d.time)}</span></label>`}).join('')}
+function renderPay(){const rows=(state.verifiedOpenings||[]).filter(o=>o.site_code===branch().code);const box=$('#payTable');box.replaceChildren();if(!rows.length){box.textContent=state.locale==='ar'?'لا يوجد أجر رسمي مؤكد لهذا الموقع؛ الشفت المطلوب تفضيل فقط.':'No verified published pay for this site. The shift is a preference only.';return}const table=document.createElement('table'),head=table.createTHead().insertRow();const keys=['job_title','shift_name','days','hours','pay'];const headers=state.locale==='ar'?['الوظيفة','الشفت','الأيام','الساعات','الأجر المنشور']:['Opening','Shift','Days','Hours','Published Pay'];headers.forEach(t=>{const th=document.createElement('th');th.textContent=t;head.appendChild(th)});const tbody=table.createTBody();for(const o of rows){const row=tbody.insertRow();keys.forEach(k=>{const cell=row.insertCell();cell.textContent=String(o[k]||'—')})}box.appendChild(table)}
 function refreshDynamicDecks(){const wt=$('input[name=workType]:checked')?.value||'',sh=$('input[name=shift]:checked')?.value||'',sk=new Set($$('input[name=skills]:checked').map(x=>x.value)),dp=new Set($$('input[name=docPrefs]:checked').map(x=>x.value));$('#workTypeDeck').innerHTML=WORK_TYPES.map(x=>`<label class="shift-card"><input type="radio" name="workType" value="${esc(x[0])}"><span class="shift-code">${esc(x[0])}</span><span class="shift-name">${esc(state.locale==='ar'?(WORK_AR[x[0]]||x[1]):x[0])}</span></label>`).join('');if(wt){const e=$(`input[name=workType][value="${CSS.escape(wt)}"]`);if(e){e.checked=true;e.closest('label').classList.add('selected');renderShifts(wt);$('#shiftSelector').style.display='block';const se=$(`input[name=shift][value="${CSS.escape(sh)}"]`);if(se){se.checked=true;se.closest('label').classList.add('selected')}}}$('#skills').innerHTML=SKILLS.map(v=>`<label class="choice"><input type="checkbox" name="skills" value="${esc(v)}" ${sk.has(v)?'checked':''}><span class="box"></span><span>${esc(state.locale==='ar'?(SKILL_AR[v]||v):v)}</span></label>`).join('');$('#docPrefs').innerHTML=DOC_PREFS.map(v=>`<label class="choice"><input type="checkbox" name="docPrefs" value="${esc(v)}" ${dp.has(v)?'checked':''}><span class="box"></span><span>${esc(docPrefLabel(v))}</span></label>`).join('');$$('.choice input:checked,.shift-card input:checked').forEach(e=>e.closest('label')?.classList.add('selected'))}
 function localizeProgress(){updateProgressTelemetry();$('#progressStepView').textContent=tr('stepOf',state.step);$('#progressCurrentView').textContent=`${tr('currentStep')} · ${String(state.step).padStart(2,'0')}`;$('#formProgress').setAttribute('role','progressbar');$('#formProgress').setAttribute('aria-valuemin','1');$('#formProgress').setAttribute('aria-valuemax','4');$('#formProgress').setAttribute('aria-valuenow',String(state.step));setMetaText()}
 function localizeStatic(){document.documentElement.lang=state.locale;document.documentElement.dir=state.locale==='ar'?'rtl':'ltr';document.title=tr('title');$('#languageToggle')?.setAttribute('aria-label',state.locale==='ar'?'اختيار اللغة':'Select language');$('.receipt-language')?.setAttribute('aria-label',state.locale==='ar'?'اختيار اللغة':'Select language');$('#officeName').textContent=tr('office');$('#portalLabel').textContent=tr('portal');$$('.language-toggle button[data-locale]').forEach(b=>{const a=b.dataset.locale===state.locale;b.classList.toggle('active',a);b.setAttribute('aria-pressed',a?'true':'false')});$('.hero-kicker').textContent=tr('heroKicker');$('.title').textContent=tr('heroTitle');$('.lead').textContent=tr('heroLead');$('.trackTitle h2').textContent=tr('trackingTitle');$('.trackTitle .muted').textContent=tr('trackingLead');setLabelFor('trackType',tr('searchBy'));setLabelFor('trackValue',tr('trackValue'));$('#trackBtn').textContent=tr('search');const tt=$('#trackType'),tv=tt.value;tt.innerHTML=[['case',tr('caseNumber')],['email',tr('emailAddress')],['phone',tr('phoneNumber')]].map(x=>`<option value="${x[0]}">${esc(x[1])}</option>`).join('');tt.value=tv;$('.progress-label').textContent=tr('formProgress');$$('.stepbtn').forEach((b,i)=>{b.querySelector('strong').textContent=tr('steps')[i];b.querySelector('small').textContent=tr('stepOf',i+1)});const pages=$$('.page');pages[0].querySelector('.section-title').textContent=tr('personal');pages[1].querySelector('.section-title').textContent=tr('experience');pages[2].querySelector('.section-title').textContent=tr('documents');const p1=pages[0].querySelectorAll('.divider');[tr('serviceChoice'),tr('identity'),tr('contact'),tr('address')].forEach((x,i)=>{if(p1[i])p1[i].textContent=x});$$('input[name=service]').forEach(e=>{const lab=e.closest('.service'),employment=e.value==='employment';lab.querySelector('strong').textContent=employment?tr('employmentService'):tr('appealService');lab.querySelector('small').textContent=employment?tr('employmentServiceDesc'):tr('appealServiceDesc')});setLabelFor('firstName',tr('firstName'),true);setLabelFor('lastName',tr('lastName'),true);setLabelFor('dob',tr('dob'));setLabelFor('nationality',tr('nationality'));setLabelFor('gender',tr('gender'));setLabelFor('phone',tr('whatsapp'),true);setLabelFor('email',tr('email'),true);setLabelFor('address1',tr('address'));setLabelFor('address2',tr('address2'));setLabelFor('city',tr('city'));setLabelFor('state',tr('state'));setLabelFor('zip',tr('zip'));const nat=$('#nationality'),natv=nat.value;nat.innerHTML=`<option value="">${esc(tr('select'))}</option>`+Object.keys(COUNTRY_AR).map(v=>`<option value="${esc(v)}">${esc(state.locale==='ar'?COUNTRY_AR[v]:v)}</option>`).join('');nat.value=natv;const gender=$('#gender'),gv=gender.value;gender.innerHTML=`<option value="">${esc(tr('select'))}</option>`+Object.keys(GENDER_AR).map(v=>`<option value="${esc(v)}">${esc(state.locale==='ar'?GENDER_AR[v]:v)}</option>`).join('');gender.value=gv;setLabelFor('employmentStatus',tr('employmentStatus'));setLabelFor('hasExperience',tr('priorExperience'));setLabelFor('englishLevel',tr('englishLevel'));setLabelFor('education',tr('education'));setLabelFor('lastTitle',tr('lastTitle'));setLabelFor('startDate',tr('expectedStart'));const emp=$('#employmentStatus'),ev=emp.value;emp.innerHTML=`<option value="">${esc(tr('select'))}</option>`+Object.keys(EMPLOYMENT_AR).map(v=>`<option value="${esc(v)}">${esc(state.locale==='ar'?EMPLOYMENT_AR[v]:v)}</option>`).join('');emp.value=ev;const hx=$('#hasExperience'),hxv=hx.value;hx.innerHTML=`<option value="">${esc(tr('select'))}</option><option value="Yes">${state.locale==='ar'?'نعم':'Yes'}</option><option value="No">${state.locale==='ar'?'لا':'No'}</option>`;hx.value=hxv;const en=$('#englishLevel'),env=en.value;en.innerHTML=`<option value="">${esc(tr('select'))}</option>`+Object.keys(ENGLISH_AR).map(v=>`<option value="${esc(v)}">${esc(state.locale==='ar'?ENGLISH_AR[v]:v)}</option>`).join('');en.value=env;preserveOptionValue('education',[['',tr('select')],...EDUCATION.filter(Boolean).map(v=>[v,state.locale==='ar'?(EDUCATION_AR[v]||v):v])]);preserveOptionValue('lastTitle',[['',tr('select')],...JOBS.filter(Boolean).map(v=>[v,state.locale==='ar'?(JOB_AR[v]||v):v])]);const p2=pages[1].querySelectorAll('.divider');[tr('workShiftPrefs'),tr('payTable'),tr('preferredLocations'),tr('skills')].forEach((x,i)=>{if(p2[i])p2[i].textContent=x});const st=pages[1].querySelectorAll('.shift-category-title');if(st[0])st[0].innerHTML=esc(tr('workType'))+' <span class="req">*</span>';if(st[1])st[1].innerHTML=esc(tr('availableShift'))+' <span class="req">*</span>';const pn=pages[1].querySelector('.pay-table + .muted');if(pn)pn.textContent=tr('payNote');setLabelFor('location1',tr('location1'));setLabelFor('location2',tr('location2'));setLabelFor('location3',tr('location3'));const p3=pages[2].querySelectorAll('.divider');[tr('workSite'),tr('documentDelivery'),tr('uploadFiles'),tr('signature')].forEach((x,i)=>{if(p3[i])p3[i].textContent=x});setLabelFor('branch',tr('branch'));setLabelFor('expectedPay',tr('expectedPay'));$('#nearest').textContent=tr('nearest');setLabelFor('docs',tr('files'));setLabelFor('photo',tr('clientPhoto'));const fl=$('#docs').parentElement.querySelector('.muted');if(fl)fl.textContent=tr('fileLimit');const sl=$('#sigWrap').previousElementSibling;if(sl?.classList.contains('lbl'))sl.innerHTML=esc(tr('signature'))+' <span class="req">*</span>';$('#sigWrap .placeholder').textContent=tr('signHere');$('#sigClear').textContent=tr('clear');const sh=$('#sigClear').nextElementSibling;if(sh)sh.textContent=tr('signatureRequired');$$('[data-next="2"],[data-next="3"]').forEach(b=>b.textContent=state.locale==='ar'?tr('next')+' ←':tr('next')+' →');$('[data-next="4"]').textContent=state.locale==='ar'?tr('reviewRequest')+' ←':tr('reviewRequest')+' →';$$('[data-prev]').forEach(b=>b.textContent=state.locale==='ar'?'→ '+tr('previous'):'← '+tr('previous'));$('#reviewTitle').textContent=tr('review');$('#reviewIntro').textContent=tr('reviewIntro');$('#reviewPersonalHeading').textContent=tr('personal');$('#reviewExperienceHeading').textContent=tr('experience');$('#reviewDocumentsHeading').textContent=tr('documents');$$('.review-edit').forEach(b=>b.textContent=tr('edit'));$('#declarationTitle').textContent=tr('userDeclaration');$('#declarationText').textContent=tr('declaration');$('#protectionTitle').textContent=tr('dataProtection');$('#protectionText').textContent=tr('protection');$('#sharingTitle').textContent=tr('sharingLimits');$('#sharingText').textContent=tr('sharing');$('#consentText').textContent=tr('consent');$('#contactTitle').textContent=tr('contactTitle');$('#contactCallLabel').textContent=tr('call');trackPlaceholder();renderPay();refreshDynamicDecks();localizeProgress();if(state.step===4)renderReview();if(lastPayload&&$('#receiptScreen').classList.contains('active'))showReceipt(lastPayload,true)}
 function switchLocale(locale){if(locale!=='ar'&&locale!=='en')return;state.locale=locale;try{localStorage.setItem(LOCALE_KEY,locale)}catch{}localizeStatic()}
 function reviewItem(label,value,cls=''){if(value==null||value===''||(Array.isArray(value)&&!value.length))return'';const d=Array.isArray(value)?value.join(' · '):String(value);return`<div class="review-item ${cls}"><label>${esc(label)}</label><strong dir="auto">${esc(d)}</strong></div>`}
-function renderReview(){const p=collect(),s=selectedShift(),sd=localizeShift(s),b=branch(),full=[p.firstName,p.lastName].filter(Boolean).join(' ')||'—';$('#reviewClientName').textContent=full;const photo=$('#reviewPhoto');photo.textContent=((p.firstName[0]||'')+(p.lastName[0]||'')).toUpperCase()||'A';if(state.photo){const im=document.createElement('img');im.src=URL.createObjectURL(state.photo);photo.textContent='';photo.appendChild(im)}const addr=[p.address1,p.address2,p.city,p.state,p.zip].filter(Boolean).join(', ');const personal=[[tr('name'),full],[tr('dob'),p.dob],[tr('nationality'),localizedDomain(p.nationality,COUNTRY_AR)],[tr('gender'),localizedDomain(p.gender,GENDER_AR)],[tr('whatsapp'),p.phone],[tr('email'),p.email],[tr('address'),addr]];$('#reviewPersonalGrid').innerHTML=personal.map(x=>reviewItem(x[0],x[1],x[0]===tr('address')?'wide':'')).join('');const exp=[[tr('service'),p.service==='employment'?tr('employmentService'):tr('appealService')],[tr('employmentStatus'),localizedDomain(p.employmentStatus,EMPLOYMENT_AR)],[tr('priorExperience'),p.hasExperience?(state.locale==='ar'?(p.hasExperience==='Yes'?'نعم':'لا'):p.hasExperience):''],[tr('englishLevel'),localizedDomain(p.englishLevel,ENGLISH_AR)],[tr('education'),state.locale==='ar'?(EDUCATION_AR[p.education]||p.education):p.education],[tr('lastTitle'),state.locale==='ar'?(JOB_AR[p.lastTitle]||p.lastTitle):p.lastTitle],[tr('expectedStart'),p.startDate],[tr('workTypeLabel'),state.locale==='ar'?(WORK_AR[p.workType]||p.workType):p.workType],[tr('selectedShift'),sd?.name||''],[tr('shiftDays'),sd?.days||''],[tr('shiftHours'),sd?.time||''],[tr('expectedPay'),p.expectedPay],[tr('site'),b?.name||''],[tr('siteAddress'),b?.address||''],[tr('preferredLocations'),p.preferredLocations],[tr('skills'),p.skills.map(v=>state.locale==='ar'?(SKILL_AR[v]||v):v)]];$('#reviewExperienceGrid').innerHTML=exp.map(x=>reviewItem(x[0],x[1],Array.isArray(x[1])?'wide':'')).join('');const docs=[[tr('documentDelivery'),p.docPrefs.map(docPrefLabel)],[tr('files'),p.files.map(f=>f.name)],[tr('clientPhoto'),state.photo?state.photo.name:''],[tr('signature'),sig.has?tr('complete'):tr('incomplete')],[tr('authorization'),$('#consent').checked?tr('complete'):tr('incomplete')]];$('#reviewDocumentsGrid').innerHTML=docs.map(x=>reviewItem(x[0],x[1],Array.isArray(x[1])?'wide':'')).join('')||reviewItem(tr('files'),tr('noFiles'));$('#reviewStepMeta').textContent=tr('stepOf',4);$('#submitBtn .submit-label').textContent=submitInFlight?tr('submitting'):tr('submit')}
+function renderReview(){const p=collect(),s=selectedShift(),sd=localizeShift(s),b=branch(),full=[p.firstName,p.lastName].filter(Boolean).join(' ')||'—';$('#reviewClientName').textContent=full;const photo=$('#reviewPhoto');photo.textContent=((p.firstName[0]||'')+(p.lastName[0]||'')).toUpperCase()||'A';if(state.photo){const im=document.createElement('img');im.src=URL.createObjectURL(state.photo);photo.textContent='';photo.appendChild(im)}const addr=[p.address1,p.address2,p.city,p.state,p.zip].filter(Boolean).join(', ');const personal=[[tr('name'),full],[tr('dob'),p.dob],[tr('nationality'),localizedDomain(p.nationality,COUNTRY_AR)],[tr('gender'),localizedDomain(p.gender,GENDER_AR)],[tr('whatsapp'),p.phone],[tr('email'),p.email],[tr('address'),addr]];$('#reviewPersonalGrid').innerHTML=personal.map(x=>reviewItem(x[0],x[1],x[0]===tr('address')?'wide':'')).join('');const exp=[[tr('service'),p.service==='employment'?tr('employmentService'):tr('appealService')],[tr('employmentStatus'),localizedDomain(p.employmentStatus,EMPLOYMENT_AR)],[tr('priorExperience'),p.hasExperience?(state.locale==='ar'?(p.hasExperience==='Yes'?'نعم':'لا'):p.hasExperience):''],[tr('englishLevel'),localizedDomain(p.englishLevel,ENGLISH_AR)],[tr('education'),state.locale==='ar'?(EDUCATION_AR[p.education]||p.education):p.education],[tr('lastTitle'),state.locale==='ar'?(JOB_AR[p.lastTitle]||p.lastTitle):p.lastTitle],[tr('expectedStart'),p.startDate],[tr('workTypeLabel'),state.locale==='ar'?(WORK_AR[p.workType]||p.workType):p.workType],[tr('selectedShift'),sd?.name||''],[tr('shiftDays'),sd?.days||''],[tr('shiftHours'),sd?.time||''],[tr('expectedPay'),p.expectedPay],[tr('site'),b?.name||''],[tr('siteAddress'),b?.address||''],[tr('preferredLocations'),p.preferredLocations],[tr('skills'),p.skills.map(v=>state.locale==='ar'?(SKILL_AR[v]||v):v)]];$('#reviewExperienceGrid').innerHTML=exp.map(x=>reviewItem(x[0],x[1],Array.isArray(x[1])?'wide':'')).join('');const docs=[[tr('documentDelivery'),p.docPrefs.map(docPrefLabel)],[tr('files'),p.files.map(f=>f.name)],[(state.locale==='ar'?'مستند الهوية':'Identity Document'),p.identityDocument?.name||''],[tr('clientPhoto'),state.photo?state.photo.name:''],[tr('signature'),sig.has?tr('complete'):tr('incomplete')],[tr('authorization'),$('#consent').checked?tr('complete'):tr('incomplete')]];$('#reviewDocumentsGrid').innerHTML=docs.map(x=>reviewItem(x[0],x[1],Array.isArray(x[1])?'wide':'')).join('')||reviewItem(tr('files'),tr('noFiles'));$('#reviewStepMeta').textContent=tr('stepOf',4);$('#submitBtn .submit-label').textContent=submitInFlight?tr('submitting'):tr('submit')}
 function validateStep(n){let ok=true,first=null;const req=id=>{const e=$('#'+id),good=!!val(id);e.classList.toggle('invalid',!good);if(!good&&!first)first=e;ok=good&&ok};if(n===1){req('firstName');req('lastName');req('phone');req('email');if(!/^\+?[\d\s().-]{10,20}$/.test(val('phone'))){const e=$('#phone');e.classList.add('invalid');first=first||e;ok=false}if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('email'))){const e=$('#email');e.classList.add('invalid');first=first||e;ok=false}}if(n===2){if(!$('input[name=workType]:checked')||!$('input[name=shift]:checked'))ok=false}if(n===4){if(!sig.has){first=first||$('#signature');ok=false}}if(n===4&&!$('#consent').checked){$('#consentChoice').classList.add('invalid');first=first||$('#consent');ok=false}else if(n===4)$('#consentChoice').classList.remove('invalid');if(!ok){toast(tr('required'),'errt');if(first&&first.offsetParent!==null)setTimeout(()=>first.focus(),40)}return ok}
 const __baseSetStep=setStep;setStep=function(n,manageViewport=true){__baseSetStep(n,false);localizeProgress();if(state.step===4)renderReview();if(manageViewport){requestAnimationFrame(()=>{const anchor=$('#formProgress');if(!anchor)return;const top=Math.max(0,anchor.getBoundingClientRect().top+window.scrollY-10);window.scrollTo({top,behavior:'auto'})})}};
-async function uploadAssets(token){const tasks=state.files.map(f=>()=>uploadFile(token,f,f.name));if(state.photo)tasks.push(()=>uploadFile(token,state.photo,'client-photo-'+state.photo.name));if(sig.has)tasks.push(async()=>{const blob=await new Promise(res=>sig.canvas.toBlob(res,'image/png'));if(blob)await uploadFile(token,blob,'signature.png')});let failed=0,index=0,start=performance.now();const workers=Array.from({length:Math.min(3,tasks.length||1)},async()=>{while(true){const i=index++;if(i>=tasks.length)return;try{await tasks[i]()}catch{failed++}}});await Promise.all(workers);submitMetrics.uploadMs=Math.round(performance.now()-start);if(failed)toast(tr('uploadPartial',failed),'errt')}
+async function uploadAssets(token){const tasks=state.files.map(f=>()=>uploadFile(token,f,f.name));if(state.identityDoc)tasks.push(()=>uploadFile(token,state.identityDoc,state.identityDoc.name,['green_card','ead'].includes(val('documentType'))?'work_authorization':'photo_id'));if(state.photo)tasks.push(()=>uploadFile(token,state.photo,'client-photo-'+state.photo.name));if(sig.has)tasks.push(async()=>{const blob=await new Promise(res=>sig.canvas.toBlob(res,'image/png'));if(blob)await uploadFile(token,blob,'signature.png')});let failed=0,index=0,start=performance.now();const workers=Array.from({length:Math.min(3,tasks.length||1)},async()=>{while(true){const i=index++;if(i>=tasks.length)return;try{await tasks[i]()}catch{failed++}}});await Promise.all(workers);submitMetrics.uploadMs=Math.round(performance.now()-start);if(failed)toast(tr('uploadPartial',failed),'errt')}
 async function submit(e){e.preventDefault();if(submitInFlight)return;if(!validateStep(1)){setStep(1,true);return}if(!validateStep(2)){setStep(2,true);return}if(!validateStep(3)){setStep(3,true);return}if(!validateStep(4)){setStep(4,true);return}const payload=collect();if(payload.honeypot)return;submitInFlight=true;const btn=$('#submitBtn');btn.disabled=true;btn.classList.add('is-submitting');btn.querySelector('.submit-label').textContent=tr('submitting');$('#statusView').textContent='Submitting';const totalStart=performance.now();try{const requestStart=performance.now(),r=await fetch('/api/application',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});submitMetrics.requestMs=Math.round(performance.now()-requestStart);const j=await r.json();if(!r.ok||!j.ok)throw new Error((j.message||'Submission failed')+(j.trace_id?' · Ref: '+j.trace_id:''));if(!j.upload_available&&(state.files.length||state.photo||sig.has))toast(state.locale==='ar'?'تم تسجيل الطلب لكن رفع المرفقات يحتاج مساعدة الدعم.':'Application submitted; please contact support to finish attachments.','errt');if(!j.duplicate&&j.upload_token)await uploadAssets(j.upload_token);payload.caseNumber=j.caseNumber;payload.systemId=j.systemId||null;payload.trackingUrl=j.trackingUrl;payload.submittedAt=j.submittedAt||null;lastPayload=payload;$('#caseView').textContent=j.caseNumber;$('#statusView').textContent=j.duplicate?'Duplicate':'Submitted';localStorage.removeItem(CONFIG.storageKey);submitMetrics.totalMs=Math.round(performance.now()-totalStart);showReceipt(payload)}catch(x){$('#statusView').textContent='Draft';toast(tr('submitFailed')+': '+(x?.message||''),'errt')}finally{submitInFlight=false;btn.disabled=false;btn.classList.remove('is-submitting');btn.querySelector('.submit-label').textContent=tr('submit')}}
 async function track(){const type=$('#trackType').value,value=val('trackValue');if(!value)return toast(tr('enterSearch'),'errt');$('#trackResult').innerHTML=`<div class="muted" style="margin-top:14px">${esc(tr('searching'))}</div>`;try{const r=await fetch('/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,value})});const j=await r.json();if(!r.ok||!j.ok){$('#trackResult').innerHTML=`<div class="cardGlass"><div class="pad">${esc(tr('notFound'))}</div></div>`;return}renderTrack(j.application,j.updates||[])}catch{$('#trackResult').innerHTML=`<div class="cardGlass"><div class="pad">${esc(tr('trackError'))}</div></div>`}}
 
@@ -3559,9 +3650,20 @@ function docStatusLabel(v){if(!v)return'—';const k=String(v).toLowerCase().rep
 function nextStepLabel(v){if(!v)return'—';return state.locale==='ar'?(NEXT_AR[v]||v):v}
 function renderTrack(a,updates){const initials=((a.fullName||'A').trim()[0]||'A').toUpperCase();const timeline=updates.map(u=>`<div class="tl"><b>${esc(statusLabel(u.status))}</b><small>${esc(u.timestamp)}</small><span dir="auto">${esc(u.update)}</span></div>`).join('')||`<div class="muted">${esc(tr('noUpdates'))}</div>`;const interview=a.interview?`<div class="timeline" style="margin-top:12px"><div class="divider" style="margin-top:0">${esc(tr('interview'))}</div><div class="kv"><div class="k">${esc(tr('date'))}</div><div class="v">${esc(a.interview.date||'—')}</div><div class="k">${esc(tr('time'))}</div><div class="v">${esc(a.interview.time||'—')}</div><div class="k">${esc(tr('location'))}</div><div class="v" dir="auto">${esc(a.interview.location||'—')}</div></div></div>`:'';$('#trackResult').innerHTML=`<div class="cardGlass"><div class="trackCardHead"><div class="avatar">${esc(initials)}</div><div><div class="eyebrow">${esc(tr('fileStatus'))}</div><h2 style="margin:4px 0 0" dir="auto">${esc(a.fullName||'—')}</h2><div class="muted" dir="ltr">${esc(a.caseNumber||'')}</div></div><div class="statusPill">${esc(statusLabel(a.currentStatus||'new_intake'))}</div></div><div class="trackBody"><div><div class="kv"><div class="k">${esc(tr('name'))}</div><div class="v" dir="auto">${esc(a.fullName||'—')}</div><div class="k">${esc(tr('caseNumber'))}</div><div class="v" dir="ltr">${esc(a.caseNumber||'—')}</div><div class="k">${esc(tr('submittedAt'))}</div><div class="v">${esc(a.submittedAt||'—')}</div><div class="k">${esc(tr('location'))}</div><div class="v" dir="auto">${esc(a.jobLocation||'—')}</div><div class="k">${esc(tr('shiftDays'))}</div><div class="v" dir="auto">${esc(a.shiftDays||'—')}</div><div class="k">${esc(tr('shiftHours'))}</div><div class="v" dir="auto">${esc(a.shiftHours||'—')}</div><div class="k">${esc(tr('currentStatus'))}</div><div class="v">${esc(statusLabel(a.currentStatus||'—'))}</div><div class="k">${esc(tr('nextStep'))}</div><div class="v" dir="auto">${esc(nextStepLabel(a.nextStep||'—'))}</div><div class="k">${esc(tr('documentsStatus'))}</div><div class="v">${esc(docStatusLabel(a.documentsStatus||'missing'))}</div><div class="k">${esc(tr('lastUpdated'))}</div><div class="v">${esc(a.lastStatusUpdate||'—')}</div></div>${interview}</div><div class="timeline"><div class="divider" style="margin-top:0">${esc(tr('timeline'))}</div>${timeline}</div></div></div>`}
 function bindLocalizedUploads(){
- $('#docs').onchange=e=>{const f=Array.from(e.target.files||[]).slice(0,CONFIG.maxFiles);if(f.some(x=>x.size>CONFIG.maxBytes)){toast(tr('filesTooLarge'),'errt');e.target.value='';state.files=[];$('#docsList').innerHTML='';return}state.files=f;$('#docsList').innerHTML=f.map(x=>'• '+esc(x.name)+' — '+Math.round(x.size/1024)+' KB').join('<br>');if(state.step===4)renderReview()};
+ $('#docs').onchange=e=>{const f=Array.from(e.target.files||[]).slice(0,CONFIG.maxFiles);if(f.some(x=>x.size>CONFIG.maxBytes)){toast(tr('filesTooLarge'),'errt');e.target.value='';state.files=[];$('#docsList').innerHTML='';return}state.files=f;$('#docsList').innerHTML=f.map(x=>'• '+esc(x.name)+' — '+Math.round(x.size/1024)+' KB').join('<br>');if(state.step===4)renderReview();void runDocumentAutofill()};
  $('#photo').onchange=e=>{const f=e.target.files?.[0]||null;if(f&&f.size>CONFIG.maxBytes){toast(tr('photoTooLarge'),'errt');e.target.value='';state.photo=null;renderPhoto();return}state.photo=f;renderPhoto();if(state.step===4)renderReview()};
+ $('#identityDoc').onchange=e=>{
+   state.ocrRequestId=(state.ocrRequestId||0)+1;
+   const file=e.target.files?.[0]||null;
+   if(file&&file.size>CONFIG.maxBytes){toast(tr('filesTooLarge'),'errt');e.target.value='';state.identityDoc=null;return}
+   state.identityDoc=file;
+   $('#ocrSuggestions').textContent='';
+   if(state.step===4)renderReview();
+   void runDocumentAutofill();
+ };
  $('#consent').addEventListener('change',()=>{if(state.step===4)renderReview()});
+ $('#ocrConsent').addEventListener('change',()=>{void runDocumentAutofill()});
+ $('#documentType').addEventListener('change',()=>{void runDocumentAutofill()});
 }
 
 function formatSubmissionTime(iso){const zone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';if(!iso)return{display:'—',zone};const d=new Date(iso),locale=state.locale==='ar'?'ar':'en-US';let display;try{display=new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeStyle:'short',timeZone:zone}).format(d)}catch{display=d.toLocaleString()}return{display,zone}}
