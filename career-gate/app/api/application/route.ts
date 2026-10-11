@@ -126,7 +126,7 @@ async function insertApplication(tx: Tx, clientId: string, d: Intake) {
 async function upsertOperationalClient(tx: Tx, d: Intake, digits: string): Promise<{ client: ClientRow; reused: boolean }> {
   const email = d.email.trim().toLowerCase();
   const fullName = `${d.firstName} ${d.lastName}`.trim();
-  const normalizedName = fullName.replace(/\\s+/g, " ").toLowerCase();
+  const normalizedName = fullName.replace(/\s+/g, " ").toLowerCase();
   const street = [d.address1, d.address2].filter(Boolean).join(", ") || null;
   const dob = dateOrNull(d.dob);
 
@@ -167,7 +167,7 @@ export async function POST(req: Request) {
   const d = parsed.data;
   if (!d.signature.captured) return NextResponse.json({ ok: false, message: "Signature is required" }, { status: 400 });
 
-  if (d.zip && !/^\\d{5}(-\\d{4})?$/.test(d.zip)) {
+  if (d.zip && !/^\d{5}(-\d{4})?$/.test(d.zip)) {
     return NextResponse.json({ ok: false, code: "invalid_zip", message: "Enter a valid five-digit US ZIP code." }, { status: 400 });
   }
   if (d.dob && !dateOrNull(d.dob)) {
