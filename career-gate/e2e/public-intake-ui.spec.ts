@@ -281,7 +281,7 @@ test.describe("Career Gate public intake presentation system", () => {
     await page.locator('[data-next="2"]').click();
     await chooseStepTwo(page);
     await page.locator('[data-next="3"]').click();
-    await page.locator("#docs").setInputFiles({ name: "identity.jpg", mimeType: "image/jpeg", buffer: Buffer.from([255, 216, 255, 217]) });
+    await page.locator("#identityDoc").setInputFiles({ name: "identity.jpg", mimeType: "image/jpeg", buffer: Buffer.from([255, 216, 255, 217]) });
     await page.locator("#documentType").selectOption("state_id");
     expect(extractionRequests).toBe(0);
     await page.locator("#ocrConsent").check({ force: true });
