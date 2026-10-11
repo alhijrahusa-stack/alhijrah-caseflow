@@ -159,6 +159,18 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const started = Boolean(sourceText.trim());
   const hasAnything = started || attachments.length > 0;
   const blocked = Object.keys(fieldErrors).length > 0 || duplicateIdentity;
+  /**
+   * Once the client has entered anything, every reviewed field is shown — the
+   * detected ones filled, the rest empty. Showing only what was detected would
+   * leave a field the extraction missed invisible and impossible to supply,
+   * which defeats the point of letting the client correct their own details.
+   */
+  const showReview = started || Object.keys(edits).length > 0 || importedFields.length > 0;
+  const visible = useMemo(
+    () => new Set<ClientEditableField>(showReview ? CLIENT_EDITABLE_FIELDS : []),
+    [showReview],
+  );
+
   const publicStages = useMemo<ProgressStage[]>(() => [
     { label: "UPLOAD", state: attachments.length ? "COMPLETED" : "PENDING" },
     {
@@ -181,17 +193,6 @@ export function ClientIntakeForm({ token }: { token: string }) {
     { label: "SUCCESS", state: done ? "COMPLETED" : "PENDING" },
   ], [attachments.length, blocked, busy, done, duplicateIdentity, extracting, extractionNotice, fieldErrors, importedFields.length, showReview]);
 
-  /**
-   * Once the client has entered anything, every reviewed field is shown — the
-   * detected ones filled, the rest empty. Showing only what was detected would
-   * leave a field the extraction missed invisible and impossible to supply,
-   * which defeats the point of letting the client correct their own details.
-   */
-  const showReview = started || Object.keys(edits).length > 0 || importedFields.length > 0;
-  const visible = useMemo(
-    () => new Set<ClientEditableField>(showReview ? CLIENT_EDITABLE_FIELDS : []),
-    [showReview],
-  );
 
   // One deterministic lookup: the context follows what the client has done.
   const guideContext: GuideContext = blocked
