@@ -36,11 +36,27 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
     if (total > SMART_IMPORT_LIMITS.maxTotalUploadBytes) return err("upload_too_large", "Total upload exceeds the safe limit.", 413, traceId);
 
     const values = new Map<ClientEditableField, string[]>();
+    const providerReview = new Set<ClientEditableField>();
+    const providers = new Set<string>();
     for (const file of files) {
       if (!ACCEPTED.has(file.type)) return err("unsupported_file", "Supported files: PDF, JPG, PNG and WEBP.", 415, traceId);
       if (file.size > SMART_IMPORT_LIMITS.maxFileBytes) return err("file_too_large", "One of the files is larger than the allowed limit.", 413, traceId);
-      const detailed = await rowsFromImageOrPdfDetailed(new Uint8Array(await file.arrayBuffer()), file.type);
+      const detailed = await rowsFromImageOrPdfDetailed(new Uint8Array(await file.arrayBuffer()), file.type, {
+        filename: file.name,
+        traceId,
+      });
       for (const item of detailed) {
+        providers.add(`${item.provider.name}@${item.provider.version}`);
+        for (const evidence of item.fieldEvidence) {
+          if (!(CLIENT_EDITABLE_FIELDS as readonly string[]).includes(evidence.field_name)) continue;
+          if (evidence.review_state === "NEEDS_REVIEW"
+              || evidence.validation_result === "FAILED"
+              || evidence.checksum_result === "FAILED"
+              || evidence.cross_source_result === "FAILED"
+              || evidence.authenticity_result === "FAILED") {
+            providerReview.add(evidence.field_name as ClientEditableField);
+          }
+        }
         for (const field of CLIENT_EDITABLE_FIELDS) {
           const raw = item.row[field];
           if (typeof raw !== "string" || !raw.trim()) continue;
@@ -58,13 +74,15 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
       if (!candidates.length) continue;
       const unique = [...new Map(candidates.map((value) => [normalized(field, value), value])).values()];
       if (unique.length === 1) fields[field] = unique[0];
-      else reviewFields.push(field);
+      if (unique.length > 1 || providerReview.has(field)) reviewFields.push(field);
     }
 
     return ok({
       fields,
       imported_fields: Object.keys(fields),
       review_fields: reviewFields,
+      providers: [...providers],
+      extraction_state: reviewFields.length ? "NEEDS_REVIEW" : "EXTRACTED",
     }, 200, traceId);
   } catch (error) {
     if (error instanceof ActionError) return err(error.code, error.message, error.status, traceId);
