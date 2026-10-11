@@ -23,8 +23,6 @@ function applyNextAction(current: ClientNextAction, payloads: Record<string, unk
 }
 
 export function NextActionCard({ action: serverAction, clientId }: { action: ClientNextAction; clientId: string }) {
-  // ONE NEXT ACTION: anything that moves workflow state invalidates this card,
-  // and it refetches only the derived action.
   const action = useTargetedPayloads<ClientNextAction>({
     resources: NEXT_ACTION_SURFACE.resources,
     clientId,
@@ -45,6 +43,7 @@ export function NextActionCard({ action: serverAction, clientId }: { action: Cli
           {action.target && (
             <Link
               href={`?tab=${action.target.tab}#${action.target.anchor}`}
+              prefetch={false}
               className="rounded-xl border border-white/15 bg-white/[.06] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[.11] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
             >
               {action.target.label}
