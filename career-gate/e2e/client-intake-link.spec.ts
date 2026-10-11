@@ -313,7 +313,7 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     expect(await success.innerText()).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/);
 
     // The two client-safe next steps, pointing at the existing destinations.
-    await expect(success.getByTestId("intake-case-status")).toHaveAttribute("href", "/status");
+    await expect(success.getByTestId("intake-case-status")).toHaveAttribute("href", /^\\/status\\?ref=CG-\\d{4}-\\d{6}$/);
     await expect(success.getByTestId("intake-whatsapp")).toHaveAttribute("href", /^https:\/\/wa\.me\/1\d{10}$/);
     await expect(success.getByTestId("intake-closed-note")).toContainText("closed after successful use");
 
