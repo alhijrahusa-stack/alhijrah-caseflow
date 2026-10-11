@@ -40,6 +40,8 @@ export const INTAKE_COPY = {
     guideSuccess: "تم استلام معلوماتك بنجاح. يمكنك الآن متابعة حالة الملف أو التواصل مع المكتب.",
 
     sourceHeading: "أدخل بياناتك هنا",
+    existingCaseLabel: "رقم الملف السابق — إن وجد",
+    existingCasePlaceholder: "CG-2026-000001",
     sourceHelper: "أدخل أو الصق معلوماتك كما هي، وسيقوم النظام بقراءتها وتنظيمها تلقائيًا.",
     sourcePlaceholder: "الاسم الكامل\nرقم الهاتف\nالبريد الإلكتروني\nتاريخ الميلاد\nالعنوان، المدينة، الولاية، الرمز البريدي",
 
@@ -90,8 +92,8 @@ export const INTAKE_COPY = {
     unsupported: "نوع الملف غير مدعوم. المدعوم: PDF و JPG و PNG و WEBP.",
     genericError: "تعذر الإرسال. حاول مرة أخرى. بياناتك محفوظة.",
     duplicateHeading: "هذا الملف قُدِّم مسبقًا",
-    duplicateBody: "يوجد طلب مرتبط بهذا البريد الإلكتروني بالفعل. لا تُنشئ طلبًا جديدًا. تواصل مع خدمة العملاء على واتساب.",
-    checkingDuplicate: "جارٍ التحقق من البريد الإلكتروني…",
+    duplicateBody: "يوجد ملف سابق مطابق للبريد الإلكتروني أو رقم الملف. لا تُنشئ طلبًا جديدًا. تواصل مع خدمة العملاء على واتساب.",
+    checkingDuplicate: "جارٍ التحقق من البريد الإلكتروني ورقم الملف…",
     invalidPhone: "أدخل رقم هاتف أمريكي صحيح من عشر أرقام.",
     invalidEmail: "أدخل بريدًا إلكترونيًا صحيحًا.",
     invalidZip: "أدخل رمزًا بريديًا صحيحًا.",
@@ -130,6 +132,8 @@ export const INTAKE_COPY = {
     guideSuccess: "Your information was received. You can now track your case or contact the office.",
 
     sourceHeading: "Enter your information here",
+    existingCaseLabel: "Existing Case Number — if you have one",
+    existingCasePlaceholder: "CG-2026-000001",
     sourceHelper: "Enter or paste your information and the system will organize it automatically.",
     sourcePlaceholder: "Full name\nPhone number\nEmail address\nDate of birth\nStreet, city, state, ZIP",
 
@@ -180,8 +184,8 @@ export const INTAKE_COPY = {
     unsupported: "That file type is not supported. Supported: PDF, JPG, PNG, WEBP.",
     genericError: "Your information could not be submitted. Please try again — nothing you entered was lost.",
     duplicateHeading: "This application was already submitted",
-    duplicateBody: "An application is already linked to this email address. Do not create another application. Contact Customer Service on WhatsApp.",
-    checkingDuplicate: "Checking this email…",
+    duplicateBody: "An existing file matches this email address or case number. Do not create another application. Contact Customer Service on WhatsApp.",
+    checkingDuplicate: "Checking email and case number…",
     invalidPhone: "Enter a valid 10-digit US phone number.",
     invalidEmail: "Enter a valid email address.",
     invalidZip: "Enter a valid ZIP code.",
