@@ -653,7 +653,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                   UPLOAD DOCUMENT
                 </button>
               ) : stage === "REVIEW_REQUIRED" && result ? (
-                <button type="button" onClick={() => void enrich(result, documents)} disabled={stage === "ENRICHING"} className="inline-flex min-h-12 items-center rounded-xl border border-amber-300/45 bg-amber-300/[.08] px-5 text-[13px] font-semibold tracking-[.1em] text-amber-100 transition hover:bg-amber-300/[.14] disabled:opacity-45">
+                <button type="button" onClick={() => void enrich(result, documents)} className="inline-flex min-h-12 items-center rounded-xl border border-amber-300/45 bg-amber-300/[.08] px-5 text-[13px] font-semibold tracking-[.1em] text-amber-100 transition hover:bg-amber-300/[.14] disabled:opacity-45">
                   RETRY EXTRACTION
                 </button>
               ) : (
