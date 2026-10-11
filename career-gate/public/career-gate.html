@@ -2854,6 +2854,14 @@ html[dir="ltr"] .lbl{
   }
 }
 
+/* Identity intake extraction — explicit opt-in, no silent overwrites. */
+.ocr-permission{min-height:72px;margin:0;border:1px solid rgba(197,160,89,.4);border-radius:16px;padding:12px;background:rgba(197,160,89,.07)}
+.ocr-permission span:last-child{font-size:13px;line-height:1.6}
+.ocr-status{margin:12px 0;padding:12px 16px;border:1px solid rgba(197,160,89,.3);border-radius:14px;background:rgba(10,18,44,.83);color:#ecd7ab;font-size:13px}
+.ocr-status[data-state="loading"]{border-color:#52c4cf}.ocr-status[data-state="failed"]{border-color:#e47671}
+.ocr-suggestions{display:flex;flex-wrap:wrap;gap:8px}
+.ocr-suggestion{padding:7px 10px;border:1px solid rgba(197,160,89,.35);border-radius:12px;color:#f0d7ae;font-size:12px}
+[data-ocr-confidence]{border-color:#C5A059!important}
 /* Public Intake modal: isolated, non-destructive, accessible dismissal. */
 .career-status-modal[hidden]{display:none!important}
 .career-status-modal{position:fixed;z-index:9999;inset:0;display:grid;place-items:center;padding:18px;background:rgba(2,9,24,.78);backdrop-filter:blur(20px)}
@@ -3002,6 +3010,12 @@ html[dir="ltr"] .lbl{
     <div class="divider">طريقة إرسال المستندات</div>
     <div class="choicegrid" id="docPrefs"></div>
     <div class="divider">رفع الملفات</div>
+    <div class="grid g2" style="margin:12px 0">
+      <div><label class="lbl" for="documentType">Document Type · نوع المستند</label><select id="documentType"><option value="">— اختر المستند —</option><option value="driver_license">Driver License</option><option value="state_id">State ID</option><option value="green_card">Green Card</option><option value="us_passport">U.S. Passport</option><option value="ead">Employment Authorization Document (EAD)</option></select></div>
+      <label class="choice ocr-permission"><input id="ocrConsent" type="checkbox"><span class="box"></span><span>أوافق على تحليل المستند إلكترونياً لاستخراج المعلومات للمراجعة والتعديل · I consent to assisted document reading for editable auto-fill.</span></label>
+    </div>
+    <div class="ocr-status" id="ocrStatus" role="status" aria-live="polite">Upload → Auto-Fill → Review. بياناتك المكتوبة لن تُستبدل تلقائياً.</div>
+    <div id="ocrSuggestions" class="ocr-suggestions" aria-live="polite"></div>
     <div class="grid g2">
       <div><label class="lbl">المستندات</label><input id="docs" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp"><div class="muted">حتى 8 ملفات، 4MB لكل ملف.</div><div class="filelist" id="docsList"></div></div>
       <div><label class="lbl">صورة العميل</label><input id="photo" type="file" accept=".jpg,.jpeg,.png,.webp"><div class="preview-thumbs" id="photoPreview"></div></div>
@@ -3227,6 +3241,47 @@ function setStep(n,manageViewport=true){
       const top=Math.max(0,anchor.getBoundingClientRect().top+window.scrollY-10);
       window.scrollTo({top,behavior:'smooth'})
     })
+  }
+}
+
+async function runDocumentAutofill(){
+  const file=state.files.find(f=>['application/pdf','image/jpeg','image/png','image/webp'].includes(f.type));
+  if(!file||!$('#ocrConsent').checked||!val('documentType'))return;
+  const serial=(state.ocrRequestId||0)+1;state.ocrRequestId=serial;
+  const status=$('#ocrStatus'),list=$('#ocrSuggestions');status.dataset.state='loading';
+  status.textContent=state.locale==='ar'?'جارٍ استخراج الحقول للمراجعة...':'Extracting reviewable fields...';list.textContent='';
+  const form=new FormData();form.set('file',file);form.set('document_type',val('documentType'));form.set('ocr_consent','yes');
+  try{
+    const response=await fetch('/api/application/extract',{method:'POST',body:form});
+    const body=await response.json().catch(()=>null);
+    if(serial!==state.ocrRequestId)return;
+    if(!response.ok||!body?.ok)throw new Error(body?.error?.message||'Document extraction unavailable');
+    const data=body.fields||{},confidence=body.confidence||{};let filled=0,needsReview=0;
+    function propose(id,value,score){
+      const el=$('#'+id);if(!el||!value)return;
+      if(el.value.trim()||score<75){
+        const chip=document.createElement('span');chip.className='ocr-suggestion';
+        chip.textContent=id+' · '+score+'% · '+(state.locale==='ar'?'مراجعة':'Review');
+        list.appendChild(chip);needsReview++;return;
+      }
+      el.value=value;el.dataset.ocrConfidence=String(score);filled++;
+    }
+    for(const [src,id] of Object.entries({date_of_birth:'dob',phone:'phone',email:'email',street:'address1',city:'city',state:'state',zip:'zip',preferred_language:'preferredLanguage'}))
+      if(data[src])propose(id,String(data[src]),Number(confidence[src]||0));
+    if(data.full_name){
+      const parts=String(data.full_name).trim().split(/\s+/).filter(Boolean),score=Number(confidence.full_name||0);
+      if(parts.length>=2){propose('firstName',parts[0],score);propose('lastName',parts.slice(1).join(' '),score)}
+      else needsReview++;
+    }
+    status.dataset.state='ready';
+    status.textContent=(state.locale==='ar'?'اكتمل الاستخراج: ':'Extraction complete: ')+filled+
+      (state.locale==='ar'?' حقول قابلة للتعديل؛ ':' editable fields; ')+needsReview+
+      (state.locale==='ar'?' تحتاج مراجعة. هذا ليس تحققاً من الهوية.':' need review. Identity is NOT verified.');
+    updateProgressTelemetry();save();if(state.step===4)renderReview();
+  }catch(e){
+    if(serial!==state.ocrRequestId)return;
+    status.dataset.state='failed';
+    status.textContent=(state.locale==='ar'?'تعذر الاستخراج، يمكنك إكمال البيانات يدوياً. ':'Auto-fill unavailable; continue manually. ')+(e?.message||'');
   }
 }
 function updateProgressTelemetry(){
@@ -3559,9 +3614,11 @@ function docStatusLabel(v){if(!v)return'—';const k=String(v).toLowerCase().rep
 function nextStepLabel(v){if(!v)return'—';return state.locale==='ar'?(NEXT_AR[v]||v):v}
 function renderTrack(a,updates){const initials=((a.fullName||'A').trim()[0]||'A').toUpperCase();const timeline=updates.map(u=>`<div class="tl"><b>${esc(statusLabel(u.status))}</b><small>${esc(u.timestamp)}</small><span dir="auto">${esc(u.update)}</span></div>`).join('')||`<div class="muted">${esc(tr('noUpdates'))}</div>`;const interview=a.interview?`<div class="timeline" style="margin-top:12px"><div class="divider" style="margin-top:0">${esc(tr('interview'))}</div><div class="kv"><div class="k">${esc(tr('date'))}</div><div class="v">${esc(a.interview.date||'—')}</div><div class="k">${esc(tr('time'))}</div><div class="v">${esc(a.interview.time||'—')}</div><div class="k">${esc(tr('location'))}</div><div class="v" dir="auto">${esc(a.interview.location||'—')}</div></div></div>`:'';$('#trackResult').innerHTML=`<div class="cardGlass"><div class="trackCardHead"><div class="avatar">${esc(initials)}</div><div><div class="eyebrow">${esc(tr('fileStatus'))}</div><h2 style="margin:4px 0 0" dir="auto">${esc(a.fullName||'—')}</h2><div class="muted" dir="ltr">${esc(a.caseNumber||'')}</div></div><div class="statusPill">${esc(statusLabel(a.currentStatus||'new_intake'))}</div></div><div class="trackBody"><div><div class="kv"><div class="k">${esc(tr('name'))}</div><div class="v" dir="auto">${esc(a.fullName||'—')}</div><div class="k">${esc(tr('caseNumber'))}</div><div class="v" dir="ltr">${esc(a.caseNumber||'—')}</div><div class="k">${esc(tr('submittedAt'))}</div><div class="v">${esc(a.submittedAt||'—')}</div><div class="k">${esc(tr('location'))}</div><div class="v" dir="auto">${esc(a.jobLocation||'—')}</div><div class="k">${esc(tr('shiftDays'))}</div><div class="v" dir="auto">${esc(a.shiftDays||'—')}</div><div class="k">${esc(tr('shiftHours'))}</div><div class="v" dir="auto">${esc(a.shiftHours||'—')}</div><div class="k">${esc(tr('currentStatus'))}</div><div class="v">${esc(statusLabel(a.currentStatus||'—'))}</div><div class="k">${esc(tr('nextStep'))}</div><div class="v" dir="auto">${esc(nextStepLabel(a.nextStep||'—'))}</div><div class="k">${esc(tr('documentsStatus'))}</div><div class="v">${esc(docStatusLabel(a.documentsStatus||'missing'))}</div><div class="k">${esc(tr('lastUpdated'))}</div><div class="v">${esc(a.lastStatusUpdate||'—')}</div></div>${interview}</div><div class="timeline"><div class="divider" style="margin-top:0">${esc(tr('timeline'))}</div>${timeline}</div></div></div>`}
 function bindLocalizedUploads(){
- $('#docs').onchange=e=>{const f=Array.from(e.target.files||[]).slice(0,CONFIG.maxFiles);if(f.some(x=>x.size>CONFIG.maxBytes)){toast(tr('filesTooLarge'),'errt');e.target.value='';state.files=[];$('#docsList').innerHTML='';return}state.files=f;$('#docsList').innerHTML=f.map(x=>'• '+esc(x.name)+' — '+Math.round(x.size/1024)+' KB').join('<br>');if(state.step===4)renderReview()};
+ $('#docs').onchange=e=>{const f=Array.from(e.target.files||[]).slice(0,CONFIG.maxFiles);if(f.some(x=>x.size>CONFIG.maxBytes)){toast(tr('filesTooLarge'),'errt');e.target.value='';state.files=[];$('#docsList').innerHTML='';return}state.files=f;$('#docsList').innerHTML=f.map(x=>'• '+esc(x.name)+' — '+Math.round(x.size/1024)+' KB').join('<br>');if(state.step===4)renderReview();void runDocumentAutofill()};
  $('#photo').onchange=e=>{const f=e.target.files?.[0]||null;if(f&&f.size>CONFIG.maxBytes){toast(tr('photoTooLarge'),'errt');e.target.value='';state.photo=null;renderPhoto();return}state.photo=f;renderPhoto();if(state.step===4)renderReview()};
  $('#consent').addEventListener('change',()=>{if(state.step===4)renderReview()});
+ $('#ocrConsent').addEventListener('change',()=>{void runDocumentAutofill()});
+ $('#documentType').addEventListener('change',()=>{void runDocumentAutofill()});
 }
 
 function formatSubmissionTime(iso){const zone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';if(!iso)return{display:'—',zone};const d=new Date(iso),locale=state.locale==='ar'?'ar':'en-US';let display;try{display=new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeStyle:'short',timeZone:zone}).format(d)}catch{display=d.toLocaleString()}return{display,zone}}
