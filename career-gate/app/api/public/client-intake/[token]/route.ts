@@ -2,7 +2,7 @@ import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { ActionError } from "@/lib/service";
 import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
-import { findPublicDuplicateByEmail } from "@/lib/public-intake-duplicate";
+import { findPublicDuplicate } from "@/lib/public-intake-duplicate";
 import {
   CLIENT_EDITABLE_FIELDS,
   claimIntakeLink,
@@ -68,12 +68,19 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
     // the text they typed, so an edit wins over what was detected in the free
     // text while the existing parser stays authoritative for everything else.
     const edits = readEdits(form);
-    const duplicate = await findPublicDuplicateByEmail(edits.email);
+    const caseNumber = String(form.get("case_number") ?? "").trim().toUpperCase();
+    const duplicate = await findPublicDuplicate({
+      email: edits.email,
+      caseNumber: /^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber) ? caseNumber : null,
+      fullName: edits.full_name,
+      dateOfBirth: edits.date_of_birth,
+      phone: edits.phone,
+    });
     if (duplicate.exists) {
       await releaseIntakeLink(link.id);
       return err(
         "duplicate_application",
-        "An application has already been submitted with this email. Please contact Customer Service on WhatsApp.",
+        "An existing application matches this applicant or case number. Please contact Customer Service on WhatsApp.",
         409,
         traceId,
       );
