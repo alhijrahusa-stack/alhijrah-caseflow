@@ -20,7 +20,7 @@ async function chooseStepTwo(page: Page) {
 async function sign(page: Page) {
   // Why this is not a plain mouse drag.
   //
-  // Step 3 is taller than the viewport, so the signature canvas usually sits
+  // Step 4 contains the consent and signature area; the signature canvas can sit
   // below the fold: it was measured at y=833 in a 720px viewport, with
   // `elementsFromPoint` at that y returning nothing at all. `page.mouse` takes
   // viewport coordinates, so a drag built from `boundingBox()` was being
@@ -38,7 +38,7 @@ async function sign(page: Page) {
   //
   // The assertion is unchanged: the pad must set `has`, and a pad that never
   // does still fails.
-  await expect(page.locator('.page.active[data-page="3"]')).toBeVisible();
+  await expect(page.locator('.page.active[data-page="4"]')).toBeVisible();
   const canvas = page.locator("#signature");
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
 
@@ -64,8 +64,8 @@ async function reachReview(page: Page) {
   await page.locator('[data-next="2"]').click();
   await chooseStepTwo(page);
   await page.locator('[data-next="3"]').click();
-  await sign(page);
   await page.locator('[data-next="4"]').click();
+  await sign(page);
   await expect(page.locator('.page.active[data-page="4"]')).toBeVisible();
 }
 
@@ -116,14 +116,16 @@ test.describe("Career Gate public intake presentation system", () => {
 
     await page.locator("#docs").setInputFiles({ name: "resume.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") });
     await page.locator("#photo").setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: Buffer.from("fake-png") });
+    await page.locator('[data-next="4"]').click();
     await sign(page);
 
     await page.locator("#langEn").click();
     expect(await page.locator("#docs").evaluate((el: HTMLInputElement) => el.files?.length ?? 0)).toBe(1);
     expect(await page.locator("#photo").evaluate((el: HTMLInputElement) => el.files?.length ?? 0)).toBe(1);
     await expect(page.locator("#sigWrap")).toHaveClass(/has/);
-    await expect(page.locator('.page.active[data-page="3"]')).toBeVisible();
+    await expect(page.locator('.page.active[data-page="4"]')).toBeVisible();
 
+    await page.locator('[data-step="3"]').click();
     await page.locator('[data-next="4"]').click();
     await expect(page.locator("#reviewClientName")).toContainText("عبدالله");
     await expect(page.locator("#reviewDocumentsGrid")).toContainText("resume.pdf");
@@ -196,6 +198,9 @@ test.describe("Career Gate public intake presentation system", () => {
     });
     await page.goto("/career-gate.html");
     await page.locator("#langEn").click();
+    await expect(page.locator("#statusModal")).toBeHidden();
+    await page.locator("#openTrack").click();
+    await expect(page.locator("#statusModal")).toBeVisible();
     await expect(page.locator("#trackResult")).toBeEmpty();
     await page.locator("#trackValue").fill("ALH-20261001-TRACK");
     await page.locator("#trackBtn").click();
@@ -205,6 +210,19 @@ test.describe("Career Gate public intake presentation system", () => {
     await page.locator("#trackBtn").click();
     await expect(page.locator("#trackResult")).toContainText("الحالة الحالية");
     await expect(page.locator("#trackResult")).toContainText("بحاجة للمراجعة");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#statusModal")).toBeHidden();
+  });
+
+  test("progress reflects completed fields and preferred language survives navigation", async ({ page }) => {
+    await page.goto("/career-gate.html");
+    await expect(page.locator("#progressPctView")).toHaveText("0%");
+    await fillStepOne(page);
+    await page.locator("#preferredLanguage").selectOption("en");
+    await expect(page.locator("#progressPctView")).toHaveText("50%");
+    await page.locator('[data-next="2"]').click();
+    await page.locator('[data-step="1"]').click();
+    await expect(page.locator("#preferredLanguage")).toHaveValue("en");
   });
 
   test("narrow mobile has no horizontal overflow and exposes accessible progress/language controls", async ({ browser, baseURL }) => {
