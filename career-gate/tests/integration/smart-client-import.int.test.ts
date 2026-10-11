@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
 import type { StaffSession } from "@/lib/auth";
 import { publicImportStatus } from "@/lib/public-status";
+import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
 import {
   approveImportCase,
   previewImportRows,
@@ -228,6 +229,60 @@ describe("Smart Career Collect Client staging security", () => {
       documentConfirmed: true,
       informationConfirmed: true,
     })).rejects.toMatchObject({ code: "already_approved" });
+  });
+
+
+  it("approves two different public-intake applicants sharing an email and phone without changing either Case Number", async () => {
+    const sharedEmail = `shared-family-${randomUUID()}@test.invalid`;
+    const sharedPhone = "3135550184";
+    const people = [
+      { name: "TEST Family Alpha", dob: "1990-04-12" },
+      { name: "TEST Family Beta", dob: "1997-08-24" },
+    ];
+    const approved: { ref: string; client_id: string }[] = [];
+
+    for (const person of people) {
+      const notes = [
+        `Full Name: ${person.name}`,
+        `Phone: ${sharedPhone}`,
+        `Email: ${sharedEmail}`,
+        `Date of Birth: ${person.dob}`,
+      ].join("\n");
+      const staged = await stageMobileImportV2({
+        session: manager,
+        notes,
+        files: [],
+        idempotencyKey: `client-link:${randomUUID().replace(/-/g, "")}`,
+      });
+      const caseId = staged.case_id;
+      const [row] = await db`select public_ref,mapped_draft from client_import_cases where id=${caseId}`;
+      expect(row.public_ref).toMatch(/^CG-\d{4}-\d{6}$/);
+      expect(row.mapped_draft.profile.email).toBe(sharedEmail);
+      await startImportReview(manager, caseId, manager.staff.id);
+      const verification = await verifyImportCase(manager, caseId);
+      expect(verification.blocking_conflicts).toBe(0);
+      expect(verification.client_schema_valid).toBe(true);
+
+      const done = await approveImportCase(manager, {
+        id: caseId,
+        reviewerId: manager.staff.id,
+        draft: row.mapped_draft,
+        documentConfirmed: true,
+        informationConfirmed: true,
+        traceId: `family-approval-${randomUUID()}`,
+      });
+      expect(done.idempotent).toBe(false);
+      expect(done.ref).toBe(row.public_ref);
+      approved.push({ ref: String(done.ref), client_id: String(done.client_id) });
+    }
+    expect(approved[0].ref).not.toBe(approved[1].ref);
+    const clients = await db`
+      select id,ref,full_name,email from clients
+      where id in (${approved[0].client_id},${approved[1].client_id}) order by full_name`;
+    expect(clients).toHaveLength(2);
+    expect(clients.map(row => row.full_name)).toEqual(people.map(person => person.name));
+    expect(clients.every(row => row.email === sharedEmail)).toBe(true);
+    expect(new Set(clients.map(row => row.ref)).size).toBe(2);
   });
 
   it("restores the english_proficiency contract that production reported missing", async () => {
