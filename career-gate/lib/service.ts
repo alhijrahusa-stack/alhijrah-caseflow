@@ -4,6 +4,7 @@ import { catalogVersion, resolvePreferences, type Selection } from "@/lib/catalo
 import { DEFAULT_NEXT_STEP, type Status } from "@/lib/domain";
 import type { Profile } from "@/lib/schemas";
 import type { SmartReviewFields } from "@/lib/smart-client-import-core";
+import { applicantIdentity, sameApplicant } from "@/lib/applicant-identity";
 
 export type Tx = postgres.TransactionSql;
 type Json = postgres.JSONValue;
@@ -113,6 +114,7 @@ export async function findClientIdentityMatches(
     forUpdate?: boolean;
     fullName?: string | null;
     dateOfBirth?: string | null;
+    policy?: "public" | "legacy";
   } = {},
 ): Promise<ClientIdentityMatch[]> {
   const identity = opts.lock
@@ -122,6 +124,19 @@ export async function findClientIdentityMatches(
 
   const fullName = opts.fullName?.trim().toLowerCase().replace(/\s+/g, " ") || null;
   const dateOfBirth = opts.dateOfBirth?.trim() || null;
+  if (opts.policy === "public") {
+    if (!identity.email) return [];
+    const candidates = await tx`
+      select c.id,c.ref,c.created_at,c.pipeline_stage,c.assigned_staff,
+             s.display_name as owner,c.full_name,c.phone,c.date_of_birth::text as date_of_birth
+      from clients c left join staff s on s.id=c.assigned_staff
+      where c.deleted_at is null and lower(trim(coalesce(c.email,'')))=${identity.email}
+      order by c.created_at`;
+    const proposed = applicantIdentity({ fullName, dateOfBirth, phone: identity.phone });
+    return candidates.filter(row => sameApplicant(proposed, applicantIdentity({
+      fullName: row.full_name, dateOfBirth: row.date_of_birth, phone: row.phone,
+    }))) as unknown as ClientIdentityMatch[];
+  }
   const lockClause = opts.forUpdate ? " for update" : "";
   const rows = await tx.unsafe(
     `select c.id,c.ref,c.created_at,c.pipeline_stage,c.assigned_staff,s.display_name as owner
@@ -156,6 +171,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
     lock: true,
     fullName: p.full_name,
     dateOfBirth: p.date_of_birth,
+    policy: input.source === "public_intake" ? "public" : "legacy",
   }))[0] ?? null;
   if (duplicate) {
     if (actor.staffId) {
