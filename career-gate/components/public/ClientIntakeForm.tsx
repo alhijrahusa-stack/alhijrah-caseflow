@@ -304,22 +304,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
         <p className="mt-2 max-w-[56ch] text-[14px] leading-relaxed text-slate-500">{t.lead}</p>
       </div>
 
-      {/* 1 — Enter your information */}
-      <GlassCard className="mt-6" data-testid="intake-source">
-        <h2 className="text-[20px] font-semibold tracking-tight text-slate-900 sm:text-[22px]">{t.sourceHeading}</h2>
-        <p className="mt-2 text-[14px] leading-relaxed text-slate-500">{t.sourceHelper}</p>
-        <textarea
-          value={sourceText}
-          onChange={(event) => setSourceText(event.target.value.slice(0, SMART_IMPORT_LIMITS.maxRawTextLength))}
-          placeholder={t.sourcePlaceholder}
-          rows={9}
-          aria-label={t.sourceHeading}
-          data-testid="intake-source-text"
-          className="mt-4 w-full resize-y rounded-2xl border border-slate-300 bg-white p-4 text-[16px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
-        />
-      </GlassCard>
-
-      {/* 2 — Documents: the focal point of the page */}
+      {/* 1 — Document first: extract and auto-fill */}
       <GlassCard tone="accent" className="mt-5" data-testid="intake-upload">
         <div className="flex items-start gap-3">
           <div aria-hidden="true" className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#d8b96a]/50 bg-white text-[#9c7a2e] shadow-[0_8px_20px_-14px_rgba(184,147,74,.7)]">
@@ -402,6 +387,21 @@ export function ClientIntakeForm({ token }: { token: string }) {
             </ul>
           </div>
         )}
+      </GlassCard>
+
+      {/* 2 — Complete anything the document did not provide */}
+      <GlassCard className="mt-6" data-testid="intake-source">
+        <h2 className="text-[20px] font-semibold tracking-tight text-slate-900 sm:text-[22px]">{t.sourceHeading}</h2>
+        <p className="mt-2 text-[14px] leading-relaxed text-slate-500">{t.sourceHelper}</p>
+        <textarea
+          value={sourceText}
+          onChange={(event) => setSourceText(event.target.value.slice(0, SMART_IMPORT_LIMITS.maxRawTextLength))}
+          placeholder={t.sourcePlaceholder}
+          rows={9}
+          aria-label={t.sourceHeading}
+          data-testid="intake-source-text"
+          className="mt-4 w-full resize-y rounded-2xl border border-slate-300 bg-white p-4 text-[16px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
+        />
       </GlassCard>
 
       {/* 3 — Review what was understood */}
