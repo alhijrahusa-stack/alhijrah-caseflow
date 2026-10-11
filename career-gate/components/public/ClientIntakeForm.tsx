@@ -178,6 +178,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
       return;
     }
     setAttachments(next);
+    void extractFromDocuments(next);
   }
 
   function remove(id: string) {
@@ -196,13 +197,13 @@ export function ClientIntakeForm({ token }: { token: string }) {
     if (!ACCEPTED_MIME.includes(file.type)) { setError(t.unsupported); return; }
     if (file.size > SMART_IMPORT_LIMITS.maxFileBytes) { setError(t.fileTooLarge); return; }
     setError(null);
-    setAttachments((current) =>
-      current.map((item) => {
-        if (item.id !== target) return item;
-        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-        return attach(file);
-      }),
-    );
+    const next = attachments.map((item) => {
+      if (item.id !== target) return item;
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return attach(file);
+    });
+    setAttachments(next);
+    void extractFromDocuments(next);
   }
 
   async function submit() {
@@ -229,6 +230,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
         setError(typeof data?.error?.message === "string" ? data.error.message : t.genericError);
         return;
       }
+      setCaseNumber(typeof data.case_number === "string" ? data.case_number : null);
       setDone(true);
     } catch {
       setError(t.genericError);
