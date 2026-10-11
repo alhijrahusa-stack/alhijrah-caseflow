@@ -116,6 +116,7 @@ function parseResponse(payload: unknown, traceId: string | null): DocumentExtrac
         reason: typeof check === "string" ? null : text(object(check).message) ?? text(object(check).reason),
       })),
     },
+    mrz: null,
     traceId,
   };
 }
