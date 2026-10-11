@@ -242,8 +242,8 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
       return Boolean(identity.phone && m.phone === identity.phone);
     });
 
-    // A phone is an identity signal in its own right. An email is not: it may
-    // serve a whole family, so it counts only when another signal agrees.
+    // Neither email nor phone is sufficient by itself. A contact signal
+    // becomes a duplicate only when another applicant signal corroborates it.
     const sharesApplicant = (match: IdentityMatch) =>
       sameApplicant(applicant, applicantIdentity({
         fullName: match.full_name,
@@ -251,7 +251,20 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
         phone: match.phone,
       }));
     const emailDuplicates = emailMatches.filter(sharesApplicant);
-    const rowMatches = [...new Set([...phoneMatches, ...emailDuplicates])];
+    const phoneDuplicates = phoneMatches.filter((match) => {
+      const other = applicantIdentity({
+        fullName: match.full_name,
+        dateOfBirth: match.date_of_birth,
+        phone: match.phone,
+      });
+      const m = identityKey(match.email, match.phone);
+      return Boolean(
+        (applicant.fullName && other.fullName === applicant.fullName)
+        || (applicant.dateOfBirth && other.dateOfBirth === applicant.dateOfBirth)
+        || (identity.email && m.email === identity.email)
+      );
+    });
+    const rowMatches = [...new Set([...phoneDuplicates, ...emailDuplicates])];
 
     // Same email, no agreeing identity signal: a different applicant using a
     // relative's address. Allowed, and surfaced so staff can see why.
