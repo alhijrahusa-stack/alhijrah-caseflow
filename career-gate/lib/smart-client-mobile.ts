@@ -7,6 +7,7 @@ import { ActionError, normalizeClientEmail } from "@/lib/service";
 import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
 import type { DocumentFieldEvidence, DocumentProviderName } from "@/lib/providers/document-intelligence-types";
+import type { MrzValidation } from "@/lib/document-validation/mrz";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
 import {
   SMART_IMPORT_LIMITS,
@@ -443,6 +444,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     country: string | null;
     authenticity: Record<string, unknown> | null;
     quality: Record<string, unknown> | null;
+    mrz: MrzValidation | null;
     extractionError: string | null;
   };
 
@@ -457,6 +459,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     let country: string | null = null;
     let authenticity: Record<string, unknown> | null = null;
     let quality: Record<string, unknown> | null = null;
+    let mrz: MrzValidation | null = null;
     let extractionError: string | null = null;
     try {
       const bytes = await downloadObject(String(doc.storage_reference));
@@ -474,6 +477,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
       country = first?.country ?? null;
       authenticity = first?.authenticity as unknown as Record<string, unknown> ?? null;
       quality = first?.quality as unknown as Record<string, unknown> ?? null;
+      mrz = first?.mrz ?? null;
     } catch (error) {
       extractionError = error instanceof Error ? error.message : "Extraction failed";
     }
@@ -489,6 +493,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
           country,
           authenticity,
           quality,
+          mrz,
           evidence_fields: fieldEvidence.length,
         } as never)},
         ${extractionError},${session.staff.id},now())`;
@@ -503,6 +508,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
             country,
             authenticity,
             quality,
+            mrz,
             field_evidence: fieldEvidence,
             extraction_error: extractionError,
             processing_state: extractionError ? "FAILED" : "EXTRACTED",
@@ -520,6 +526,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
       country,
       authenticity,
       quality,
+      mrz,
       extractionError,
     };
   }
