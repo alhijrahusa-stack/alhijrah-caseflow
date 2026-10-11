@@ -103,7 +103,11 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
     }
 
     // Return only the client-safe public reference. Internal UUIDs and staff identity stay private.
-    return ok({ received: true, case_number: result.public_ref }, 201, traceId);
+    return ok({
+      received: true,
+      case_number: result.public_ref,
+      shared_email_warning: duplicate.sharedEmail,
+    }, 201, traceId);
   } catch (error) {
     // The submission failed, so the link goes back to ACTIVE and the client may
     // try again while it has not expired.
