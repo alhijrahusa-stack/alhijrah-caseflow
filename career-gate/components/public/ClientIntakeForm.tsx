@@ -61,6 +61,10 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractionNotice, setExtractionNotice] = useState<string | null>(null);
+  const [importedFields, setImportedFields] = useState<ClientEditableField[]>([]);
+  const [caseNumber, setCaseNumber] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [touchedDocuments, setTouchedDocuments] = useState(false);
   const inFlight = useRef(false);
@@ -112,7 +116,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
    * leave a field the extraction missed invisible and impossible to supply,
    * which defeats the point of letting the client correct their own details.
    */
-  const showReview = started || Object.keys(edits).length > 0;
+  const showReview = started || Object.keys(edits).length > 0 || importedFields.length > 0;
   const visible = useMemo(
     () => new Set<ClientEditableField>(showReview ? CLIENT_EDITABLE_FIELDS : []),
     [showReview],
@@ -128,6 +132,33 @@ export function ClientIntakeForm({ token }: { token: string }) {
         : started
           ? "documents"
           : "welcome";
+
+  async function extractFromDocuments(next: Attachment[]) {
+    if (!next.length) return;
+    setExtracting(true);
+    setExtractionNotice(t.extractingDocument);
+    try {
+      const form = new FormData();
+      for (const item of next) form.append("files", item.file);
+      const res = await fetch(`/api/public/client-intake/${encodeURIComponent(token)}/extract`, { method: "POST", body: form });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        setExtractionNotice(typeof data?.error?.message === "string" ? data.error.message : t.extractionUnavailable);
+        return;
+      }
+      const fields = (data.fields && typeof data.fields === "object" ? data.fields : {}) as Detected;
+      const keys = Object.keys(fields).filter((field): field is ClientEditableField =>
+        (CLIENT_EDITABLE_FIELDS as readonly string[]).includes(field),
+      );
+      setEdits((current) => ({ ...fields, ...current }));
+      setImportedFields(keys);
+      setExtractionNotice(keys.length ? t.importedSuccess : t.noDataImported);
+    } catch {
+      setExtractionNotice(t.extractionUnavailable);
+    } finally {
+      setExtracting(false);
+    }
+  }
 
   function admit(incoming: FileList | null) {
     if (!incoming?.length) return;
