@@ -38,5 +38,5 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
     phone,
   });
   // Never disclose an existing case number from an unauthenticated email probe.
-  return ok({ duplicate: match.exists }, 200, traceId);
+  return ok({ duplicate: match.exists, shared_email: match.sharedEmail }, 200, traceId);
 }
