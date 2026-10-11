@@ -118,12 +118,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
     const caseNumber = existingCaseNumber.trim().toUpperCase();
     const validEmail = email && !validateIntakeField("email", email, t) ? email : "";
     const validCase = /^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber) ? caseNumber : "";
-    if (!validEmail && !validCase) {
-      setDuplicateIdentity(false);
-      setSharedEmailWarning(false);
-      setCheckingDuplicate(false);
-      return;
-    }
+    if (!validEmail && !validCase) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       setCheckingDuplicate(true);
@@ -472,7 +467,11 @@ export function ClientIntakeForm({ token }: { token: string }) {
           <span className="text-[13px] font-medium text-slate-600">{t.existingCaseLabel}</span>
           <input
             value={existingCaseNumber}
-            onChange={(event) => setExistingCaseNumber(event.target.value.toUpperCase().slice(0, 20))}
+            onChange={(event) => {
+              setExistingCaseNumber(event.target.value.toUpperCase().slice(0, 20));
+              setDuplicateIdentity(false);
+              setSharedEmailWarning(false);
+            }}
             placeholder={t.existingCasePlaceholder}
             autoComplete="off"
             data-testid="intake-existing-case-number"
@@ -523,7 +522,13 @@ export function ClientIntakeForm({ token }: { token: string }) {
                         </span>
                         <input
                           value={effective[field] ?? ""}
-                          onChange={(event) => setEdits((current) => ({ ...current, [field]: event.target.value.slice(0, 200) }))}
+                          onChange={(event) => {
+                            setEdits((current) => ({ ...current, [field]: event.target.value.slice(0, 200) }));
+                            if (field === "email" || field === "full_name" || field === "date_of_birth" || field === "phone") {
+                              setDuplicateIdentity(false);
+                              setSharedEmailWarning(false);
+                            }
+                          }}
                           type={input.type ?? "text"}
                           inputMode={input.inputMode}
                           autoComplete={input.autoComplete}
