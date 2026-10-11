@@ -33,7 +33,7 @@ export function dbErrorResponse(e: unknown, traceId?: string) {
   if (pg?.code === "P0001" && pg.message?.startsWith("duplicate_client_identity|")) {
     return err(
       "duplicate_client",
-      "A client already exists with this phone number or email. Search the existing file instead of creating a duplicate.",
+      "A matching client identity already exists. Search the existing file instead of creating a duplicate.",
       409,
       traceId,
     );
