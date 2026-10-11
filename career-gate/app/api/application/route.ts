@@ -137,8 +137,24 @@ async function upsertOperationalClient(tx: Tx, d: Intake, digits: string): Promi
     select id from clients
     where deleted_at is null
       and lower(trim(email)) = ${email}
-      and lower(regexp_replace(trim(full_name), '\\s+', ' ', 'g')) = ${normalizedName}
-      and (${dob}::date is null or date_of_birth is null or date_of_birth = ${dob}::date)
+      and (
+        (
+          lower(regexp_replace(trim(full_name), '\\s+', ' ', 'g')) = ${normalizedName}
+          and ${dob}::date is not null and date_of_birth = ${dob}::date
+        )
+        or (
+          lower(regexp_replace(trim(full_name), '\\s+', ' ', 'g')) = ${normalizedName}
+          and (date_of_birth is null or ${dob}::date is null or date_of_birth = ${dob}::date)
+          and length(${digits}) >= 7
+          and regexp_replace(coalesce(phone,''), '\\D', '', 'g') = ${digits}
+        )
+        or (
+          ${dob}::date is not null and date_of_birth = ${dob}::date
+          and length(${digits}) >= 7
+          and regexp_replace(coalesce(phone,''), '\\D', '', 'g') = ${digits}
+          and (full_name is null or lower(regexp_replace(trim(full_name), '\\s+', ' ', 'g')) = ${normalizedName})
+        )
+      )
     limit 1 for update`;
   if (sameApplicant) {
     throw new IdentityConflictError("A prior application for this applicant needs staff review.");
