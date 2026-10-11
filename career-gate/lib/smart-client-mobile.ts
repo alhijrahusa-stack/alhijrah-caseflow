@@ -594,6 +594,35 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     results.push(...await Promise.all(chunk.map(processDocument)));
   }
 
+  const identityFingerprint = (row: IntakeRow | undefined) => {
+    if (!row) return null;
+    const name = pickImportValue(row, "full_name")?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
+    const dob = pickImportValue(row, "date_of_birth")?.trim() ?? "";
+    if (!name && !dob) return null;
+    return createHash("sha256").update(`${name}|${dob}`).digest("hex");
+  };
+  const fingerprints = new Set(results.map((result) => identityFingerprint(result.rows[0])).filter((value): value is string => Boolean(value)));
+  if (fingerprints.size > 1) {
+    extractionErrors.push({
+      code: "DOCUMENT_IDENTITY_MISMATCH",
+      message: "Uploaded documents appear to belong to different applicant identities and require review.",
+    });
+  }
+
+  for (const result of results) {
+    const fingerprint = identityFingerprint(result.rows[0]);
+    const associationKey = fingerprint
+      ? createHash("sha256").update(`${caseId}|${fingerprint}|${result.documentType ?? "unknown"}`).digest("hex")
+      : `isolated:${String(result.doc.id)}`;
+    await sql()`
+      update client_import_documents
+      set extraction_metadata=coalesce(extraction_metadata,'{}'::jsonb) || ${sql().json({
+        association_key: associationKey,
+        association_state: fingerprint ? "IDENTITY_BOUND" : "ISOLATED_UNVERIFIED",
+      } as never)}
+      where id=${String(result.doc.id)}`;
+  }
+
   for (const result of results) {
     const doc = result.doc;
     if (result.rows[0]) {
@@ -625,7 +654,16 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
   const missing = requiredMissingFromDraft(draft);
   const failedDocuments = results.filter((item) => item.extractionError).length;
   const aiState = docs.length === 0 ? "SKIPPED" : failedDocuments === docs.length ? "FAILED" : failedDocuments ? "PARTIAL" : "COMPLETE";
-  const processingState = extractionErrors.length ? "REVIEW_REQUIRED" : "EXTRACTED";
+  const evidenceNeedsReview = merged.evidence.some((entry) =>
+    entry.review_state === "NEEDS_REVIEW"
+    || entry.validation_result === "FAILED"
+    || entry.checksum_result === "FAILED"
+    || entry.cross_source_result === "FAILED"
+    || entry.authenticity_result === "FAILED",
+  );
+  const processingState = extractionErrors.length || merged.conflicts.length || evidenceNeedsReview
+    ? "REVIEW_REQUIRED"
+    : "EXTRACTED";
   const verificationResult = {
     processing_state: processingState,
     local_state: "COMPLETE",
