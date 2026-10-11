@@ -224,6 +224,7 @@ export async function POST(req: Request) {
       const body = {
         ok: true,
         caseNumber: app.case_number,
+        systemId: client.ref,
         trackingUrl: `/career-gate.html?track=1&case=${encodeURIComponent(app.case_number)}`,
         submittedAt: new Date(app.created_at).toISOString(),
         client_id: client.id,
@@ -255,6 +256,7 @@ export async function POST(req: Request) {
       duplicate: out.kind === "replay",
       existingCase: out.kind === "replay" ? caseNumber : undefined,
       caseNumber,
+      systemId: body.systemId,
       trackingUrl: body.trackingUrl,
       submittedAt: body.submittedAt,
       upload_token: uploadToken,
