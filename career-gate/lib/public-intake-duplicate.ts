@@ -1,34 +1,25 @@
 import "server-only";
 import { sql } from "@/lib/db";
-import { normalizeClientEmail, normalizeClientPhone } from "@/lib/service";
+import { normalizeClientEmail, type Tx } from "@/lib/service";
+import { applicantIdentity, sameApplicant } from "@/lib/applicant-identity";
 
 export type PublicDuplicateMatch = {
   exists: boolean;
   sharedEmail: boolean;
-  /** Internal stable case reference; never return this from a public unauthenticated endpoint. */
+  /** Internal only. Never disclose an existing reference to a public probe. */
   publicRef: string | null;
   source: "client" | "smart_client" | null;
 };
 
-function normalizeCaseNumber(value: string | null | undefined) {
+function caseNumber(value: string | null | undefined) {
   const ref = value?.trim().toUpperCase() || "";
   return /^CG-[0-9]{4}-[0-9]{6}$/.test(ref) ? ref : null;
 }
 
-function normalizeName(value: string | null | undefined) {
-  return value?.trim().toLowerCase().replace(/\s+/g, " ") || null;
-}
-
-function normalizeDob(value: string | null | undefined) {
-  const dob = value?.trim() || "";
-  return /^\d{4}-\d{2}-\d{2}$/.test(dob) ? dob : null;
-}
-
 /**
- * Duplicate policy:
- * - exact Case Number: always an existing lifecycle;
- * - email + matching applicant identity (name, DOB, or phone): duplicate;
- * - email already used by a different applicant: allowed, but surfaced as sharedEmail.
+ * One applicant identity decision for the browser probe and the locked final
+ * staging transaction. The exact reference always wins. Shared email alone
+ * is not a duplicate; evidence must satisfy sameApplicant().
  */
 export async function findPublicDuplicate(args: {
   email?: string | null;
@@ -36,88 +27,51 @@ export async function findPublicDuplicate(args: {
   fullName?: string | null;
   dateOfBirth?: string | null;
   phone?: string | null;
-}): Promise<PublicDuplicateMatch> {
+}, tx?: Tx): Promise<PublicDuplicateMatch> {
   const email = normalizeClientEmail(args.email);
-  const caseNumber = normalizeCaseNumber(args.caseNumber);
-  const fullName = normalizeName(args.fullName);
-  const dateOfBirth = normalizeDob(args.dateOfBirth);
-  const phone = normalizeClientPhone(args.phone);
+  const ref = caseNumber(args.caseNumber);
+  const identity = applicantIdentity({
+    fullName: args.fullName,
+    dateOfBirth: args.dateOfBirth,
+    phone: args.phone,
+  });
+  const none: PublicDuplicateMatch = { exists: false, sharedEmail: false, publicRef: null, source: null };
+  if (!email && !ref) return none;
+  const db = tx ?? sql();
 
-  if (!email && !caseNumber) return { exists: false, sharedEmail: false, publicRef: null, source: null };
-  const db = sql();
-
-  if (caseNumber) {
-    const [clientByRef] = await db`
-      select ref
-      from clients
-      where deleted_at is null and upper(ref)=${caseNumber}
-      limit 1`;
-    if (clientByRef?.ref) return { exists: true, sharedEmail: false, publicRef: String(clientByRef.ref), source: "client" };
-
-    const [pendingByRef] = await db`
-      select public_ref
-      from client_import_cases
-      where upper(public_ref)=${caseNumber}
-      order by created_at asc
-      limit 1`;
-    if (pendingByRef?.public_ref) {
-      return { exists: true, sharedEmail: false, publicRef: String(pendingByRef.public_ref), source: "smart_client" };
-    }
+  if (ref) {
+    const [canonical] = await db`select ref from clients where upper(ref)=${ref} limit 1`;
+    if (canonical) return { exists: true, sharedEmail: false, publicRef: String(canonical.ref), source: "client" };
+    const [staged] = await db`select public_ref from client_import_cases where upper(public_ref)=${ref} limit 1`;
+    if (staged) return { exists: true, sharedEmail: false, publicRef: String(staged.public_ref), source: "smart_client" };
   }
+  if (!email) return none;
 
-  if (!email) return { exists: false, sharedEmail: false, publicRef: null, source: null };
-
-  const hasIdentity = Boolean(fullName || dateOfBirth || phone);
-  if (hasIdentity) {
-    const [clientByEmail] = await db`
-      select ref
-      from clients
-      where deleted_at is null
-        and lower(trim(coalesce(email,'')))=${email}
-        and (
-          (${fullName}::text is not null and lower(regexp_replace(trim(coalesce(full_name,'')),'\\s+',' ','g'))=${fullName})
-          or (${dateOfBirth}::text is not null and date_of_birth::text=${dateOfBirth})
-          or (${phone}::text is not null and regexp_replace(coalesce(phone,''),'\\D','','g')=${phone})
-        )
-      order by created_at asc
-      limit 1`;
-    if (clientByEmail?.ref) return { exists: true, sharedEmail: false, publicRef: String(clientByEmail.ref), source: "client" };
-
-    const [pendingByEmail] = await db`
-      select public_ref
-      from client_import_cases
-      where lower(trim(coalesce(mapped_draft #>> '{profile,email}','')))=${email}
-        and (
-          (${fullName}::text is not null and lower(regexp_replace(trim(coalesce(mapped_draft #>> '{profile,full_name}','')),'\\s+',' ','g'))=${fullName})
-          or (${dateOfBirth}::text is not null and coalesce(mapped_draft #>> '{profile,date_of_birth}','')=${dateOfBirth})
-          or (${phone}::text is not null and regexp_replace(coalesce(mapped_draft #>> '{profile,phone}',''),'\\D','','g')=${phone})
-        )
-      order by created_at asc
-      limit 1`;
-    if (pendingByEmail?.public_ref) {
-      return { exists: true, sharedEmail: false, publicRef: String(pendingByEmail.public_ref), source: "smart_client" };
-    }
-  }
-
-  const [sharedClient] = await db`
-    select ref
+  const canonical = await db`
+    select ref,full_name,date_of_birth::text as date_of_birth,phone
     from clients
-    where deleted_at is null and lower(trim(coalesce(email,'')))=${email}
-    order by created_at asc
-    limit 1`;
-  if (sharedClient?.ref) {
-    return { exists: false, sharedEmail: true, publicRef: String(sharedClient.ref), source: "client" };
-  }
-
-  const [sharedPending] = await db`
-    select public_ref
+    where deleted_at is null and lower(trim(coalesce(email,'')))=${email}`;
+  const staged = await db`
+    select public_ref,
+           mapped_draft #>> '{profile,full_name}' as full_name,
+           mapped_draft #>> '{profile,date_of_birth}' as date_of_birth,
+           mapped_draft #>> '{profile,phone}' as phone
     from client_import_cases
-    where lower(trim(coalesce(mapped_draft #>> '{profile,email}','')))=${email}
-    order by created_at asc
-    limit 1`;
-  if (sharedPending?.public_ref) {
-    return { exists: false, sharedEmail: true, publicRef: String(sharedPending.public_ref), source: "smart_client" };
-  }
+    where lower(trim(coalesce(mapped_draft #>> '{profile,email}','')))=${email}`;
 
-  return { exists: false, sharedEmail: false, publicRef: null, source: null };
+  for (const row of canonical) {
+    if (sameApplicant(identity, applicantIdentity({
+      fullName: row.full_name, dateOfBirth: row.date_of_birth, phone: row.phone,
+    }))) {
+      return { exists: true, sharedEmail: false, publicRef: String(row.ref), source: "client" };
+    }
+  }
+  for (const row of staged) {
+    if (sameApplicant(identity, applicantIdentity({
+      fullName: row.full_name, dateOfBirth: row.date_of_birth, phone: row.phone,
+    }))) {
+      return { exists: true, sharedEmail: false, publicRef: String(row.public_ref), source: "smart_client" };
+    }
+  }
+  return { ...none, sharedEmail: canonical.length > 0 || staged.length > 0 };
 }
