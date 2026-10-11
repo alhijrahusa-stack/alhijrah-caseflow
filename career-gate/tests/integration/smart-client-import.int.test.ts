@@ -5,6 +5,7 @@ import type { StaffSession } from "@/lib/auth";
 import { publicImportStatus } from "@/lib/public-status";
 import {
   approveImportCase,
+  previewImportRows,
   saveImportReview,
   stageSheetRows,
   startImportReview,
@@ -406,22 +407,44 @@ describe("Smart Career Collect Client staging security", () => {
       traceId: "same-applicant-first",
     });
 
+    // Same name and date of birth on the shared email: the same applicant.
+    const repeatRow = {
+      full_name: "TEST Same Applicant",
+      phone: "3135558822",
+      email,
+      date_of_birth: "1990-04-04",
+    };
+
+    const [preview] = await previewImportRows(manager, [repeatRow]);
+    expect(preview.result).toBe("DUPLICATE");
+    expect(preview.identity).toBe("POSSIBLE_DUPLICATE");
+    expect(preview.existing_client_ref).toBeTruthy();
+
+    // A flagged duplicate is never staged by default; a manager must select it
+    // deliberately. Approval is the authoritative block, so stage it and prove
+    // approval still refuses.
+    await expect(stageSheetRows({
+      session: manager,
+      source: "csv",
+      idempotencyKey: `same-applicant-default-${randomUUID()}`,
+      rows: [repeatRow],
+    })).rejects.toMatchObject({ code: "nothing_to_stage" });
+
     const second = await stageSheetRows({
       session: manager,
       source: "csv",
       idempotencyKey: `same-applicant-b-${randomUUID()}`,
-      rows: [{
-        full_name: "TEST Same Applicant",
-        phone: "3135558822",
-        email,
-        date_of_birth: "1990-04-04",
-      }],
+      rows: [repeatRow],
+      selectedRows: [preview.row],
     });
     const secondId = String(second.cases[0].id);
     const [secondCase] = await db`select mapped_draft from client_import_cases where id=${secondId}`;
 
     const verification = await verifyImportCase(manager, secondId);
     expect(verification.identity).toBe("POSSIBLE_DUPLICATE");
+
+    const [before] = await db`select count(*)::int as n from clients where lower(email)=${email}`;
+
     await expect(approveImportCase(manager, {
       id: secondId,
       reviewerId: manager.staff.id,
@@ -429,7 +452,11 @@ describe("Smart Career Collect Client staging security", () => {
       documentConfirmed: true,
       informationConfirmed: true,
       traceId: "same-applicant-second",
-    })).rejects.toMatchObject({ code: "not_ready" });
+    })).rejects.toMatchObject({ code: "approval_blocked" });
+
+    // The rule that matters: no second lifecycle was created for this applicant.
+    const [after] = await db`select count(*)::int as n from clients where lower(email)=${email}`;
+    expect(after.n).toBe(before.n);
   });
 
   it("blocks approval with the real database error when the persistence column is absent", async () => {

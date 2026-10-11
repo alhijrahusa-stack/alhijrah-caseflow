@@ -13,6 +13,7 @@ import {
   normalizeClientPhone,
   type Tx,
 } from "@/lib/service";
+import { applicantIdentity, sameApplicant } from "@/lib/applicant-identity";
 import { assessApproval } from "@/lib/smart-approval-readiness";
 import { uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdf, rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
@@ -176,19 +177,35 @@ function sanitizeReviewDraft(value: unknown) {
   return draft;
 }
 
+type IdentityMatch = {
+  id: string;
+  ref: string;
+  email: string | null;
+  phone: string | null;
+  full_name: string | null;
+  date_of_birth: string | null;
+};
+
+/**
+ * Existing clients reachable by any imported email or phone.
+ *
+ * Name and date of birth come back too: an email match alone does not decide a
+ * duplicate, because one email may serve several applicants, so the caller
+ * needs the identity signals to correlate against.
+ */
 async function identityIndex(rows: { email: string | null; phone: string | null }[]) {
   const emails = [...new Set(rows.map((row) => normalizeClientEmail(row.email)).filter((value): value is string => Boolean(value)))];
   const phones = [...new Set(rows.map((row) => normalizeClientPhone(row.phone)).filter((value): value is string => Boolean(value)))];
-  if (!emails.length && !phones.length) return [] as { id: string; ref: string; email: string | null; phone: string | null }[];
+  if (!emails.length && !phones.length) return [] as IdentityMatch[];
   return sql()`
-    select id,ref,email,phone
+    select id,ref,email,phone,full_name,date_of_birth::text as date_of_birth
     from clients
     where deleted_at is null
       and (
         (${emails.length > 0} and lower(trim(coalesce(email,''))) = any(${emails}::text[]))
         or (${phones.length > 0} and regexp_replace(coalesce(phone,''),'\\D','','g') = any(${phones}::text[]))
       )
-    order by created_at` as unknown as { id: string; ref: string; email: string | null; phone: string | null }[];
+    order by created_at` as unknown as IdentityMatch[];
 }
 
 export async function previewImportRows(session: StaffSession, rows: IntakeRow[]): Promise<ImportPreviewRow[]> {
@@ -208,10 +225,38 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
 
   return prepared.map((item) => {
     const identity = identityKey(item.summary.email, item.summary.phone);
-    const rowMatches = matches.filter((match) => {
-      const m = identityKey(match.email, match.phone);
-      return Boolean((identity.email && m.email === identity.email) || (identity.phone && m.phone === identity.phone));
+    const applicant = applicantIdentity({
+      fullName: item.summary.full_name,
+      // The prepared draft carries the normalized ISO date; the raw cell may
+      // still be MM/DD/YYYY.
+      dateOfBirth: item.draft?.profile.date_of_birth ?? null,
+      phone: item.summary.phone,
     });
+
+    const emailMatches = matches.filter((match) => {
+      const m = identityKey(match.email, match.phone);
+      return Boolean(identity.email && m.email === identity.email);
+    });
+    const phoneMatches = matches.filter((match) => {
+      const m = identityKey(match.email, match.phone);
+      return Boolean(identity.phone && m.phone === identity.phone);
+    });
+
+    // A phone is an identity signal in its own right. An email is not: it may
+    // serve a whole family, so it counts only when another signal agrees.
+    const sharesApplicant = (match: IdentityMatch) =>
+      sameApplicant(applicant, applicantIdentity({
+        fullName: match.full_name,
+        dateOfBirth: match.date_of_birth,
+        phone: match.phone,
+      }));
+    const emailDuplicates = emailMatches.filter(sharesApplicant);
+    const rowMatches = [...new Set([...phoneMatches, ...emailDuplicates])];
+
+    // Same email, no agreeing identity signal: a different applicant using a
+    // relative's address. Allowed, and surfaced so staff can see why.
+    const sharedEmailOnly = !rowMatches.length && emailMatches.length > 0 ? emailMatches[0] : null;
+
     const exact = rowMatches.find((match) => {
       const m = identityKey(match.email, match.phone);
       return Boolean(identity.email && identity.phone && m.email === identity.email && m.phone === identity.phone);
@@ -219,12 +264,17 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
     const identityState = exact ? "EXISTING_CLIENT" : rowMatches.length ? "POSSIBLE_DUPLICATE" : "NEW";
     const result = item.error ? "INVALID" : rowMatches.length ? "DUPLICATE" : "VALID";
     const first = exact ?? rowMatches[0] ?? null;
+    const message = item.error
+      ?? (first ? `Existing client ${first.ref} matches imported identity` : null)
+      ?? (sharedEmailOnly ? `Email already used by ${sharedEmailOnly.ref}; a different applicant may share it` : null);
     return {
       row: item.index + 2,
       result,
       identity: identityState,
       ...item.summary,
-      message: item.error ?? (first ? `Existing client ${first.ref} matches imported identity` : null),
+      message,
+      // A shared email is not a conflict, so it records no existing client:
+      // staging must not raise an identity conflict against a different person.
       existing_client_id: first?.id ?? null,
       existing_client_ref: first?.ref ?? null,
       raw: item.raw,
