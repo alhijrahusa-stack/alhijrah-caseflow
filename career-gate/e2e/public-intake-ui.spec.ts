@@ -295,6 +295,28 @@ test.describe("Career Gate public intake presentation system", () => {
     await expect(page.locator("#ocrStatus")).toContainText("هذا ليس تحققاً من الهوية");
   });
 
+  test("OCR API rejects mismatched document bytes and catalog exposes only sourced openings", async ({ request }) => {
+    const bad = await request.post("/api/application/extract", {
+      multipart: {
+        ocr_consent: "yes",
+        document_type: "state_id",
+        file: { name: "bad.png", mimeType: "image/png", buffer: Buffer.from("not an image") }
+      },
+      headers: { "x-forwarded-for": uniqueIp() }
+    });
+    expect(bad.status()).toBe(415);
+    expect((await bad.json()).error.code).toBe("invalid_file_content");
+    const options = await request.get("/api/application/options");
+    expect(options.status()).toBe(200);
+    const feed = await options.json();
+    expect(feed.verified_available_count).toBe(feed.openings.length);
+    for (const option of feed.openings) {
+      expect(option.source_url).toMatch(/^https:\/\//);
+      expect(option.site_code).toBeTruthy();
+      expect(option.shift_code).toBeTruthy();
+    }
+  });
+
   test("narrow mobile has no horizontal overflow and exposes accessible progress/language controls", async ({ browser, baseURL }) => {
     const context = await browser.newContext({ baseURL, viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
     const page = await context.newPage();
