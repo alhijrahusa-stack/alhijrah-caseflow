@@ -72,6 +72,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const [extracting, setExtracting] = useState(false);
   const [extractionNotice, setExtractionNotice] = useState<string | null>(null);
   const [importedFields, setImportedFields] = useState<ClientEditableField[]>([]);
+  const [providerReviewFields, setProviderReviewFields] = useState<ClientEditableField[]>([]);
   const [caseNumber, setCaseNumber] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [touchedDocuments, setTouchedDocuments] = useState(false);
@@ -222,9 +223,16 @@ export function ClientIntakeForm({ token }: { token: string }) {
       const keys = Object.keys(fields).filter((field): field is ClientEditableField =>
         (CLIENT_EDITABLE_FIELDS as readonly string[]).includes(field),
       );
+      const reviewKeys = (Array.isArray(data.review_fields) ? data.review_fields : []).filter(
+        (field: unknown): field is ClientEditableField =>
+          typeof field === "string" && (CLIENT_EDITABLE_FIELDS as readonly string[]).includes(field),
+      );
       setEdits((current) => ({ ...fields, ...current }));
       setImportedFields(keys);
-      setExtractionNotice(keys.length ? t.importedSuccess : t.noDataImported);
+      setProviderReviewFields(reviewKeys);
+      setExtractionNotice(
+        reviewKeys.length ? t.importedNeedsReview : keys.length ? t.importedSuccess : t.noDataImported,
+      );
     } catch {
       setExtractionNotice(t.extractionUnavailable);
     } finally {
@@ -346,17 +354,17 @@ export function ClientIntakeForm({ token }: { token: string }) {
           {caseNumber && (
             <div className="mx-auto mt-5 max-w-sm rounded-2xl border border-[#ff9f1a]/35 bg-gradient-to-b from-[#10294a] to-[#071a31] px-5 py-4 shadow-[0_18px_42px_-28px_rgba(255,132,0,.65)]" data-testid="intake-case-number">
               <p className="text-[12px] font-semibold uppercase tracking-[.12em] text-slate-400">{t.caseNumberLabel}</p>
-              <p className="mt-1 font-mono text-[22px] font-semibold tracking-[.04em] text-[#0a2d63]">{caseNumber}</p>
+              <p className="mt-1 font-mono text-[22px] font-semibold tracking-[.04em] text-[#dbeafe]">{caseNumber}</p>
             </div>
           )}
 
           {sharedEmailWarning && (
             <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-[#2f6fd0]/25 bg-[#0a274c]/80 px-5 py-4 text-center" data-testid="intake-shared-email-success">
-              <p className="text-[15px] font-semibold text-[#0a2d63]">{t.sharedEmailHeading}</p>
+              <p className="text-[15px] font-semibold text-[#dbeafe]">{t.sharedEmailHeading}</p>
               <p className="mt-1.5 text-[13.5px] leading-relaxed text-slate-200">{t.sharedEmailBody}</p>
               <a
                 href={`${OFFICE_EMAIL_URL}?subject=${encodeURIComponent(`Career Gate — New email for ${caseNumber ?? "new case"}`)}&body=${encodeURIComponent(`Case Number: ${caseNumber ?? ""}\nPlease update this file with my new email address:\n`)}`}
-                className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-[#071a31]/88 px-4 text-[14px] font-semibold text-[#194b91]"
+                className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-[#071a31]/88 px-4 text-[14px] font-semibold text-[#bfdbfe]"
               >
                 <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6.5h16v11H4z" /><path d="m5 8 7 5 7-5" /></svg>
                 <span>{t.emailCustomerService} · {OFFICE_EMAIL_DISPLAY}</span>
@@ -442,7 +450,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
           <div
             className={`mt-4 flex items-center gap-3 rounded-2xl border px-4 py-3 text-[14px] shadow-[0_10px_28px_-22px_rgba(10,45,99,.45)] ${
               extracting
-                ? "border-[#2f6fd0]/25 bg-[#0a274c]/80 text-[#194b91]"
+                ? "border-[#2f6fd0]/25 bg-[#0a274c]/80 text-[#bfdbfe]"
                 : "border-[#ff9f1a]/30 bg-[#2a2112]/75 text-[#754300]"
             }`}
             role="status"
@@ -552,8 +560,12 @@ export function ClientIntakeForm({ token }: { token: string }) {
                         <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-slate-300">
                           <span>{t.fields[field]}</span>
                           {importedFields.includes(field) && (
-                            <span className="rounded-full border border-[#ff9f1a]/30 bg-[#34240f]/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.08em] text-[#9a5a00]">
-                              {t.importedField}
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.08em] ${
+                              providerReviewFields.includes(field)
+                                ? "border-amber-300/35 bg-amber-300/[.08] text-amber-100"
+                                : "border-[#ff9f1a]/30 bg-[#34240f]/80 text-[#ffd18a]"
+                            }`}>
+                              {providerReviewFields.includes(field) ? t.needsReviewField : t.importedField}
                             </span>
                           )}
                         </span>
@@ -575,8 +587,10 @@ export function ClientIntakeForm({ token }: { token: string }) {
                           className={`min-h-[48px] w-full rounded-xl border bg-[#071a31]/88 px-3.5 text-[16px] text-slate-100 focus:outline-none focus:ring-4 ${
                             problem
                               ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
-                              : importedFields.includes(field)
-                                ? "border-[#ff9f1a]/55 bg-[#0b203a]/90 focus:border-[#ff8a00] focus:ring-[#ff9f1a]/15"
+                              : providerReviewFields.includes(field)
+                                ? "border-amber-300/50 bg-amber-300/[.04] focus:border-amber-300 focus:ring-amber-300/15"
+                                : importedFields.includes(field)
+                                  ? "border-[#ff9f1a]/55 bg-[#0b203a]/90 focus:border-[#ff8a00] focus:ring-[#ff9f1a]/15"
                                 : "border-white/15 focus:border-[#2f6fd0] focus:ring-[#2f6fd0]/15"
                           }`}
                         />
@@ -600,17 +614,17 @@ export function ClientIntakeForm({ token }: { token: string }) {
       <div className="mt-6">
         <p className="text-center text-[13px] leading-relaxed text-slate-400">{t.submitHelper}</p>
         {checkingDuplicate && (
-          <p className="mt-3 rounded-2xl border border-[#2f6fd0]/20 bg-[#0a274c]/80 px-4 py-3 text-center text-[14px] text-[#194b91]" role="status" data-testid="intake-duplicate-checking">
+          <p className="mt-3 rounded-2xl border border-[#2f6fd0]/20 bg-[#0a274c]/80 px-4 py-3 text-center text-[14px] text-[#bfdbfe]" role="status" data-testid="intake-duplicate-checking">
             {t.checkingDuplicate}
           </p>
         )}
         {sharedEmailWarning && !duplicateIdentity && (
           <div className="mt-3 rounded-2xl border border-[#2f6fd0]/25 bg-[#0a274c]/80 px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(47,111,208,.55)]" role="status" data-testid="intake-shared-email-alert">
-            <p className="text-[16px] font-semibold text-[#0a2d63]">{t.sharedEmailHeading}</p>
+            <p className="text-[16px] font-semibold text-[#dbeafe]">{t.sharedEmailHeading}</p>
             <p className="mx-auto mt-1.5 max-w-[48ch] text-[13.5px] leading-relaxed text-slate-200">{t.sharedEmailBody}</p>
             <a
               href={OFFICE_EMAIL_URL}
-              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-[#071a31]/88 px-4 text-[14px] font-semibold text-[#194b91] shadow-[0_10px_24px_-18px_rgba(47,111,208,.55)]"
+              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-[#071a31]/88 px-4 text-[14px] font-semibold text-[#bfdbfe] shadow-[0_10px_24px_-18px_rgba(47,111,208,.55)]"
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6.5h16v11H4z" /><path d="m5 8 7 5 7-5" /></svg>
               <span>{t.emailCustomerService} · {OFFICE_EMAIL_DISPLAY}</span>
@@ -619,7 +633,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
         )}
         {duplicateIdentity && (
           <div className="mt-3 rounded-2xl border border-[#ff9f1a]/35 bg-[#2a2112]/75 px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(255,132,0,.6)]" role="alert" data-testid="intake-duplicate-alert">
-            <p className="text-[16px] font-semibold text-[#0a2d63]">{t.duplicateHeading}</p>
+            <p className="text-[16px] font-semibold text-[#dbeafe]">{t.duplicateHeading}</p>
             <p className="mx-auto mt-1.5 max-w-[46ch] text-[13.5px] leading-relaxed text-slate-200">{t.duplicateBody}</p>
             <a
               href={OFFICE_WHATSAPP_URL}
