@@ -2,6 +2,7 @@ import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { ActionError } from "@/lib/service";
 import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
+import { findPublicDuplicate } from "@/lib/public-intake-duplicate";
 import {
   CLIENT_EDITABLE_FIELDS,
   claimIntakeLink,
@@ -66,7 +67,26 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
     // The client's corrections are written as canonical labelled lines ahead of
     // the text they typed, so an edit wins over what was detected in the free
     // text while the existing parser stays authoritative for everything else.
-    const notes = composeIntakeSource(sourceText, readEdits(form));
+    const edits = readEdits(form);
+    const caseNumber = String(form.get("case_number") ?? "").trim().toUpperCase();
+    const duplicate = await findPublicDuplicate({
+      email: edits.email,
+      caseNumber: /^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber) ? caseNumber : null,
+      fullName: edits.full_name,
+      dateOfBirth: edits.date_of_birth,
+      phone: edits.phone,
+    });
+    if (duplicate.exists) {
+      await releaseIntakeLink(link.id);
+      return err(
+        "duplicate_application",
+        "An existing application matches this applicant or case number. Please contact Customer Service on WhatsApp.",
+        409,
+        traceId,
+      );
+    }
+
+    const notes = composeIntakeSource(sourceText, edits);
 
     const result = await stageMobileImportV2({
       session: link.issuer,
@@ -82,8 +102,12 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
       return err("link_not_closed", "Your information was received but the link could not be closed. Please contact the office.", 409, traceId);
     }
 
-    // Nothing internal is returned: no case id, no batch id, no staff identity.
-    return ok({ received: true }, 201, traceId);
+    // Return only the client-safe public reference. Internal UUIDs and staff identity stay private.
+    return ok({
+      received: true,
+      case_number: result.public_ref,
+      shared_email_warning: duplicate.sharedEmail,
+    }, 201, traceId);
   } catch (error) {
     // The submission failed, so the link goes back to ACTIVE and the client may
     // try again while it has not expired.

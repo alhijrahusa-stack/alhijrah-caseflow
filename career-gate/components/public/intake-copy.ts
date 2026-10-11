@@ -14,6 +14,9 @@ export type IntakeLocale = "ar" | "en";
 /** The office WhatsApp number from the existing office configuration. */
 export const OFFICE_WHATSAPP_DIGITS = OFFICE.whatsapp.replace(/\D/g, "");
 export const OFFICE_WHATSAPP_URL = `https://wa.me/1${OFFICE_WHATSAPP_DIGITS}`;
+export const OFFICE_WHATSAPP_DISPLAY = OFFICE.whatsapp;
+export const OFFICE_EMAIL_DISPLAY = OFFICE.email;
+export const OFFICE_EMAIL_URL = `mailto:${OFFICE.email}`;
 
 /** The existing client-safe status destination. */
 export const CASE_STATUS_PATH = "/status";
@@ -39,6 +42,8 @@ export const INTAKE_COPY = {
     guideSuccess: "تم استلام معلوماتك بنجاح. يمكنك الآن متابعة حالة الملف أو التواصل مع المكتب.",
 
     sourceHeading: "أدخل بياناتك هنا",
+    existingCaseLabel: "رقم الملف السابق — إن وجد",
+    existingCasePlaceholder: "CG-2026-000001",
     sourceHelper: "أدخل أو الصق معلوماتك كما هي، وسيقوم النظام بقراءتها وتنظيمها تلقائيًا.",
     sourcePlaceholder: "الاسم الكامل\nرقم الهاتف\nالبريد الإلكتروني\nتاريخ الميلاد\nالعنوان، المدينة، الولاية، الرمز البريدي",
 
@@ -55,6 +60,11 @@ export const INTAKE_COPY = {
     chooseFiles: "اختيار ملفات",
     takePhoto: "تصوير الوثائق",
     uploadFormats: "PDF أو JPG أو PNG أو WEBP · حتى 10 ملفات · 10 ميجابايت لكل ملف",
+    extractingDocument: "جارٍ قراءة الوثيقة واستخراج البيانات…",
+    importedSuccess: "تم سحب البيانات من الوثيقة وتعبئة الحقول المتاحة. راجعها وأكمل الناقص.",
+    extractionUnavailable: "تعذر قراءة الوثيقة تلقائيًا. يمكنك متابعة الطلب وإكمال البيانات يدويًا.",
+    noDataImported: "تمت قراءة الوثيقة، ولم نجد بيانات يمكن تعبئتها تلقائيًا. أكمل الحقول يدويًا.",
+    importedField: "من الوثيقة",
     filesHeading: "الوثائق المرفوعة",
     remove: "إزالة",
     replace: "استبدال",
@@ -69,6 +79,7 @@ export const INTAKE_COPY = {
     successGuidance: "يمكنك متابعة حالة الملف من خلال زر حالة الملف.",
     successClosed: "تم إغلاق هذا الرابط بعد استخدامه بنجاح",
     caseStatus: "حالة الملف",
+    caseNumberLabel: "رقم الملف",
     whatsappOffice: "واتساب المكتب",
 
     closedHeading: "هذا الرابط مغلق",
@@ -82,6 +93,12 @@ export const INTAKE_COPY = {
     totalTooLarge: "إجمالي حجم الملفات أكبر من الحد المسموح (25 ميجابايت).",
     unsupported: "نوع الملف غير مدعوم. المدعوم: PDF و JPG و PNG و WEBP.",
     genericError: "تعذر الإرسال. حاول مرة أخرى. بياناتك محفوظة.",
+    duplicateHeading: "هذا الملف قُدِّم مسبقًا",
+    duplicateBody: "يوجد ملف سابق مطابق للبريد الإلكتروني أو رقم الملف. لا تُنشئ طلبًا جديدًا. تواصل مع خدمة العملاء على واتساب.",
+    checkingDuplicate: "جارٍ التحقق من البريد الإلكتروني ورقم الملف…",
+    sharedEmailHeading: "ملاحظة مهمة عن البريد الإلكتروني",
+    sharedEmailBody: "هذا البريد مستخدم مع ملف آخر، لكن بيانات هذا الشخص مختلفة لذلك يمكن متابعة الطلب. أرسل إلى خدمة العملاء بريدًا إلكترونيًا جديدًا لهذا الملف ليتم ربطه برقم الملف الجديد.",
+    emailCustomerService: "إرسال بريد إلى خدمة العملاء",
     invalidPhone: "أدخل رقم هاتف أمريكي صحيح من عشر أرقام.",
     invalidEmail: "أدخل بريدًا إلكترونيًا صحيحًا.",
     invalidZip: "أدخل رمزًا بريديًا صحيحًا.",
@@ -120,6 +137,8 @@ export const INTAKE_COPY = {
     guideSuccess: "Your information was received. You can now track your case or contact the office.",
 
     sourceHeading: "Enter your information here",
+    existingCaseLabel: "Existing Case Number — if you have one",
+    existingCasePlaceholder: "CG-2026-000001",
     sourceHelper: "Enter or paste your information and the system will organize it automatically.",
     sourcePlaceholder: "Full name\nPhone number\nEmail address\nDate of birth\nStreet, city, state, ZIP",
 
@@ -136,6 +155,11 @@ export const INTAKE_COPY = {
     chooseFiles: "Choose files",
     takePhoto: "Take a photo",
     uploadFormats: "PDF, JPG, PNG or WEBP · up to 10 files · 10 MB each",
+    extractingDocument: "Reading your document and importing information…",
+    importedSuccess: "Document data imported. Review the filled fields and complete anything missing.",
+    extractionUnavailable: "We could not read the document automatically. You can continue and enter the missing information manually.",
+    noDataImported: "The document was read, but no fields could be filled automatically. Complete the information manually.",
+    importedField: "From document",
     filesHeading: "Uploaded documents",
     remove: "Remove",
     replace: "Replace",
@@ -150,6 +174,7 @@ export const INTAKE_COPY = {
     successGuidance: "You can follow your case using the Case Status button.",
     successClosed: "This link has been closed after successful use.",
     caseStatus: "Case Status",
+    caseNumberLabel: "Case Number",
     whatsappOffice: "WhatsApp Office",
 
     closedHeading: "This link is closed",
@@ -163,6 +188,12 @@ export const INTAKE_COPY = {
     totalTooLarge: "The files total more than the 25 MB limit.",
     unsupported: "That file type is not supported. Supported: PDF, JPG, PNG, WEBP.",
     genericError: "Your information could not be submitted. Please try again — nothing you entered was lost.",
+    duplicateHeading: "This application was already submitted",
+    duplicateBody: "An existing file matches this email address or case number. Do not create another application. Contact Customer Service on WhatsApp.",
+    checkingDuplicate: "Checking email and case number…",
+    sharedEmailHeading: "Important email note",
+    sharedEmailBody: "This email is already used on another file, but this applicant is different, so you may continue. Send Customer Service a new email address for this file so it can be linked to the new case number.",
+    emailCustomerService: "Email Customer Service",
     invalidPhone: "Enter a valid 10-digit US phone number.",
     invalidEmail: "Enter a valid email address.",
     invalidZip: "Enter a valid ZIP code.",

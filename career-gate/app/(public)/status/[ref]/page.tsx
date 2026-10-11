@@ -3,8 +3,8 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { PublicStatusView } from "@/components/PublicStatusView";
 import { StatusPoller } from "@/components/StatusPoller";
-import { publicStatus } from "@/lib/public-status";
-import { sessionClient, STATUS_COOKIE } from "@/lib/status-access";
+import { publicImportStatus, publicStatus } from "@/lib/public-status";
+import { sessionStatusSubject, STATUS_COOKIE } from "@/lib/status-access";
 
 export const metadata: Metadata = { title: "Application status", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -13,9 +13,9 @@ export default async function StatusPage({ params }: { params: Promise<{ ref: st
   const { ref } = await params;
   const r = decodeURIComponent(ref).trim().toUpperCase();
   const token = (await cookies()).get(STATUS_COOKIE)?.value;
-  const clientId = await sessionClient(r, token);
+  const subject = await sessionStatusSubject(r, token);
 
-  if (!clientId) {
+  if (!subject) {
     return (
       <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-6" data-testid="status-auth-required">
         <h1 className="text-xl font-semibold">Verification required</h1>
@@ -25,7 +25,7 @@ export default async function StatusPage({ params }: { params: Promise<{ ref: st
     );
   }
 
-  const s = await publicStatus(clientId);
+  const s = subject.clientId ? await publicStatus(subject.clientId) : subject.importCaseId ? await publicImportStatus(subject.importCaseId) : null;
   if (!s) {
     return (
       <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-6" data-testid="status-not-found">

@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { StaffSession } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import type { IntakeRow } from "@/lib/intake-file";
-import { ActionError } from "@/lib/service";
+import { ActionError, normalizeClientEmail } from "@/lib/service";
 import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
@@ -238,13 +238,53 @@ export async function stageMobileImportV2(args: {
     const [existing] = await tx`select id from client_import_batches where created_by=${args.session.staff.id} and idempotency_key=${key}`;
     if (existing) {
       const [caseRow] = await tx`
-        select id,status,created_at,mapped_draft,verification_result
+        select id,status,public_ref,created_at,mapped_draft,verification_result
         from client_import_cases where batch_id=${existing.id} order by created_at limit 1`;
       return {
-        batchId: String(existing.id), caseId: String(caseRow.id), idempotent: true,
+        batchId: String(existing.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: true,
         createdAt: String(caseRow.created_at), mappedDraft: caseRow.mapped_draft, verificationResult: caseRow.verification_result,
       };
     }
+
+    const publicProfile = preDraft.profile as {
+      full_name?: string | null;
+      phone?: string | null;
+      email?: string | null;
+      date_of_birth?: string | null;
+    };
+    const publicEmail = normalizeClientEmail(publicProfile.email);
+    if (publicEmail && key.startsWith("client-link:")) {
+      const publicName = publicProfile.full_name?.trim().toLowerCase().replace(/\s+/g, " ") || null;
+      const publicPhone = publicProfile.phone?.replace(/\D/g, "") || null;
+      const publicDob = publicProfile.date_of_birth?.trim() || null;
+      await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-public-email:${publicEmail}`}, 0))`;
+      const [duplicate] = await tx`
+        select ref from clients
+        where deleted_at is null
+          and lower(trim(coalesce(email,'')))=${publicEmail}
+          and (
+            (${publicName}::text is not null and lower(regexp_replace(trim(coalesce(full_name,'')),'\\s+',' ','g'))=${publicName})
+            or (${publicDob}::text is not null and date_of_birth::text=${publicDob})
+            or (${publicPhone}::text is not null and regexp_replace(coalesce(phone,''),'\\D','','g')=${publicPhone})
+          )
+        union all
+        select public_ref as ref from client_import_cases
+        where lower(trim(coalesce(mapped_draft #>> '{profile,email}','')))=${publicEmail}
+          and (
+            (${publicName}::text is not null and lower(regexp_replace(trim(coalesce(mapped_draft #>> '{profile,full_name}','')),'\\s+',' ','g'))=${publicName})
+            or (${publicDob}::text is not null and coalesce(mapped_draft #>> '{profile,date_of_birth}','')=${publicDob})
+            or (${publicPhone}::text is not null and regexp_replace(coalesce(mapped_draft #>> '{profile,phone}',''),'\\D','','g')=${publicPhone})
+          )
+        limit 1`;
+      if (duplicate) {
+        throw new ActionError(
+          "duplicate_application",
+          "An existing application matches this applicant. Please contact Customer Service on WhatsApp.",
+          409,
+        );
+      }
+    }
+
     const [batch] = await tx`
       insert into client_import_batches(source_type,source_file_hash,idempotency_key,created_by,metadata)
       values('mobile',${sourceHash({ notes, files: fileData.map((entry) => ({ name: entry.file.name, sha256: entry.sha256 })) })},${key},${args.session.staff.id},
@@ -254,9 +294,9 @@ export async function stageMobileImportV2(args: {
       values(${batch.id},'mobile','PENDING',${tx.json({ notes } as never)},${tx.json(preDraft as never)},${tx.json(preMissing as never)},
         ${tx.json(preMerge.conflicts as never)},${tx.json(preMerge.evidence as never)},
         ${tx.json({ processing_state: "CAPTURED", local_state: "COMPLETE", ai_state: args.files.length ? "PENDING" : "SKIPPED", extraction_errors: [], evidence_fields: preMerge.evidence.length } as never)},${args.session.staff.id})
-      returning id,created_at,mapped_draft,verification_result`;
+      returning id,public_ref,created_at,mapped_draft,verification_result`;
     return {
-      batchId: String(batch.id), caseId: String(caseRow.id), idempotent: false,
+      batchId: String(batch.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: false,
       createdAt: String(caseRow.created_at), mappedDraft: caseRow.mapped_draft, verificationResult: caseRow.verification_result,
     };
   });
@@ -302,6 +342,7 @@ export async function stageMobileImportV2(args: {
     batch_id: created.batchId,
     case_id: created.caseId,
     idempotent: created.idempotent,
+    public_ref: created.publicRef,
     created_at: created.createdAt,
     uploaded_by: args.session.staff.id,
     uploaded_by_name: args.session.staff.display_name,

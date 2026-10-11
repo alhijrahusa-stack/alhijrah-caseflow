@@ -72,6 +72,8 @@ export type NewClientInput = {
   assignedStaff: string | null;
   createdBy: string | null;
   communicationConsent: boolean;
+  /** Stable public case reference reserved before canonical client creation. */
+  ref?: string | null;
 };
 
 export type ClientIdentityMatch = {
@@ -106,23 +108,40 @@ export async function findClientIdentityMatches(
   tx: Tx,
   emailInput: string | null | undefined,
   phoneInput: string | null | undefined,
-  opts: { lock?: boolean; forUpdate?: boolean } = {},
+  opts: {
+    lock?: boolean;
+    forUpdate?: boolean;
+    fullName?: string | null;
+    dateOfBirth?: string | null;
+  } = {},
 ): Promise<ClientIdentityMatch[]> {
   const identity = opts.lock
     ? await lockClientIdentity(tx, emailInput, phoneInput)
     : { email: normalizeClientEmail(emailInput), phone: normalizeClientPhone(phoneInput) };
   if (!identity.email && !identity.phone) return [];
 
+  const fullName = opts.fullName?.trim().toLowerCase().replace(/\s+/g, " ") || null;
+  const dateOfBirth = opts.dateOfBirth?.trim() || null;
   const lockClause = opts.forUpdate ? " for update" : "";
   const rows = await tx.unsafe(
     `select c.id,c.ref,c.created_at,c.pipeline_stage,c.assigned_staff,s.display_name as owner
        from clients c
        left join staff s on s.id=c.assigned_staff
       where c.deleted_at is null
-        and (($1::text is not null and lower(trim(coalesce(c.email,'')))=$1)
-          or ($2::text is not null and regexp_replace(coalesce(c.phone,''),'\\D','','g')=$2))
+        and (
+          ($2::text is not null and regexp_replace(coalesce(c.phone,''),'\\D','','g')=$2)
+          or (
+            $1::text is not null
+            and lower(trim(coalesce(c.email,'')))=$1
+            and (
+              ($3::text is not null and lower(regexp_replace(trim(coalesce(c.full_name,'')),'\\s+',' ','g'))=$3)
+              or ($4::text is not null and c.date_of_birth::text=$4)
+              or ($2::text is not null and regexp_replace(coalesce(c.phone,''),'\\D','','g')=$2)
+            )
+          )
+        )
       order by c.created_at${lockClause}`,
-    [identity.email, identity.phone],
+    [identity.email, identity.phone, fullName, dateOfBirth],
   );
   return rows as unknown as ClientIdentityMatch[];
 }
@@ -133,7 +152,11 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
   if (!prefs.ok) throw new ActionError("invalid_preferences", prefs.error);
 
   const p = input.profile;
-  const duplicate = (await findClientIdentityMatches(tx, p.email, p.phone, { lock: true }))[0] ?? null;
+  const duplicate = (await findClientIdentityMatches(tx, p.email, p.phone, {
+    lock: true,
+    fullName: p.full_name,
+    dateOfBirth: p.date_of_birth,
+  }))[0] ?? null;
   if (duplicate) {
     if (actor.staffId) {
       throw new ActionError(
@@ -151,7 +174,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
 
   const [client] = await tx`
     insert into clients (
-      source, full_name, phone, email, date_of_birth, preferred_language, english_proficiency,
+      ref, source, full_name, phone, email, date_of_birth, preferred_language, english_proficiency,
       street, city, state, zip,
       preferred_location, location_option_1, location_option_2, shift_days, shift_start_time, shift_end_time,
       appointment_availability,
@@ -159,7 +182,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
       amazon_applied_before, amazon_application_email, currently_amazon, via_agency,
       communication_consent, current_status, next_step, assigned_staff, created_by
     ) values (
-      ${input.source}, ${p.full_name}, ${p.phone}, ${p.email}, ${p.date_of_birth},
+      coalesce(${input.ref ?? null}, next_client_ref()), ${input.source}, ${p.full_name}, ${p.phone}, ${p.email}, ${p.date_of_birth},
       ${p.preferred_language}, ${p.english_proficiency}, ${p.street}, ${p.city}, ${p.state}, ${p.zip},
       ${input.reviewFields?.preferred_location ?? null}, ${input.reviewFields?.location_option_1 ?? null}, ${input.reviewFields?.location_option_2 ?? null},
       ${input.reviewFields?.shift_days ?? null}, ${input.reviewFields?.shift_start_time ?? null}, ${input.reviewFields?.shift_end_time ?? null},

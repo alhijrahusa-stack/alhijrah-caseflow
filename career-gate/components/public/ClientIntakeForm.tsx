@@ -5,6 +5,9 @@ import { ClientIntakeBrand, ClientIntakeShell, GlassCard } from "@/components/pu
 import {
   CASE_STATUS_PATH,
   INTAKE_COPY,
+  OFFICE_EMAIL_DISPLAY,
+  OFFICE_EMAIL_URL,
+  OFFICE_WHATSAPP_DISPLAY,
   OFFICE_WHATSAPP_URL,
   type IntakeLocale,
 } from "@/components/public/intake-copy";
@@ -60,7 +63,15 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const [edits, setEdits] = useState<Detected>({});
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [existingCaseNumber, setExistingCaseNumber] = useState("");
+  const [duplicateIdentity, setDuplicateIdentity] = useState(false);
+  const [sharedEmailWarning, setSharedEmailWarning] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractionNotice, setExtractionNotice] = useState<string | null>(null);
+  const [importedFields, setImportedFields] = useState<ClientEditableField[]>([]);
+  const [caseNumber, setCaseNumber] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [touchedDocuments, setTouchedDocuments] = useState(false);
   const inFlight = useRef(false);
@@ -102,9 +113,51 @@ export function ClientIntakeForm({ token }: { token: string }) {
     return out;
   }, [effective, t]);
 
+  useEffect(() => {
+    const email = (effective.email ?? "").trim().toLowerCase();
+    const caseNumber = existingCaseNumber.trim().toUpperCase();
+    const validEmail = email && !validateIntakeField("email", email, t) ? email : "";
+    const validCase = /^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber) ? caseNumber : "";
+    if (!validEmail && !validCase) return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setCheckingDuplicate(true);
+      try {
+        const res = await fetch(`/api/public/client-intake/${encodeURIComponent(token)}/duplicate`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: validEmail || undefined,
+            caseNumber: validCase || undefined,
+            fullName: effective.full_name || undefined,
+            dateOfBirth: effective.date_of_birth || undefined,
+            phone: effective.phone || undefined,
+          }),
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.ok) {
+          setDuplicateIdentity(data.duplicate === true);
+          setSharedEmailWarning(data.shared_email === true);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setDuplicateIdentity(false);
+          setSharedEmailWarning(false);
+        }
+      } finally {
+        if (!controller.signal.aborted) setCheckingDuplicate(false);
+      }
+    }, 450);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [effective.email, effective.full_name, effective.date_of_birth, effective.phone, existingCaseNumber, t, token]);
+
   const started = Boolean(sourceText.trim());
   const hasAnything = started || attachments.length > 0;
-  const blocked = Object.keys(fieldErrors).length > 0;
+  const blocked = Object.keys(fieldErrors).length > 0 || duplicateIdentity;
 
   /**
    * Once the client has entered anything, every reviewed field is shown — the
@@ -112,7 +165,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
    * leave a field the extraction missed invisible and impossible to supply,
    * which defeats the point of letting the client correct their own details.
    */
-  const showReview = started || Object.keys(edits).length > 0;
+  const showReview = started || Object.keys(edits).length > 0 || importedFields.length > 0;
   const visible = useMemo(
     () => new Set<ClientEditableField>(showReview ? CLIENT_EDITABLE_FIELDS : []),
     [showReview],
@@ -128,6 +181,33 @@ export function ClientIntakeForm({ token }: { token: string }) {
         : started
           ? "documents"
           : "welcome";
+
+  async function extractFromDocuments(next: Attachment[]) {
+    if (!next.length) return;
+    setExtracting(true);
+    setExtractionNotice(t.extractingDocument);
+    try {
+      const form = new FormData();
+      for (const item of next) form.append("files", item.file);
+      const res = await fetch(`/api/public/client-intake/${encodeURIComponent(token)}/extract`, { method: "POST", body: form });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        setExtractionNotice(typeof data?.error?.message === "string" ? data.error.message : t.extractionUnavailable);
+        return;
+      }
+      const fields = (data.fields && typeof data.fields === "object" ? data.fields : {}) as Detected;
+      const keys = Object.keys(fields).filter((field): field is ClientEditableField =>
+        (CLIENT_EDITABLE_FIELDS as readonly string[]).includes(field),
+      );
+      setEdits((current) => ({ ...fields, ...current }));
+      setImportedFields(keys);
+      setExtractionNotice(keys.length ? t.importedSuccess : t.noDataImported);
+    } catch {
+      setExtractionNotice(t.extractionUnavailable);
+    } finally {
+      setExtracting(false);
+    }
+  }
 
   function admit(incoming: FileList | null) {
     if (!incoming?.length) return;
@@ -147,6 +227,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
       return;
     }
     setAttachments(next);
+    void extractFromDocuments(next);
   }
 
   function remove(id: string) {
@@ -165,13 +246,13 @@ export function ClientIntakeForm({ token }: { token: string }) {
     if (!ACCEPTED_MIME.includes(file.type)) { setError(t.unsupported); return; }
     if (file.size > SMART_IMPORT_LIMITS.maxFileBytes) { setError(t.fileTooLarge); return; }
     setError(null);
-    setAttachments((current) =>
-      current.map((item) => {
-        if (item.id !== target) return item;
-        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-        return attach(file);
-      }),
-    );
+    const next = attachments.map((item) => {
+      if (item.id !== target) return item;
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return attach(file);
+    });
+    setAttachments(next);
+    void extractFromDocuments(next);
   }
 
   async function submit() {
@@ -189,15 +270,23 @@ export function ClientIntakeForm({ token }: { token: string }) {
         if (value) form.set(`field_${field}`, value);
       }
       for (const item of attachments) form.append("files", item.file);
+      if (existingCaseNumber.trim()) form.set("case_number", existingCaseNumber.trim().toUpperCase());
 
       const res = await fetch(`/api/public/client-intake/${encodeURIComponent(token)}`, { method: "POST", body: form });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
+        if (data?.error?.code === "duplicate_application") {
+          setDuplicateIdentity(true);
+          setError(null);
+          return;
+        }
         // Nothing the client entered is cleared: the exact reason is shown and
         // they can correct and retry.
         setError(typeof data?.error?.message === "string" ? data.error.message : t.genericError);
         return;
       }
+      setCaseNumber(typeof data.case_number === "string" ? data.case_number : null);
+      setSharedEmailWarning(data.shared_email_warning === true);
       setDone(true);
     } catch {
       setError(t.genericError);
@@ -225,10 +314,30 @@ export function ClientIntakeForm({ token }: { token: string }) {
           <h1 className="mt-5 text-[23px] font-semibold tracking-tight text-slate-900 sm:text-[27px]">{t.successHeading}</h1>
           <p className="mx-auto mt-3 max-w-[48ch] text-[15px] leading-relaxed text-slate-600">{t.successBody}</p>
           <p className="mx-auto mt-2 max-w-[48ch] text-[14px] leading-relaxed text-slate-500">{t.successGuidance}</p>
+          {caseNumber && (
+            <div className="mx-auto mt-5 max-w-sm rounded-2xl border border-[#ff9f1a]/35 bg-gradient-to-b from-[#fff8eb] to-white px-5 py-4 shadow-[0_18px_42px_-28px_rgba(255,132,0,.65)]" data-testid="intake-case-number">
+              <p className="text-[12px] font-semibold uppercase tracking-[.12em] text-slate-500">{t.caseNumberLabel}</p>
+              <p className="mt-1 font-mono text-[22px] font-semibold tracking-[.04em] text-[#0a2d63]">{caseNumber}</p>
+            </div>
+          )}
+
+          {sharedEmailWarning && (
+            <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-[#2f6fd0]/25 bg-[#eef5ff] px-5 py-4 text-center" data-testid="intake-shared-email-success">
+              <p className="text-[15px] font-semibold text-[#0a2d63]">{t.sharedEmailHeading}</p>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-slate-700">{t.sharedEmailBody}</p>
+              <a
+                href={`${OFFICE_EMAIL_URL}?subject=${encodeURIComponent(`Career Gate — New email for ${caseNumber ?? "new case"}`)}&body=${encodeURIComponent(`Case Number: ${caseNumber ?? ""}\nPlease update this file with my new email address:\n`)}`}
+                className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-white px-4 text-[14px] font-semibold text-[#194b91]"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6.5h16v11H4z" /><path d="m5 8 7 5 7-5" /></svg>
+                <span>{t.emailCustomerService} · {OFFICE_EMAIL_DISPLAY}</span>
+              </a>
+            </div>
+          )}
 
           <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
             <a
-              href={CASE_STATUS_PATH}
+              href={caseNumber ? `${CASE_STATUS_PATH}?ref=${encodeURIComponent(caseNumber)}` : CASE_STATUS_PATH}
               data-testid="intake-case-status"
               className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-[#2f6fd0]/35 bg-[#2f6fd0] px-4 text-[15px] font-semibold text-white shadow-[0_14px_34px_-18px_rgba(47,111,208,.7)] transition-[filter] duration-200 hover:brightness-105 motion-reduce:transition-none"
             >
@@ -265,22 +374,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
         <p className="mt-2 max-w-[56ch] text-[14px] leading-relaxed text-slate-500">{t.lead}</p>
       </div>
 
-      {/* 1 — Enter your information */}
-      <GlassCard className="mt-6" data-testid="intake-source">
-        <h2 className="text-[20px] font-semibold tracking-tight text-slate-900 sm:text-[22px]">{t.sourceHeading}</h2>
-        <p className="mt-2 text-[14px] leading-relaxed text-slate-500">{t.sourceHelper}</p>
-        <textarea
-          value={sourceText}
-          onChange={(event) => setSourceText(event.target.value.slice(0, SMART_IMPORT_LIMITS.maxRawTextLength))}
-          placeholder={t.sourcePlaceholder}
-          rows={9}
-          aria-label={t.sourceHeading}
-          data-testid="intake-source-text"
-          className="mt-4 w-full resize-y rounded-2xl border border-slate-300 bg-white p-4 text-[16px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
-        />
-      </GlassCard>
-
-      {/* 2 — Documents: the focal point of the page */}
+      {/* 1 — Document first: extract and auto-fill */}
       <GlassCard tone="accent" className="mt-5" data-testid="intake-upload">
         <div className="flex items-start gap-3">
           <div aria-hidden="true" className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#d8b96a]/50 bg-white text-[#9c7a2e] shadow-[0_8px_20px_-14px_rgba(184,147,74,.7)]">
@@ -307,6 +401,22 @@ export function ClientIntakeForm({ token }: { token: string }) {
           </label>
         </div>
         <p className="mt-3 text-[12px] text-slate-500">{t.uploadFormats}</p>
+        {(extracting || extractionNotice) && (
+          <div
+            className={`mt-4 flex items-center gap-3 rounded-2xl border px-4 py-3 text-[14px] shadow-[0_10px_28px_-22px_rgba(10,45,99,.45)] ${
+              extracting
+                ? "border-[#2f6fd0]/25 bg-[#eef5ff] text-[#194b91]"
+                : "border-[#ff9f1a]/30 bg-[#fff8eb] text-[#754300]"
+            }`}
+            role="status"
+            data-testid="intake-extraction-status"
+          >
+            <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+              extracting ? "bg-[#2f6fd0] motion-safe:animate-pulse" : "bg-[#ff8a00]"
+            }`} />
+            <span>{extracting ? t.extractingDocument : extractionNotice}</span>
+          </div>
+        )}
 
         {/* One hidden input serves every Replace action. */}
         <input ref={replaceInput} type="file" accept={ACCEPT_ATTR} className="sr-only" aria-hidden="true" tabIndex={-1} onChange={(event) => { replace(event.target.files); event.target.value = ""; }} />
@@ -349,6 +459,36 @@ export function ClientIntakeForm({ token }: { token: string }) {
         )}
       </GlassCard>
 
+      {/* 2 — Complete anything the document did not provide */}
+      <GlassCard className="mt-6" data-testid="intake-source">
+        <h2 className="text-[20px] font-semibold tracking-tight text-slate-900 sm:text-[22px]">{t.sourceHeading}</h2>
+        <p className="mt-2 text-[14px] leading-relaxed text-slate-500">{t.sourceHelper}</p>
+        <label className="mt-4 grid gap-1.5">
+          <span className="text-[13px] font-medium text-slate-600">{t.existingCaseLabel}</span>
+          <input
+            value={existingCaseNumber}
+            onChange={(event) => {
+              setExistingCaseNumber(event.target.value.toUpperCase().slice(0, 20));
+              setDuplicateIdentity(false);
+              setSharedEmailWarning(false);
+            }}
+            placeholder={t.existingCasePlaceholder}
+            autoComplete="off"
+            data-testid="intake-existing-case-number"
+            className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3.5 font-mono text-[16px] tracking-[.03em] text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
+          />
+        </label>
+        <textarea
+          value={sourceText}
+          onChange={(event) => setSourceText(event.target.value.slice(0, SMART_IMPORT_LIMITS.maxRawTextLength))}
+          placeholder={t.sourcePlaceholder}
+          rows={9}
+          aria-label={t.sourceHeading}
+          data-testid="intake-source-text"
+          className="mt-4 w-full resize-y rounded-2xl border border-slate-300 bg-white p-4 text-[16px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
+        />
+      </GlassCard>
+
       {/* 3 — Review what was understood */}
       <GlassCard className="mt-5" data-testid="intake-detected">
         <h2 className="text-[19px] font-semibold tracking-tight text-slate-900 sm:text-[21px]">{t.detectedHeading}</h2>
@@ -372,10 +512,23 @@ export function ClientIntakeForm({ token }: { token: string }) {
                     const input = FIELD_INPUT[field];
                     return (
                       <label key={field} className="grid gap-1.5" data-field={field}>
-                        <span className="text-[13px] font-medium text-slate-600">{t.fields[field]}</span>
+                        <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-slate-600">
+                          <span>{t.fields[field]}</span>
+                          {importedFields.includes(field) && (
+                            <span className="rounded-full border border-[#ff9f1a]/30 bg-[#fff4df] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.08em] text-[#9a5a00]">
+                              {t.importedField}
+                            </span>
+                          )}
+                        </span>
                         <input
                           value={effective[field] ?? ""}
-                          onChange={(event) => setEdits((current) => ({ ...current, [field]: event.target.value.slice(0, 200) }))}
+                          onChange={(event) => {
+                            setEdits((current) => ({ ...current, [field]: event.target.value.slice(0, 200) }));
+                            if (field === "email" || field === "full_name" || field === "date_of_birth" || field === "phone") {
+                              setDuplicateIdentity(false);
+                              setSharedEmailWarning(false);
+                            }
+                          }}
                           type={input.type ?? "text"}
                           inputMode={input.inputMode}
                           autoComplete={input.autoComplete}
@@ -385,7 +538,9 @@ export function ClientIntakeForm({ token }: { token: string }) {
                           className={`min-h-[48px] w-full rounded-xl border bg-white px-3.5 text-[16px] text-slate-800 focus:outline-none focus:ring-4 ${
                             problem
                               ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
-                              : "border-slate-300 focus:border-[#2f6fd0] focus:ring-[#2f6fd0]/15"
+                              : importedFields.includes(field)
+                                ? "border-[#ff9f1a]/55 bg-[#fffdf8] focus:border-[#ff8a00] focus:ring-[#ff9f1a]/15"
+                                : "border-slate-300 focus:border-[#2f6fd0] focus:ring-[#2f6fd0]/15"
                           }`}
                         />
                         {problem && (
@@ -407,7 +562,40 @@ export function ClientIntakeForm({ token }: { token: string }) {
       {/* 4 — Submit */}
       <div className="mt-6">
         <p className="text-center text-[13px] leading-relaxed text-slate-500">{t.submitHelper}</p>
-        {error && (
+        {checkingDuplicate && (
+          <p className="mt-3 rounded-2xl border border-[#2f6fd0]/20 bg-[#eef5ff] px-4 py-3 text-center text-[14px] text-[#194b91]" role="status" data-testid="intake-duplicate-checking">
+            {t.checkingDuplicate}
+          </p>
+        )}
+        {sharedEmailWarning && !duplicateIdentity && (
+          <div className="mt-3 rounded-2xl border border-[#2f6fd0]/25 bg-[#eef5ff] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(47,111,208,.55)]" role="status" data-testid="intake-shared-email-alert">
+            <p className="text-[16px] font-semibold text-[#0a2d63]">{t.sharedEmailHeading}</p>
+            <p className="mx-auto mt-1.5 max-w-[48ch] text-[13.5px] leading-relaxed text-slate-700">{t.sharedEmailBody}</p>
+            <a
+              href={OFFICE_EMAIL_URL}
+              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-white px-4 text-[14px] font-semibold text-[#194b91] shadow-[0_10px_24px_-18px_rgba(47,111,208,.55)]"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6.5h16v11H4z" /><path d="m5 8 7 5 7-5" /></svg>
+              <span>{t.emailCustomerService} · {OFFICE_EMAIL_DISPLAY}</span>
+            </a>
+          </div>
+        )}
+        {duplicateIdentity && (
+          <div className="mt-3 rounded-2xl border border-[#ff9f1a]/35 bg-[#fff8eb] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(255,132,0,.6)]" role="alert" data-testid="intake-duplicate-alert">
+            <p className="text-[16px] font-semibold text-[#0a2d63]">{t.duplicateHeading}</p>
+            <p className="mx-auto mt-1.5 max-w-[46ch] text-[13.5px] leading-relaxed text-slate-700">{t.duplicateBody}</p>
+            <a
+              href={OFFICE_WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-white px-4 text-[14px] font-semibold text-emerald-800 shadow-[0_10px_24px_-18px_rgba(16,122,87,.55)]"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 11.7a7.9 7.9 0 0 1-11.6 7l-4 1.2 1.2-3.9A7.9 7.9 0 1 1 20 11.7Z" /></svg>
+              <span>{t.whatsappOffice} · {OFFICE_WHATSAPP_DISPLAY}</span>
+            </a>
+          </div>
+        )}
+        {error && !duplicateIdentity && (
           <p className="mt-3 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-center text-[14px] text-red-800" role="alert" data-testid="intake-error">
             {error}
           </p>
@@ -415,7 +603,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
         <button
           type="button"
           onClick={() => void submit()}
-          disabled={busy || blocked}
+          disabled={busy || blocked || checkingDuplicate}
           data-testid="intake-submit"
           className="mt-4 flex min-h-[58px] w-full items-center justify-center rounded-2xl border border-[#1f4f9c]/40 bg-gradient-to-b from-[#3f7fe0] to-[#2258b4] text-[17px] font-semibold text-white shadow-[0_20px_44px_-20px_rgba(34,88,180,.75)] transition-[filter,opacity] duration-200 hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none"
         >

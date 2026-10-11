@@ -13,6 +13,7 @@ import {
   normalizeClientPhone,
   type Tx,
 } from "@/lib/service";
+import { applicantIdentity, sameApplicant } from "@/lib/applicant-identity";
 import { assessApproval } from "@/lib/smart-approval-readiness";
 import { uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdf, rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
@@ -176,19 +177,35 @@ function sanitizeReviewDraft(value: unknown) {
   return draft;
 }
 
+type IdentityMatch = {
+  id: string;
+  ref: string;
+  email: string | null;
+  phone: string | null;
+  full_name: string | null;
+  date_of_birth: string | null;
+};
+
+/**
+ * Existing clients reachable by any imported email or phone.
+ *
+ * Name and date of birth come back too: an email match alone does not decide a
+ * duplicate, because one email may serve several applicants, so the caller
+ * needs the identity signals to correlate against.
+ */
 async function identityIndex(rows: { email: string | null; phone: string | null }[]) {
   const emails = [...new Set(rows.map((row) => normalizeClientEmail(row.email)).filter((value): value is string => Boolean(value)))];
   const phones = [...new Set(rows.map((row) => normalizeClientPhone(row.phone)).filter((value): value is string => Boolean(value)))];
-  if (!emails.length && !phones.length) return [] as { id: string; ref: string; email: string | null; phone: string | null }[];
+  if (!emails.length && !phones.length) return [] as IdentityMatch[];
   return sql()`
-    select id,ref,email,phone
+    select id,ref,email,phone,full_name,date_of_birth::text as date_of_birth
     from clients
     where deleted_at is null
       and (
         (${emails.length > 0} and lower(trim(coalesce(email,''))) = any(${emails}::text[]))
         or (${phones.length > 0} and regexp_replace(coalesce(phone,''),'\\D','','g') = any(${phones}::text[]))
       )
-    order by created_at` as unknown as { id: string; ref: string; email: string | null; phone: string | null }[];
+    order by created_at` as unknown as IdentityMatch[];
 }
 
 export async function previewImportRows(session: StaffSession, rows: IntakeRow[]): Promise<ImportPreviewRow[]> {
@@ -208,10 +225,38 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
 
   return prepared.map((item) => {
     const identity = identityKey(item.summary.email, item.summary.phone);
-    const rowMatches = matches.filter((match) => {
-      const m = identityKey(match.email, match.phone);
-      return Boolean((identity.email && m.email === identity.email) || (identity.phone && m.phone === identity.phone));
+    const applicant = applicantIdentity({
+      fullName: item.summary.full_name,
+      // The prepared draft carries the normalized ISO date; the raw cell may
+      // still be MM/DD/YYYY.
+      dateOfBirth: item.draft?.profile.date_of_birth ?? null,
+      phone: item.summary.phone,
     });
+
+    const emailMatches = matches.filter((match) => {
+      const m = identityKey(match.email, match.phone);
+      return Boolean(identity.email && m.email === identity.email);
+    });
+    const phoneMatches = matches.filter((match) => {
+      const m = identityKey(match.email, match.phone);
+      return Boolean(identity.phone && m.phone === identity.phone);
+    });
+
+    // A phone is an identity signal in its own right. An email is not: it may
+    // serve a whole family, so it counts only when another signal agrees.
+    const sharesApplicant = (match: IdentityMatch) =>
+      sameApplicant(applicant, applicantIdentity({
+        fullName: match.full_name,
+        dateOfBirth: match.date_of_birth,
+        phone: match.phone,
+      }));
+    const emailDuplicates = emailMatches.filter(sharesApplicant);
+    const rowMatches = [...new Set([...phoneMatches, ...emailDuplicates])];
+
+    // Same email, no agreeing identity signal: a different applicant using a
+    // relative's address. Allowed, and surfaced so staff can see why.
+    const sharedEmailOnly = !rowMatches.length && emailMatches.length > 0 ? emailMatches[0] : null;
+
     const exact = rowMatches.find((match) => {
       const m = identityKey(match.email, match.phone);
       return Boolean(identity.email && identity.phone && m.email === identity.email && m.phone === identity.phone);
@@ -219,12 +264,17 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
     const identityState = exact ? "EXISTING_CLIENT" : rowMatches.length ? "POSSIBLE_DUPLICATE" : "NEW";
     const result = item.error ? "INVALID" : rowMatches.length ? "DUPLICATE" : "VALID";
     const first = exact ?? rowMatches[0] ?? null;
+    const message = item.error
+      ?? (first ? `Existing client ${first.ref} matches imported identity` : null)
+      ?? (sharedEmailOnly ? `Email already used by ${sharedEmailOnly.ref}; a different applicant may share it` : null);
     return {
       row: item.index + 2,
       result,
       identity: identityState,
       ...item.summary,
-      message: item.error ?? (first ? `Existing client ${first.ref} matches imported identity` : null),
+      message,
+      // A shared email is not a conflict, so it records no existing client:
+      // staging must not raise an identity conflict against a different person.
       existing_client_id: first?.id ?? null,
       existing_client_ref: first?.ref ?? null,
       raw: item.raw,
@@ -400,8 +450,8 @@ export async function stageMobileImport(args: {
   const created = await sql().begin(async (tx) => {
     const [existing] = await tx`select id from client_import_batches where created_by=${args.session.staff.id} and idempotency_key=${key}`;
     if (existing) {
-      const [caseRow] = await tx`select id,status from client_import_cases where batch_id=${existing.id} order by created_at limit 1`;
-      return { batchId: String(existing.id), caseId: String(caseRow.id), idempotent: true };
+      const [caseRow] = await tx`select id,status,public_ref from client_import_cases where batch_id=${existing.id} order by created_at limit 1`;
+      return { batchId: String(existing.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: true };
     }
     const [batch] = await tx`
       insert into client_import_batches(source_type,source_file_hash,idempotency_key,created_by,metadata)
@@ -416,10 +466,10 @@ export async function stageMobileImport(args: {
         ${batch.id},'mobile','PENDING',${tx.json({ notes } as never)},${tx.json(draft as never)},${tx.json(missing as never)},
         ${tx.json(merged.conflicts as never)},${tx.json(merged.evidence as never)},
         ${tx.json({ extraction_errors: extractionErrors } as never)},${args.session.staff.id}
-      ) returning id`;
-    return { batchId: String(batch.id), caseId: String(caseRow.id), idempotent: false };
+      ) returning id,public_ref`;
+    return { batchId: String(batch.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: false };
   });
-  if (created.idempotent) return { batch_id: created.batchId, case_id: created.caseId, idempotent: true };
+  if (created.idempotent) return { batch_id: created.batchId, case_id: created.caseId, public_ref: created.publicRef, idempotent: true };
 
   const uploadedPaths: string[] = [];
   try {
@@ -446,7 +496,7 @@ export async function stageMobileImport(args: {
     });
     throw error;
   }
-  return { batch_id: created.batchId, case_id: created.caseId, idempotent: false };
+  return { batch_id: created.batchId, case_id: created.caseId, public_ref: created.publicRef, idempotent: false };
 }
 
 function decodeCursor(value: string | null) {
@@ -581,7 +631,11 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
   const persistable = assessApproval({ mappedDraft: row.mapped_draft });
   let identityMatches: Awaited<ReturnType<typeof findClientIdentityMatches>> = [];
   if (persistable.draft) {
-    identityMatches = await findClientIdentityMatches(tx, persistable.draft.profile.email, persistable.draft.profile.phone, { lock: true });
+    identityMatches = await findClientIdentityMatches(tx, persistable.draft.profile.email, persistable.draft.profile.phone, {
+      lock: true,
+      fullName: persistable.draft.profile.full_name,
+      dateOfBirth: persistable.draft.profile.date_of_birth,
+    });
     if (identityMatches.length) blockingConflicts.push({ type: "IDENTITY", client_id: identityMatches[0].id, client_ref: identityMatches[0].ref });
   }
 
@@ -689,6 +743,7 @@ export async function approveImportCase(session: StaffSession, args: {
       assignedStaff,
       createdBy: session.staff.id,
       communicationConsent: false,
+      ref: String(row.public_ref),
     }, { staffId: session.staff.id, traceId: args.traceId });
 
     if (draft.initial_note) {
