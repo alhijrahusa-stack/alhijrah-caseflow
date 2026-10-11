@@ -15,6 +15,8 @@ export type IntakeLocale = "ar" | "en";
 export const OFFICE_WHATSAPP_DIGITS = OFFICE.whatsapp.replace(/\D/g, "");
 export const OFFICE_WHATSAPP_URL = `https://wa.me/1${OFFICE_WHATSAPP_DIGITS}`;
 export const OFFICE_WHATSAPP_DISPLAY = OFFICE.whatsapp;
+export const OFFICE_EMAIL_DISPLAY = OFFICE.email;
+export const OFFICE_EMAIL_URL = `mailto:${OFFICE.email}`;
 
 /** The existing client-safe status destination. */
 export const CASE_STATUS_PATH = "/status";
@@ -94,6 +96,9 @@ export const INTAKE_COPY = {
     duplicateHeading: "هذا الملف قُدِّم مسبقًا",
     duplicateBody: "يوجد ملف سابق مطابق للبريد الإلكتروني أو رقم الملف. لا تُنشئ طلبًا جديدًا. تواصل مع خدمة العملاء على واتساب.",
     checkingDuplicate: "جارٍ التحقق من البريد الإلكتروني ورقم الملف…",
+    sharedEmailHeading: "ملاحظة مهمة عن البريد الإلكتروني",
+    sharedEmailBody: "هذا البريد مستخدم مع ملف آخر، لكن بيانات هذا الشخص مختلفة لذلك يمكن متابعة الطلب. أرسل إلى خدمة العملاء بريدًا إلكترونيًا جديدًا لهذا الملف ليتم ربطه برقم الملف الجديد.",
+    emailCustomerService: "إرسال بريد إلى خدمة العملاء",
     invalidPhone: "أدخل رقم هاتف أمريكي صحيح من عشر أرقام.",
     invalidEmail: "أدخل بريدًا إلكترونيًا صحيحًا.",
     invalidZip: "أدخل رمزًا بريديًا صحيحًا.",
@@ -186,6 +191,9 @@ export const INTAKE_COPY = {
     duplicateHeading: "This application was already submitted",
     duplicateBody: "An existing file matches this email address or case number. Do not create another application. Contact Customer Service on WhatsApp.",
     checkingDuplicate: "Checking email and case number…",
+    sharedEmailHeading: "Important email note",
+    sharedEmailBody: "This email is already used on another file, but this applicant is different, so you may continue. Send Customer Service a new email address for this file so it can be linked to the new case number.",
+    emailCustomerService: "Email Customer Service",
     invalidPhone: "Enter a valid 10-digit US phone number.",
     invalidEmail: "Enter a valid email address.",
     invalidZip: "Enter a valid ZIP code.",
