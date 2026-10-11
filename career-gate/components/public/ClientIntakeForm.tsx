@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClientIntakeBrand, ClientIntakeShell, GlassCard } from "@/components/public/ClientIntakeShell";
+import { BezierProgress, type ProgressStage } from "@/components/shared/BezierProgress";
 import {
   CASE_STATUS_PATH,
   INTAKE_COPY,
@@ -158,6 +159,27 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const started = Boolean(sourceText.trim());
   const hasAnything = started || attachments.length > 0;
   const blocked = Object.keys(fieldErrors).length > 0 || duplicateIdentity;
+  const publicStages = useMemo<ProgressStage[]>(() => [
+    { label: "UPLOAD", state: attachments.length ? "COMPLETED" : "PENDING" },
+    {
+      label: "EXTRACT",
+      state: extracting ? "RUNNING"
+        : importedFields.length ? "COMPLETED"
+        : attachments.length && extractionNotice ? "NEEDS_REVIEW"
+        : "PENDING",
+    },
+    { label: "AUTOFILL", state: importedFields.length ? "COMPLETED" : "PENDING" },
+    {
+      label: "MISSING",
+      state: showReview
+        ? Object.keys(fieldErrors).length ? "NEEDS_REVIEW" : "COMPLETED"
+        : "PENDING",
+    },
+    { label: "REVIEW", state: duplicateIdentity ? "NEEDS_REVIEW" : showReview && !blocked ? "COMPLETED" : "PENDING" },
+    { label: "CONFIRM", state: busy ? "COMPLETED" : "PENDING" },
+    { label: "SUBMIT", state: busy ? "RUNNING" : done ? "COMPLETED" : "PENDING" },
+    { label: "SUCCESS", state: done ? "COMPLETED" : "PENDING" },
+  ], [attachments.length, blocked, busy, done, duplicateIdentity, extracting, extractionNotice, fieldErrors, importedFields.length, showReview]);
 
   /**
    * Once the client has entered anything, every reviewed field is shown — the
@@ -307,6 +329,12 @@ export function ClientIntakeForm({ token }: { token: string }) {
     return (
       <ClientIntakeShell dir={t.dir}>
         {header}
+        <div className="mt-6">
+          <BezierProgress
+            title="APPLICATION WORKFLOW"
+            stages={publicStages.map((stage) => ({ ...stage, state: "COMPLETED" }))}
+          />
+        </div>
         <GlassCard tone="success" className="mt-8 text-center" data-testid="intake-success" role="status">
           <div aria-hidden="true" className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-emerald-400/40 bg-emerald-400/15 text-emerald-200">
             <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12.8 9.4 17 19 7.4" /></svg>
@@ -372,6 +400,14 @@ export function ClientIntakeForm({ token }: { token: string }) {
       <div className="mt-7">
         <h1 className="text-[24px] font-semibold tracking-tight text-slate-50 sm:text-[28px]">{t.heading}</h1>
         <p className="mt-2 max-w-[56ch] text-[14px] leading-relaxed text-slate-400">{t.lead}</p>
+      </div>
+
+      <div className="mt-5">
+        <BezierProgress
+          title={locale === "ar" ? "مسار التقديم المباشر" : "LIVE APPLICATION WORKFLOW"}
+          stages={publicStages}
+          trailing={<span className="font-mono text-[10px] text-[#ffb347]">{busy ? t.submitting : blocked ? t.guideIssue : hasAnything ? t.guideReview : t.guideStart}</span>}
+        />
       </div>
 
       {/* 1 — Document first: extract and auto-fill */}
