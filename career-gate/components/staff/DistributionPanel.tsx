@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTargetedMutationBatch } from "@/components/staff/realtime/useTargetedMutation";
 import type { OperationsStaff } from "@/lib/operations";
 
 type DistributionClient = {
@@ -43,6 +44,7 @@ export function DistributionPanel({
   isAdmin: boolean;
 }) {
   const router = useRouter();
+  const onBatchMutated = useTargetedMutationBatch();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [target, setTarget] = useState("");
   const [q, setQ] = useState("");
@@ -70,10 +72,11 @@ export function DistributionPanel({
     setError(null);
     setNotice(null);
     try {
-      await mutate({ operation: "bulk_assign", client_ids: [...selected], staff_id: target || null });
+      const assigned = [...selected];
+      await mutate({ operation: "bulk_assign", client_ids: assigned, staff_id: target || null });
       setSelected(new Set());
       setNotice("Assignment updated");
-      router.refresh();
+      onBatchMutated("bulk_assign", assigned.map(String));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to assign clients");
     } finally {
@@ -87,6 +90,8 @@ export function DistributionPanel({
     try {
       await mutate({ operation: "set_round_robin", enabled: next });
       setRoundRobin(next);
+      // A staff distribution setting, not a client resource: there is no
+      // client scope to target, so recovery is the only correct path.
       setNotice(next ? "Round-robin enabled" : "Round-robin disabled");
       router.refresh();
     } catch (e) {

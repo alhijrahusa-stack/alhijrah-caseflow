@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useMemo,useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTargetedMutationBatch } from "@/components/staff/realtime/useTargetedMutation";
 import type { AssignmentClient } from "@/lib/operational-assignments";
 import { ReassignControl } from "@/components/staff/ReassignControl";
 
@@ -13,6 +14,7 @@ async function post(body:Record<string,unknown>){const r=await fetch("/api/staff
 
 export function AssignmentsPanel({staff,clients,roundRobinEnabled,isAdmin,scope}:Props){
   const router=useRouter();
+  const onBatchMutated=useTargetedMutationBatch();
   const [selected,setSelected]=useState<Set<string>>(new Set());
   const [target,setTarget]=useState("");
   const [query,setQuery]=useState("");
@@ -20,7 +22,7 @@ export function AssignmentsPanel({staff,clients,roundRobinEnabled,isAdmin,scope}
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const visible=useMemo(()=>{const q=query.trim().toLowerCase();return clients.filter((c)=>(scope!=="unassigned"||!c.assigned_staff)&&(!q||[c.full_name,c.ref,c.phone,c.assigned_name??""].some((v)=>v.toLowerCase().includes(q))));},[clients,query,scope]);
-  async function assign(){if(!selected.size)return;setBusy(true);setError(null);try{await post({operation:"bulk_assign",client_ids:[...selected],staff_id:target||null});setSelected(new Set());router.refresh();}catch(e){setError(e instanceof Error?e.message:"Unable to assign");}finally{setBusy(false);}}
+  async function assign(){if(!selected.size)return;setBusy(true);setError(null);try{const assigned=[...selected].map(String);await post({operation:"bulk_assign",client_ids:assigned,staff_id:target||null});setSelected(new Set());onBatchMutated("bulk_assign",assigned);}catch(e){setError(e instanceof Error?e.message:"Unable to assign");}finally{setBusy(false);}}
   async function toggle(next:boolean){setBusy(true);setError(null);try{await post({operation:"set_round_robin",enabled:next});setRoundRobin(next);router.refresh();}catch(e){setError(e instanceof Error?e.message:"Unable to update");}finally{setBusy(false);}}
   return <div className="space-y-4">
     {error&&<div className="ops-error">{error}</div>}

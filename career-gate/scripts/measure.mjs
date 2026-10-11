@@ -175,6 +175,22 @@ if (!READ_ONLY) {
       body: JSON.stringify({ identifier: "CG-1999-000000" }),
     }), 10));
 
+  // Targeted realtime update vs. the full route refresh it replaces. The
+  // comparison is the point: same client, same change, one scoped payload set
+  // instead of the whole client file.
+  results.push(await measure("client file full route render (GET /staff/client/[id]) — the old refresh path", () =>
+    fetch(`${BASE}/staff/client/${lastClient}`, { headers: staff, redirect: "manual" })));
+
+  for (const [label, payloads] of [
+    ["note added (notes,activity)", "notes,activity"],
+    ["task changed (tasks,nextAction)", "tasks,nextAction"],
+    ["document reviewed (documents,extractions,requirements,nextAction,activity)", "documents,extractions,requirements,postHire,assessments,nextAction,activity"],
+    ["payment recorded (account,nextAction,activity)", "account,nextAction,activity"],
+  ]) {
+    results.push(await measure(`targeted update — ${label} (GET /api/staff/client-resource)`, () =>
+      fetch(`${BASE}/api/staff/client-resource?client_id=${lastClient}&payloads=${payloads}`, { headers: staff })));
+  }
+
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   const queueRows = await db`
