@@ -237,13 +237,8 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
       const m = identityKey(match.email, match.phone);
       return Boolean(identity.email && m.email === identity.email);
     });
-    const phoneMatches = matches.filter((match) => {
-      const m = identityKey(match.email, match.phone);
-      return Boolean(identity.phone && m.phone === identity.phone);
-    });
-
-    // A phone is an identity signal in its own right. An email is not: it may
-    // serve a whole family, so it counts only when another signal agrees.
+    // A shared phone alone is not applicant identity: relatives may share
+    // both their contact email and phone. Require corroborating evidence.
     const sharesApplicant = (match: IdentityMatch) =>
       sameApplicant(applicant, applicantIdentity({
         fullName: match.full_name,
@@ -251,7 +246,7 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
         phone: match.phone,
       }));
     const emailDuplicates = emailMatches.filter(sharesApplicant);
-    const rowMatches = [...new Set([...phoneMatches, ...emailDuplicates])];
+    const rowMatches = emailDuplicates;
 
     // Same email, no agreeing identity signal: a different applicant using a
     // relative's address. Allowed, and surfaced so staff can see why.
@@ -630,11 +625,17 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
   // Identity is resolved first: a duplicate is a destructive-conflict blocker.
   const persistable = assessApproval({ mappedDraft: row.mapped_draft });
   let identityMatches: Awaited<ReturnType<typeof findClientIdentityMatches>> = [];
+  // Public intake links are a separate origin inside the existing mobile staging
+  // model; they retain the shared-contact policy throughout verification.
+  const [batchOrigin] = await tx`
+    select idempotency_key from client_import_batches where id=${String(row.batch_id)}`;
+  const fromPublicLink = String(batchOrigin?.idempotency_key ?? "").startsWith("client-link:");
   if (persistable.draft) {
     identityMatches = await findClientIdentityMatches(tx, persistable.draft.profile.email, persistable.draft.profile.phone, {
       lock: true,
       fullName: persistable.draft.profile.full_name,
       dateOfBirth: persistable.draft.profile.date_of_birth,
+      policy: fromPublicLink ? "public" : "legacy",
     });
     if (identityMatches.length) blockingConflicts.push({ type: "IDENTITY", client_id: identityMatches[0].id, client_ref: identityMatches[0].ref });
   }
@@ -732,8 +733,10 @@ export async function approveImportCase(session: StaffSession, args: {
     const draft = verification.draft;
 
     const assignedStaff = await resolveImportedStaff(tx, draft.staff_code);
+    const [sourceBatch] = await tx`select idempotency_key from client_import_batches where id=${String(row.batch_id)}`;
+    const publicLinkImport = String(sourceBatch?.idempotency_key ?? "").startsWith("client-link:");
     const client = await insertClient(tx, {
-      source: "staff_manual",
+      source: publicLinkImport ? "public_intake" : "staff_manual",
       profile: draft.profile,
       primary: draft.primary,
       backup: draft.backup,
