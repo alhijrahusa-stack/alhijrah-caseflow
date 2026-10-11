@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { IntakeRow } from "@/lib/intake-file";
+import { validateMrz } from "@/lib/document-validation/mrz";
 import { registry } from "@/lib/providers/config";
 import type {
   BoundingRegion,
@@ -171,6 +172,7 @@ function parseResponse(payload: unknown, traceId: string | null): DocumentExtrac
   const evidence: DocumentFieldEvidence[] = [];
   let givenNames: string | null = null;
   let surname: string | null = null;
+  let mrzRaw: string | null = null;
 
   for (const container of containers) {
     const textResult = object(container.Text);
@@ -183,6 +185,9 @@ function parseResponse(payload: unknown, traceId: string | null): DocumentExtrac
       if (!rawValue) continue;
 
       const normalizedName = key(fieldName);
+      if ((normalizedName.includes("mrz") || normalizedName.includes("machine readable")) && rawValue.replace(/\s/g, "").length >= 60) {
+        mrzRaw = rawValue;
+      }
       if (normalizedName === "given names" || normalizedName === "given name" || normalizedName === "first name") givenNames = rawValue;
       if (normalizedName === "surname" || normalizedName === "last name" || normalizedName === "family name") surname = rawValue;
 
@@ -232,6 +237,20 @@ function parseResponse(payload: unknown, traceId: string | null): DocumentExtrac
   const finalAuthenticity = authenticity.overall === "UNSUPPORTED" && securityStatus !== "REVIEW"
     ? { ...authenticity, overall: securityStatus }
     : authenticity;
+  const mrz = mrzRaw ? validateMrz(mrzRaw) : null;
+  if (mrz?.valid === false) {
+    for (const entry of evidence) {
+      if (entry.source_type && /mrz/i.test(entry.source_type)) {
+        entry.checksum_result = "FAILED";
+        entry.review_state = "NEEDS_REVIEW";
+        entry.conflicts = [...entry.conflicts, "MRZ_CHECKSUM_FAILED"];
+      }
+    }
+  } else if (mrz?.valid === true) {
+    for (const entry of evidence) {
+      if (entry.source_type && /mrz/i.test(entry.source_type)) entry.checksum_result = "PASSED";
+    }
+  }
 
   return {
     row,
@@ -242,6 +261,7 @@ function parseResponse(payload: unknown, traceId: string | null): DocumentExtrac
     country: document.country,
     quality,
     authenticity: finalAuthenticity,
+    mrz,
     traceId,
   };
 }
