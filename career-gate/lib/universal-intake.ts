@@ -31,7 +31,7 @@ export async function rowsFromImageOrPdfDetailed(
       row: local.row,
       confidence: {},
       fieldEvidence: [],
-      provider: { name: "regula", version: "DETERMINISTIC_TEXT" },
+      provider: { name: "deterministic", version: "1" },
       documentType: "text",
       country: null,
       quality: { overall: "NOT_PERFORMED", checks: [] },
