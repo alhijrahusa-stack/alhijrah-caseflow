@@ -203,7 +203,7 @@ test.describe("Career Gate public intake presentation system", () => {
     await expect(page.locator("#receiptCase")).toHaveText("ALH-20261001-TEST");
     await expect(page.locator("#receiptTime")).not.toContainText("—");
     await expect(page.locator("#receiptCard")).toContainText("CAREER GATE");
-    await expect(page.locator("#receiptCard")).toContainText("313-919-4292");
+    await expect(page.locator("#receiptCard")).toContainText("313-919-4192");
   });
 
   test("tracking states localize and render only after the server response", async ({ page }) => {
