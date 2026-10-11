@@ -27,6 +27,14 @@ import {
 /** Window over which a burst of changes collapses into one delivery. */
 export const COALESCE_MS = 120;
 
+/**
+ * Short grace window for mutations that complete during hydration. A mutation
+ * can finish after the surface is visible but a few milliseconds before its
+ * subscription effect has mounted. Retrying delivery once avoids treating
+ * that harmless mount race as a route-refresh recovery.
+ */
+export const MUTATION_MOUNT_GRACE_MS = 80;
+
 export const RECOVERY_EVENT = "career-gate:realtime-recovery";
 
 export type RecoveryReason =
@@ -65,10 +73,7 @@ export function subscribeResources(sub: Subscription): () => void {
 }
 
 function inScope(entry: Entry, clientId: string | null): boolean {
-  // A surface that aggregates all clients takes every change.
   if (entry.clientId === null) return true;
-  // A change that cannot be attributed to a client cannot be proven to belong
-  // to this surface; it is left to the recovery path rather than misdelivered.
   if (clientId === null) return false;
   return entry.clientId === clientId;
 }
@@ -107,14 +112,6 @@ export function publishChange(change: ResourceChange): DeliveryResult {
   return { delivered, resources: change.resources };
 }
 
-/**
- * Resolves a realtime payload through the graph and delivers it.
- *
- * Returns the recovery reason when the targeted path could not be taken:
- * `unmapped_entity` when the payload names no known entity, `unowned_resource`
- * when no mounted surface renders anything the change touches. A null return
- * means the change was handled entirely by targeted delivery.
- */
 export function publishPayload(payload: ChangePayload): RecoveryReason | null {
   const change = describeChange(payload);
   if (!change) return "unmapped_entity";
@@ -122,17 +119,27 @@ export function publishPayload(payload: ChangePayload): RecoveryReason | null {
   return delivered > 0 ? null : "unowned_resource";
 }
 
-/**
- * Delivers the resource set a completed staff mutation invalidates.
- *
- * Returns the recovery reason when the mutation is unmapped or nothing on
- * screen owns the affected resources, so the caller can fall back.
- */
 export function publishMutation(action: string, clientId: string | null): RecoveryReason | null {
   const resources = resourcesForMutation(action);
   if (resources.length === 0) return "unmapped_entity";
   const { delivered } = publishChange({ entity: "clients", event: "UPDATE", clientId, resources });
   return delivered > 0 ? null : "unowned_resource";
+}
+
+/**
+ * Mutation delivery with one mount-grace retry.
+ *
+ * This keeps the normal path fully targeted when the mutation lands during the
+ * tiny hydration/effect-registration window. Only a second confirmed miss
+ * enters recovery.
+ */
+export function publishMutationWithGrace(action: string, clientId: string | null) {
+  const first = publishMutation(action, clientId);
+  if (first === null) return;
+  setTimeout(() => {
+    const second = publishMutation(action, clientId);
+    if (second !== null) requestRecovery(second);
+  }, MUTATION_MOUNT_GRACE_MS);
 }
 
 /** True when a mounted surface would receive this change. */
@@ -144,11 +151,6 @@ export function hasOwner(resources: readonly Resource[], clientId: string | null
   return false;
 }
 
-/**
- * Raises the recovery signal. The realtime listener is the only holder of the
- * router and answers this with a debounced `router.refresh()`. This is the
- * fallback path, never the normal one.
- */
 export function requestRecovery(reason: RecoveryReason) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(RECOVERY_EVENT, { detail: { reason } }));
