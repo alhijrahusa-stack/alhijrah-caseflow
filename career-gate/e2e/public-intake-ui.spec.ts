@@ -317,6 +317,22 @@ test.describe("Career Gate public intake presentation system", () => {
     }
   });
 
+  test("unverified Amazon schedules never display fabricated pay", async ({ page }) => {
+    await page.route("**/api/application/options", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json",
+        body: JSON.stringify({ ok: true, state: "MI", verified_available_count: 0, openings: [], facility_preferences: [] }) });
+    });
+    await page.goto("/career-gate.html");
+    await expect(page.locator("#liveAvailabilityStatus")).toContainText("لا توجد فرص Amazon مؤكدة");
+    await fillStepOne(page);
+    await page.locator('[data-next="2"]').click();
+    await chooseStepTwo(page);
+    await expect(page.locator("#payTable")).toContainText("لا يوجد أجر رسمي مؤكد");
+    await expect(page.locator("#shiftDeck .shift-pay").first()).toContainText("تفضيل غير مؤكد");
+    await page.locator('[data-next="3"]').click();
+    await expect(page.locator("#expectedPay")).toHaveValue("");
+  });
+
   test("narrow mobile has no horizontal overflow and exposes accessible progress/language controls", async ({ browser, baseURL }) => {
     const context = await browser.newContext({ baseURL, viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
     const page = await context.newPage();
