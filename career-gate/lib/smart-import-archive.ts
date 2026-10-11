@@ -59,6 +59,36 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
   return { rows: visible, counters, next_cursor: next ? encodeCursor(String(next.created_at), String(next.id)) : null };
 }
 
+
+export async function listArchivedImportQueue(session: StaffSession, args: { q?: string | null; cursor?: string | null }) {
+  assertManager(session);
+  const q = (args.q ?? "").trim().slice(0, 160);
+  const cursor = decodeCursor(args.cursor ?? null);
+  const limit = SMART_IMPORT_LIMITS.queuePageSize;
+  const rows = await sql()`
+    select c.id,c.source_type,c.source_row,c.status,c.reviewer_id,s.display_name as reviewer_name,
+           c.mapped_draft #>> '{profile,full_name}' as full_name,
+           c.mapped_draft #>> '{profile,phone}' as phone,
+           c.mapped_draft #>> '{profile,email}' as email,
+           c.created_at,c.created_client_id,
+           (select count(*)::int from client_import_documents d where d.import_case_id=c.id) as document_count,
+           (coalesce(jsonb_array_length(c.missing_fields),0)+coalesce(jsonb_array_length(c.conflicts),0))::int as issue_count
+    from client_import_cases c
+    left join staff s on s.id=c.reviewer_id
+    where c.archived_at is not null
+      and (${q === ""} or c.id::text ilike ${`%${q}%`}
+           or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
+           or coalesce(c.mapped_draft #>> '{profile,phone}','') ilike ${`%${q}%`}
+           or coalesce(c.mapped_draft #>> '{profile,email}','') ilike ${`%${q}%`})
+      and (${cursor == null} or (c.created_at,c.id) < (${cursor?.createdAt ?? "9999-12-31T23:59:59.999Z"}::timestamptz,${cursor?.id ?? "ffffffff-ffff-ffff-ffff-ffffffffffff"}::uuid))
+    order by c.archived_at desc,c.created_at desc,c.id desc
+    limit ${limit + 1}`;
+  const visible = rows.slice(0, limit) as unknown as QueueRow[];
+  const next = rows.length > limit ? visible[visible.length - 1] : null;
+  const [{ count }] = await sql()`select count(*)::int as count from client_import_cases where archived_at is not null`;
+  return { rows: visible, archived_count: Number(count ?? 0), next_cursor: next ? encodeCursor(String(next.created_at), String(next.id)) : null };
+}
+
 export async function archiveImportCase(session: StaffSession, id: string) {
   assertManager(session);
   return sql().begin(async (tx) => {
