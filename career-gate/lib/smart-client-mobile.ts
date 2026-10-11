@@ -494,11 +494,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
         ${extractionError},${session.staff.id},now())`;
     await sql()`
       update client_import_documents
-      set detected_document_type=case
-            when ${documentType}::text is null then detected_document_type
-            else detected_document_type
-          end,
-          extraction_metadata=${sql().json({
+      set extraction_metadata=${sql().json({
             extracted_rows: rows.length,
             confidence,
             provider: providerName,
