@@ -238,10 +238,10 @@ export async function stageMobileImportV2(args: {
     const [existing] = await tx`select id from client_import_batches where created_by=${args.session.staff.id} and idempotency_key=${key}`;
     if (existing) {
       const [caseRow] = await tx`
-        select id,status,created_at,mapped_draft,verification_result
+        select id,status,public_ref,created_at,mapped_draft,verification_result
         from client_import_cases where batch_id=${existing.id} order by created_at limit 1`;
       return {
-        batchId: String(existing.id), caseId: String(caseRow.id), idempotent: true,
+        batchId: String(existing.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: true,
         createdAt: String(caseRow.created_at), mappedDraft: caseRow.mapped_draft, verificationResult: caseRow.verification_result,
       };
     }
@@ -254,9 +254,9 @@ export async function stageMobileImportV2(args: {
       values(${batch.id},'mobile','PENDING',${tx.json({ notes } as never)},${tx.json(preDraft as never)},${tx.json(preMissing as never)},
         ${tx.json(preMerge.conflicts as never)},${tx.json(preMerge.evidence as never)},
         ${tx.json({ processing_state: "CAPTURED", local_state: "COMPLETE", ai_state: args.files.length ? "PENDING" : "SKIPPED", extraction_errors: [], evidence_fields: preMerge.evidence.length } as never)},${args.session.staff.id})
-      returning id,created_at,mapped_draft,verification_result`;
+      returning id,public_ref,created_at,mapped_draft,verification_result`;
     return {
-      batchId: String(batch.id), caseId: String(caseRow.id), idempotent: false,
+      batchId: String(batch.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: false,
       createdAt: String(caseRow.created_at), mappedDraft: caseRow.mapped_draft, verificationResult: caseRow.verification_result,
     };
   });
@@ -302,6 +302,7 @@ export async function stageMobileImportV2(args: {
     batch_id: created.batchId,
     case_id: created.caseId,
     idempotent: created.idempotent,
+    public_ref: created.publicRef,
     created_at: created.createdAt,
     uploaded_by: args.session.staff.id,
     uploaded_by_name: args.session.staff.display_name,
