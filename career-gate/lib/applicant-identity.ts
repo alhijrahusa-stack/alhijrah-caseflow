@@ -7,7 +7,7 @@
  * when a real identity signal agrees with it.
  *
  * This is the rule the database guard
- * (`042_shared_email_different_applicant.sql`), the public intake duplicate
+ * (`044_unified_public_applicant_identity.sql`), the public intake duplicate
  * probe and the staff import preview all apply. It lives here, pure
  * and shared, because the one time these paths carried their own copies they
  * disagreed: the public probe allowed a shared email while staff staging still
@@ -49,22 +49,25 @@ export function applicantIdentity(input: {
   };
 }
 
-/** True when the applicant carries at least one signal that could correlate. */
+/** At least two independent signals are required for a confirmed duplicate. */
 export function hasIdentitySignal(identity: ApplicantIdentity): boolean {
-  return Boolean(identity.fullName || identity.dateOfBirth || identity.phone);
+  return [identity.fullName, identity.dateOfBirth, identity.phone && identity.phone.length >= 7 ? identity.phone : null]
+    .filter(Boolean).length >= 2;
 }
 
 /**
- * True when two records are the same applicant.
- *
- * Any one agreeing signal is enough: a name, a date of birth, or a phone
- * number. A signal missing on either side is not evidence of difference, so it
- * simply does not vote. With no agreeing signal the two are different
- * applicants who happen to share an email, which is allowed.
+ * Shared-contact rule. A common email, name, birth date, or phone alone is never
+ * sufficient. Positive identification requires at least two matching signals.
+ * Explicit name or DOB disagreement means a different applicant, even when a
+ * relative shares the contact phone.
  */
 export function sameApplicant(a: ApplicantIdentity, b: ApplicantIdentity): boolean {
-  if (a.fullName && b.fullName && a.fullName === b.fullName) return true;
-  if (a.dateOfBirth && b.dateOfBirth && a.dateOfBirth === b.dateOfBirth) return true;
-  if (a.phone && b.phone && a.phone === b.phone) return true;
-  return false;
+  if (a.fullName && b.fullName && a.fullName !== b.fullName) return false;
+  if (a.dateOfBirth && b.dateOfBirth && a.dateOfBirth !== b.dateOfBirth) return false;
+  const nameMatches = Boolean(a.fullName && b.fullName && a.fullName === b.fullName);
+  const dobMatches = Boolean(a.dateOfBirth && b.dateOfBirth && a.dateOfBirth === b.dateOfBirth);
+  const phoneMatches = Boolean(
+    a.phone && b.phone && a.phone.length >= 7 && b.phone.length >= 7 && a.phone === b.phone
+  );
+  return Number(nameMatches) + Number(dobMatches) + Number(phoneMatches) >= 2;
 }
