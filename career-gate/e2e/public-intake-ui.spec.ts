@@ -264,6 +264,37 @@ test.describe("Career Gate public intake presentation system", () => {
     await expect(page.locator("#preferredLanguage")).toHaveValue("en");
   });
 
+  test("document OCR requires consent, fills only empty fields and requires review", async ({ page }) => {
+    let extractionRequests = 0;
+    await page.route("**/api/application/extract", async (route) => {
+      extractionRequests++;
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ ok: true, verified: false, status: "needs_customer_review",
+          fields: { full_name: "Different Applicant", city: "Dearborn", zip: "48126", date_of_birth: "1991-01-04" },
+          confidence: { full_name: 99, city: 94, zip: 98, date_of_birth: 98 }
+        })
+      });
+    });
+    await page.goto("/career-gate.html");
+    await fillStepOne(page);
+    await page.locator('[data-next="2"]').click();
+    await chooseStepTwo(page);
+    await page.locator('[data-next="3"]').click();
+    await page.locator("#docs").setInputFiles({ name: "identity.jpg", mimeType: "image/jpeg", buffer: Buffer.from([255, 216, 255, 217]) });
+    await page.locator("#documentType").selectOption("state_id");
+    expect(extractionRequests).toBe(0);
+    await page.locator("#ocrConsent").check({ force: true });
+    await expect(page.locator("#ocrStatus")).toContainText("اكتمل الاستخراج");
+    expect(extractionRequests).toBe(1);
+    await expect(page.locator("#city")).toHaveValue("Dearborn");
+    await expect(page.locator("#zip")).toHaveValue("48126");
+    await expect(page.locator("#dob")).toHaveValue("1991-01-04");
+    await expect(page.locator("#firstName")).toHaveValue("عبدالله");
+    await expect(page.locator("#lastName")).toHaveValue("Tester");
+    await expect(page.locator("#ocrStatus")).toContainText("هذا ليس تحققاً من الهوية");
+  });
+
   test("narrow mobile has no horizontal overflow and exposes accessible progress/language controls", async ({ browser, baseURL }) => {
     const context = await browser.newContext({ baseURL, viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
     const page = await context.newPage();
