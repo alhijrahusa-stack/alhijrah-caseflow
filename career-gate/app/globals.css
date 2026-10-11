@@ -2486,3 +2486,67 @@ code, kbd, pre, .font-mono {
 @media (prefers-reduced-motion: reduce) {
   .cg-workflow-progress-track > span { transition:none; }
 }
+
+/* Executive Interface V2 — royal depth, matte champagne accents, no white wash. */
+.cg-profile-info-grid {
+  gap: .7rem;
+}
+.cg-profile-info-cell {
+  border-color: rgba(212,175,55,.13);
+  border-radius: 16px;
+  padding: .82rem .88rem;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(79,140,255,.07), transparent 42%),
+    linear-gradient(145deg, rgba(16,26,56,.86), rgba(7,12,26,.92));
+  box-shadow:
+    inset 0 1px 0 rgba(230,199,133,.045),
+    0 18px 42px -34px rgba(0,0,0,.92);
+}
+.cg-profile-info-cell:hover {
+  border-color: rgba(212,175,55,.26);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(79,140,255,.10), transparent 42%),
+    linear-gradient(145deg, rgba(18,30,64,.92), rgba(7,12,26,.96));
+}
+.cg-profile-info-cell dt {
+  color: #9ba3b8;
+  font-size: .62rem;
+  letter-spacing: .10em;
+}
+.cg-profile-info-cell dd {
+  color: #e1e4ec;
+  font-size: .82rem;
+  line-height: 1.6;
+}
+.cg-profile-info-cell a { color: #e6c785; }
+.cg-profile-info-cell :is(input,textarea,select) {
+  color: #f8f9fb !important;
+  background: #0b132b !important;
+  border-color: rgba(212,175,55,.28) !important;
+  box-shadow: none !important;
+}
+.cg-profile-info-cell :is(input,textarea,select):focus {
+  border-color: rgba(212,175,55,.52) !important;
+  outline: 2px solid rgba(212,175,55,.10);
+  outline-offset: 2px;
+}
+.cg-client-hero {
+  background:
+    radial-gradient(circle at 82% 12%, rgba(79,140,255,.18), transparent 24rem),
+    radial-gradient(circle at 16% 0%, rgba(212,175,55,.08), transparent 19rem),
+    linear-gradient(135deg, #0b1f40 0%, #08162f 50%, #040812 100%);
+}
+.cg-client-name { color: #f8f9fb; }
+.cg-client-kicker,
+.cg-workflow-kicker { color: #e6c785; }
+.cg-command-primary,
+.cg-profile-tab[data-active="true"] {
+  border-color: rgba(212,175,55,.38) !important;
+  color: #f4e4b8 !important;
+  background: linear-gradient(180deg, rgba(212,175,55,.15), rgba(212,175,55,.04)) !important;
+  box-shadow: inset 0 1px 0 rgba(244,228,184,.12), 0 10px 26px -18px rgba(212,175,55,.45);
+}
+@media (max-width: 640px) {
+  .cg-profile-info-grid { grid-template-columns: 1fr; }
+  .cg-profile-info-cell { border-radius: 18px; }
+}
