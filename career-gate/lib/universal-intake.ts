@@ -3,6 +3,7 @@ import { ActionError } from "@/lib/service";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
 import { extractIdentityDocument } from "@/lib/providers/document-intelligence";
 import type { DocumentExtraction } from "@/lib/providers/document-intelligence-types";
+import { preflightImageQuality, qualityFailureMessage } from "@/lib/document-validation/quality";
 
 const MAX_GOOGLE_SHEET_BYTES = 10 * 1024 * 1024;
 
@@ -45,6 +46,10 @@ export async function rowsFromImageOrPdfDetailed(
     throw new ActionError("unsupported_file", "Document Intelligence supports PDF, JPG, PNG and WebP", 415);
   }
 
+  const preflight = await preflightImageQuality(bytes, mimeType);
+  const failureMessage = qualityFailureMessage(preflight);
+  if (failureMessage) throw new ActionError("image_quality_failed", failureMessage, 422);
+
   const result = await extractIdentityDocument({
     data: bytes,
     mimeType,
@@ -52,6 +57,16 @@ export async function rowsFromImageOrPdfDetailed(
     traceId: options.traceId,
     microblinkConsent: options.microblinkConsent ?? null,
   });
+  result.quality = {
+    overall: result.quality.overall === "FAILED" || preflight.overall === "FAILED"
+      ? "FAILED"
+      : result.quality.overall === "REVIEW" || preflight.overall === "REVIEW"
+        ? "REVIEW"
+        : result.quality.overall === "PASSED" || preflight.overall === "PASSED"
+          ? "PASSED"
+          : result.quality.overall,
+    checks: [...preflight.checks, ...result.quality.checks],
+  };
   return [result];
 }
 
