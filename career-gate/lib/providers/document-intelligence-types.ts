@@ -1,6 +1,6 @@
 import type { IntakeRow } from "@/lib/intake-file";
 
-export type DocumentProviderName = "regula" | "microblink";
+export type DocumentProviderName = "regula" | "microblink" | "deterministic";
 export type VerificationState = "PASSED" | "FAILED" | "NOT_PERFORMED" | "UNSUPPORTED" | "REVIEW";
 
 export type BoundingRegion = {
