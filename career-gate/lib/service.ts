@@ -72,6 +72,8 @@ export type NewClientInput = {
   assignedStaff: string | null;
   createdBy: string | null;
   communicationConsent: boolean;
+  /** Stable public case reference reserved before canonical client creation. */
+  ref?: string | null;
 };
 
 export type ClientIdentityMatch = {
@@ -151,7 +153,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
 
   const [client] = await tx`
     insert into clients (
-      source, full_name, phone, email, date_of_birth, preferred_language, english_proficiency,
+      ref, source, full_name, phone, email, date_of_birth, preferred_language, english_proficiency,
       street, city, state, zip,
       preferred_location, location_option_1, location_option_2, shift_days, shift_start_time, shift_end_time,
       appointment_availability,
@@ -159,7 +161,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
       amazon_applied_before, amazon_application_email, currently_amazon, via_agency,
       communication_consent, current_status, next_step, assigned_staff, created_by
     ) values (
-      ${input.source}, ${p.full_name}, ${p.phone}, ${p.email}, ${p.date_of_birth},
+      coalesce(${input.ref ?? null}, next_client_ref()), ${input.source}, ${p.full_name}, ${p.phone}, ${p.email}, ${p.date_of_birth},
       ${p.preferred_language}, ${p.english_proficiency}, ${p.street}, ${p.city}, ${p.state}, ${p.zip},
       ${input.reviewFields?.preferred_location ?? null}, ${input.reviewFields?.location_option_1 ?? null}, ${input.reviewFields?.location_option_2 ?? null},
       ${input.reviewFields?.shift_days ?? null}, ${input.reviewFields?.shift_start_time ?? null}, ${input.reviewFields?.shift_end_time ?? null},
