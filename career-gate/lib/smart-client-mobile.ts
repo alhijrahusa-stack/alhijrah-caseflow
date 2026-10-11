@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { StaffSession } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import type { IntakeRow } from "@/lib/intake-file";
-import { ActionError } from "@/lib/service";
+import { ActionError, normalizeClientEmail } from "@/lib/service";
 import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
@@ -244,6 +244,26 @@ export async function stageMobileImportV2(args: {
         batchId: String(existing.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: true,
         createdAt: String(caseRow.created_at), mappedDraft: caseRow.mapped_draft, verificationResult: caseRow.verification_result,
       };
+    }
+
+    const publicEmail = normalizeClientEmail((preDraft.profile as { email?: string | null }).email);
+    if (publicEmail && key.startsWith("client-link:")) {
+      await tx`select pg_advisory_xact_lock(hashtextextended(${`cg-public-email:${publicEmail}`}, 0))`;
+      const [duplicate] = await tx`
+        select ref from clients
+        where deleted_at is null and lower(trim(coalesce(email,'')))=${publicEmail}
+        union all
+        select public_ref as ref from client_import_cases
+        where created_client_id is null
+          and lower(trim(coalesce(mapped_draft #>> '{profile,email}','')))=${publicEmail}
+        limit 1`;
+      if (duplicate) {
+        throw new ActionError(
+          "duplicate_application",
+          "An application has already been submitted with this email. Please contact Customer Service on WhatsApp.",
+          409,
+        );
+      }
     }
     const [batch] = await tx`
       insert into client_import_batches(source_type,source_file_hash,idempotency_key,created_by,metadata)
