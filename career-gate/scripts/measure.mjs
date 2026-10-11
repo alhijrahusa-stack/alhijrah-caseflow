@@ -145,10 +145,17 @@ if (!READ_ONLY) {
   if (!databaseUrl) throw new Error("DATABASE_URL is required when PERF_READ_ONLY is not 1");
   const db = postgres(databaseUrl, { max: 1 });
 
-  let lastClient = null;
-  [{ id: lastClient }] = await db`
+  // The intake above is refused when the running server reads the real job
+  // catalog, which has no openings, so there may be no TEST Perf client. Fall
+  // back to any synthetic client rather than aborting the whole measurement.
+  const [perfClient] = await db`
     select id from clients where full_name like 'TEST Perf %' order by created_at desc limit 1
   `;
+  const [fallbackClient] = perfClient ? [perfClient] : await db`
+    select id from clients where full_name like 'TEST %' and deleted_at is null order by created_at desc limit 1
+  `;
+  const lastClient = (perfClient ?? fallbackClient)?.id ?? null;
+  if (!lastClient) throw new Error("no synthetic client available to measure against");
 
   results.push(await measure("client search (GET /api/staff/search)", () =>
     fetch(`${BASE}/api/staff/search?q=TEST`, { headers: staff })));
