@@ -166,6 +166,61 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
   return projection;
 }
 
+/** Public-safe Smart Client status before canonical Client creation. */
+export async function publicImportStatus(importCaseId: string): Promise<PublicStatus | null> {
+  const db = sql();
+  const [row] = await db`
+    select id,public_ref,status,mapped_draft,created_at,updated_at,created_client_id
+    from client_import_cases
+    where id=${importCaseId}`;
+  if (!row) return null;
+  if (row.created_client_id) return publicStatus(String(row.created_client_id));
+
+  const draft = (row.mapped_draft && typeof row.mapped_draft === "object" ? row.mapped_draft : {}) as Record<string, unknown>;
+  const profile = (draft.profile && typeof draft.profile === "object" ? draft.profile : {}) as Record<string, unknown>;
+  const review = (draft.review_fields && typeof draft.review_fields === "object" ? draft.review_fields : {}) as Record<string, unknown>;
+  const fullName = String(profile.full_name ?? "Applicant").trim() || "Applicant";
+  const rawStatus = String(row.status);
+  const statusLabel =
+    rawStatus === "PENDING" ? "Submitted"
+      : rawStatus === "MISSING_DOCUMENT" ? "Documents Needed"
+        : rawStatus === "APPROVED_FILE" ? "Approved"
+          : "Under Review";
+  const nextStep =
+    rawStatus === "MISSING_DOCUMENT"
+      ? "The office will contact you if another document is required."
+      : "The office is reviewing your information and documents.";
+
+  const [doc] = await db`
+    select count(*)::int as total
+    from client_import_documents
+    where import_case_id=${importCaseId}`;
+
+  const preferredLocation = typeof review.preferred_location === "string" ? review.preferred_location : null;
+  const shiftDays = Array.isArray(review.shift_days) ? review.shift_days.join(", ") : typeof review.shift_days === "string" ? review.shift_days : null;
+  const start = typeof review.shift_start_time === "string" ? review.shift_start_time : null;
+  const end = typeof review.shift_end_time === "string" ? review.shift_end_time : null;
+
+  return {
+    ref: String(row.public_ref),
+    first_name: fullName.split(/\s+/)[0] ?? fullName,
+    full_name: fullName,
+    status: "new_intake",
+    status_label: statusLabel,
+    next_step: nextStep,
+    start_date: null,
+    updated_at: new Date(row.updated_at).toISOString(),
+    appointment: null,
+    pending_actions: [],
+    filed_at: new Date(row.created_at).toISOString(),
+    location: preferredLocation ? { site_code: preferredLocation, site_name: preferredLocation, address: null, city: "" } : null,
+    shift: start || end || shiftDays ? { name: "Selected shift", days: shiftDays, time: [start, end].filter(Boolean).join(" – ") || null } : null,
+    interview: null,
+    documents: { status: Number(doc?.total ?? 0) > 0 ? "Complete" : "Missing" },
+    history: [{ status: rawStatus, label: statusLabel, updated_at: new Date(row.updated_at).toISOString() }],
+  };
+}
+
 /** Exact public lookup by ALH/CG case number, email, or phone. */
 export async function publicStatusByIdentifier(identifier: string) {
   const db = sql();
