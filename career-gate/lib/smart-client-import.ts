@@ -581,7 +581,11 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
   const persistable = assessApproval({ mappedDraft: row.mapped_draft });
   let identityMatches: Awaited<ReturnType<typeof findClientIdentityMatches>> = [];
   if (persistable.draft) {
-    identityMatches = await findClientIdentityMatches(tx, persistable.draft.profile.email, persistable.draft.profile.phone, { lock: true });
+    identityMatches = await findClientIdentityMatches(tx, persistable.draft.profile.email, persistable.draft.profile.phone, {
+      lock: true,
+      fullName: persistable.draft.profile.full_name,
+      dateOfBirth: persistable.draft.profile.date_of_birth,
+    });
     if (identityMatches.length) blockingConflicts.push({ type: "IDENTITY", client_id: identityMatches[0].id, client_ref: identityMatches[0].ref });
   }
 
