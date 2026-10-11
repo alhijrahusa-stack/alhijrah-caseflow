@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { publishMutationWithGrace } from "@/components/staff/realtime/update-bus";
+import { useRouter } from "next/navigation";
+import { startTransition, useState } from "react";
+import { publishMutation } from "@/components/staff/realtime/update-bus";
 import { useToast } from "@/components/ui/Toast";
 
 type Ok = { ok: true; client_id?: string | null; [k: string]: unknown };
@@ -12,10 +13,12 @@ type Fail = { ok: false; error: { code: string; message: string } };
  * confirms; failures keep a persistent inline error and raise a toast.
  *
  * On success the affected resources are published on the targeted update path,
- * scoped to the client the server resolved. A short mount-grace retry absorbs
- * hydration races; only a confirmed second miss requests route recovery.
+ * scoped to the client the server resolved. `router.refresh()` runs only as
+ * the recovery fallback, when no mounted surface owns those resources or the
+ * mutation is not in the resource graph.
  */
 export function useAction(opts: { successMessage?: string | null } = {}) {
+  const router = useRouter();
   const toast = useToast();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +41,9 @@ export function useAction(opts: { successMessage?: string | null } = {}) {
         : typeof payload.client_id === "string"
           ? payload.client_id
           : null;
-      publishMutationWithGrace(String(payload.action ?? ""), clientId);
+      if (publishMutation(String(payload.action ?? ""), clientId) !== null) {
+        startTransition(() => { router.refresh(); });
+      }
       return data;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Request failed";
