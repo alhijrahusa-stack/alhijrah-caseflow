@@ -182,7 +182,7 @@ export function appendExtractionEvidence(existingValue: unknown, incoming: reado
   return [...existing, ...appended];
 }
 
-function preserveReviewedDraft(current: unknown, incoming: ReturnType<typeof partialDraft>, reviewStarted: boolean) {
+function preserveReviewedDraft(current: unknown, incoming: ReturnType<typeof partialDraft>, reviewStarted: boolean, manualFields: ReadonlySet<string> = new Set()) {
   if (!reviewStarted || !current || typeof current !== "object") return incoming;
   const currentDraft = current as Record<string, unknown>;
   const currentProfile = currentDraft.profile && typeof currentDraft.profile === "object" ? currentDraft.profile as Record<string, unknown> : null;
@@ -190,7 +190,7 @@ function preserveReviewedDraft(current: unknown, incoming: ReturnType<typeof par
   const incomingProfile = incoming.profile as Record<string, unknown>;
   const profile = { ...incomingProfile };
   for (const [key, value] of Object.entries(currentProfile)) {
-    if (value !== null && value !== undefined && value !== "") profile[key] = value;
+    if (manualFields.has(key) || (value !== null && value !== undefined && value !== "")) profile[key] = value;
   }
   return {
     ...incoming,
@@ -438,38 +438,58 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
   }
 
   const merged = mergeEvidence(sources);
-  const extractedDraft = partialDraft(merged.merged, notes);
-  const draft = preserveReviewedDraft(caseRow.mapped_draft, extractedDraft, Boolean(caseRow.review_started_at));
-  const evidence = appendExtractionEvidence(caseRow.field_evidence, merged.evidence as EvidenceEntry[]);
-  const missing = requiredMissingFromDraft(draft);
   const failedDocuments = results.filter((item) => item.extractionError).length;
   const aiState = docs.length === 0 ? "SKIPPED" : failedDocuments === docs.length ? "FAILED" : failedDocuments ? "PARTIAL" : "COMPLETE";
   const processingState = extractionErrors.length ? "REVIEW_REQUIRED" : "EXTRACTED";
-  const verificationResult = {
-    processing_state: processingState,
-    local_state: "COMPLETE",
-    ai_state: aiState,
-    extraction_errors: extractionErrors,
-    evidence_fields: evidence.length,
-    document_count: docs.length,
-    provider: "gemini",
-    manual_precedence_applied: Boolean(caseRow.review_started_at),
-    checked_at: new Date().toISOString(),
-  };
 
-  await sql()`
-    update client_import_cases
-    set mapped_draft=${sql().json(draft as never)},missing_fields=${sql().json(missing as never)},
-        conflicts=${sql().json(merged.conflicts as never)},field_evidence=${sql().json(evidence as never)},
-        verification_result=${sql().json(verificationResult as never)}
-    where id=${caseId}`;
+  // Extraction can finish AFTER the client/staff reviewed or approved the file.
+  // Re-read under a row lock immediately before persistence: never use the
+  // stale pre-extraction review snapshot to replace manually reviewed values.
+  return sql().begin(async (tx) => {
+    const [latest] = await tx`
+      select status,mapped_draft,field_evidence,review_started_at
+      from client_import_cases where id=${caseId} for update`;
+    if (!latest) throw new ActionError("not_found", "Import case not found", 404);
+    if (latest.status === "APPROVED_FILE") {
+      throw new ActionError("already_approved", "Approved files cannot be changed by delayed extraction", 409);
+    }
 
-  return {
-    case_id: caseId,
-    mapped_draft: draft,
-    missing_fields: missing,
-    conflicts: merged.conflicts,
-    field_evidence: evidence,
-    verification_result: verificationResult,
-  };
+    const manualFields = new Set<string>(
+      (Array.isArray(latest.field_evidence) ? latest.field_evidence : [])
+        .filter((entry: EvidenceEntry) => entry && entry.authority === "MANUAL")
+        .map((entry: EvidenceEntry) => String(entry.field_key)),
+    );
+    const reviewed = Boolean(latest.review_started_at);
+    const draft = preserveReviewedDraft(latest.mapped_draft, partialDraft(merged.merged, notes), reviewed, manualFields);
+    const evidence = appendExtractionEvidence(latest.field_evidence, merged.evidence as EvidenceEntry[]);
+    const unresolvedConflicts = merged.conflicts.filter((conflict) => !manualFields.has(String(conflict.field_key)));
+    const missing = requiredMissingFromDraft(draft);
+    const verificationResult = {
+      processing_state: processingState,
+      local_state: "COMPLETE",
+      ai_state: aiState,
+      extraction_errors: extractionErrors,
+      evidence_fields: evidence.length,
+      document_count: docs.length,
+      provider: "gemini",
+      manual_precedence_applied: reviewed,
+      resolved_source_conflict_fields: merged.conflicts
+        .filter((conflict) => manualFields.has(String(conflict.field_key))).map((conflict) => conflict.field_key),
+      checked_at: new Date().toISOString(),
+    };
+    await tx`
+      update client_import_cases
+      set mapped_draft=${tx.json(draft as never)},missing_fields=${tx.json(missing as never)},
+          conflicts=${tx.json(unresolvedConflicts as never)},field_evidence=${tx.json(evidence as never)},
+          verification_result=${tx.json(verificationResult as never)}
+      where id=${caseId}`;
+    return {
+      case_id: caseId,
+      mapped_draft: draft,
+      missing_fields: missing,
+      conflicts: unresolvedConflicts,
+      field_evidence: evidence,
+      verification_result: verificationResult,
+    };
+  });
 }
