@@ -118,10 +118,12 @@ export function ClientIntakeForm({ token }: { token: string }) {
     const validEmail = email && !validateIntakeField("email", email, t) ? email : "";
     const validCase = /^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber) ? caseNumber : "";
     if (!validEmail && !validCase) {
-      setDuplicateIdentity(false);
-      setSharedEmailWarning(false);
-      setCheckingDuplicate(false);
-      return;
+      const reset = setTimeout(() => {
+        setDuplicateIdentity(false);
+        setSharedEmailWarning(false);
+        setCheckingDuplicate(false);
+      }, 0);
+      return () => clearTimeout(reset);
     }
     const controller = new AbortController();
     const timer = setTimeout(async () => {
