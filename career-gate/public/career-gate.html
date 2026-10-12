@@ -2901,6 +2901,72 @@ html[dir="ltr"] .lbl{
 @media(max-width:640px){.status-executive-launch{padding:17px 15px;min-height:95px;gap:11px}.status-executive-symbol{width:41px;height:43px;flex-basis:41px}.status-executive-arrow{display:none}.receipt-status-inline{grid-template-columns:1fr}.receipt-status-inline .btn{width:100%}.executive-document-item{gap:8px;padding:8px}.executive-document-thumb{width:46px;height:50px;flex-basis:46px}}
 @media(prefers-reduced-motion:reduce){.status-executive-launch,.executive-document-view,#form .btn,#receiptScreen .btn{transition:none!important;transform:none!important}}
 
+
+/* Executive Elite Client Card — scoped 2026-10-12 finish */
+:root{--elite-navy-0:#070d1b;--elite-navy-1:#0a122c;--elite-champagne:#c5a059;--elite-champagne-soft:rgba(197,160,89,.4)}
+#receiptCard{position:relative;isolation:isolate;overflow:hidden;background:radial-gradient(ellipse at 75% 0%,rgba(197,160,89,.13),transparent 36%),linear-gradient(138deg,#070d1b,#0a122c 67%,#091a32);border:1px solid rgba(197,160,89,.72);border-radius:28px;box-shadow:0 25px 70px rgba(0,0,0,.39),inset 0 1px 0 rgba(255,255,255,.12);backdrop-filter:blur(26px)}
+#receiptCard:before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;border:1px solid rgba(255,255,255,.045)}
+#receiptCard .receipt-head{padding:17px;border:1px solid rgba(197,160,89,.21);background:linear-gradient(125deg,rgba(255,255,255,.065),rgba(8,20,42,.26));border-radius:21px;gap:20px;align-items:center}
+#receiptCard .receipt-head h2{color:#f2d9a9;font-weight:800;letter-spacing:.018em;overflow-wrap:anywhere}
+#receiptCard .receipt-case{font-size:clamp(16px,2vw,20px);color:#edc98a;overflow-wrap:anywhere}
+#receiptCard .receipt-photo{border:2px solid rgba(197,160,89,.65);box-shadow:0 9px 30px rgba(0,0,0,.3)}
+#receiptCard .receipt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:25px}
+.receipt-data-group{grid-column:1/-1;min-width:0;border:1px solid rgba(197,160,89,.24);border-radius:19px;padding:13px;background:linear-gradient(145deg,rgba(18,38,67,.45),rgba(9,21,43,.55))}
+.receipt-data-group-head{display:flex;align-items:center;gap:9px;margin:1px 3px 13px;color:#dec08c;font-weight:800;font-size:12px;letter-spacing:.03em}
+.receipt-data-group-head:before{content:"";height:17px;width:3px;flex:0 0 3px;background:linear-gradient(#f0d8a9,#b58a51);border-radius:4px}
+.receipt-data-group-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+#receiptCard .receipt-item{min-width:0;border:1px solid rgba(197,160,89,.21);background:linear-gradient(136deg,rgba(255,255,255,.055),rgba(8,21,43,.43));border-radius:12px;padding:13px;box-shadow:inset 0 1px 0 rgba(255,255,255,.065);transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease}
+#receiptCard .receipt-item:hover{transform:translateY(-1px);border-color:rgba(197,160,89,.59);box-shadow:0 10px 23px rgba(0,0,0,.22)}
+#receiptCard .receipt-item label{font-size:12px;color:#d7bb86}
+#receiptCard .receipt-item div{font-size:14px;overflow-wrap:anywhere;color:#f1f5fa}
+#receiptCard .receipt-contact-mini{border-color:rgba(197,160,89,.22)}
+/* Standalone premium glass tracker: never part of downloaded receiptCard */
+#receiptStatusExecutive{margin-top:36px!important;margin-bottom:10px;padding:clamp(20px,3vw,30px);border:1px solid rgba(197,160,89,.65);border-radius:25px;background:radial-gradient(ellipse at 0 0,rgba(197,160,89,.075),transparent 55%),rgba(17,24,39,.75);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);color:#f8fafc;box-shadow:0 12px 35px rgba(197,160,89,.16),inset 0 1px 0 rgba(255,255,255,.1);transition:transform .2s ease-out,border-color .2s ease-out,box-shadow .2s ease-out}
+#receiptStatusExecutive:hover,#receiptStatusExecutive:focus-within{transform:translateY(-1px);border-color:rgba(225,186,116,.8);box-shadow:0 12px 35px rgba(197,160,89,.23),inset 0 1px 0 rgba(255,255,255,.11)}
+#receiptStatusExecutive .receipt-status-kicker{color:#ddbd80}
+#receiptStatusExecutive .receipt-status-top h3{color:#f1dfb9}
+#receiptStatusExecutive .receipt-status-top p{color:#dce5f0}
+#receiptStatusExecutive .receipt-status-controls label{color:#e9d4a8}
+#receiptStatusExecutive .receipt-status-inline input{background:rgba(255,255,255,.97)!important;color:#0b213a!important}
+#receiptStatusExecutive .receipt-status-inline .btn,#receiptStatusExecutive .receipt-status-action{color:#fff;background:linear-gradient(135deg,#122b4b,#09162d);border:1px solid rgba(197,160,89,.7)}
+.receipt-status-voice{display:flex;justify-content:flex-end;margin-top:13px}
+.receipt-voice-control{border:1px solid rgba(197,160,89,.45);background:rgba(255,255,255,.045);color:#e9d5ac;border-radius:12px;padding:9px 13px;font-size:12px}
+.receipt-voice-control:hover{background:rgba(197,160,89,.13);border-color:#c5a059}
+.receipt-read-aloud{display:inline-flex;align-items:center;gap:7px;margin-top:14px;border:1px solid rgba(197,160,89,.57);border-radius:11px;padding:10px 15px;background:#122b4b;color:#f9e9ca;font-weight:700}
+.receipt-read-aloud:hover{box-shadow:0 6px 18px rgba(197,160,89,.2);transform:translateY(-1px)}
+#receiptStatusExecutive #receiptTrackResult:not(:empty){background:linear-gradient(145deg,#0a162b,#071020);color:#fff;border:1px solid rgba(197,160,89,.38)}
+.receipt-actions{grid-template-columns:repeat(4,minmax(0,1fr))!important;max-width:none;gap:12px;margin-top:19px}
+.receipt-actions>.btn{min-height:53px;display:inline-flex;justify-content:center;align-items:center;border-radius:13px;transition:transform .2s,box-shadow .2s,border-color .2s;font-weight:800}
+.receipt-actions>.btn:hover{transform:translateY(-1px);box-shadow:0 9px 20px rgba(0,0,0,.22)}
+#receiptStatusJump{border:1px solid #c5a059;background:linear-gradient(138deg,#0e2b4a,#08192d);color:#f5d9a6}
+#downloadReceipt{background:linear-gradient(130deg,#d8b570,#c5a059);color:#111d2f;border:1px solid #ebcc99}
+#newApplication{background:#f8fafc;color:#0b2740;border:1px solid #dee7f1}
+#whatsappLink{background:linear-gradient(135deg,#0aa86f,#08734f);color:#fff;border:1px solid #27ba89}
+/* Two-layer midnight/navy + clear crystalline site selectors */
+#preferredSitesExecutive{background:radial-gradient(ellipse at 95% 0%,rgba(197,160,89,.10),transparent 45%),linear-gradient(130deg,#061123,#0a1930);border:1px solid rgba(197,160,89,.69);color:#f9fafb;box-shadow:0 18px 48px rgba(0,0,0,.25),inset 2px 0 rgba(255,255,255,.38)}
+#preferredSitesExecutive .preferred-sites-heading h4{color:#f5e4bf}#preferredSitesExecutive .preferred-sites-heading p{color:#d5e0eb}
+#preferredSitesExecutive .preferred-sites-inner{padding:17px;border-radius:17px;background:linear-gradient(132deg,rgba(255,255,255,.99),rgba(248,250,252,.96));border:1px solid rgba(197,160,89,.4);box-shadow:inset 0 1px 0 #fff,0 11px 25px rgba(0,0,0,.16)}
+#preferredSitesExecutive .preferred-sites-grid{margin:0}
+/* Light enterprise footer only on the application view */
+#contactFooter{margin-top:27px;background:linear-gradient(137deg,#fff,#f8fafc 80%,#eff3f8);border:1px solid rgba(197,160,89,.42);box-shadow:0 18px 48px rgba(0,0,0,.18);color:#15253d}
+#contactFooter .contact-title{color:#0c2340}#contactFooter .contact-brand{color:#a57942}
+#contactFooter .contact-grid a{background:#fff;border:1px solid #d7e0e9;color:#10243e;box-shadow:0 6px 15px rgba(10,29,52,.055)}
+#contactFooter .contact-grid a:hover{border-color:#c5a059;transform:translateY(-1px)}
+#contactFooter .contact-grid a span{color:#52657b}
+#contactFooter .status-executive-launch{background:linear-gradient(130deg,rgba(17,24,39,.85),rgba(9,24,46,.97));border-color:rgba(197,160,89,.47)}
+#contactFooter .career-footer-status{margin-top:21px}
+.duplicate-executive-alert[hidden]{display:none!important}
+.duplicate-executive-alert{margin:19px 0;padding:23px;border-radius:20px;background:linear-gradient(135deg,rgba(13,29,52,.99),rgba(9,18,37,.99));border:1px solid #c5a059;box-shadow:0 18px 35px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.08)}
+.duplicate-guard-kicker{font:700 11px var(--mono);letter-spacing:.09em;color:#dab98c}
+.duplicate-guard-content h3{color:#f6ddae;margin:10px 0;font-size:21px}
+.duplicate-guard-content p{color:#e4eaf2;line-height:1.65}
+.duplicate-guard-actions{display:flex;flex-wrap:wrap;gap:11px;margin-top:18px}
+.duplicate-guard-actions a{padding:11px 14px;border-radius:11px;border:1px solid rgba(197,160,89,.5);background:rgba(255,255,255,.055);color:#f8fafc}
+.duplicate-guard-actions a:hover{background:rgba(197,160,89,.13)}
+@media(max-width:760px){#receiptCard .receipt-data-group-grid{grid-template-columns:1fr}.receipt-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:460px){#receiptCard .receipt-head{padding:10px}#receiptStatusExecutive{padding:17px}#preferredSitesExecutive .preferred-sites-inner{padding:12px}}
+@media(prefers-reduced-motion:reduce){#receiptStatusExecutive,#receiptCard .receipt-item,.receipt-actions>.btn{transition:none!important;transform:none!important}}
+
 </style>
 </head>
 <body>
@@ -3014,11 +3080,11 @@ html[dir="ltr"] .lbl{
     <div id="shiftSelector" style="display:none"><div class="shift-category-title">الشفت المتاح <span class="req">*</span></div><div class="shift-deck" id="shiftDeck"></div></div>
     <section class="preferred-sites-executive" id="preferredSitesExecutive" aria-labelledby="preferredSitesTitle">
       <div class="preferred-sites-heading"><span class="preferred-sites-mark" aria-hidden="true"></span><div><h4 id="preferredSitesTitle">المواقع المفضلة</h4><p id="preferredSitesHint">اختر المواقع المناسبة لك حسب الأولوية.</p></div></div>
-      <div class="grid g3 preferred-sites-grid">
+      <div class="preferred-sites-inner"><div class="grid g3 preferred-sites-grid">
         <div><label class="lbl" for="location1">الموقع الأول</label><select id="location1"></select></div>
         <div><label class="lbl" for="location2">الموقع الثاني</label><select id="location2"></select></div>
         <div><label class="lbl" for="location3">الموقع الثالث</label><select id="location3"></select></div>
-      </div>
+      </div></div>
     </section>
     <div class="divider">المهارات</div>
     <div class="choicegrid" id="skills"></div>
@@ -3070,6 +3136,7 @@ html[dir="ltr"] .lbl{
   <div class="bar"><button class="btn ghost" type="button" data-prev="3" id="reviewPrevious">→ السابق</button><span class="meta" id="reviewStepMeta">الخطوة 4 من 4</span><span class="spacer"></span><button class="btn green submit-control" id="submitBtn" type="submit"><span class="submit-label">إرسال الطلب</span><span class="submit-spinner" aria-hidden="true"></span></button></div>
 </section>
 </form>
+<div class="duplicate-executive-alert" id="duplicateGuard" role="alert" aria-live="assertive" tabindex="-1" hidden><div class="duplicate-guard-content"><span class="duplicate-guard-kicker">CAREER GATE · CUSTOMER SUPPORT</span><h3 id="duplicateGuardTitle">تم تقديم طلب مطابق مسبقًا</h3><p id="duplicateGuardText">يوجد ملف سابق مطابق لبيانات مقدم الطلب. يرجى التواصل مع خدمة العملاء.</p><div class="duplicate-guard-actions"><a href="https://wa.me/13139194192" target="_blank" rel="noopener">WhatsApp · 313-919-4192</a><a href="tel:+13133393566">Call · 313-339-3566</a><a href="mailto:careergate.official@gmail.com">Email</a></div></div></div>
 <footer class="contact-footer" id="contactFooter"><div class="contact-footer-head"><span class="contact-title" id="contactTitle">بيانات التواصل</span><span class="contact-brand">CAREER GATE</span></div><div class="contact-grid"><a href="https://wa.me/13139194192" target="_blank" rel="noopener"><span id="contactWhatsappLabel">WhatsApp</span><strong dir="ltr">313-919-4192</strong></a><a href="tel:+13133393566"><span id="contactCallLabel">اتصال</span><strong dir="ltr">313-339-3566</strong></a><a href="mailto:careergate.official@gmail.com"><span>Email</span><strong dir="ltr">careergate.official@gmail.com</strong></a></div><div class="career-footer-status"><button type="button" id="openTrack" class="status-executive-launch" aria-haspopup="dialog" aria-controls="statusModal"><span class="status-executive-symbol" aria-hidden="true">↗</span><span class="status-executive-copy"><strong id="statusLaunchHeading">متابعة حالة الطلب · Check Application Status</strong><small id="statusLaunchInfo">اطّلع على حالة ملفك وآخر تحديثاته باستخدام رقم الملف أو بيانات التواصل.</small></span><span class="status-executive-arrow" aria-hidden="true">←</span></button></div></footer>
 <div class="career-status-modal" id="statusModal" role="dialog" aria-modal="true" aria-label="متابعة حالة الملف" hidden>
  <div class="career-status-dialog"><button type="button" class="btn ghost career-status-close" id="closeTrack" aria-label="إغلاق">×</button>
@@ -3104,7 +3171,7 @@ html[dir="ltr"] .lbl{
 </div>
 </div>
 
-<section class="receipt-screen" id="receiptScreen"><div class="receipt-shell"><div class="receipt" id="receiptCard"><div class="receipt-brand-row"><img src="/brand/alhijrah-services.webp" alt="" class="receipt-office-logo" aria-hidden="true"><div class="receipt-brand-center"><img src="/brand/career-gate.webp" alt="Career Gate" class="receipt-career-logo"><span>CAREER GATE</span></div><div class="receipt-language language-toggle" role="group" aria-label="Language"><button type="button" data-locale="ar">العربية</button><span>|</span><button type="button" data-locale="en">EN</button></div></div><div class="receipt-head"><div class="receipt-photo" id="receiptPhoto">A</div><div><div class="eyebrow" id="receiptEyebrow">APPLICATION RECEIVED</div><h2 id="receiptName"></h2><div class="statusPill" id="receiptStatus">تم استلام طلبك بنجاح</div><p class="receipt-confirmation" id="receiptConfirmation">تم تسجيل طلبك وإحالته للمراجعة الأولية. احتفظ برقم الملف لمتابعة حالة الطلب.</p><div class="receipt-case" id="receiptCase"></div><div class="receipt-system-id" id="receiptSystemId"></div><div class="receipt-time" id="receiptTime"></div></div></div><div class="receipt-grid" id="receiptGrid"></div><div class="receipt-contact-mini"><a href="https://wa.me/13139194192" target="_blank" rel="noopener"><span>WhatsApp</span><strong dir="ltr">313-919-4192</strong></a><a href="tel:+13133393566"><span id="receiptCallLabel">اتصال</span><strong dir="ltr">313-339-3566</strong></a><a href="mailto:careergate.official@gmail.com"><span>Email</span><strong dir="ltr">careergate.official@gmail.com</strong></a></div><section class="receipt-status-executive" id="receiptStatusExecutive" aria-labelledby="receiptStatusHeading"><div class="receipt-status-top"><span class="receipt-status-kicker">CAREER GATE · FILE TRACKING</span><h3 id="receiptStatusHeading">متابعة حالة الطلب · Check Application Status</h3><p id="receiptStatusDescription">تم حفظ رقم ملفك. أدخله أو استخدمه أدناه للاطلاع على أحدث حالة وتحديثات الطلب.</p></div><div class="receipt-status-controls"><label for="receiptTrackValue" id="receiptTrackLabel">رقم الملف</label><div class="receipt-status-inline"><input id="receiptTrackValue" autocomplete="off" dir="ltr" placeholder="ALH-2026..." /><button type="button" id="receiptTrackBtn" class="btn primary">عرض حالة الملف ←</button></div></div><div id="receiptTrackResult" aria-live="polite" role="status"></div></section></div><div class="receipt-actions"><button class="btn primary" id="downloadReceipt" type="button">حفظ البطاقة</button><a class="btn green" id="whatsappLink" target="_blank" rel="noopener">واتساب</a><button class="btn ghost" id="newApplication" type="button">طلب جديد</button></div></div></section>
+<section class="receipt-screen" id="receiptScreen"><div class="receipt-shell"><div class="receipt" id="receiptCard"><div class="receipt-brand-row"><img src="/brand/alhijrah-services.webp" alt="" class="receipt-office-logo" aria-hidden="true"><div class="receipt-brand-center"><img src="/brand/career-gate.webp" alt="Career Gate" class="receipt-career-logo"><span>CAREER GATE</span></div><div class="receipt-language language-toggle" role="group" aria-label="Language"><button type="button" data-locale="ar">العربية</button><span>|</span><button type="button" data-locale="en">EN</button></div></div><div class="receipt-head"><div class="receipt-photo" id="receiptPhoto">A</div><div><div class="eyebrow" id="receiptEyebrow">APPLICATION RECEIVED</div><h2 id="receiptName"></h2><div class="statusPill" id="receiptStatus">تم استلام طلبك بنجاح</div><p class="receipt-confirmation" id="receiptConfirmation">تم تسجيل طلبك وإحالته للمراجعة الأولية. احتفظ برقم الملف لمتابعة حالة الطلب.</p><div class="receipt-case" id="receiptCase"></div><div class="receipt-system-id" id="receiptSystemId"></div><div class="receipt-time" id="receiptTime"></div></div></div><div class="receipt-grid" id="receiptGrid"></div><div class="receipt-contact-mini"><a href="https://wa.me/13139194192" target="_blank" rel="noopener"><span>WhatsApp</span><strong dir="ltr">313-919-4192</strong></a><a href="tel:+13133393566"><span id="receiptCallLabel">اتصال</span><strong dir="ltr">313-339-3566</strong></a><a href="mailto:careergate.official@gmail.com"><span>Email</span><strong dir="ltr">careergate.official@gmail.com</strong></a></div></div><section class="receipt-status-executive" id="receiptStatusExecutive" aria-labelledby="receiptStatusHeading"><div class="receipt-status-top"><span class="receipt-status-kicker">CAREER GATE · FILE TRACKING</span><h3 id="receiptStatusHeading">متابعة حالة الطلب · Check Application Status</h3><p id="receiptStatusDescription">تم حفظ رقم ملفك. أدخله أو استخدمه أدناه للاطلاع على أحدث حالة وتحديثات الطلب.</p></div><div class="receipt-status-controls"><label for="receiptTrackValue" id="receiptTrackLabel">رقم الملف</label><div class="receipt-status-inline"><input id="receiptTrackValue" autocomplete="off" dir="ltr" placeholder="ALH-2026..." /><button type="button" id="receiptTrackBtn" class="btn primary">عرض حالة الملف ←</button></div></div><div class="receipt-status-voice"><button type="button" id="receiptVoiceBtn" class="receipt-voice-control" aria-label="تشغيل التوجيه الصوتي"><span aria-hidden="true">◉</span> <span id="receiptVoiceLabel">تشغيل المساعد الصوتي</span></button></div><div id="receiptTrackResult" aria-live="polite" role="status"></div></section><div class="receipt-actions" aria-label="Career Gate actions"><button class="btn ghost" id="newApplication" type="button">طلب جديد</button><a class="btn green" id="whatsappLink" target="_blank" rel="noopener">WhatsApp</a><button class="btn primary" id="downloadReceipt" type="button">حفظ البطاقة</button><button class="btn receipt-status-action" id="receiptStatusJump" type="button">عرض حالة الملف</button></div></div></section>
 
 <div class="document-viewer-modal" id="documentViewer" role="dialog" aria-modal="true" aria-labelledby="documentViewerTitle" hidden><div class="document-viewer-panel"><div class="document-viewer-top"><div><span class="document-viewer-kicker">DOCUMENT PREVIEW</span><h3 id="documentViewerTitle">معاينة المستند</h3></div><button type="button" id="closeDocumentViewer" aria-label="إغلاق المعاينة">×</button></div><div class="document-viewer-content"><img id="documentViewerImage" alt="" hidden><iframe id="documentViewerPdf" title="Document preview" hidden></iframe></div><p id="documentViewerNotice">هذه معاينة محلية للمستند المحدد. يُرفع إلى النظام عند إرسال الطلب.</p></div></div>
 <div class="toastwrap" id="toasts"></div>
