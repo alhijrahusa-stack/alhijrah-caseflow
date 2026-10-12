@@ -69,11 +69,15 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
     // text while the existing parser stays authoritative for everything else.
     const edits = readEdits(form);
     const caseNumber = String(form.get("case_number") ?? "").trim().toUpperCase();
+    if (link.targetCaseId && caseNumber && caseNumber !== link.targetCaseNumber) {
+      await releaseIntakeLink(link.id);
+      return err("case_mismatch", "This link belongs to a different case", 409, traceId);
+    }
     if (caseNumber && !/^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber)) {
       await releaseIntakeLink(link.id);
       return err("invalid_case_number", "Enter a valid Case Number (CG-YYYY-NNNNNN).", 422, traceId);
     }
-    const duplicate = await findPublicDuplicate({
+    const duplicate = link.targetCaseId ? { exists: false, sharedEmail: false } : await findPublicDuplicate({
       email: edits.email,
       caseNumber: /^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber) ? caseNumber : null,
       fullName: edits.full_name,
@@ -97,7 +101,9 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
       notes,
       files,
       idempotencyKey: intakeIdempotencyKey(link.tokenHash),
-      caseNumber: caseNumber || null,
+      caseNumber: (link.targetCaseNumber ?? caseNumber) || null,
+      targetCaseId: link.targetCaseId,
+      linkId: link.targetCaseId ? link.id : null,
     });
 
     const finalized = await finalizeIntakeLink(link.id, result.case_id);
