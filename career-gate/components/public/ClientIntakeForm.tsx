@@ -52,6 +52,7 @@ function attach(file: File): Attachment {
 
 export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: string; targetCaseNumber?: string | null }) {
   const [locale, setLocale] = useState<IntakeLocale>("ar");
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const t = INTAKE_COPY[locale];
 
   const [sourceText, setSourceText] = useState("");
@@ -85,6 +86,66 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
   const replacingId = useRef<string | null>(null);
   const replaceInput = useRef<HTMLInputElement | null>(null);
   const extractionVersion = useRef(0);
+
+
+  // Client-controlled audio only. A disabled/missing browser speech engine must
+  // never interrupt upload, extraction or application submission.
+  function playChime(force = false) {
+    if (!force && !voiceEnabled) return;
+    try {
+      const context = new AudioContext();
+      const now = context.currentTime;
+      for (const [index, frequency] of [660, 880].entries()) {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const start = now + index * 0.105;
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequency, start);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.028, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.17);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(start);
+        oscillator.stop(start + 0.18);
+      }
+      setTimeout(() => { void context.close().catch(() => undefined); }, 600);
+    } catch { /* Not all browsers or devices permit Web Audio. */ }
+  }
+
+  function speakGuidance(message: string, force = false) {
+    if (!force && !voiceEnabled) return;
+    try {
+      if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.lang = locale === "ar" ? "ar-SA" : "en-US";
+      utterance.rate = 0.94;
+      utterance.pitch = 1.02;
+      utterance.volume = 0.95;
+      const preferred = window.speechSynthesis.getVoices().find(
+        (voice) => voice.lang.toLowerCase().startsWith(locale === "ar" ? "ar" : "en"),
+      );
+      if (preferred) utterance.voice = preferred;
+      window.speechSynthesis.speak(utterance);
+    } catch { /* Voice guidance is enhancement, not a dependency. */ }
+  }
+
+  function toggleVoice() {
+    const next = !voiceEnabled;
+    setVoiceEnabled(next);
+    if (next) {
+      playChime(true);
+      speakGuidance(
+        locale === "ar"
+          ? "مرحباً بك في كارير جيت. ارفع مستندك أو أدخل بياناتك، ثم راجع المعلومات قبل إرسال الطلب."
+          : "Welcome to Career Gate. Upload a document or enter your details, then review your information before submitting.",
+        true,
+      );
+    } else {
+      try { window.speechSynthesis?.cancel(); } catch { /* Optional. */ }
+    }
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(sourceText), 180);
@@ -243,6 +304,12 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
       setDocumentFields(fields);
       setImportedFields(keys);
       setReviewFields(needsReview);
+      if (keys.length > 0) {
+        playChime();
+        speakGuidance(locale === "ar"
+          ? "تم استخراج معلومات المستند. يرجى مراجعة البيانات وإكمال الناقص."
+          : "Document information extracted. Please review the details and complete anything missing.");
+      }
       setDocumentWarnings(Array.isArray(data.document_warnings)
         ? data.document_warnings.filter((item: unknown): item is string => typeof item === "string").slice(0, 10)
         : []);
@@ -277,6 +344,10 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
       return;
     }
     setAttachments(next);
+    playChime();
+    speakGuidance(locale === "ar"
+      ? "تم اختيار المستند. تبدأ عملية الرفع عند إرسال الطلب."
+      : "Document selected. Upload will begin when you submit.");
     resetDocumentExtraction();
     void extractFromDocuments(next);
   }
@@ -347,6 +418,10 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
       setCaseNumber(typeof data.case_number === "string" ? data.case_number : null);
       setSharedEmailWarning(data.shared_email_warning === true);
       setDone(true);
+      playChime();
+      speakGuidance(locale === "ar"
+        ? "تم استلام الطلب بنجاح. احتفظ برقم ملفك لمتابعة حالته."
+        : "Your application was received successfully. Save your case number to track your application.");
     } catch {
       setError(t.genericError);
     } finally {
@@ -358,7 +433,21 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
   const header = (
     <header className="flex min-w-0 flex-wrap items-center justify-between gap-3">
       <ClientIntakeBrand title={t.brand} subtitle={t.office} />
-      <LocaleToggle locale={locale} onChange={setLocale} />
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <button
+          type="button"
+          data-testid="intake-voice-toggle"
+          aria-pressed={voiceEnabled}
+          aria-label={locale === "ar" ? "تشغيل أو إيقاف التوجيه الصوتي" : "Turn voice guidance on or off"}
+          onClick={toggleVoice}
+          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[#c5a059]/55 bg-[#102b53]/80 px-3 text-[12px] font-semibold text-[#f6e2b5] shadow-[0_8px_22px_rgba(0,0,0,.2)] transition-[transform,box-shadow] duration-200 hover:-translate-y-px hover:border-[#e5c98c] hover:shadow-[0_10px_27px_rgba(197,160,89,.18)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059] motion-reduce:transform-none motion-reduce:transition-none"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="M16 9a5 5 0 0 1 0 6M19 6a9 9 0 0 1 0 12" /></svg>
+          <span>{voiceEnabled ? (locale === "ar" ? "الصوت مفعّل" : "Voice On") : (locale === "ar" ? "توجيه صوتي" : "Voice Guide")}</span>
+          <span aria-hidden="true" className={voiceEnabled ? "h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,.55)]" : "h-1.5 w-1.5 rounded-full bg-[#c5a059]"} />
+        </button>
+        <LocaleToggle locale={locale} onChange={setLocale} />
+      </div>
     </header>
   );
 

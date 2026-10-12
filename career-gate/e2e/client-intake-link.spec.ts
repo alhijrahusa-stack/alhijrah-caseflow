@@ -631,6 +631,66 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     expect(rows).toHaveLength(1);
   });
 
+
+  test("Client Intake Link only uses champagne-lit dark glass and keeps voice optional and functional", async ({ page }) => {
+    const issued = await issueLink(staffPage);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/intake/${issued.token}`);
+    const glass = page.getByTestId("intake-upload");
+    await expect(glass).toBeVisible();
+    const styles = await glass.evaluate(element => {
+      const computed = getComputedStyle(element);
+      return { background: computed.backgroundImage, border: computed.borderColor, blur: computed.backdropFilter };
+    });
+    expect(styles.background).toContain("rgba(24, 53, 92, 0.85)");
+    expect(styles.background).toContain("rgba(197, 160, 89, 0.12)");
+    expect(styles.border).not.toBe("rgb(255, 255, 255)");
+    expect(styles.blur).toContain("blur(");
+    await expect(page.getByTestId("intake-source")).toBeVisible();
+    const voice = page.getByTestId("intake-voice-toggle");
+    await expect(voice).toHaveAttribute("aria-pressed", "false");
+    await voice.click();
+    await expect(voice).toHaveAttribute("aria-pressed", "true");
+    await expect(voice).toContainText("الصوت مفعّل");
+    await page.getByTestId("locale-en").click();
+    await expect(voice).toContainText("Voice On");
+    await voice.click();
+    await expect(voice).toHaveAttribute("aria-pressed", "false");
+    await page.getByTestId("intake-choose-files").setInputFiles({
+      name: "preview-identity.png", mimeType: "image/png", buffer: PNG_1x1,
+    });
+    await expect(page.getByTestId("intake-file")).toContainText("preview-identity.png");
+    await expect(page.getByTestId("intake-success")).toHaveCount(0);
+    await page.getByTestId("intake-file-view").click();
+    await expect(page.getByTestId("intake-document-viewer")).toBeVisible();
+    await page.getByRole("button", { name: "Close preview" }).click();
+  });
+
+  test("Client Intake Link dark-glass presentation retains usable mobile, tablet and ultrawide layouts", async ({ page }) => {
+    const issued = await issueLink(staffPage);
+    for (const width of [320, 360, 390, 600, 768, 1024, 1440, 1920, 2560]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/intake/${issued.token}`);
+      const metrics = await page.evaluate(() => {
+        const cards = ["intake-upload", "intake-source", "intake-detected"].map(id => {
+          const element = document.querySelector(`[data-testid="${id}"]`)!;
+          const box = element.getBoundingClientRect();
+          return { left: box.left, right: box.right, width: box.width };
+        });
+        const voice = document.querySelector('[data-testid="intake-voice-toggle"]')!.getBoundingClientRect();
+        return { scrollWidth: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth,
+          cards, voiceHeight: voice.height, voiceWidth: voice.width };
+      });
+      expect(metrics.scrollWidth, `Horizontal overflow at ${width}px`).toBeLessThanOrEqual(metrics.viewport + 1);
+      for (const card of metrics.cards) {
+        expect(card.left, `left at ${width}px`).toBeGreaterThanOrEqual(-1);
+        expect(card.right, `right at ${width}px`).toBeLessThanOrEqual(width + 1);
+      }
+      expect(metrics.voiceHeight).toBeGreaterThanOrEqual(44);
+      expect(metrics.voiceWidth).toBeGreaterThanOrEqual(44);
+    }
+  });
+
   test("a used link is closed for good, on the page and at the API", async ({ page, request }) => {
     const link = await issueLink(staffPage);
     const first = await request.post(`/api/public/client-intake/${link.token}`, {
