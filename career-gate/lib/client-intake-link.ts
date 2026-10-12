@@ -80,21 +80,33 @@ function management(role: string) {
 }
 
 /** Issues a link for the given staff member. Returns the raw token once. */
-export async function issueIntakeLink(session: StaffSession, ttlHours: number) {
+export async function issueIntakeLink(session: StaffSession, ttlHours: number, existingCaseNumber?: string | null) {
   if (!management(session.staff.role)) {
     throw new ActionError("forbidden", "Client intake links require manager or admin access", 403);
   }
   if (!Number.isFinite(ttlHours) || ttlHours <= 0 || ttlHours > INTAKE_LINK_MAX_TTL_HOURS) {
     throw new ActionError("invalid_expiry", `Expiry must be between 1 and ${INTAKE_LINK_MAX_TTL_HOURS} hours`, 400);
   }
+  const ref = (existingCaseNumber ?? "").trim().toUpperCase();
+  if (ref && !/^CG-[0-9]{4}-[0-9]{6}$/.test(ref)) {
+    throw new ActionError("invalid_case_number", "Enter a valid Case Number", 422);
+  }
+  const target = ref
+    ? (await sql()`select id,status from client_import_cases where upper(public_ref)=${ref} limit 1`)[0]
+    : null;
+  if (ref && !target) throw new ActionError("case_not_found", "Case not found in Smart Client Import", 404);
+  if (target && (target.status === "APPROVED_FILE" || target.status === "ARCHIVED")) {
+    throw new ActionError("case_closed", "This case is approved or archived; a new link cannot change it", 409);
+  }
   const { token, tokenHash } = mintIntakeToken();
   const [row] = await sql()`
-    insert into client_import_links(token_hash,issued_by,expires_at)
-    values(${tokenHash},${session.staff.id},now() + make_interval(hours => ${Math.floor(ttlHours)}))
+    insert into client_import_links(token_hash,issued_by,expires_at,import_case_id)
+    values(${tokenHash},${session.staff.id},now() + make_interval(hours => ${Math.floor(ttlHours)}),${target ? String(target.id) : null})
     returning id,status,expires_at,created_at`;
   return {
     id: String(row.id),
     token,
+    target_case_number: ref || null,
     status: String(row.status) as IntakeLinkStatus,
     expires_at: new Date(row.expires_at as string | Date).toISOString(),
     created_at: new Date(row.created_at as string | Date).toISOString(),
@@ -151,21 +163,25 @@ export type IntakeLinkRejection = "not_found" | "gone";
  * contract allows, so nothing here reveals whether some other token exists.
  */
 export async function readIntakeLinkForClient(rawToken: string): Promise<
-  { ok: true; openable: true } | { ok: false; reason: IntakeLinkRejection }
+  { ok: true; openable: true; targetCaseNumber: string | null } | { ok: false; reason: IntakeLinkRejection }
 > {
   if (!looksLikeIntakeToken(rawToken)) return { ok: false, reason: "not_found" };
   const [row] = await sql()`
-    select status,expires_at from client_import_links where token_hash=${hashIntakeToken(rawToken)}`;
+    select l.status,l.expires_at,c.public_ref as target_case_number
+    from client_import_links l left join client_import_cases c on c.id=l.import_case_id
+    where l.token_hash=${hashIntakeToken(rawToken)}`;
   if (!row) return { ok: false, reason: "not_found" };
   if (row.status === "USED" || row.status === "REVOKED") return { ok: false, reason: "gone" };
   if (new Date(row.expires_at as string | Date).getTime() <= Date.now()) return { ok: false, reason: "gone" };
-  return { ok: true, openable: true };
+  return { ok: true, openable: true, targetCaseNumber: row.target_case_number ? String(row.target_case_number) : null };
 }
 
 export type ClaimedIntakeLink = {
   id: string;
   tokenHash: string;
   issuer: StaffSession;
+  targetCaseId: string | null;
+  targetCaseNumber: string | null;
 };
 
 /**
@@ -196,7 +212,7 @@ export async function claimIntakeLink(rawToken: string): Promise<
             and processing_started_at is not null
             and processing_started_at < now() - make_interval(mins => ${INTAKE_LINK_PROCESSING_STALE_MINUTES}))
       )
-    returning id,issued_by`;
+    returning id,issued_by,import_case_id`;
 
   if (!claimed) {
     if (existing.status === "USED" || existing.status === "REVOKED") return { ok: false, reason: "gone" };
@@ -215,9 +231,18 @@ export async function claimIntakeLink(rawToken: string): Promise<
     return { ok: false, reason: "issuer_not_authorized" };
   }
 
+  const [target] = claimed.import_case_id
+    ? await sql()`select public_ref,status from client_import_cases where id=${String(claimed.import_case_id)}`
+    : [];
+  if (claimed.import_case_id && (!target || target.status === "APPROVED_FILE" || target.status === "ARCHIVED")) {
+    await releaseIntakeLink(String(claimed.id));
+    return { ok: false, reason: "gone" };
+  }
   return {
     ok: true,
     link: {
+      targetCaseId: claimed.import_case_id ? String(claimed.import_case_id) : null,
+      targetCaseNumber: target ? String(target.public_ref) : null,
       id: String(claimed.id),
       tokenHash,
       // The existing staging pipeline requires a manager or admin actor, so the
