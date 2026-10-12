@@ -54,6 +54,7 @@ export const INTAKE_COPY = {
     groupContact: "التواصل",
     groupAddress: "العنوان",
     groupLanguage: "اللغة",
+    groupWork: "تفضيلات العمل",
 
     uploadHeading: "ارفع الوثائق هنا",
     uploadHelper: "ارفع صور أو ملفات الوثائق المطلوبة.",
@@ -115,6 +116,12 @@ export const INTAKE_COPY = {
       zip: "الرمز البريدي",
       preferred_language: "اللغة المفضلة",
       english_proficiency: "مستوى الإنجليزية",
+      site_code: "الموقع المفضل / الخيار الأول",
+      backup_site_code: "الموقع البديل / الخيار الثاني",
+      shift_code: "الشفت المفضل",
+      shift_days: "أيام العمل",
+      shift_start_time: "بداية الشفت",
+      shift_end_time: "نهاية الشفت",
     },
   },
   en: {
@@ -149,6 +156,7 @@ export const INTAKE_COPY = {
     groupContact: "Contact",
     groupAddress: "Address",
     groupLanguage: "Language",
+    groupWork: "Work Preferences",
 
     uploadHeading: "Upload your documents here",
     uploadHelper: "Upload photos or document files.",
@@ -210,6 +218,12 @@ export const INTAKE_COPY = {
       zip: "ZIP",
       preferred_language: "Preferred language",
       english_proficiency: "English level",
+      site_code: "Preferred location / Option 1",
+      backup_site_code: "Alternative location / Option 2",
+      shift_code: "Preferred shift",
+      shift_days: "Shift days",
+      shift_start_time: "Shift start time",
+      shift_end_time: "Shift end time",
     },
   },
 } as const;
