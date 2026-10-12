@@ -506,11 +506,12 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
               setSharedEmailWarning(false);
             }}
             placeholder={t.existingCasePlaceholder}
-            aria-description={linkedCase ? (locale === "ar" ? "رقم الملف الأصلي مرتبط بهذا الرابط بواسطة المكتب ولا يمكن تغييره." : "The office has linked this reference to your file; it cannot be changed.") : undefined}
+            aria-describedby={linkedCase ? "intake-bound-case-hint" : undefined}
             autoComplete="off"
             data-testid="intake-existing-case-number"
             className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3.5 font-mono text-[16px] tracking-[.03em] text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
           />
+          {linkedCase && <span id="intake-bound-case-hint" className="text-[12px] text-[#785b2a]">{locale === "ar" ? "هذا الرقم مرتبط بملفك لدى المكتب ولا يمكن تغييره." : "This reference is linked to your office file and cannot be changed."}</span>}
         </label>
         <textarea
           value={sourceText}
