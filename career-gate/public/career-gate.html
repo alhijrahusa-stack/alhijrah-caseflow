@@ -2864,6 +2864,43 @@ html[dir="ltr"] .lbl{
 .career-footer-status .btn{border-color:#C5A059;color:#efd8b0;background:#0A122C;min-height:48px}
 @media(max-width:640px){.career-status-dialog{width:100%;border-radius:20px}.career-footer-status .btn{width:100%}}
 .receipt-system-id{font:600 13px/1.7 var(--mono);color:#d8bd88;letter-spacing:.04em;direction:ltr;text-align:start;margin:6px 0}
+
+/* Scoped executive intake upgrade: no changes to data lifecycle or API contracts. */
+:root{--cg-exec-navy:#08172d;--cg-exec-rose:#c99c92;--cg-exec-rose-soft:rgba(201,156,146,.32);--cg-exec-marble:#f8fafc}
+.preferred-sites-executive{margin-top:28px;padding:clamp(18px,2.3vw,28px);border:1px solid rgba(201,156,146,.58);border-radius:22px;background:linear-gradient(138deg,#fff 0%,#f8fafc 70%,#f5f7fa 100%);color:#0b1b32;box-shadow:0 18px 42px rgba(0,0,0,.14),inset 0 1px 0 #fff}
+.preferred-sites-heading{display:flex;align-items:center;gap:12px;margin-bottom:19px}
+.preferred-sites-heading h4{margin:0;font-size:clamp(17px,2vw,22px);font-weight:800;color:#091b32}
+.preferred-sites-heading p{margin:3px 0 0;color:#536276;font-size:13px}
+.preferred-sites-mark{width:7px;height:42px;border-radius:9px;background:linear-gradient(#eed7ce,#bd8b81);box-shadow:0 2px 14px var(--cg-exec-rose-soft)}
+.preferred-sites-grid>div{min-width:0}.preferred-sites-executive .lbl{color:#283950;font-weight:750}
+.preferred-sites-executive select{width:100%;background:#fff!important;color:#0b1b32!important;border:1px solid #d5dde7!important;border-radius:14px;min-height:51px;box-shadow:0 5px 13px rgba(12,28,45,.055),inset 0 1px 0 #fff}
+.preferred-sites-executive select:hover,.preferred-sites-executive select:focus-visible{border-color:#bc8b82!important;box-shadow:0 0 0 3px rgba(201,156,146,.14),0 8px 20px rgba(16,34,54,.11)}
+.status-executive-launch{display:flex;align-items:center;text-align:start;gap:16px;width:min(100%,780px);min-height:102px;padding:21px 24px;border-radius:23px;border:1px solid rgba(216,171,161,.62);background:linear-gradient(123deg,rgba(255,255,255,.10),rgba(14,33,59,.92) 33%,rgba(9,22,46,.96));box-shadow:0 18px 35px rgba(1,9,20,.28),inset 0 1px 0 rgba(255,255,255,.17);color:#f9fafb;backdrop-filter:blur(19px);-webkit-backdrop-filter:blur(19px);transition:transform .2s,box-shadow .2s,border-color .2s}
+.status-executive-launch:hover,.status-executive-launch:focus-visible{transform:translateY(-3px);border-color:#e9c2b7;box-shadow:0 21px 42px rgba(1,9,20,.38),0 0 0 3px rgba(201,156,146,.15)}
+.status-executive-symbol{display:grid;place-items:center;flex:0 0 50px;height:50px;border-radius:15px;background:linear-gradient(145deg,#f9e7e0,#bc8a80);color:#091c32;font-size:26px}
+.status-executive-copy{display:grid;gap:7px;flex:1;min-width:0}.status-executive-copy strong{font-size:clamp(16px,1.8vw,20px);color:#fff;line-height:1.35}.status-executive-copy small{font-size:13px;color:#dce6f2;line-height:1.6}
+.status-executive-arrow{color:#f2d0c5;font-size:25px}
+.receipt-status-executive{margin-top:24px;padding:clamp(18px,2.6vw,27px);border:1px solid rgba(201,156,146,.8);border-radius:22px;background:linear-gradient(138deg,#fff 0%,#f8fafc 70%,#eff4f8 100%);box-shadow:0 14px 36px rgba(0,0,0,.22),inset 0 1px 0 white;color:#10223a}
+.receipt-status-kicker{display:block;font:700 11px var(--mono);letter-spacing:.12em;color:#a16c62}.receipt-status-top h3{color:#0a1e37;font-size:clamp(19px,2.3vw,25px);margin:10px 0 7px;line-height:1.3}
+.receipt-status-top p{margin:0 0 17px;font-size:14px;color:#485b73;line-height:1.7}.receipt-status-controls label{display:block;margin-bottom:8px;color:#273e58;font-weight:750;font-size:14px}
+.receipt-status-inline{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:11px}.receipt-status-inline input{min-width:0;width:100%;background:#fff!important;color:#10243e!important;border:1px solid #cbd5e1!important;border-radius:13px;min-height:51px;padding:12px 15px;direction:ltr;text-align:left}.receipt-status-inline input:focus-visible{border-color:#bc8b82!important;box-shadow:0 0 0 3px rgba(201,156,146,.18)}
+.receipt-status-inline .btn{min-height:51px;border-radius:13px;background:linear-gradient(125deg,#102a4f,#06182e);border:1px solid #bc8b82;color:#fff;box-shadow:0 7px 16px rgba(9,32,54,.16)}.receipt-status-inline .btn:hover{transform:translateY(-2px);box-shadow:0 12px 22px rgba(9,32,54,.25)}
+#receiptTrackResult:not(:empty){margin-top:20px;color:#f7fbff;background:linear-gradient(145deg,#0b1c33,#081327);border-radius:18px;padding:12px;border:1px solid rgba(201,156,146,.35)}
+#receiptTrackResult .cardGlass{margin:0}#receiptTrackResult .trackBody{min-width:0}
+.executive-document-grid{display:grid;gap:10px;margin-top:12px}
+.executive-document-item{display:flex;align-items:center;gap:11px;min-width:0;padding:10px 12px;border:1px solid rgba(201,156,146,.42);border-radius:15px;background:linear-gradient(135deg,rgba(255,255,255,.075),rgba(15,32,53,.82));box-shadow:inset 0 1px 0 rgba(255,255,255,.11)}
+.executive-document-thumb{width:56px;height:58px;flex:0 0 56px;display:grid;place-items:center;border-radius:10px;overflow:hidden;background:#eaf0f6;color:#112b49;font:800 12px var(--mono)}.executive-document-thumb img{width:100%;height:100%;object-fit:cover}
+.executive-document-meta{min-width:0;flex:1}.executive-document-meta strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:white}.executive-document-meta small{display:block;margin-top:4px;color:#ccd8e4;font-size:12px}
+.executive-document-view{padding:9px 13px;border:1px solid rgba(226,190,179,.7);border-radius:11px;background:linear-gradient(#fff,#f8fafc);color:#112640;font-size:13px;font-weight:800;white-space:nowrap}.executive-document-view:hover{transform:translateY(-2px);box-shadow:0 7px 16px rgba(0,0,0,.2)}
+.upload-guidance{min-height:0;margin-top:6px;color:#e2bfaf;font-size:12px}
+.document-viewer-modal[hidden]{display:none!important}.document-viewer-modal{position:fixed;inset:0;z-index:11000;display:grid;place-items:center;background:rgba(0,8,22,.86);padding:15px;backdrop-filter:blur(20px)}
+.document-viewer-panel{width:min(850px,100%);max-height:92vh;display:flex;flex-direction:column;padding:16px;border:1px solid #c99c92;border-radius:22px;background:#f8fafc;box-shadow:0 28px 80px rgba(0,0,0,.46);color:#0b203b}
+.document-viewer-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.document-viewer-top h3{margin:5px 0;color:#10243a;font-size:18px;overflow-wrap:anywhere}.document-viewer-kicker{font:700 11px var(--mono);letter-spacing:.11em;color:#a2746a}.document-viewer-top button{width:43px;height:43px;flex:0 0 43px;border:1px solid #e0c3ba;border-radius:13px;background:#fff;color:#10243a;font-size:26px}
+.document-viewer-content{display:grid;place-items:center;overflow:auto;min-height:170px;flex:1;background:#e7edf3;border-radius:14px}.document-viewer-content img{max-width:100%;max-height:67vh;object-fit:contain}.document-viewer-content iframe{height:min(67vh,650px);width:100%;border:0}.document-viewer-modal [hidden]{display:none!important}.document-viewer-panel p{color:#50647a;font-size:12px;margin:11px 3px 0}
+#form .btn,#receiptScreen .btn{transition:transform .19s ease,box-shadow .19s ease,border-color .19s ease}#form .btn:hover:not(:disabled),#receiptScreen .btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 10px 25px rgba(0,0,0,.24)}
+@media(max-width:640px){.status-executive-launch{padding:17px 15px;min-height:95px;gap:11px}.status-executive-symbol{width:41px;height:43px;flex-basis:41px}.status-executive-arrow{display:none}.receipt-status-inline{grid-template-columns:1fr}.receipt-status-inline .btn{width:100%}.executive-document-item{gap:8px;padding:8px}.executive-document-thumb{width:46px;height:50px;flex-basis:46px}}
+@media(prefers-reduced-motion:reduce){.status-executive-launch,.executive-document-view,#form .btn,#receiptScreen .btn{transition:none!important;transform:none!important}}
+
 </style>
 </head>
 <body>
@@ -2975,15 +3012,14 @@ html[dir="ltr"] .lbl{
     <div class="shift-category-title">نوع الدوام المفضل <span class="req">*</span></div>
     <div class="shift-deck" id="workTypeDeck"></div>
     <div id="shiftSelector" style="display:none"><div class="shift-category-title">الشفت المتاح <span class="req">*</span></div><div class="shift-deck" id="shiftDeck"></div></div>
-    <div class="divider">جدول الأجور</div>
-    <div class="pay-table" id="payTable"></div>
-    <p class="muted">الأجر المعروض هو قيمة الاختيار المسجلة في النموذج وقد يتغير عند صاحب العمل.</p>
-    <div class="divider">المواقع المفضلة</div>
-    <div class="grid g3">
-      <div><label class="lbl">الموقع الأول</label><select id="location1"></select></div>
-      <div><label class="lbl">الموقع الثاني</label><select id="location2"></select></div>
-      <div><label class="lbl">الموقع الثالث</label><select id="location3"></select></div>
-    </div>
+    <section class="preferred-sites-executive" id="preferredSitesExecutive" aria-labelledby="preferredSitesTitle">
+      <div class="preferred-sites-heading"><span class="preferred-sites-mark" aria-hidden="true"></span><div><h4 id="preferredSitesTitle">المواقع المفضلة</h4><p id="preferredSitesHint">اختر المواقع المناسبة لك حسب الأولوية.</p></div></div>
+      <div class="grid g3 preferred-sites-grid">
+        <div><label class="lbl" for="location1">الموقع الأول</label><select id="location1"></select></div>
+        <div><label class="lbl" for="location2">الموقع الثاني</label><select id="location2"></select></div>
+        <div><label class="lbl" for="location3">الموقع الثالث</label><select id="location3"></select></div>
+      </div>
+    </section>
     <div class="divider">المهارات</div>
     <div class="choicegrid" id="skills"></div>
   </div>
@@ -3003,7 +3039,7 @@ html[dir="ltr"] .lbl{
     <div class="choicegrid" id="docPrefs"></div>
     <div class="divider">رفع الملفات</div>
     <div class="grid g2">
-      <div><label class="lbl">المستندات</label><input id="docs" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp"><div class="muted">حتى 8 ملفات، 4MB لكل ملف.</div><div class="filelist" id="docsList"></div></div>
+      <div><label class="lbl">المستندات</label><input id="docs" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp"><div class="muted">حتى 8 ملفات، 4MB لكل ملف.</div><div class="upload-guidance" id="uploadGuidance" role="status" aria-live="polite"></div><div class="filelist executive-document-grid" id="docsList" aria-live="polite"></div></div>
       <div><label class="lbl">صورة العميل</label><input id="photo" type="file" accept=".jpg,.jpeg,.png,.webp"><div class="preview-thumbs" id="photoPreview"></div></div>
     </div>
 
@@ -3034,7 +3070,7 @@ html[dir="ltr"] .lbl{
   <div class="bar"><button class="btn ghost" type="button" data-prev="3" id="reviewPrevious">→ السابق</button><span class="meta" id="reviewStepMeta">الخطوة 4 من 4</span><span class="spacer"></span><button class="btn green submit-control" id="submitBtn" type="submit"><span class="submit-label">إرسال الطلب</span><span class="submit-spinner" aria-hidden="true"></span></button></div>
 </section>
 </form>
-<footer class="contact-footer" id="contactFooter"><div class="contact-footer-head"><span class="contact-title" id="contactTitle">بيانات التواصل</span><span class="contact-brand">CAREER GATE</span></div><div class="contact-grid"><a href="https://wa.me/13139194192" target="_blank" rel="noopener"><span id="contactWhatsappLabel">WhatsApp</span><strong dir="ltr">313-919-4192</strong></a><a href="tel:+13133393566"><span id="contactCallLabel">اتصال</span><strong dir="ltr">313-339-3566</strong></a><a href="mailto:careergate.official@gmail.com"><span>Email</span><strong dir="ltr">careergate.official@gmail.com</strong></a></div><div class="career-footer-status"><button type="button" id="openTrack" class="btn ghost">متابعة حالة الطلب · Check Application Status</button></div></footer>
+<footer class="contact-footer" id="contactFooter"><div class="contact-footer-head"><span class="contact-title" id="contactTitle">بيانات التواصل</span><span class="contact-brand">CAREER GATE</span></div><div class="contact-grid"><a href="https://wa.me/13139194192" target="_blank" rel="noopener"><span id="contactWhatsappLabel">WhatsApp</span><strong dir="ltr">313-919-4192</strong></a><a href="tel:+13133393566"><span id="contactCallLabel">اتصال</span><strong dir="ltr">313-339-3566</strong></a><a href="mailto:careergate.official@gmail.com"><span>Email</span><strong dir="ltr">careergate.official@gmail.com</strong></a></div><div class="career-footer-status"><button type="button" id="openTrack" class="status-executive-launch" aria-haspopup="dialog" aria-controls="statusModal"><span class="status-executive-symbol" aria-hidden="true">↗</span><span class="status-executive-copy"><strong id="statusLaunchHeading">متابعة حالة الطلب · Check Application Status</strong><small id="statusLaunchInfo">اطّلع على حالة ملفك وآخر تحديثاته باستخدام رقم الملف أو بيانات التواصل.</small></span><span class="status-executive-arrow" aria-hidden="true">←</span></button></div></footer>
 <div class="career-status-modal" id="statusModal" role="dialog" aria-modal="true" aria-label="متابعة حالة الملف" hidden>
  <div class="career-status-dialog"><button type="button" class="btn ghost career-status-close" id="closeTrack" aria-label="إغلاق">×</button>
  <section class="panel tracker" id="trackingSection">
@@ -3068,8 +3104,9 @@ html[dir="ltr"] .lbl{
 </div>
 </div>
 
-<section class="receipt-screen" id="receiptScreen"><div class="receipt-shell"><div class="receipt" id="receiptCard"><div class="receipt-brand-row"><img src="/brand/alhijrah-services.webp" alt="" class="receipt-office-logo" aria-hidden="true"><div class="receipt-brand-center"><img src="/brand/career-gate.webp" alt="Career Gate" class="receipt-career-logo"><span>CAREER GATE</span></div><div class="receipt-language language-toggle" role="group" aria-label="Language"><button type="button" data-locale="ar">العربية</button><span>|</span><button type="button" data-locale="en">EN</button></div></div><div class="receipt-head"><div class="receipt-photo" id="receiptPhoto">A</div><div><div class="eyebrow" id="receiptEyebrow">APPLICATION RECEIVED</div><h2 id="receiptName"></h2><div class="statusPill" id="receiptStatus">تم استلام طلبك بنجاح</div><p class="receipt-confirmation" id="receiptConfirmation">تم تسجيل طلبك وإحالته للمراجعة الأولية. احتفظ برقم الملف لمتابعة حالة الطلب.</p><div class="receipt-case" id="receiptCase"></div><div class="receipt-system-id" id="receiptSystemId"></div><div class="receipt-time" id="receiptTime"></div></div></div><div class="receipt-grid" id="receiptGrid"></div><div class="receipt-contact-mini"><a href="https://wa.me/13139194192" target="_blank" rel="noopener"><span>WhatsApp</span><strong dir="ltr">313-919-4192</strong></a><a href="tel:+13133393566"><span id="receiptCallLabel">اتصال</span><strong dir="ltr">313-339-3566</strong></a><a href="mailto:careergate.official@gmail.com"><span>Email</span><strong dir="ltr">careergate.official@gmail.com</strong></a></div></div><div class="receipt-actions"><button class="btn primary" id="downloadReceipt" type="button">حفظ البطاقة</button><a class="btn green" id="whatsappLink" target="_blank" rel="noopener">واتساب</a><button class="btn ghost" id="newApplication" type="button">طلب جديد</button></div></div></section>
+<section class="receipt-screen" id="receiptScreen"><div class="receipt-shell"><div class="receipt" id="receiptCard"><div class="receipt-brand-row"><img src="/brand/alhijrah-services.webp" alt="" class="receipt-office-logo" aria-hidden="true"><div class="receipt-brand-center"><img src="/brand/career-gate.webp" alt="Career Gate" class="receipt-career-logo"><span>CAREER GATE</span></div><div class="receipt-language language-toggle" role="group" aria-label="Language"><button type="button" data-locale="ar">العربية</button><span>|</span><button type="button" data-locale="en">EN</button></div></div><div class="receipt-head"><div class="receipt-photo" id="receiptPhoto">A</div><div><div class="eyebrow" id="receiptEyebrow">APPLICATION RECEIVED</div><h2 id="receiptName"></h2><div class="statusPill" id="receiptStatus">تم استلام طلبك بنجاح</div><p class="receipt-confirmation" id="receiptConfirmation">تم تسجيل طلبك وإحالته للمراجعة الأولية. احتفظ برقم الملف لمتابعة حالة الطلب.</p><div class="receipt-case" id="receiptCase"></div><div class="receipt-system-id" id="receiptSystemId"></div><div class="receipt-time" id="receiptTime"></div></div></div><div class="receipt-grid" id="receiptGrid"></div><div class="receipt-contact-mini"><a href="https://wa.me/13139194192" target="_blank" rel="noopener"><span>WhatsApp</span><strong dir="ltr">313-919-4192</strong></a><a href="tel:+13133393566"><span id="receiptCallLabel">اتصال</span><strong dir="ltr">313-339-3566</strong></a><a href="mailto:careergate.official@gmail.com"><span>Email</span><strong dir="ltr">careergate.official@gmail.com</strong></a></div><section class="receipt-status-executive" id="receiptStatusExecutive" aria-labelledby="receiptStatusHeading"><div class="receipt-status-top"><span class="receipt-status-kicker">CAREER GATE · FILE TRACKING</span><h3 id="receiptStatusHeading">متابعة حالة الطلب · Check Application Status</h3><p id="receiptStatusDescription">تم حفظ رقم ملفك. أدخله أو استخدمه أدناه للاطلاع على أحدث حالة وتحديثات الطلب.</p></div><div class="receipt-status-controls"><label for="receiptTrackValue" id="receiptTrackLabel">رقم الملف</label><div class="receipt-status-inline"><input id="receiptTrackValue" autocomplete="off" dir="ltr" placeholder="ALH-2026..." /><button type="button" id="receiptTrackBtn" class="btn primary">عرض حالة الملف ←</button></div></div><div id="receiptTrackResult" aria-live="polite" role="status"></div></section></div><div class="receipt-actions"><button class="btn primary" id="downloadReceipt" type="button">حفظ البطاقة</button><a class="btn green" id="whatsappLink" target="_blank" rel="noopener">واتساب</a><button class="btn ghost" id="newApplication" type="button">طلب جديد</button></div></div></section>
 
+<div class="document-viewer-modal" id="documentViewer" role="dialog" aria-modal="true" aria-labelledby="documentViewerTitle" hidden><div class="document-viewer-panel"><div class="document-viewer-top"><div><span class="document-viewer-kicker">DOCUMENT PREVIEW</span><h3 id="documentViewerTitle">معاينة المستند</h3></div><button type="button" id="closeDocumentViewer" aria-label="إغلاق المعاينة">×</button></div><div class="document-viewer-content"><img id="documentViewerImage" alt="" hidden><iframe id="documentViewerPdf" title="Document preview" hidden></iframe></div><p id="documentViewerNotice">هذه معاينة محلية للمستند المحدد. يُرفع إلى النظام عند إرسال الطلب.</p></div></div>
 <div class="toastwrap" id="toasts"></div>
 
 <script>
