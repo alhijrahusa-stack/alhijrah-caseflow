@@ -201,6 +201,55 @@ function preserveReviewedDraft(current: unknown, incoming: ReturnType<typeof par
   } as typeof incoming;
 }
 
+/** Apply only values the client actually submitted. Preserve all other existing
+ * fields and every staff-verified MANUAL authority. A generic reviewed-draft
+ * merge intentionally preserves all nonblank old values and is therefore not
+ * suitable for an explicit client correction to an existing case.
+ */
+function applyLinkedClientCorrections(
+  current: unknown,
+  incoming: ReturnType<typeof partialDraft>,
+  provided: ReadonlySet<string>,
+  manual: ReadonlySet<string>,
+): ReturnType<typeof partialDraft> {
+  if (!current || typeof current !== "object") return incoming;
+  const old = current as Record<string, unknown>;
+  const oldProfile = old.profile && typeof old.profile === "object" ? old.profile as Record<string, unknown> : {};
+  const newProfile = incoming.profile as Record<string, unknown>;
+  const profile = { ...oldProfile };
+  for (const [field, value] of Object.entries(newProfile)) {
+    if (!provided.has(field) || manual.has(field)) continue;
+    if (value === null || value === undefined || (typeof value === "string" && !value.trim())) continue;
+    profile[field] = value;
+  }
+  const result = { ...old, profile } as Record<string, unknown>;
+  if (["site_code", "job_id", "shift_code", "shift_days", "shift_start_time", "shift_end_time"]
+    .some((field) => provided.has(field) && !manual.has(field)) && incoming.primary.length) {
+    result.primary = incoming.primary;
+  }
+  if (["backup_site_code", "backup_job_id", "backup_shift_code"]
+    .some((field) => provided.has(field) && !manual.has(field)) && incoming.backup.length) {
+    result.backup = incoming.backup;
+  }
+  const beforeReview = old.review_fields && typeof old.review_fields === "object"
+    ? old.review_fields as Record<string, unknown> : {};
+  const received = incoming as unknown as Record<string, unknown>;
+  const afterReview = received.review_fields && typeof received.review_fields === "object"
+    ? received.review_fields as Record<string, unknown> : {};
+  const reviewFields = { ...beforeReview };
+  const reviewSources: Record<string, string> = {
+    preferred_location: "site_code", location_option_1: "site_code", location_option_2: "backup_site_code",
+    shift_days: "shift_days", shift_start_time: "shift_start_time", shift_end_time: "shift_end_time",
+  };
+  for (const [destination, source] of Object.entries(reviewSources)) {
+    if (!provided.has(source) || manual.has(source) || manual.has(destination)) continue;
+    const value = afterReview[destination];
+    if (value !== null && value !== undefined && value !== "") reviewFields[destination] = value;
+  }
+  result.review_fields = reviewFields;
+  return result as unknown as ReturnType<typeof partialDraft>;
+}
+
 /** Append a one-time, staff-authorized client submission to its ORIGINAL pending
  * Smart Import case. Storage is private, and case/document/link changes commit
  * together. No new case or public reference is ever created in this branch.
@@ -252,10 +301,11 @@ async function appendLinkedClientIntake(args: {
           .filter((e: unknown) => e && typeof e === "object" && (e as Record<string, unknown>).authority === "MANUAL")
           .map((e: unknown) => String((e as Record<string, unknown>).field_key)),
       );
-      const nextDraft = preserveReviewedDraft(current.mapped_draft, args.preDraft, true, manuallyReviewed);
+      const providedFields = new Set(args.preMerge.evidence.map((item) => String(item.field_key)));
+      const nextDraft = applyLinkedClientCorrections(current.mapped_draft, args.preDraft, providedFields, manuallyReviewed);
       const oldInput = current.raw_input && typeof current.raw_input === "object" ? current.raw_input as Record<string, unknown> : {};
       const oldNotes = typeof oldInput.notes === "string" ? oldInput.notes : "";
-      const joined = [oldNotes, args.notes].filter(Boolean).join("\n\n--- Client Intake Link submission ---\n");
+      const joined = [args.notes, oldNotes].filter(Boolean).join("\n\n--- Earlier Smart Import source ---\n");
       for (const entry of args.files) {
         await tx`insert into client_import_documents(import_case_id,storage_reference,original_filename,mime_type,size_bytes,sha256,detected_document_type,extraction_metadata,uploaded_by)
           values(${args.targetCaseId},${entry.storagePath},${safeFilename(entry.file.name || "upload")},${entry.file.type},${entry.file.size},${entry.sha256},${conservativeDocumentType(entry.file.name)},

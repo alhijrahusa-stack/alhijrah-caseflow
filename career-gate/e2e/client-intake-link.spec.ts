@@ -381,10 +381,11 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     await page.getByTestId("intake-submit").click();
     await expect(page.getByTestId("intake-success")).toBeVisible({timeout:45000});
     await expect(page.getByTestId("intake-case-number")).toContainText(ref);
-    const [after] = await db()`select id,public_ref,raw_input from client_import_cases where public_ref=${ref}`;
+    const [after] = await db()`select id,public_ref,raw_input,mapped_draft from client_import_cases where public_ref=${ref}`;
     expect(String(after.id)).toBe(String(before.id));
     expect(after.public_ref).toBe(ref);
     expect(JSON.stringify(after.raw_input)).toContain("Romulus DTW1");
+    expect(after.mapped_draft.profile.phone).toBe("3135550167");
     const [{ docs }] = await db()`select count(*)::int as docs from client_import_documents where import_case_id=${String(before.id)}`;
     expect(Number(docs)).toBe(1);
     const [linkState] = await db()`select status,import_case_id from client_import_links where id=${bound.id}`;
@@ -392,6 +393,37 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     expect(String(linkState.import_case_id)).toBe(String(before.id));
     const rows = await db()`select id from client_import_cases where public_ref=${ref}`;
     expect(rows).toHaveLength(1);
+  });
+
+
+  test("staff-reviewed MANUAL phone authority survives a linked client correction", async ({ request }) => {
+    const initialLink = await issueLink(staffPage);
+    const name = `Authority Applicant ${NAME_TAG}`;
+    const email = `authority-${RUN}@test.invalid`;
+    const initial = await request.post(`/api/public/client-intake/${initialLink.token}`, {
+      multipart: { source_text: `Full Name: ${name}\nDate of Birth: 1992-09-19\nEmail: ${email}\nPhone: 3135550101` },
+    });
+    expect(initial.status()).toBe(201);
+    const ref = String((await initial.json()).case_number);
+    const [caseRow] = await db()`select id from client_import_cases where public_ref=${ref}`;
+    const manualEvidence = [{field_key:"phone",authority:"MANUAL",value:"3135550199",source:"staff_review"}];
+    const sql = db();
+    await sql`update client_import_cases
+      set mapped_draft=jsonb_set(mapped_draft,'{profile,phone}',to_jsonb('3135550199'::text)),
+      field_evidence=coalesce(field_evidence,'[]'::jsonb)||${sql.json(manualEvidence)}::jsonb,
+      review_started_at=now(),reviewer_id=created_by where id=${String(caseRow.id)}`;
+    const [verified] = await db()`select field_evidence,review_started_at,reviewer_id,mapped_draft from client_import_cases where id=${String(caseRow.id)}`;
+    expect(verified.field_evidence,JSON.stringify(verified)).toEqual(expect.arrayContaining([expect.objectContaining({field_key:"phone",authority:"MANUAL"})]));
+    expect(verified.mapped_draft.profile.phone).toBe("3135550199");
+    const bound = await issueLink(staffPage,ref);
+    const correction = await request.post(`/api/public/client-intake/${bound.token}`, {
+      multipart: { source_text: `Full Name: ${name}\nDate of Birth: 1992-09-19\nEmail: ${email}\nPhone: 3135550122`,case_number:ref },
+    });
+    const result = await correction.json();
+    expect(correction.status(),JSON.stringify(result)).toBe(201);
+    const [latest] = await db()`select mapped_draft,public_ref from client_import_cases where id=${String(caseRow.id)}`;
+    expect(latest.mapped_draft.profile.phone).toBe("3135550199");
+    expect(latest.public_ref).toBe(ref);
   });
 
   test("bound link blocks a different person's identity and preserves the original case", async ({ request }) => {
