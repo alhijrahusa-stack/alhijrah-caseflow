@@ -3091,6 +3091,14 @@ body{background:radial-gradient(ellipse at 15% -12%,rgba(31,87,157,.17),transpar
  #receiptScreen .receipt-data-group-grid{grid-template-columns:minmax(0,1fr)}
 }
 @media(min-width:500px) and (max-width:699px){#contactFooter .contact-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#contactFooter .contact-grid a:first-child{grid-column:1/-1}#form .grid.g2{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* Keep the entire compressed header/telemetry group within the RTL scrollbar
+   gutter on 320px devices; preserving scrollWidth alone can hide 7px of trim. */
+@media(max-width:699px){
+ #appShell>#publicHeader,
+ #appShell>.hero,
+ #appShell>#formProgress,
+ #appShell>.stepper{width:calc(100% - 20px)!important;margin-inline:auto!important}
+}
 /* Account for narrow RTL scrollbar gutters without hiding content under an edge. */
 @media(max-width:699px){#contactFooter{width:calc(100% - 20px)!important;margin-inline:auto!important}}
 @media(max-width:349px){#publicHeader .office-name{font-size:12px}#appShell>.stepper>.stepbtn strong{font-size:10px}#contactFooter .status-executive-arrow{display:none}#receiptScreen .receipt-actions{grid-template-columns:1fr!important}#form .grid.g2{grid-template-columns:1fr}}
