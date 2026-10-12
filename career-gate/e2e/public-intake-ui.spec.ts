@@ -144,10 +144,14 @@ test.describe("Career Gate public intake presentation system", () => {
     await page.goto("/career-gate.html");
     await fillStepOne(page);
     await page.locator('[data-next="2"]').click();
+    await expect(page.locator('.page.active[data-page="2"]')).toBeVisible();
+    // A compact header can make scrolling unnecessary. The progress meter must
+    // remain in view, never hidden behind the hero or outside the viewport.
     await expect.poll(async () => page.evaluate(() => {
       const progress = document.querySelector("#formProgress")!.getBoundingClientRect();
       const hero = document.querySelector(".hero")!.getBoundingClientRect();
-      return window.scrollY > 0 && progress.top >= -24 && progress.top < 160 && hero.bottom < progress.top;
+      return progress.top >= -24 && progress.top < Math.min(window.innerHeight * .7, 560)
+        && hero.bottom <= progress.top + 4;
     })).toBe(true);
   });
 
