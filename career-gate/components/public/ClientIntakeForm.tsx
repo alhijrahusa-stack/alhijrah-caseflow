@@ -46,7 +46,7 @@ function attach(file: File): Attachment {
   return {
     id: `${file.name}-${file.size}-${file.lastModified}`,
     file,
-    previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+    previewUrl: ACCEPTED_MIME.includes(file.type) ? URL.createObjectURL(file) : null,
   };
 }
 
@@ -63,6 +63,8 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
   const [error, setError] = useState<string | null>(null);
   const [existingCaseNumber, setExistingCaseNumber] = useState(targetCaseNumber ?? "");
   const [manualMode, setManualMode] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const attachmentsRef = useRef<Attachment[]>([]);
   const linkedCase = Boolean(targetCaseNumber);
   const [duplicateIdentity, setDuplicateIdentity] = useState(false);
   const [sharedEmailWarning, setSharedEmailWarning] = useState(false);
@@ -86,9 +88,10 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
 
   // Object URLs are released when the component goes away, so a long session
   // does not accumulate them.
+  useEffect(() => { attachmentsRef.current = attachments; }, [attachments]);
   useEffect(() => () => {
-    for (const item of attachments) if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-  }, [attachments]);
+    for (const item of attachmentsRef.current) if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  }, []);
 
   const detected = useMemo<Detected>(() => {
     if (!debounced.trim()) return {};
@@ -104,6 +107,8 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
   // What the client sees and what is submitted: their edit if they made one,
   // otherwise the detected value.
   const effective = useMemo<Detected>(() => ({ ...detected, ...edits }), [detected, edits]);
+
+  const previewItem = attachments.find((item) => item.id === previewId) ?? null;
 
   const fieldErrors = useMemo(() => {
     const out: Partial<Record<ClientEditableField, string>> = {};
@@ -244,6 +249,7 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
   function remove(id: string) {
     extractionVersion.current += 1;
     setExtracting(false);
+    setPreviewId((current) => current === id ? null : current);
     setAttachments((current) => {
       const going = current.find((item) => item.id === id);
       if (going?.previewUrl) URL.revokeObjectURL(going.previewUrl);
@@ -432,23 +438,24 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
         {attachments.length > 0 && (
           <div className="mt-5">
             <p className="text-[12px] font-semibold uppercase tracking-[.1em] text-slate-500">{t.filesHeading}</p>
-            <ul className="mt-2.5 grid gap-2">
+            <ul className="mt-2.5 grid min-w-0 gap-2 lg:grid-cols-2">
               {attachments.map((item) => (
-                <li key={item.id} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-[0_6px_18px_-14px_rgba(23,42,77,.3)]" data-testid="intake-file">
+                <li key={item.id} className="flex min-w-0 flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/[.96] px-3 py-2.5 shadow-[0_6px_18px_-14px_rgba(23,42,77,.3)]" data-testid="intake-file">
                   <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-slate-400">
                     {item.previewUrl
                       ? <img src={item.previewUrl} alt="" className="h-full w-full object-cover" data-testid="intake-file-preview" />
                       : <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M7 3.5h7L19 8.5v12H7Z" /><path d="M14 3.5v5h5" /></svg>}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] text-slate-800">{item.file.name}</span>
+                    <span className="block break-all text-[14px] text-slate-800">{item.file.name}</span>
                     <span className="mt-0.5 block font-mono text-[11px] text-slate-500">{formatBytes(item.file.size)}</span>
                   </span>
+                  <button type="button" onClick={() => setPreviewId(item.id)} data-testid="intake-file-view" className="min-h-[44px] shrink-0 rounded-xl border border-[#c5a059]/60 bg-[#fff7e5] px-3 text-[12px] font-semibold text-[#604817]">{t.openPreview}</button>
                   <button
                     type="button"
                     onClick={() => { replacingId.current = item.id; replaceInput.current?.click(); }}
                     data-testid="intake-file-replace"
-                    className="min-h-[40px] shrink-0 rounded-xl border border-slate-300 px-3 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:bg-slate-50 motion-reduce:transition-none"
+                    className="min-h-[44px] shrink-0 rounded-xl border border-slate-300 px-3 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:bg-slate-50 motion-reduce:transition-none"
                   >
                     {t.replace}
                   </button>
@@ -456,7 +463,7 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
                     type="button"
                     onClick={() => remove(item.id)}
                     data-testid="intake-file-remove"
-                    className="min-h-[40px] shrink-0 rounded-xl border border-slate-300 px-3 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:border-red-300 hover:bg-red-50 hover:text-red-700 motion-reduce:transition-none"
+                    className="min-h-[44px] shrink-0 rounded-xl border border-slate-300 px-3 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:border-red-300 hover:bg-red-50 hover:text-red-700 motion-reduce:transition-none"
                   >
                     {t.remove}
                   </button>
@@ -466,6 +473,22 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
           </div>
         )}
       </GlassCard>
+
+      {previewItem?.previewUrl && (
+        <div role="dialog" aria-modal="true" aria-label={previewItem.file.name} data-testid="intake-document-viewer" className="fixed inset-0 z-50 grid min-w-0 place-items-center bg-[#040914]/90 p-3 backdrop-blur-xl sm:p-6">
+          <div className="flex max-h-[92dvh] w-full max-w-4xl min-w-0 flex-col overflow-hidden rounded-2xl border border-[#c5a059]/65 bg-[#0a122c] p-3 shadow-[0_24px_90px_rgba(0,0,0,.55)]">
+            <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+              <span className="min-w-0 break-all text-[14px] font-semibold text-[#f6e6b8]">{previewItem.file.name}</span>
+              <button type="button" onClick={() => setPreviewId(null)} aria-label={locale === "ar" ? "إغلاق المعاينة" : "Close preview"} className="min-h-[44px] min-w-[44px] rounded-xl border border-[#c5a059]/50 text-white">×</button>
+            </div>
+            {previewItem.file.type === "application/pdf" ? (
+              <iframe title={previewItem.file.name} src={previewItem.previewUrl} className="h-[75dvh] min-h-[240px] w-full rounded-lg bg-white" />
+            ) : (
+              <img src={previewItem.previewUrl} alt={previewItem.file.name} className="max-h-[75dvh] w-full object-contain" />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2 — Complete anything the document did not provide */}
       <GlassCard className="min-w-0" data-testid="intake-source">
