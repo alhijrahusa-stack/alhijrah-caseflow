@@ -26,5 +26,5 @@ export default async function ClientIntakePage({ params }: { params: Promise<{ t
   const { token } = await params;
   const link = await readIntakeLinkForClient(token);
   if (!link.ok) return <ClientIntakeClosed reason={link.reason} />;
-  return <ClientIntakeForm token={token} />;
+  return <ClientIntakeForm token={token} targetCaseNumber={link.targetCaseNumber} />;
 }

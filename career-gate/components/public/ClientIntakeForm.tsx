@@ -46,11 +46,11 @@ function attach(file: File): Attachment {
   return {
     id: `${file.name}-${file.size}-${file.lastModified}`,
     file,
-    previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+    previewUrl: ACCEPTED_MIME.includes(file.type) ? URL.createObjectURL(file) : null,
   };
 }
 
-export function ClientIntakeForm({ token }: { token: string }) {
+export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: string; targetCaseNumber?: string | null }) {
   const [locale, setLocale] = useState<IntakeLocale>("ar");
   const t = INTAKE_COPY[locale];
 
@@ -61,7 +61,11 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const [edits, setEdits] = useState<Detected>({});
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [existingCaseNumber, setExistingCaseNumber] = useState("");
+  const [existingCaseNumber, setExistingCaseNumber] = useState(targetCaseNumber ?? "");
+  const [manualMode, setManualMode] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const attachmentsRef = useRef<Attachment[]>([]);
+  const linkedCase = Boolean(targetCaseNumber);
   const [duplicateIdentity, setDuplicateIdentity] = useState(false);
   const [sharedEmailWarning, setSharedEmailWarning] = useState(false);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
@@ -84,9 +88,10 @@ export function ClientIntakeForm({ token }: { token: string }) {
 
   // Object URLs are released when the component goes away, so a long session
   // does not accumulate them.
+  useEffect(() => { attachmentsRef.current = attachments; }, [attachments]);
   useEffect(() => () => {
-    for (const item of attachments) if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-  }, [attachments]);
+    for (const item of attachmentsRef.current) if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  }, []);
 
   const detected = useMemo<Detected>(() => {
     if (!debounced.trim()) return {};
@@ -103,6 +108,8 @@ export function ClientIntakeForm({ token }: { token: string }) {
   // otherwise the detected value.
   const effective = useMemo<Detected>(() => ({ ...detected, ...edits }), [detected, edits]);
 
+  const previewItem = attachments.find((item) => item.id === previewId) ?? null;
+
   const fieldErrors = useMemo(() => {
     const out: Partial<Record<ClientEditableField, string>> = {};
     for (const field of CLIENT_EDITABLE_FIELDS) {
@@ -113,6 +120,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
   }, [effective, t]);
 
   useEffect(() => {
+    if (linkedCase) return;
     const email = (effective.email ?? "").trim().toLowerCase();
     const caseNumber = existingCaseNumber.trim().toUpperCase();
     const validEmail = email && !validateIntakeField("email", email, t) ? email : "";
@@ -159,10 +167,10 @@ export function ClientIntakeForm({ token }: { token: string }) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [effective.email, effective.full_name, effective.date_of_birth, effective.phone, existingCaseNumber, t, token]);
+  }, [effective.email, effective.full_name, effective.date_of_birth, effective.phone, existingCaseNumber, t, token, linkedCase]);
 
   const started = Boolean(sourceText.trim());
-  const hasAnything = started || attachments.length > 0;
+  const hasAnything = started || attachments.length > 0 || Object.values(edits).some((value) => Boolean(value?.trim()));
   const blocked = Object.keys(fieldErrors).length > 0 || duplicateIdentity;
 
   /**
@@ -171,7 +179,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
    * leave a field the extraction missed invisible and impossible to supply,
    * which defeats the point of letting the client correct their own details.
    */
-  const showReview = started || Object.keys(edits).length > 0 || importedFields.length > 0;
+  const showReview = manualMode || started || Object.keys(edits).length > 0 || importedFields.length > 0;
   const visible = useMemo(
     () => new Set<ClientEditableField>(showReview ? CLIENT_EDITABLE_FIELDS : []),
     [showReview],
@@ -241,6 +249,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
   function remove(id: string) {
     extractionVersion.current += 1;
     setExtracting(false);
+    setPreviewId((current) => current === id ? null : current);
     setAttachments((current) => {
       const going = current.find((item) => item.id === id);
       if (going?.previewUrl) URL.revokeObjectURL(going.previewUrl);
@@ -307,7 +316,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
   }
 
   const header = (
-    <header className="flex flex-wrap items-center justify-between gap-4">
+    <header className="flex min-w-0 flex-wrap items-center justify-between gap-3">
       <ClientIntakeBrand title={t.brand} subtitle={t.office} />
       <LocaleToggle locale={locale} onChange={setLocale} />
     </header>
@@ -372,13 +381,15 @@ export function ClientIntakeForm({ token }: { token: string }) {
     <ClientIntakeShell dir={t.dir}>
       {header}
 
-      <div className="mt-7">
-        <h1 className="text-[24px] font-semibold tracking-tight text-slate-900 sm:text-[28px]">{t.heading}</h1>
-        <p className="mt-2 max-w-[56ch] text-[14px] leading-relaxed text-slate-500">{t.lead}</p>
+      <div className="mt-5">
+        <h1 className="break-words text-[24px] font-semibold tracking-tight text-[#f6e6b8] sm:text-[30px]">{t.heading}</h1>
+        <p className="mt-2 max-w-[68ch] text-[14px] leading-relaxed text-slate-200">{t.lead}</p>
+        <div className="mt-3 flex flex-wrap gap-2" role="status" aria-label="Intake progress"><span className="rounded-full border border-[#c5a059]/40 bg-[#0a122c]/70 px-3 py-2 text-[12px] text-[#f4dcac]">{attachments.length ? "✓ " : "1 · "}{locale === "ar" ? "المستندات" : "Documents"}</span><span className="rounded-full border border-[#c5a059]/30 bg-[#0a122c]/70 px-3 py-2 text-[12px] text-slate-100">{showReview ? "✓ " : "2 · "}{locale === "ar" ? "مراجعة البيانات" : "Review"}</span><span className="rounded-full border border-[#c5a059]/30 bg-[#0a122c]/70 px-3 py-2 text-[12px] text-slate-100">3 · {locale === "ar" ? "الإرسال" : "Submit"}</span></div>
       </div>
 
       {/* 1 — Document first: extract and auto-fill */}
-      <GlassCard tone="accent" className="mt-5" data-testid="intake-upload">
+      <div className="mt-5 grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2 lg:gap-5" data-testid="intake-entry-grid">
+      <GlassCard tone="accent" className="min-w-0" data-testid="intake-upload">
         <div className="flex items-start gap-3">
           <div aria-hidden="true" className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#d8b96a]/50 bg-white text-[#9c7a2e] shadow-[0_8px_20px_-14px_rgba(184,147,74,.7)]">
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 16.5V5.5" /><path d="M7.8 9.7 12 5.5l4.2 4.2" /><path d="M5 16.5v1.8A2.2 2.2 0 0 0 7.2 20.5h9.6a2.2 2.2 0 0 0 2.2-2.2v-1.8" /></svg>
@@ -427,23 +438,24 @@ export function ClientIntakeForm({ token }: { token: string }) {
         {attachments.length > 0 && (
           <div className="mt-5">
             <p className="text-[12px] font-semibold uppercase tracking-[.1em] text-slate-500">{t.filesHeading}</p>
-            <ul className="mt-2.5 grid gap-2">
+            <ul className="mt-2.5 grid min-w-0 gap-2 lg:grid-cols-2">
               {attachments.map((item) => (
-                <li key={item.id} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-[0_6px_18px_-14px_rgba(23,42,77,.3)]" data-testid="intake-file">
+                <li key={item.id} className="flex min-w-0 flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/[.96] px-3 py-2.5 shadow-[0_6px_18px_-14px_rgba(23,42,77,.3)]" data-testid="intake-file">
                   <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-slate-400">
-                    {item.previewUrl
+                    {item.file.type.startsWith("image/") && item.previewUrl
                       ? <img src={item.previewUrl} alt="" className="h-full w-full object-cover" data-testid="intake-file-preview" />
                       : <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M7 3.5h7L19 8.5v12H7Z" /><path d="M14 3.5v5h5" /></svg>}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] text-slate-800">{item.file.name}</span>
+                    <span className="block break-all text-[14px] text-slate-800">{item.file.name}</span>
                     <span className="mt-0.5 block font-mono text-[11px] text-slate-500">{formatBytes(item.file.size)}</span>
                   </span>
+                  <button type="button" onClick={() => setPreviewId(item.id)} data-testid="intake-file-view" className="min-h-[44px] shrink-0 rounded-xl border border-[#c5a059]/60 bg-[#fff7e5] px-3 text-[12px] font-semibold text-[#604817]">{t.openPreview}</button>
                   <button
                     type="button"
                     onClick={() => { replacingId.current = item.id; replaceInput.current?.click(); }}
                     data-testid="intake-file-replace"
-                    className="min-h-[40px] shrink-0 rounded-xl border border-slate-300 px-3 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:bg-slate-50 motion-reduce:transition-none"
+                    className="min-h-[44px] shrink-0 rounded-xl border border-slate-300 px-3 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:bg-slate-50 motion-reduce:transition-none"
                   >
                     {t.replace}
                   </button>
@@ -451,7 +463,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
                     type="button"
                     onClick={() => remove(item.id)}
                     data-testid="intake-file-remove"
-                    className="min-h-[40px] shrink-0 rounded-xl border border-slate-300 px-3 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:border-red-300 hover:bg-red-50 hover:text-red-700 motion-reduce:transition-none"
+                    className="min-h-[44px] shrink-0 rounded-xl border border-slate-300 px-3 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:border-red-300 hover:bg-red-50 hover:text-red-700 motion-reduce:transition-none"
                   >
                     {t.remove}
                   </button>
@@ -462,24 +474,44 @@ export function ClientIntakeForm({ token }: { token: string }) {
         )}
       </GlassCard>
 
+      {previewItem?.previewUrl && (
+        <div role="dialog" aria-modal="true" aria-label={previewItem.file.name} data-testid="intake-document-viewer" className="fixed inset-0 z-50 grid min-w-0 place-items-center bg-[#040914]/90 p-3 backdrop-blur-xl sm:p-6">
+          <div className="flex max-h-[92dvh] w-full max-w-4xl min-w-0 flex-col overflow-hidden rounded-2xl border border-[#c5a059]/65 bg-[#0a122c] p-3 shadow-[0_24px_90px_rgba(0,0,0,.55)]">
+            <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+              <span className="min-w-0 break-all text-[14px] font-semibold text-[#f6e6b8]">{previewItem.file.name}</span>
+              <button type="button" onClick={() => setPreviewId(null)} aria-label={locale === "ar" ? "إغلاق المعاينة" : "Close preview"} className="min-h-[44px] min-w-[44px] rounded-xl border border-[#c5a059]/50 text-white">×</button>
+            </div>
+            {previewItem.file.type === "application/pdf" ? (
+              <iframe title={previewItem.file.name} src={previewItem.previewUrl} className="h-[75dvh] min-h-[240px] w-full rounded-lg bg-white" />
+            ) : (
+              <img src={previewItem.previewUrl} alt={previewItem.file.name} className="max-h-[75dvh] w-full object-contain" />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 2 — Complete anything the document did not provide */}
-      <GlassCard className="mt-6" data-testid="intake-source">
+      <GlassCard className="min-w-0" data-testid="intake-source">
         <h2 className="text-[20px] font-semibold tracking-tight text-slate-900 sm:text-[22px]">{t.sourceHeading}</h2>
         <p className="mt-2 text-[14px] leading-relaxed text-slate-500">{t.sourceHelper}</p>
         <label className="mt-4 grid gap-1.5">
           <span className="text-[13px] font-medium text-slate-600">{t.existingCaseLabel}</span>
           <input
+            readOnly={linkedCase}
             value={existingCaseNumber}
             onChange={(event) => {
+              if (linkedCase) return;
               setExistingCaseNumber(event.target.value.toUpperCase().slice(0, 20));
               setDuplicateIdentity(false);
               setSharedEmailWarning(false);
             }}
             placeholder={t.existingCasePlaceholder}
+            aria-describedby={linkedCase ? "intake-bound-case-hint" : undefined}
             autoComplete="off"
             data-testid="intake-existing-case-number"
             className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3.5 font-mono text-[16px] tracking-[.03em] text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
           />
+          {linkedCase && <span id="intake-bound-case-hint" className="text-[12px] text-[#785b2a]">{locale === "ar" ? "هذا الرقم مرتبط بملفك لدى المكتب ولا يمكن تغييره." : "This reference is linked to your office file and cannot be changed."}</span>}
         </label>
         <textarea
           value={sourceText}
@@ -491,12 +523,14 @@ export function ClientIntakeForm({ token }: { token: string }) {
           className="mt-4 w-full resize-y rounded-2xl border border-slate-300 bg-white p-4 text-[16px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
         />
       </GlassCard>
+      </div>
 
       {/* 3 — Review what was understood */}
-      <GlassCard className="mt-5" data-testid="intake-detected">
+      <GlassCard className="mt-5 min-w-0" data-testid="intake-detected">
         <h2 className="text-[19px] font-semibold tracking-tight text-slate-900 sm:text-[21px]">{t.detectedHeading}</h2>
         <p className="mt-2 text-[14px] leading-relaxed text-slate-500">{t.detectedHelper}</p>
 
+        {visible.size === 0 && <button type="button" onClick={() => setManualMode(true)} className="mt-3 min-h-[44px] rounded-xl border border-[#c5a059]/60 bg-[#fdf5e3] px-4 text-[13px] font-semibold text-[#6e5120]" data-testid="intake-manual-entry">{locale === "ar" ? "إدخال البيانات يدويًا" : "Enter details manually"}</button>}
         {visible.size === 0 ? (
           <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-[14px] text-slate-500" data-testid="intake-detected-empty">
             {t.detectedEmpty}
@@ -506,15 +540,15 @@ export function ClientIntakeForm({ token }: { token: string }) {
             {FIELD_GROUPS.map((group) => {
               const fields = group.fields.filter((field) => visible.has(field));
               if (!fields.length) return null;
-              const label = group.key === "identity" ? t.groupIdentity : group.key === "contact" ? t.groupContact : group.key === "address" ? t.groupAddress : t.groupLanguage;
+              const label = group.key === "identity" ? t.groupIdentity : group.key === "contact" ? t.groupContact : group.key === "address" ? t.groupAddress : group.key === "work" ? t.groupWork : t.groupLanguage;
               return (
-                <fieldset key={group.key} className="grid gap-2.5 sm:grid-cols-2" data-group={group.key}>
+                <fieldset key={group.key} className="grid min-w-0 gap-2.5 sm:grid-cols-2 xl:grid-cols-3" data-group={group.key}>
                   <legend className="col-span-full text-[12px] font-semibold uppercase tracking-[.1em] text-slate-500">{label}</legend>
                   {fields.map((field) => {
                     const problem = fieldErrors[field];
                     const input = FIELD_INPUT[field];
                     return (
-                      <label key={field} className="grid gap-1.5" data-field={field}>
+                      <label key={field} className="grid min-w-0 gap-1.5" data-field={field}>
                         <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-slate-600">
                           <span>{t.fields[field]}</span>
                           {importedFields.includes(field) && (
@@ -538,7 +572,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
                           aria-invalid={problem ? true : undefined}
                           aria-describedby={problem ? `intake-error-${field}` : undefined}
                           data-testid={`intake-field-${field}`}
-                          className={`min-h-[48px] w-full rounded-xl border bg-white px-3.5 text-[16px] text-slate-800 focus:outline-none focus:ring-4 ${
+                          className={`min-h-[48px] min-w-0 w-full rounded-xl border bg-white px-3.5 text-[16px] text-slate-800 focus:outline-none focus:ring-4 ${
                             problem
                               ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
                               : importedFields.includes(field)

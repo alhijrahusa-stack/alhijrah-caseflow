@@ -164,7 +164,7 @@ describe("opening the link never consumes it", () => {
   it("reads as openable repeatedly and leaves the status ACTIVE", async () => {
     const link = await issueIntakeLink(manager, 24);
     for (let i = 0; i < 5; i += 1) {
-      expect(await readIntakeLinkForClient(link.token)).toEqual({ ok: true, openable: true });
+      expect(await readIntakeLinkForClient(link.token)).toEqual({ ok: true, openable: true, targetCaseNumber: null });
     }
     const [row] = await db`select status,processing_started_at,used_at from client_import_links where id=${link.id}`;
     expect(row.status).toBe("ACTIVE");

@@ -15,6 +15,7 @@ type IssuedLink = { id: string; url: string; expires_at: string };
 
 export function ClientIntakeLinkPanel() {
   const [link, setLink] = useState<IssuedLink | null>(null);
+  const [existingCase, setExistingCase] = useState("");
   const [status, setStatus] = useState<"ACTIVE" | "REVOKED" | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -36,7 +37,7 @@ export function ClientIntakeLinkPanel() {
     setError(null);
     setCopied(false);
     try {
-      const data = await call("POST");
+      const data = await call("POST", existingCase.trim() ? { case_number: existingCase.trim().toUpperCase() } : {});
       setLink({ id: String(data.id), url: String(data.url), expires_at: String(data.expires_at) });
       setStatus("ACTIVE");
     } catch (e) {
@@ -96,6 +97,8 @@ export function ClientIntakeLinkPanel() {
         )}
       </div>
 
+      <label className="mt-3.5 grid max-w-lg gap-1.5 text-[12px] font-medium text-slate-200"><span>Existing Smart Import Case Number (optional)</span><input type="text" value={existingCase} onChange={(event) => setExistingCase(event.target.value.toUpperCase().slice(0,20))} placeholder="CG-2026-000001 · Leave blank for a new client" aria-label="Existing Smart Import Case Number" data-testid="link-existing-case-number" className="min-h-[48px] min-w-0 rounded-xl border border-[#c5a059]/40 bg-[#041122]/65 px-3 font-mono text-[14px] text-white placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-[#c5a059]"/></label>
+      <p className="mt-1.5 text-[11px] text-slate-400">Enter the existing case to update that file without issuing a new Case Number. Leave blank only for a new client.</p>
       <div className="mt-3.5 flex flex-wrap gap-2">
         <button
           type="button"

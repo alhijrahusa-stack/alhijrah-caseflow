@@ -23,6 +23,7 @@ export const runtime = "nodejs";
 
 const IssueInput = z.object({
   expires_in_hours: z.number().int().min(1).max(INTAKE_LINK_MAX_TTL_HOURS).optional(),
+  case_number: z.string().regex(/^CG-[0-9]{4}-[0-9]{6}$/).optional(),
 });
 
 const RevokeInput = z.object({ link_id: z.uuid() });
@@ -47,13 +48,14 @@ export async function POST(req: Request) {
   if (!parsed.success) return err("invalid_input", parsed.error.issues[0]?.message ?? "Invalid request", 400, traceId);
 
   try {
-    const link = await issueIntakeLink(guard.session, parsed.data.expires_in_hours ?? INTAKE_LINK_DEFAULT_TTL_HOURS);
+    const link = await issueIntakeLink(guard.session, parsed.data.expires_in_hours ?? INTAKE_LINK_DEFAULT_TTL_HOURS, parsed.data.case_number);
     return ok(
       {
         id: link.id,
         url: `${publicOrigin(req)}/intake/${link.token}`,
         expires_at: link.expires_at,
         status: link.status,
+        target_case_number: link.target_case_number,
       },
       201,
       traceId,

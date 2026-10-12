@@ -24,9 +24,9 @@ const PNG_1x1 = Buffer.from(
   "hex",
 );
 
-async function issueLink(page: Page) {
+async function issueLink(page: Page, caseNumber?: string) {
   const res = await page.request.post("/api/staff/client-intake-link", {
-    data: {},
+    data: caseNumber ? { case_number: caseNumber } : {},
     headers: { cookie: `cg_at=${await accessToken("admin")}`, "x-forwarded-for": uniqueIp() },
   });
   const json = await res.json();
@@ -343,6 +343,94 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     expect(docs).toBe(1);
   });
 
+
+
+  test("a staff-bound Client Intake Link updates the ORIGINAL case without creating another", async ({ page, request }) => {
+    const original = await issueLink(staffPage);
+    const name = `Bound Applicant ${NAME_TAG}`;
+    const email = `bound-${RUN}@test.invalid`;
+    const initial = await request.post(`/api/public/client-intake/${original.token}`, {
+      multipart: {
+        source_text: `Full Name: ${name}\nDate of Birth: 1994-05-15\nEmail: ${email}\nPhone: 3135550156`,
+      },
+    });
+    const first = await initial.json();
+    expect(initial.status(), JSON.stringify(first)).toBe(201);
+    const ref = String(first.case_number);
+    const [before] = await db()`select id,public_ref from client_import_cases where public_ref=${ref}`;
+    const bound = await issueLink(staffPage, ref);
+    await page.goto(`/intake/${bound.token}`);
+    await expect(page.getByTestId("intake-existing-case-number")).toHaveValue(ref);
+    await expect(page.getByTestId("intake-existing-case-number")).toHaveAttribute("readonly", "");
+    await page.getByTestId("locale-en").click();
+    await page.getByTestId("intake-source-text").fill(`Full Name: ${name}\nDate of Birth: 1994-05-15\nEmail: ${email}\nPhone: 3135550167`);
+    await expect(page.getByTestId("intake-field-site_code")).toBeVisible();
+    await page.getByTestId("intake-field-site_code").fill("Romulus DTW1");
+    await page.getByTestId("intake-field-shift_code").fill("BHN");
+    await page.getByTestId("intake-field-shift_days").fill("Wednesday-Saturday");
+    await page.getByTestId("intake-field-shift_start_time").fill("18:00");
+    await page.getByTestId("intake-field-shift_end_time").fill("04:30");
+    await page.getByTestId("intake-choose-files").setInputFiles({ name: "bound.png", mimeType: "image/png", buffer: PNG_1x1 });
+    const view = page.getByTestId("intake-file-view");
+    await expect(view).toBeVisible();
+    await view.click();
+    await expect(page.getByTestId("intake-document-viewer")).toBeVisible();
+    await page.getByRole("button",{name:"Close preview"}).click();
+    await expect(page.getByTestId("intake-document-viewer")).toHaveCount(0);
+    // Use the same browser form to exercise the actual authorized submission.
+    await page.getByTestId("intake-submit").click();
+    await expect(page.getByTestId("intake-success")).toBeVisible({timeout:45000});
+    await expect(page.getByTestId("intake-case-number")).toContainText(ref);
+    const [after] = await db()`select id,public_ref,raw_input from client_import_cases where public_ref=${ref}`;
+    expect(String(after.id)).toBe(String(before.id));
+    expect(after.public_ref).toBe(ref);
+    expect(JSON.stringify(after.raw_input)).toContain("Romulus DTW1");
+    const [{ docs }] = await db()`select count(*)::int as docs from client_import_documents where import_case_id=${String(before.id)}`;
+    expect(Number(docs)).toBe(1);
+    const [linkState] = await db()`select status,import_case_id from client_import_links where id=${bound.id}`;
+    expect(linkState.status).toBe("USED");
+    expect(String(linkState.import_case_id)).toBe(String(before.id));
+    const rows = await db()`select id from client_import_cases where public_ref=${ref}`;
+    expect(rows).toHaveLength(1);
+  });
+
+  test("bound link blocks a different person's identity and preserves the original case", async ({ request }) => {
+    const created = await issueLink(staffPage);
+    const first = await request.post(`/api/public/client-intake/${created.token}`, {
+      multipart: { source_text: `Full Name: Protected Applicant ${NAME_TAG}\nDate of Birth: 1991-01-01\nEmail: identity-${RUN}@test.invalid` },
+    });
+    expect(first.status()).toBe(201);
+    const ref = String((await first.json()).case_number);
+    const linked = await issueLink(staffPage, ref);
+    const wrong = await request.post(`/api/public/client-intake/${linked.token}`, {
+      multipart: { source_text: `Full Name: Different Person ${NAME_TAG}\nDate of Birth: 2000-01-01\nPhone: 3135550100`, case_number: ref },
+    });
+    expect(wrong.status()).toBe(409);
+    expect((await wrong.json()).error?.code).toBe("identity_conflict");
+    const [state] = await db()`select status from client_import_links where id=${linked.id}`;
+    expect(state.status).toBe("ACTIVE");
+  });
+
+  test("Client Intake Link remains fluid in Arabic and English on phone, tablet and ultrawide", async ({ page }) => {
+    const linked = await issueLink(staffPage);
+    for (const width of [320,360,390,600,768,1024,1440,1920,2560]) {
+      await page.setViewportSize({ width, height:850 });
+      await page.goto(`/intake/${linked.token}`);
+      const m = await page.evaluate(() => ({
+        width:document.documentElement.scrollWidth,
+        viewport:document.documentElement.clientWidth,
+        inputs:Array.from(document.querySelectorAll("input,textarea")).filter(el=>(el as HTMLElement).offsetParent).map(el=>(el as HTMLElement).getBoundingClientRect()).filter(r=>r.width>0).map(r=>({left:r.left,right:r.right}))
+      }));
+      expect(m.width,`overflow at ${width}`).toBeLessThanOrEqual(m.viewport+1);
+      for(const rect of m.inputs) {
+        expect(rect.left).toBeGreaterThanOrEqual(-1);
+        expect(rect.right).toBeLessThanOrEqual(width+1);
+      }
+      await page.getByTestId("locale-en").click();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width+1);
+      await page.getByTestId("locale-ar").click();
+    }
+  });
 
   test("shared contact stays valid, but duplicate person and Case Number are blocked without leaking records", async ({ request }) => {
     const sharedEmail = `family-${RUN}@test.invalid`;
