@@ -198,6 +198,29 @@ test.describe("Smart Client Import experience", () => {
     await expect(page.getByRole("textbox", { name: "Client source data" })).toBeVisible();
   });
 
+
+  test("fluid Smart Import grid at phone, tablet, desktop, and ultrawide widths", async ({page}) => {
+    for(const width of [320,360,390,600,768,1024,1440,1920,2560]){
+      await page.setViewportSize({width,height:900});
+      await page.goto("/staff/smart-client-import/new");
+      await expect(page.getByRole("heading",{name:"SMART CLIENT IMPORT"})).toBeVisible();
+      const layout=await page.evaluate(()=>{
+        const grid=document.querySelector("[data-smart-operational-grid]")!;
+        const audio=document.querySelector('button[aria-label*="Turn audio"]')!.getBoundingClientRect();
+        const capture=document.querySelector("[data-smart-capture-column]")!.getBoundingClientRect();
+        const intel=document.querySelector("[data-smart-intelligence-column]")!.getBoundingClientRect();
+        return {columns:getComputedStyle(grid).gridTemplateColumns.split(" ").length,overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+          audioWidth:audio.width,audioHeight:audio.height,captureLeft:capture.left,captureRight:capture.right,intelLeft:intel.left,intelRight:intel.right};
+      });
+      expect(layout.columns).toBe(width>=1536?3:width>=768?2:1);
+      expect(layout.overflow).toBeLessThanOrEqual(1);
+      expect(layout.audioWidth).toBeGreaterThanOrEqual(44);
+      expect(layout.audioHeight).toBeGreaterThanOrEqual(44);
+      for(const edge of [layout.captureLeft,layout.intelLeft])expect(edge).toBeGreaterThanOrEqual(-1);
+      for(const edge of [layout.captureRight,layout.intelRight])expect(edge).toBeLessThanOrEqual(width+1);
+    }
+  });
+
   test("ambient motion stops while the tab is hidden", async ({ page }) => {
     await page.goto("/staff/smart-client-import/new");
     const ambient = page.locator("[data-cg-ambient]");
