@@ -102,6 +102,22 @@ export function ClientIntakeShell({ dir, children }: { dir: "rtl" | "ltr"; child
           border-color:rgba(197,160,89,.23);
           color:#dce6f1;
         }
+        .cg-client-link [data-testid="smart-guide"] {
+          border-color:rgba(197,160,89,.52);
+          background:linear-gradient(130deg,rgba(22,50,84,.90),rgba(5,17,37,.91));
+          color:#f2f5fb;
+          box-shadow:0 15px 37px rgba(0,0,0,.31),inset 0 1px 0 rgba(255,255,255,.09);
+          backdrop-filter:blur(26px);
+          -webkit-backdrop-filter:blur(26px);
+        }
+        .cg-client-link [data-testid="smart-guide"] p.text-slate-700 { color:#dce7f3; }
+        .cg-client-link [data-testid="smart-guide"] .text-slate-400 {color:#ecd29d;}
+        .cg-client-link [data-testid="smart-guide-open"] {
+          background:rgba(9,26,54,.91);
+          border-color:rgba(197,160,89,.57);
+          color:#f4e5bd;
+          box-shadow:0 12px 29px rgba(0,0,0,.26);
+        }
         .cg-client-link [data-testid="intake-case-number"] {
           background:linear-gradient(125deg,rgba(15,43,81,.96),rgba(6,21,47,.96));
           border-color:#c5a059;
