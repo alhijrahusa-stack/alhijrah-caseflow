@@ -406,10 +406,11 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     expect(initial.status()).toBe(201);
     const ref = String((await initial.json()).case_number);
     const [caseRow] = await db()`select id from client_import_cases where public_ref=${ref}`;
-    const manualEvidence = JSON.stringify([{field_key:"phone",authority:"MANUAL",value:"3135550199",source:"staff_review"}]);
-    await db()`update client_import_cases
+    const manualEvidence = [{field_key:"phone",authority:"MANUAL",value:"3135550199",source:"staff_review"}];
+    const sql = db();
+    await sql`update client_import_cases
       set mapped_draft=jsonb_set(mapped_draft,'{profile,phone}',to_jsonb('3135550199'::text)),
-      field_evidence=coalesce(field_evidence,'[]'::jsonb)||${manualEvidence}::jsonb,
+      field_evidence=coalesce(field_evidence,'[]'::jsonb)||${sql.json(manualEvidence)}::jsonb,
       review_started_at=now(),reviewer_id=created_by where id=${String(caseRow.id)}`;
     const [verified] = await db()`select field_evidence,review_started_at,reviewer_id,mapped_draft from client_import_cases where id=${String(caseRow.id)}`;
     expect(verified.field_evidence,JSON.stringify(verified)).toEqual(expect.arrayContaining([expect.objectContaining({field_key:"phone",authority:"MANUAL"})]));
