@@ -411,6 +411,9 @@ test.describe.serial("Career Gate one-time client intake link", () => {
       set mapped_draft=jsonb_set(mapped_draft,'{profile,phone}',to_jsonb('3135550199'::text)),
       field_evidence=coalesce(field_evidence,'[]'::jsonb)||${manualEvidence}::jsonb,
       review_started_at=now(),reviewer_id=created_by where id=${String(caseRow.id)}`;
+    const [verified] = await db()`select field_evidence,review_started_at,reviewer_id,mapped_draft from client_import_cases where id=${String(caseRow.id)}`;
+    expect(verified.field_evidence,JSON.stringify(verified)).toEqual(expect.arrayContaining([expect.objectContaining({field_key:"phone",authority:"MANUAL"})]));
+    expect(verified.mapped_draft.profile.phone).toBe("3135550199");
     const bound = await issueLink(staffPage,ref);
     const correction = await request.post(`/api/public/client-intake/${bound.token}`, {
       multipart: { source_text: `Full Name: ${name}\nDate of Birth: 1992-09-19\nEmail: ${email}\nPhone: 3135550122`,case_number:ref },
