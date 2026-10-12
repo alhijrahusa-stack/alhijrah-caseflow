@@ -67,6 +67,19 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
       review_fields: reviewFields,
     }, 200, traceId);
   } catch (error) {
+    // Gemini can exhaust its project quota. Do not surface the provider's raw
+    // diagnostic (including project identifiers or billing URLs) to a client.
+    // The one-time intake link remains open: manual entry and submission work.
+    if (error instanceof ActionError && (
+      /quota exceeded|exceeded your current quota|resource_exhausted/i.test(error.message)
+    )) {
+      return err(
+        "ai_temporarily_unavailable",
+        "Automatic document reading is temporarily unavailable. You can enter your details manually and submit your application.",
+        503,
+        traceId,
+      );
+    }
     if (error instanceof ActionError) return err(error.code, error.message, error.status, traceId);
     return err("extraction_failed", "We could not read this document. You can continue by entering the missing information manually.", 422, traceId);
   }
