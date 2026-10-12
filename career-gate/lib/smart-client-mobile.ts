@@ -201,12 +201,103 @@ function preserveReviewedDraft(current: unknown, incoming: ReturnType<typeof par
   } as typeof incoming;
 }
 
+/** Append a one-time, staff-authorized client submission to its ORIGINAL pending
+ * Smart Import case. Storage is private, and case/document/link changes commit
+ * together. No new case or public reference is ever created in this branch.
+ */
+async function appendLinkedClientIntake(args: {
+  session: StaffSession; targetCaseId: string; linkId: string; notes: string;
+  preDraft: ReturnType<typeof partialDraft>; preMerge: ReturnType<typeof mergeEvidence>; files: FileCapture[];
+}) {
+  const uploaded: string[] = [];
+  try {
+    for (const entry of args.files) {
+      const path = `smart-import/${args.targetCaseId}/${randomUUID()}-${safeFilename(entry.file.name || "upload")}`;
+      await uploadObject(path, entry.bytes, entry.file.type);
+      uploaded.push(path);
+      entry.storagePath = path;
+    }
+    const result = await sql().begin(async (tx) => {
+      const [link] = await tx`select id,status,import_case_id from client_import_links where id=${args.linkId} for update`;
+      if (!link || String(link.import_case_id ?? "") !== args.targetCaseId) {
+        throw new ActionError("link_case_mismatch", "The link is not authorized for this case", 403);
+      }
+      const [current] = await tx`
+        select id,batch_id,public_ref,source_type,status,created_at,raw_input,mapped_draft,missing_fields,conflicts,field_evidence,verification_result,review_started_at
+        from client_import_cases where id=${args.targetCaseId} for update`;
+      if (!current || current.source_type !== "mobile" || ["APPROVED_FILE","ARCHIVED"].includes(String(current.status))) {
+        throw new ActionError("case_closed", "This case cannot accept a client update", 409);
+      }
+      if (link.status === "USED") {
+        return {
+          caseId: String(current.id), batchId: String(current.batch_id), publicRef: String(current.public_ref),
+          createdAt: String(current.created_at), mappedDraft: current.mapped_draft,
+          verificationResult: current.verification_result, idempotent: true, applied: false,
+        };
+      }
+      if (link.status !== "PROCESSING") throw new ActionError("link_closed", "The link is not processing", 409);
+      const existing = (current.mapped_draft ?? {}) as Record<string, unknown>;
+      const profile = (existing.profile ?? {}) as Record<string, unknown>;
+      const incoming = (args.preDraft.profile ?? {}) as Record<string, unknown>;
+      for (const field of ["full_name", "date_of_birth"] as const) {
+        const before = typeof profile[field] === "string" ? profile[field] as string : "";
+        const after = typeof incoming[field] === "string" ? incoming[field] as string : "";
+        if (before.trim() && after.trim() && normalizeEvidenceValue(field, before) !== normalizeEvidenceValue(field, after)) {
+          throw new ActionError("identity_conflict", "The submitted identity differs from this case. Contact the office.", 409);
+        }
+      }
+      const evidence = appendExtractionEvidence(current.field_evidence, args.preMerge.evidence);
+      const manuallyReviewed = new Set(
+        (Array.isArray(current.field_evidence) ? current.field_evidence : [])
+          .filter((e: unknown) => e && typeof e === "object" && (e as Record<string, unknown>).authority === "MANUAL")
+          .map((e: unknown) => String((e as Record<string, unknown>).field_key)),
+      );
+      const nextDraft = preserveReviewedDraft(current.mapped_draft, args.preDraft, true, manuallyReviewed);
+      const oldInput = current.raw_input && typeof current.raw_input === "object" ? current.raw_input as Record<string, unknown> : {};
+      const oldNotes = typeof oldInput.notes === "string" ? oldInput.notes : "";
+      const joined = [oldNotes, args.notes].filter(Boolean).join("\n\n--- Client Intake Link submission ---\n");
+      for (const entry of args.files) {
+        await tx`insert into client_import_documents(import_case_id,storage_reference,original_filename,mime_type,size_bytes,sha256,detected_document_type,extraction_metadata,uploaded_by)
+          values(${args.targetCaseId},${entry.storagePath},${safeFilename(entry.file.name || "upload")},${entry.file.type},${entry.file.size},${entry.sha256},${conservativeDocumentType(entry.file.name)},
+            ${tx.json({ extracted_rows: 0, extraction_error: null, processing_state: "PENDING" } as never)},${args.session.staff.id})`;
+      }
+      const [count] = await tx`select count(*)::int as n from client_import_documents where import_case_id=${args.targetCaseId}`;
+      const oldResult = current.verification_result && typeof current.verification_result === "object" ? current.verification_result as Record<string, unknown> : {};
+      const nextResult = { ...oldResult, processing_state: "CAPTURED",
+        ai_state: args.files.length ? "PENDING" : oldResult.ai_state ?? "SKIPPED",
+        document_count: Number(count.n), client_link_received_at: new Date().toISOString(),
+        evidence_fields: evidence.length };
+      await tx`update client_import_cases set
+        raw_input=${tx.json({ ...oldInput, notes: joined } as never)},
+        mapped_draft=${tx.json(nextDraft as never)},
+        missing_fields=${tx.json(requiredMissingFromDraft(nextDraft) as never)},
+        field_evidence=${tx.json(evidence as never)},
+        verification_result=${tx.json(nextResult as never)}
+        where id=${args.targetCaseId}`;
+      const [updated] = await tx`update client_import_links set status='USED',used_at=now(),processing_started_at=null
+        where id=${args.linkId} and status='PROCESSING' and import_case_id=${args.targetCaseId} returning id`;
+      if (!updated) throw new ActionError("link_conflict", "Submission state changed; retry", 409);
+      return { caseId: String(current.id), batchId: String(current.batch_id), publicRef: String(current.public_ref),
+        createdAt: String(current.created_at), mappedDraft: nextDraft, verificationResult: nextResult, idempotent: false, applied: true };
+    });
+    if (!result.applied) { for (const path of uploaded) await removeObject(path).catch(() => undefined); }
+    return { batch_id: result.batchId, case_id: result.caseId, idempotent: result.idempotent,
+      public_ref: result.publicRef, created_at: result.createdAt, uploaded_by: args.session.staff.id,
+      uploaded_by_name: args.session.staff.display_name, mapped_draft: result.mappedDraft,
+      verification_result: result.verificationResult };
+  } catch (error) {
+    for (const path of uploaded) await removeObject(path).catch(() => undefined);
+    throw error;
+  }
+}
 export async function stageMobileImportV2(args: {
   session: StaffSession;
   notes: string;
   files: File[];
   idempotencyKey: string;
   caseNumber?: string | null;
+  targetCaseId?: string | null;
+  linkId?: string | null;
 }) {
   assertManager(args.session);
   const notes = args.notes.trim().slice(0, SMART_IMPORT_LIMITS.maxRawTextLength);
@@ -234,6 +325,11 @@ export async function stageMobileImportV2(args: {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     fileData.push({ file, bytes, sha256, documentId: null, storagePath: null });
+  }
+
+  if (args.targetCaseId) {
+    if (!args.linkId) throw new ActionError("invalid_link", "A linked case requires its one-time link", 400);
+    return appendLinkedClientIntake({ session: args.session, targetCaseId: args.targetCaseId, linkId: args.linkId, notes, preDraft, preMerge, files: fileData });
   }
 
   const created = await sql().begin(async (tx) => {
