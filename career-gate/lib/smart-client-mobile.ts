@@ -20,7 +20,7 @@ import {
 
 const EVIDENCE_FIELDS = [
   "full_name", "phone", "email", "date_of_birth", "preferred_language", "street", "city", "state", "zip",
-  "appointment_availability", "amazon_worked_before", "amazon_worked_from", "amazon_worked_to", "amazon_applied_before",
+  "shift_days", "shift_start_time", "shift_end_time", "appointment_availability", "amazon_worked_before", "amazon_worked_from", "amazon_worked_to", "amazon_applied_before",
   "amazon_application_email", "currently_amazon", "via_agency", "employment_kind", "company", "job_title", "employment_from",
   "employment_to", "site_code", "job_id", "shift_code", "backup_site_code", "backup_job_id", "backup_shift_code",
 ] as const;
