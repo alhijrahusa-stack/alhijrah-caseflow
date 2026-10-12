@@ -109,17 +109,14 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
         oscillator.start(start);
         oscillator.stop(start + 0.18);
       }
-      void new Promise<void>((resolve) => {
-        context.onstatechange = () => { if (context.state === "closed") resolve(); };
-        setTimeout(() => { void context.close().catch(() => undefined); }, 600);
-      });
+      setTimeout(() => { void context.close().catch(() => undefined); }, 600);
     } catch { /* Not all browsers or devices permit Web Audio. */ }
   }
 
   function speakGuidance(message: string, force = false) {
     if (!force && !voiceEnabled) return;
     try {
-      if (!("speechSynthesis" in window) || !window.SpeechSynthesisUtterance) return;
+      if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") return;
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(message);
       utterance.lang = locale === "ar" ? "ar-SA" : "en-US";
