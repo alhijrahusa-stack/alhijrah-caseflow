@@ -99,6 +99,16 @@ test("public HTML application submits and stores an idempotent case without phon
   const other = await post("Shared-B", `public-html-other-${RUN}`);
   expect(other.status, JSON.stringify(other.result)).toBe(201);
   expect(other.result.caseNumber).not.toBe(first.result.caseNumber);
+  // A different applicant sharing email may apply; an explicitly reused reference may not.
+  const existingCase = await request.post("/api/application", {
+    data: {...common, lastName: "Shared-C", uid: `public-html-case-${RUN}`, caseNumber: first.result.caseNumber},
+    headers: { "x-forwarded-for": uniqueIp() },
+  });
+  expect(existingCase.status()).toBe(409);
+  const existingCaseBody = await existingCase.json();
+  expect(existingCaseBody.code).toBe("case_number_exists");
+  expect(existingCaseBody.caseNumber).toBeUndefined();
+  expect(existingCaseBody.fullName).toBeUndefined();
   const apps = await db()`select case_number from career_gate_applications where submission_uid in (${firstUid}, ${`public-html-other-${RUN}`})`;
   expect(apps).toHaveLength(2);
 });
