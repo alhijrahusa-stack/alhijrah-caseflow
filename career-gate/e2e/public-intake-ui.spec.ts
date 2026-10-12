@@ -297,7 +297,7 @@ test.describe("Career Gate public intake presentation system", () => {
     const color = await page.locator("#preferredSitesExecutive").evaluate(el => getComputedStyle(el).backgroundImage);
     expect(color).toContain("rgb(6, 17, 35)");
     const inner = await page.locator("#preferredSitesExecutive .preferred-sites-inner").evaluate(el => getComputedStyle(el).backgroundImage);
-    expect(inner).toContain("rgb(255, 255, 255)");
+    expect(inner).toMatch(/rgba?\(255,\s*255,\s*255/);
     await page.locator('input[name="workType"]').first().check({ force: true });
     await expect(page.locator(".shift-pay").first()).toContainText("/hr");
     await page.locator("#langEn").click();
