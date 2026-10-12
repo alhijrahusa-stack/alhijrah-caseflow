@@ -383,7 +383,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#03101f] px-4 py-5 text-slate-200 sm:px-6 lg:px-8">
+    <main data-smart-responsive-root className="relative min-h-screen w-full min-w-0 overflow-x-clip bg-[#03101f] px-3 py-4 text-slate-200 sm:px-5 sm:py-5 lg:px-7 2xl:px-10">
       {/* Level 0: page backplane. */}
       <div ref={ambientRef} data-cg-ambient="running" className="pointer-events-none fixed inset-0" aria-hidden="true">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_-8%,rgba(26,124,183,.22),transparent_30%),radial-gradient(circle_at_84%_9%,rgba(184,147,74,.10),transparent_24%),linear-gradient(180deg,#061a31_0%,#041226_52%,#020b18_100%)]" />
@@ -395,29 +395,29 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       </div>
 
       {/* Level 1: structural frame. */}
-      <section className="relative mx-auto max-w-[1480px] space-y-4">
-        <header className={`${PANEL} p-5 sm:p-6`}>
+      <section className="relative mx-auto w-full min-w-0 max-w-[1760px] space-y-3 sm:space-y-4">
+        <header data-smart-header className={`${PANEL} min-w-0 p-3 sm:p-5 2xl:p-6`}>
           <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#e3c884]/60 to-transparent" />
           <DigitalHandshake sweep={sweep} />
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div className="max-w-2xl">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 lg:gap-5">
+            <div className="min-w-0 max-w-2xl">
               <div className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#e3c884] shadow-[0_0_10px_rgba(227,200,132,.42)]" />
                 <p className="text-[11px] font-bold tracking-[.22em] text-[#e3c884]">CAREER GATE · EXECUTIVE INTAKE</p>
               </div>
-              <h1 className="mt-2 text-[26px] font-semibold tracking-[-.02em] text-white">SMART CLIENT IMPORT</h1>
+              <h1 className="mt-2 break-words text-[clamp(21px,3vw,27px)] font-semibold leading-tight tracking-[-.02em] text-white">SMART CLIENT IMPORT</h1>
               <p className="mt-1.5 font-mono text-xs text-slate-400">Secure Internal Intake · Local Intelligence · Server Authoritative</p>
             </div>
-            <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:grid-cols-3 xl:grid-cols-6">
+            <div data-smart-telemetry role="group" aria-label="Smart Client Import live telemetry" className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto lg:max-w-[63%] 2xl:max-w-[68%] 2xl:grid-cols-6">
               <Telemetry label="STAFF" value={result?.uploaded_by_name ?? staff.display_name} />
               <Telemetry label="FILES" value={String(totals.count)} mono />
               <Telemetry label="SESSION" value={submitted ? "SUBMITTED" : "ACTIVE"} />
               <Telemetry label="TIME" value={formatElapsed(elapsed)} mono tone="cyan" />
-              <div className="flex min-h-[52px] flex-col justify-between rounded-xl border border-[#b8934a]/25 bg-[#03101f]/60 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,.045)]">
+              <div className="flex min-h-[52px] min-w-0 flex-col justify-between rounded-xl border border-[#b8934a]/25 bg-[#03101f]/60 px-2.5 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,.045)] sm:px-3">
                 <span className="text-[11px] font-semibold tracking-[.14em] text-slate-400">STATUS</span>
-                <span role="status" className={`mt-1 inline-flex w-fit rounded-md border px-2 py-0.5 font-mono text-[13px] font-semibold ${STATUS_TONE[status]}`}>{status.replace(/_/g, " ")}</span>
+                <span role="status" className={`mt-1 inline-flex max-w-full flex-wrap break-words rounded-md border px-2 py-0.5 font-mono text-[11px] font-semibold leading-4 sm:text-[12px] ${STATUS_TONE[status]}`}>{status.replace(/_/g, " ")}</span>
               </div>
-              <div className="flex min-h-[52px] flex-col justify-between rounded-xl border border-[#b8934a]/25 bg-[#03101f]/60 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,.045)]">
+              <div className="flex min-h-[52px] min-w-0 flex-col justify-between rounded-xl border border-[#b8934a]/25 bg-[#03101f]/60 px-2.5 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,.045)] sm:px-3">
                 <span className="text-[11px] font-semibold tracking-[.14em] text-slate-400">AUDIO</span>
                 <button
                   type="button"
@@ -441,9 +441,9 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
           )}
         </header>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(420px,.88fr)]">
+        <div data-smart-operational-grid className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {/* Left primary column: SOURCE. Mobile order places capture and source first. */}
-          <div className="order-1 space-y-4">
+          <div data-smart-capture-column className="order-1 min-w-0 space-y-3 sm:space-y-4 2xl:col-span-2">
             <section className={`${PANEL} ${documents.length ? PANEL_ACTIVE : ""} p-4 sm:p-5`} aria-labelledby="smart-source-capture">
               <PanelTitle id="smart-source-capture" number="01" title="SOURCE CAPTURE" meta={`${totals.count} of ${SMART_DOCUMENT_POLICY.maxFiles} files · ${totals.label} · ${submitted ? "STORED" : documents.length ? "READY TO UPLOAD" : "AWAITING FILES"}`} />
               <input ref={inputRef} id="smart-files" className="sr-only" type="file" accept={SMART_DOCUMENT_ACCEPT} multiple disabled={busy || submitted} onChange={(e) => addFiles(e.target.files)} />
@@ -488,7 +488,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                 <label className="sr-only" htmlFor="smart-source-text">Client source data</label>
                 <textarea
                   id="smart-source-text"
-                  className="min-h-72 w-full resize-y bg-transparent p-4 font-mono text-[14px] leading-[1.65] text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-70"
+                  className="min-h-56 w-full min-w-0 resize-y bg-transparent p-3 font-mono text-[14px] leading-[1.65] text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-70 sm:min-h-64 sm:p-4"
                   maxLength={MAX_SOURCE_LENGTH}
                   value={notes}
                   disabled={submitted}
@@ -519,7 +519,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
           </div>
 
           {/* Right operational column: INTELLIGENCE, pipeline, resolution. */}
-          <aside className="order-2 space-y-4">
+          <aside data-smart-intelligence-column className="order-2 min-w-0 space-y-3 sm:space-y-4 2xl:col-span-1">
             <section className={`${PANEL} ${detectedCount ? PANEL_ACTIVE : ""} p-4 sm:p-5`} aria-labelledby="smart-live-intelligence">
               <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/45 to-transparent" />
               <PanelTitle id="smart-live-intelligence" number="04" title="LIVE INTELLIGENCE" meta={serverDraft ? "SERVER AUTHORITATIVE" : sourceSettling ? "READING SOURCE" : "LOCAL INTERPRETATION"} tone="cyan" />
@@ -580,7 +580,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
           </aside>
         </div>
 
-        <section className={`${PANEL} sticky bottom-3 z-20 order-3 p-4`} aria-label="Smart Client Import actions">
+        <section className={`${PANEL} sticky bottom-2 z-20 order-3 min-w-0 p-3 sm:bottom-3 sm:p-4`} aria-label="Smart Client Import actions">
           <DigitalHandshake sweep={sweep} />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-400">
@@ -632,8 +632,8 @@ const DocumentCards = memo(function DocumentCards({ documents, submitted, onRemo
   return (
     <ul className="mt-3 space-y-2 empty:mt-0" aria-label="Captured files">
       {documents.map((entry) => (
-                  <li key={entry.id} className={`${INNER} grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 p-3`}>
-                    <span className="grid h-14 w-14 place-items-center overflow-hidden rounded-xl border border-white/10 bg-black/40 text-slate-500">
+                  <li key={entry.id} className={`${INNER} grid min-w-0 grid-cols-[48px_minmax(0,1fr)] items-center gap-2 p-2.5 sm:grid-cols-[56px_minmax(0,1fr)_auto] sm:gap-3 sm:p-3`}>
+                    <span className="grid h-12 w-12 place-items-center overflow-hidden rounded-xl border border-white/10 bg-black/40 text-slate-500 sm:h-14 sm:w-14">
                       {entry.previewUrl
                         ? <img src={entry.previewUrl} alt={`Preview of ${entry.name}`} className="h-full w-full object-cover" />
                         : <DocumentIcon />}
@@ -648,7 +648,7 @@ const DocumentCards = memo(function DocumentCards({ documents, submitted, onRemo
                         <span className="font-mono text-[11px] text-slate-500">{documentStatusLabel(entry)}</span>
                       </span>
                     </span>
-                    <span className="flex shrink-0 items-center gap-1.5">
+                    <span className="col-span-2 flex min-w-0 items-center justify-end gap-1.5 sm:col-span-1 sm:justify-start">
                       {entry.previewUrl && (
                         <a
                           href={entry.previewUrl}
@@ -704,9 +704,9 @@ const IntelligenceList = memo(function IntelligenceList({ fields, readField, ser
 
 function Telemetry({ label, value, mono = false, tone = "neutral" }: { label: string; value: string; mono?: boolean; tone?: "neutral" | "cyan" }) {
   return (
-    <div className="flex min-h-[52px] flex-col justify-between rounded-xl border border-[#b8934a]/25 bg-[#03101f]/60 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,.045)]">
+    <div className="flex min-h-[52px] min-w-0 flex-col justify-between rounded-xl border border-[#b8934a]/25 bg-[#03101f]/60 px-2.5 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,.045)] sm:px-3">
       <span className="text-[11px] font-semibold tracking-[.14em] text-slate-400">{label}</span>
-      <strong className={`mt-1 block truncate text-[13px] font-medium ${mono ? "font-mono tabular-nums" : ""} ${tone === "cyan" ? "text-cyan-200" : "text-slate-100"}`}>{value}</strong>
+      <strong className={`mt-1 block min-w-0 break-all text-[12px] font-medium leading-4 sm:text-[13px] ${mono ? "font-mono tabular-nums" : ""} ${tone === "cyan" ? "text-cyan-200" : "text-slate-100"}`}>{value}</strong>
     </div>
   );
 }
@@ -741,12 +741,12 @@ function PipelineStage({ label, state }: { label: string; state: "WAITING" | "RU
     : state === "FAILED" ? { dot: "bg-red-300", text: "text-red-200" }
     : { dot: "bg-slate-600", text: "text-slate-400" };
   return (
-    <li className="flex items-center justify-between gap-3 rounded-xl border border-transparent px-2 py-2 hover:border-white/[.05] hover:bg-white/[.02]">
+    <li className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-transparent px-2 py-2 hover:border-white/[.05] hover:bg-white/[.02]">
       <span className="flex items-center gap-2 text-[13px] text-slate-200">
         <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${tone.dot} ${state === "RUNNING" ? "motion-safe:animate-pulse" : ""}`} />
         {label}
       </span>
-      <span className={`font-mono text-[12px] font-semibold ${tone.text}`}>{state}</span>
+      <span className={`max-w-full break-words font-mono text-[12px] font-semibold ${tone.text}`}>{state}</span>
     </li>
   );
 }
@@ -784,7 +784,7 @@ function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, 
   return (
     <div
       data-field={field.key}
-      className="grid grid-cols-[minmax(96px,.72fr)_minmax(0,1.2fr)] items-start gap-x-3 gap-y-1 rounded-xl border border-transparent px-2 py-2 hover:border-cyan-200/[.10] hover:bg-cyan-200/[.03] sm:grid-cols-[minmax(110px,.6fr)_minmax(0,1fr)_minmax(150px,auto)]"
+      className="grid min-w-0 grid-cols-[minmax(0,.72fr)_minmax(0,1.2fr)] items-start gap-x-2 gap-y-1 rounded-xl border border-transparent px-2 py-2 hover:border-cyan-200/[.10] hover:bg-cyan-200/[.03] 2xl:gap-x-3"
     >
       <dt className="text-[12px] leading-5 text-slate-400">
         {field.label}
@@ -795,10 +795,10 @@ function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, 
         data-value="1"
         className={`min-w-0 break-words font-mono text-[15px] leading-6 motion-safe:animate-[cg-field-resolve_180ms_ease-out] ${text ? "text-slate-50" : "text-slate-500"}`}
       >{text || "—"}</dd>
-      <dd className="col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-1 sm:justify-end">
+      <dd className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span data-state="1" className={`font-mono text-[11px] font-semibold ${smartStateClass(state)}`}>{state}</span>
         <span aria-hidden="true" className="text-slate-700">·</span>
-        <span data-provenance="1" className="font-mono text-[11px] text-slate-400" title="Provenance">{provenance ?? "—"}</span>
+        <span data-provenance="1" className="min-w-0 break-all font-mono text-[11px] text-slate-400" title="Provenance">{provenance ?? "—"}</span>
         <span aria-hidden="true" className="text-slate-700">·</span>
         <span data-authority="1" className={`font-mono text-[11px] font-semibold ${smartAuthorityClass(authority)}`} title="Authority">{authority}</span>
       </dd>
