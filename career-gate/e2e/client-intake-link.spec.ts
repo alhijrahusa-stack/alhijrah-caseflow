@@ -443,6 +443,29 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     expect(state.status).toBe("ACTIVE");
   });
 
+  test("Gemini quota exhaustion preserves Client Intake Link manual entry and avoids exposing billing diagnostics", async ({ page }) => {
+    const link = await issueLink(staffPage);
+    await page.route("**/api/public/client-intake/*/extract", async (route) => {
+      await route.fulfill({
+        status:503, contentType:"application/json",
+        body:JSON.stringify({ ok:false, error:{
+          code:"ai_temporarily_unavailable",
+          message:"Automatic document reading is temporarily unavailable. You can enter your details manually and submit your application."
+        } }),
+      });
+    });
+    await page.goto(`/intake/${link.token}`);
+    await page.getByTestId("intake-choose-files").setInputFiles({
+      name:"temporary-unavailable.png", mimeType:"image/png", buffer:PNG_1x1,
+    });
+    await expect(page.getByTestId("intake-field-full_name")).toBeVisible();
+    await expect(page.getByTestId("intake-field-phone")).toBeVisible();
+    await expect(page.getByText("تعذر قراءة الوثيقة تلقائيًا. يمكنك متابعة الطلب وإكمال البيانات يدويًا.")).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("Quota exceeded for metric");
+    await page.getByTestId("intake-field-full_name").fill(`Manual Applicant ${NAME_TAG}`);
+    await expect(page.getByTestId("intake-field-full_name")).toHaveValue(new RegExp(NAME_TAG));
+  });
+
   test("Client Intake Link remains fluid in Arabic and English on phone, tablet and ultrawide", async ({ page }) => {
     const linked = await issueLink(staffPage);
     for (const width of [320,360,390,600,768,1024,1440,1920,2560]) {

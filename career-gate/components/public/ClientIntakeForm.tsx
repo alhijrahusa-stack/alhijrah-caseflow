@@ -208,7 +208,12 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
       const data = await res.json().catch(() => null);
       if (version !== extractionVersion.current) return;
       if (!res.ok || !data?.ok) {
-        setExtractionNotice(typeof data?.error?.message === "string" ? data.error.message : t.extractionUnavailable);
+        // Quota failures are operational, not document validation errors.
+        // Keep the client's corrections and documents so manual intake remains possible.
+        setExtractionNotice(data?.error?.code === "ai_temporarily_unavailable"
+          ? t.extractionUnavailable
+          : typeof data?.error?.message === "string" ? data.error.message : t.extractionUnavailable);
+        if (data?.error?.code === "ai_temporarily_unavailable") setManualMode(true);
         return;
       }
       const fields = (data.fields && typeof data.fields === "object" ? data.fields : {}) as Detected;
