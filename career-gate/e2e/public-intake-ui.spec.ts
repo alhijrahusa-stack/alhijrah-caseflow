@@ -276,4 +276,63 @@ test.describe("Career Gate public intake presentation system", () => {
     await expect(page.locator("#langEn")).toHaveAttribute("aria-pressed", "true");
     await context.close();
   });
+  test("executive preferred sites and salary schedule removal preserve shift wages", async ({ page }) => {
+    await page.goto("/career-gate.html");
+    await fillStepOne(page);
+    await page.locator('[data-next="2"]').click();
+    await expect(page.locator("#payTable")).toHaveCount(0);
+    await expect(page.locator("#preferredSitesExecutive")).toBeVisible();
+    await expect(page.locator("#preferredSitesTitle")).toHaveText("المواقع المفضلة");
+    await expect(page.locator("#preferredSitesExecutive #location1")).toBeVisible();
+    const color = await page.locator("#preferredSitesExecutive").evaluate(el => getComputedStyle(el).backgroundImage);
+    expect(color).toContain("rgb(255, 255, 255)");
+    await page.locator('input[name="workType"]').first().check({ force: true });
+    await expect(page.locator(".shift-pay").first()).toContainText("/hr");
+    await page.locator("#langEn").click();
+    await expect(page.locator("#preferredSitesTitle")).toHaveText("Preferred Locations");
+  });
+
+  test("selected document offers local VIEW, no false upload success, and a dismissible preview", async ({ page }) => {
+    await page.goto("/career-gate.html");
+    await fillStepOne(page);
+    await page.locator('[data-next="2"]').click();
+    await chooseStepTwo(page);
+    await page.locator('[data-next="3"]').click();
+    await page.locator("#docs").setInputFiles({
+      name: "sample-identity.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF")
+    });
+    await expect(page.locator("#docsList")).toContainText("sample-identity.pdf");
+    await expect(page.locator("#uploadGuidance")).toContainText("ستُرفع بعد إرسال الطلب");
+    await page.getByRole("button", { name: "معاينة sample-identity.pdf" }).click();
+    await expect(page.locator("#documentViewer")).toBeVisible();
+    await expect(page.locator("#documentViewerPdf")).toHaveAttribute("src", /^blob:/);
+    await page.locator("#closeDocumentViewer").click();
+    await expect(page.locator("#documentViewer")).toBeHidden();
+  });
+
+  test("receipt exposes ready-to-use inline case tracking after contact details", async ({ page }) => {
+    const ref = "ALH-20261012-UX83";
+    await page.route("**/api/application", route => route.fulfill({
+      status: 201, contentType: "application/json",
+      body: JSON.stringify({ ok: true, duplicate: false, caseNumber: ref,
+        systemId: "CG-2026-012346", submittedAt: "2026-10-12T00:15:00.000Z" })
+    }));
+    await page.route("**/api/track", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ok:true,application:{fullName:"Test Client",caseNumber:ref,
+        currentStatus:"needs_review",nextStep:"Office will review your information and documents.",
+        documentsStatus:"pending",submittedAt:"2026-10-12",lastStatusUpdate:"2026-10-12"},
+        updates:[]})
+    }));
+    await page.goto("/career-gate.html");
+    await reachReview(page);
+    await page.locator("#consent").check({force:true});
+    await page.locator("#form").evaluate((form: HTMLFormElement) => form.requestSubmit());
+    await expect(page.locator("#receiptScreen")).toHaveClass(/active/);
+    await expect(page.locator("#receiptTrackValue")).toHaveValue(ref);
+    await expect(page.locator("#receiptStatusExecutive")).toBeVisible();
+    await page.locator("#receiptTrackBtn").click();
+    await expect(page.locator("#receiptTrackResult")).toContainText("بحاجة للمراجعة");
+  });
+
 });
