@@ -50,7 +50,7 @@ function attach(file: File): Attachment {
   };
 }
 
-export function ClientIntakeForm({ token }: { token: string }) {
+export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: string; targetCaseNumber?: string | null }) {
   const [locale, setLocale] = useState<IntakeLocale>("ar");
   const t = INTAKE_COPY[locale];
 
@@ -61,7 +61,9 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const [edits, setEdits] = useState<Detected>({});
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [existingCaseNumber, setExistingCaseNumber] = useState("");
+  const [existingCaseNumber, setExistingCaseNumber] = useState(targetCaseNumber ?? "");
+  const [manualMode, setManualMode] = useState(false);
+  const linkedCase = Boolean(targetCaseNumber);
   const [duplicateIdentity, setDuplicateIdentity] = useState(false);
   const [sharedEmailWarning, setSharedEmailWarning] = useState(false);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
@@ -113,6 +115,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
   }, [effective, t]);
 
   useEffect(() => {
+    if (linkedCase) return;
     const email = (effective.email ?? "").trim().toLowerCase();
     const caseNumber = existingCaseNumber.trim().toUpperCase();
     const validEmail = email && !validateIntakeField("email", email, t) ? email : "";
@@ -159,10 +162,10 @@ export function ClientIntakeForm({ token }: { token: string }) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [effective.email, effective.full_name, effective.date_of_birth, effective.phone, existingCaseNumber, t, token]);
+  }, [effective.email, effective.full_name, effective.date_of_birth, effective.phone, existingCaseNumber, t, token, linkedCase]);
 
   const started = Boolean(sourceText.trim());
-  const hasAnything = started || attachments.length > 0;
+  const hasAnything = started || attachments.length > 0 || Object.values(edits).some((value) => Boolean(value?.trim()));
   const blocked = Object.keys(fieldErrors).length > 0 || duplicateIdentity;
 
   /**
@@ -171,7 +174,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
    * leave a field the extraction missed invisible and impossible to supply,
    * which defeats the point of letting the client correct their own details.
    */
-  const showReview = started || Object.keys(edits).length > 0 || importedFields.length > 0;
+  const showReview = manualMode || started || Object.keys(edits).length > 0 || importedFields.length > 0;
   const visible = useMemo(
     () => new Set<ClientEditableField>(showReview ? CLIENT_EDITABLE_FIELDS : []),
     [showReview],
@@ -307,7 +310,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
   }
 
   const header = (
-    <header className="flex flex-wrap items-center justify-between gap-4">
+    <header className="flex min-w-0 flex-wrap items-center justify-between gap-3">
       <ClientIntakeBrand title={t.brand} subtitle={t.office} />
       <LocaleToggle locale={locale} onChange={setLocale} />
     </header>
@@ -372,13 +375,15 @@ export function ClientIntakeForm({ token }: { token: string }) {
     <ClientIntakeShell dir={t.dir}>
       {header}
 
-      <div className="mt-7">
-        <h1 className="text-[24px] font-semibold tracking-tight text-slate-900 sm:text-[28px]">{t.heading}</h1>
-        <p className="mt-2 max-w-[56ch] text-[14px] leading-relaxed text-slate-500">{t.lead}</p>
+      <div className="mt-5">
+        <h1 className="break-words text-[24px] font-semibold tracking-tight text-[#f6e6b8] sm:text-[30px]">{t.heading}</h1>
+        <p className="mt-2 max-w-[68ch] text-[14px] leading-relaxed text-slate-200">{t.lead}</p>
+        <div className="mt-3 flex flex-wrap gap-2" role="status" aria-label="Intake progress"><span className="rounded-full border border-[#c5a059]/40 bg-[#0a122c]/70 px-3 py-2 text-[12px] text-[#f4dcac]">{attachments.length ? "✓ " : "1 · "}{locale === "ar" ? "المستندات" : "Documents"}</span><span className="rounded-full border border-[#c5a059]/30 bg-[#0a122c]/70 px-3 py-2 text-[12px] text-slate-100">{showReview ? "✓ " : "2 · "}{locale === "ar" ? "مراجعة البيانات" : "Review"}</span><span className="rounded-full border border-[#c5a059]/30 bg-[#0a122c]/70 px-3 py-2 text-[12px] text-slate-100">3 · {locale === "ar" ? "الإرسال" : "Submit"}</span></div>
       </div>
 
       {/* 1 — Document first: extract and auto-fill */}
-      <GlassCard tone="accent" className="mt-5" data-testid="intake-upload">
+      <div className="mt-5 grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2 lg:gap-5" data-testid="intake-entry-grid">
+      <GlassCard tone="accent" className="min-w-0" data-testid="intake-upload">
         <div className="flex items-start gap-3">
           <div aria-hidden="true" className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#d8b96a]/50 bg-white text-[#9c7a2e] shadow-[0_8px_20px_-14px_rgba(184,147,74,.7)]">
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 16.5V5.5" /><path d="M7.8 9.7 12 5.5l4.2 4.2" /><path d="M5 16.5v1.8A2.2 2.2 0 0 0 7.2 20.5h9.6a2.2 2.2 0 0 0 2.2-2.2v-1.8" /></svg>
@@ -463,19 +468,22 @@ export function ClientIntakeForm({ token }: { token: string }) {
       </GlassCard>
 
       {/* 2 — Complete anything the document did not provide */}
-      <GlassCard className="mt-6" data-testid="intake-source">
+      <GlassCard className="min-w-0" data-testid="intake-source">
         <h2 className="text-[20px] font-semibold tracking-tight text-slate-900 sm:text-[22px]">{t.sourceHeading}</h2>
         <p className="mt-2 text-[14px] leading-relaxed text-slate-500">{t.sourceHelper}</p>
         <label className="mt-4 grid gap-1.5">
           <span className="text-[13px] font-medium text-slate-600">{t.existingCaseLabel}</span>
           <input
+            readOnly={linkedCase}
             value={existingCaseNumber}
             onChange={(event) => {
+              if (linkedCase) return;
               setExistingCaseNumber(event.target.value.toUpperCase().slice(0, 20));
               setDuplicateIdentity(false);
               setSharedEmailWarning(false);
             }}
             placeholder={t.existingCasePlaceholder}
+            aria-description={linkedCase ? (locale === "ar" ? "رقم الملف الأصلي مرتبط بهذا الرابط بواسطة المكتب ولا يمكن تغييره." : "The office has linked this reference to your file; it cannot be changed.") : undefined}
             autoComplete="off"
             data-testid="intake-existing-case-number"
             className="min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3.5 font-mono text-[16px] tracking-[.03em] text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
@@ -491,12 +499,14 @@ export function ClientIntakeForm({ token }: { token: string }) {
           className="mt-4 w-full resize-y rounded-2xl border border-slate-300 bg-white p-4 text-[16px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-[#2f6fd0] focus:outline-none focus:ring-4 focus:ring-[#2f6fd0]/15"
         />
       </GlassCard>
+      </div>
 
       {/* 3 — Review what was understood */}
-      <GlassCard className="mt-5" data-testid="intake-detected">
+      <GlassCard className="mt-5 min-w-0" data-testid="intake-detected">
         <h2 className="text-[19px] font-semibold tracking-tight text-slate-900 sm:text-[21px]">{t.detectedHeading}</h2>
         <p className="mt-2 text-[14px] leading-relaxed text-slate-500">{t.detectedHelper}</p>
 
+        {visible.size === 0 && <button type="button" onClick={() => setManualMode(true)} className="mt-3 min-h-[44px] rounded-xl border border-[#c5a059]/60 bg-[#fdf5e3] px-4 text-[13px] font-semibold text-[#6e5120]" data-testid="intake-manual-entry">{locale === "ar" ? "إدخال البيانات يدويًا" : "Enter details manually"}</button>}
         {visible.size === 0 ? (
           <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-[14px] text-slate-500" data-testid="intake-detected-empty">
             {t.detectedEmpty}
@@ -506,15 +516,15 @@ export function ClientIntakeForm({ token }: { token: string }) {
             {FIELD_GROUPS.map((group) => {
               const fields = group.fields.filter((field) => visible.has(field));
               if (!fields.length) return null;
-              const label = group.key === "identity" ? t.groupIdentity : group.key === "contact" ? t.groupContact : group.key === "address" ? t.groupAddress : t.groupLanguage;
+              const label = group.key === "identity" ? t.groupIdentity : group.key === "contact" ? t.groupContact : group.key === "address" ? t.groupAddress : group.key === "work" ? t.groupWork : t.groupLanguage;
               return (
-                <fieldset key={group.key} className="grid gap-2.5 sm:grid-cols-2" data-group={group.key}>
+                <fieldset key={group.key} className="grid min-w-0 gap-2.5 sm:grid-cols-2 xl:grid-cols-3" data-group={group.key}>
                   <legend className="col-span-full text-[12px] font-semibold uppercase tracking-[.1em] text-slate-500">{label}</legend>
                   {fields.map((field) => {
                     const problem = fieldErrors[field];
                     const input = FIELD_INPUT[field];
                     return (
-                      <label key={field} className="grid gap-1.5" data-field={field}>
+                      <label key={field} className="grid min-w-0 gap-1.5" data-field={field}>
                         <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-slate-600">
                           <span>{t.fields[field]}</span>
                           {importedFields.includes(field) && (
@@ -538,7 +548,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
                           aria-invalid={problem ? true : undefined}
                           aria-describedby={problem ? `intake-error-${field}` : undefined}
                           data-testid={`intake-field-${field}`}
-                          className={`min-h-[48px] w-full rounded-xl border bg-white px-3.5 text-[16px] text-slate-800 focus:outline-none focus:ring-4 ${
+                          className={`min-h-[48px] min-w-0 w-full rounded-xl border bg-white px-3.5 text-[16px] text-slate-800 focus:outline-none focus:ring-4 ${
                             problem
                               ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
                               : importedFields.includes(field)
