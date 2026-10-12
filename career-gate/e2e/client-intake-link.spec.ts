@@ -642,7 +642,8 @@ test.describe.serial("Career Gate one-time client intake link", () => {
       const computed = getComputedStyle(element);
       return { background: computed.backgroundImage, border: computed.borderColor, blur: computed.backdropFilter };
     });
-    expect(styles.background).toContain("rgba(20, 43, 78");
+    expect(styles.background).toContain("rgba(24, 53, 92, 0.85)");
+    expect(styles.background).toContain("rgba(197, 160, 89, 0.12)");
     expect(styles.border).not.toBe("rgb(255, 255, 255)");
     expect(styles.blur).toContain("blur(");
     await expect(page.getByTestId("intake-source")).toBeVisible();
