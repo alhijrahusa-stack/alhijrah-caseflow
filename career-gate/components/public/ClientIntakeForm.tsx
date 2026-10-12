@@ -442,7 +442,7 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
               {attachments.map((item) => (
                 <li key={item.id} className="flex min-w-0 flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/[.96] px-3 py-2.5 shadow-[0_6px_18px_-14px_rgba(23,42,77,.3)]" data-testid="intake-file">
                   <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-slate-400">
-                    {item.previewUrl
+                    {item.file.type.startsWith("image/") && item.previewUrl
                       ? <img src={item.previewUrl} alt="" className="h-full w-full object-cover" data-testid="intake-file-preview" />
                       : <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M7 3.5h7L19 8.5v12H7Z" /><path d="M14 3.5v5h5" /></svg>}
                   </span>
