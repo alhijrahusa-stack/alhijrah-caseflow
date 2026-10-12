@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import { sql } from "@/lib/db";
 import { STATUS_LABELS, type Status } from "@/lib/domain";
 import { err, ipHash } from "@/lib/http";
@@ -40,13 +41,6 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Invalid search value" }, { status: 400 });
 
   const ip = ipHash(req);
-  const a = await hit("status_lookup_15min", ip);
-  const b = await hit("status_lookup_hour", ip);
-  if (!a || !b) {
-    await securityEvent({ event: "rate_limited_status_lookup", ipHash: ip, route: "/api/track", traceId });
-    return err("rate_limited", "Too many lookups. Try again later.", 429, traceId);
-  }
-
   const db = sql();
   const { type, value } = parsed.data;
   let client: { id: string } | undefined;
@@ -60,7 +54,23 @@ export async function POST(req: Request) {
         and (upper(c.ref) = ${value.toUpperCase()} or upper(a.case_number) = ${value.toUpperCase()})
       order by c.updated_at desc
       limit 1` as unknown as [{ id: string }?];
-  } else if (type === "email") {
+  }
+
+  // A known case can be checked repeatedly without inheriting the rate-limit
+  // exhaustion of unrelated users behind the same mobile/carrier IP. Failed
+  // case probes, email and phone searches keep their original strict IP limit.
+  const knownCase = type === "case" && Boolean(client);
+  const limitKey = knownCase
+    ? createHash("sha256").update(ip).update(":").update(value.toUpperCase()).digest("hex")
+    : ip;
+  const a = await hit(knownCase ? "status_known_case_15min" : "status_lookup_15min", limitKey);
+  const b = await hit(knownCase ? "status_known_case_hour" : "status_lookup_hour", limitKey);
+  if (!a || !b) {
+    await securityEvent({ event: "rate_limited_status_lookup", ipHash: ip, route: "/api/track", traceId });
+    return err("rate_limited", "Too many lookups. Try again later.", 429, traceId);
+  }
+
+  if (type === "email") {
     [client] = await db`
       select id from clients
       where deleted_at is null and lower(email) = ${value.toLowerCase()}
