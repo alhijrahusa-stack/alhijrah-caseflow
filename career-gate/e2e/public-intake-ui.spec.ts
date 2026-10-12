@@ -144,10 +144,14 @@ test.describe("Career Gate public intake presentation system", () => {
     await page.goto("/career-gate.html");
     await fillStepOne(page);
     await page.locator('[data-next="2"]').click();
+    await expect(page.locator('.page.active[data-page="2"]')).toBeVisible();
+    // A compact header can make scrolling unnecessary. The progress meter must
+    // remain in view, never hidden behind the hero or outside the viewport.
     await expect.poll(async () => page.evaluate(() => {
       const progress = document.querySelector("#formProgress")!.getBoundingClientRect();
       const hero = document.querySelector(".hero")!.getBoundingClientRect();
-      return window.scrollY > 0 && progress.top >= -24 && progress.top < 160 && hero.bottom < progress.top;
+      return progress.top >= -24 && progress.top < Math.min(window.innerHeight * .7, 560)
+        && hero.bottom <= progress.top + 4;
     })).toBe(true);
   });
 
@@ -377,9 +381,89 @@ test.describe("Career Gate public intake presentation system", () => {
     await expect(page.locator("#contactFooter .contact-grid a")).toHaveCount(3);
     await expect(page.locator("#openTrack")).toHaveAttribute("aria-controls", "statusModal");
     const color = await page.locator("#contactFooter").evaluate(el => getComputedStyle(el).backgroundImage);
-    expect(color).toContain("rgb(255, 255, 255)");
+    expect(color).toContain("rgba(10, 18, 44, 0.85)");
+    const footerText = await page.locator("#contactFooter").evaluate(el => getComputedStyle(el).color);
+    expect(footerText).toBe("rgb(245, 248, 253)");
     await page.locator("#openTrack").click();
     await expect(page.locator("#statusModal")).toBeVisible();
+  });
+
+  test("compact glass footer and 30 percent smaller status launch on desktop", async ({ page }) => {
+    await page.setViewportSize({width: 1440, height: 900});
+    await page.goto("/career-gate.html");
+    const metrics = await page.evaluate(() => {
+      const footer = document.querySelector("#contactFooter")!;
+      const status = document.querySelector("#openTrack")!;
+      const rect = status.getBoundingClientRect();
+      const footerStyle = getComputedStyle(footer);
+      return { statusWidth: rect.width, statusHeight: rect.height,
+        bg: footerStyle.backgroundImage, ink: footerStyle.color,
+        rows: getComputedStyle(document.querySelector("#contactFooter .contact-grid")!).gridTemplateColumns.split(" ").length,
+        headerHeight: document.querySelector("#publicHeader")!.getBoundingClientRect().height,
+        heroHeight: document.querySelector(".hero")!.getBoundingClientRect().height,
+        formTop: document.querySelector("#form")!.getBoundingClientRect().top };
+    });
+    expect(metrics.bg).not.toContain("rgb(255, 255, 255)");
+    expect(metrics.bg).toContain("rgba(10, 18, 44, 0.85)");
+    expect(metrics.statusWidth).toBeLessThanOrEqual(547);
+    expect(metrics.statusHeight).toBeLessThanOrEqual(85);
+    expect(metrics.rows).toBe(3);
+    expect(metrics.headerHeight).toBeLessThan(100);
+    expect(metrics.heroHeight).toBeLessThan(130);
+    expect(metrics.formTop).toBeLessThan(410);
+    await expect(page.locator("#openTrack")).toHaveAttribute("aria-controls","statusModal");
+  });
+
+  for(const width of [320, 360, 390, 600, 768, 1024, 1440, 1920]){
+    test(`responsive public intake has no horizontal overflow at ${width}px and touch targets remain accessible`, async ({page}) => {
+      await page.setViewportSize({width, height: 850});
+      await page.goto("/career-gate.html");
+      const metrics = await page.evaluate(() => {
+        const ids = ["#firstName", "#email", "#contactFooter", "#openTrack", "#formProgress"];
+        const targets = ids.map(id => {
+          const rect = document.querySelector(id)!.getBoundingClientRect();
+          return {id, left:rect.left, right:rect.right,width:rect.width};
+        });
+        const contact = document.querySelector("#contactFooter .contact-grid a")!.getBoundingClientRect();
+        const progress = document.querySelector("#formProgress")!.getBoundingClientRect();
+        const form = document.querySelector("#form")!.getBoundingClientRect();
+        return {scroll:document.documentElement.scrollWidth, viewport:innerWidth, targets,
+          contactHeight:contact.height, progressHeight:progress.height, formTop:form.top,
+          font:getComputedStyle(document.body).fontFamily};
+      });
+      expect(metrics.scroll).toBeLessThanOrEqual(metrics.viewport + 1);
+      for(const t of metrics.targets){
+        expect(t.left, t.id).toBeGreaterThanOrEqual(-1);
+        expect(t.right, t.id).toBeLessThanOrEqual(width + 1);
+      }
+      expect(metrics.contactHeight).toBeGreaterThanOrEqual(44);
+      expect(metrics.formTop).toBeLessThan(600);
+      expect(metrics.font).toContain("IBM Plex Sans Arabic");
+      await page.locator("#langEn").click();
+      await expect(page.locator("#langEn")).toHaveAttribute("aria-pressed", "true");
+      const latinFont = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+      expect(latinFont).toContain("Plus Jakarta Sans");
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width+1);
+      await page.locator("#langAr").click();
+      await expect(page.locator("#langAr")).toHaveAttribute("aria-pressed", "true");
+    });
+  }
+
+  test("compact footer tracking still opens, and preference selects remain usable on tablet", async ({page}) => {
+    await page.setViewportSize({width:768,height:1024});
+    await page.goto("/career-gate.html");
+    await fillStepOne(page);
+    await page.locator('[data-next="2"]').click();
+    await expect(page.locator("#preferredSitesExecutive")).toBeVisible();
+    for(const id of ["location1","location2","location3"]){
+      await expect(page.locator("#"+id)).toBeAttached();
+      const width = await page.locator("#"+id).evaluate(e=>e.getBoundingClientRect().width);
+      expect(width).toBeGreaterThan(160);
+    }
+    await page.locator("#openTrack").click();
+    await expect(page.locator("#statusModal")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#statusModal")).toBeHidden();
   });
 
 });

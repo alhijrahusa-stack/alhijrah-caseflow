@@ -8,7 +8,7 @@
 <title>بوابة التوظيف — Career Gate</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 :root{
@@ -2966,6 +2966,143 @@ html[dir="ltr"] .lbl{
 @media(max-width:760px){#receiptCard .receipt-data-group-grid{grid-template-columns:1fr}.receipt-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:460px){#receiptCard .receipt-head{padding:10px}#receiptStatusExecutive{padding:17px}#preferredSitesExecutive .preferred-sites-inner{padding:12px}}
 @media(prefers-reduced-motion:reduce){#receiptStatusExecutive,#receiptCard .receipt-item,.receipt-actions>.btn{transition:none!important;transform:none!important}}
+
+
+/* Career Gate executive compact visual refinement (public portal only).
+   Style/layout only: no changes to submission, uploading, tracking or privacy logic. */
+:root{--cg-sovereign-dark:#040914;--cg-sovereign-navy:#0a122c;--cg-champagne:#c5a059;--cg-crystal:#f5f8fd;--cg-latin:"Plus Jakarta Sans","Segoe UI",Arial,sans-serif;--font:"IBM Plex Sans Arabic","Segoe UI",Tahoma,Arial,sans-serif;--mono:"JetBrains Mono",Consolas,monospace}
+html[lang="en"] body{font-family:var(--cg-latin)}
+html[lang="ar"] body{font-family:var(--font)}
+.portal-en,.hero-kicker,.progress-label,.progress-foot,.stepbtn small,.contact-brand,.contact-grid a span,.receipt-status-kicker{font-family:var(--cg-latin)}
+#receiptCase,#receiptSystemId,#receiptTrackValue,#caseView,#uidView,.receipt-case,.receipt-system-id,.progress-value,.shift-pay{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:0}
+body{background:radial-gradient(ellipse at 15% -12%,rgba(31,87,157,.17),transparent 50%),linear-gradient(150deg,#040914,#08142a 48%,#0a122c 75%,#040914)}
+/* One condensed visual hierarchy instead of five nested full-height frames */
+#appShell.shell{width:min(100%,1500px);padding:12px clamp(10px,2vw,26px) 52px}
+#publicHeader.topbar{grid-template-columns:minmax(0,1fr) auto auto;gap:clamp(9px,1.5vw,22px);min-height:62px;padding:9px 17px;margin-bottom:5px;border:1px solid rgba(197,160,89,.29);border-radius:17px;background:linear-gradient(120deg,rgba(10,18,44,.88),rgba(7,20,39,.9));box-shadow:0 8px 24px rgba(0,0,0,.15);backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px)}
+#publicHeader .office-lockup{min-width:0;gap:10px}
+#publicHeader .office-brand-logo{width:43px;height:43px;flex:0 0 43px}
+#publicHeader .office-name{font-size:clamp(14px,1.15vw,17px);line-height:1.35;margin:0}
+#publicHeader .portal-lockup{min-width:0;gap:8px}
+#publicHeader .career-brand-logo{width:42px;height:42px}
+#publicHeader .portal-ar{font-size:clamp(12px,1.1vw,15px)}
+#publicHeader .portal-en{font-size:11px;letter-spacing:.08em;margin-top:1px}
+#publicHeader .header-actions{min-width:0}
+#appShell>.hero{margin:0!important;overflow:visible;border:0!important;border-radius:0;background:transparent!important;box-shadow:none!important}
+#appShell>.hero:before{display:none}
+#appShell>.hero .pad{padding:10px 10px 11px}
+#appShell>.hero .hero-kicker{font:700 10px var(--cg-latin);letter-spacing:.13em;color:#c5a059}
+#appShell>.hero .title{font-size:clamp(21px,2.5vw,32px);line-height:1.3;margin:2px 0 3px;letter-spacing:0}
+#appShell>.hero .lead{font-size:clamp(12px,1.1vw,14px);line-height:1.5}
+#formProgress{margin:0;padding:9px 15px 8px;border:1px solid rgba(197,160,89,.35);border-bottom:0;border-radius:15px 15px 0 0;background:rgba(10,18,44,.85);box-shadow:none;backdrop-filter:blur(28px)}
+#formProgress .progress-head{align-items:center;margin:0 0 6px}
+#formProgress .progress-label{font-size:11px;letter-spacing:.08em}
+#formProgress .progress-value{font-size:17px}
+#formProgress .progress{height:5px}
+#formProgress .progress span:after{width:10px;height:10px;left:-3px;border-width:2px}
+#formProgress .progress-foot{font-size:11px;margin-top:7px;line-height:1.1}
+#appShell>.stepper{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:5px 8px 8px;margin:0 0 9px;border:1px solid rgba(197,160,89,.35);border-top:0;border-radius:0 0 15px 15px;background:rgba(10,18,44,.85)}
+#appShell>.stepper>.stepbtn{min-width:0;min-height:45px;gap:7px;padding:6px clamp(6px,1vw,11px);border:1px solid transparent;border-radius:10px;background:transparent;box-shadow:none}
+#appShell>.stepper>.stepbtn.active{border-color:rgba(197,160,89,.5);background:rgba(197,160,89,.13)}
+#appShell>.stepper>.stepbtn.done{border-color:rgba(74,195,148,.24)}
+#appShell>.stepper>.stepbtn .num{width:29px;height:29px;flex-basis:29px;border-radius:8px;font-size:11px}
+#appShell>.stepper>.stepbtn strong{font-size:clamp(12px,1.1vw,14px);line-height:1.25;overflow-wrap:anywhere}
+#appShell>.stepper>.stepbtn small{font-size:10px;line-height:1.2;margin-top:1px}
+#form>.page{min-height:0;border-color:rgba(197,160,89,.3);border-radius:17px;box-shadow:0 12px 36px rgba(0,0,0,.15)}
+#form>.page>.pad{padding:clamp(14px,2vw,23px)}
+#form>.page .section-title{font-size:clamp(19px,2vw,25px);margin-bottom:3px}
+#form>.page .divider{margin:15px 0 12px;gap:10px;color:#e2c184}
+#form>.page .divider:before,#form>.page .divider:after{opacity:.58}
+#form .grid,#form .servicegrid,#form .choicegrid{gap:clamp(9px,1vw,14px)}
+#form .grid>div,#form .review-item{min-width:0}
+#form input:not([type="radio"]):not([type="checkbox"]),#form select,#form textarea{min-height:46px;padding:10px 12px;border-radius:11px;font-size:16px}
+#form .lbl{font-size:13px;margin-bottom:5px}
+#form .service,#form .choice{min-height:48px;padding:10px 13px}
+#form .bar{margin-top:15px}
+#form .btn,#appShell button,#receiptScreen button,#receiptScreen a.btn{min-height:44px}
+#form .shift-card{min-width:0}
+#form .grid.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+#form .grid.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+/* Compact crystal-clear glass contact footer, no opaque white panel */
+#contactFooter{width:100%;margin:11px 0 0!important;padding:12px 14px;border:1px solid rgba(197,160,89,.52);border-radius:16px;background:linear-gradient(135deg,rgba(10,18,44,.85),rgba(12,33,60,.65) 55%,rgba(10,18,44,.85));backdrop-filter:blur(28px) saturate(130%);-webkit-backdrop-filter:blur(28px) saturate(130%);box-shadow:0 14px 31px rgba(0,0,0,.17),inset 0 1px 0 rgba(255,255,255,.085);color:var(--cg-crystal)}
+#contactFooter .contact-footer-head{margin-bottom:8px;align-items:center}
+#contactFooter .contact-title{color:#f0dcad;font-size:14px;font-weight:700}
+#contactFooter .contact-brand{font-size:10px;letter-spacing:.13em;color:#c5a059}
+#contactFooter .contact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+#contactFooter .contact-grid a{min-width:0;min-height:44px;display:flex;gap:8px;align-items:center;justify-content:space-between;border-radius:10px;border:1px solid rgba(197,160,89,.24);padding:8px 11px;background:linear-gradient(130deg,rgba(53,85,123,.24),rgba(13,28,52,.34));color:#f8fbff;box-shadow:inset 0 1px 0 rgba(255,255,255,.07);transition:border-color .2s,transform .2s,background .2s}
+#contactFooter .contact-grid a:hover,#contactFooter .contact-grid a:focus-visible{border-color:rgba(197,160,89,.76);background:rgba(197,160,89,.09);transform:translateY(-1px)}
+#contactFooter .contact-grid a span{flex:0 0 auto;color:#ddc799;font-size:11px;white-space:nowrap}
+#contactFooter .contact-grid a strong{min-width:0;font:600 clamp(11px,1vw,13px) var(--cg-latin);overflow-wrap:anywhere;word-break:break-word;color:#f7f9fe}
+#contactFooter .career-footer-status{margin-top:10px;display:flex;justify-content:center}
+#contactFooter .status-executive-launch{width:min(70%,546px);min-height:70px;padding:11px 15px;gap:12px;border-radius:16px;background:linear-gradient(118deg,rgba(21,49,87,.74),rgba(7,19,42,.9));border:1px solid rgba(197,160,89,.55);box-shadow:0 9px 24px rgba(0,0,0,.2);backdrop-filter:blur(22px)}
+#contactFooter .status-executive-launch:hover{transform:translateY(-1px);box-shadow:0 12px 32px rgba(197,160,89,.16)}
+#contactFooter .status-executive-symbol{flex:0 0 35px;width:35px;height:35px;border-radius:10px;font-size:18px;background:linear-gradient(130deg,#e5c98c,#c5a059)}
+#contactFooter .status-executive-copy{gap:3px}
+#contactFooter .status-executive-copy strong{font-size:clamp(13px,1.3vw,16px)}
+#contactFooter .status-executive-copy small{font-size:11px;line-height:1.4}
+#contactFooter .status-executive-arrow{font-size:16px}
+/* Receipt tracking card ~30% narrower only when desktop provides sufficient space */
+#receiptStatusExecutive{max-width:min(70%,690px);margin-left:auto;margin-right:auto;padding:clamp(15px,2vw,21px);border-radius:18px}
+#receiptStatusExecutive .receipt-status-top h3{font-size:clamp(17px,1.8vw,21px);margin:5px 0}
+#receiptStatusExecutive .receipt-status-top p{font-size:12px;line-height:1.5;margin-bottom:10px}
+#receiptStatusExecutive .receipt-status-inline{min-width:0;gap:7px}
+#receiptStatusExecutive .receipt-status-inline input{min-width:0;min-height:46px}
+#receiptStatusExecutive .receipt-status-inline .btn{min-height:46px;white-space:normal}
+#receiptStatusExecutive .receipt-status-voice{margin-top:8px}
+/* Prevent narrow-grid blowouts without clipping actual applicant content */
+#appShell,#appShell>.hero,#appShell>.stepper,#formProgress,#form,#contactFooter,#receiptScreen,#receiptCard,#receiptStatusExecutive{min-width:0;max-inline-size:100%;box-sizing:border-box}
+#form .grid>*,#contactFooter .contact-grid>*,#receiptScreen .receipt-data-group-grid>*{min-width:0}
+#form input,#form select,#form textarea,#receiptTrackValue{max-width:100%}
+#receiptCard .receipt-item div,#receiptCard .receipt-data-group-head,#receiptScreen .receipt-case{overflow-wrap:anywhere}
+@media(min-width:1800px){#appShell.shell{max-width:1600px}#form>.page>.pad{padding:25px 30px}#contactFooter .contact-grid a strong{font-size:13px}}
+@media(min-width:700px) and (max-width:1099px){#form .grid.g3{grid-template-columns:repeat(2,minmax(0,1fr))}#appShell>.stepper>.stepbtn small{display:none}#appShell>.stepper>.stepbtn strong{font-size:12px}#publicHeader.topbar{grid-template-columns:minmax(0,1fr) auto;gap:10px}#publicHeader .office-lockup{grid-column:1/-1}#publicHeader .portal-lockup{grid-column:1}#publicHeader .header-actions{grid-column:2}}
+@media(max-width:699px){
+ #appShell.shell{padding:7px 8px 35px}
+ #publicHeader.topbar{grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;padding:8px 10px;margin-bottom:2px;border-radius:13px;min-height:0}
+ #publicHeader .office-lockup{grid-column:1/-1;justify-content:flex-start;gap:8px;text-align:start}
+ #publicHeader .office-brand-logo{width:33px;height:33px;flex-basis:33px}
+ #publicHeader .office-name{font-size:clamp(12px,3.3vw,15px);line-height:1.25;text-align:start}
+ #publicHeader .portal-lockup{grid-column:1;justify-content:flex-start;text-align:start;padding:0;gap:7px}
+ #publicHeader .career-brand-logo{width:33px;height:33px}
+ #publicHeader .portal-copy{text-align:start}
+ #publicHeader .portal-ar{font-size:12px}
+ #publicHeader .portal-en{font-size:10px}
+ #publicHeader .header-actions{grid-column:2;justify-content:flex-end}
+ #appShell>.hero .pad{padding:9px 9px}
+ #appShell>.hero .title{font-size:clamp(19px,5vw,25px);line-height:1.2;margin:2px 0}
+ #appShell>.hero .lead{font-size:12px}
+ #formProgress{padding:9px 10px 8px}
+ #formProgress .progress-label,#formProgress .progress-foot{font-size:10px}
+ #appShell>.stepper{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:5px}
+ #appShell>.stepper>.stepbtn{min-height:44px;padding:5px 7px;gap:6px}
+ #appShell>.stepper>.stepbtn .num{width:26px;height:26px;flex-basis:26px;font-size:10px}
+ #appShell>.stepper>.stepbtn strong{font-size:clamp(11px,3vw,13px)}
+ #appShell>.stepper>.stepbtn small{display:none}
+ #form>.page>.pad{padding:13px 11px}
+ #form .grid.g2,#form .grid.g3{grid-template-columns:minmax(0,1fr)}
+ #form .servicegrid,#form .choicegrid{grid-template-columns:minmax(0,1fr)}
+ #form>.page .divider{margin:12px 0 10px}
+ #contactFooter{padding:10px!important;margin-top:10px!important}
+ #contactFooter .contact-grid{grid-template-columns:minmax(0,1fr);gap:6px}
+ #contactFooter .contact-grid a{min-height:44px;padding:8px 10px}
+ #contactFooter .contact-grid a span{font-size:11px}
+ #contactFooter .contact-grid a strong{font-size:12px}
+ #contactFooter .status-executive-launch{width:100%;min-height:70px;padding:10px 12px}
+ #receiptStatusExecutive{max-width:100%;padding:15px}
+ #receiptScreen .receipt-data-group-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media(min-width:500px) and (max-width:699px){#contactFooter .contact-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#contactFooter .contact-grid a:first-child{grid-column:1/-1}#form .grid.g2{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* Keep the entire compressed header/telemetry group within the RTL scrollbar
+   gutter on 320px devices; preserving scrollWidth alone can hide 7px of trim. */
+@media(max-width:699px){
+ #appShell>#publicHeader,
+ #appShell>.hero,
+ #appShell>#formProgress,
+ #appShell>.stepper{width:calc(100% - 20px)!important;margin-inline:auto!important}
+}
+/* Account for narrow RTL scrollbar gutters without hiding content under an edge. */
+@media(max-width:699px){#contactFooter{width:calc(100% - 20px)!important;margin-inline:auto!important}}
+@media(max-width:349px){#publicHeader .office-name{font-size:12px}#appShell>.stepper>.stepbtn strong{font-size:10px}#contactFooter .status-executive-arrow{display:none}#receiptScreen .receipt-actions{grid-template-columns:1fr!important}#form .grid.g2{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){#contactFooter .status-executive-launch,#contactFooter .contact-grid a{transition:none!important;transform:none!important}}
 
 </style>
 </head>
