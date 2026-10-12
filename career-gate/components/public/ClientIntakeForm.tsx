@@ -472,6 +472,14 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
           </div>
         )}
 
+        {documentWarnings.length > 0 && (
+          <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-900" role="status" data-testid="intake-document-review-warning">
+            {locale === "ar"
+              ? "توجد معلومات غير متطابقة أو أكثر من شخص في المستندات. راجع المستند والحقول قبل الإرسال."
+              : "Some documents contain conflicting or ambiguous information. Review the documents and fields before submitting."}
+          </div>
+        )}
+
         {/* One hidden input serves every Replace action. */}
         <input ref={replaceInput} type="file" accept={ACCEPT_ATTR} className="sr-only" aria-hidden="true" tabIndex={-1} onChange={(event) => { replace(event.target.files); event.target.value = ""; }} />
 
@@ -591,11 +599,19 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
                       <label key={field} className="grid min-w-0 gap-1.5" data-field={field}>
                         <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-slate-600">
                           <span>{t.fields[field]}</span>
-                          {importedFields.includes(field) && (
-                            <span className="rounded-full border border-[#ff9f1a]/30 bg-[#fff4df] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.08em] text-[#9a5a00]">
-                              {t.importedField}
-                            </span>
-                          )}
+                          {Object.prototype.hasOwnProperty.call(edits, field) ? (
+                             <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                               {locale === "ar" ? "تصحيح العميل" : "Your correction"}
+                             </span>
+                           ) : importedFields.includes(field) ? (
+                             <span className="rounded-full border border-[#ff9f1a]/30 bg-[#fff4df] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.08em] text-[#9a5a00]">
+                               {t.importedField}
+                             </span>
+                           ) : reviewFields.includes(field) ? (
+                             <span data-testid={`intake-review-${field}`} className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                               {locale === "ar" ? "تحقق من المستند" : "Check document"}
+                             </span>
+                           ) : null}
                         </span>
                         <input
                           value={effective[field] ?? ""}
@@ -620,8 +636,13 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
                                 : "border-slate-300 focus:border-[#2f6fd0] focus:ring-[#2f6fd0]/15"
                           }`}
                         />
-                        {problem && (
-                          <span id={`intake-error-${field}`} role="alert" data-testid={`intake-error-${field}`} className="flex items-start gap-1.5 text-[12.5px] text-red-700">
+                        {fieldSources[field]?.length && !Object.prototype.hasOwnProperty.call(edits, field) && (
+                           <span className="break-all text-[11px] text-slate-500" data-testid={`intake-field-source-${field}`}>
+                             {locale === "ar" ? "المصدر: " : "Source: "}{fieldSources[field]?.join(", ")}
+                           </span>
+                         )}
+                         {problem && (
+                           <span id={`intake-error-${field}`} role="alert" data-testid={`intake-error-${field}`} className="flex items-start gap-1.5 text-[12.5px] text-red-700">
                             <svg aria-hidden="true" viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="12" cy="12" r="8.5" /><path d="M12 8v4.5" /><path d="M12 16h.01" /></svg>
                             {problem}
                           </span>
