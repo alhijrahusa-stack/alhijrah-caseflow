@@ -206,6 +206,18 @@ export async function POST(req: Request) {
       if (claim.kind === "conflict") return { kind: "conflict" as const };
       if (claim.kind === "replay") return { kind: "replay" as const, status: claim.status, body: claim.body as Record<string, unknown> };
 
+      // Public-provided references are NEVER identity proof. Block exact existing
+      // case/client reference before any new canonical client is created.
+      if (d.caseNumber.trim()) {
+        const caseKey = d.caseNumber.trim().toUpperCase();
+        const matches = await tx`
+          select 1 from clients where deleted_at is null and upper(ref) = ${caseKey}
+          union all
+          select 1 from career_gate_applications where upper(case_number) = ${caseKey}
+          limit 1`;
+        if (matches.length) return { kind: "case_duplicate" as const };
+      }
+
       const { client, reused } = await upsertOperationalClient(tx, d, digits);
       const app = await insertApplication(tx, client.id, d);
 
@@ -252,6 +264,13 @@ export async function POST(req: Request) {
 
     if (out.kind === "conflict") {
       return NextResponse.json({ ok: false, message: "This submission ID was already used with different data." }, { status: 409 });
+    }
+    if (out.kind === "case_duplicate") {
+      // Do not disclose matching applicant name, case, email, DOB or account details.
+      return NextResponse.json({
+        ok: false, code: "case_number_exists",
+        message: "An application reference already exists. Please contact customer service.",
+      }, { status: 409 });
     }
 
     const body = out.body;

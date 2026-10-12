@@ -99,6 +99,16 @@ test("public HTML application submits and stores an idempotent case without phon
   const other = await post("Shared-B", `public-html-other-${RUN}`);
   expect(other.status, JSON.stringify(other.result)).toBe(201);
   expect(other.result.caseNumber).not.toBe(first.result.caseNumber);
+  // A different applicant sharing email may apply; an explicitly reused reference may not.
+  const existingCase = await request.post("/api/application", {
+    data: {...common, lastName: "Shared-C", uid: `public-html-case-${RUN}`, caseNumber: first.result.caseNumber},
+    headers: { "x-forwarded-for": uniqueIp() },
+  });
+  expect(existingCase.status()).toBe(409);
+  const existingCaseBody = await existingCase.json();
+  expect(existingCaseBody.code).toBe("case_number_exists");
+  expect(existingCaseBody.caseNumber).toBeUndefined();
+  expect(existingCaseBody.fullName).toBeUndefined();
   const apps = await db()`select case_number from career_gate_applications where submission_uid in (${firstUid}, ${`public-html-other-${RUN}`})`;
   expect(apps).toHaveLength(2);
 });
@@ -285,7 +295,9 @@ test.describe("Career Gate public intake presentation system", () => {
     await expect(page.locator("#preferredSitesTitle")).toHaveText("المواقع المفضلة");
     await expect(page.locator("#preferredSitesExecutive #location1")).toBeVisible();
     const color = await page.locator("#preferredSitesExecutive").evaluate(el => getComputedStyle(el).backgroundImage);
-    expect(color).toContain("rgb(255, 255, 255)");
+    expect(color).toContain("rgb(6, 17, 35)");
+    const inner = await page.locator("#preferredSitesExecutive .preferred-sites-inner").evaluate(el => getComputedStyle(el).backgroundImage);
+    expect(inner).toMatch(/rgba?\(255,\s*255,\s*255/);
     await page.locator('input[name="workType"]').first().check({ force: true });
     await expect(page.locator(".shift-pay").first()).toContainText("/hr");
     await page.locator("#langEn").click();
@@ -331,8 +343,43 @@ test.describe("Career Gate public intake presentation system", () => {
     await expect(page.locator("#receiptScreen")).toHaveClass(/active/);
     await expect(page.locator("#receiptTrackValue")).toHaveValue(ref);
     await expect(page.locator("#receiptStatusExecutive")).toBeVisible();
+    expect(await page.locator("#receiptCard #receiptStatusExecutive").count()).toBe(0);
+    await expect(page.locator("#receiptCard .receipt-data-group")).toHaveCount(4);
+    await expect(page.locator(".receipt-actions>.btn")).toHaveCount(4);
+    await page.locator("#receiptStatusJump").click();
+    await expect(page.locator("#receiptVoiceBtn")).toBeVisible();
+    await page.locator("#receiptVoiceBtn").click();
     await page.locator("#receiptTrackBtn").click();
     await expect(page.locator("#receiptTrackResult")).toContainText("بحاجة للمراجعة");
+    await expect(page.locator("#receiptTrackResult .receipt-read-aloud")).toBeVisible();
+    await page.locator("#receiptTrackResult .receipt-read-aloud").click();
+  });
+
+  test("public duplicate confirmation shows support actions without revealing another applicant", async ({ page }) => {
+    await page.route("**/api/application", route => route.fulfill({
+      status: 409, contentType: "application/json",
+      body: JSON.stringify({ ok: false, code: "existing_applicant",
+        message: "An application for this applicant already exists." })
+    }));
+    await page.goto("/career-gate.html");
+    await reachReview(page);
+    await page.locator("#consent").check({force:true});
+    await page.locator("#form").evaluate((form: HTMLFormElement) => form.requestSubmit());
+    await expect(page.locator("#duplicateGuard")).toBeVisible();
+    await expect(page.locator("#duplicateGuard")).toContainText("يرجى التواصل مع خدمة العملاء");
+    await expect(page.locator("#duplicateGuard a")).toHaveCount(3);
+    await expect(page.locator("#receiptScreen")).not.toHaveClass(/active/);
+    await expect(page.locator("#duplicateGuard")).not.toContainText("CG-2026");
+  });
+
+  test("light footer keeps all customer contact channels and accessible voice tracker", async ({ page }) => {
+    await page.goto("/career-gate.html");
+    await expect(page.locator("#contactFooter .contact-grid a")).toHaveCount(3);
+    await expect(page.locator("#openTrack")).toHaveAttribute("aria-controls", "statusModal");
+    const color = await page.locator("#contactFooter").evaluate(el => getComputedStyle(el).backgroundImage);
+    expect(color).toContain("rgb(255, 255, 255)");
+    await page.locator("#openTrack").click();
+    await expect(page.locator("#statusModal")).toBeVisible();
   });
 
 });
