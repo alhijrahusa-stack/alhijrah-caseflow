@@ -233,8 +233,9 @@ function applyLinkedClientCorrections(
   }
   const beforeReview = old.review_fields && typeof old.review_fields === "object"
     ? old.review_fields as Record<string, unknown> : {};
-  const afterReview = incoming.review_fields && typeof incoming.review_fields === "object"
-    ? incoming.review_fields as Record<string, unknown> : {};
+  const received = incoming as unknown as Record<string, unknown>;
+  const afterReview = received.review_fields && typeof received.review_fields === "object"
+    ? received.review_fields as Record<string, unknown> : {};
   const reviewFields = { ...beforeReview };
   const reviewSources: Record<string, string> = {
     preferred_location: "site_code", location_option_1: "site_code", location_option_2: "backup_site_code",
@@ -246,7 +247,7 @@ function applyLinkedClientCorrections(
     if (value !== null && value !== undefined && value !== "") reviewFields[destination] = value;
   }
   result.review_fields = reviewFields;
-  return result as ReturnType<typeof partialDraft>;
+  return result as unknown as ReturnType<typeof partialDraft>;
 }
 
 /** Append a one-time, staff-authorized client submission to its ORIGINAL pending
