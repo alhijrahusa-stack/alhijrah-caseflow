@@ -59,6 +59,11 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
   // Only the fields the client actually changed. Everything else keeps showing
   // whatever the deterministic read produced.
   const [edits, setEdits] = useState<Detected>({});
+  // Document evidence is provisional; only the user can create a manual correction.
+  const [documentFields, setDocumentFields] = useState<Detected>({});
+  const [reviewFields, setReviewFields] = useState<ClientEditableField[]>([]);
+  const [documentWarnings, setDocumentWarnings] = useState<string[]>([]);
+  const [fieldSources, setFieldSources] = useState<Partial<Record<ClientEditableField, string[]>>>({});
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [existingCaseNumber, setExistingCaseNumber] = useState(targetCaseNumber ?? "");
@@ -106,7 +111,7 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
 
   // What the client sees and what is submitted: their edit if they made one,
   // otherwise the detected value.
-  const effective = useMemo<Detected>(() => ({ ...detected, ...edits }), [detected, edits]);
+  const effective = useMemo<Detected>(() => ({ ...detected, ...documentFields, ...edits }), [detected, documentFields, edits]);
 
   const previewItem = attachments.find((item) => item.id === previewId) ?? null;
 
@@ -179,7 +184,7 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
    * leave a field the extraction missed invisible and impossible to supply,
    * which defeats the point of letting the client correct their own details.
    */
-  const showReview = manualMode || started || Object.keys(edits).length > 0 || importedFields.length > 0;
+  const showReview = manualMode || started || attachments.length > 0 || Object.keys(edits).length > 0 || importedFields.length > 0 || reviewFields.length > 0;
   const visible = useMemo(
     () => new Set<ClientEditableField>(showReview ? CLIENT_EDITABLE_FIELDS : []),
     [showReview],
@@ -195,6 +200,17 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
         : started
           ? "documents"
           : "welcome";
+
+  function resetDocumentExtraction() {
+    extractionVersion.current += 1;
+    setExtracting(false);
+    setDocumentFields({});
+    setImportedFields([]);
+    setReviewFields([]);
+    setDocumentWarnings([]);
+    setFieldSources({});
+    setExtractionNotice(null);
+  }
 
   async function extractFromDocuments(next: Attachment[]) {
     if (!next.length) return;
@@ -220,9 +236,22 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
       const keys = Object.keys(fields).filter((field): field is ClientEditableField =>
         (CLIENT_EDITABLE_FIELDS as readonly string[]).includes(field),
       );
-      setEdits((current) => ({ ...fields, ...current }));
+      const needsReview = Array.isArray(data.review_fields)
+        ? data.review_fields.filter((field: unknown): field is ClientEditableField =>
+          typeof field === "string" && (CLIENT_EDITABLE_FIELDS as readonly string[]).includes(field))
+        : [];
+      setDocumentFields(fields);
       setImportedFields(keys);
-      setExtractionNotice(keys.length ? t.importedSuccess : t.noDataImported);
+      setReviewFields(needsReview);
+      setDocumentWarnings(Array.isArray(data.document_warnings)
+        ? data.document_warnings.filter((item: unknown): item is string => typeof item === "string").slice(0, 10)
+        : []);
+      setFieldSources(data.field_sources && typeof data.field_sources === "object" ? data.field_sources : {});
+      setExtractionNotice(needsReview.length
+        ? locale === "ar"
+          ? `تمت تعبئة ${keys.length} حقول، وتحتاج ${needsReview.length} حقول إلى مراجعتك.`
+          : `${keys.length} fields auto-filled; ${needsReview.length} need your review.`
+        : keys.length ? t.importedSuccess : t.noDataImported);
     } catch {
       if (version === extractionVersion.current) setExtractionNotice(t.extractionUnavailable);
     } finally {
@@ -248,18 +277,18 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
       return;
     }
     setAttachments(next);
+    resetDocumentExtraction();
     void extractFromDocuments(next);
   }
 
   function remove(id: string) {
-    extractionVersion.current += 1;
-    setExtracting(false);
+    const gone = attachments.find((item) => item.id === id);
+    if (gone?.previewUrl) URL.revokeObjectURL(gone.previewUrl);
+    const remaining = attachments.filter((item) => item.id !== id);
     setPreviewId((current) => current === id ? null : current);
-    setAttachments((current) => {
-      const going = current.find((item) => item.id === id);
-      if (going?.previewUrl) URL.revokeObjectURL(going.previewUrl);
-      return current.filter((item) => item.id !== id);
-    });
+    setAttachments(remaining);
+    resetDocumentExtraction();
+    if (remaining.length) void extractFromDocuments(remaining);
   }
 
   function replace(incoming: FileList | null) {
@@ -275,7 +304,13 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       return attach(file);
     });
+    if (next.reduce((sum, item) => sum + item.file.size, 0) > SMART_IMPORT_LIMITS.maxTotalUploadBytes) {
+      for (const item of next) if (!attachments.includes(item) && item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      setError(t.totalTooLarge);
+      return;
+    }
     setAttachments(next);
+    resetDocumentExtraction();
     void extractFromDocuments(next);
   }
 
@@ -437,6 +472,14 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
           </div>
         )}
 
+        {documentWarnings.length > 0 && (
+          <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-900" role="status" data-testid="intake-document-review-warning">
+            {locale === "ar"
+              ? "توجد معلومات غير متطابقة أو أكثر من شخص في المستندات. راجع المستند والحقول قبل الإرسال."
+              : "Some documents contain conflicting or ambiguous information. Review the documents and fields before submitting."}
+          </div>
+        )}
+
         {/* One hidden input serves every Replace action. */}
         <input ref={replaceInput} type="file" accept={ACCEPT_ATTR} className="sr-only" aria-hidden="true" tabIndex={-1} onChange={(event) => { replace(event.target.files); event.target.value = ""; }} />
 
@@ -556,11 +599,19 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
                       <label key={field} className="grid min-w-0 gap-1.5" data-field={field}>
                         <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-slate-600">
                           <span>{t.fields[field]}</span>
-                          {importedFields.includes(field) && (
-                            <span className="rounded-full border border-[#ff9f1a]/30 bg-[#fff4df] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.08em] text-[#9a5a00]">
-                              {t.importedField}
-                            </span>
-                          )}
+                          {Object.prototype.hasOwnProperty.call(edits, field) ? (
+                             <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                               {locale === "ar" ? "تصحيح العميل" : "Your correction"}
+                             </span>
+                           ) : importedFields.includes(field) ? (
+                             <span className="rounded-full border border-[#ff9f1a]/30 bg-[#fff4df] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.08em] text-[#9a5a00]">
+                               {t.importedField}
+                             </span>
+                           ) : reviewFields.includes(field) ? (
+                             <span data-testid={`intake-review-${field}`} className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                               {locale === "ar" ? "تحقق من المستند" : "Check document"}
+                             </span>
+                           ) : null}
                         </span>
                         <input
                           value={effective[field] ?? ""}
@@ -585,8 +636,13 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
                                 : "border-slate-300 focus:border-[#2f6fd0] focus:ring-[#2f6fd0]/15"
                           }`}
                         />
-                        {problem && (
-                          <span id={`intake-error-${field}`} role="alert" data-testid={`intake-error-${field}`} className="flex items-start gap-1.5 text-[12.5px] text-red-700">
+                        {fieldSources[field]?.length && !Object.prototype.hasOwnProperty.call(edits, field) && (
+                           <span className="break-all text-[11px] text-slate-500" data-testid={`intake-field-source-${field}`}>
+                             {locale === "ar" ? "المصدر: " : "Source: "}{fieldSources[field]?.join(", ")}
+                           </span>
+                         )}
+                         {problem && (
+                           <span id={`intake-error-${field}`} role="alert" data-testid={`intake-error-${field}`} className="flex items-start gap-1.5 text-[12.5px] text-red-700">
                             <svg aria-hidden="true" viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="12" cy="12" r="8.5" /><path d="M12 8v4.5" /><path d="M12 16h.01" /></svg>
                             {problem}
                           </span>

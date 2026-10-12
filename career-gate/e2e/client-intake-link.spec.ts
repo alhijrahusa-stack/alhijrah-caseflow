@@ -466,6 +466,68 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     await expect(page.getByTestId("intake-field-full_name")).toHaveValue(new RegExp(NAME_TAG));
   });
 
+  test("OCR suggestions refresh on document replacement and removal without losing manual corrections", async ({ page }) => {
+    const link = await issueLink(staffPage);
+    let extractionCalls = 0;
+    await page.route("**/api/public/client-intake/*/extract", async (route) => {
+      extractionCalls += 1;
+      const isReplacement = extractionCalls > 1;
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ ok: true, fields: {
+          full_name: isReplacement ? "Second Applicant" : "First Applicant",
+          phone: isReplacement ? "3135550112" : "3135550111",
+        }, imported_fields: ["full_name", "phone"], review_fields: [], field_sources: {
+          full_name: [isReplacement ? "second.png" : "first.png"],
+          phone: [isReplacement ? "second.png" : "first.png"],
+        }, document_warnings: [] }),
+      });
+    });
+    await page.goto(`/intake/${link.token}`);
+    await page.getByTestId("locale-en").click();
+    await page.getByTestId("intake-choose-files").setInputFiles({
+      name: "first.png", mimeType: "image/png", buffer: PNG_1x1,
+    });
+    await expect(page.getByTestId("intake-field-phone")).toHaveValue("3135550111");
+    await expect(page.getByTestId("intake-field-full_name")).toHaveValue("First Applicant");
+    await page.getByTestId("intake-field-full_name").fill("Corrected By Client");
+    await page.getByTestId("intake-file-replace").click();
+    await page.locator('input[type="file"][aria-hidden="true"]').setInputFiles({
+      name: "second.png", mimeType: "image/png", buffer: PNG_1x1,
+    });
+    await expect(page.getByTestId("intake-field-phone")).toHaveValue("3135550112");
+    await expect(page.getByTestId("intake-field-full_name")).toHaveValue("Corrected By Client");
+    await expect(page.getByTestId("intake-field-source-phone")).toContainText("second.png");
+    await page.getByTestId("intake-file-remove").click();
+    await expect(page.getByTestId("intake-field-phone")).toHaveValue("");
+    await expect(page.getByTestId("intake-field-full_name")).toHaveValue("Corrected By Client");
+    await expect(page.getByTestId("intake-field-source-phone")).toHaveCount(0);
+  });
+
+  test("ambiguous document extraction is marked for client review rather than auto-filled", async ({ page }) => {
+    const link = await issueLink(staffPage);
+    await page.route("**/api/public/client-intake/*/extract", async (route) => {
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ ok: true, fields: {}, imported_fields: [],
+          review_fields: ["full_name", "phone"], review_reasons: {
+            full_name: "identity_conflict", phone: "identity_conflict",
+          }, field_sources: { full_name: ["id-a.pdf","id-b.pdf"] },
+          document_warnings: ["Documents disagree on applicant identity."] }),
+      });
+    });
+    await page.goto(`/intake/${link.token}`);
+    await page.getByTestId("locale-en").click();
+    await page.getByTestId("intake-choose-files").setInputFiles({
+      name: "ambiguous.png", mimeType: "image/png", buffer: PNG_1x1,
+    });
+    await expect(page.getByTestId("intake-review-full_name")).toHaveText("Check document");
+    await expect(page.getByTestId("intake-document-review-warning")).toBeVisible();
+    await expect(page.getByTestId("intake-field-phone")).toHaveValue("");
+    await page.getByTestId("intake-field-phone").fill("3135550100");
+    await expect(page.getByTestId("intake-field-phone")).toHaveValue("3135550100");
+  });
+
   test("Client Intake Link remains fluid in Arabic and English on phone, tablet and ultrawide", async ({ page }) => {
     const linked = await issueLink(staffPage);
     for (const width of [320,360,390,600,768,1024,1440,1920,2560]) {
