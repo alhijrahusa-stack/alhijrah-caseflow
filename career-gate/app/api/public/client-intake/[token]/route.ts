@@ -69,6 +69,10 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
     // text while the existing parser stays authoritative for everything else.
     const edits = readEdits(form);
     const caseNumber = String(form.get("case_number") ?? "").trim().toUpperCase();
+    if (caseNumber && !/^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber)) {
+      await releaseIntakeLink(link.id);
+      return err("invalid_case_number", "Enter a valid Case Number (CG-YYYY-NNNNNN).", 422, traceId);
+    }
     const duplicate = await findPublicDuplicate({
       email: edits.email,
       caseNumber: /^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber) ? caseNumber : null,
@@ -93,6 +97,7 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
       notes,
       files,
       idempotencyKey: intakeIdempotencyKey(link.tokenHash),
+      caseNumber: caseNumber || null,
     });
 
     const finalized = await finalizeIntakeLink(link.id, result.case_id);

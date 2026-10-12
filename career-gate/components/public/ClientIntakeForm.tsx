@@ -5,8 +5,6 @@ import { ClientIntakeBrand, ClientIntakeShell, GlassCard } from "@/components/pu
 import {
   CASE_STATUS_PATH,
   INTAKE_COPY,
-  OFFICE_EMAIL_DISPLAY,
-  OFFICE_EMAIL_URL,
   OFFICE_WHATSAPP_DISPLAY,
   OFFICE_WHATSAPP_URL,
   type IntakeLocale,
@@ -77,6 +75,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
   const inFlight = useRef(false);
   const replacingId = useRef<string | null>(null);
   const replaceInput = useRef<HTMLInputElement | null>(null);
+  const extractionVersion = useRef(0);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(sourceText), 180);
@@ -118,7 +117,14 @@ export function ClientIntakeForm({ token }: { token: string }) {
     const caseNumber = existingCaseNumber.trim().toUpperCase();
     const validEmail = email && !validateIntakeField("email", email, t) ? email : "";
     const validCase = /^CG-[0-9]{4}-[0-9]{6}$/.test(caseNumber) ? caseNumber : "";
-    if (!validEmail && !validCase) return;
+    if (!validEmail && !validCase) {
+      const reset = setTimeout(() => {
+        setDuplicateIdentity(false);
+        setSharedEmailWarning(false);
+        setCheckingDuplicate(false);
+      }, 0);
+      return () => clearTimeout(reset);
+    }
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       setCheckingDuplicate(true);
@@ -184,6 +190,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
 
   async function extractFromDocuments(next: Attachment[]) {
     if (!next.length) return;
+    const version = ++extractionVersion.current;
     setExtracting(true);
     setExtractionNotice(t.extractingDocument);
     try {
@@ -191,6 +198,7 @@ export function ClientIntakeForm({ token }: { token: string }) {
       for (const item of next) form.append("files", item.file);
       const res = await fetch(`/api/public/client-intake/${encodeURIComponent(token)}/extract`, { method: "POST", body: form });
       const data = await res.json().catch(() => null);
+      if (version !== extractionVersion.current) return;
       if (!res.ok || !data?.ok) {
         setExtractionNotice(typeof data?.error?.message === "string" ? data.error.message : t.extractionUnavailable);
         return;
@@ -203,9 +211,9 @@ export function ClientIntakeForm({ token }: { token: string }) {
       setImportedFields(keys);
       setExtractionNotice(keys.length ? t.importedSuccess : t.noDataImported);
     } catch {
-      setExtractionNotice(t.extractionUnavailable);
+      if (version === extractionVersion.current) setExtractionNotice(t.extractionUnavailable);
     } finally {
-      setExtracting(false);
+      if (version === extractionVersion.current) setExtracting(false);
     }
   }
 
@@ -231,6 +239,8 @@ export function ClientIntakeForm({ token }: { token: string }) {
   }
 
   function remove(id: string) {
+    extractionVersion.current += 1;
+    setExtracting(false);
     setAttachments((current) => {
       const going = current.find((item) => item.id === id);
       if (going?.previewUrl) URL.revokeObjectURL(going.previewUrl);
@@ -325,13 +335,6 @@ export function ClientIntakeForm({ token }: { token: string }) {
             <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-[#2f6fd0]/25 bg-[#eef5ff] px-5 py-4 text-center" data-testid="intake-shared-email-success">
               <p className="text-[15px] font-semibold text-[#0a2d63]">{t.sharedEmailHeading}</p>
               <p className="mt-1.5 text-[13.5px] leading-relaxed text-slate-700">{t.sharedEmailBody}</p>
-              <a
-                href={`${OFFICE_EMAIL_URL}?subject=${encodeURIComponent(`Career Gate — New email for ${caseNumber ?? "new case"}`)}&body=${encodeURIComponent(`Case Number: ${caseNumber ?? ""}\nPlease update this file with my new email address:\n`)}`}
-                className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-white px-4 text-[14px] font-semibold text-[#194b91]"
-              >
-                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6.5h16v11H4z" /><path d="m5 8 7 5 7-5" /></svg>
-                <span>{t.emailCustomerService} · {OFFICE_EMAIL_DISPLAY}</span>
-              </a>
             </div>
           )}
 
@@ -571,17 +574,10 @@ export function ClientIntakeForm({ token }: { token: string }) {
           <div className="mt-3 rounded-2xl border border-[#2f6fd0]/25 bg-[#eef5ff] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(47,111,208,.55)]" role="status" data-testid="intake-shared-email-alert">
             <p className="text-[16px] font-semibold text-[#0a2d63]">{t.sharedEmailHeading}</p>
             <p className="mx-auto mt-1.5 max-w-[48ch] text-[13.5px] leading-relaxed text-slate-700">{t.sharedEmailBody}</p>
-            <a
-              href={OFFICE_EMAIL_URL}
-              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#2f6fd0]/25 bg-white px-4 text-[14px] font-semibold text-[#194b91] shadow-[0_10px_24px_-18px_rgba(47,111,208,.55)]"
-            >
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6.5h16v11H4z" /><path d="m5 8 7 5 7-5" /></svg>
-              <span>{t.emailCustomerService} · {OFFICE_EMAIL_DISPLAY}</span>
-            </a>
           </div>
         )}
         {duplicateIdentity && (
-          <div className="mt-3 rounded-2xl border border-[#ff9f1a]/35 bg-[#fff8eb] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(255,132,0,.6)]" role="alert" data-testid="intake-duplicate-alert">
+          <div className="mt-3 rounded-2xl border border-[#b87975]/45 bg-[#fff3f1] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(158,91,83,.28)]" role="alert" data-testid="intake-duplicate-alert">
             <p className="text-[16px] font-semibold text-[#0a2d63]">{t.duplicateHeading}</p>
             <p className="mx-auto mt-1.5 max-w-[46ch] text-[13.5px] leading-relaxed text-slate-700">{t.duplicateBody}</p>
             <a

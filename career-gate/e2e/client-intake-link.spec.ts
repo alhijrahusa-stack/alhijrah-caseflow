@@ -343,6 +343,89 @@ test.describe.serial("Career Gate one-time client intake link", () => {
     expect(docs).toBe(1);
   });
 
+
+  test("shared contact stays valid, but duplicate person and Case Number are blocked without leaking records", async ({ request }) => {
+    const sharedEmail = `family-${RUN}@test.invalid`;
+    const firstName = `Amina Applicant ${NAME_TAG}`;
+    const secondName = `Omar Applicant ${NAME_TAG}`;
+    const identity = (name: string, dob: string) => ({
+      source_text: `Full Name: ${name}\nEmail: ${sharedEmail}\nPhone: 3135550182\nDate of Birth: ${dob}`,
+      field_full_name: name,
+      field_email: sharedEmail,
+      field_phone: "3135550182",
+      field_date_of_birth: dob,
+    });
+    const firstLink = await issueLink(staffPage);
+    const first = await request.post(`/api/public/client-intake/${firstLink.token}`, {
+      multipart: identity(firstName, "1990-04-12"),
+    });
+    const firstData = await first.json();
+    expect(first.status(), JSON.stringify(firstData)).toBe(201);
+    expect(firstData.case_number).toMatch(/^CG-\d{4}-\d{6}$/);
+
+    const secondLink = await issueLink(staffPage);
+    const probe = await request.post(`/api/public/client-intake/${secondLink.token}/duplicate`, {
+      data: {
+        email: sharedEmail, fullName: secondName,
+        dateOfBirth: "1997-08-24", phone: "3135550182",
+      },
+    });
+    const probeData = await probe.json();
+    expect(probe.status()).toBe(200);
+    expect(probeData.duplicate).toBe(false);
+    expect(probeData.shared_email).toBe(true);
+    for (const key of ["case_number", "public_ref", "client_id", "name", "phone", "date_of_birth"]) {
+      expect(probeData).not.toHaveProperty(key);
+    }
+    const second = await request.post(`/api/public/client-intake/${secondLink.token}`, {
+      multipart: identity(secondName, "1997-08-24"),
+    });
+    const secondData = await second.json();
+    expect(second.status(), JSON.stringify(secondData)).toBe(201);
+    expect(secondData.case_number).toMatch(/^CG-\d{4}-\d{6}$/);
+    expect(secondData.case_number).not.toBe(firstData.case_number);
+
+    const duplicateLink = await issueLink(staffPage);
+    const duplicate = await request.post(`/api/public/client-intake/${duplicateLink.token}`, {
+      multipart: identity(firstName, "1990-04-12"),
+    });
+    expect(duplicate.status()).toBe(409);
+    expect((await duplicate.json()).error?.code).toBe("duplicate_application");
+
+    const refLink = await issueLink(staffPage);
+    const exactRef = await request.post(`/api/public/client-intake/${refLink.token}`, {
+      multipart: {
+        ...identity(`Different Applicant ${NAME_TAG}`, "2000-01-01"),
+        case_number: firstData.case_number,
+      },
+    });
+    expect(exactRef.status()).toBe(409);
+    expect((await exactRef.json()).error?.code).toBe("duplicate_application");
+  });
+
+  test("concurrent submissions of the same applicant create exactly one staged lifecycle", async ({ request }) => {
+    const email = `race-${RUN}@test.invalid`;
+    const applicant = `Concurrent Applicant ${NAME_TAG}`;
+    const body = {
+      source_text: `Full Name: ${applicant}\nEmail: ${email}\nDate of Birth: 1993-01-18\nPhone: 3135550193`,
+      field_full_name: applicant,
+      field_email: email,
+      field_date_of_birth: "1993-01-18",
+      field_phone: "3135550193",
+    };
+    const a = await issueLink(staffPage);
+    const b = await issueLink(staffPage);
+    const replies = await Promise.all([
+      request.post(`/api/public/client-intake/${a.token}`, { multipart: body }),
+      request.post(`/api/public/client-intake/${b.token}`, { multipart: body }),
+    ]);
+    expect(replies.map(r => r.status()).sort()).toEqual([201, 409]);
+    const rows = await db()`
+      select id from client_import_cases
+      where mapped_draft #>> '{profile,email}'=${email}`;
+    expect(rows).toHaveLength(1);
+  });
+
   test("a used link is closed for good, on the page and at the API", async ({ page, request }) => {
     const link = await issueLink(staffPage);
     const first = await request.post(`/api/public/client-intake/${link.token}`, {
