@@ -114,6 +114,18 @@ test("public HTML application submits and stores an idempotent case without phon
 });
 
 test.describe("Career Gate public intake presentation system", () => {
+  test("office WhatsApp is correct in the public footer, duplicate alert and receipt", async ({ page }) => {
+    await page.goto("/career-gate.html");
+    const expectedHref = "https://wa.me/13139194292";
+    const links = page.locator('a[href*="wa.me/"]');
+    await expect(links).toHaveCount(3);
+    for (let i = 0; i < 3; i += 1) {
+      await expect(links.nth(i)).toHaveAttribute("href", expectedHref);
+      await expect(links.nth(i)).toContainText("+1 313-919-4292");
+    }
+    await expect(page.locator("#contactFooter")).toContainText("+1 313-919-4292");
+  });
+
   test("AR/EN switch is complete at the shell level and preserves active state", async ({ page }) => {
     await page.goto("/career-gate.html");
     await expect(page.locator("html")).toHaveAttribute("lang", "ar");
@@ -220,7 +232,7 @@ test.describe("Career Gate public intake presentation system", () => {
     await expect(page.locator("#receiptSystemId")).toHaveText("System ID: CG-2026-012345");
     await expect(page.locator("#receiptTime")).not.toContainText("—");
     await expect(page.locator("#receiptCard")).toContainText("CAREER GATE");
-    await expect(page.locator("#receiptCard")).toContainText("313-919-4192");
+    await expect(page.locator("#receiptCard")).toContainText("+1 313-919-4292");
   });
 
   test("tracking states localize and render only after the server response", async ({ page }) => {
