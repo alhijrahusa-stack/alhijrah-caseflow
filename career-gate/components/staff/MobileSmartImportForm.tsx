@@ -339,16 +339,19 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   const extractSelected = useCallback(async (selected: QueuedDocument[]) => {
     if (!selected.length) return;
     setPreExtracting(true);
-    setPreviewMessage("Extracting document data…");
+    setPreviewMessage("Initializing free on-device PP-OCRv5 and extracting text…");
     setDocuments((current) => current.map((d) =>
-      selected.some((item) => item.id === d.id) ? { ...d, uploadState: "UPLOADING", processingState: "PROCESSING" } : d,
+      selected.some((item) => item.id === d.id) ? { ...d, uploadState: "READY_TO_UPLOAD", processingState: "PROCESSING" } : d,
     ));
     try {
-      const form = new FormData();
-      for (const item of selected) form.append("files", item.file, item.name);
-      const res = await fetch("/api/staff/smart-client-import/extract", { method: "POST", body: form });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) throw new Error(data?.error?.message || "Document extraction failed");
+      // Run the official PP-OCRv5 model directly in this browser.
+      // Files are never sent to Gemini, a paid OCR API, or another OCR host.
+      const { recognizeDocumentInBrowser } = await import("@/lib/browser-paddle-ocr");
+      const extracted = [];
+      for (const item of selected) {
+        const result = await recognizeDocumentInBrowser(item.file);
+        extracted.push({ candidates: result.candidates });
+      }
       const keyLabels: Record<string, string> = {
         full_name: "Full Name", phone: "Phone", email: "Email",
         date_of_birth: "DOB", street: "Street", city: "City",
@@ -358,8 +361,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
         shift_days: "Shift Days", shift_start_time: "Shift Start",
         shift_end_time: "Shift End",
       };
-      const extracted = (data.documents as Array<{ candidates?: Array<{ row?: Record<string, unknown> }> }> | undefined) ?? [];
-      const suggestions = extracted.flatMap((document) => document.candidates ?? []).map((candidate) => candidate.row ?? {});
+      const suggestions = extracted.flatMap((document) => document.candidates).map((candidate) => candidate.row);
       setNotes((current) => {
         const existing = extractDeterministicClient(current).row as Record<string, unknown>;
         const additional: string[] = [];
@@ -382,7 +384,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       setDocuments((current) => current.map((d) =>
         selected.some((item) => item.id === d.id) ? { ...d, uploadState: "READY_TO_UPLOAD", processingState: "COMPLETE" } : d,
       ));
-      setPreviewMessage("Document data extracted. Review populated fields before submitting.");
+      setPreviewMessage("On-device OCR complete. Review populated fields before submitting.");
     } catch (error) {
       setDocuments((current) => current.map((d) =>
         selected.some((item) => item.id === d.id) ? { ...d, uploadState: "READY_TO_UPLOAD", processingState: "FAILED" } : d,
