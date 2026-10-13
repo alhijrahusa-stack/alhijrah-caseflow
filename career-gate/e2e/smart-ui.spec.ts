@@ -58,7 +58,7 @@ test.describe("Smart Client Import experience", () => {
     await expect(page.getByText(/25\.00 MB total/).first()).toBeVisible();
   });
 
-  test("shows every one of the sixteen fields with value, state, provenance and authority, and never infers a preferred language from English ability", async ({ page }) => {
+  test("shows every one of the eighteen fields with value, state, provenance and authority, and never infers a preferred language from English ability", async ({ page }) => {
     await page.goto("/staff/smart-client-import/new");
     await page.locator("#smart-source-text").fill([
       "Full Name: TEST Intelligence Client",
@@ -89,7 +89,7 @@ test.describe("Smart Client Import experience", () => {
     const authority = (key: string) => field(key).locator("[data-authority]");
 
     // Every one of the sixteen canonical fields is present exactly once as a name/value pair.
-    for (const key of ["full_name","phone","email","date_of_birth","street","city","state","zip","preferred_language","english_proficiency","preferred_location","location_option_1","location_option_2","shift_days","shift_start_time","shift_end_time"]) {
+    for (const key of ["full_name","phone","email","date_of_birth","street","city","state","zip","preferred_language","english_proficiency","work_location_candidates","preferred_location","location_option_1","location_option_2","preferred_shift","shift_days","shift_start_time","shift_end_time","additional_notes","first_name","middle_name","last_name"]) {
       await expect(field(key)).toHaveCount(1);
     }
 
@@ -102,6 +102,8 @@ test.describe("Smart Client Import experience", () => {
     await expect(value("city")).toHaveText("DEARBORN");
     await expect(value("preferred_location")).toHaveText("Romulus");
     await expect(value("location_option_1")).toHaveText("—");
+    // "Romulus night shift" states one location and the shift type, and nothing else.
+    await expect(value("preferred_shift")).toHaveText("NIGHT");
 
     // Canonical readings, each labelled with where the value came from.
     await expect(value("date_of_birth")).toHaveText("1990-03-14");
@@ -116,6 +118,178 @@ test.describe("Smart Client Import experience", () => {
     // Readiness is an exact count, never a percentage.
     await expect(intelligence.getByText("2 / 2 REQUIRED FIELDS")).toBeVisible();
     await expect(page.getByText(/\d%/)).toHaveCount(0);
+  });
+
+  test("awaits a source instead of reporting every field missing", async ({ page }) => {
+    await page.goto("/staff/smart-client-import/new");
+    const state = (key: string) => page.locator(`[data-field="${key}"] [data-state]`);
+    // Before there is anything to interpret, no field is reported as missing.
+    for (const key of ["full_name", "city", "preferred_shift", "additional_notes"]) {
+      await expect(state(key)).toHaveText("AWAITING");
+    }
+    await page.locator("#smart-source-text").fill("Full Name: TEST Awaiting Client\nPhone: 313-555-0145");
+    await expect(state("full_name")).not.toHaveText("AWAITING");
+    await expect(state("city")).toHaveText("MISSING");
+  });
+
+  test("classifies one unstructured block into every field, in any order, losing nothing", async ({ page }) => {
+    await page.goto("/staff/smart-client-import/new");
+    // Deliberately unordered and unlabelled, exactly as a client writes it.
+    await page.locator("#smart-source-text").fill([
+      "6:00 PM to 4:30 AM",
+      "Has reliable transportation.",
+      "Night shift",
+      "ahmed.parse@example.com",
+      "Detroit, Romulus, Pontiac preferred for work",
+      "Phone: 313-555-0146",
+      "Friday-Monday",
+      "7401 Winthrop St, Detroit, MI 48228",
+      "DOB: 05/14/1995",
+      "Ahmed Parse Mohammed",
+    ].join("\n"));
+
+    const value = (key: string) => page.locator(`[data-field="${key}"] [data-value]`);
+    await expect(value("full_name")).toHaveText("Ahmed Parse Mohammed");
+    await expect(value("date_of_birth")).toHaveText("1995-05-14");
+    await expect(value("email")).toHaveText("ahmed.parse@example.com");
+    // One line of address becomes four separate fields.
+    await expect(value("street")).toHaveText("7401 Winthrop St");
+    await expect(value("city")).toHaveText("Detroit");
+    await expect(value("state")).toHaveText("MI");
+    await expect(value("zip")).toHaveText("48228");
+    // Three work locations, named with no ranking: they are candidates, and no
+    // preference order is invented for them.
+    await expect(value("work_location_candidates")).toHaveText("Detroit, Romulus, Pontiac");
+    await expect(value("preferred_location")).toHaveText("—");
+    await expect(value("location_option_1")).toHaveText("—");
+    await expect(value("location_option_2")).toHaveText("—");
+    // Shift type, days and an overnight range, none of them labelled.
+    await expect(value("preferred_shift")).toHaveText("NIGHT");
+    await expect(value("shift_days")).toHaveText("FRI, SAT, SUN, MON");
+    await expect(value("shift_start_time")).toHaveText("18:00");
+    await expect(value("shift_end_time")).toHaveText("04:30");
+    // The one detail with no field of its own is preserved, not dropped.
+    await expect(value("additional_notes")).toHaveText("Has reliable transportation.");
+    // Nothing the source never stated is shown as a value.
+    await expect(value("preferred_language")).toHaveText("—");
+    await expect(page.getByText(/\d%/)).toHaveCount(0);
+  });
+
+  test("the progress rail reports real coverage and assembles on open", async ({ page }) => {
+    await page.goto("/staff/smart-client-import/new");
+    const rail = page.locator("[data-smart-progress-rail]");
+    await expect(rail).toBeVisible();
+    // Nothing captured yet: the rail says so in words, not only in colour.
+    await expect(rail).toHaveAttribute("data-state", "awaiting");
+    await expect(rail.getByText("AWAITING SOURCE", { exact: true })).toBeVisible();
+    await expect(rail.getByText(/^0 \/ \d+ FIELDS CAPTURED$/)).toBeVisible();
+    await expect(rail.getByText("0 / 2 REQUIRED", { exact: true })).toBeVisible();
+
+    await page.locator("#smart-source-text").fill("Full Name: TEST Rail Client\nPhone: 313-555-0147");
+    // Both required fields are now present, so the rail reports the real gate.
+    await expect(rail).toHaveAttribute("data-state", "ready");
+    await expect(rail.getByText("READY TO SUBMIT", { exact: true })).toBeVisible();
+    await expect(rail.getByText("2 / 2 REQUIRED", { exact: true })).toBeVisible();
+    // Coverage is a count of captured fields, never a fabricated percentage.
+    await expect(page.getByText(/\d%/)).toHaveCount(0);
+  });
+
+  test("a blocked submit names the missing field instead of doing nothing", async ({ page }) => {
+    await page.goto("/staff/smart-client-import/new");
+    // A source with no phone: the required-field gate must hold.
+    await page.locator("#smart-source-text").fill("Some notes about a walk-in, no contact details yet.");
+    const rail = page.locator("[data-smart-progress-rail]");
+
+    await page.getByRole("button", { name: "SUBMIT" }).click();
+    await expect(rail).toHaveAttribute("data-state", "warning");
+    await expect(rail.getByText("REQUIRED FIELD MISSING", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Still required before submitting:.*Full Name.*Phone/)).toBeVisible();
+    // Nothing was staged, and the surface is still editable.
+    await expect(page.getByText("SOURCE CAPTURED", { exact: true })).toHaveCount(0);
+    await expect(page.locator("#smart-source-text")).toBeEditable();
+  });
+
+  test("reads one unlabelled line into an overnight shift and reports it as derived", async ({ page }) => {
+    await page.goto("/staff/smart-client-import/new");
+    await page.locator("#smart-source-text").fill([
+      "Full Name: TEST Overnight Client",
+      "Phone: 313-555-0148",
+      "Night shift Friday-Monday 6:00 PM to 4:30 AM",
+    ].join("\n"));
+
+    const value = (key: string) => page.locator(`[data-field="${key}"] [data-value]`);
+    await expect(value("preferred_shift")).toHaveText("NIGHT");
+    await expect(value("shift_days")).toHaveText("FRI, SAT, SUN, MON");
+    await expect(value("shift_start_time")).toHaveText("18:00");
+    await expect(value("shift_end_time")).toHaveText("04:30");
+    // The overnight reading is derived from the two times, not a stored third copy.
+    await expect(page.locator('[data-smart-overnight="true"]')).toBeVisible();
+    await expect(page.getByText(/read from the captured start and end times/)).toBeVisible();
+  });
+
+  test("reads an unranked work-location list as candidates without inventing an order", async ({ page }) => {
+    await page.goto("/staff/smart-client-import/new");
+    await page.locator("#smart-source-text").fill([
+      "Full Name: TEST Candidates Client",
+      "Phone: 313-555-0149",
+      "Detroit, Romulus, Pontiac preferred for work",
+    ].join("\n"));
+
+    const value = (key: string) => page.locator(`[data-field="${key}"] [data-value]`);
+    await expect(value("work_location_candidates")).toHaveText("Detroit, Romulus, Pontiac");
+    // No ranking was stated, so none is shown.
+    await expect(value("preferred_location")).toHaveText("—");
+    await expect(value("location_option_1")).toHaveText("—");
+    await expect(value("location_option_2")).toHaveText("—");
+  });
+
+  test("reads a dictated Arabic sentence into the same fields", async ({ page }) => {
+    await page.goto("/staff/smart-client-import/new");
+    await page.locator("#smart-source-text").fill(
+      "اسمه أحمد محمد، رقمه 313-555-0151، يريد الشفت الليلي في رومولس، من الجمعة إلى الاثنين، من السادسة مساءً إلى الرابعة والنصف صباحًا، وعنده سيارة.",
+    );
+
+    const value = (key: string) => page.locator(`[data-field="${key}"] [data-value]`);
+    await expect(value("full_name")).toHaveText("أحمد محمد");
+    await expect(value("first_name")).toHaveText("أحمد");
+    await expect(value("last_name")).toHaveText("محمد");
+    await expect(value("preferred_location")).toHaveText("رومولس");
+    await expect(value("preferred_shift")).toHaveText("NIGHT");
+    await expect(value("shift_days")).toHaveText("FRI, SAT, SUN, MON");
+    await expect(value("shift_start_time")).toHaveText("18:00");
+    await expect(value("shift_end_time")).toHaveText("04:30");
+    await expect(page.locator('[data-smart-overnight="true"]')).toBeVisible();
+    // Nothing the sentence never stated is shown as a value.
+    await expect(value("email")).toHaveText("—");
+    await expect(value("zip")).toHaveText("—");
+  });
+
+  test("creates no particle, burst or pointer line under reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/staff/smart-client-import/new");
+    await page.locator("#smart-source-text").fill("Full Name: TEST Reduced Client\nPhone: 313-555-0152");
+
+    const rail = page.locator("[data-smart-progress-rail]");
+    // The rail still reports the real state — only the motion is gone.
+    await expect(rail).toHaveAttribute("data-state", "ready");
+    await expect(rail.getByText("2 / 2 REQUIRED", { exact: true })).toBeVisible();
+    // Not merely hidden: nothing is created at all.
+    await expect(page.locator(".cg-particle")).toHaveCount(0);
+    await expect(page.locator(".cg-burst-piece")).toHaveCount(0);
+    await expect(page.locator(".cg-laser")).toHaveCount(0);
+  });
+
+  test("the rail stays inside the viewport at 320px with no horizontal scrollbar", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    await page.goto("/staff/smart-client-import/new");
+    await page.locator("#smart-source-text").fill("Full Name: TEST Narrow Client\nPhone: 313-555-0153");
+
+    const rail = page.locator("[data-smart-progress-rail]");
+    await expect(rail).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+    const box = await rail.boundingBox();
+    expect(box!.width).toBeLessThanOrEqual(320);
   });
 
   test("reports a real source problem against its own field with a concrete action", async ({ page }) => {
@@ -142,6 +316,21 @@ test.describe("Smart Client Import experience", () => {
     }
     await expect(pipeline.getByText("COMPLETE").first()).toBeVisible();
     await expect(pipeline.getByText("WAITING").first()).toBeVisible();
+  });
+
+  test("submits immediately after typing, without waiting out the read debounce", async ({ page }) => {
+    const token = Date.now().toString().slice(-7);
+    const name = `TEST Immediate ${token}`;
+    await page.goto("/staff/smart-client-import/new");
+    // Fill and press in the same breath: the gate must judge the live text, not the
+    // last debounced snapshot of it.
+    await page.locator("#smart-source-text").fill(`Full Name: ${name}\nPhone: 313${token}`.slice(0, 200));
+    await page.getByRole("button", { name: "SUBMIT" }).click();
+
+    await expect(page.getByText("SOURCE CAPTURED", { exact: true })).toBeVisible();
+    await expect(page.locator("[data-smart-progress-rail]")).not.toHaveAttribute("data-state", "warning");
+    const [staged] = await db()`select id from client_import_cases where mapped_draft #>> '{profile,full_name}'=${name} order by created_at desc limit 1`;
+    expect(staged?.id).toBeTruthy();
   });
 
   test("submits captured source, runs the Digital Handshake and stages one case", async ({ page }) => {

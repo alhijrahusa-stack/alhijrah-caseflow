@@ -146,16 +146,25 @@ describe("Smart source capture document queue", () => {
 });
 
 describe("Smart reviewed field contract", () => {
-  it("covers exactly the sixteen approved fields in four groups", () => {
-    expect(SMART_FIELD_GROUPS.map((group) => group.title)).toEqual(["IDENTITY", "ADDRESS", "LANGUAGE & ENGLISH", "JOB PREFERENCES"]);
+  it("covers exactly the twenty-two approved fields in five groups", () => {
+    expect(SMART_FIELD_GROUPS.map((group) => group.title)).toEqual(["IDENTITY", "ADDRESS", "LANGUAGE & ENGLISH", "JOB PREFERENCES", "ADDITIONAL NOTES"]);
     expect(SMART_FIELDS.map((field) => field.key)).toEqual([
-      "full_name", "phone", "email", "date_of_birth",
+      "full_name", "first_name", "middle_name", "last_name", "phone", "email", "date_of_birth",
       "street", "city", "state", "zip",
       "preferred_language", "english_proficiency",
-      "preferred_location", "location_option_1", "location_option_2",
-      "shift_days", "shift_start_time", "shift_end_time",
+      "work_location_candidates", "preferred_location", "location_option_1", "location_option_2",
+      "preferred_shift", "shift_days", "shift_start_time", "shift_end_time",
+      "additional_notes",
     ]);
+    // The name's parts never leave the Smart scope: ProfileSchema is the
+    // Application Intake request contract and must stay untouched.
+    for (const key of ["first_name", "middle_name", "last_name"]) {
+      expect(SMART_FIELDS.find((field) => field.key === key)?.scope).toBe("review_fields");
+    }
+    // Extending the contract must not extend what blocks a Client write.
     expect(SMART_FIELDS.filter((field) => field.required).map((field) => field.key)).toEqual(["full_name", "phone"]);
+    // Every reviewed field resolves to a scope, so the review save writes it in one place.
+    for (const field of SMART_FIELDS) expect(["profile", "review_fields"]).toContain(field.scope);
   });
 
   it("keeps authority, provenance and workflow state separate", () => {
@@ -204,7 +213,7 @@ describe("Smart reviewed field contract", () => {
 });
 
 describe("Smart capture-surface intelligence", () => {
-  it("reads the sixteen fields from local extraction without inferring preferred language", () => {
+  it("reads every contract field from local extraction without inferring preferred language", () => {
     const local = extractDeterministicClient([
       "Full Name: Test Client",
       "Phone: 313-555-0199",
@@ -224,7 +233,14 @@ describe("Smart capture-surface intelligence", () => {
     expect(byKey.location_option_1.normalized).toBeNull();
     expect(byKey.shift_days.normalized).toBeNull();
     expect(byKey.shift_start_time.normalized).toBeNull();
-    expect(readings).toHaveLength(16);
+    // "Romulus night shift" states the location and the shift type and nothing else.
+    expect(byKey.preferred_shift.normalized).toBe("NIGHT");
+    expect(byKey.additional_notes.normalized).toBeNull();
+    // The name's parts are a read of the full name, not a new fact.
+    expect(byKey.first_name.normalized).toBe("Test");
+    expect(byKey.last_name.normalized).toBe("Client");
+    expect(byKey.middle_name.normalized).toBeNull();
+    expect(readings).toHaveLength(22);
   });
 
   it("normalizes captured job preferences and marks canonicalized values as such", () => {

@@ -34,6 +34,9 @@ export const IMPORT_FIELD_REGISTRY = [
   { key: "full_name", label: "Full Name", required: true, aliases: ["full_name", "full name", "name", "client_name", "client name", "الاسم", "الاسم الكامل"] },
   { key: "phone", label: "Phone", required: true, aliases: ["phone", "phone_number", "phone number", "mobile", "telephone", "رقم الهاتف", "الهاتف"] },
   { key: "email", label: "Email", aliases: ["email", "email_address", "email address", "البريد", "البريد الالكتروني", "البريد الإلكتروني"] },
+  { key: "first_name", label: "First Name", aliases: ["first_name", "first name", "given name", "given_name", "الاسم الأول", "الاسم الاول"] },
+  { key: "middle_name", label: "Middle Name", aliases: ["middle_name", "middle name", "الاسم الأوسط", "الاسم الاوسط", "اسم الأب", "اسم الاب"] },
+  { key: "last_name", label: "Last Name", aliases: ["last_name", "last name", "family name", "family_name", "surname", "اسم العائلة", "الاسم الأخير", "الاسم الاخير"] },
   { key: "date_of_birth", label: "Date of Birth", aliases: ["date_of_birth", "date of birth", "dob", "birth_date", "birth date", "تاريخ الميلاد"] },
   { key: "preferred_language", label: "Preferred Language", aliases: ["preferred_language", "preferred language", "language", "اللغة"] },
   { key: "english_proficiency", label: "English Proficiency", aliases: ["english_proficiency", "english proficiency", "english level", "english_level", "مستوى الانجليزية", "مستوى الإنجليزية"] },
@@ -54,12 +57,14 @@ export const IMPORT_FIELD_REGISTRY = [
   { key: "job_title", label: "Job Title", aliases: ["job_title", "job title", "title"] },
   { key: "employment_from", label: "Employment From", aliases: ["employment_from", "employment from", "job_from"] },
   { key: "employment_to", label: "Employment To", aliases: ["employment_to", "employment to", "job_to"] },
-  { key: "site_code", label: "Preferred Location / Site", aliases: ["site_code", "site code", "site", "preferred location", "preferred_location", "location option 1", "location_option_1", "location", "amazon_location", "amazon location", "work_location", "work location", "الموقع"] },
+  { key: "site_code", label: "Preferred Location / Site", aliases: ["site_code", "site code", "site", "preferred location", "preferred_location", "location", "amazon_location", "amazon location", "work_location", "work location", "الموقع"] },
   { key: "job_id", label: "Job ID", aliases: ["job_id", "job id", "amazon_job_id", "amazon job id", "job"] },
   { key: "shift_code", label: "Desired Shift", aliases: ["shift_code", "shift code", "shift", "desired shift", "desired_shift", "shift_name", "shift name", "الشفت", "الوردية"] },
   { key: "shift_days", label: "Shift Days", aliases: ["shift_days", "shift days", "work days", "schedule days", "ايام الشفت", "أيام الشفت"] },
   { key: "shift_start_time", label: "Shift Start", aliases: ["shift_start_time", "shift start time", "shift start", "start time", "بداية الشفت"] },
   { key: "shift_end_time", label: "Shift End", aliases: ["shift_end_time", "shift end time", "shift end", "end time", "نهاية الشفت"] },
+  { key: "work_location_candidates", label: "Work Location Candidates", aliases: ["work_location_candidates", "work location candidates", "location candidates", "work locations", "preferred locations", "المواقع المقترحة", "مواقع العمل"] },
+  { key: "alt_site_code", label: "Location Option 1", aliases: ["alt_site_code", "alt site code", "alternate location", "alternate site", "location option 1", "location_option_1", "second location", "second site", "الموقع البديل"] },
   { key: "backup_site_code", label: "Location Option 2", aliases: ["backup_site_code", "backup site code", "backup location", "location option 2", "location_option_2"] },
   { key: "backup_job_id", label: "Backup Job ID", aliases: ["backup_job_id", "backup job id", "job option 2", "job_option_2"] },
   { key: "backup_shift_code", label: "Backup Shift", aliases: ["backup_shift_code", "backup shift code", "backup shift", "shift option 2", "shift_option_2"] },
@@ -67,10 +72,11 @@ export const IMPORT_FIELD_REGISTRY = [
   { key: "status", label: "Client Status", aliases: ["status", "client_status", "client status", "الحالة"] },
   { key: "next_step", label: "Next Step", aliases: ["next_step", "next step", "next action", "الخطوة التالية"] },
   { key: "initial_note", label: "Initial Note", aliases: ["initial_note", "initial note", "note", "notes", "ملاحظات", "ملاحظة"] },
+  { key: "additional_notes", label: "Additional Notes", aliases: ["additional_notes", "additional notes", "extra notes", "other details", "unclassified", "ملاحظات إضافية", "ملاحظات اضافية"] },
 ] as const satisfies readonly FieldDefinition[];
 
 export const CANONICAL_IMPORT_HEADERS = IMPORT_FIELD_REGISTRY.map((field) => field.key);
-export const IMPORT_SCHEMA_VERSION = "2026-10-05.3";
+export const IMPORT_SCHEMA_VERSION = "2026-10-13.2";
 export const IMPORT_TEMPLATE_ID = "career-gate-client-import";
 export const IMPORT_SCHEMA_HASH = createHash("sha256")
   .update(JSON.stringify(IMPORT_FIELD_REGISTRY.map((field) => ({ key: field.key, required: "required" in field && field.required === true }))))
@@ -79,12 +85,31 @@ export const IMPORT_SCHEMA_HASH = createHash("sha256")
 type RegistryKey = (typeof IMPORT_FIELD_REGISTRY)[number]["key"];
 
 export type SmartReviewFields = {
+  /**
+   * The name's parts. They live in the Smart review scope, not on the canonical
+   * profile, because `ProfileSchema` is the Application Intake request contract and
+   * must not change. They are a read of the full name, never a competing identity.
+   */
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
   preferred_location: string | null;
   location_option_1: string | null;
   location_option_2: string | null;
+  /**
+   * Places the source named as acceptable for work without ranking them. Kept
+   * separate from the three ordered fields so no preference order is invented.
+   */
+  work_location_candidates: string | null;
+  preferred_shift: string | null;
   shift_days: ShiftDayCode[] | null;
   shift_start_time: string | null;
   shift_end_time: string | null;
+  /**
+   * Source detail that carried no canonical field of its own, preserved verbatim.
+   * Never a restatement of a classified value.
+   */
+  additional_notes: string | null;
 };
 
 export type PreparedImportDraft = {
@@ -227,12 +252,20 @@ function reviewFieldsFor(primary: Selection[], backup: Selection[]): SmartReview
   const second = findOptionForSelection(backup[0]);
   const range = first ? optionShiftRange(first) : null;
   return {
+    first_name: null,
+    middle_name: null,
+    last_name: null,
+    work_location_candidates: null,
     preferred_location: first?.site_code ?? null,
-    location_option_1: first?.site_code ?? null,
+    // Option 1 has its own source. The catalog resolves a primary and a backup only,
+    // so it never supplies this field — filling it from the primary would duplicate it.
+    location_option_1: null,
     location_option_2: second?.site_code ?? null,
+    preferred_shift: first?.shift_code ?? null,
     shift_days: first ? normalizeShiftDays(first.days) : null,
     shift_start_time: range?.start ?? null,
     shift_end_time: range?.end ?? null,
+    additional_notes: null,
   };
 }
 
@@ -247,12 +280,18 @@ function normalizedReviewFields(input: z.infer<typeof ReviewFieldsInput>, fallba
   if (startRaw != null && String(startRaw).trim() && !start) throw new Error("shift_start_time: invalid shift time");
   if (endRaw != null && String(endRaw).trim() && !end) throw new Error("shift_end_time: invalid shift time");
   return {
+    first_name: input.first_name?.trim() || fallback.first_name,
+    middle_name: input.middle_name?.trim() || fallback.middle_name,
+    last_name: input.last_name?.trim() || fallback.last_name,
+    work_location_candidates: input.work_location_candidates?.trim() || fallback.work_location_candidates,
     preferred_location: input.preferred_location?.trim() || fallback.preferred_location,
     location_option_1: input.location_option_1?.trim() || fallback.location_option_1,
     location_option_2: input.location_option_2?.trim() || fallback.location_option_2,
+    preferred_shift: input.preferred_shift?.trim() || fallback.preferred_shift,
     shift_days: days,
     shift_start_time: start,
     shift_end_time: end,
+    additional_notes: input.additional_notes?.trim() || fallback.additional_notes,
   };
 }
 
@@ -268,13 +307,46 @@ function reviewFieldsFromRow(row: IntakeRow): SmartReviewFields {
   if (rawEnd && !shiftEnd) throw new Error("shift_end_time: invalid shift time");
   const preferred = optional(pickImportValue(row, "site_code"));
   return {
+    first_name: optional(pickImportValue(row, "first_name")),
+    middle_name: optional(pickImportValue(row, "middle_name")),
+    last_name: optional(pickImportValue(row, "last_name")),
+    work_location_candidates: optional(pickImportValue(row, "work_location_candidates")),
     preferred_location: preferred,
-    location_option_1: null,
+    location_option_1: optional(pickImportValue(row, "alt_site_code")),
     location_option_2: optional(pickImportValue(row, "backup_site_code")),
+    preferred_shift: optional(pickImportValue(row, "shift_code")),
     shift_days: shiftDays,
     shift_start_time: shiftStart,
     shift_end_time: shiftEnd,
+    additional_notes: optional(pickImportValue(row, "additional_notes")),
   };
+}
+
+/**
+ * Row-derived review fields that never throw. `reviewFieldsFromRow` rejects a
+ * malformed canonical value so a sheet import fails loudly; the Smart capture
+ * path instead has to keep every readable preference when one value is bad, so
+ * this variant drops only the field it cannot canonicalize.
+ */
+export function reviewFieldsFromRowTolerant(row: IntakeRow): SmartReviewFields {
+  try {
+    return reviewFieldsFromRow(row);
+  } catch {
+    return {
+      first_name: optional(pickImportValue(row, "first_name")),
+      middle_name: optional(pickImportValue(row, "middle_name")),
+      last_name: optional(pickImportValue(row, "last_name")),
+      work_location_candidates: optional(pickImportValue(row, "work_location_candidates")),
+      preferred_location: optional(pickImportValue(row, "site_code")),
+      location_option_1: optional(pickImportValue(row, "alt_site_code")),
+      location_option_2: optional(pickImportValue(row, "backup_site_code")),
+      preferred_shift: optional(pickImportValue(row, "shift_code")),
+      shift_days: normalizeShiftDays(pickImportValue(row, "shift_days")),
+      shift_start_time: normalizeShiftTime(pickImportValue(row, "shift_start_time")),
+      shift_end_time: normalizeShiftTime(pickImportValue(row, "shift_end_time")),
+      additional_notes: optional(pickImportValue(row, "additional_notes")),
+    };
+  }
 }
 
 function tryResolveSelection(row: IntakeRow, keys: { site: RegistryKey; job: RegistryKey; shift: RegistryKey; days?: RegistryKey; start?: RegistryKey; end?: RegistryKey }): Selection[] {
@@ -286,12 +358,18 @@ function tryResolveSelection(row: IntakeRow, keys: { site: RegistryKey; job: Reg
 }
 
 const ReviewFieldsInput = z.object({
+  first_name: z.string().trim().max(200).nullable().optional(),
+  middle_name: z.string().trim().max(200).nullable().optional(),
+  last_name: z.string().trim().max(200).nullable().optional(),
+  work_location_candidates: z.string().trim().max(600).nullable().optional(),
   preferred_location: z.string().trim().max(200).nullable().optional(),
   location_option_1: z.string().trim().max(200).nullable().optional(),
   location_option_2: z.string().trim().max(200).nullable().optional(),
+  preferred_shift: z.string().trim().max(200).nullable().optional(),
   shift_days: z.union([z.array(z.string()), z.string()]).nullable().optional(),
   shift_start_time: z.string().trim().max(40).nullable().optional(),
   shift_end_time: z.string().trim().max(40).nullable().optional(),
+  additional_notes: z.string().trim().max(SMART_IMPORT_LIMITS.maxCellLength).nullable().optional(),
 }).partial();
 
 const SelectionInput = z.object({ site_code: z.string(), job_id: z.string(), shift_code: z.string() });

@@ -2550,3 +2550,154 @@ code, kbd, pre, .font-mono {
   .cg-profile-info-grid { grid-template-columns: 1fr; }
   .cg-profile-info-cell { border-radius: 18px; }
 }
+
+/* ── Smart Progress Rail (Career Gate · Smart Client Import only) ────────────
+   A glass rail that reports real capture coverage. Every animation below is
+   state-driven: a particle only flies because a field actually took a value, the
+   burst only fires because the submit gate is actually satisfied, and the shake
+   only happens because a required field is actually still empty. Motion never
+   stands in for progress that has not happened.
+
+   Spring physics: the rail and its segments settle with a slight overshoot
+   instead of easing linearly to a stop.                                        */
+
+:root {
+  --cg-spring: cubic-bezier(.22, 1.4, .36, 1);
+  --cg-spring-soft: cubic-bezier(.34, 1.26, .48, 1);
+}
+
+/* A. Entrance — the rail assembles from its own segments rather than appearing. */
+@keyframes cg-rail-assemble {
+  0% { opacity: 0; transform: translateY(-8px) scaleX(.86); filter: blur(5px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scaleX(1); filter: blur(0); }
+}
+
+@keyframes cg-rail-segment-assemble {
+  0% { opacity: 0; transform: translateY(-10px) scaleY(.3); }
+  100% { opacity: 1; transform: translateY(0) scaleY(1); }
+}
+
+.cg-rail {
+  animation: cg-rail-assemble 620ms var(--cg-spring) both;
+}
+
+.cg-rail-segment {
+  animation: cg-rail-segment-assemble 460ms var(--cg-spring) both;
+  animation-delay: calc(var(--cg-seg-index, 0) * 55ms + 120ms);
+  transition: background-color 260ms var(--cg-spring-soft), box-shadow 260ms var(--cg-spring-soft);
+}
+
+/* The fill tracks real coverage and settles with the same spring. */
+.cg-rail-fill {
+  transition: width 520ms var(--cg-spring), background 320ms linear;
+}
+
+/* B. Spiral particle transfer — a filled field hands its particle to the rail.
+   The mid keyframe offsets perpendicular to the travel, so the path curves and
+   the rotation reads as a spiral rather than a straight slide.                 */
+@keyframes cg-particle-spiral {
+  0% { opacity: 0; transform: translate3d(0, 0, 0) rotate(0deg) scale(.5); }
+  12% { opacity: 1; transform: translate3d(calc(var(--cg-dx) * .12), calc(var(--cg-dy) * .12 - 18px), 0) rotate(120deg) scale(1); }
+  45% { opacity: 1; transform: translate3d(calc(var(--cg-dx) * .45 + 22px), calc(var(--cg-dy) * .45 - 10px), 0) rotate(420deg) scale(.92); }
+  75% { opacity: .9; transform: translate3d(calc(var(--cg-dx) * .78 - 14px), calc(var(--cg-dy) * .78), 0) rotate(640deg) scale(.7); }
+  100% { opacity: 0; transform: translate3d(var(--cg-dx), var(--cg-dy), 0) rotate(760deg) scale(.2); }
+}
+
+.cg-particle {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 60;
+  will-change: transform, opacity;
+  animation: cg-particle-spiral var(--cg-particle-duration, 900ms) var(--cg-spring-soft) both;
+  animation-delay: var(--cg-particle-delay, 0ms);
+}
+
+/* C. Completion burst — a soft, bounded confetti inside the rail itself. */
+@keyframes cg-burst {
+  0% { opacity: 0; transform: translate3d(0, 0, 0) scale(.4); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(var(--cg-dx), var(--cg-dy), 0) scale(.3); }
+}
+
+.cg-burst-piece {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 2px;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: cg-burst 980ms var(--cg-spring-soft) both;
+  animation-delay: var(--cg-particle-delay, 0ms);
+}
+
+/* D. Validation warning — the rail's particles become unsettled, and the rail
+   itself turns to the warning accent. Colour is never the only signal: the rail
+   also carries its state in text and in aria-live. */
+@keyframes cg-rail-unsettled {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-3px); }
+  30% { transform: translateX(3px); }
+  45% { transform: translateX(-2px); }
+  60% { transform: translateX(2px); }
+  80% { transform: translateX(-1px); }
+}
+
+.cg-rail[data-state="warning"] .cg-rail-track {
+  animation: cg-rail-unsettled 520ms var(--cg-spring-soft) 1;
+}
+
+/* E. Active-field laser — a hairline from the rail to the field being filled.
+   It is decorative only; focus and labels carry the real relationship. */
+@keyframes cg-laser-draw {
+  from { opacity: 0; transform: scaleY(0); }
+  to { opacity: .85; transform: scaleY(1); }
+}
+
+.cg-laser {
+  position: fixed;
+  pointer-events: none;
+  z-index: 55;
+  width: 1px;
+  transform-origin: top center;
+  animation: cg-laser-draw 240ms var(--cg-spring-soft) both;
+}
+
+/* H. Accessibility and cost. Under reduced motion every effect above collapses to
+   a plain state change: the rail still reports coverage, the warning still shows,
+   and nothing moves. Particles are not rendered at all in that mode — the
+   component checks the same query before it creates them. */
+@media (prefers-reduced-motion: reduce) {
+  .cg-rail,
+  .cg-rail-segment,
+  .cg-particle,
+  .cg-burst-piece,
+  .cg-laser,
+  .cg-rail[data-state="warning"] .cg-rail-track {
+    animation: none !important;
+  }
+  .cg-rail-fill {
+    transition: none !important;
+  }
+  .cg-particle,
+  .cg-burst-piece,
+  .cg-laser {
+    display: none !important;
+  }
+}
+
+/* Where the viewer asks for less transparency, the glass becomes a solid surface
+   so the data on it never loses contrast. */
+@media (prefers-reduced-transparency: reduce) {
+  .cg-rail-glass {
+    backdrop-filter: none !important;
+    background: #061a31 !important;
+  }
+}

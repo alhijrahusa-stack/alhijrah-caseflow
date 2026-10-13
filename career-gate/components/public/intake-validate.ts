@@ -31,21 +31,26 @@ export const FIELD_INPUT: Record<ClientEditableField, { type?: string; inputMode
   phone: { type: "tel", inputMode: "tel", autoComplete: "tel-national" },
   email: { type: "email", inputMode: "email", autoComplete: "email" },
   date_of_birth: { type: "date", autoComplete: "bday" },
+  first_name: { autoComplete: "given-name" },
+  middle_name: { autoComplete: "additional-name" },
+  last_name: { autoComplete: "family-name" },
   street: { autoComplete: "street-address" },
   city: { autoComplete: "address-level2" },
   state: { autoComplete: "address-level1" },
   zip: { inputMode: "numeric", autoComplete: "postal-code" },
   preferred_language: { autoComplete: "language" },
   english_proficiency: {},
-  site_code: {}, backup_site_code: {}, shift_code: {}, shift_days: {},
+  work_location_candidates: {}, site_code: {}, alt_site_code: {}, backup_site_code: {}, shift_code: {}, shift_days: {},
   shift_start_time: { type: "time" }, shift_end_time: { type: "time" },
+  additional_notes: {},
 };
 
 /** The groups the review fields are presented in, so the list reads as a form. */
-export const FIELD_GROUPS: readonly { key: "identity" | "contact" | "address" | "language" | "work"; fields: readonly ClientEditableField[] }[] = [
-  { key: "identity", fields: ["full_name", "date_of_birth"] },
+export const FIELD_GROUPS: readonly { key: "identity" | "contact" | "address" | "language" | "work" | "notes"; fields: readonly ClientEditableField[] }[] = [
+  { key: "identity", fields: ["full_name", "first_name", "middle_name", "last_name", "date_of_birth"] },
   { key: "contact", fields: ["phone", "email"] },
   { key: "address", fields: ["street", "city", "state", "zip"] },
   { key: "language", fields: ["preferred_language", "english_proficiency"] },
-  { key: "work", fields: ["site_code", "backup_site_code", "shift_code", "shift_days", "shift_start_time", "shift_end_time"] },
+  { key: "work", fields: ["work_location_candidates", "site_code", "alt_site_code", "backup_site_code", "shift_code", "shift_days", "shift_start_time", "shift_end_time"] },
+  { key: "notes", fields: ["additional_notes"] },
 ] as const;

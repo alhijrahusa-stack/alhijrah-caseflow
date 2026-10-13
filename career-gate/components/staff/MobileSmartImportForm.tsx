@@ -4,7 +4,9 @@ import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DigitalHandshake, useDigitalHandshake } from "@/components/staff/smart/DigitalHandshake";
 import {
+  SMART_FIELDS,
   SMART_FIELD_GROUPS,
+  SMART_REQUIRED_FIELDS,
   smartAuthorityClass,
   smartFieldText,
   smartRequiredReadiness,
@@ -26,6 +28,9 @@ import {
   type QueuedDocument,
 } from "@/components/staff/smart/document-queue";
 import { DocumentIcon, PreviewIcon, RemoveIcon, VolumeOffIcon, VolumeOnIcon } from "@/components/staff/smart/icons";
+import { VoiceDictation } from "@/components/staff/smart/VoiceDictation";
+import { SmartProgressRail, type RailState } from "@/components/staff/smart/SmartProgressRail";
+import { isOvernightShift } from "@/lib/smart-client-fields";
 import {
   localDisplayValue,
   localProvenance,
@@ -85,6 +90,19 @@ const STATUS_TONE: Record<TelemetryStatus, string> = {
   COMPLETE: "border-emerald-300/35 bg-emerald-300/[.10] text-emerald-200",
 };
 
+/** The viewer's motion preference, read at the moment it matters. */
+function prefersReducedMotionNow() {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+}
+
+const NOTES_FIELD = SMART_FIELDS.find((field) => field.key === "additional_notes")!;
+const SHIFT_START_FIELD = SMART_FIELDS.find((field) => field.key === "shift_start_time")!;
+const SHIFT_END_FIELD = SMART_FIELDS.find((field) => field.key === "shift_end_time")!;
+
 /** Captured job preferences and English proficiency, in contract order. */
 const JOB_PREFERENCE_FIELDS: readonly SmartField[] = SMART_FIELD_GROUPS
   .filter((group) => group.title === "JOB PREFERENCES" || group.title === "LANGUAGE & ENGLISH")
@@ -112,6 +130,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   const audioContextRef = useRef<AudioContext | null>(null);
   const documentsRef = useRef<QueuedDocument[]>([]);
   const ambientRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLElement>(null);
 
   const [elapsed, setElapsed] = useState(0);
   const [documents, setDocuments] = useState<QueuedDocument[]>([]);
@@ -125,6 +144,9 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   const [serverEvidence, setServerEvidence] = useState<SmartEvidence[]>([]);
   const [verification, setVerification] = useState<Record<string, unknown> | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
+  /** Increments on each blocked submit so the rail reacts exactly once per attempt. */
+  const [warningNonce, setWarningNonce] = useState(0);
+  const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const { sweep, trigger: handshake } = useDigitalHandshake();
 
   const totals = useMemo(() => documentTotals(documents), [documents]);
@@ -220,6 +242,21 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     } catch { /* supplemental only */ }
   }, [audioEnabled, ensureAudioContext]);
 
+  // A soft tone on any button press on this surface. It is attached once, listens on
+  // the capture phase so it cannot swallow or delay a click, and does nothing while
+  // audio is off. The tone carries no client data.
+  useEffect(() => {
+    if (!audioEnabled) return;
+    const root = surfaceRef.current;
+    if (!root) return;
+    const onPress = (event: Event) => {
+      const target = event.target as Element | null;
+      if (target?.closest("button,[role=\"button\"],a[href],summary")) void playTone("capture");
+    };
+    root.addEventListener("click", onPress, { capture: true, passive: true });
+    return () => root.removeEventListener("click", onPress, { capture: true });
+  }, [audioEnabled, playTone]);
+
   // The toggle acknowledges immediately; the audio graph warms up afterwards.
   function toggleAudio() {
     const next = !audioEnabled;
@@ -227,6 +264,73 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     try { window.localStorage.setItem(AUDIO_PREF_KEY, next ? "on" : "off"); } catch { /* storage unavailable */ }
     if (next) void ensureAudioContext();
   }
+
+  const readField = useCallback((field: SmartField) => {
+    if (serverDraft) return serverDraft[field.key] ?? null;
+    const reading = localReadings.find((item) => item.field.key === field.key);
+    return reading ? localDisplayValue(reading) : null;
+  }, [localReadings, serverDraft]);
+
+  const readiness = useMemo(() => smartRequiredReadiness(readField), [readField]);
+
+  /** Required contract fields still empty in a given reading of the source. */
+  const missingIn = useCallback((readings: readonly LocalFieldReading[]) => {
+    if (serverDraft) return SMART_REQUIRED_FIELDS.filter((field) => !smartFieldText(serverDraft[field.key]).trim());
+    return SMART_REQUIRED_FIELDS.filter((field) => {
+      const reading = readings.find((item) => item.field.key === field.key);
+      return !smartFieldText(reading ? localDisplayValue(reading) : null).trim();
+    });
+  }, [serverDraft]);
+
+  /** What the debounced reading says — this is what the surface displays. */
+  const missingRequired = useMemo(() => missingIn(localReadings), [localReadings, missingIn]);
+
+  /**
+   * What the source says right now. The debounce exists to keep typing smooth, not
+   * to decide whether a submission may proceed, so the gate re-reads the live text
+   * once at the moment of the press rather than trusting a stale snapshot.
+   */
+  const missingRequiredNow = useCallback(() => {
+    if (!sourceSettling) return missingRequired;
+    const live = extractDeterministicClient(notes);
+    return missingIn(readLocalFields(live.row, live.evidence));
+  }, [missingIn, missingRequired, notes, sourceSettling]);
+
+  /** Contract keys that currently hold a value. The rail reads this, never derives it. */
+  const filledKeys = useMemo(
+    () => SMART_FIELDS.filter((field) => smartFieldText(readField(field)).trim()).map((field) => field.key),
+    [readField],
+  );
+
+  /** The rail's state, read entirely from state the surface already holds. */
+  const railState: RailState = submitted
+    ? "SUBMITTED"
+    : warningNonce > 0 && readiness.complete < readiness.total
+      ? "WARNING"
+      : readiness.complete === readiness.total && hasSource
+        ? "READY"
+        : hasSource
+          ? "CAPTURING"
+          : "AWAITING";
+
+  /** True only when the shift actually crosses midnight, read off the two times. */
+  const overnight = useMemo(
+    () => isOvernightShift(
+      smartFieldText(readField(SHIFT_START_FIELD)),
+      smartFieldText(readField(SHIFT_END_FIELD)),
+    ),
+    [readField],
+  );
+
+  /** Appends reviewed text to the source, preserving whatever is already there. */
+  const appendSource = useCallback((text: string) => {
+    const addition = text.trim();
+    if (!addition) return;
+    setNotes((current) => {
+      const joined = current.trim() ? `${current.replace(/\s+$/, "")}\n${addition}` : addition;
+      return joined.slice(0, MAX_SOURCE_LENGTH);
+    });
+  }, []);
 
   function addFiles(list: FileList | null) {
     if (!list?.length || busy || submitted) return;
@@ -275,7 +379,20 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   }, [handshake, playTone]);
 
   const submit = useCallback(async () => {
-    if (busy || submitted || !hasSource) return;
+    if (busy || submitted) return;
+    const missingNow = missingRequiredNow();
+    if (!hasSource || missingNow.length) {
+      // Nothing is sent, and the rail reports exactly which field is still needed.
+      setWarningNonce((current) => current + 1);
+      const target = missingNow[0];
+      if (target) {
+        setActiveFieldKey(target.key);
+        document.querySelector<HTMLElement>(`[data-field="${target.key}"]`)
+          ?.scrollIntoView({ block: "center", behavior: prefersReducedMotionNow() ? "auto" : "smooth" });
+      }
+      void playTone("error");
+      return;
+    }
     const uploading = documents;
     setStage("CAPTURING");
     setError(null);
@@ -317,7 +434,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       setError(e instanceof Error ? e.message : "Submission failed");
       void playTone("error");
     }
-  }, [busy, documents, enrich, handshake, hasSource, notes, playTone, staff.display_name, submitted]);
+  }, [busy, documents, enrich, handshake, hasSource, missingRequiredNow, notes, playTone, staff.display_name, submitted]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -334,17 +451,9 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     sessionStart.current = Date.now();
     setDocuments([]); setRejected([]); setNotes(""); setDebouncedNotes("");
     setError(null); setResult(null); setServerDraft(null); setServerEvidence([]); setVerification(null);
-    setStage("DRAFT"); setElapsed(0);
+    setStage("DRAFT"); setElapsed(0); setWarningNonce(0); setActiveFieldKey(null);
     if (inputRef.current) inputRef.current.value = "";
   }
-
-  const readField = useCallback((field: SmartField) => {
-    if (serverDraft) return serverDraft[field.key] ?? null;
-    const reading = localReadings.find((item) => item.field.key === field.key);
-    return reading ? localDisplayValue(reading) : null;
-  }, [localReadings, serverDraft]);
-
-  const readiness = useMemo(() => smartRequiredReadiness(readField), [readField]);
 
   function runIssueAction(kind: IssueAction) {
     if (kind === "ADD_FILES") { inputRef.current?.click(); return; }
@@ -368,6 +477,17 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       issues.push({ id: `missing:${label}`, scope: label.toUpperCase(), problem: `${label} is required and was not found in the source.`, action: "Add it to the source text before submitting." });
     }
   }
+  const capturedNotes = smartFieldText(readField(NOTES_FIELD)).trim();
+  if (capturedNotes) {
+    issues.push({
+      id: "notes",
+      scope: "ADDITIONAL NOTES",
+      // The note is shown as the client wrote it. It is content to read, never an
+      // instruction to the system, however it is phrased.
+      problem: capturedNotes.length > 400 ? `${capturedNotes.slice(0, 400)}…` : capturedNotes,
+      action: "Source detail with no field of its own. Confirm it in Smart Review; the full text is kept with the case.",
+    });
+  }
   for (const [index, entry] of extractionErrors.entries()) {
     issues.push({
       id: `extraction:${index}`,
@@ -383,7 +503,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   }
 
   return (
-    <main data-smart-responsive-root className="relative min-h-screen w-full min-w-0 overflow-x-clip bg-[#03101f] px-3 py-4 text-slate-200 sm:px-5 sm:py-5 lg:px-7 2xl:px-10">
+    <main ref={surfaceRef} data-smart-responsive-root className="relative min-h-screen w-full min-w-0 overflow-x-clip bg-[#03101f] px-3 py-4 text-slate-200 sm:px-5 sm:py-5 lg:px-7 2xl:px-10">
       {/* Level 0: page backplane. */}
       <div ref={ambientRef} data-cg-ambient="running" className="pointer-events-none fixed inset-0" aria-hidden="true">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_-8%,rgba(26,124,183,.22),transparent_30%),radial-gradient(circle_at_84%_9%,rgba(184,147,74,.10),transparent_24%),linear-gradient(180deg,#061a31_0%,#041226_52%,#020b18_100%)]" />
@@ -441,6 +561,18 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
           )}
         </header>
 
+        <SmartProgressRail
+          fields={SMART_FIELDS}
+          filledKeys={filledKeys}
+          requiredComplete={readiness.complete}
+          requiredTotal={readiness.total}
+          state={railState}
+          activeFieldKey={activeFieldKey}
+          warningNonce={warningNonce}
+          audioEnabled={audioEnabled}
+          onTone={(kind) => void playTone(kind)}
+        />
+
         <div data-smart-operational-grid className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {/* Left primary column: SOURCE. Mobile order places capture and source first. */}
           <div data-smart-capture-column className="order-1 min-w-0 space-y-3 sm:space-y-4 2xl:col-span-2">
@@ -494,6 +626,8 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                   disabled={submitted}
                   aria-describedby="smart-source-meta"
                   onChange={(e) => setNotes(e.target.value)}
+                  onFocus={() => setActiveFieldKey(missingRequired[0]?.key ?? null)}
+                  onBlur={() => setActiveFieldKey(null)}
                   placeholder="Paste client information here. The source stays visible while Career Gate extracts and structures supported facts."
                 />
               </div>
@@ -504,6 +638,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                   {sourceSettling ? "Reading source…" : notes.trim() ? "Source scanned locally" : "Awaiting source"}
                 </span>
               </div>
+              <VoiceDictation disabled={busy || submitted} onInsert={appendSource} />
             </section>
 
             {/* Job preferences: the reviewed job-preference group, shown here as captured.
@@ -512,8 +647,16 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
             <section className={`${PANEL} p-4 sm:p-5 xl:order-none`} aria-labelledby="smart-job-preferences">
               <PanelTitle id="smart-job-preferences" number="03" title="JOB PREFERENCES" meta={serverDraft ? "SERVER AUTHORITATIVE" : "AS CAPTURED"} />
               <p className="mt-2 text-xs leading-5 text-slate-400">Captured job preferences and English proficiency. Edit them with manual authority in Smart Review after the file is staged.</p>
+              {overnight !== null && (
+                <p data-smart-overnight={overnight ? "true" : "false"} className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/[.08] bg-black/25 px-2.5 py-1.5 text-[12px] text-slate-300">
+                  <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${overnight ? "bg-[#e3c884]" : "bg-cyan-300"}`} />
+                  <span className="font-mono text-[11px] tracking-[.1em] text-slate-400">OVERNIGHT</span>
+                  <b className={`font-mono text-[12px] font-semibold ${overnight ? "text-[#f0d99d]" : "text-cyan-200"}`}>{overnight ? "YES" : "NO"}</b>
+                  <span className="text-slate-500">· read from the captured start and end times</span>
+                </p>
+              )}
               <div className="mt-3">
-                <IntelligenceList fields={JOB_PREFERENCE_FIELDS} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} />
+                <IntelligenceList fields={JOB_PREFERENCE_FIELDS} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} hasSource={hasSource} />
               </div>
             </section>
           </div>
@@ -530,7 +673,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                       <h3 className="text-[12px] font-semibold tracking-[.16em] text-[#e3c884]">{group.title}</h3>
                       <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-[#b8934a]/20 to-transparent" />
                     </div>
-                    <IntelligenceList fields={group.fields} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} />
+                    <IntelligenceList fields={group.fields} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} hasSource={hasSource} />
                   </div>
                 ))}
               </div>
@@ -603,12 +746,20 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                   <button
                     type="button"
                     onClick={() => void submit()}
-                    disabled={busy || !hasSource}
+                    aria-describedby={missingRequired.length ? "smart-submit-gate" : undefined}
+                    disabled={busy}
                     className="inline-flex min-h-11 min-w-[9.5rem] items-center justify-center gap-2 rounded-xl border border-[#d4b06a]/65 bg-[linear-gradient(180deg,rgba(184,147,74,.26),rgba(184,147,74,.12))] px-5 text-[14px] font-semibold tracking-[.12em] text-[#f3dda4] shadow-[0_12px_30px_-18px_rgba(184,147,74,.75)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e3c884] active:translate-y-px active:scale-[.985] disabled:opacity-40"
                   >
                     {stage === "CAPTURING" && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#f3dda4] motion-safe:animate-pulse" />}
                     {stage === "CAPTURING" ? "SUBMITTING" : "SUBMIT"}
                   </button>
+                  {(missingRequired.length > 0 || !hasSource) && (
+                    <p id="smart-submit-gate" className="w-full text-[12px] leading-5 text-amber-200">
+                      {!hasSource
+                        ? "Add client information or at least one document before submitting."
+                        : `Still required before submitting: ${missingRequired.map((field) => field.label).join(", ")}.`}
+                    </p>
+                  )}
                 </>
               )}
             </div>
@@ -677,13 +828,14 @@ const DocumentCards = memo(function DocumentCards({ documents, submitted, onRemo
  * One group of reviewed fields. Memoized because its inputs come from the debounced
  * extraction and from server state, not from the keystroke in the source textarea.
  */
-const IntelligenceList = memo(function IntelligenceList({ fields, readField, serverDraft, serverEvidence, readings, verification }: {
+const IntelligenceList = memo(function IntelligenceList({ fields, readField, serverDraft, serverEvidence, readings, verification, hasSource }: {
   fields: readonly SmartField[];
   readField: (field: SmartField) => unknown;
   serverDraft: Record<string, unknown> | null;
   serverEvidence: readonly SmartEvidence[];
   readings: readonly LocalFieldReading[];
   verification: Record<string, unknown> | null;
+  hasSource: boolean;
 }) {
   return (
     <dl className="space-y-1">
@@ -696,6 +848,7 @@ const IntelligenceList = memo(function IntelligenceList({ fields, readField, ser
           serverEvidence={serverEvidence}
           readings={readings}
           verification={verification}
+          hasSource={hasSource}
         />
       ))}
     </dl>
@@ -755,13 +908,14 @@ function PipelineStage({ label, state }: { label: string; state: "WAITING" | "RU
  * One Live Intelligence row. Missing supported fields stay visible, and the value is
  * always shown with its validation state, provenance and authority — never a score.
  */
-function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, verification }: {
+function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, verification, hasSource }: {
   field: SmartField;
   value: unknown;
   serverDraft: Record<string, unknown> | null;
   serverEvidence: readonly SmartEvidence[];
   readings: readonly LocalFieldReading[];
   verification: Record<string, unknown> | null;
+  hasSource: boolean;
 }) {
   const reading = readings.find((item) => item.field.key === field.key);
   const text = smartFieldText(value).trim();
@@ -770,6 +924,8 @@ function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, 
 
   let state: SmartFieldState;
   if (reading?.invalid && !serverDraft) state = "CONFLICT";
+  // Before there is any source to interpret, nothing is missing yet — it is awaited.
+  else if (!text && !hasSource && !serverDraft) state = "AWAITING";
   else if (!text) state = "MISSING";
   else if (serverEntry) state = String(serverEntry.authority).toUpperCase() === "MANUAL" ? "MANUAL" : "VERIFIED";
   else if (serverDraft) state = "VERIFIED";
@@ -793,7 +949,7 @@ function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, 
       <dd
         key={text}
         data-value="1"
-        className={`min-w-0 break-words font-mono text-[15px] leading-6 motion-safe:animate-[cg-field-resolve_180ms_ease-out] ${text ? "text-slate-50" : "text-slate-500"}`}
+        className={`min-w-0 break-words font-mono text-[15px] leading-6 motion-safe:animate-[cg-field-resolve_180ms_ease-out] ${field.editor === "notes" ? "whitespace-pre-line" : ""} ${text ? "text-slate-50" : "text-slate-500"}`}
       >{text || "—"}</dd>
       <dd className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span data-state="1" className={`font-mono text-[11px] font-semibold ${smartStateClass(state)}`}>{state}</span>

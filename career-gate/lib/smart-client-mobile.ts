@@ -15,14 +15,16 @@ import {
   pickImportValue,
   prepareImportDraft,
   requiredMissingFromDraft,
+  reviewFieldsFromRowTolerant,
   sourceHash,
 } from "@/lib/smart-client-import-core";
 
 const EVIDENCE_FIELDS = [
-  "full_name", "phone", "email", "date_of_birth", "preferred_language", "street", "city", "state", "zip",
+  "full_name", "first_name", "middle_name", "last_name", "phone", "email", "date_of_birth", "preferred_language", "street", "city", "state", "zip",
   "shift_days", "shift_start_time", "shift_end_time", "appointment_availability", "amazon_worked_before", "amazon_worked_from", "amazon_worked_to", "amazon_applied_before",
   "amazon_application_email", "currently_amazon", "via_agency", "employment_kind", "company", "job_title", "employment_from",
-  "employment_to", "site_code", "job_id", "shift_code", "backup_site_code", "backup_job_id", "backup_shift_code",
+  "employment_to", "site_code", "alt_site_code", "work_location_candidates", "job_id", "shift_code", "backup_site_code", "backup_job_id", "backup_shift_code",
+  "additional_notes",
 ] as const;
 
 type SourceRow = { row: IntakeRow; source: string; documentId: string | null; sourcePage: number | null; confidence?: Record<string, number> };
@@ -73,6 +75,7 @@ function partialDraft(row: IntakeRow, notes: string) {
         amazon_worked_before: null, amazon_worked_from: pickImportValue(row, "amazon_worked_from"), amazon_worked_to: pickImportValue(row, "amazon_worked_to"),
         amazon_applied_before: null, currently_amazon: null, via_agency: null, amazon_application_email: pickImportValue(row, "amazon_application_email"), employment_history: [],
       },
+      review_fields: reviewFieldsFromRowTolerant(row),
       primary: [], backup: [], status: "new_intake", next_step: null, staff_code: null, initial_note: notes || null,
     };
   }
@@ -238,8 +241,12 @@ function applyLinkedClientCorrections(
     ? received.review_fields as Record<string, unknown> : {};
   const reviewFields = { ...beforeReview };
   const reviewSources: Record<string, string> = {
-    preferred_location: "site_code", location_option_1: "site_code", location_option_2: "backup_site_code",
-    shift_days: "shift_days", shift_start_time: "shift_start_time", shift_end_time: "shift_end_time",
+    first_name: "first_name", middle_name: "middle_name", last_name: "last_name",
+    work_location_candidates: "work_location_candidates",
+    preferred_location: "site_code", location_option_1: "alt_site_code", location_option_2: "backup_site_code",
+    preferred_shift: "shift_code", shift_days: "shift_days",
+    shift_start_time: "shift_start_time", shift_end_time: "shift_end_time",
+    additional_notes: "additional_notes",
   };
   for (const [destination, source] of Object.entries(reviewSources)) {
     if (!provided.has(source) || manual.has(source) || manual.has(destination)) continue;

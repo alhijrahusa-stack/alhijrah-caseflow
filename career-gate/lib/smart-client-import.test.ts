@@ -209,13 +209,20 @@ describe("Smart Career Collect Client canonical import contract", () => {
     expect(normalizeShiftDays("Daily")).toEqual(["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]);
   });
 
-  it("carries every one of the 16 approved Smart fields through extraction, staging and evidence", () => {
+  it("carries every one of the 22 approved Smart fields through extraction, staging and evidence", () => {
     expect(Object.keys(REVIEW_FIELD_SOURCE_KEYS)).toEqual([
-      "full_name", "phone", "email", "date_of_birth", "preferred_language", "english_proficiency",
+      "full_name", "phone", "email", "date_of_birth",
+      "first_name", "middle_name", "last_name",
+      "preferred_language", "english_proficiency",
       "street", "city", "state", "zip",
       "preferred_location", "location_option_1", "location_option_2",
-      "shift_days", "shift_start_time", "shift_end_time",
+      "work_location_candidates", "preferred_shift", "shift_days", "shift_start_time", "shift_end_time",
+      "additional_notes",
     ]);
+    // Each reviewed field reads from its own source column; none shares one with another,
+    // so Location Option 1 can never be a second copy of the preferred location.
+    const sources = Object.values(REVIEW_FIELD_SOURCE_KEYS);
+    expect(new Set(sources).size).toBe(sources.length);
 
     const row = {
       full_name: "Test Client",
@@ -228,11 +235,18 @@ describe("Smart Career Collect Client canonical import contract", () => {
       city: "DETROIT",
       state: "MI",
       zip: "48212-3768",
+      first_name: "Test",
+      last_name: "Client",
+      middle_name: "Q",
+      work_location_candidates: "Romulus, Detroit, Dearborn",
       site_code: "Romulus",
+      alt_site_code: "Detroit",
       backup_site_code: "Dearborn",
+      shift_code: "NIGHT",
       shift_days: "Thu-Mon",
       shift_start_time: "6pm",
       shift_end_time: "4:30am",
+      additional_notes: "Has reliable transportation.",
     };
     const draft = prepareImportDraft(row);
     expect(draft.profile.date_of_birth).toBe("1990-03-14");
@@ -240,15 +254,22 @@ describe("Smart Career Collect Client canonical import contract", () => {
     expect(draft.profile.english_proficiency).toBe("GOOD");
     expect(draft.profile.email).toBe("bbelalgv@gmail.com");
     expect(draft.review_fields.preferred_location).toBe("Romulus");
+    expect(draft.review_fields.location_option_1).toBe("Detroit");
     expect(draft.review_fields.location_option_2).toBe("Dearborn");
+    expect(draft.review_fields.preferred_shift).toBe("NIGHT");
+    expect(draft.review_fields.first_name).toBe("Test");
+    expect(draft.review_fields.middle_name).toBe("Q");
+    expect(draft.review_fields.last_name).toBe("Client");
+    expect(draft.review_fields.work_location_candidates).toBe("Romulus, Detroit, Dearborn");
+    expect(draft.review_fields.additional_notes).toBe("Has reliable transportation.");
     expect(draft.review_fields.shift_days).toEqual(["THU", "FRI", "SAT", "SUN", "MON"]);
     expect(draft.review_fields.shift_start_time).toBe("18:00");
     expect(draft.review_fields.shift_end_time).toBe("04:30");
 
     const evidence = sheetEvidence(row, draft, "csv", 2);
     const evidenceFields = new Set<string>(evidence.map((entry) => entry.field_key));
+    // Location Option 1 now has a source column of its own, so no field is exempt.
     for (const field of Object.keys(REVIEW_FIELD_SOURCE_KEYS)) {
-      if (field === "location_option_1") continue;
       expect(evidenceFields.has(field)).toBe(true);
     }
     for (const entry of evidence) {
