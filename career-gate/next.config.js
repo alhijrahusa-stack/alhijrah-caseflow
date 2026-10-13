@@ -19,6 +19,10 @@ const csp = [
 const nextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["sharp"],
+  webpack(config, { isServer }) {
+    if (!isServer) config.resolve.fallback = { ...config.resolve.fallback, fs: false, path: false };
+    return config;
+  },
   async headers() {
     return [
       {
