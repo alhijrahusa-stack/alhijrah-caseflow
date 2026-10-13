@@ -2,7 +2,7 @@
  * PP-OCRv5 browser inference. No document leaves the employee's browser for OCR.
  * The model runtime/assets are downloaded on first use; callers display progress.
  */
-type BrowserOCR = Awaited<ReturnType<typeof import("@paddleocr/paddleocr-js")["PaddleOCR"]["create"]>>;
+type BrowserOCR = { predict(input: File): Promise<Array<{ items?: Array<{ text?: string; score?: number }> }>> };
 let instance: Promise<BrowserOCR> | null = null;
 
 type Line = { text: string; score: number };
@@ -11,8 +11,8 @@ export type BrowserOcrResult = { candidates: OCRCandidate[]; recognizedCount: nu
 
 function getEngine(): Promise<BrowserOCR> {
   if (!instance) {
-    instance = import("@paddleocr/paddleocr-js").then(({ PaddleOCR }) =>
-      PaddleOCR.create({ lang: "en", ocrVersion: "PP-OCRv5", ortOptions: { backend: "auto" } }));
+    instance = import(/* webpackIgnore: true */ "/paddleocr/index.mjs").then((module: { PaddleOCR: { create(config: object): Promise<BrowserOCR> } }) =>
+      module.PaddleOCR.create({ lang: "en", ocrVersion: "PP-OCRv5", ortOptions: { backend: "auto" } }));
     instance.catch(() => { instance = null; });
   }
   return instance;
