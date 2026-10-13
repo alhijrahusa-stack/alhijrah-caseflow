@@ -1,5 +1,5 @@
 import type { IntakeRow } from "@/lib/intake-file";
-import { normalizeSmartDate } from "@/lib/smart-client-fields";
+import { normalizeShiftDays, normalizeShiftTime, normalizeSmartDate } from "@/lib/smart-client-fields";
 
 export type LocalStrength = "HIGH" | "MEDIUM" | "REVIEW";
 export type LocalEvidence = {
@@ -24,8 +24,8 @@ const DATE_TOKEN_RE = /\b(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/
 const US_CITY_STATE_ZIP_RE = /^\s*([A-Za-z .'-]{2,}),?\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/i;
 const STREET_RE = /^\s*\d{1,6}\s+[A-Za-z0-9 .#'/-]{2,}(?:\b(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PKWY|PARKWAY|HWY|HIGHWAY|WAY|PL|PLACE|TER|TERRACE|CIR|CIRCLE)\b.*)$/i;
 const URL_RE = /(?:https?:\/\/|www\.|wa\.me\/)/i;
-const NON_NAME_TERMS_RE = /\b(?:night|morning|evening|afternoon|available|availability|english|arabic|spanish|yes|no|true|false|amazon|warehouse|shift|site|job|client|customer|application|resume|passport|license|address|street|city|state|zip|phone|email)\b/i;
-const LABEL_PREFIX_RE = /^(?:full\s*name|name|client\s*name|phone|mobile|cell|telephone|email|e-mail|dob|date\s*of\s*birth|birth\s*date|street|address|street\s*address|city|state|zip|zip\s*code|postal\s*code|preferred\s*language|language|english\s*(?:proficiency|level)|appointment\s*availability|availability|available|site|site\s*code|preferred\s*location|location|job|job\s*id|amazon\s*job\s*id|shift|desired\s*shift|shift\s*days|shift\s*start|shift\s*end|backup\s*site|backup\s*location|backup\s*job\s*id|backup\s*shift|amazon\s*application\s*email|amazon\s*worked\s*before|amazon\s*applied\s*before|currently\s*amazon|via\s*agency|company|employer|job\s*title|employment\s*from|employment\s*to|employment\s*kind|notes?|الاسم|الاسم\s*الكامل|رقم\s*الهاتف|الهاتف|البريد|البريد\s*الإلكتروني|ايميل|إيميل|تاريخ\s*الميلاد|العنوان|المدينة|الولاية|الرمز\s*البريدي|اللغة|مستوى\s*الإنجليزية|مستوى\s*الانجليزية|المواعيد|موعد|الموقع|الشفت|الوردية|أيام\s*الشفت|ايام\s*الشفت|بداية\s*الشفت|نهاية\s*الشفت)\b/i;
+const NON_NAME_TERMS_RE = /\b(?:night|morning|evening|afternoon|available|availability|english|arabic|spanish|yes|no|true|false|amazon|warehouse|shift|site|job|client|customer|application|resume|passport|license|address|street|city|state|zip|phone|email|has|have|had|is|are|was|were|the|and|or|with|without|his|her|their|needs|wants|prefers|lives|works|speaks|drives|owns|own|reliable|transportation|vehicle|car)\b/i;
+const LABEL_PREFIX_RE = /^(?:full\s*name|name|client\s*name|phone|mobile|cell|telephone|email|e-mail|dob|date\s*of\s*birth|birth\s*date|street|address|street\s*address|city|state|zip|zip\s*code|postal\s*code|preferred\s*language|language|english\s*(?:proficiency|level)|appointment\s*availability|availability|available|site|site\s*code|preferred\s*location|location|job|job\s*id|amazon\s*job\s*id|shift|desired\s*shift|shift\s*days|shift\s*start|shift\s*end|backup\s*site|backup\s*location|backup\s*job\s*id|backup\s*shift|amazon\s*application\s*email|amazon\s*worked\s*before|amazon\s*applied\s*before|currently\s*amazon|via\s*agency|company|employer|job\s*title|employment\s*from|employment\s*to|employment\s*kind|notes?|additional\s*notes?|additional\s*note|extra\s*notes?|other\s*details|الاسم|الاسم\s*الكامل|رقم\s*الهاتف|الهاتف|البريد|البريد\s*الإلكتروني|ايميل|إيميل|تاريخ\s*الميلاد|العنوان|المدينة|الولاية|الرمز\s*البريدي|اللغة|مستوى\s*الإنجليزية|مستوى\s*الانجليزية|المواعيد|موعد|الموقع|الشفت|الوردية|أيام\s*الشفت|ايام\s*الشفت|بداية\s*الشفت|نهاية\s*الشفت|ملاحظات\s*إضافية|ملاحظات\s*اضافية)\b/i;
 
 function clean(value: string) {
   return value.replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/\s+/g, " ").trim();
@@ -66,6 +66,8 @@ function scoreNameCandidate(line: string, index: number) {
   if (STREET_RE.test(candidate) || US_CITY_STATE_ZIP_RE.test(candidate) || URL_RE.test(candidate)) return -1;
   if (LABEL_PREFIX_RE.test(candidate) || NON_NAME_TERMS_RE.test(candidate)) return -1;
   if (/[:=@]/.test(candidate) || /\d/.test(candidate)) return -1;
+  // A trailing period after a lowercase letter is sentence punctuation, not an initial.
+  if (/[\p{Ll}]\.$/u.test(candidate)) return -1;
   if (!/^[\p{L} .'-]+$/u.test(candidate)) return -1;
 
   const tokens = candidate.split(/\s+/).filter(Boolean);
@@ -142,6 +144,233 @@ function firstMatch(lines: string[], re: RegExp) {
   return null;
 }
 
+/* ------------------------------------------------------------------------- *
+ * Universal source understanding.
+ *
+ * Everything below is deterministic and additive. Each pass runs AFTER the
+ * labeled passes and writes through `add()`, which refuses to overwrite a value
+ * that is already present — so an explicit label, a user confirmation or a staff
+ * correction always outranks an inference made here. No pass invents a value: it
+ * either matches its shape exactly or writes nothing.
+ * ------------------------------------------------------------------------- */
+
+/** Day names longest-first so `wednesday` is never truncated to `wed`. */
+const SOURCE_NOTE_LIMIT = 2000;
+
+const DAY_WORD = "sunday|saturday|thursday|wednesday|tuesday|monday|friday|thurs|thur|tues|sun|mon|tue|wed|thu|fri|sat";
+const DAY_RANGE_RE = new RegExp(`\\b(?:${DAY_WORD})\\s*(?:-|–|—|through|thru|to|till|until)\\s*(?:${DAY_WORD})\\b`, "i");
+const DAY_LIST_RE = new RegExp(`\\b(?:${DAY_WORD})\\b(?:\\s*(?:,|/|&|\\+|and)\\s*\\b(?:${DAY_WORD})\\b)+`, "i");
+const DAY_GROUP_RE = /\b(?:weekdays?|weekends?|daily|every\s*day|all\s*days)\b/i;
+const DAY_ONLY_RE = new RegExp(`^(?:${DAY_WORD})$`, "i");
+
+/**
+ * A clock reading: a 12-hour time carrying a meridiem, or an explicit HH:MM.
+ * Bare integers are deliberately excluded, so `12-12-1977` and `48212-3678`
+ * can never be read as a time range.
+ */
+const CLOCK = String.raw`\d{1,2}(?::\d{2})?\s*[ap]\.?\s?m\.?|\d{1,2}:\d{2}`;
+const TIME_RANGE_RE = new RegExp(`(${CLOCK})\\s*(?:-|–|—|to|till|until|through|thru)\\s*(${CLOCK})`, "i");
+
+/** Shift vocabulary. `day` is only read as a shift when it is written as a shift. */
+const SHIFT_WORD_RE = /\b(?:mornings?|afternoons?|evenings?|nights?|overnight|graveyard|daytime|day\s*shift)\b/i;
+const SHIFT_WORD_CANON: readonly { test: RegExp; value: string }[] = [
+  { test: /\b(?:overnight|graveyard|nights?)\b/i, value: "NIGHT" },
+  { test: /\bmornings?\b/i, value: "MORNING" },
+  { test: /\bafternoons?\b/i, value: "AFTERNOON" },
+  { test: /\bevenings?\b/i, value: "EVENING" },
+  { test: /\b(?:daytime|day\s*shift)\b/i, value: "DAY" },
+];
+const SHIFT_WORD_AR: readonly { token: string; value: string }[] = [
+  { token: "بعد الظهر", value: "AFTERNOON" },
+  { token: "الليلي", value: "NIGHT" },
+  { token: "ليلي", value: "NIGHT" },
+  { token: "ليلا", value: "NIGHT" },
+  { token: "الصباحي", value: "MORNING" },
+  { token: "صباحي", value: "MORNING" },
+  { token: "المسائي", value: "EVENING" },
+  { token: "مسائي", value: "EVENING" },
+  { token: "النهاري", value: "DAY" },
+  { token: "نهاري", value: "DAY" },
+];
+
+/** A line that talks about where the applicant wants to work. */
+const WORK_CUE_RE = /\b(?:prefer|prefers|preferred|preference|work|working|worksite|location|locations|site|sites|warehouse|warehouses|branch|branches|assignment|placement|facility|facilities)\b/i;
+const WORK_CUE_AR = ["يفضل", "يفضّل", "العمل", "عمل", "الموقع", "المواقع", "الفرع", "الفروع"];
+/** Cue wording carried alongside a place name, removed before the name is read. */
+const WORK_CUE_TAIL_RE = /\s*\b(?:is|are|as|for|only|also|the)?\s*\b(?:prefer|prefers|preferred|preference|work|working|worksite|location|locations|site|sites|warehouse|warehouses|branch|branches|assignment|placement|facility|facilities|please)\b.*$/i;
+/** Words that are never a place name, however the line is punctuated. */
+const NOT_A_PLACE_RE = new RegExp(
+  `^(?:${DAY_WORD}|mornings?|afternoons?|evenings?|nights?|overnight|graveyard|daytime|shift|shifts|weekdays?|weekends?|daily|yes|no|any|anywhere|all|none|same|english|arabic|spanish|male|female|available|availability|asap|car|transportation)$`,
+  "i",
+);
+
+/**
+ * A full US address written on one line. The street suffix anchors the split, so
+ * the city is never taken from the street and the ZIP is never taken from a
+ * house number. A comma is accepted but not required.
+ */
+const INLINE_US_ADDRESS_RE = new RegExp(
+  String.raw`(\d{1,6}\s+[A-Za-z0-9 .#'/-]{2,}?\b(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PKWY|PARKWAY|HWY|HIGHWAY|WAY|PL|PLACE|TER|TERRACE|CIR|CIRCLE)\b(?:\s*,?\s*(?:APT|APARTMENT|UNIT|STE|SUITE|RM|ROOM|#)\s*[A-Za-z0-9-]+)?)\s*,?\s+([A-Za-z][A-Za-z .'-]{1,60}?)\s*,?\s+([A-Za-z]{2})\s*,?\s+(\d{5}(?:-\d{4})?)\b`,
+  "i",
+);
+
+type InlineAddress = { street: string; city: string; state: string; zip: string };
+
+/** The first line that carries a complete single-line US address. */
+function inlineUsAddress(lines: readonly string[]): InlineAddress | null {
+  for (const line of lines) {
+    if (US_CITY_STATE_ZIP_RE.test(line)) continue;
+    const match = line.match(INLINE_US_ADDRESS_RE);
+    if (!match) continue;
+    return {
+      street: clean(match[1]).replace(/,\s*$/, ""),
+      city: clean(match[2]),
+      state: match[3].toUpperCase(),
+      zip: match[4],
+    };
+  }
+  return null;
+}
+
+/** True when a line's content belongs to a different, already-handled shape. */
+function structuralLine(line: string) {
+  return EMAIL_RE.test(line) || PHONE_RE.test(line) || ZIP_RE.test(line)
+    || STREET_RE.test(line) || US_CITY_STATE_ZIP_RE.test(line) || URL_RE.test(line);
+}
+
+/** True when the row already holds a non-empty value for a key. */
+function hasValue(row: IntakeRow, field: string) {
+  const value = row[field];
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+/** Canonical shift type read from free text, or null when the text does not say. */
+function readShiftType(line: string): string | null {
+  if (SHIFT_WORD_RE.test(line)) {
+    for (const entry of SHIFT_WORD_CANON) {
+      if (entry.test.test(line)) return entry.value;
+    }
+  }
+  for (const entry of SHIFT_WORD_AR) {
+    if (line.includes(entry.token)) return entry.value;
+  }
+  return null;
+}
+
+/** Canonical day codes read from free text, as a comma-joined string. */
+function readShiftDays(line: string): string | null {
+  const span = line.match(DAY_RANGE_RE)?.[0] ?? line.match(DAY_LIST_RE)?.[0] ?? line.match(DAY_GROUP_RE)?.[0] ?? null;
+  if (!span) return null;
+  const days = normalizeShiftDays(span.replace(/\s*,\s*/g, ","));
+  return days?.length ? days.join(", ") : null;
+}
+
+/** Canonical start and end of a written time range, overnight ranges included. */
+function readTimeRange(line: string): { start: string; end: string } | null {
+  const match = line.match(TIME_RANGE_RE);
+  if (!match) return null;
+  const start = normalizeShiftTime(match[1].replace(/[.\s]/g, ""));
+  const end = normalizeShiftTime(match[2].replace(/[.\s]/g, ""));
+  return start && end ? { start, end } : null;
+}
+
+/** One place name, or null when the fragment is not one. */
+function placeToken(fragment: string): string | null {
+  const stripped = clean(fragment)
+    .replace(/^(?:and|or|&|also)\s+/i, "")
+    .replace(WORK_CUE_TAIL_RE, "");
+  const value = clean(stripped).replace(/[.,;:]+$/, "");
+  if (value.length < 3 || value.length > 40) return null;
+  if (!/^[\p{L}][\p{L} .'-]*$/u.test(value)) return null;
+  if (NOT_A_PLACE_RE.test(value) || DAY_ONLY_RE.test(value)) return null;
+  if (LABEL_PREFIX_RE.test(value)) return null;
+  return value;
+}
+
+/** Work-location preferences read from a line, in the order the line states them. */
+function readWorkLocations(line: string): string[] {
+  const hasCue = WORK_CUE_RE.test(line) || WORK_CUE_AR.some((token) => line.includes(token));
+  if (!hasCue) return [];
+  const body = line.replace(/^[^:：]{0,48}[:：]\s*/, "");
+  const fragments = body.split(/\s*(?:,|\/|\||؛|;|&|\bor\b|\band\b|\bو\b)\s*/i);
+  const seen = new Set<string>();
+  const places: string[] = [];
+  for (const fragment of fragments) {
+    const place = placeToken(fragment);
+    if (!place) continue;
+    const key = place.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    places.push(place);
+  }
+  return places;
+}
+
+/**
+ * Glue, cue and vocabulary words. On their own they carry no client detail, so a
+ * line that holds nothing else once its classified content is removed is fully
+ * accounted for.
+ */
+const RESIDUE_STOP_RE = new RegExp(
+  `^(?:${DAY_WORD}|mornings?|afternoons?|evenings?|nights?|overnight|graveyard|daytime|shifts?|days?|times?|hours?`
+  + `|weekdays?|weekends?|daily|every|all|prefer|prefers|preferred|preference|wants?|needs?|works?|working|worksite`
+  + `|locations?|sites?|warehouses?|branch|branches|assignment|placement|facility|facilities|please|only|also|the|and|or`
+  + `|is|are|was|were|has|have|had|his|her|their|for|from|with|into|onto|at|in|on|to|of|a|an|am|pm|client|applicant|new)$`,
+  "i",
+);
+
+/**
+ * The part of a line that no pass accounted for.
+ *
+ * Classified values and matched shapes are removed, and what remains is checked for
+ * a token that actually carries client detail. Returns true when the line still says
+ * something the engine did not read into a field.
+ */
+function carriesUnreadDetail(line: string, captured: readonly string[]) {
+  let remainder = line
+    .replace(LABEL_PREFIX_RE, " ")
+    .replace(new RegExp(DAY_RANGE_RE.source, "gi"), " ")
+    .replace(new RegExp(DAY_LIST_RE.source, "gi"), " ")
+    .replace(new RegExp(DAY_GROUP_RE.source, "gi"), " ")
+    .replace(new RegExp(TIME_RANGE_RE.source, "gi"), " ")
+    .replace(new RegExp(SHIFT_WORD_RE.source, "gi"), " ");
+  for (const entry of SHIFT_WORD_AR) remainder = remainder.split(entry.token).join(" ");
+  for (const value of captured) {
+    if (!value) continue;
+    remainder = remainder.replace(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), " ");
+  }
+  return remainder
+    .split(/[\s,;:.|/\\()[\]{}"'!?]+/u)
+    .map((token) => token.trim())
+    .some((token) => token.length >= 3 && !RESIDUE_STOP_RE.test(token) && !/^\d+$/.test(token));
+}
+
+/**
+ * Source detail no pass accounted for, preserved verbatim so that something the
+ * engine could not classify still reaches the reviewer instead of being dropped.
+ * A line is kept whole — it is the client's own wording — but only when it still
+ * carries detail after its classified content is set aside, so notes never restate
+ * a value that already has a field.
+ */
+function residualSource(lines: readonly string[], row: IntakeRow, alsoCaptured: readonly (string | null)[] = []): string | null {
+  const captured = [...Object.values(row), ...alsoCaptured]
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter((value) => value.length >= 3);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const line of lines) {
+    const value = clean(line);
+    if (value.length < 3 || structuralLine(value) || DATE_TOKEN_RE.test(value)) continue;
+    // A consumed line is still read for leftovers: a pass may have taken only part of it.
+    if (!carriesUnreadDetail(value, captured)) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out.length ? out.join("\n").slice(0, SOURCE_NOTE_LIMIT) : null;
+}
+
 export function extractDeterministicClient(raw: string): LocalExtraction {
   const text = raw.replace(/\r/g, "\n").trim();
   const lines = explodeSource(text);
@@ -166,16 +395,20 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
   const dob = dobRaw ? normalizeSmartDate(dobRaw.match(DATE_TOKEN_RE)?.[0] ?? dobRaw) : uniqueDateFromText(lines);
   add(row, evidence, "date_of_birth", dob, dobRaw && dob ? "HIGH" : dob ? "MEDIUM" : "REVIEW", dobRaw ?? dob);
 
+  // A complete address written on one line is split here, before the street scan,
+  // because the street pattern would otherwise swallow the city, state and ZIP.
+  const inline = inlineUsAddress(lines);
+
   const streetLabeled = labeled(lines, ["street", "address", "street address", "home address", "العنوان"]);
-  const street = streetLabeled ?? lines.find((line) => STREET_RE.test(line)) ?? null;
+  const street = streetLabeled ?? inline?.street ?? lines.find((line) => STREET_RE.test(line)) ?? null;
   add(row, evidence, "street", street ? clean(street) : null, streetLabeled ? "HIGH" : street ? "MEDIUM" : "REVIEW", street);
 
   const cityLabeled = labeled(lines, ["city", "المدينة"]);
   const stateLabeled = labeled(lines, ["state", "الولاية"]);
   const zipLabeled = labeled(lines, ["zip", "zip code", "postal code", "الرمز البريدي"]);
-  let city = cityLabeled;
-  let state = stateLabeled?.toUpperCase() ?? null;
-  let zip = zipLabeled?.match(ZIP_RE)?.[0] ?? null;
+  let city = cityLabeled ?? inline?.city ?? null;
+  let state = (stateLabeled ?? inline?.state ?? null)?.toUpperCase() ?? null;
+  let zip = zipLabeled?.match(ZIP_RE)?.[0] ?? inline?.zip ?? null;
   if (!city || !state || !zip) {
     const cityLine = lines.map((line) => line.match(US_CITY_STATE_ZIP_RE)).find(Boolean) as RegExpMatchArray | undefined;
     if (cityLine) {
@@ -212,9 +445,55 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
   add(row, evidence, "shift_days", labeled(lines, ["shift days", "work days", "schedule days", "أيام الشفت", "ايام الشفت"]), "REVIEW", null);
   add(row, evidence, "shift_start_time", labeled(lines, ["shift start", "shift start time", "start time", "بداية الشفت"]), "REVIEW", null);
   add(row, evidence, "shift_end_time", labeled(lines, ["shift end", "shift end time", "end time", "نهاية الشفت"]), "REVIEW", null);
+  add(row, evidence, "alt_site_code", labeled(lines, ["location option 1", "alt site", "alt site code", "alternate location", "alternate site", "second location", "second site", "الموقع البديل"]), "HIGH", null);
   add(row, evidence, "backup_site_code", labeled(lines, ["backup site", "backup location", "location option 2"]), "REVIEW", null);
+  // Read first so a labelled note always outranks the residue appended below.
+  const labeledNotes = labeled(lines, ["additional notes", "additional note", "extra notes", "other details", "ملاحظات إضافية", "ملاحظات اضافية"]);
   add(row, evidence, "backup_job_id", labeled(lines, ["backup job id", "job option 2"]), "REVIEW", null);
   add(row, evidence, "backup_shift_code", labeled(lines, ["backup shift", "shift option 2"]), "REVIEW", null);
+
+  // Unlabeled operational detail, read by shape. Every write goes through `add()`,
+  // so a labeled value captured above is never replaced by an inference here.
+  for (const line of lines) {
+    if (structuralLine(line)) continue;
+
+    const days = readShiftDays(line);
+    if (days && !hasValue(row, "shift_days")) {
+      add(row, evidence, "shift_days", days, "MEDIUM", line);
+    }
+
+    const range = readTimeRange(line);
+    if (range && !hasValue(row, "shift_start_time") && !hasValue(row, "shift_end_time")) {
+      add(row, evidence, "shift_start_time", range.start, "MEDIUM", line);
+      add(row, evidence, "shift_end_time", range.end, "MEDIUM", line);
+    }
+
+    const shiftType = readShiftType(line);
+    if (shiftType && !hasValue(row, "shift_code")) {
+      add(row, evidence, "shift_code", shiftType, "MEDIUM", line);
+    }
+
+    const places = readWorkLocations(line);
+    if (places.length >= 2) {
+      const open = (["site_code", "alt_site_code", "backup_site_code"] as const).filter((key) => !hasValue(row, key));
+      for (const [slot, key] of open.entries()) {
+        const place = places[slot];
+        if (!place) break;
+        add(row, evidence, key, place, "MEDIUM", line);
+      }
+    } else if (places.length === 1 && !hasValue(row, "site_code")) {
+      add(row, evidence, "site_code", places[0], "MEDIUM", line);
+    }
+  }
+
+  // Anything left unclassified is preserved verbatim rather than discarded. A labelled
+  // note keeps its wording and position; residue is appended after it, never merged
+  // into it and never dropped.
+  const residue = residualSource(lines, row, [labeledNotes]);
+  const notes = [labeledNotes, residue]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join("\n");
+  add(row, evidence, "additional_notes", notes || null, labeledNotes ? "HIGH" : "MEDIUM", labeledNotes);
 
   return { row, evidence, display_name: typeof row.full_name === "string" && row.full_name.trim() ? row.full_name.trim() : null };
 }

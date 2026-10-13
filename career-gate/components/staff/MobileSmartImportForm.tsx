@@ -26,6 +26,7 @@ import {
   type QueuedDocument,
 } from "@/components/staff/smart/document-queue";
 import { DocumentIcon, PreviewIcon, RemoveIcon, VolumeOffIcon, VolumeOnIcon } from "@/components/staff/smart/icons";
+import { VoiceDictation } from "@/components/staff/smart/VoiceDictation";
 import {
   localDisplayValue,
   localProvenance,
@@ -227,6 +228,16 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     try { window.localStorage.setItem(AUDIO_PREF_KEY, next ? "on" : "off"); } catch { /* storage unavailable */ }
     if (next) void ensureAudioContext();
   }
+
+  /** Appends reviewed text to the source, preserving whatever is already there. */
+  const appendSource = useCallback((text: string) => {
+    const addition = text.trim();
+    if (!addition) return;
+    setNotes((current) => {
+      const joined = current.trim() ? `${current.replace(/\s+$/, "")}\n${addition}` : addition;
+      return joined.slice(0, MAX_SOURCE_LENGTH);
+    });
+  }, []);
 
   function addFiles(list: FileList | null) {
     if (!list?.length || busy || submitted) return;
@@ -504,6 +515,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                   {sourceSettling ? "Reading source…" : notes.trim() ? "Source scanned locally" : "Awaiting source"}
                 </span>
               </div>
+              <VoiceDictation disabled={busy || submitted} onInsert={appendSource} />
             </section>
 
             {/* Job preferences: the reviewed job-preference group, shown here as captured.
@@ -513,7 +525,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
               <PanelTitle id="smart-job-preferences" number="03" title="JOB PREFERENCES" meta={serverDraft ? "SERVER AUTHORITATIVE" : "AS CAPTURED"} />
               <p className="mt-2 text-xs leading-5 text-slate-400">Captured job preferences and English proficiency. Edit them with manual authority in Smart Review after the file is staged.</p>
               <div className="mt-3">
-                <IntelligenceList fields={JOB_PREFERENCE_FIELDS} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} />
+                <IntelligenceList fields={JOB_PREFERENCE_FIELDS} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} hasSource={hasSource} />
               </div>
             </section>
           </div>
@@ -530,7 +542,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                       <h3 className="text-[12px] font-semibold tracking-[.16em] text-[#e3c884]">{group.title}</h3>
                       <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-[#b8934a]/20 to-transparent" />
                     </div>
-                    <IntelligenceList fields={group.fields} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} />
+                    <IntelligenceList fields={group.fields} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} hasSource={hasSource} />
                   </div>
                 ))}
               </div>
@@ -677,13 +689,14 @@ const DocumentCards = memo(function DocumentCards({ documents, submitted, onRemo
  * One group of reviewed fields. Memoized because its inputs come from the debounced
  * extraction and from server state, not from the keystroke in the source textarea.
  */
-const IntelligenceList = memo(function IntelligenceList({ fields, readField, serverDraft, serverEvidence, readings, verification }: {
+const IntelligenceList = memo(function IntelligenceList({ fields, readField, serverDraft, serverEvidence, readings, verification, hasSource }: {
   fields: readonly SmartField[];
   readField: (field: SmartField) => unknown;
   serverDraft: Record<string, unknown> | null;
   serverEvidence: readonly SmartEvidence[];
   readings: readonly LocalFieldReading[];
   verification: Record<string, unknown> | null;
+  hasSource: boolean;
 }) {
   return (
     <dl className="space-y-1">
@@ -696,6 +709,7 @@ const IntelligenceList = memo(function IntelligenceList({ fields, readField, ser
           serverEvidence={serverEvidence}
           readings={readings}
           verification={verification}
+          hasSource={hasSource}
         />
       ))}
     </dl>
@@ -755,13 +769,14 @@ function PipelineStage({ label, state }: { label: string; state: "WAITING" | "RU
  * One Live Intelligence row. Missing supported fields stay visible, and the value is
  * always shown with its validation state, provenance and authority — never a score.
  */
-function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, verification }: {
+function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, verification, hasSource }: {
   field: SmartField;
   value: unknown;
   serverDraft: Record<string, unknown> | null;
   serverEvidence: readonly SmartEvidence[];
   readings: readonly LocalFieldReading[];
   verification: Record<string, unknown> | null;
+  hasSource: boolean;
 }) {
   const reading = readings.find((item) => item.field.key === field.key);
   const text = smartFieldText(value).trim();
@@ -770,6 +785,8 @@ function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, 
 
   let state: SmartFieldState;
   if (reading?.invalid && !serverDraft) state = "CONFLICT";
+  // Before there is any source to interpret, nothing is missing yet — it is awaited.
+  else if (!text && !hasSource && !serverDraft) state = "AWAITING";
   else if (!text) state = "MISSING";
   else if (serverEntry) state = String(serverEntry.authority).toUpperCase() === "MANUAL" ? "MANUAL" : "VERIFIED";
   else if (serverDraft) state = "VERIFIED";
@@ -793,7 +810,7 @@ function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, 
       <dd
         key={text}
         data-value="1"
-        className={`min-w-0 break-words font-mono text-[15px] leading-6 motion-safe:animate-[cg-field-resolve_180ms_ease-out] ${text ? "text-slate-50" : "text-slate-500"}`}
+        className={`min-w-0 break-words font-mono text-[15px] leading-6 motion-safe:animate-[cg-field-resolve_180ms_ease-out] ${field.editor === "notes" ? "whitespace-pre-line" : ""} ${text ? "text-slate-50" : "text-slate-500"}`}
       >{text || "—"}</dd>
       <dd className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span data-state="1" className={`font-mono text-[11px] font-semibold ${smartStateClass(state)}`}>{state}</span>

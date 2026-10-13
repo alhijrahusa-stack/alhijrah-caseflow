@@ -143,7 +143,31 @@ describe("client corrections take precedence over the detected source", () => {
     expect([...CLIENT_EDITABLE_FIELDS]).toEqual([
       "full_name", "phone", "email", "date_of_birth", "street",
       "city", "state", "zip", "preferred_language", "english_proficiency",
-      "site_code", "backup_site_code", "shift_code", "shift_days", "shift_start_time", "shift_end_time",
+      "site_code", "alt_site_code", "backup_site_code", "shift_code", "shift_days", "shift_start_time", "shift_end_time",
+      "additional_notes",
     ]);
+  });
+
+  it("composes every client-editable field under a label the parser reads back", () => {
+    const edits = Object.fromEntries(CLIENT_EDITABLE_FIELDS.map((field) => [field, "x"]));
+    const composed = composeIntakeSource("", edits);
+    // One labelled line per field, and no field silently dropped on the way out.
+    expect(composed.split("\n")).toHaveLength(CLIENT_EDITABLE_FIELDS.length);
+  });
+
+  it("round-trips a client's second location and notes through the deterministic parser", () => {
+    const composed = composeIntakeSource("Has reliable transportation.", {
+      site_code: "Detroit",
+      alt_site_code: "Romulus",
+      backup_site_code: "Pontiac",
+      additional_notes: "Needs an evening appointment.",
+    });
+    const { row } = extractDeterministicClient(composed);
+    expect(row.site_code).toBe("Detroit");
+    expect(row.alt_site_code).toBe("Romulus");
+    expect(row.backup_site_code).toBe("Pontiac");
+    // The client's own note keeps its wording, and the free text is still preserved.
+    expect(String(row.additional_notes)).toContain("Needs an evening appointment.");
+    expect(String(row.additional_notes)).toContain("Has reliable transportation.");
   });
 });

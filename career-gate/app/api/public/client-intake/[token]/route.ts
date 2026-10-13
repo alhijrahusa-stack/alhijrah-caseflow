@@ -3,6 +3,7 @@ import { traceIdFrom } from "@/lib/obs";
 import { ActionError } from "@/lib/service";
 import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
 import { findPublicDuplicate } from "@/lib/public-intake-duplicate";
+import { clientEditMaxLength } from "@/lib/client-intake-fields";
 import {
   CLIENT_EDITABLE_FIELDS,
   claimIntakeLink,
@@ -31,14 +32,13 @@ export const maxDuration = 60;
  * The raw token is never logged. It appears only in the request path.
  */
 
-const MAX_EDIT_LENGTH = 200;
-
 function readEdits(form: FormData): Partial<Record<ClientEditableField, string>> {
   const edits: Partial<Record<ClientEditableField, string>> = {};
   for (const field of CLIENT_EDITABLE_FIELDS) {
     const raw = form.get(`field_${field}`);
     if (typeof raw !== "string") continue;
-    const value = raw.trim().slice(0, MAX_EDIT_LENGTH);
+    // Per-field cap, identical to the one the browser types against.
+    const value = raw.trim().slice(0, clientEditMaxLength(field));
     if (value) edits[field] = value;
   }
   return edits;

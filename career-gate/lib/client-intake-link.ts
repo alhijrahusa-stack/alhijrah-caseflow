@@ -298,11 +298,13 @@ const CANONICAL_LABEL: Record<ClientEditableField, string> = {
   preferred_language: "Preferred Language",
   english_proficiency: "English Proficiency",
   site_code: "Preferred Location",
+  alt_site_code: "Location Option 1",
   backup_site_code: "Backup Site",
   shift_code: "Shift",
   shift_days: "Shift Days",
   shift_start_time: "Shift Start Time",
   shift_end_time: "Shift End Time",
+  additional_notes: "Additional Notes",
 };
 
 /**

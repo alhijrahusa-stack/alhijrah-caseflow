@@ -58,7 +58,7 @@ test.describe("Smart Client Import experience", () => {
     await expect(page.getByText(/25\.00 MB total/).first()).toBeVisible();
   });
 
-  test("shows every one of the sixteen fields with value, state, provenance and authority, and never infers a preferred language from English ability", async ({ page }) => {
+  test("shows every one of the eighteen fields with value, state, provenance and authority, and never infers a preferred language from English ability", async ({ page }) => {
     await page.goto("/staff/smart-client-import/new");
     await page.locator("#smart-source-text").fill([
       "Full Name: TEST Intelligence Client",
@@ -89,7 +89,7 @@ test.describe("Smart Client Import experience", () => {
     const authority = (key: string) => field(key).locator("[data-authority]");
 
     // Every one of the sixteen canonical fields is present exactly once as a name/value pair.
-    for (const key of ["full_name","phone","email","date_of_birth","street","city","state","zip","preferred_language","english_proficiency","preferred_location","location_option_1","location_option_2","shift_days","shift_start_time","shift_end_time"]) {
+    for (const key of ["full_name","phone","email","date_of_birth","street","city","state","zip","preferred_language","english_proficiency","preferred_location","location_option_1","location_option_2","preferred_shift","shift_days","shift_start_time","shift_end_time","additional_notes"]) {
       await expect(field(key)).toHaveCount(1);
     }
 
@@ -102,6 +102,8 @@ test.describe("Smart Client Import experience", () => {
     await expect(value("city")).toHaveText("DEARBORN");
     await expect(value("preferred_location")).toHaveText("Romulus");
     await expect(value("location_option_1")).toHaveText("—");
+    // "Romulus night shift" states one location and the shift type, and nothing else.
+    await expect(value("preferred_shift")).toHaveText("NIGHT");
 
     // Canonical readings, each labelled with where the value came from.
     await expect(value("date_of_birth")).toHaveText("1990-03-14");
@@ -115,6 +117,59 @@ test.describe("Smart Client Import experience", () => {
 
     // Readiness is an exact count, never a percentage.
     await expect(intelligence.getByText("2 / 2 REQUIRED FIELDS")).toBeVisible();
+    await expect(page.getByText(/\d%/)).toHaveCount(0);
+  });
+
+  test("awaits a source instead of reporting every field missing", async ({ page }) => {
+    await page.goto("/staff/smart-client-import/new");
+    const state = (key: string) => page.locator(`[data-field="${key}"] [data-state]`);
+    // Before there is anything to interpret, no field is reported as missing.
+    for (const key of ["full_name", "city", "preferred_shift", "additional_notes"]) {
+      await expect(state(key)).toHaveText("AWAITING");
+    }
+    await page.locator("#smart-source-text").fill("Full Name: TEST Awaiting Client\nPhone: 313-555-0145");
+    await expect(state("full_name")).not.toHaveText("AWAITING");
+    await expect(state("city")).toHaveText("MISSING");
+  });
+
+  test("classifies one unstructured block into every field, in any order, losing nothing", async ({ page }) => {
+    await page.goto("/staff/smart-client-import/new");
+    // Deliberately unordered and unlabelled, exactly as a client writes it.
+    await page.locator("#smart-source-text").fill([
+      "6:00 PM to 4:30 AM",
+      "Has reliable transportation.",
+      "Night shift",
+      "ahmed.parse@example.com",
+      "Detroit, Romulus, Pontiac preferred for work",
+      "Phone: 313-555-0146",
+      "Friday-Monday",
+      "7401 Winthrop St, Detroit, MI 48228",
+      "DOB: 05/14/1995",
+      "Ahmed Parse Mohammed",
+    ].join("\n"));
+
+    const value = (key: string) => page.locator(`[data-field="${key}"] [data-value]`);
+    await expect(value("full_name")).toHaveText("Ahmed Parse Mohammed");
+    await expect(value("date_of_birth")).toHaveText("1995-05-14");
+    await expect(value("email")).toHaveText("ahmed.parse@example.com");
+    // One line of address becomes four separate fields.
+    await expect(value("street")).toHaveText("7401 Winthrop St");
+    await expect(value("city")).toHaveText("Detroit");
+    await expect(value("state")).toHaveText("MI");
+    await expect(value("zip")).toHaveText("48228");
+    // Three work locations keep the order the source stated them in.
+    await expect(value("preferred_location")).toHaveText("Detroit");
+    await expect(value("location_option_1")).toHaveText("Romulus");
+    await expect(value("location_option_2")).toHaveText("Pontiac");
+    // Shift type, days and an overnight range, none of them labelled.
+    await expect(value("preferred_shift")).toHaveText("NIGHT");
+    await expect(value("shift_days")).toHaveText("FRI, SAT, SUN, MON");
+    await expect(value("shift_start_time")).toHaveText("18:00");
+    await expect(value("shift_end_time")).toHaveText("04:30");
+    // The one detail with no field of its own is preserved, not dropped.
+    await expect(value("additional_notes")).toHaveText("Has reliable transportation.");
+    // Nothing the source never stated is shown as a value.
+    await expect(value("preferred_language")).toHaveText("—");
     await expect(page.getByText(/\d%/)).toHaveCount(0);
   });
 

@@ -69,11 +69,13 @@ export const REVIEW_FIELD_SOURCE_KEYS = {
   state: "state",
   zip: "zip",
   preferred_location: "site_code",
-  location_option_1: "site_code",
+  location_option_1: "alt_site_code",
   location_option_2: "backup_site_code",
+  preferred_shift: "shift_code",
   shift_days: "shift_days",
   shift_start_time: "shift_start_time",
   shift_end_time: "shift_end_time",
+  additional_notes: "additional_notes",
 } as const;
 
 type ReviewFieldKey = keyof typeof REVIEW_FIELD_SOURCE_KEYS;
@@ -381,11 +383,13 @@ function partialDraft(row: IntakeRow, notes: string) {
       primary: [], backup: [],
       review_fields: {
         preferred_location: pickImportValue(row, "site_code"),
-        location_option_1: pickImportValue(row, "site_code"),
+        location_option_1: pickImportValue(row, "alt_site_code"),
         location_option_2: pickImportValue(row, "backup_site_code"),
+        preferred_shift: pickImportValue(row, "shift_code"),
         shift_days: normalizeShiftDays(pickImportValue(row, "shift_days")),
         shift_start_time: normalizeShiftTime(pickImportValue(row, "shift_start_time")),
         shift_end_time: normalizeShiftTime(pickImportValue(row, "shift_end_time")),
+        additional_notes: pickImportValue(row, "additional_notes"),
       },
       status: "new_intake", next_step: null, staff_code: null, initial_note: notes || null,
     };

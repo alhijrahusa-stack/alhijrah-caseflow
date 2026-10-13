@@ -26,7 +26,9 @@ import {
 /** Reviewed field key → the intake-row key the deterministic extractor fills. */
 const SOURCE_KEY: Record<string, string> = {
   preferred_location: "site_code",
+  location_option_1: "alt_site_code",
   location_option_2: "backup_site_code",
+  preferred_shift: "shift_code",
 };
 
 function sourceKeyFor(key: string) {

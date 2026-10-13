@@ -5,6 +5,7 @@ import {
   ENGLISH_PROFICIENCY_OPTIONS,
   LANGUAGE_OPTIONS,
   SHIFT_DAY_OPTIONS,
+  SHIFT_TYPE_OPTIONS,
   SMART_FIELD_GROUPS,
   smartAuthorityClass,
   smartFieldStatus,
@@ -82,7 +83,7 @@ export function ValidationMatrix({ read, onCommit, evidence, missingFields, conf
     <div className="cg-matrix overflow-x-auto">
       <table className="w-full border-collapse text-left">
         <caption className="sr-only">
-          Client data validation matrix: the sixteen reviewed Smart fields with their current value, validation state, provenance and authority.
+          Client data validation matrix: every reviewed Smart field with its current value, validation state, provenance and authority.
         </caption>
         <thead>
           <tr className="border-b border-white/[.10]">
@@ -232,13 +233,13 @@ function MatrixEditor({ field, value, onCommit, onCancel, describedBy }: {
 }) {
   const [text, setText] = useState(value);
   const [days, setDays] = useState<string[]>(() => value.split(",").map((item) => item.trim()).filter(Boolean));
-  const firstRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>(null);
+  const firstRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLButtonElement | HTMLTextAreaElement>(null);
 
   useEffect(() => { firstRef.current?.focus(); }, []);
 
   function onKeyDown(event: React.KeyboardEvent) {
     if (event.key === "Escape") { event.preventDefault(); onCancel(); return; }
-    if (event.key === "Enter" && field.editor !== "shift_days") { event.preventDefault(); onCommit(text); }
+    if (event.key === "Enter" && field.editor !== "shift_days" && field.editor !== "notes") { event.preventDefault(); onCommit(text); }
   }
 
   if (field.editor === "shift_days") {
@@ -264,6 +265,47 @@ function MatrixEditor({ field, value, onCommit, onCancel, describedBy }: {
           <button type="button" onClick={() => setDays([])} className="min-h-11 rounded-lg border border-white/12 px-3 text-[13px] font-semibold text-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300">Clear</button>
         </span>
       </span>
+    );
+  }
+
+  if (field.editor === "notes") {
+    return (
+      <textarea
+        ref={firstRef as React.Ref<HTMLTextAreaElement>}
+        rows={4}
+        aria-label={field.label}
+        aria-describedby={describedBy}
+        className={`${EDITOR_CLASS} resize-y py-2 leading-6`}
+        value={text}
+        onKeyDown={onKeyDown}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={() => onCommit(text)}
+      />
+    );
+  }
+
+  if (field.editor === "shift") {
+    // Free text stays valid on this field, so an operational shift name the office
+    // already uses is offered alongside the canonical types rather than replaced.
+    const listId = `smart-shift-options-${field.key}`;
+    return (
+      <>
+        <input
+          ref={firstRef as React.Ref<HTMLInputElement>}
+          list={listId}
+          type="text"
+          aria-label={field.label}
+          aria-describedby={describedBy}
+          className={EDITOR_CLASS}
+          value={text}
+          onKeyDown={onKeyDown}
+          onChange={(event) => setText(event.target.value)}
+          onBlur={() => onCommit(text)}
+        />
+        <datalist id={listId}>
+          {SHIFT_TYPE_OPTIONS.map((option) => <option key={option} value={option} />)}
+        </datalist>
+      </>
     );
   }
 

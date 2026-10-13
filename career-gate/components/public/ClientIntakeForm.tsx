@@ -12,7 +12,7 @@ import {
 import { FIELD_GROUPS, FIELD_INPUT, validateIntakeField } from "@/components/public/intake-validate";
 import { LocaleToggle } from "@/components/public/LocaleToggle";
 import { SmartGuide, type GuideContext } from "@/components/public/SmartGuide";
-import { CLIENT_EDITABLE_FIELDS, type ClientEditableField } from "@/lib/client-intake-fields";
+import { CLIENT_EDITABLE_FIELDS, clientEditMaxLength, type ClientEditableField } from "@/lib/client-intake-fields";
 import { SMART_IMPORT_LIMITS } from "@/lib/smart-client-import-core";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
 
@@ -677,7 +677,12 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
             {FIELD_GROUPS.map((group) => {
               const fields = group.fields.filter((field) => visible.has(field));
               if (!fields.length) return null;
-              const label = group.key === "identity" ? t.groupIdentity : group.key === "contact" ? t.groupContact : group.key === "address" ? t.groupAddress : group.key === "work" ? t.groupWork : t.groupLanguage;
+              const label = group.key === "identity" ? t.groupIdentity
+                : group.key === "contact" ? t.groupContact
+                : group.key === "address" ? t.groupAddress
+                : group.key === "work" ? t.groupWork
+                : group.key === "notes" ? t.groupNotes
+                : t.groupLanguage;
               return (
                 <fieldset key={group.key} className="grid min-w-0 gap-2.5 sm:grid-cols-2 xl:grid-cols-3" data-group={group.key}>
                   <legend className="col-span-full text-[12px] font-semibold uppercase tracking-[.1em] text-slate-500">{label}</legend>
@@ -685,7 +690,7 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
                     const problem = fieldErrors[field];
                     const input = FIELD_INPUT[field];
                     return (
-                      <label key={field} className="grid min-w-0 gap-1.5" data-field={field}>
+                      <label key={field} className={`grid min-w-0 gap-1.5 ${field === "additional_notes" ? "sm:col-span-2 xl:col-span-3" : ""}`} data-field={field}>
                         <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-slate-600">
                           <span>{t.fields[field]}</span>
                           {Object.prototype.hasOwnProperty.call(edits, field) ? (
@@ -702,10 +707,25 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
                              </span>
                            ) : null}
                         </span>
+                        {field === "additional_notes" ? (
+                          <textarea
+                            value={effective[field] ?? ""}
+                            onChange={(event) => setEdits((current) => ({ ...current, [field]: event.target.value.slice(0, clientEditMaxLength(field)) }))}
+                            rows={4}
+                            aria-invalid={problem ? true : undefined}
+                            aria-describedby={problem ? `intake-error-${field}` : undefined}
+                            data-testid={`intake-field-${field}`}
+                            className={`min-h-[96px] min-w-0 w-full resize-y rounded-xl border bg-white px-3.5 py-2.5 text-[16px] leading-6 text-slate-800 focus:outline-none focus:ring-4 ${
+                              problem
+                                ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
+                                : "border-slate-300 focus:border-[#2f6fd0] focus:ring-[#2f6fd0]/15"
+                            }`}
+                          />
+                        ) : (
                         <input
                           value={effective[field] ?? ""}
                           onChange={(event) => {
-                            setEdits((current) => ({ ...current, [field]: event.target.value.slice(0, 200) }));
+                            setEdits((current) => ({ ...current, [field]: event.target.value.slice(0, clientEditMaxLength(field)) }));
                             if (field === "email" || field === "full_name" || field === "date_of_birth" || field === "phone") {
                               setDuplicateIdentity(false);
                               setSharedEmailWarning(false);
@@ -725,6 +745,7 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
                                 : "border-slate-300 focus:border-[#2f6fd0] focus:ring-[#2f6fd0]/15"
                           }`}
                         />
+                        )}
                         {fieldSources[field]?.length && !Object.prototype.hasOwnProperty.call(edits, field) && (
                            <span className="break-all text-[11px] text-slate-500" data-testid={`intake-field-source-${field}`}>
                              {locale === "ar" ? "المصدر: " : "Source: "}{fieldSources[field]?.join(", ")}

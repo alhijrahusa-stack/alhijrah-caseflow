@@ -11,7 +11,7 @@ import { SHIFT_DAY_CODES } from "@/lib/smart-client-fields";
  */
 
 export type SmartFieldScope = "profile" | "review_fields";
-export type SmartFieldEditor = "text" | "language" | "english_proficiency" | "shift_days" | "time" | "date";
+export type SmartFieldEditor = "text" | "language" | "english_proficiency" | "shift" | "shift_days" | "time" | "date" | "notes";
 
 export type SmartField = {
   key: string;
@@ -55,12 +55,26 @@ export const SMART_FIELD_GROUPS: readonly { title: string; fields: readonly Smar
       { key: "preferred_location", label: "Preferred Location", scope: "review_fields", required: false, editor: "text" },
       { key: "location_option_1", label: "Location Option 1", scope: "review_fields", required: false, editor: "text" },
       { key: "location_option_2", label: "Location Option 2", scope: "review_fields", required: false, editor: "text" },
+      { key: "preferred_shift", label: "Preferred Shift", scope: "review_fields", required: false, editor: "shift", hint: "Morning, Afternoon, Evening, Night or Day" },
       { key: "shift_days", label: "Shift Days", scope: "review_fields", required: false, editor: "shift_days" },
       { key: "shift_start_time", label: "Shift Start", scope: "review_fields", required: false, editor: "time" },
       { key: "shift_end_time", label: "Shift End", scope: "review_fields", required: false, editor: "time" },
     ],
   },
+  {
+    title: "ADDITIONAL NOTES",
+    fields: [
+      { key: "additional_notes", label: "Additional Notes", scope: "review_fields", required: false, editor: "notes", hint: "Source detail that carries no canonical field of its own" },
+    ],
+  },
 ] as const;
+
+/**
+ * Canonical shift types. Free text is still accepted on this field — an operational
+ * shift name the office uses is not invalidated — but these are the values the
+ * universal parser writes and the review editor offers.
+ */
+export const SHIFT_TYPE_OPTIONS = ["MORNING", "DAY", "AFTERNOON", "EVENING", "NIGHT"] as const;
 
 export const SMART_FIELDS: readonly SmartField[] = SMART_FIELD_GROUPS.flatMap((group) => group.fields);
 export const SMART_REQUIRED_FIELDS: readonly SmartField[] = SMART_FIELDS.filter((field) => field.required);
@@ -69,7 +83,8 @@ export const LANGUAGE_OPTIONS = Object.entries(LANGUAGES).map(([value, label]) =
 export const ENGLISH_PROFICIENCY_OPTIONS = ENGLISH_PROFICIENCY_VALUES.map((value) => ({ value, label: value }));
 export const SHIFT_DAY_OPTIONS = SHIFT_DAY_CODES;
 
-export type SmartFieldState = "DETECTED" | "VERIFIED" | "MANUAL" | "REVIEW" | "MISSING" | "CONFLICT";
+/** `AWAITING` is the neutral state before there is any source to interpret. */
+export type SmartFieldState = "AWAITING" | "DETECTED" | "VERIFIED" | "MANUAL" | "REVIEW" | "MISSING" | "CONFLICT";
 export type SmartFieldAuthority = "SOURCE" | "MANUAL";
 
 export type SmartEvidence = {
@@ -162,6 +177,7 @@ export function smartFieldStatus(args: {
 /** Tailwind text colour per state. Colour is always paired with the state word itself. */
 export function smartStateClass(state: SmartFieldState) {
   switch (state) {
+    case "AWAITING": return "text-slate-500";
     case "VERIFIED": return "text-emerald-300";
     case "MANUAL": return "text-[#e3c884]";
     case "CONFLICT": return "text-red-300";
