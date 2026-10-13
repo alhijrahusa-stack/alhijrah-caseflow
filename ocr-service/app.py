@@ -44,8 +44,8 @@ def images(data: bytes, mime: str):
             raise HTTPException(422, "Unreadable PDF") from exc
     else:
         signatures = {
-            "image/jpeg": data.startswith(b"\\xff\\xd8\\xff"),
-            "image/png": data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"),
+            "image/jpeg": data.startswith(b"\xff\xd8\xff"),
+            "image/png": data.startswith(b"\x89PNG\r\n\x1a\n"),
             "image/webp": data.startswith(b"RIFF") and data[8:12] == b"WEBP",
         }
         if not signatures.get(mime):
@@ -83,7 +83,7 @@ def mrz_check(text):
 
 
 def passport_mrz(lines):
-    normalized = [re.sub(r"\\s+", "", entry["text"].upper()) for entry in lines]
+    normalized = [re.sub(r"\s+", "", entry["text"].upper()) for entry in lines]
     firsts = [item for item in normalized if item.startswith("P<") and len(item) >= 35]
     seconds = [item for item in normalized if len(item) >= 43 and re.fullmatch(r"[A-Z0-9<]+", item)]
     for first in firsts:
@@ -109,7 +109,7 @@ def field_map(lines):
     score = {}
     text_lines = [entry["text"].strip() for entry in lines]
     document_type = "UNKNOWN"
-    combined = "\\n".join(text_lines).upper()
+    combined = "\n".join(text_lines).upper()
     if "PERMANENT RESIDENT" in combined:
         document_type = "GREEN_CARD"
     elif "EMPLOYMENT AUTHORIZATION" in combined:
@@ -124,12 +124,12 @@ def field_map(lines):
         row["full_name"] = passport["full_name"]
         score["full_name"] = 0.95
     patterns = {
-        "full_name": r"^(?:FULL NAME|NAME|CARDHOLDER)\\s*[:#-]\\s*([A-Za-z][A-Za-z .,'-]{2,90})$",
-        "date_of_birth": r"^(?:DATE OF BIRTH|BIRTH DATE|DOB|DBB)\\s*[:#-]?\\s*(\\d{1,2}[/-]\\d{1,2}[/-]\\d{4}|\\d{4}-\\d{2}-\\d{2})$",
-        "street": r"^(?:STREET|ADDRESS)\\s*[:#-]\\s*(.{4,120})$",
-        "city": r"^CITY\\s*[:#-]\\s*([A-Za-z .'-]{2,60})$",
-        "state": r"^STATE\\s*[:#-]\\s*([A-Z]{2})$",
-        "zip": r"^(?:ZIP|POSTAL CODE)\\s*[:#-]\\s*(\\d{5}(?:-\\d{4})?)$",
+        "full_name": r"^(?:FULL NAME|NAME|CARDHOLDER)\s*[:#-]\s*([A-Za-z][A-Za-z .,'-]{2,90})$",
+        "date_of_birth": r"^(?:DATE OF BIRTH|BIRTH DATE|DOB|DBB)\s*[:#-]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{2}-\d{2})$",
+        "street": r"^(?:STREET|ADDRESS)\s*[:#-]\s*(.{4,120})$",
+        "city": r"^CITY\s*[:#-]\s*([A-Za-z .'-]{2,60})$",
+        "state": r"^STATE\s*[:#-]\s*([A-Z]{2})$",
+        "zip": r"^(?:ZIP|POSTAL CODE)\s*[:#-]\s*(\d{5}(?:-\d{4})?)$",
     }
     for item in lines:
         for key, regex in patterns.items():
@@ -140,7 +140,7 @@ def field_map(lines):
                 row[key] = match.group(1).strip()
                 score[key] = item["confidence"]
     return {"row": row, "confidence": score, "document_type": document_type,
-            "ocr_text": "\\n".join(text_lines)[:20000]}
+            "ocr_text": "\n".join(text_lines)[:20000]}
 
 
 @app.post("/extract")
