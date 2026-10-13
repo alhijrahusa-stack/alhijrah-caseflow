@@ -6,7 +6,6 @@ import { parseIdentityLines } from "@/lib/smart/identity-ocr-parser";
 import { createWorker, type Worker } from "tesseract.js";
 let instance: Promise<Worker> | null = null;
 type Line = { text: string; score: number };
-type OCRCandidate = { row: Record<string, string>; confidence: Record<string, number> };
 export type BrowserOcrResult = { candidates: OCRCandidate[]; recognizedCount: number; elapsedMs: number };
 function getEngine(): Promise<Worker> {
   if (!instance) {
