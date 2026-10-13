@@ -19,7 +19,7 @@ const csp = [
 const smartOcrCsp = csp
   .replace("https://cdnjs.cloudflare.com", "https://cdnjs.cloudflare.com https://cdn.jsdelivr.net")
   .replace("frame-ancestors", "worker-src 'self' blob:; frame-ancestors")
-  .replace("frame-ancestors", "frame-ancestors");
+  .replace(`connect-src ${connect}`, `connect-src ${connect} https://cdn.jsdelivr.net https://tessdata.projectnaptha.com`);
 const nextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["sharp"],
@@ -27,7 +27,7 @@ const nextConfig = {
     return [
       {
         source: "/staff/smart-client-import/:path*",
-        headers: [{ key: "Content-Security-Policy", value: smartOcrCsp.replace("frame-ancestors", "connect-src https://cdn.jsdelivr.net https://tessdata.projectnaptha.com; frame-ancestors") }],
+        headers: [{ key: "Content-Security-Policy", value: smartOcrCsp }],
       },
       {
         source: "/:path*",
