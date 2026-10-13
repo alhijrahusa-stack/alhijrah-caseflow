@@ -20,6 +20,8 @@ import {
   SMART_DOCUMENT_POLICY,
   admitDocuments,
   advanceDocuments,
+  documentsInFlight,
+  patchDocument,
   documentStatusLabel,
   documentTotals,
   formatDocumentSize,
@@ -31,6 +33,7 @@ import { DocumentIcon, PreviewIcon, RemoveIcon, VolumeOffIcon, VolumeOnIcon } fr
 import { VoiceDictation } from "@/components/staff/smart/VoiceDictation";
 import { SmartProgressRail, type RailState } from "@/components/staff/smart/SmartProgressRail";
 import { isOvernightShift } from "@/lib/smart-client-fields";
+import { sourceKeyFor } from "@/components/staff/smart/intelligence";
 import {
   localDisplayValue,
   localProvenance,
@@ -39,6 +42,16 @@ import {
   type LocalFieldReading,
 } from "@/components/staff/smart/intelligence";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
+import { prepareForUpload } from "@/components/staff/smart/document-transport";
+import {
+  REVIEW_REASON_TEXT,
+  combineDocumentFills,
+  documentFilledKeys,
+  resolveFieldValue,
+  reviewReasonFor,
+  type DocumentFill,
+  type DocumentSuggestions,
+} from "@/components/staff/smart/document-autofill";
 
 const AUDIO_PREF_KEY = "career-gate-smart-import-audio";
 const SOURCE_DEBOUNCE_MS = 200;
@@ -56,8 +69,8 @@ type SubmitResult = {
   enrichment_url?: string | null;
   enrichment_error?: string | null;
 };
-type IssueAction = "ADD_FILES" | "RETRY_EXTRACTION";
-type Issue = { id: string; scope: string; problem: string; action: string; actionKind?: IssueAction; actionLabel?: string };
+type IssueAction = "ADD_FILES" | "RETRY_EXTRACTION" | "RETRY_READ";
+type Issue = { id: string; scope: string; problem: string; action: string; actionKind?: IssueAction; actionLabel?: string; retryId?: string };
 
 function formatElapsed(seconds: number) {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -146,6 +159,10 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   const [audioEnabled, setAudioEnabled] = useState(false);
   /** Increments on each blocked submit so the rail reacts exactly once per attempt. */
   const [warningNonce, setWarningNonce] = useState(0);
+  /** One entry per document that has been read, in the order they returned. */
+  const [reads, setReads] = useState<DocumentSuggestions[]>([]);
+  /** In-flight reads, so removing a file or clearing the form cancels its request. */
+  const readControllers = useRef(new Map<string, AbortController>());
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const { sweep, trigger: handshake } = useDigitalHandshake();
 
@@ -156,7 +173,20 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   const hasSource = Boolean(notes.trim() || documents.length);
 
   // The latest queue is mirrored for unmount cleanup, which runs after the last render.
-  useEffect(() => { documentsRef.current = documents; }, [documents]);
+  /**
+   * Sets the queue and its ref together.
+   *
+   * A read started in the same tick as the admit asks the ref whether its document is
+   * still queued. An effect-updated ref has not caught up at that point, so the ref is
+   * written here rather than after the render.
+   */
+  const commitDocuments = useCallback((next: QueuedDocument[] | ((current: QueuedDocument[]) => QueuedDocument[])) => {
+    setDocuments((current) => {
+      const value = typeof next === "function" ? next(current) : next;
+      documentsRef.current = value;
+      return value;
+    });
+  }, []);
 
   // Audio preference is read after mount, so the server render never depends on storage
   // and the button cannot hydrate with the wrong pressed state.
@@ -200,6 +230,8 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
 
   // Release every object URL and the audio graph on unmount.
   useEffect(() => () => {
+    for (const controller of readControllers.current.values()) controller.abort();
+    readControllers.current.clear();
     releaseDocuments(documentsRef.current);
     void audioContextRef.current?.close().catch(() => undefined);
   }, []);
@@ -265,11 +297,19 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     if (next) void ensureAudioContext();
   }
 
-  const readField = useCallback((field: SmartField) => {
-    if (serverDraft) return serverDraft[field.key] ?? null;
-    const reading = localReadings.find((item) => item.field.key === field.key);
-    return reading ? localDisplayValue(reading) : null;
-  }, [localReadings, serverDraft]);
+  /** Every document read so far, folded into one set of values and review reasons. */
+  const fill = useMemo(() => combineDocumentFills(reads), [reads]);
+
+  const readField = useCallback(
+    (field: SmartField) => resolveFieldValue({ field, serverDraft, fill, readings: localReadings }).value,
+    [fill, localReadings, serverDraft],
+  );
+
+  /** Where each field's shown value came from, for the provenance readout. */
+  const fieldOrigin = useCallback(
+    (field: SmartField) => resolveFieldValue({ field, serverDraft, fill, readings: localReadings }).origin,
+    [fill, localReadings, serverDraft],
+  );
 
   const readiness = useMemo(() => smartRequiredReadiness(readField), [readField]);
 
@@ -302,6 +342,11 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     [readField],
   );
 
+  /** Reads still moving, so the surface can report work in progress honestly. */
+  const readsInFlight = documentsInFlight(documents);
+  /** Contract fields a document established, as opposed to typed or inferred. */
+  const documentKeys = useMemo(() => documentFilledKeys(fill), [fill]);
+
   /** The rail's state, read entirely from state the surface already holds. */
   const railState: RailState = submitted
     ? "SUBMITTED"
@@ -332,20 +377,135 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     });
   }, []);
 
-  function addFiles(list: FileList | null) {
-    if (!list?.length || busy || submitted) return;
+  /**
+   * Reads one document, start to finish, and folds the result into the surface.
+   *
+   * Each read owns its own AbortController, so removing the file or clearing the form
+   * cancels the request in flight instead of letting a stale answer arrive and
+   * overwrite newer state. A read that is aborted, or whose document has since been
+   * removed, writes nothing at all.
+   *
+   * Nothing here creates a case: the endpoint is stateless, so choosing a document,
+   * seeing what it says and discarding it leaves no trace in the queue.
+   */
+  const readDocument = useCallback(async (entry: QueuedDocument) => {
+    const controller = new AbortController();
+    readControllers.current.set(entry.id, controller);
+    const stillQueued = () => documentsRef.current.some((item) => item.id === entry.id);
+    const advance = (patch: Parameters<typeof patchDocument>[2]) => {
+      if (!stillQueued() || controller.signal.aborted) return;
+      commitDocuments((current) => patchDocument(current, entry.id, patch));
+    };
+
+    try {
+      advance({ processingState: "UPLOADING", uploadState: "UPLOADING", processingError: null });
+      // Prepared in the browser first: a phone photograph uploads far faster once it
+      // is no longer carrying resolution the read does not use.
+      const prepared = await prepareForUpload(entry.file);
+      if (controller.signal.aborted || !stillQueued()) return;
+
+      advance({ processingState: "READING" });
+      const form = new FormData();
+      form.append("files", prepared.file, prepared.file.name);
+      const res = await fetch("/api/staff/smart-client-import/extract", {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted || !stillQueued()) return;
+
+      advance({ processingState: "VALIDATING" });
+      const data = await res.json().catch(() => null);
+      if (controller.signal.aborted || !stillQueued()) return;
+
+      if (!res.ok || !data?.ok) {
+        const message = typeof data?.error?.message === "string"
+          ? data.error.message
+          : `This document could not be read (${res.status}).`;
+        advance({ processingState: "FAILED", uploadState: "STORED", processingError: message });
+        void playTone("error");
+        return;
+      }
+
+      const read = data as DocumentSuggestions;
+      const imported = Array.isArray(read.imported_fields) ? read.imported_fields.map(String) : [];
+      const inReview = Array.isArray(read.review_fields) ? read.review_fields.map(String) : [];
+      // A document that produced nothing usable is reported as needing review, not
+      // as a success with an empty result.
+      const needsReview = imported.length === 0 || inReview.length > 0 || read.applicants !== 1;
+
+      setReads((current) => [...current.filter((item) => item.filename !== read.filename), read]);
+      advance({
+        processingState: needsReview ? "REVIEW_REQUIRED" : "COMPLETE",
+        uploadState: "STORED",
+        documentType: read.classification?.document_type ?? null,
+        mrzVerified: read.mrz ? read.mrz.verified : null,
+        mrzFormat: read.mrz?.format ?? null,
+        legibility: read.classification?.legibility ?? null,
+        escalated: Boolean(read.escalated),
+        importedFields: imported,
+        reviewFields: inReview,
+        durationMs: typeof read.duration_ms === "number" ? read.duration_ms : null,
+        processingError: null,
+      });
+      handshake(needsReview ? "cyan" : "emerald");
+      void playTone("detect");
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      advance({
+        processingState: "FAILED",
+        uploadState: "STORED",
+        processingError: error instanceof Error && error.message
+          ? error.message
+          : "This document could not be read. Complete the details in the source box.",
+      });
+    } finally {
+      readControllers.current.delete(entry.id);
+    }
+  }, [commitDocuments, handshake, playTone]);
+
+  /**
+   * Admits files and starts reading them at once — no submission, no waiting for the
+   * form to be complete. Reads run two at a time: enough to overlap the upload of one
+   * document with the model call for another, without queuing a phone's whole camera
+   * roll against the provider's rate limit simultaneously.
+   */
+  const addFiles = useCallback((list: FileList | null) => {
+    if (!list?.length || submitted) return;
     const outcome = admitDocuments(documents, Array.from(list));
-    setDocuments(outcome.documents);
+    commitDocuments(outcome.documents.map((entry) => (
+      entry.processingState === "WAITING" ? { ...entry, processingState: "QUEUED" } : entry
+    )));
     setRejected(outcome.rejected);
     if (outcome.rejected.length) void playTone("error");
     if (inputRef.current) inputRef.current.value = "";
-  }
+
+    const admitted = outcome.documents.filter(
+      (entry) => !documents.some((existing) => existing.id === entry.id),
+    );
+    void (async () => {
+      const CONCURRENCY = 2;
+      const pending = [...admitted];
+      const workers = Array.from({ length: Math.min(CONCURRENCY, pending.length) }, async () => {
+        for (let next = pending.shift(); next; next = pending.shift()) {
+          await readDocument(next);
+        }
+      });
+      await Promise.all(workers);
+    })();
+  }, [commitDocuments, documents, playTone, readDocument, submitted]);
 
   const dropFile = useCallback((id: string) => {
-    if (busy || submitted) return;
-    setDocuments((current) => removeDocument(current, id));
+    if (submitted) return;
+    // A read in flight for this file is cancelled, and what it contributed is
+    // withdrawn: a removed document must not keep filling the form.
+    readControllers.current.get(id)?.abort();
+    readControllers.current.delete(id);
+    const dropped = documentsRef.current.find((entry) => entry.id === id);
+    if (dropped) setReads((current) => current.filter((read) => read.filename !== dropped.name));
+    commitDocuments((current) => removeDocument(current, id));
     setRejected([]);
-  }, [busy, submitted]);
+  }, [commitDocuments, submitted]);
 
   function combineDraft(mapped?: SubmitResult["mapped_draft"]) {
     return { ...(mapped?.profile ?? {}), ...(mapped?.review_fields ?? {}) };
@@ -357,7 +517,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       return;
     }
     setStage("ENRICHING");
-    setDocuments((current) => advanceDocuments(current, { processingState: "PROCESSING" }));
+    commitDocuments((current) => advanceDocuments(current, { processingState: "PROCESSING" }));
     try {
       const res = await fetch(captured.enrichment_url, { method: "POST" });
       const data = await res.json().catch(() => null);
@@ -366,17 +526,17 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       setServerEvidence(Array.isArray(data.field_evidence) ? data.field_evidence : []);
       setVerification(data.verification_result ?? null);
       const reviewRequired = data.verification_result?.processing_state === "REVIEW_REQUIRED";
-      setDocuments((current) => advanceDocuments(current, { processingState: reviewRequired ? "REVIEW_REQUIRED" : "COMPLETE" }));
+      commitDocuments((current) => advanceDocuments(current, { processingState: reviewRequired ? "REVIEW_REQUIRED" : "COMPLETE" }));
       setStage(reviewRequired ? "REVIEW_REQUIRED" : "READY");
       handshake(reviewRequired ? "cyan" : "emerald");
       void playTone("detect");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Document processing is unavailable; the captured source remains staged.");
-      setDocuments((current) => advanceDocuments(current, { processingState: "FAILED" }));
+      commitDocuments((current) => advanceDocuments(current, { processingState: "FAILED" }));
       setStage("REVIEW_REQUIRED");
       void playTone("error");
     }
-  }, [handshake, playTone]);
+  }, [commitDocuments, handshake, playTone]);
 
   const submit = useCallback(async () => {
     if (busy || submitted) return;
@@ -396,7 +556,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     const uploading = documents;
     setStage("CAPTURING");
     setError(null);
-    setDocuments((current) => advanceDocuments(current, { uploadState: "UPLOADING" }));
+    commitDocuments((current) => advanceDocuments(current, { uploadState: "UPLOADING" }));
     try {
       const form = new FormData();
       form.set("notes", notes.trim());
@@ -423,18 +583,18 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       setServerEvidence(Array.isArray(data.field_evidence) ? data.field_evidence : []);
       setVerification(data.verification_result ?? null);
       if (data.enrichment_error) setError(String(data.enrichment_error));
-      setDocuments((current) => advanceDocuments(current, { uploadState: "STORED", processingState: "WAITING" }));
+      commitDocuments((current) => advanceDocuments(current, { uploadState: "STORED", processingState: "WAITING" }));
       setStage("CAPTURED");
       handshake("cyan");
       void playTone("capture");
       void enrich(captured, uploading);
     } catch (e) {
       setStage("DRAFT");
-      setDocuments((current) => advanceDocuments(current, { uploadState: "FAILED" }));
+      commitDocuments((current) => advanceDocuments(current, { uploadState: "FAILED" }));
       setError(e instanceof Error ? e.message : "Submission failed");
       void playTone("error");
     }
-  }, [busy, documents, enrich, handshake, hasSource, missingRequiredNow, notes, playTone, staff.display_name, submitted]);
+  }, [busy, commitDocuments, documents, enrich, handshake, hasSource, missingRequiredNow, notes, playTone, staff.display_name, submitted]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -449,14 +609,22 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   function reset() {
     releaseDocuments(documents);
     sessionStart.current = Date.now();
-    setDocuments([]); setRejected([]); setNotes(""); setDebouncedNotes("");
+    commitDocuments([]); setRejected([]); setNotes(""); setDebouncedNotes("");
     setError(null); setResult(null); setServerDraft(null); setServerEvidence([]); setVerification(null);
+    for (const controller of readControllers.current.values()) controller.abort();
+    readControllers.current.clear();
+    setReads([]);
     setStage("DRAFT"); setElapsed(0); setWarningNonce(0); setActiveFieldKey(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  function runIssueAction(kind: IssueAction) {
+  function runIssueAction(kind: IssueAction, retryId?: string) {
     if (kind === "ADD_FILES") { inputRef.current?.click(); return; }
+    if (kind === "RETRY_READ") {
+      const entry = documentsRef.current.find((item) => item.id === retryId);
+      if (entry) void readDocument(entry);
+      return;
+    }
     if (result) void enrich(result, documents);
   }
   const detectedCount = localReadings.filter((reading) => smartFieldText(localDisplayValue(reading)).trim()).length;
@@ -476,6 +644,36 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     for (const label of readiness.missing) {
       issues.push({ id: `missing:${label}`, scope: label.toUpperCase(), problem: `${label} is required and was not found in the source.`, action: "Add it to the source text before submitting." });
     }
+  }
+  for (const warning of fill.warnings) {
+    issues.push({
+      id: `doc-warning:${warning.slice(0, 40)}`,
+      scope: "DOCUMENT INTELLIGENCE",
+      problem: warning,
+      action: "Check the documents attached above before relying on the extracted details.",
+    });
+  }
+  for (const entry of documents) {
+    if (entry.processingState !== "FAILED" || !entry.processingError) continue;
+    issues.push({
+      id: `doc-read:${entry.id}`,
+      scope: "DOCUMENT INTELLIGENCE",
+      problem: `${entry.name} — ${entry.processingError}`,
+      action: "The file stays attached. Complete the details in the source box, or try reading it again.",
+      actionLabel: "READ AGAIN",
+      actionKind: "RETRY_READ",
+      retryId: entry.id,
+    });
+  }
+  for (const field of SMART_FIELDS) {
+    const reason = reviewReasonFor(fill, field.key);
+    if (!reason) continue;
+    issues.push({
+      id: `doc-review:${field.key}`,
+      scope: field.label.toUpperCase(),
+      problem: REVIEW_REASON_TEXT[reason] ?? "This field was read but not filled automatically.",
+      action: "Enter it in the source box, or set it with manual authority in Smart Review.",
+    });
   }
   const capturedNotes = smartFieldText(readField(NOTES_FIELD)).trim();
   if (capturedNotes) {
@@ -577,7 +775,25 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
           {/* Left primary column: SOURCE. Mobile order places capture and source first. */}
           <div data-smart-capture-column className="order-1 min-w-0 space-y-3 sm:space-y-4 2xl:col-span-2">
             <section className={`${PANEL} ${documents.length ? PANEL_ACTIVE : ""} p-4 sm:p-5`} aria-labelledby="smart-source-capture">
-              <PanelTitle id="smart-source-capture" number="01" title="SOURCE CAPTURE" meta={`${totals.count} of ${SMART_DOCUMENT_POLICY.maxFiles} files · ${totals.label} · ${submitted ? "STORED" : documents.length ? "READY TO UPLOAD" : "AWAITING FILES"}`} />
+              <PanelTitle
+                id="smart-source-capture"
+                number="01"
+                title="SOURCE CAPTURE"
+                meta={`${totals.count} of ${SMART_DOCUMENT_POLICY.maxFiles} files · ${totals.label} · ${
+                  submitted ? "STORED"
+                  : readsInFlight > 0 ? `READING ${readsInFlight} OF ${documents.length}`
+                  : documentKeys.length > 0 ? `${documentKeys.length} FIELDS FROM DOCUMENTS`
+                  : documents.length ? "ATTACHED"
+                  : "AWAITING FILES"
+                }`}
+              />
+              <p aria-live="polite" className="mt-2 text-xs leading-5 text-slate-400">
+                {readsInFlight > 0
+                  ? `Reading ${readsInFlight} document${readsInFlight === 1 ? "" : "s"}. The fields fill themselves as each one is read — no need to submit first.`
+                  : documentKeys.length > 0
+                    ? `Read automatically from your documents: ${documentKeys.length} field${documentKeys.length === 1 ? "" : "s"}. Correct anything in the source box; your own entry always wins.`
+                    : "Choose a document and it is read immediately — classification, extraction and field checks run before you submit anything."}
+              </p>
               <input ref={inputRef} id="smart-files" className="sr-only" type="file" accept={SMART_DOCUMENT_ACCEPT} multiple disabled={busy || submitted} onChange={(e) => addFiles(e.target.files)} />
               <button
                 type="button"
@@ -656,7 +872,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                 </p>
               )}
               <div className="mt-3">
-                <IntelligenceList fields={JOB_PREFERENCE_FIELDS} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} hasSource={hasSource} />
+                <IntelligenceList fields={JOB_PREFERENCE_FIELDS} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} hasSource={hasSource} fieldOrigin={fieldOrigin} fill={fill} />
               </div>
             </section>
           </div>
@@ -673,7 +889,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                       <h3 className="text-[12px] font-semibold tracking-[.16em] text-[#e3c884]">{group.title}</h3>
                       <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-[#b8934a]/20 to-transparent" />
                     </div>
-                    <IntelligenceList fields={group.fields} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} hasSource={hasSource} />
+                    <IntelligenceList fields={group.fields} readField={readField} serverDraft={serverDraft} serverEvidence={serverEvidence} readings={localReadings} verification={verification} hasSource={hasSource} fieldOrigin={fieldOrigin} fill={fill} />
                   </div>
                 ))}
               </div>
@@ -711,10 +927,10 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                         {issue.actionLabel && issue.actionKind && (
                           <button
                             type="button"
-                            onClick={() => runIssueAction(issue.actionKind!)}
-                            disabled={stage === "ENRICHING"}
+                            onClick={() => runIssueAction(issue.actionKind!, issue.retryId)}
+                            disabled={stage === "ENRICHING" || readsInFlight > 0}
                             className="mt-2 inline-flex min-h-11 items-center rounded-xl border border-amber-300/35 bg-amber-300/[.06] px-3 text-[13px] font-semibold tracking-[.06em] text-amber-100 transition hover:bg-amber-300/[.12] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 active:translate-y-px active:scale-[.985] disabled:opacity-40"
-                          >{stage === "ENRICHING" ? "RETRYING…" : issue.actionLabel}</button>
+                          >{stage === "ENRICHING" || readsInFlight > 0 ? "READING…" : issue.actionLabel}</button>
                         )}
                       </li>
                     ))}
@@ -795,9 +1011,37 @@ const DocumentCards = memo(function DocumentCards({ documents, submitted, onRemo
                       <span className="mt-1 flex flex-wrap items-center gap-1.5">
                         <Chip tone="emerald">{entry.localState}</Chip>
                         <Chip tone={entry.uploadState === "FAILED" ? "red" : entry.uploadState === "STORED" ? "emerald" : entry.uploadState === "UPLOADING" ? "cyan" : "neutral"}>{entry.uploadState.replace(/_/g, " ")}</Chip>
-                        <Chip tone={entry.processingState === "COMPLETE" ? "emerald" : entry.processingState === "PROCESSING" ? "cyan" : entry.processingState === "REVIEW_REQUIRED" ? "amber" : entry.processingState === "FAILED" ? "red" : "neutral"}>{entry.processingState.replace(/_/g, " ")}</Chip>
+                        <Chip tone={
+                          entry.processingState === "COMPLETE" ? "emerald"
+                          : entry.processingState === "REVIEW_REQUIRED" ? "amber"
+                          : entry.processingState === "FAILED" ? "red"
+                          : ["QUEUED", "UPLOADING", "READING", "EXTRACTING", "VALIDATING", "PROCESSING"].includes(entry.processingState) ? "cyan"
+                          : "neutral"
+                        }>{entry.processingState.replace(/_/g, " ")}</Chip>
                         <span className="font-mono text-[11px] text-slate-500">{documentStatusLabel(entry)}</span>
                       </span>
+                      {/* What the read established about this document, once it returned. */}
+                      {(entry.documentType || entry.importedFields.length > 0 || entry.reviewFields.length > 0 || entry.durationMs !== null) && (
+                        <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {entry.documentType && <Chip tone="cyan">{entry.documentType.replace(/_/g, " ")}</Chip>}
+                          {entry.legibility && entry.legibility !== "CLEAR" && <Chip tone="amber">{entry.legibility}</Chip>}
+                          {entry.escalated && <Chip tone="neutral">SECOND READ</Chip>}
+                          {entry.mrzVerified === true && <Chip tone="emerald">{entry.mrzFormat ?? "MRZ"} CHECK DIGITS VERIFIED</Chip>}
+                          {entry.mrzVerified === false && <Chip tone="amber">{entry.mrzFormat ?? "MRZ"} CHECK DIGITS FAILED</Chip>}
+                          {entry.importedFields.length > 0 && (
+                            <span className="font-mono text-[11px] text-emerald-300">{entry.importedFields.length} FIELD{entry.importedFields.length === 1 ? "" : "S"} FILLED</span>
+                          )}
+                          {entry.reviewFields.length > 0 && (
+                            <span className="font-mono text-[11px] text-amber-200">{entry.reviewFields.length} FOR REVIEW</span>
+                          )}
+                          {entry.durationMs !== null && (
+                            <span className="font-mono text-[11px] text-slate-500 tabular-nums">{(entry.durationMs / 1000).toFixed(1)}s</span>
+                          )}
+                        </span>
+                      )}
+                      {entry.processingError && (
+                        <span className="mt-1 block text-[12px] leading-5 text-amber-200">{entry.processingError}</span>
+                      )}
                     </span>
                     <span className="col-span-2 flex min-w-0 items-center justify-end gap-1.5 sm:col-span-1 sm:justify-start">
                       {entry.previewUrl && (
@@ -828,7 +1072,7 @@ const DocumentCards = memo(function DocumentCards({ documents, submitted, onRemo
  * One group of reviewed fields. Memoized because its inputs come from the debounced
  * extraction and from server state, not from the keystroke in the source textarea.
  */
-const IntelligenceList = memo(function IntelligenceList({ fields, readField, serverDraft, serverEvidence, readings, verification, hasSource }: {
+const IntelligenceList = memo(function IntelligenceList({ fields, readField, serverDraft, serverEvidence, readings, verification, hasSource, fieldOrigin, fill }: {
   fields: readonly SmartField[];
   readField: (field: SmartField) => unknown;
   serverDraft: Record<string, unknown> | null;
@@ -836,6 +1080,8 @@ const IntelligenceList = memo(function IntelligenceList({ fields, readField, ser
   readings: readonly LocalFieldReading[];
   verification: Record<string, unknown> | null;
   hasSource: boolean;
+  fieldOrigin: (field: SmartField) => "server" | "text" | "document" | "inference" | null;
+  fill: DocumentFill;
 }) {
   return (
     <dl className="space-y-1">
@@ -849,6 +1095,8 @@ const IntelligenceList = memo(function IntelligenceList({ fields, readField, ser
           readings={readings}
           verification={verification}
           hasSource={hasSource}
+          origin={fieldOrigin(field)}
+          fill={fill}
         />
       ))}
     </dl>
@@ -908,7 +1156,7 @@ function PipelineStage({ label, state }: { label: string; state: "WAITING" | "RU
  * One Live Intelligence row. Missing supported fields stay visible, and the value is
  * always shown with its validation state, provenance and authority — never a score.
  */
-function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, verification, hasSource }: {
+function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, verification, hasSource, origin, fill }: {
   field: SmartField;
   value: unknown;
   serverDraft: Record<string, unknown> | null;
@@ -916,14 +1164,20 @@ function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, 
   readings: readonly LocalFieldReading[];
   verification: Record<string, unknown> | null;
   hasSource: boolean;
+  origin: "server" | "text" | "document" | "inference" | null;
+  fill: DocumentFill;
 }) {
   const reading = readings.find((item) => item.field.key === field.key);
   const text = smartFieldText(value).trim();
   const serverEntry = serverDraft ? serverEvidence.find((item) => item.field_key === field.key) : undefined;
   const missingFields = Array.isArray(verification?.missing_fields) ? (verification.missing_fields as unknown[]) : [];
 
+  const documentSources = fill.sources[field.key] ?? fill.sources[sourceKeyFor(field.key)] ?? [];
+  const reviewReason = serverDraft ? null : reviewReasonFor(fill, field.key);
+
   let state: SmartFieldState;
-  if (reading?.invalid && !serverDraft) state = "CONFLICT";
+  if (reviewReason && !serverDraft) state = "CONFLICT";
+  else if (reading?.invalid && !serverDraft) state = "CONFLICT";
   // Before there is any source to interpret, nothing is missing yet — it is awaited.
   else if (!text && !hasSource && !serverDraft) state = "AWAITING";
   else if (!text) state = "MISSING";
@@ -935,7 +1189,10 @@ function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, 
   const authority = serverEntry && String(serverEntry.authority).toUpperCase() === "MANUAL" ? "MANUAL" : "SOURCE";
   const provenance = serverDraft
     ? (serverEntry?.source_type ?? "server")
-    : reading ? localProvenance(reading) : null;
+    // A value a document established names the document, not the text reader.
+    : origin === "document"
+      ? (documentSources[0] ?? "document")
+      : reading ? localProvenance(reading) : null;
 
   return (
     <div
@@ -951,6 +1208,9 @@ function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, 
         data-value="1"
         className={`min-w-0 break-words font-mono text-[15px] leading-6 motion-safe:animate-[cg-field-resolve_180ms_ease-out] ${field.editor === "notes" ? "whitespace-pre-line" : ""} ${text ? "text-slate-50" : "text-slate-500"}`}
       >{text || "—"}</dd>
+      {reviewReason && (
+        <dd className="col-span-2 text-[11px] leading-5 text-amber-200">{REVIEW_REASON_TEXT[reviewReason] ?? "Read but not filled automatically."}</dd>
+      )}
       <dd className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span data-state="1" className={`font-mono text-[11px] font-semibold ${smartStateClass(state)}`}>{state}</span>
         <span aria-hidden="true" className="text-slate-700">·</span>
