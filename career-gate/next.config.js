@@ -16,15 +16,19 @@ const csp = [
   "object-src 'none'",
 ].join("; ");
 
+const smartOcrCsp = csp
+  .replace("https://cdnjs.cloudflare.com", "https://cdnjs.cloudflare.com https://cdn.jsdelivr.net")
+  .replace("frame-ancestors", "worker-src 'self' blob:; frame-ancestors")
+  .replace("frame-ancestors", "frame-ancestors");
 const nextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["sharp"],
-  webpack(config, { isServer }) {
-    if (!isServer) config.resolve.fallback = { ...config.resolve.fallback, fs: false, path: false };
-    return config;
-  },
   async headers() {
     return [
+      {
+        source: "/staff/smart-client-import/:path*",
+        headers: [{ key: "Content-Security-Policy", value: smartOcrCsp.replace("frame-ancestors", "connect-src https://cdn.jsdelivr.net https://tessdata.projectnaptha.com; frame-ancestors") }],
+      },
       {
         source: "/:path*",
         headers: [
