@@ -16,6 +16,10 @@ const csp = [
   "object-src 'none'",
 ].join("; ");
 
+const smartOcrCsp = csp
+  .replace("https://cdnjs.cloudflare.com", "https://cdnjs.cloudflare.com https://cdn.jsdelivr.net")
+  .replace("frame-ancestors", "worker-src 'self' blob:; frame-ancestors")
+  .replace(`connect-src ${connect}`, `connect-src ${connect} https://cdn.jsdelivr.net https://tessdata.projectnaptha.com`);
 const nextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["sharp"],
@@ -30,6 +34,10 @@ const nextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
         ],
+      },
+      {
+        source: "/staff/smart-client-import/:path*",
+        headers: [{ key: "Content-Security-Policy", value: smartOcrCsp }],
       },
     ];
   },

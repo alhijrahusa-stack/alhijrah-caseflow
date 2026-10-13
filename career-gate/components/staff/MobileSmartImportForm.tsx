@@ -336,19 +336,23 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   // Each candidate is only a suggestion; existing source fields retain authority.
   const [preExtracting, setPreExtracting] = useState(false);
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
+  const [localOcrComplete, setLocalOcrComplete] = useState(false);
   const extractSelected = useCallback(async (selected: QueuedDocument[]) => {
     if (!selected.length) return;
     setPreExtracting(true);
-    setPreviewMessage("Extracting document data…");
+    setPreviewMessage("Reading document locally with free OCR…");
     setDocuments((current) => current.map((d) =>
-      selected.some((item) => item.id === d.id) ? { ...d, uploadState: "UPLOADING", processingState: "PROCESSING" } : d,
+      selected.some((item) => item.id === d.id) ? { ...d, uploadState: "READY_TO_UPLOAD", processingState: "PROCESSING" } : d,
     ));
     try {
-      const form = new FormData();
-      for (const item of selected) form.append("files", item.file, item.name);
-      const res = await fetch("/api/staff/smart-client-import/extract", { method: "POST", body: form });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) throw new Error(data?.error?.message || "Document extraction failed");
+      // Run local OCR directly in this browser without quota-dependent providers.
+      // Files are never sent to Gemini, a paid OCR API, or another OCR host.
+      const { recognizeDocumentInBrowser } = await import("@/lib/browser-paddle-ocr");
+      const extracted = [];
+      for (const item of selected) {
+        const result = await recognizeDocumentInBrowser(item.file);
+        extracted.push({ candidates: result.candidates });
+      }
       const keyLabels: Record<string, string> = {
         full_name: "Full Name", phone: "Phone", email: "Email",
         date_of_birth: "DOB", street: "Street", city: "City",
@@ -358,8 +362,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
         shift_days: "Shift Days", shift_start_time: "Shift Start",
         shift_end_time: "Shift End",
       };
-      const extracted = (data.documents as Array<{ candidates?: Array<{ row?: Record<string, unknown> }> }> | undefined) ?? [];
-      const suggestions = extracted.flatMap((document) => document.candidates ?? []).map((candidate) => candidate.row ?? {});
+      const suggestions = extracted.flatMap((document) => document.candidates).map((candidate) => candidate.row);
       setNotes((current) => {
         const existing = extractDeterministicClient(current).row as Record<string, unknown>;
         const additional: string[] = [];
@@ -382,8 +385,10 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       setDocuments((current) => current.map((d) =>
         selected.some((item) => item.id === d.id) ? { ...d, uploadState: "READY_TO_UPLOAD", processingState: "COMPLETE" } : d,
       ));
-      setPreviewMessage("Document data extracted. Review populated fields before submitting.");
+      setLocalOcrComplete(true);
+      setPreviewMessage("On-device OCR complete. Review populated fields before submitting.");
     } catch (error) {
+      setLocalOcrComplete(false);
       setDocuments((current) => current.map((d) =>
         selected.some((item) => item.id === d.id) ? { ...d, uploadState: "READY_TO_UPLOAD", processingState: "FAILED" } : d,
       ));
@@ -395,6 +400,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
 
   function addFiles(list: FileList | null) {
     if (!list?.length || busy || submitted || preExtracting) return;
+    setLocalOcrComplete(false);
     const outcome = admitDocuments(documents, Array.from(list));
     const previous = new Set(documents.map((item) => item.id));
     const fresh = outcome.documents.filter((item) => !previous.has(item.id));
@@ -407,6 +413,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
 
   const dropFile = useCallback((id: string) => {
     if (busy || submitted) return;
+    setLocalOcrComplete(false);
     setDocuments((current) => removeDocument(current, id));
     setRejected([]);
   }, [busy, submitted]);
@@ -464,6 +471,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     try {
       const form = new FormData();
       form.set("notes", notes.trim());
+      if (localOcrComplete) form.set("local_ocr_reviewed", "1");
       for (const entry of uploading) form.append("files", entry.file, entry.name);
       const res = await fetch("/api/staff/smart-client-import/mobile", {
         method: "POST",
@@ -498,7 +506,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       setError(e instanceof Error ? e.message : "Submission failed");
       void playTone("error");
     }
-  }, [busy, documents, enrich, handshake, hasSource, missingRequiredNow, notes, playTone, staff.display_name, submitted]);
+  }, [busy, documents, enrich, handshake, hasSource, localOcrComplete, missingRequiredNow, notes, playTone, staff.display_name, submitted]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -515,7 +523,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     sessionStart.current = Date.now();
     setDocuments([]); setRejected([]); setNotes(""); setDebouncedNotes("");
     setError(null); setResult(null); setServerDraft(null); setServerEvidence([]); setVerification(null);
-    setStage("DRAFT"); setElapsed(0); setWarningNonce(0); setActiveFieldKey(null);
+    setStage("DRAFT"); setElapsed(0); setWarningNonce(0); setActiveFieldKey(null); setLocalOcrComplete(false);
     if (inputRef.current) inputRef.current.value = "";
   }
 
