@@ -392,7 +392,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       setDocuments((current) => current.map((d) =>
         selected.some((item) => item.id === d.id) ? { ...d, uploadState: "READY_TO_UPLOAD", processingState: "FAILED" } : d,
       ));
-      setPreviewMessage(error instanceof Error ? error.message : "Automatic extraction is unavailable. You can retry.");
+      setPreviewMessage(error instanceof Error && error.message ? `Local OCR failed: ${error.message}` : "Local OCR failed unexpectedly. Retry or check the browser console.");
     } finally {
       setPreExtracting(false);
     }
