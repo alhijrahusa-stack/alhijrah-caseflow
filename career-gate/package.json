@@ -18,6 +18,7 @@
     "measure": "node scripts/measure.mjs"
   },
   "dependencies": {
+    "@paddleocr/paddleocr-js": "0.4.2",
     "@supabase/supabase-js": "2.117.2",
     "jose": "6.2.12",
     "next": "16.3.6",
