@@ -1,4 +1,4 @@
-import { parseIdentityLines } from "@/lib/smart/identity-ocr-parser";
+import { parseIdentityLines, type OcrCandidate } from "@/lib/smart/identity-ocr-parser";
 /**
  * Tesseract.js on-device browser inference. No document leaves the employee's browser for OCR.
  * The model runtime/assets are downloaded on first use; callers display progress.
@@ -6,7 +6,7 @@ import { parseIdentityLines } from "@/lib/smart/identity-ocr-parser";
 import { createWorker, type Worker } from "tesseract.js";
 let instance: Promise<Worker> | null = null;
 type Line = { text: string; score: number };
-export type BrowserOcrResult = { candidates: OCRCandidate[]; recognizedCount: number; elapsedMs: number };
+export type BrowserOcrResult = { candidates: OcrCandidate[]; recognizedCount: number; elapsedMs: number };
 function getEngine(): Promise<Worker> {
   if (!instance) {
     instance = createWorker("eng", 1);
