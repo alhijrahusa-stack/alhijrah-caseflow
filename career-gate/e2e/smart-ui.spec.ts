@@ -36,7 +36,7 @@ test.describe("Smart Client Import experience", () => {
     await expect(card.getByText("VALIDATED", { exact: true })).toBeVisible();
     await expect(card.getByText("READY TO UPLOAD", { exact: true })).toBeVisible();
     await expect(card.getByText("COMPLETE", { exact: true })).toBeVisible();
-    await expect(page.locator("#smart-source-text")).toContainText("Full Name: TEST DOCUMENT NAME");
+    await expect(page.locator("#smart-source-text")).toHaveValue(/Full Name: TEST DOCUMENT NAME/);
     await expect(card.getByText("image/png")).toBeVisible();
     await expect(card.getByRole("link", { name: "Open preview of client-id.png" })).toBeVisible();
 
