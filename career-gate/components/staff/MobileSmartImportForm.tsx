@@ -332,13 +332,77 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     });
   }, []);
 
+  // Extraction starts immediately on selection, independently of final case submission.
+  // Each candidate is only a suggestion; existing source fields retain authority.
+  const [preExtracting, setPreExtracting] = useState(false);
+  const [previewMessage, setPreviewMessage] = useState<string | null>(null);
+  const extractSelected = useCallback(async (selected: QueuedDocument[]) => {
+    if (!selected.length) return;
+    setPreExtracting(true);
+    setPreviewMessage("Extracting document data…");
+    setDocuments((current) => current.map((d) =>
+      selected.some((item) => item.id === d.id) ? { ...d, uploadState: "UPLOADING", processingState: "PROCESSING" } : d,
+    ));
+    try {
+      const form = new FormData();
+      for (const item of selected) form.append("files", item.file, item.name);
+      const res = await fetch("/api/staff/smart-client-import/extract", { method: "POST", body: form });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) throw new Error(data?.error?.message || "Document extraction failed");
+      const keyLabels: Record<string, string> = {
+        full_name: "Full Name", phone: "Phone", email: "Email",
+        date_of_birth: "DOB", street: "Street", city: "City",
+        state: "State", zip: "ZIP", preferred_language: "Preferred Language",
+        site_code: "Preferred Location", alt_site_code: "Location Option 1",
+        backup_site_code: "Backup Site", shift_code: "Shift",
+        shift_days: "Shift Days", shift_start_time: "Shift Start",
+        shift_end_time: "Shift End",
+      };
+      const extracted = (data.documents as Array<{ candidates?: Array<{ row?: Record<string, unknown> }> }> | undefined) ?? [];
+      const suggestions = extracted.flatMap((document) => document.candidates ?? []).map((candidate) => candidate.row ?? {});
+      setNotes((current) => {
+        const existing = extractDeterministicClient(current).row as Record<string, unknown>;
+        const additional: string[] = [];
+        for (const [key, label] of Object.entries(keyLabels)) {
+          if (String(existing[key] ?? "").trim()) continue;
+          const value = suggestions.map((row) => row[key]).find((v) => typeof v === "string" && v.trim());
+          if (typeof value === "string" && value.trim()) {
+            additional.push(`${label}: ${value.trim()}`);
+            existing[key] = value.trim();
+          }
+        }
+        if (!additional.length) return current;
+        const appended = [current.trim(), ...additional].filter(Boolean).join("\n");
+        if (appended.length > MAX_SOURCE_LENGTH) {
+          setPreviewMessage("Document extracted, but the source limit prevents automatic insertion. No existing text was replaced.");
+          return current;
+        }
+        return appended;
+      });
+      setDocuments((current) => current.map((d) =>
+        selected.some((item) => item.id === d.id) ? { ...d, uploadState: "READY_TO_UPLOAD", processingState: "COMPLETE" } : d,
+      ));
+      setPreviewMessage("Document data extracted. Review populated fields before submitting.");
+    } catch (error) {
+      setDocuments((current) => current.map((d) =>
+        selected.some((item) => item.id === d.id) ? { ...d, uploadState: "READY_TO_UPLOAD", processingState: "FAILED" } : d,
+      ));
+      setPreviewMessage(error instanceof Error ? error.message : "Automatic extraction is unavailable. You can retry.");
+    } finally {
+      setPreExtracting(false);
+    }
+  }, []);
+
   function addFiles(list: FileList | null) {
-    if (!list?.length || busy || submitted) return;
+    if (!list?.length || busy || submitted || preExtracting) return;
     const outcome = admitDocuments(documents, Array.from(list));
+    const previous = new Set(documents.map((item) => item.id));
+    const fresh = outcome.documents.filter((item) => !previous.has(item.id));
     setDocuments(outcome.documents);
     setRejected(outcome.rejected);
     if (outcome.rejected.length) void playTone("error");
     if (inputRef.current) inputRef.current.value = "";
+    if (fresh.length) void extractSelected(fresh);
   }
 
   const dropFile = useCallback((id: string) => {
@@ -578,10 +642,10 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
           <div data-smart-capture-column className="order-1 min-w-0 space-y-3 sm:space-y-4 2xl:col-span-2">
             <section className={`${PANEL} ${documents.length ? PANEL_ACTIVE : ""} p-4 sm:p-5`} aria-labelledby="smart-source-capture">
               <PanelTitle id="smart-source-capture" number="01" title="SOURCE CAPTURE" meta={`${totals.count} of ${SMART_DOCUMENT_POLICY.maxFiles} files · ${totals.label} · ${submitted ? "STORED" : documents.length ? "READY TO UPLOAD" : "AWAITING FILES"}`} />
-              <input ref={inputRef} id="smart-files" className="sr-only" type="file" accept={SMART_DOCUMENT_ACCEPT} multiple disabled={busy || submitted} onChange={(e) => addFiles(e.target.files)} />
+              <input ref={inputRef} id="smart-files" className="sr-only" type="file" accept={SMART_DOCUMENT_ACCEPT} multiple disabled={busy || submitted || preExtracting} onChange={(e) => addFiles(e.target.files)} />
               <button
                 type="button"
-                disabled={busy || submitted}
+                disabled={busy || submitted || preExtracting}
                 onClick={() => inputRef.current?.click()}
                 className="group relative mt-3 flex min-h-24 w-full items-center justify-between gap-4 overflow-hidden rounded-2xl border border-dashed border-[#b8934a]/30 bg-[linear-gradient(135deg,rgba(255,255,255,.05),rgba(8,27,52,.2))] px-4 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,.055)] transition-all duration-200 motion-reduce:transition-none hover:-translate-y-0.5 hover:border-[#e3c884]/55 hover:bg-white/[.065] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e3c884] active:translate-y-px active:scale-[.985] disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -595,6 +659,15 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
 
               {/* Reserved geometry: the file list area keeps its shape so adding a file does not jump the layout. */}
               <DocumentCards documents={documents} submitted={submitted} onRemove={dropFile} />
+              {previewMessage && (
+                <div role="status" aria-live="polite" className="mt-2 rounded-xl border border-cyan-300/25 bg-cyan-300/[.07] px-3 py-2 text-xs text-cyan-100">
+                  {previewMessage}
+                  {!preExtracting && documents.some((item) => item.processingState === "FAILED") && (
+                    <button type="button" onClick={() => void extractSelected(documents.filter((item) => item.processingState === "FAILED"))}
+                      className="ml-3 min-h-11 rounded-lg border border-cyan-300/35 px-3 font-semibold">RETRY EXTRACTION</button>
+                  )}
+                </div>
+              )
 
               {rejected.length > 0 && (
                 <ul aria-live="polite" className="mt-3 space-y-1.5 rounded-xl border border-amber-300/25 bg-amber-300/[.05] p-3">
