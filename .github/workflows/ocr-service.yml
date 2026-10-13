@@ -1,0 +1,26 @@
+name: PaddleOCR static checks
+on:
+  pull_request:
+    paths:
+      - "ocr-service/**"
+      - "career-gate/app/api/staff/smart-client-import/extract/route.ts"
+      - ".github/workflows/ocr-service.yml"
+permissions:
+  contents: read
+jobs:
+  python-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m py_compile ocr-service/app.py
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("ocr-service/app.py").read_text()
+          assert 'os.environ.get("OCR_SERVICE_TOKEN")' in s
+          assert 'secrets.compare_digest' in s
+          assert 'MAX_BYTES' in s
+          PY
