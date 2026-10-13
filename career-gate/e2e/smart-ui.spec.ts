@@ -11,7 +11,12 @@ test.describe("Smart Client Import experience", () => {
     await page.setViewportSize(DESKTOP);
   });
 
-  test("previews a selected image locally, keeps it out of the network until submit, and releases the object URL on remove", async ({ page }) => {
+  test("previews a selected image, automatically extracts before submit, and releases the object URL on remove", async ({ page }) => {
+    await page.route("**/api/staff/smart-client-import/extract", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+        ok: true, documents: [{ filename: "client-id.png", candidates: [{ row: { full_name: "TEST DOCUMENT NAME" } }] }],
+      }) });
+    });
     const requests: string[] = [];
     page.on("request", (request) => { if (request.method() === "POST") requests.push(new URL(request.url()).pathname); });
 
@@ -30,12 +35,14 @@ test.describe("Smart Client Import experience", () => {
     // Every real state is on the card, not hidden behind one spinner.
     await expect(card.getByText("VALIDATED", { exact: true })).toBeVisible();
     await expect(card.getByText("READY TO UPLOAD", { exact: true })).toBeVisible();
-    await expect(card.getByText("WAITING", { exact: true })).toBeVisible();
+    await expect(card.getByText("COMPLETE", { exact: true })).toBeVisible();
+    await expect(page.locator("#smart-source-text")).toContainText("Full Name: TEST DOCUMENT NAME");
     await expect(card.getByText("image/png")).toBeVisible();
     await expect(card.getByRole("link", { name: "Open preview of client-id.png" })).toBeVisible();
 
-    // The preview exists before anything has been posted.
-    expect(requests).toEqual([]);
+    // Extraction is sent before final case submission, but the case-creation endpoint is untouched.
+    await expect.poll(() => requests).toContain("/api/staff/smart-client-import/extract");
+    expect(requests).not.toContain("/api/staff/smart-client-import/mobile");
 
     // Removing the file revokes its object URL; the browser can no longer resolve it.
     await card.getByRole("button", { name: "Remove client-id.png" }).click();
