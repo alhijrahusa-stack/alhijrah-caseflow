@@ -11,7 +11,7 @@ async function extractViaPrivateOcr(bytes: Uint8Array, mimeType: string, filenam
   const target = new URL("/extract", origin);
   if (target.protocol !== "https:") throw new ActionError("ocr_transport_invalid", "OCR service must use HTTPS", 503);
   const form = new FormData();
-  form.set("file", new File([bytes], filename, { type: mimeType }));
+  form.set("file", new File([Uint8Array.from(bytes).buffer], filename, { type: mimeType }));
   let response: Response;
   try {
     response = await fetch(target, {
