@@ -158,6 +158,17 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   // The latest queue is mirrored for unmount cleanup, which runs after the last render.
   useEffect(() => { documentsRef.current = documents; }, [documents]);
 
+  // Warm the OCR model after rendering, before a document is selected.
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!cancelled) void import("@/lib/browser-paddle-ocr")
+        .then(({ prepareDocumentOcr }) => prepareDocumentOcr())
+        .catch(() => undefined);
+    }, 750);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, []);
+
   // Audio preference is read after mount, so the server render never depends on storage
   // and the button cannot hydrate with the wrong pressed state.
   useEffect(() => {
