@@ -667,7 +667,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                       className="ml-3 min-h-11 rounded-lg border border-cyan-300/35 px-3 font-semibold">RETRY EXTRACTION</button>
                   )}
                 </div>
-              )
+              )}
 
               {rejected.length > 0 && (
                 <ul aria-live="polite" className="mt-3 space-y-1.5 rounded-xl border border-amber-300/25 bg-amber-300/[.05] p-3">
