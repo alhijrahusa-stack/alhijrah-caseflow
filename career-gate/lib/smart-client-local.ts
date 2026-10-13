@@ -1,5 +1,5 @@
 import type { IntakeRow } from "@/lib/intake-file";
-import { normalizeShiftDays, normalizeShiftTime, normalizeSmartDate } from "@/lib/smart-client-fields";
+import { ARABIC_DAY_WORDS, normalizeShiftDays, normalizeShiftTime, normalizeSmartDate } from "@/lib/smart-client-fields";
 
 export type LocalStrength = "HIGH" | "MEDIUM" | "REVIEW";
 export type LocalEvidence = {
@@ -238,6 +238,27 @@ function structuralLine(line: string) {
     || STREET_RE.test(line) || US_CITY_STATE_ZIP_RE.test(line) || URL_RE.test(line);
 }
 
+/**
+ * The line with the shapes the earlier passes already read blanked out.
+ *
+ * A dictated sentence routinely carries a phone number, a shift and the days all
+ * in one line. Skipping such a line wholesale — because it matched one shape —
+ * silently dropped everything else in it. Blanking the parts that are already
+ * accounted for lets the remaining passes read the rest, and stops any of them
+ * mistaking a phone fragment or a street name for a place.
+ */
+function scrubStructural(line: string) {
+  if (STREET_RE.test(line) || US_CITY_STATE_ZIP_RE.test(line)) return "";
+  return line
+    .replace(new RegExp(EMAIL_RE.source, "gi"), " ")
+    .replace(new RegExp(URL_RE.source, "gi"), " ")
+    .replace(new RegExp(PHONE_RE.source, "g"), " ")
+    .replace(new RegExp(DATE_TOKEN_RE.source, "gi"), " ")
+    .replace(new RegExp(ZIP_RE.source, "g"), " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 /** True when the row already holds a non-empty value for a key. */
 function hasValue(row: IntakeRow, field: string) {
   const value = row[field];
@@ -284,7 +305,20 @@ function placeToken(fragment: string): string | null {
   if (!/^[\p{L}][\p{L} .'-]*$/u.test(value)) return null;
   if (NOT_A_PLACE_RE.test(value) || DAY_ONLY_RE.test(value)) return null;
   if (LABEL_PREFIX_RE.test(value)) return null;
+  // A place name is a name, not a clause: at most four words, and none of them
+  // vocabulary. "يريد العمل في الشفت الليلي" is a sentence about a shift.
+  const tokens = value.split(/\s+/).filter(Boolean);
+  if (tokens.length > 4) return null;
+  if (tokens.some((token) => ARABIC_NOT_A_PLACE_RE.test(token) || NOT_A_PLACE_RE.test(token) || DAY_ONLY_RE.test(token))) return null;
+  if (/[\u0600-\u06FF]/.test(value) && ARABIC_WORK_CONTEXT_RE.test(value)) return null;
   return value;
+}
+
+/** A candidate list stated under its own label, canonicalized to one separator. */
+function normalizeCandidateList(value: string | null): string | null {
+  if (!value) return null;
+  const places = splitPlaces(value);
+  return places.length ? places.join(", ") : null;
 }
 
 /** Work-location preferences read from a line, in the order the line states them. */
@@ -292,7 +326,16 @@ function readWorkLocations(line: string): string[] {
   const hasCue = WORK_CUE_RE.test(line) || WORK_CUE_AR.some((token) => line.includes(token));
   if (!hasCue) return [];
   const body = line.replace(/^[^:：]{0,48}[:：]\s*/, "");
-  const fragments = body.split(/\s*(?:,|\/|\||؛|;|&|\bor\b|\band\b|\bو\b)\s*/i);
+  return splitPlaces(body);
+}
+
+/** Place names in a written list, in order, deduplicated case-insensitively. */
+function splitPlaces(body: string): string[] {
+  const fragments = body
+    // "1. Detroit 2. Romulus" and "Detroit then Romulus" separate their items
+    // without a comma, so the ranking markers are separators too.
+    .replace(/(?:^|\s)(?:\d\s*[.)]|1st|2nd|3rd|first|second|third|then|next)\s+/gi, ", ")
+    .split(/\s*(?:,|\/|\||؛|;|&|\bor\b|\band\b|\bو\b)\s*/i);
   const seen = new Set<string>();
   const places: string[] = [];
   for (const fragment of fragments) {
@@ -355,7 +398,8 @@ function carriesUnreadDetail(line: string, captured: readonly string[]) {
 function residualSource(lines: readonly string[], row: IntakeRow, alsoCaptured: readonly (string | null)[] = []): string | null {
   const captured = [...Object.values(row), ...alsoCaptured]
     .map((value) => (typeof value === "string" ? value.trim() : ""))
-    .filter((value) => value.length >= 3);
+    .filter((value) => value.length >= 3)
+    .sort((a, b) => b.length - a.length);
   const out: string[] = [];
   const seen = new Set<string>();
   for (const line of lines) {
@@ -371,6 +415,108 @@ function residualSource(lines: readonly string[], row: IntakeRow, alsoCaptured: 
   return out.length ? out.join("\n").slice(0, SOURCE_NOTE_LIMIT) : null;
 }
 
+/* --- Arabic free text ------------------------------------------------------- *
+ * Arabic states the same facts without the colon-delimited labels the English
+ * passes rely on, so each shape gets its own reader. Nothing here is a
+ * translation table for values: a place name and a person's name are kept exactly
+ * as written.
+ * -------------------------------------------------------------------------- */
+
+function alternation(words: readonly string[]) {
+  return words
+    .slice()
+    .sort((a, b) => b.length - a.length)
+    .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+}
+
+/** "اسمه أحمد محمد" and the other ways a name is introduced without a colon. */
+const ARABIC_NAME_CUE_RE = /(?:^|[,،;؛]\s*)(?:اسمه|اسمها|اسم\s+العميل|اسم\s+الزبون|الاسم|يسمى|تسمى)\s+([؀-ۿ][؀-ۿ\s'-]{2,60}?)(?=$|[,،;؛.]|\s+(?:يريد|تريد|يفضل|تفضل|يعمل|وعنده|وعندها|ويريد|رقمه|هاتفه))/u;
+
+/** The Arabic hour expressions, assembled from the canonical vocabulary. */
+const ARABIC_CLOCK = String.raw`(?:\d{1,2}(?::\d{2})?|(?:ال)?(?:واحدة|حادية(?:\s+عشرة?)?|ثانية(?:\s+عشرة?)?|ثالثة|رابعة|خامسة|سادسة|سابعة|ثامنة|تاسعة|عاشرة))(?:\s*(?:و\s*)?(?:النصف|نصف|الربع|ربع|الثلث|ثلث|عشرة)|\s*(?:الا|إلا|ناقص)\s*(?:ربع|ثلث|عشرة|خمس))?(?:\s*(?:صباحا|صباحاً|صباحًا|الصباح|صباح|مساء|مساءً|مساءا|المساء|ليلا|ليلاً|ليلًا|الليل|ظهرا|ظهراً|ظهرًا|الظهر|بعد\s+الظهر|العصر|عصرا|فجرا|الفجر))?`;
+const ARABIC_TIME_RANGE_RE = new RegExp(
+  `(?:من\\s+)?(${ARABIC_CLOCK})\\s*(?:-|–|—|إلى|الى|حتى|لغاية|لحد)\\s*(${ARABIC_CLOCK})`,
+  "u",
+);
+
+const ARABIC_DAY_RANGE_RE = new RegExp(
+  `(?:من\\s+)?((?:${alternation(ARABIC_DAY_WORDS)}))\\s*(?:-|–|—|إلى|الى|حتى|لغاية|لحد)\\s*((?:${alternation(ARABIC_DAY_WORDS)}))`,
+  "u",
+);
+const ARABIC_DAY_LIST_RE = new RegExp(
+  `((?:${alternation(ARABIC_DAY_WORDS)}))(?:\\s*(?:,|،|/|&|\\+)\\s*|\\s+و\\s*)((?:${alternation(ARABIC_DAY_WORDS)}))`,
+  "u",
+);
+const ARABIC_DAY_GROUP_RE = /(?:أيام|ايام)\s*العمل|نهاية\s*(?:الأسبوع|الاسبوع)|يوميا|يومياً|كل\s*يوم/u;
+
+/** "في رومولس" — a place introduced by a preposition, inside a work context. */
+const ARABIC_PLACE_PREPOSITION_RE = /(?:^|\s)(?:في|فى|بـ)\s*([؀-ۿ][؀-ۿ\s'-]{2,40}?)(?=$|[,،;؛.]|\s+(?:و|من|إلى|الى|حتى|يريد|يفضل|وعنده|وعندها))/u;
+/** An Arabic line only counts as a work context when it says so. */
+const ARABIC_WORK_CONTEXT_RE = /العمل|عمل|يعمل|وظيفة|الشفت|شفت|الوردية|وردية|الموقع|المواقع|الفرع|الفروع|المستودع/u;
+
+/** Arabic words that are vocabulary, never a place name. */
+const ARABIC_NOT_A_PLACE_RE = new RegExp(
+  `^(?:${alternation(ARABIC_DAY_WORDS)}|الشفت|شفت|الوردية|وردية|العمل|عمل|الليلي|ليلي|الصباحي|صباحي|المسائي|مسائي|النهاري|نهاري|الصباح|المساء|الليل|سيارة|السيارة|نعم|لا|الموقع|المواقع)$`,
+  "u",
+);
+
+/** The person's name as Arabic free text introduces it. */
+function readArabicName(line: string): string | null {
+  const value = clean(line.match(ARABIC_NAME_CUE_RE)?.[1] ?? "");
+  if (!value) return null;
+  const tokens = value.split(/\s+/).filter(Boolean);
+  return tokens.length >= 2 && tokens.length <= 8 ? value : null;
+}
+
+/** Canonical day codes from Arabic free text. */
+function readArabicShiftDays(line: string): string | null {
+  const span = line.match(ARABIC_DAY_RANGE_RE)?.[0]
+    ?? line.match(ARABIC_DAY_LIST_RE)?.[0]
+    ?? line.match(ARABIC_DAY_GROUP_RE)?.[0]
+    ?? null;
+  if (!span) return null;
+  const days = normalizeShiftDays(span);
+  return days?.length ? days.join(", ") : null;
+}
+
+/** Canonical start and end from an Arabic time range. */
+function readArabicTimeRange(line: string): { start: string; end: string } | null {
+  const match = line.match(ARABIC_TIME_RANGE_RE);
+  if (!match) return null;
+  const start = normalizeShiftTime(match[1]);
+  const end = normalizeShiftTime(match[2]);
+  return start && end ? { start, end } : null;
+}
+
+/** A work place named by an Arabic preposition, in a line about work. */
+function readArabicWorkPlace(line: string): string | null {
+  if (!ARABIC_WORK_CONTEXT_RE.test(line)) return null;
+  const value = clean(line.match(ARABIC_PLACE_PREPOSITION_RE)?.[1] ?? "");
+  if (!value || value.length < 3 || value.length > 40) return null;
+  // A place name carries no vocabulary words: "الشفت الليلي" is a shift, not a site.
+  const tokens = value.split(/\s+/).filter(Boolean);
+  return tokens.some((token) => ARABIC_NOT_A_PLACE_RE.test(token)) ? null : value;
+}
+
+/**
+ * Per-item ordering evidence. A blanket "preferred" over a whole list ranks
+ * nothing — it says all of them are acceptable — so only a marker attached to the
+ * items themselves is treated as a stated preference order.
+ */
+const ORDER_MARKER_RE = /\b(?:1st|2nd|3rd|first|second|third|then|next|primary|backup)\b|(?:^|[\s(])\d\s*[.)]|الأول|الاول|الثاني|الثالث|ثم|أولا|اولا/iu;
+
+/** The person's name split into its parts. Null when the split is not safe. */
+function splitNameParts(fullName: string): { first: string; middle: string | null; last: string } | null {
+  const tokens = clean(fullName).split(/\s+/).filter(Boolean);
+  if (tokens.length < 2 || tokens.length > 8) return null;
+  return {
+    first: tokens[0],
+    middle: tokens.length > 2 ? tokens.slice(1, -1).join(" ") : null,
+    last: tokens[tokens.length - 1],
+  };
+}
+
 export function extractDeterministicClient(raw: string): LocalExtraction {
   const text = raw.replace(/\r/g, "\n").trim();
   const lines = explodeSource(text);
@@ -379,8 +525,9 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
   if (!text) return { row, evidence, display_name: null };
 
   const labeledName = labeled(lines, ["full name", "name", "client name", "applicant name", "candidate name", "الاسم", "الاسم الكامل"]);
-  const name = labeledName ?? likelyNameLine(lines);
-  add(row, evidence, "full_name", name, labeledName ? "HIGH" : name ? "MEDIUM" : "REVIEW", name);
+  const arabicName = labeledName ? null : lines.map(readArabicName).find(Boolean) ?? null;
+  const name = labeledName ?? arabicName ?? likelyNameLine(lines);
+  add(row, evidence, "full_name", name, labeledName || arabicName ? "HIGH" : name ? "MEDIUM" : "REVIEW", name);
 
   const labeledPhone = labeled(lines, ["phone", "mobile", "cell", "telephone", "phone number", "mobile number", "رقم الهاتف", "الهاتف"]);
   const phoneMatch = labeledPhone?.match(PHONE_RE)?.[0] ?? firstMatch(lines, PHONE_RE);
@@ -445,6 +592,10 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
   add(row, evidence, "shift_days", labeled(lines, ["shift days", "work days", "schedule days", "أيام الشفت", "ايام الشفت"]), "REVIEW", null);
   add(row, evidence, "shift_start_time", labeled(lines, ["shift start", "shift start time", "start time", "بداية الشفت"]), "REVIEW", null);
   add(row, evidence, "shift_end_time", labeled(lines, ["shift end", "shift end time", "end time", "نهاية الشفت"]), "REVIEW", null);
+  add(row, evidence, "first_name", labeled(lines, ["first name", "given name", "الاسم الأول", "الاسم الاول"]), "HIGH", null);
+  add(row, evidence, "middle_name", labeled(lines, ["middle name", "الاسم الأوسط", "الاسم الاوسط", "اسم الأب", "اسم الاب"]), "HIGH", null);
+  add(row, evidence, "last_name", labeled(lines, ["last name", "family name", "surname", "اسم العائلة", "الاسم الأخير", "الاسم الاخير"]), "HIGH", null);
+  add(row, evidence, "work_location_candidates", normalizeCandidateList(labeled(lines, ["work location candidates", "location candidates", "work locations", "preferred locations", "المواقع المقترحة", "مواقع العمل"])), "HIGH", null);
   add(row, evidence, "alt_site_code", labeled(lines, ["location option 1", "alt site", "alt site code", "alternate location", "alternate site", "second location", "second site", "الموقع البديل"]), "HIGH", null);
   add(row, evidence, "backup_site_code", labeled(lines, ["backup site", "backup location", "location option 2"]), "REVIEW", null);
   // Read first so a labelled note always outranks the residue appended below.
@@ -454,15 +605,17 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
 
   // Unlabeled operational detail, read by shape. Every write goes through `add()`,
   // so a labeled value captured above is never replaced by an inference here.
-  for (const line of lines) {
-    if (structuralLine(line)) continue;
+  for (const raw of lines) {
+    // Read what is left of the line once the shapes already handled are blanked.
+    const line = scrubStructural(raw);
+    if (!line) continue;
 
-    const days = readShiftDays(line);
+    const days = readShiftDays(line) ?? readArabicShiftDays(line);
     if (days && !hasValue(row, "shift_days")) {
       add(row, evidence, "shift_days", days, "MEDIUM", line);
     }
 
-    const range = readTimeRange(line);
+    const range = readTimeRange(line) ?? readArabicTimeRange(line);
     if (range && !hasValue(row, "shift_start_time") && !hasValue(row, "shift_end_time")) {
       add(row, evidence, "shift_start_time", range.start, "MEDIUM", line);
       add(row, evidence, "shift_end_time", range.end, "MEDIUM", line);
@@ -475,15 +628,37 @@ export function extractDeterministicClient(raw: string): LocalExtraction {
 
     const places = readWorkLocations(line);
     if (places.length >= 2) {
-      const open = (["site_code", "alt_site_code", "backup_site_code"] as const).filter((key) => !hasValue(row, key));
-      for (const [slot, key] of open.entries()) {
-        const place = places[slot];
-        if (!place) break;
-        add(row, evidence, key, place, "MEDIUM", line);
+      // Several places and no stated order: they are candidates for the reviewer to
+      // rank. Assigning the first one as "preferred" would invent a preference the
+      // source never expressed.
+      if (ORDER_MARKER_RE.test(line)) {
+        const open = (["site_code", "alt_site_code", "backup_site_code"] as const).filter((key) => !hasValue(row, key));
+        for (const [slot, key] of open.entries()) {
+          const place = places[slot];
+          if (!place) break;
+          add(row, evidence, key, place, "MEDIUM", line);
+        }
+      } else {
+        add(row, evidence, "work_location_candidates", places.join(", "), "MEDIUM", line);
       }
     } else if (places.length === 1 && !hasValue(row, "site_code")) {
       add(row, evidence, "site_code", places[0], "MEDIUM", line);
     }
+
+    const arabicPlace = readArabicWorkPlace(line);
+    if (arabicPlace && !hasValue(row, "site_code") && !hasValue(row, "work_location_candidates")) {
+      add(row, evidence, "site_code", arabicPlace, "MEDIUM", line);
+    }
+  }
+
+  // The name's parts, read off the name itself. This is a split of a value the
+  // source stated, not a new fact, so it is marked as derived and never competes
+  // with a labelled first, middle or last name.
+  const parts = typeof row.full_name === "string" ? splitNameParts(row.full_name) : null;
+  if (parts) {
+    add(row, evidence, "first_name", parts.first, "MEDIUM", String(row.full_name));
+    add(row, evidence, "middle_name", parts.middle, "MEDIUM", String(row.full_name));
+    add(row, evidence, "last_name", parts.last, "MEDIUM", String(row.full_name));
   }
 
   // Anything left unclassified is preserved verbatim rather than discarded. A labelled

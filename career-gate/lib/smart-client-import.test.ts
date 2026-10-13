@@ -209,12 +209,14 @@ describe("Smart Career Collect Client canonical import contract", () => {
     expect(normalizeShiftDays("Daily")).toEqual(["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]);
   });
 
-  it("carries every one of the 18 approved Smart fields through extraction, staging and evidence", () => {
+  it("carries every one of the 22 approved Smart fields through extraction, staging and evidence", () => {
     expect(Object.keys(REVIEW_FIELD_SOURCE_KEYS)).toEqual([
-      "full_name", "phone", "email", "date_of_birth", "preferred_language", "english_proficiency",
+      "full_name", "phone", "email", "date_of_birth",
+      "first_name", "middle_name", "last_name",
+      "preferred_language", "english_proficiency",
       "street", "city", "state", "zip",
       "preferred_location", "location_option_1", "location_option_2",
-      "preferred_shift", "shift_days", "shift_start_time", "shift_end_time",
+      "work_location_candidates", "preferred_shift", "shift_days", "shift_start_time", "shift_end_time",
       "additional_notes",
     ]);
     // Each reviewed field reads from its own source column; none shares one with another,
@@ -233,6 +235,10 @@ describe("Smart Career Collect Client canonical import contract", () => {
       city: "DETROIT",
       state: "MI",
       zip: "48212-3768",
+      first_name: "Test",
+      last_name: "Client",
+      middle_name: "Q",
+      work_location_candidates: "Romulus, Detroit, Dearborn",
       site_code: "Romulus",
       alt_site_code: "Detroit",
       backup_site_code: "Dearborn",
@@ -251,6 +257,10 @@ describe("Smart Career Collect Client canonical import contract", () => {
     expect(draft.review_fields.location_option_1).toBe("Detroit");
     expect(draft.review_fields.location_option_2).toBe("Dearborn");
     expect(draft.review_fields.preferred_shift).toBe("NIGHT");
+    expect(draft.review_fields.first_name).toBe("Test");
+    expect(draft.review_fields.middle_name).toBe("Q");
+    expect(draft.review_fields.last_name).toBe("Client");
+    expect(draft.review_fields.work_location_candidates).toBe("Romulus, Detroit, Dearborn");
     expect(draft.review_fields.additional_notes).toBe("Has reliable transportation.");
     expect(draft.review_fields.shift_days).toEqual(["THU", "FRI", "SAT", "SUN", "MON"]);
     expect(draft.review_fields.shift_start_time).toBe("18:00");

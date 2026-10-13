@@ -10,12 +10,16 @@ export const CLIENT_EDITABLE_FIELDS = Object.freeze([
   "phone",
   "email",
   "date_of_birth",
+  "first_name",
+  "middle_name",
+  "last_name",
   "street",
   "city",
   "state",
   "zip",
   "preferred_language",
   "english_proficiency",
+  "work_location_candidates",
   "site_code",
   "alt_site_code",
   "backup_site_code",
@@ -36,7 +40,10 @@ export type ClientEditableField = (typeof CLIENT_EDITABLE_FIELDS)[number];
  */
 export const CLIENT_EDIT_MAX_LENGTH = 200;
 export const CLIENT_NOTE_MAX_LENGTH = 2000;
+export const CLIENT_CANDIDATES_MAX_LENGTH = 600;
 
 export function clientEditMaxLength(field: ClientEditableField) {
-  return field === "additional_notes" ? CLIENT_NOTE_MAX_LENGTH : CLIENT_EDIT_MAX_LENGTH;
+  if (field === "additional_notes") return CLIENT_NOTE_MAX_LENGTH;
+  if (field === "work_location_candidates") return CLIENT_CANDIDATES_MAX_LENGTH;
+  return CLIENT_EDIT_MAX_LENGTH;
 }

@@ -51,6 +51,10 @@ describe("Smart Review approval readiness", () => {
           zip: "48212-3768",
         },
         review_fields: {
+          first_name: "QA",
+          middle_name: "Synthetic",
+          last_name: "Client",
+          work_location_candidates: "Romulus, Detroit, Dearborn",
           preferred_location: "Romulus",
           location_option_1: "Detroit",
           location_option_2: "Dearborn",

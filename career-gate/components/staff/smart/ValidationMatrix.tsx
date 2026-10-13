@@ -15,6 +15,7 @@ import {
   type SmartField,
 } from "@/components/staff/smart/field-contract";
 import {
+  isOvernightShift,
   normalizeEnglishProficiency,
   normalizeImportLanguage,
   normalizeShiftDays,
@@ -79,6 +80,13 @@ export function validateField(field: SmartField, raw: string): { value: string |
 export function ValidationMatrix({ read, onCommit, evidence, missingFields, conflicts, readOnly, onViewSource }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
 
+  // Derived from the two canonical times, so the matrix cannot disagree with them.
+  const shiftStart = SMART_FIELD_GROUPS.flatMap((group) => group.fields).find((field) => field.key === "shift_start_time");
+  const shiftEnd = SMART_FIELD_GROUPS.flatMap((group) => group.fields).find((field) => field.key === "shift_end_time");
+  const overnight = shiftStart && shiftEnd
+    ? isOvernightShift(smartFieldText(read(shiftStart)), smartFieldText(read(shiftEnd)))
+    : null;
+
   return (
     <div className="cg-matrix overflow-x-auto">
       <table className="w-full border-collapse text-left">
@@ -124,6 +132,14 @@ export function ValidationMatrix({ read, onCommit, evidence, missingFields, conf
           </tbody>
         ))}
       </table>
+      {overnight !== null && (
+        <p data-smart-overnight={overnight ? "true" : "false"} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/[.08] bg-black/25 px-2.5 py-1.5 text-[12px] text-slate-300">
+          <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${overnight ? "bg-[#e3c884]" : "bg-cyan-300"}`} />
+          <span className="font-mono text-[11px] tracking-[.1em] text-slate-400">OVERNIGHT</span>
+          <b className={`font-mono text-[12px] font-semibold ${overnight ? "text-[#f0d99d]" : "text-cyan-200"}`}>{overnight ? "YES" : "NO"}</b>
+          <span className="text-slate-500">· read from Shift Start and Shift End, not stored separately</span>
+        </p>
+      )}
     </div>
   );
 }

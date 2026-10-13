@@ -26,6 +26,8 @@ import {
 /** Reviewed field key → the intake-row key the deterministic extractor fills. */
 const SOURCE_KEY: Record<string, string> = {
   preferred_location: "site_code",
+  // first_name / middle_name / last_name / work_location_candidates / additional_notes
+  // use their own row keys and need no remapping.
   location_option_1: "alt_site_code",
   location_option_2: "backup_site_code",
   preferred_shift: "shift_code",

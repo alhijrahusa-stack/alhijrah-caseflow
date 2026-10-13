@@ -28,6 +28,11 @@ export const SMART_FIELD_GROUPS: readonly { title: string; fields: readonly Smar
     title: "IDENTITY",
     fields: [
       { key: "full_name", label: "Full Name", scope: "profile", required: true, editor: "text" },
+      // The name's parts sit in the Smart review scope: `ProfileSchema` is the
+      // Application Intake request contract and is not ours to change.
+      { key: "first_name", label: "First Name", scope: "review_fields", required: false, editor: "text" },
+      { key: "middle_name", label: "Middle Name", scope: "review_fields", required: false, editor: "text" },
+      { key: "last_name", label: "Last Name", scope: "review_fields", required: false, editor: "text" },
       { key: "phone", label: "Phone", scope: "profile", required: true, editor: "text", hint: "10-digit US number" },
       { key: "email", label: "Email", scope: "profile", required: false, editor: "text" },
       { key: "date_of_birth", label: "Date of Birth", scope: "profile", required: false, editor: "date", hint: "YYYY-MM-DD" },
@@ -52,6 +57,7 @@ export const SMART_FIELD_GROUPS: readonly { title: string; fields: readonly Smar
   {
     title: "JOB PREFERENCES",
     fields: [
+      { key: "work_location_candidates", label: "Work Location Candidates", scope: "review_fields", required: false, editor: "text", hint: "Places named for work with no stated order; rank them below" },
       { key: "preferred_location", label: "Preferred Location", scope: "review_fields", required: false, editor: "text" },
       { key: "location_option_1", label: "Location Option 1", scope: "review_fields", required: false, editor: "text" },
       { key: "location_option_2", label: "Location Option 2", scope: "review_fields", required: false, editor: "text" },

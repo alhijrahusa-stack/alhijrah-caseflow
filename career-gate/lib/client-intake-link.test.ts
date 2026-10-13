@@ -141,9 +141,11 @@ describe("client corrections take precedence over the detected source", () => {
 
   it("covers client-safe fields and existing work-preference fields", () => {
     expect([...CLIENT_EDITABLE_FIELDS]).toEqual([
-      "full_name", "phone", "email", "date_of_birth", "street",
+      "full_name", "phone", "email", "date_of_birth",
+      "first_name", "middle_name", "last_name", "street",
       "city", "state", "zip", "preferred_language", "english_proficiency",
-      "site_code", "alt_site_code", "backup_site_code", "shift_code", "shift_days", "shift_start_time", "shift_end_time",
+      "work_location_candidates", "site_code", "alt_site_code", "backup_site_code",
+      "shift_code", "shift_days", "shift_start_time", "shift_end_time",
       "additional_notes",
     ]);
   });
