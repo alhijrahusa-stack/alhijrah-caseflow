@@ -1,19 +1,16 @@
 /**
- * PP-OCRv5 browser inference. No document leaves the employee's browser for OCR.
+ * Tesseract.js on-device browser inference. No document leaves the employee's browser for OCR.
  * The model runtime/assets are downloaded on first use; callers display progress.
  */
-type BrowserOCR = { predict(input: File): Promise<Array<{ items?: Array<{ text?: string; score?: number }> }>> };
-let instance: Promise<BrowserOCR> | null = null;
-
+import { createWorker, type Worker } from "tesseract.js";
+let instance: Promise<Worker> | null = null;
 type Line = { text: string; score: number };
 type OCRCandidate = { row: Record<string, string>; confidence: Record<string, number> };
 export type BrowserOcrResult = { candidates: OCRCandidate[]; recognizedCount: number; elapsedMs: number };
-
-function getEngine(): Promise<BrowserOCR> {
+function getEngine(): Promise<Worker> {
   if (!instance) {
-    instance = import(/* webpackIgnore: true */ "/paddleocr/index.mjs").then((module: { PaddleOCR: { create(config: object): Promise<BrowserOCR> } }) =>
-      module.PaddleOCR.create({ lang: "en", ocrVersion: "PP-OCRv5", ortOptions: { backend: "auto" } }));
-    instance.catch(() => { instance = null; });
+    instance = createWorker("eng", 1);
+    void instance.catch(() => { instance = null; });
   }
   return instance;
 }
@@ -72,13 +69,8 @@ export async function recognizeDocumentInBrowser(file: File): Promise<BrowserOcr
   }
   const started=performance.now();
   const engine=await getEngine();
-  const results=await engine.predict(file);
-  const lines: Line[]=[];
-  for (const result of results) for (const item of result.items ?? []) {
-    if (typeof item.text === "string") {
-      lines.push({text:item.text,score: typeof item.score === "number" ? item.score : 0});
-    }
-  }
+  const { data } = await engine.recognize(file);
+  const lines: Line[] = data.text.split(/\r?\n/).map((text) => ({ text, score: data.confidence / 100 })).filter((line) => line.text.trim());
   if (!lines.length) throw new Error("No readable text detected. Retake a sharper photo or enter details manually.");
   const candidate=parseIdentity(lines);
   // Unlabelled OCR lines are not silently assigned to sensitive identity fields.
