@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "node scripts/inject-social-preview.mjs",
-    "build": "next build --webpack",
+    "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -18,7 +18,6 @@
     "measure": "node scripts/measure.mjs"
   },
   "dependencies": {
-    "@paddleocr/paddleocr-js": "0.4.2",
     "@supabase/supabase-js": "2.117.2",
     "jose": "6.2.12",
     "next": "16.3.6",
@@ -28,7 +27,8 @@
     "react-dom": "19.3.0",
     "server-only": "0.0.1",
     "sharp": "0.35.5",
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "tesseract.js": "6.0.1"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
