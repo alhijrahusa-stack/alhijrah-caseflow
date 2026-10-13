@@ -1,4 +1,5 @@
 /** Conservative, deterministic identity parsing: missing/unverified facts remain blank. */
+import { parseMrz } from "@/lib/mrz";
 export type OcrLine = { text: string; score: number };
 export type OcrCandidate = { row: Record<string, string>; confidence: Record<string, number>; provenance: Record<string, string> };
 const compact = (v: string) => v.replace(/\s+/g, " ").trim();
@@ -19,6 +20,33 @@ export function parseIdentityLines(lines: readonly OcrLine[]): OcrCandidate {
   function set(key:string,value:string|null,source:string,score:number) {
     if(!value || row[key] || score < 0.5 || value.length>150) return;
     row[key]=value; confidence[key]=score; provenance[key]=source;
+  }
+
+  /*
+   * The machine readable zone first.
+   *
+   * A passport, a Permanent Resident Card and an Employment Authorization Document
+   * carry their key facts in an MRZ band with a check digit over every field and one
+   * over the record. The label patterns below cannot read those documents at all —
+   * the band has no printed labels — and a check digit is arithmetic rather than a
+   * confidence score, so a band that verifies is the best evidence on the page.
+   *
+   * It runs before every other rule because `set` keeps the first value it is given,
+   * and a verified field must not lose to a label guess. A band whose check digits
+   * fail contributes nothing: it is reported by the caller, never repaired here.
+   */
+  const mrz = parseMrz(normalized.map(l=>l.text).join("\n"));
+  if (mrz && mrz.verified) {
+    const band = `${mrz.format} machine readable zone, check digits verified`;
+    // Confidence 1 records that arithmetic established this, not that a model was
+    // confident. Only fields the band's own check digits cover are set this way.
+    if (mrz.full_name) set("full_name", mrz.full_name, band, 1);
+    if (mrz.verified_fields.includes("date_of_birth") && mrz.date_of_birth) {
+      set("date_of_birth", mrz.date_of_birth, band, 1);
+    }
+    if (mrz.verified_fields.includes("expiration_date") && mrz.expiration_date) {
+      set("expiration_date", mrz.expiration_date, band, 1);
+    }
   }
   const labels: Record<string,RegExp> = {
     full_name:/^(?:FULL\s*NAME|CARDHOLDER(?:\s+NAME)?|NAME)\s*[:#-]\s*([A-Za-z][A-Za-z ,.'-]{1,100})$/i,
