@@ -26,7 +26,7 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: "/:path*",
+        source: "/:path((?!staff/smart-client-import/).*)",
         headers: [
           { key: "Content-Security-Policy", value: csp },
           { key: "X-Content-Type-Options", value: "nosniff" },
@@ -37,7 +37,13 @@ const nextConfig = {
       },
       {
         source: "/staff/smart-client-import/:path*",
-        headers: [{ key: "Content-Security-Policy", value: smartOcrCsp }],
+        headers: [
+          { key: "Content-Security-Policy", value: smartOcrCsp },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+        ],
       },
     ];
   },
