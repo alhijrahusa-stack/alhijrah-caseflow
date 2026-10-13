@@ -23,17 +23,7 @@ export const SMART_DOCUMENT_ACCEPT = [...SMART_DOCUMENT_POLICY.mimeTypes, ...SMA
 export type LocalValidationState = "VALIDATED" | "REJECTED";
 /** Where the file is in the capture → storage → processing lifecycle. */
 export type DocumentUploadState = "READY_TO_UPLOAD" | "UPLOADING" | "STORED" | "FAILED";
-export type DocumentProcessingState =
-  | "WAITING"
-  | "QUEUED"
-  | "UPLOADING"
-  | "READING"
-  | "EXTRACTING"
-  | "VALIDATING"
-  | "PROCESSING"
-  | "COMPLETE"
-  | "REVIEW_REQUIRED"
-  | "FAILED";
+export type DocumentProcessingState = "WAITING" | "PROCESSING" | "COMPLETE" | "REVIEW_REQUIRED" | "FAILED";
 /** How the file can be shown locally before any upload. */
 export type PreviewKind = "image" | "unsupported";
 
@@ -51,25 +41,6 @@ export type QueuedDocument = {
   previewKind: PreviewKind;
   /** Object URL for an image preview; null for every other type. Revoked by releaseDocuments. */
   previewUrl: string | null;
-  /** What the document itself was read to be, once a read has returned. */
-  documentType: string | null;
-  /** How readable the source image was, as the read reported it. */
-  legibility: string | null;
-  /** True when a weak first read was given a second, stronger one. */
-  escalated: boolean;
-  /** Fields this document contributed, and fields it left for review. */
-  importedFields: readonly string[];
-  reviewFields: readonly string[];
-  /** The exact reason this document's read did not complete, never a generic one. */
-  processingError: string | null;
-  /** Wall-clock time of the read that produced the above, in milliseconds. */
-  durationMs: number | null;
-  /**
-   * Whether the document's machine readable zone passed its check digits. Null when
-   * the document has no band — which is most documents, and not a problem.
-   */
-  mrzVerified: boolean | null;
-  mrzFormat: string | null;
 };
 
 export type DocumentQueueResult = {
@@ -175,15 +146,6 @@ export function admitDocuments(
       processingState: "WAITING",
       previewKind,
       previewUrl,
-      documentType: null,
-      legibility: null,
-      escalated: false,
-      importedFields: [],
-      reviewFields: [],
-      processingError: null,
-      durationMs: null,
-      mrzVerified: null,
-      mrzFormat: null,
     });
     totalBytes += file.size;
   }
@@ -217,43 +179,6 @@ export function advanceDocuments(
   return current.map((entry) => ({ ...entry, ...patch }));
 }
 
-/** The fields of one queued document that its own read is allowed to change. */
-export type DocumentPatch = Partial<Pick<QueuedDocument,
-  | "uploadState"
-  | "processingState"
-  | "documentType"
-  | "legibility"
-  | "escalated"
-  | "importedFields"
-  | "reviewFields"
-  | "processingError"
-  | "durationMs"
-  | "mrzVerified"
-  | "mrzFormat"
->>;
-
-/**
- * Advances one document without touching the others.
- *
- * Zero-click reads run per file and finish out of order, so a document that has
- * already completed must not be reset by a later patch for a different file. A patch
- * for an id that is no longer in the queue is a no-op: removing a file while its read
- * is in flight is normal, not an error.
- */
-export function patchDocument(
-  current: readonly QueuedDocument[],
-  id: string,
-  patch: DocumentPatch,
-): QueuedDocument[] {
-  let changed = false;
-  const next = current.map((entry) => {
-    if (entry.id !== id) return entry;
-    changed = true;
-    return { ...entry, ...patch };
-  });
-  return changed ? next : (current as QueuedDocument[]);
-}
-
 export function documentTotals(documents: readonly QueuedDocument[]) {
   const bytes = documents.reduce((sum, entry) => sum + entry.size, 0);
   return {
@@ -268,27 +193,11 @@ export function documentTotals(documents: readonly QueuedDocument[]) {
 export function documentStatusLabel(entry: QueuedDocument) {
   if (entry.localState === "REJECTED") return "REJECTED";
   if (entry.uploadState === "FAILED") return "FAILED";
-  // The read's own stage is the most informative thing to show while it is running,
-  // and it is reported before the upload state because that is what is happening.
-  switch (entry.processingState) {
-    case "QUEUED": return "QUEUED";
-    case "UPLOADING": return "UPLOADING";
-    case "READING": return "READING DOCUMENT";
-    case "EXTRACTING": return "EXTRACTING";
-    case "VALIDATING": return "CHECKING FIELDS";
-    case "PROCESSING": return "PROCESSING";
-    case "REVIEW_REQUIRED": return "REVIEW REQUIRED";
-    case "FAILED": return "READ FAILED";
-    case "COMPLETE": return "READ COMPLETE";
-    default: break;
-  }
   if (entry.uploadState === "UPLOADING") return "UPLOADING";
   if (entry.uploadState === "READY_TO_UPLOAD") return entry.previewUrl ? "READY" : "VALIDATED";
+  if (entry.processingState === "PROCESSING") return "PROCESSING";
+  if (entry.processingState === "REVIEW_REQUIRED") return "REVIEW REQUIRED";
+  if (entry.processingState === "FAILED") return "PROCESSING FAILED";
+  if (entry.processingState === "COMPLETE") return "COMPLETE";
   return "STORED";
-}
-
-/** Documents still moving through a read, for an honest "N of M" readout. */
-export function documentsInFlight(documents: readonly QueuedDocument[]) {
-  const active: DocumentProcessingState[] = ["QUEUED", "UPLOADING", "READING", "EXTRACTING", "VALIDATING", "PROCESSING"];
-  return documents.filter((entry) => active.includes(entry.processingState)).length;
 }

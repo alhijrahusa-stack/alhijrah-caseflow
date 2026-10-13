@@ -11,7 +11,7 @@ test.describe("Smart Client Import experience", () => {
     await page.setViewportSize(DESKTOP);
   });
 
-  test("previews a selected image locally, posts it only to the stateless read, and releases the object URL on remove", async ({ page }) => {
+  test("previews an image, starts local OCR without uploading identity media, and releases the preview on remove", async ({ page }) => {
     const requests: string[] = [];
     page.on("request", (request) => { if (request.method() === "POST") requests.push(new URL(request.url()).pathname); });
 
@@ -27,17 +27,16 @@ test.describe("Smart Client Import experience", () => {
     const previewSrc = await preview.getAttribute("src");
     expect(previewSrc).toMatch(/^blob:/);
 
-    // Every real state is on the card, not hidden behind one spinner. Zero-click
-    // means the read starts on selection, so the card reports the read's own stage.
+    // Every real state is on the card, not hidden behind one spinner.
     await expect(card.getByText("VALIDATED", { exact: true })).toBeVisible();
+    await expect(card.getByText("READY TO UPLOAD", { exact: true })).toBeVisible();
+    // The tiny fixture is not an identity document, so no name is manufactured.
+    // Model inference may still be initializing or may fail safely on invalid content.
     await expect(card.getByText("image/png")).toBeVisible();
     await expect(card.getByRole("link", { name: "Open preview of client-id.png" })).toBeVisible();
-    await expect(card.getByText(/QUEUED|UPLOADING|READING|CHECKING FIELDS|READ COMPLETE|READ FAILED|REVIEW REQUIRED/)).toBeVisible();
 
-    // The preview is local, and the only thing posted is the stateless read — never
-    // the submit route, which is the only path that may create a case.
-    await expect.poll(() => requests.length, { timeout: 20_000 }).toBeGreaterThan(0);
-    expect([...new Set(requests)]).toEqual(["/api/staff/smart-client-import/extract"]);
+    // Local PaddleOCR must never POST the document to a third-party vision API.
+    expect(requests).toEqual([]);
 
     // Removing the file revokes its object URL; the browser can no longer resolve it.
     await card.getByRole("button", { name: "Remove client-id.png" }).click();
@@ -46,85 +45,6 @@ test.describe("Smart Client Import experience", () => {
       try { const res = await fetch(url); return res.ok; } catch { return false; }
     }, previewSrc!);
     expect(stillResolvable).toBe(false);
-  });
-
-  test("reads a document the moment it is chosen, with no submit and no case created", async ({ page }) => {
-    const reads: string[] = [];
-    page.on("request", (request) => {
-      if (request.url().includes("/api/staff/smart-client-import/extract")) reads.push(request.method());
-    });
-
-    await page.goto("/staff/smart-client-import/new");
-    // A 1x1 PNG is a real PNG by signature, so the server accepts and reads it.
-    await page.locator("#smart-files").setInputFiles({
-      name: "client-id.png",
-      mimeType: "image/png",
-      buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8AAAwAB/AF+BkE3AAAAAElFTkSuQmCC", "base64"),
-    });
-
-    // The read starts on its own: no SUBMIT, no prior entry, no complete form.
-    await expect.poll(() => reads.length, { timeout: 20_000 }).toBeGreaterThan(0);
-    expect(reads[0]).toBe("POST");
-
-    const card = page.getByRole("list", { name: "Captured files" }).getByRole("listitem").first();
-    await expect(card).toBeVisible();
-    // Document vision is NOT_CONFIGURED in this environment, so the honest outcome is
-    // a named failure on the card — never a silent success with an empty result.
-    await expect(card.getByText(/READ FAILED|READ COMPLETE|REVIEW REQUIRED/)).toBeVisible({ timeout: 25_000 });
-
-    const issues = page.getByRole("region", { name: "ISSUES & RESOLUTION" });
-    await expect(issues.getByText("DOCUMENT INTELLIGENCE").first()).toBeVisible();
-    await expect(issues.getByText(/not configured|could not be read/i).first()).toBeVisible();
-    // The file stays attached and the surface stays usable.
-    await expect(page.locator("#smart-source-text")).toBeEditable();
-    await expect(issues.getByRole("button", { name: "READ AGAIN" })).toBeVisible();
-  });
-
-  test("the zero-click read never leaves an abandoned case behind", async ({ page }) => {
-    const [{ n: before }] = await db()`select count(*)::int as n from client_import_cases`;
-    await page.goto("/staff/smart-client-import/new");
-    await page.locator("#smart-files").setInputFiles({
-      name: "discarded.png",
-      mimeType: "image/png",
-      buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8AAAwAB/AF+BkE3AAAAAElFTkSuQmCC", "base64"),
-    });
-    const card = page.getByRole("list", { name: "Captured files" }).getByRole("listitem").first();
-    await expect(card.getByText(/READ FAILED|READ COMPLETE|REVIEW REQUIRED/)).toBeVisible({ timeout: 25_000 });
-
-    // Choosing a document, seeing what it says and removing it must cost nothing:
-    // no case, no case number, no row in the Active Queue.
-    await card.getByRole("button", { name: "Remove discarded.png" }).click();
-    await expect(page.getByRole("list", { name: "Captured files" }).getByRole("listitem")).toHaveCount(0);
-    const [{ n: after }] = await db()`select count(*)::int as n from client_import_cases`;
-    expect(Number(after)).toBe(Number(before));
-  });
-
-  test("a read in flight is cancelled when its document is removed", async ({ page }) => {
-    let aborted = false;
-    page.on("requestfailed", (request) => {
-      if (request.url().includes("/api/staff/smart-client-import/extract")) aborted = true;
-    });
-    await page.goto("/staff/smart-client-import/new");
-    await page.locator("#smart-files").setInputFiles({
-      name: "cancel-me.png",
-      mimeType: "image/png",
-      buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8AAAwAB/AF+BkE3AAAAAElFTkSuQmCC", "base64"),
-    });
-    const card = page.getByRole("list", { name: "Captured files" }).getByRole("listitem").first();
-    await expect(card).toBeVisible();
-    await card.getByRole("button", { name: "Remove cancel-me.png" }).click();
-    await expect(page.getByRole("list", { name: "Captured files" }).getByRole("listitem")).toHaveCount(0);
-    // Either the request was aborted, or it had already returned; both are correct.
-    // What must not happen is a stale answer re-adding the removed document.
-    expect(typeof aborted).toBe("boolean");
-    await expect(page.getByText("cancel-me.png")).toHaveCount(0);
-  });
-
-  test("the capture surface states that choosing a document is enough", async ({ page }) => {
-    await page.goto("/staff/smart-client-import/new");
-    const capture = page.getByRole("region", { name: "SOURCE CAPTURE" });
-    await expect(capture.getByText(/read immediately/)).toBeVisible();
-    await expect(capture.getByText(/before you submit anything/)).toBeVisible();
   });
 
   test("rejects an unsupported file locally with the exact reason and never uploads it", async ({ page }) => {

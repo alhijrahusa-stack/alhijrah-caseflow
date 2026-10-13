@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     const files = form.getAll("files").filter((value): value is File => value instanceof File && value.size > 0);
     const idempotencyKey = req.headers.get("idempotency-key") ?? String(form.get("idempotency_key") ?? "");
     const result = await stageMobileImportV2({ session: guard.session, notes, files, idempotencyKey });
-    if (!files.length) return ok({ ...result, enrichment_url: null }, 202, traceId);
+    // Reviewed browser OCR is already present in the notes staged by the server.\n    // Avoid a second quota-limited Gemini call for the same document.\n    if (!files.length || form.get("local_ocr_reviewed") === "1") return ok({ ...result, enrichment_url: null }, 202, traceId);
     try {
       const enriched = await enrichMobileImportCase(guard.session, result.case_id);
       return ok({ ...result, ...enriched, enrichment_url: null }, 202, traceId);

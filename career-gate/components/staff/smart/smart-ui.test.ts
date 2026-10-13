@@ -3,8 +3,6 @@ import {
   SMART_DOCUMENT_POLICY,
   admitDocuments,
   documentStatusLabel,
-  documentsInFlight,
-  patchDocument,
   documentTotals,
   releaseDocuments,
   removeDocument,
@@ -132,7 +130,7 @@ describe("Smart source capture document queue", () => {
 
     expect(documentStatusLabel(advanceDocuments(stored, { processingState: "PROCESSING" })[0])).toBe("PROCESSING");
     expect(documentStatusLabel(advanceDocuments(stored, { processingState: "REVIEW_REQUIRED" })[0])).toBe("REVIEW REQUIRED");
-    expect(documentStatusLabel(advanceDocuments(stored, { processingState: "COMPLETE" })[0])).toBe("READ COMPLETE");
+    expect(documentStatusLabel(advanceDocuments(stored, { processingState: "COMPLETE" })[0])).toBe("COMPLETE");
     expect(documentStatusLabel(advanceDocuments(stored, { uploadState: "FAILED" })[0])).toBe("FAILED");
 
     expect(documentTotals(stored)).toMatchObject({ count: 1, bytes: 1024, remaining: 9 });
@@ -371,57 +369,5 @@ describe("Smart Review approval gate (client-side read)", () => {
     });
     expect(gate.warnings).toEqual([{ field: "date_of_birth", state: "REVIEW", message: "Date of Birth could not be read as a valid value." }]);
     expect(gate.readiness).toBe("APPROVE_WITH_WARNINGS");
-  });
-});
-
-describe("Zero-click document reads advance one document at a time", () => {
-  function queue(names: readonly string[]) {
-    const urls = { create: () => "blob:x", revoke: () => undefined };
-    return admitDocuments([], names.map((name) => stubFile(name, "image/png", 2048)), urls).documents;
-  }
-
-  it("patches only the document it names", () => {
-    const documents = queue(["a.png", "b.png"]);
-    const next = patchDocument(documents, documents[1].id, { processingState: "COMPLETE", importedFields: ["full_name"] });
-    expect(next[0].processingState).toBe("WAITING");
-    expect(next[1].processingState).toBe("COMPLETE");
-    expect(next[1].importedFields).toEqual(["full_name"]);
-    // The untouched document is the very same object, so it does not re-render.
-    expect(next[0]).toBe(documents[0]);
-  });
-
-  it("does not reset a finished document when a slower one reports later", () => {
-    const documents = queue(["fast.png", "slow.png"]);
-    const afterFast = patchDocument(documents, documents[0].id, { processingState: "COMPLETE" });
-    const afterSlow = patchDocument(afterFast, documents[1].id, { processingState: "REVIEW_REQUIRED" });
-    expect(afterSlow[0].processingState).toBe("COMPLETE");
-    expect(afterSlow[1].processingState).toBe("REVIEW_REQUIRED");
-  });
-
-  it("is a no-op for a document that has already been removed", () => {
-    const documents = queue(["a.png"]);
-    const remaining = removeDocument(documents, documents[0].id, { create: () => "blob:x", revoke: () => undefined });
-    // A read still in flight for a removed file must not resurrect it.
-    expect(patchDocument(remaining, documents[0].id, { processingState: "COMPLETE" })).toBe(remaining);
-  });
-
-  it("reports every read stage as its own status, not as a generic one", () => {
-    const [entry] = queue(["a.png"]);
-    const label = (state: Parameters<typeof patchDocument>[2]["processingState"]) =>
-      documentStatusLabel(patchDocument([entry], entry.id, { processingState: state })[0]);
-    expect(label("QUEUED")).toBe("QUEUED");
-    expect(label("UPLOADING")).toBe("UPLOADING");
-    expect(label("READING")).toBe("READING DOCUMENT");
-    expect(label("EXTRACTING")).toBe("EXTRACTING");
-    expect(label("VALIDATING")).toBe("CHECKING FIELDS");
-    expect(label("FAILED")).toBe("READ FAILED");
-  });
-
-  it("counts only the reads that are actually moving", () => {
-    const documents = queue(["a.png", "b.png", "c.png"]);
-    expect(documentsInFlight(documents)).toBe(0);
-    const reading = patchDocument(patchDocument(documents, documents[0].id, { processingState: "READING" }), documents[1].id, { processingState: "UPLOADING" });
-    expect(documentsInFlight(reading)).toBe(2);
-    expect(documentsInFlight(patchDocument(reading, documents[0].id, { processingState: "COMPLETE" }))).toBe(1);
   });
 });

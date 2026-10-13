@@ -16,15 +16,29 @@ const csp = [
   "object-src 'none'",
 ].join("; ");
 
+const smartOcrCsp = csp
+  .replace("https://cdnjs.cloudflare.com", "https://cdnjs.cloudflare.com https://cdn.jsdelivr.net")
+  .replace("frame-ancestors", "worker-src 'self' blob:; frame-ancestors")
+  .replace(`connect-src ${connect}`, `connect-src ${connect} https://cdn.jsdelivr.net https://tessdata.projectnaptha.com`);
 const nextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["sharp"],
   async headers() {
     return [
       {
-        source: "/:path*",
+        source: "/:path((?!staff/smart-client-import/).*)",
         headers: [
           { key: "Content-Security-Policy", value: csp },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+        ],
+      },
+      {
+        source: "/staff/smart-client-import/:path*",
+        headers: [
+          { key: "Content-Security-Policy", value: smartOcrCsp },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Frame-Options", value: "DENY" },

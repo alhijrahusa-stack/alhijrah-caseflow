@@ -33,7 +33,7 @@ const SOURCE_KEY: Record<string, string> = {
   preferred_shift: "shift_code",
 };
 
-export function sourceKeyFor(key: string) {
+function sourceKeyFor(key: string) {
   return SOURCE_KEY[key] ?? key;
 }
 
