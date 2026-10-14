@@ -9,6 +9,9 @@ export const LIMITS = {
   intake_accept_5min: { window: 300, limit: 1 },
   status_lookup_15min: { window: 900, limit: 5 },
   status_lookup_hour: { window: 3600, limit: 20 },
+  // Known case references are scoped to IP + case; other lookups retain strict per-IP limits.
+  status_known_case_15min: { window: 900, limit: 30 },
+  status_known_case_hour: { window: 3600, limit: 90 },
   otp_send_hour: { window: 3600, limit: 5 },
   status_verify_15min: { window: 900, limit: 20 },
   staff_action_minute: { window: 60, limit: 100 },
