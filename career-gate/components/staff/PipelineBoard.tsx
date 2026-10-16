@@ -23,6 +23,8 @@ function legacyShiftPeriod(hours: string | null): DispatchPeriod {
 }
 
 function normalizedPeriod(client: OperationsClient): DispatchPeriod {
+  if(client.shift_code==="night") return "night";
+  if(client.shift_code==="morning") return "morning";
   const value = client.shift_period;
   if (value === "morning" || value === "evening" || value === "night" || value === "needs_manual_review") return value;
   if (value === "unspecified") return "needs_manual_review";
@@ -95,34 +97,35 @@ type LocationGroup = {
   needs_manual_review: OperationsClient[];
 };
 
-function DispatchClient({ client }: { client: OperationsClient }) {
-  return (
-    <Link href={`/staff/client/${client.id}`} className="ops-dispatch-client">
-      <div className="ops-dispatch-client-head">
-        <div>
-          <strong>{client.full_name}</strong>
-          <code>{client.ref}</code>
-        </div>
-        {client.auto_dispatched_at && <span className="ops-auto-badge">Auto-Dispatched</span>}
-      </div>
-      <div className="ops-dispatch-meta">
-        <span>{client.shift_code ?? "—"}</span>
-        <span dir="rtl">{client.shift_days ?? "—"}</span>
-        <span>{client.shift_hours ?? "—"}</span>
-      </div>
-      <div className="ops-dispatch-footer">
-        <span>{client.assigned_name ?? "Unassigned"}</span>
-        {client.payment_status === "paid" && <b>Paid ${Number(client.fee_amount ?? 0).toFixed(0)}</b>}
-      </div>
-    </Link>
-  );
+type StaffOption={id:string;display_name:string};
+function DispatchClient({client,staff,canAssign,onAssign,busy}:{client:OperationsClient;staff:StaffOption[];canAssign:boolean;onAssign:(client:OperationsClient,staffId:string|null)=>void;busy:boolean}){
+ return <article className="ops-dispatch-client min-w-0 !p-4">
+   <div className="ops-dispatch-client-head">
+     <div className="min-w-0"><Link href={`/staff/client/${client.id}`} className="block truncate text-base font-bold text-white hover:text-orange-300">{client.full_name}</Link>
+     <code>{client.ref}</code></div>
+     {client.auto_dispatched_at&&<span className="ops-auto-badge">Auto-Dispatched</span>}
+   </div>
+   <div className="ops-dispatch-meta text-sm">
+    <span>{client.shift_name??client.shift_code??"—"}</span>
+    <span>{client.shift_days??"—"}</span>
+    <span>{client.shift_hours??"—"}</span>
+   </div>
+   <div className="ops-dispatch-footer flex flex-wrap items-center gap-2">
+    {canAssign?<select aria-label={`Assign ${client.full_name}`} value={client.assigned_staff??""} disabled={busy} onChange={e=>onAssign(client,e.target.value||null)} className="ops-select min-w-32 !text-sm">
+      <option value="">Unassigned</option>{staff.map(x=><option value={x.id} key={x.id}>{x.display_name}</option>)}
+    </select>:<span>{client.assigned_name??"Unassigned"}</span>}
+    <Link href={`/staff/client/${client.id}`} className="rounded-lg border border-orange-300/25 px-3 py-2 text-sm font-semibold text-orange-200">Open file</Link>
+    {client.payment_status==="paid"&&<b>Paid ${Number(client.fee_amount??0).toFixed(0)}</b>}
+   </div>
+ </article>;
 }
 
-function DispatchLane({ title, subtitle, clients, tone }: {
+function DispatchLane({ title, subtitle, clients, tone, staff, canAssign, onAssign, busyId }: {
   title: string;
   subtitle: string;
   clients: OperationsClient[];
   tone: "morning" | "evening" | "night" | "needs_manual_review";
+  staff: StaffOption[]; canAssign:boolean; onAssign:(client:OperationsClient,staffId:string|null)=>void; busyId:string|null;
 }) {
   return (
     <section className="ops-dispatch-lane" data-tone={tone}>
@@ -131,14 +134,14 @@ function DispatchLane({ title, subtitle, clients, tone }: {
         <b>{clients.length}</b>
       </header>
       <div className="ops-dispatch-list">
-        {clients.map((client) => <DispatchClient key={client.id} client={client} />)}
+        {clients.map((client) => <DispatchClient key={client.id} client={client} staff={staff} canAssign={canAssign} onAssign={onAssign} busy={busyId===client.id}/>)}
         {!clients.length && <div className="ops-dispatch-empty">No clients in this lane.</div>}
       </div>
     </section>
   );
 }
 
-export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; clients: OperationsClient[] }) {
+export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: PipelineStage[]; clients: OperationsClient[]; staff:StaffOption[]; canAssign:boolean }) {
   const onMutated = useTargetedMutation();
   const [rows, setRows] = useState(clients);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -165,6 +168,21 @@ export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; cl
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function assign(client:OperationsClient,staffId:string|null){
+    if(client.assigned_staff===staffId)return;
+    setBusyId(client.id);setError(null);
+    const oldId=client.assigned_staff,oldName=client.assigned_name;
+    setRows(x=>x.map(row=>row.id===client.id?{...row,assigned_staff:staffId,assigned_name:staff.find(s=>s.id===staffId)?.display_name??null}:row));
+    try{
+      await operation({operation:"reassign_client",client_id:client.id,staff_id:staffId,task_ids:[]});
+      onMutated("reassign_client",client.id);
+      try{const sound=new AudioContext();const osc=sound.createOscillator(),gain=sound.createGain();osc.frequency.value=660;gain.gain.value=0.015;osc.connect(gain);gain.connect(sound.destination);osc.start();osc.stop(sound.currentTime+0.12);osc.onended=()=>void sound.close();}catch{}
+    }catch(e){
+      setRows(x=>x.map(row=>row.id===client.id?{...row,assigned_staff:oldId,assigned_name:oldName}:row));
+      setError(e instanceof Error?e.message:"Assignment failed");
+    }finally{setBusyId(null);}
   }
 
   const locations = useMemo<LocationGroup[]>(() => {
@@ -245,10 +263,10 @@ export function PipelineBoard({ stages, clients }: { stages: PipelineStage[]; cl
                 <div className="ops-location-total"><strong>{location.morning.length + location.evening.length + location.night.length + location.needs_manual_review.length}</strong><span>clients</span></div>
               </header>
               <div className="ops-location-lanes ops-location-lanes-four">
-                <DispatchLane title="Morning" subtitle="القائمة الصباحية" clients={location.morning} tone="morning" />
-                <DispatchLane title="Evening" subtitle="القائمة المسائية" clients={location.evening} tone="evening" />
-                <DispatchLane title="Night" subtitle="القائمة الليلية" clients={location.night} tone="night" />
-                <DispatchLane title="Needs review" subtitle="يتطلب تصنيف يدوي" clients={location.needs_manual_review} tone="needs_manual_review" />
+                <DispatchLane title="Morning" subtitle="القائمة الصباحية" clients={location.morning} tone="morning" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} />
+                <DispatchLane title="Evening" subtitle="القائمة المسائية" clients={location.evening} tone="evening" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} />
+                <DispatchLane title="Night" subtitle="القائمة الليلية" clients={location.night} tone="night" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} />
+                <DispatchLane title="Needs review" subtitle="يتطلب تصنيف يدوي" clients={location.needs_manual_review} tone="needs_manual_review" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} />
               </div>
             </article>
           ))}
