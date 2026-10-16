@@ -403,7 +403,8 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       setDocuments((current) => current.map((d) =>
         selected.some((item) => item.id === d.id) ? { ...d, uploadState: "READY_TO_UPLOAD", processingState: "FAILED" } : d,
       ));
-      setPreviewMessage(error instanceof Error && error.message ? `Local OCR failed: ${error.message}` : "Local OCR failed unexpectedly. Retry or check the browser console.");
+      const detail = error instanceof Error ? `${error.name}: ${error.message}` : typeof error === "string" ? error : error && typeof error === "object" && "message" in error ? String(error.message) : String(error);
+      setPreviewMessage(`Local OCR failed: ${detail.slice(0, 250) || "Unknown failure"}`);
     } finally {
       setPreExtracting(false);
     }
