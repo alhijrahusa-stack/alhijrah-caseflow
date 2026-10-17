@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 type Slot={start:string};
-export function ClientAppointmentActions({refCode,appointmentId,status}:{refCode:string;appointmentId:string;status:string}) {
+export function ClientAppointmentActions({refCode,appointmentId}:{refCode:string;appointmentId:string}) {
   const router=useRouter();
   const [panel,setPanel]=useState<"reschedule"|"cancel"|null>(null);
   const [slots,setSlots]=useState<Slot[]>([]);
