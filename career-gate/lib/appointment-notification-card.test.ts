@@ -31,6 +31,8 @@ describe("appointment notification card", () => {
    expect(renderAppointmentCard({...sample,language:"ar"}).html).not.toContain('lang="en"');
    expect(renderAppointmentCard({...sample,language:"en"}).html).not.toContain('lang="ar"');
  });
+ it("uses fluid 600px table layout without browser-only grid, flex, or inline SVG", () => { const html=renderAppointmentCard(sample).html; expect(html).toContain('max-width:600px'); expect(html).toContain('role="presentation"'); expect(html).toContain('width:100%'); expect(html).not.toContain("display:grid"); expect(html).not.toContain("display:flex"); expect(html).not.toContain("<svg"); });
+ it("includes human appointment copy and corporate footer", () => { const html=renderAppointmentCard(sample).html; expect(html).toContain("يسعدنا إبلاغكم"); expect(html).toContain("ديربورن، ميشيغان"); expect(html).toContain("https://alhijrah-caseflow.vercel.app/status"); });
  it("offers exactly the seven configured document options", () => {
    expect(DOCUMENTS).toHaveLength(7);
  });
