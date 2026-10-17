@@ -18,8 +18,7 @@ export function StatusLookup() {
     setPending(true);
     setError(null);
     setMessage(null);
-    setChallengeId(null);
-    setCode("");
+    // Keep any still-valid challenge visible until a replacement succeeds.
     try { const res = await fetch("/api/status/lookup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -32,6 +31,7 @@ export function StatusLookup() {
       return;
     }
     setChallengeId(String(data.challenge_id));
+    setCode("");
     setMessage(String(data.message ?? "If the information matches a file, a verification code has been sent."));
     } catch { setPending(false); setError("Unable to connect. Please try again shortly. / تعذر الاتصال، يرجى المحاولة مجددًا."); }
   }
@@ -91,7 +91,7 @@ export function StatusLookup() {
 
         {challengeId && (
           <form className="mt-6 border-t border-white/20 pt-5" onSubmit={verify}>
-            <label className="label" htmlFor="status-code">Verification code</label>
+            <label className="mb-2 block text-sm font-semibold text-[#F0D18E]" htmlFor="status-code">Enter the 6-digit code sent to your registered contact / أدخل رمز التحقق المرسل إليك</label>
             <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
               <input
                 id="status-code"
