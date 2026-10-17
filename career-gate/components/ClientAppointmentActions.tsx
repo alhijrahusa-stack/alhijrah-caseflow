@@ -2,9 +2,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 type Slot={start:string};
-export function ClientAppointmentActions({refCode,appointmentId}:{refCode:string;appointmentId:string}) {
+export function ClientAppointmentActions({refCode,appointmentId,initialAction}:{refCode:string;appointmentId:string;initialAction?:string}) {
   const router=useRouter();
-  const [panel,setPanel]=useState<"reschedule"|"cancel"|null>(null);
+  const [panel,setPanel]=useState<"reschedule"|"cancel"|null>(initialAction==="cancel"?"cancel":initialAction==="reschedule"?"reschedule":null);
   const [slots,setSlots]=useState<Slot[]>([]);
   const [slot,setSlot]=useState("");
   const [reason,setReason]=useState("");
@@ -12,6 +12,7 @@ export function ClientAppointmentActions({refCode,appointmentId}:{refCode:string
   const [message,setMessage]=useState("");
   const [error,setError]=useState("");
   useEffect(()=>{if(!panel)return;const esc=(e:KeyboardEvent)=>{if(e.key==="Escape")setPanel(null)};window.addEventListener("keydown",esc);return()=>window.removeEventListener("keydown",esc)},[panel]);
+  useEffect(()=>{if(initialAction!=="reschedule")return;let active=true;void fetch(`/api/status/appointment-action?ref=${encodeURIComponent(refCode)}&appointmentId=${encodeURIComponent(appointmentId)}`,{cache:"no-store"}).then(r=>r.json()).then(d=>{if(active)setSlots(d.slots||[])}).catch(()=>{if(active)setError("Unable to load available times")});return()=>{active=false}},[initialAction,refCode,appointmentId]);
   async function openReschedule(){
     setPanel("reschedule");setError("");setMessage("");setSlots([]);
     try{const r=await fetch(`/api/status/appointment-action?ref=${encodeURIComponent(refCode)}&appointmentId=${encodeURIComponent(appointmentId)}`,{cache:"no-store"});const d=await r.json();if(!r.ok)throw Error(d.error?.message||"Could not load times");setSlots(d.slots||[])}catch(e){setError(e instanceof Error?e.message:"Unable to load availability")}
