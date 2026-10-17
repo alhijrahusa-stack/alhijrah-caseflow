@@ -3,7 +3,7 @@ import { withStaff } from "@/lib/auth";
 import { staffGuard } from "@/lib/staff-api";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
-import { AMAZON_LOCATIONS, SHIFT_TYPES, DAY_PATTERNS, SHIFT_DEFAULT_HOURS } from "@/lib/location-shift-options";
+import { AMAZON_LOCATIONS, SHIFT_TYPES, DAY_PATTERNS } from "@/lib/location-shift-options";
 
 export const runtime = "nodejs";
 const inputSchema=z.object({
