@@ -128,14 +128,14 @@ export async function startLookup(identifier: string, ipHash: string, traceId: s
            where id = ${challengeId}`;
 
   if (subject.clientId) {
-    await logActivity(db, {
+    try { await logActivity(db, {
       clientId: subject.clientId,
       action: "status_otp_requested",
       actor: { staffId: null, traceId },
       entityType: "otp_request",
       entityId: challengeId,
       newValue: { channel, delivery },
-    });
+    }); } catch (error) { console.error("OTP audit unavailable", error); }
   }
   return { challengeId, delivery, contactHash };
 }
