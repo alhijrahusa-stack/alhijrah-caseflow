@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LocationShiftTelemetry } from "@/components/staff/LocationShiftTelemetry";
 import { useEffect, useMemo, useState } from "react";
 import type { DispatchPeriod, OperationsClient, PipelineStage } from "@/lib/operations";
 import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
@@ -98,8 +99,8 @@ type LocationGroup = {
 };
 
 type StaffOption={id:string;display_name:string};
-function DispatchClient({client,staff,canAssign,onAssign,busy}:{client:OperationsClient;staff:StaffOption[];canAssign:boolean;onAssign:(client:OperationsClient,staffId:string|null)=>void;busy:boolean}){
- return <article className="ops-dispatch-client min-w-0 !p-4">
+function DispatchClient({client,staff,canAssign,onAssign,busy,pulsing}:{client:OperationsClient;staff:StaffOption[];canAssign:boolean;onAssign:(client:OperationsClient,staffId:string|null)=>void;busy:boolean;pulsing:boolean}){
+ return <article className={`ops-dispatch-client min-w-0 !p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(242,142,34,.12)] ${pulsing?"cg-assignment-pulse":""}`}>
    <div className="ops-dispatch-client-head">
      <div className="min-w-0"><Link href={`/staff/client/${client.id}`} className="block truncate text-base font-bold text-white hover:text-orange-300">{client.full_name}</Link>
      <code>{client.ref}</code></div>
@@ -120,12 +121,12 @@ function DispatchClient({client,staff,canAssign,onAssign,busy}:{client:Operation
  </article>;
 }
 
-function DispatchLane({ title, subtitle, clients, tone, staff, canAssign, onAssign, busyId }: {
+function DispatchLane({ title, subtitle, clients, tone, staff, canAssign, onAssign, busyId, lastAssignedId }: {
   title: string;
   subtitle: string;
   clients: OperationsClient[];
   tone: "morning" | "evening" | "night" | "needs_manual_review";
-  staff: StaffOption[]; canAssign:boolean; onAssign:(client:OperationsClient,staffId:string|null)=>void; busyId:string|null;
+  staff: StaffOption[]; canAssign:boolean; onAssign:(client:OperationsClient,staffId:string|null)=>void; busyId:string|null; lastAssignedId:string|null;
 }) {
   return (
     <section className="ops-dispatch-lane" data-tone={tone}>
@@ -134,7 +135,7 @@ function DispatchLane({ title, subtitle, clients, tone, staff, canAssign, onAssi
         <b>{clients.length}</b>
       </header>
       <div className="ops-dispatch-list">
-        {clients.map((client) => <DispatchClient key={client.id} client={client} staff={staff} canAssign={canAssign} onAssign={onAssign} busy={busyId===client.id}/>)}
+        {clients.map((client) => <DispatchClient key={client.id} client={client} staff={staff} canAssign={canAssign} onAssign={onAssign} busy={busyId===client.id} pulsing={lastAssignedId===client.id}/>)}
         {!clients.length && <div className="ops-dispatch-empty">No clients in this lane.</div>}
       </div>
     </section>
@@ -147,6 +148,8 @@ export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: P
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"pipeline" | "location">("pipeline");
+  const [voiceEnabled,setVoiceEnabled]=useState(false);
+  const [lastAssignedId,setLastAssignedId]=useState<string|null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setRows(clients), 0);
@@ -178,7 +181,13 @@ export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: P
     try{
       await operation({operation:"reassign_client",client_id:client.id,staff_id:staffId,task_ids:[]});
       onMutated("reassign_client",client.id);
-      try{const sound=new AudioContext();const osc=sound.createOscillator(),gain=sound.createGain();osc.frequency.value=660;gain.gain.value=0.015;osc.connect(gain);gain.connect(sound.destination);osc.start();osc.stop(sound.currentTime+0.12);osc.onended=()=>void sound.close();}catch{}
+      setLastAssignedId(client.id);
+      window.setTimeout(()=>setLastAssignedId(v=>v===client.id?null:v),1400);
+      if(voiceEnabled && staffId && "speechSynthesis" in window){
+        const name=staff.find(s=>s.id===staffId)?.display_name;
+        if(name){const phrases=[`تم إسناد الملف بنجاح إلى الأستاذ ${name}.`,`أهلاً أستاذ ${name}، نتمنى لك التوفيق في متابعة الملف.`,`تم تأكيد التعيين، شكراً أستاذ ${name}.`];
+          const utterance=new SpeechSynthesisUtterance(phrases[Math.floor(Math.random()*phrases.length)]);utterance.lang="ar-SA";utterance.rate=0.95;window.speechSynthesis.cancel();window.speechSynthesis.speak(utterance);}
+      }
     }catch(e){
       setRows(x=>x.map(row=>row.id===client.id?{...row,assigned_staff:oldId,assigned_name:oldName}:row));
       setError(e instanceof Error?e.message:"Assignment failed");
@@ -220,6 +229,8 @@ export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: P
       </header>
 
       {error && <div className="ops-error" role="alert">{error}</div>}
+      <LocationShiftTelemetry clients={rows} periodOf={normalizedPeriod}/>
+      <div className="flex items-center justify-end"><label className="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-300/20 bg-white/[.04] px-3 py-2 text-sm text-slate-200"><input type="checkbox" checked={voiceEnabled} onChange={e=>setVoiceEnabled(e.target.checked)}/> Arabic voice confirmations</label></div>
 
       {view === "pipeline" ? (
         <div className="ops-kanban" data-testid="pipeline-board">
@@ -263,10 +274,10 @@ export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: P
                 <div className="ops-location-total"><strong>{location.morning.length + location.evening.length + location.night.length + location.needs_manual_review.length}</strong><span>clients</span></div>
               </header>
               <div className="ops-location-lanes ops-location-lanes-four">
-                <DispatchLane title="Morning" subtitle="القائمة الصباحية" clients={location.morning} tone="morning" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} />
-                <DispatchLane title="Evening" subtitle="القائمة المسائية" clients={location.evening} tone="evening" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} />
-                <DispatchLane title="Night" subtitle="القائمة الليلية" clients={location.night} tone="night" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} />
-                <DispatchLane title="Needs review" subtitle="يتطلب تصنيف يدوي" clients={location.needs_manual_review} tone="needs_manual_review" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} />
+                <DispatchLane title="Morning" subtitle="القائمة الصباحية" clients={location.morning} tone="morning" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
+                <DispatchLane title="Evening" subtitle="القائمة المسائية" clients={location.evening} tone="evening" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
+                <DispatchLane title="Night" subtitle="القائمة الليلية" clients={location.night} tone="night" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
+                <DispatchLane title="Needs review" subtitle="يتطلب تصنيف يدوي" clients={location.needs_manual_review} tone="needs_manual_review" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
               </div>
             </article>
           ))}
