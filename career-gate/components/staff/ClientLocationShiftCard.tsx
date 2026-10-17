@@ -53,8 +53,8 @@ export function ClientLocationShiftCard({clients}:{clients:{id:string;full_name:
     </select></label>}
   </div>
   {shift&&<div className="relative mt-3 grid gap-3 lg:grid-cols-[1fr_auto]">
-   <label className="grid gap-1 text-sm font-semibold text-white/80">Preferred Hours (editable)
-    <input className="input min-h-12 border-orange-300/25 bg-black/55 text-white" value={hours} onChange={e=>setHours(e.target.value)} maxLength={100} placeholder="e.g. 07:00 AM – 05:30 PM"/>
+   <label className="grid gap-1 text-sm font-semibold text-white/80">Preferred Hours (compatible schedule options)
+    <select className="input min-h-12 border-orange-300/25 bg-black/55 text-white" value={hours} onChange={e=>setHours(e.target.value)}><option value={SHIFT_DEFAULT_HOURS[shift]}>{SHIFT_DEFAULT_HOURS[shift]}</option>{shift==="front_half"||shift==="back_half"?<option value="06:30 PM – 05:00 AM">06:30 PM – 05:00 AM</option>:null}{shift==="morning"||shift==="mid"?<option value="08:00 AM – 04:30 PM">08:00 AM – 04:30 PM</option>:null}{shift==="night"?<option value="10:00 PM – 06:30 AM">10:00 PM – 06:30 AM</option>:null}</select>
    </label>
    <button type="button" disabled={busy||!client||!location||!shift||!days||!hours.trim()} onClick={save} className="self-end rounded-xl bg-orange-500 px-6 py-3 font-bold text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-40">
      {busy?"Saving…":"Save Location & Shift"}
