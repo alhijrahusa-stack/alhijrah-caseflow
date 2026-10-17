@@ -38,7 +38,7 @@ export default async function StatusPage({ params }: { params: Promise<{ ref: st
 
   return (
     <>
-      <PublicStatusView s={s} />
+      <PublicStatusView s={s} verifiedRef={r} />
       <StatusPoller refCode={s.ref} />
     </>
   );
