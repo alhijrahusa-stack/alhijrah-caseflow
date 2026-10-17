@@ -18,10 +18,10 @@ export default async function StatusPage({ params, searchParams }: { params: Pro
 
   if (!subject) {
     return (
-      <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-6" data-testid="status-auth-required">
+      <section className="space-y-4 rounded-2xl border border-[#C5A059]/40 bg-white/10 p-6 text-white backdrop-blur-xl" data-testid="status-auth-required">
         <h1 className="text-xl font-semibold">Verification required</h1>
-        <p className="text-sm text-slate-600">Verify your file number, phone, or email to view application details.</p>
-        <Link href={`/status?ref=${encodeURIComponent(r)}`} className="inline-flex rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white">Verify & View Status</Link>
+        <p className="text-sm text-slate-200">Verify your file number, phone, or email to view application details.</p>
+        <Link href={`/status?ref=${encodeURIComponent(r)}`} className="inline-flex min-h-12 items-center rounded-xl bg-[#C5A059] px-5 py-3 text-sm font-bold text-[#06152f]">Verify & View Status</Link>
       </section>
     );
   }
@@ -40,7 +40,7 @@ export default async function StatusPage({ params, searchParams }: { params: Pro
   return (
     <>
       <PublicStatusView s={s} verifiedRef={r} appointmentAction={appointment_action} />
-      <StatusPoller refCode={s.ref} />
+      <StatusPoller refCode={r} />
     </>
   );
 }
