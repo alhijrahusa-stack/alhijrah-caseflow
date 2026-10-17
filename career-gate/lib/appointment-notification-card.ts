@@ -55,7 +55,7 @@ export function renderAppointmentCard(input: AppointmentCard) {
   const languages = input.language === "both" ? (["ar","en"] as const) : [input.language];
   const header = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;background-color:#0A122C"><tr><td align="center" style="padding:26px 16px;border-bottom:1px solid #C5A059;font-family:Arial,Tahoma,sans-serif">'
     +'<div style="font-size:28px;line-height:1.35;font-weight:800;letter-spacing:1px;color:#E6A64F">CAREER GATE</div>'
-    +'<div lang="ar" dir="rtl" style="font-size:17px;line-height:1.7;font-weight:700;color:#FFFFFF">بوابة التوظيف</div>'
+    +'<div dir="rtl" style="font-size:17px;line-height:1.7;font-weight:700;color:#FFFFFF">بوابة التوظيف</div>'
     +'<div style="font-size:10px;line-height:1.6;letter-spacing:1px;color:#C9D4E4">EXECUTIVE SMART GATE PASS</div></td></tr></table>';
   const footer = '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse"><tr><td style="padding:18px 16px 0">'
     +action("https://alhijrah-caseflow.vercel.app/status","متابعة حالة الملف / Track Status","#C5A059","#040914")
