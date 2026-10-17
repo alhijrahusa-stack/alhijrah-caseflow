@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function StatusLookup() {
   const router = useRouter();
@@ -10,6 +10,16 @@ export function StatusLookup() {
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const secondsLeft = expiresAt === null ? 0 : Math.max(0, Math.ceil((expiresAt - now) / 1000));
+  const remaining = `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(secondsLeft % 60).padStart(2, "0")}`;
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [expiresAt]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -31,6 +41,8 @@ export function StatusLookup() {
       return;
     }
     setChallengeId(String(data.challenge_id));
+    setExpiresAt(Date.now() + 300_000);
+    setNow(Date.now());
     setCode("");
     setMessage(String(data.message ?? "If the information matches a file, a verification code has been sent."));
     } catch { setPending(false); setError("Unable to connect. Please try again shortly. / تعذر الاتصال، يرجى المحاولة مجددًا."); }
@@ -62,6 +74,7 @@ export function StatusLookup() {
   function changeIdentifier(value: string) {
     setIdentifier(value);
     setChallengeId(null);
+    setExpiresAt(null);
     setCode("");
     setMessage(null);
     setError(null);
@@ -91,7 +104,7 @@ export function StatusLookup() {
 
         {challengeId && (
           <form className="mt-6 border-t border-white/20 pt-5" onSubmit={verify}>
-            <label className="mb-2 block text-sm font-semibold text-[#F0D18E]" htmlFor="status-code">Enter the 6-digit code sent to your registered contact / أدخل رمز التحقق المرسل إليك</label>
+            <label className="mb-2 block text-sm font-semibold text-[#F0D18E]" htmlFor="status-code">Verification code</label>\n            <p className="mb-2 text-xs text-slate-300">Enter the 6-digit code sent to your registered contact / أدخل رمز التحقق المرسل إليك</p>
             <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
               <input
                 id="status-code"
@@ -105,8 +118,13 @@ export function StatusLookup() {
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="000000"
               />
-              <button type="submit" disabled={pending || code.length !== 6} className="min-h-14 rounded-xl bg-gradient-to-r from-[#C5A059] to-[#F0D18E] px-5 py-3 font-bold text-[#07152b] disabled:opacity-60">{pending ? "Verifying…" : "Verify & View Status"}</button>
+              <button type="submit" disabled={pending || code.length !== 6 || secondsLeft === 0} className="min-h-14 rounded-xl bg-gradient-to-r from-[#C5A059] to-[#F0D18E] px-5 py-3 font-bold text-[#07152b] disabled:opacity-60">{pending ? "Verifying…" : "Verify & View Status"}</button>
             </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#C5A059]/30 bg-[#06162c]/55 px-4 py-3" role="timer" aria-live="off">
+              <span className="text-sm text-slate-200">Code validity / صلاحية الرمز</span>
+              <span className={`font-mono text-lg font-bold tabular-nums ${secondsLeft > 60 ? "text-[#F0D18E]" : "text-rose-200"}`}>{remaining}</span>
+            </div>
+            {secondsLeft === 0 && <p className="mt-2 text-sm text-amber-200" role="status">Code expired. Select Send New Code above. / انتهت صلاحية الرمز، اطلب رمزًا جديدًا من الأعلى.</p>}
           </form>
         )}
       </section>
