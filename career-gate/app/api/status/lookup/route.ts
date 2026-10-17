@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { err, ipHash, ok } from "@/lib/http";
-import { traceIdFrom } from "@/lib/obs";
+import { traceIdFrom, log } from "@/lib/obs";
 import { hit, securityEvent } from "@/lib/ratelimit";
 import { startLookup } from "@/lib/status-access";
 
@@ -12,6 +12,7 @@ export async function POST(req: Request) {
   const parsed = z.object({ identifier: z.string().trim().min(3).max(200) }).safeParse(await req.json().catch(() => undefined));
   if (!parsed.success) return err("invalid_input", "Enter your file number, phone or email", 400, traceId);
 
+  try {
   const ip = ipHash(req);
   const a = await hit("status_lookup_15min", ip);
   const b = await hit("status_lookup_hour", ip);
@@ -26,4 +27,8 @@ export async function POST(req: Request) {
     verification_required: true,
     message: "If the information matches a Career Gate file, a verification code has been sent to the contact on file.",
   }, 200, traceId);
+  } catch (error) {
+    log("error", { event: "status_lookup_failed", trace_id: traceId, error: error instanceof Error ? error.message : "unknown" });
+    return err("temporarily_unavailable", "The verification service is temporarily unavailable. Please try again shortly.", 503, traceId);
+  }
 }
