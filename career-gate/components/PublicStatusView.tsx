@@ -3,7 +3,7 @@ import { OfficeContact } from "@/components/OfficeContact";
 import type { PublicStatus } from "@/lib/public-status";
 import { dateOfInstant, dateOnly, dateTime, timeOnly } from "@/lib/format";
 
-export function PublicStatusView({ s }: { s: PublicStatus }) {
+export function PublicStatusView({ s, verifiedRef }: { s: PublicStatus; verifiedRef?: string }) {
   const location = s.location ? [s.location.site_name, s.location.address].filter(Boolean).join(" — ") : "—";
   const rows: [string, string, string?][] = [
     ["Client Name", s.full_name],
@@ -44,7 +44,7 @@ export function PublicStatusView({ s }: { s: PublicStatus }) {
           </dl>
         </div>
       )}
-      {s.interview?.id && <ClientAppointmentActions refCode={s.ref} appointmentId={s.interview.id} status={s.interview.status??"scheduled"}/>} 
+      {s.interview?.id && <ClientAppointmentActions refCode={verifiedRef??s.ref} appointmentId={s.interview.id} status={s.interview.status??"scheduled"}/>} 
       <div>
         <h2 className="text-sm font-semibold">File Updates</h2>
         <ol className="mt-3 space-y-3 border-l border-slate-200 pl-4">
