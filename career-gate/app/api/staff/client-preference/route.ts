@@ -40,7 +40,7 @@ export async function POST(req:Request){
    }
    await tx`update clients set updated_at=now() where id=${client_id}`;
    await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
-      values(${client_id},'location_shift_updated',${guard.session.staff.id},'client',${client_id},
+      values(${client_id},'preference_added',${guard.session.staff.id},'client',${client_id},
       ${tx.json(previous?{site:previous.site_code,shift:previous.shift_code}:{} )},
       ${tx.json({site:siteCode,shift,days:dayName,hours})},${traceId})`;
    return {client_id,site_code:siteCode,site_name:siteName,shift_code:shift,shift_name:shiftName,days:dayName,hours};
