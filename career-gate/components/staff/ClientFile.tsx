@@ -285,6 +285,17 @@ export function ClientFile({
                 <StatusTimeline created={{ at: c.created_at, status: createdStatus }} events={statusEvents} current={c.current_status} />
               </div>
             </section>
+            <section className="relative overflow-hidden rounded-2xl border border-amber-300/30 bg-gradient-to-br from-[#173d61] via-[#102b49] to-[#0b1b32] p-5 shadow-[0_18px_45px_rgba(0,0,0,.2)]" aria-labelledby="client-notifications-title">
+              <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-amber-300/10 blur-3xl" />
+              <div className="relative flex flex-wrap items-center justify-between gap-3">
+                <div><p className="text-[10px] font-bold tracking-[.18em] text-amber-300">CAREER GATE · بوابة التوظيف</p><h2 id="client-notifications-title" className="mt-2 text-lg font-bold text-white">Client Notifications / إشعارات العميل</h2><p className="mt-1 text-xs text-slate-300">Official client communication history</p></div>
+                <span className="rounded-full border border-sky-300/30 bg-sky-300/10 px-3 py-1 text-xs text-sky-100">{data.notifications.length} notifications</span>
+              </div>
+              <div className="relative mt-4 grid gap-2 sm:grid-cols-2">
+                {data.notifications.length===0 ? <p className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">No notifications recorded / لا توجد إشعارات مسجلة</p> : data.notifications.slice(0,6).map((n,i)=><article key={String(n.id??i)} className="min-w-0 rounded-xl border border-white/10 bg-white/5 p-3 transition-all duration-300 hover:border-amber-300/40 hover:bg-white/10"><p className="break-words text-sm font-semibold text-white">{String(n.template??"Client update").replace(/_/g," ")}</p><div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300"><span>{String(n.channel??"notification")}</span><span className="rounded-full border border-white/20 px-2 py-1">{String(n.status??"unknown")}</span></div></article>)}
+              </div>
+              <Link href={`/staff/client/${c.id}?tab=work`} className="relative mt-4 inline-flex rounded-xl border border-amber-300/40 px-4 py-2 text-xs font-semibold text-amber-200 transition-all duration-300 hover:bg-amber-300/10">View all notifications / عرض جميع الإشعارات</Link>
+            </section>
             <EmploymentHistory rows={data.employment} editHref={`/staff/client/${c.id}/edit`} />
           </div>
           <div className="space-y-4"><ClientInfo c={c} authorization={data.authorization} preferences={data.preferences} /><AmazonHistory c={c} /></div>
