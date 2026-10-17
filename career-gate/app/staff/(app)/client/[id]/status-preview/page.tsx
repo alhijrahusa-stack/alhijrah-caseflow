@@ -19,8 +19,8 @@ export default async function StatusPreview({ params }: { params: Promise<{ id: 
   if (!s) notFound();
   return (
     <div className="mx-auto max-w-[640px] space-y-3">
-      <p className="text-sm text-slate-500">Preview of the public status page. Clients reach it at /status with their reference and a one-time code.</p>
-      <PublicStatusView s={s} />
+      <p className="text-sm text-slate-500">Staff preview only. Appointment actions are available to clients after one-time verification at /status.</p>
+      <PublicStatusView s={s} readOnly />
       <Link href={`/staff/client/${id}`} className="text-sm text-brand-700 hover:underline">← Back to client file</Link>
     </div>
   );
