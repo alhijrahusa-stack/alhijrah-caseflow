@@ -16,33 +16,33 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const view = VIEWS.some(([k]) => k === v) ? v! : "upcoming";
   const rows = JSON.parse(JSON.stringify(await appointmentList(session, view)));
   return (
-    <div className="ops-page space-y-4">
-      <header className="ops-hero">
+    <div className="ops-page min-w-0 space-y-5">
+      <header className="ops-hero flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="ops-kicker">CAREER GATE · SCHEDULING</p>
-          <h1>Appointments</h1>
+          <h1>Appointments <span className="text-amber-300">/ المواعيد</span></h1>
           <p>{rows.length} appointment{rows.length === 1 ? "" : "s"} in this view · internal office calendar</p>
         </div>
-        <nav className="flex gap-3 text-sm" aria-label="Views">
-          {VIEWS.map(([k, l]) => <Link key={k} href={`/staff/appointments?view=${k}`} aria-current={k === view ? "page" : undefined} className={k === view ? "font-semibold text-brand-700" : "text-slate-500"}>{l}</Link>)}
+        <nav className="flex flex-wrap items-center gap-2 text-sm" aria-label="Views">
+          {VIEWS.map(([k, l]) => <Link key={k} href={`/staff/appointments?view=${k}`} aria-current={k === view ? "page" : undefined} className={k === view ? "rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 font-semibold text-amber-200" : "rounded-xl border border-white/10 px-3 py-2 text-slate-300 transition-all duration-300 hover:border-sky-400/40 hover:bg-white/5"}>{l}</Link>)}
         </nav>
       </header>
       {rows.length === 0 ? (
         <EmptyState title="No appointments in this view" text="Open a client file and use Add Appointment to book the next free slot." action={<Link href="/staff/clients" className="text-sm text-brand-700 hover:underline">Go to clients</Link>} />
       ) : (
-        <div className="ops-glass-card overflow-x-auto p-0">
-          <table className="table">
+        <div className="ops-glass-card min-w-0 overflow-x-auto rounded-2xl border border-sky-400/20 p-0 shadow-[0_20px_55px_rgba(0,0,0,.2)]">
+          <table className="table w-full min-w-[900px]">
             <thead><tr><th>When</th><th>Client</th><th>Type</th><th>Location</th><th>Status</th><th>Booked by</th><th /></tr></thead>
             <tbody>
               {rows.map((a: Record<string, string>) => (
-                <tr key={a.id}>
+                <tr key={a.id} className="transition-all duration-300 hover:bg-sky-400/[.06]">
                   <td className="whitespace-nowrap">{dateTime(a.scheduled_at)}</td>
                   <td><Link href={`/staff/client/${a.client_id}`} className="text-brand-700 hover:underline">{a.full_name}</Link><span className="block font-mono text-xs text-slate-400">{a.ref}</span></td>
                   <td>{a.appointment_type}</td>
-                  <td>{a.location ?? "—"}</td>
-                  <td>{a.status}</td>
+                  <td className="max-w-[260px] break-words text-sm leading-6">{a.location ?? "—"}</td>
+                  <td><span className={a.status === "confirmed" ? "inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200" : "inline-flex rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold text-amber-200"}>{a.status}</span></td>
                   <td>{a.created_by_name ?? "—"}</td>
-                  <td><AppointmentRowActions appt={a} />{a.status === "confirmed" && <details className="mt-2 min-w-[290px]"><summary className="cursor-pointer text-sm text-brand-700">Client notification / إشعار العميل</summary><div className="mt-2"><AppointmentNotificationPanel appointmentId={a.id}/></div></details>}</td>
+                  <td><AppointmentRowActions appt={a} />{a.status === "confirmed" && <details className="mt-2 min-w-[310px] max-w-[490px]"><summary className="cursor-pointer rounded-xl border border-amber-300/30 px-3 py-2 text-xs font-semibold text-amber-200 transition-all duration-300 hover:bg-amber-300/10">Client notification / إشعار العميل</summary><div className="mt-2"><AppointmentNotificationPanel appointmentId={a.id}/></div></details>}</td>
                 </tr>
               ))}
             </tbody>
