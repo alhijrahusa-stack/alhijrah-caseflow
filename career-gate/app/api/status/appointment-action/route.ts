@@ -33,6 +33,8 @@ export async function GET(req: Request) {
   return ok({ slots: slots.map(s => ({ start: s.start })) });
 }
 export async function POST(req: Request) {
+  const origin=req.headers.get("origin");
+  if (origin && new URL(origin).host!==new URL(req.url).host) return err("invalid_origin","Invalid request origin",403);
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return err("invalid_input", "Invalid appointment action", 400);
   const {ref, appointmentId, action, slotStart, reason} = parsed.data;
