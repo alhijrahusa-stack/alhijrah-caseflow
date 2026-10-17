@@ -3,7 +3,7 @@ import { withStaff } from "@/lib/auth";
 import { staffGuard } from "@/lib/staff-api";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
-import { AMAZON_LOCATIONS, SHIFT_TYPES, DAY_PATTERNS } from "@/lib/location-shift-options";
+import { AMAZON_LOCATIONS, SHIFT_TYPES, DAY_PATTERNS, SHIFT_DEFAULT_HOURS } from "@/lib/location-shift-options";
 
 export const runtime = "nodejs";
 const inputSchema=z.object({
@@ -19,6 +19,8 @@ export async function POST(req:Request){
  const parsed=inputSchema.safeParse(await req.json().catch(()=>null));
  if(!parsed.success)return err("invalid_input","Choose a valid location, shift, days and hours",400,traceId);
  const {client_id,location,shift,days,hours}=parsed.data;
+ const compatibleHours=[SHIFT_DEFAULT_HOURS[shift],...(shift==="front_half"||shift==="back_half"?["06:30 PM – 05:00 AM"]:[]),...(shift==="morning"||shift==="mid"?["08:00 AM – 04:30 PM"]:[]),...(shift==="night"?["10:00 PM – 06:30 AM"]:[])];
+ if(!compatibleHours.includes(hours))return err("invalid_shift_hours","Hours do not match the selected shift",400,traceId);
  const [siteName,siteAddress]=AMAZON_LOCATIONS[location];
  const shiftName=SHIFT_TYPES.find(x=>x[0]===shift)![1];
  const dayName=DAY_PATTERNS.find(x=>x[0]===days)![1];
