@@ -83,7 +83,7 @@ export function StatusLookup() {
               placeholder="CG-2026-000001, phone or email"
             />
           </div>
-          <button type="submit" disabled={pending} className="min-h-14 w-full rounded-xl border border-[#E8C987]/40 bg-gradient-to-r from-[#C5A059] to-[#F0D18E] px-6 py-3 text-sm font-extrabold text-[#07152b] shadow-lg transition hover:brightness-110 disabled:opacity-60 sm:w-auto">{pending && !challengeId ? "Sending…" : challengeId ? "Send New Code" : "Check Status"}</Button>
+          <button type="submit" disabled={pending} className="min-h-14 w-full rounded-xl border border-[#E8C987]/40 bg-gradient-to-r from-[#C5A059] to-[#F0D18E] px-6 py-3 text-sm font-extrabold text-[#07152b] shadow-lg transition hover:brightness-110 disabled:opacity-60 sm:w-auto">{pending && !challengeId ? "Sending…" : challengeId ? "Send New Code" : "Check Status"}</button>
         </form>
         <p className="mt-4 text-sm leading-6 text-slate-300">For your privacy, we send a one-time verification code to the contact information registered with your file.</p>
         {message && <p className="mt-4 rounded-xl border border-sky-300/25 bg-sky-300/10 p-3 text-sm font-medium text-sky-100" role="status">{message}</p>}
