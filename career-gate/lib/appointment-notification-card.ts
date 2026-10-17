@@ -15,7 +15,7 @@ export type AppointmentCard = {
 };
 
 const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-const titleCase = (name: string) => name.trim().replace(/\s+/g, " ").replace(/[A-Za-z][A-Za-z'-]*/g, word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+const titleCase = (name: string) => { const clean = name.trim().replace(/\s+/g, " "); return /[<>]/.test(clean) ? clean : clean.replace(/[A-Za-z][A-Za-z'-]*/g, word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()); };
 const box = (content: string, style = "") => '<div style="background:#122c49;border:1px solid #365477;border-radius:15px;padding:16px 18px;' + style + '">' + content + '</div>';
 const caption = (value: string) => '<div style="color:#afc4dc;font-size:12px;font-weight:600;letter-spacing:.3px;margin-bottom:7px">' + value + '</div>';
 const detail = (label: string, value: string, special = "") =>
