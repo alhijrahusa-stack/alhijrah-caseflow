@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MobileAppointmentCards } from "@/components/staff/MobileAppointmentCards";
 import { AppointmentNotificationPanel } from "@/components/staff/AppointmentNotificationPanel";
 import { redirect } from "next/navigation";
 import { AppointmentRowActions } from "@/components/staff/sections/Work";
@@ -30,7 +31,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       {rows.length === 0 ? (
         <EmptyState title="No appointments in this view" text="Open a client file and use Add Appointment to book the next free slot." action={<Link href="/staff/clients" className="text-sm text-brand-700 hover:underline">Go to clients</Link>} />
       ) : (
-        <div className="ops-glass-card min-w-0 overflow-x-auto rounded-2xl border border-sky-400/20 p-0 shadow-[0_20px_55px_rgba(0,0,0,.2)]">
+        <><MobileAppointmentCards appointments={rows}/><div className="ops-glass-card hidden min-w-0 overflow-x-auto lg:block rounded-2xl border border-sky-400/20 p-0 shadow-[0_20px_55px_rgba(0,0,0,.2)]">
           <table className="table w-full min-w-[900px]">
             <thead><tr><th>When</th><th>Client</th><th>Type</th><th>Location</th><th>Status</th><th>Booked by</th><th /></tr></thead>
             <tbody>
@@ -47,7 +48,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               ))}
             </tbody>
           </table>
-        </div>
+        </div></>
       )}
     </div>
   );
