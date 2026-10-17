@@ -59,6 +59,9 @@ export function renderAppointmentCard(input: AppointmentCard) {
     +'<div style="font-size:10px;line-height:1.6;letter-spacing:1px;color:#C9D4E4">EXECUTIVE SMART GATE PASS</div></td></tr></table>';
   const footer = '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse"><tr><td style="padding:18px 16px 0">'
     +action("https://alhijrah-caseflow.vercel.app/status","متابعة حالة الملف / Track Status","#C5A059","#040914")
+    +gap(10)+action("https://alhijrah-caseflow.vercel.app/status?appointment_action=confirm","تأكيد الموعد / Confirm Appointment","#173F43")
+    +gap(10)+action("https://alhijrah-caseflow.vercel.app/status?appointment_action=reschedule","طلب تعديل الموعد / Reschedule","#183B64")
+    +gap(10)+action("https://alhijrah-caseflow.vercel.app/status?appointment_action=cancel","إلغاء الموعد / Cancel","#44362A")
     +gap(10)+action("https://wa.me/13139194292","WhatsApp / واتساب","#173F43")
     +gap(10)+action("tel:+13133393566","Call / اتصال","#183B64")
     +gap(10)+action("mailto:careergate.official@gmail.com","Email / بريد","#44362A")
