@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AppointmentNotificationPanel } from "@/components/staff/AppointmentNotificationPanel";
 import { redirect } from "next/navigation";
 import { AppointmentRowActions } from "@/components/staff/sections/Work";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -41,7 +42,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                   <td>{a.location ?? "—"}</td>
                   <td>{a.status}</td>
                   <td>{a.created_by_name ?? "—"}</td>
-                  <td><AppointmentRowActions appt={a} /></td>
+                  <td><AppointmentRowActions appt={a} />{a.status === "confirmed" && <details className="mt-2 min-w-[290px]"><summary className="cursor-pointer text-sm text-brand-700">Client notification / إشعار العميل</summary><div className="mt-2"><AppointmentNotificationPanel appointmentId={a.id}/></div></details>}</td>
                 </tr>
               ))}
             </tbody>
