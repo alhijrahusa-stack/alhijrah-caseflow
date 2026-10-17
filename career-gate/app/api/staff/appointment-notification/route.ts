@@ -23,14 +23,14 @@ export async function POST(req: Request) {
  const {appointmentId,language,documents,mode} = input.data;
  const appt = await withStaff(guard.session, async tx => {
    const [row] = await tx`select a.id,a.client_id,a.status,a.scheduled_at,a.location,c.full_name,c.email,c.phone,
-     exists(select 1 from client_authorizations ca where ca.client_id=c.id and ca.communication_consent=true) as consent
+     (c.communication_consent = true and not exists(select 1 from client_authorizations ca where ca.client_id=c.id and ca.communication_consent=false)) as consent
      from appointments a join clients c on c.id=a.client_id where a.id=${appointmentId} and c.deleted_at is null`;
    return row;
  });
  if (!appt) return err("not_found","Appointment not found",404);
  const authz = await authorize(req,guard.session,"send_notification",{clientId:appt.client_id as string},crypto.randomUUID());
  if (!authz.ok) return authz.response;
- if (!appt.consent) return err("consent_required","Client communication consent required",403);
+ if (mode === "send" && !appt.consent) return err("consent_required","Client has not authorized appointment communications or has withdrawn consent",403);
  if (!appt.email) return err("email_required","Client email required",400);
  let card: ReturnType<typeof renderAppointmentCard>;
  try {card=renderAppointmentCard({clientName:appt.full_name as string,date:date(appt.scheduled_at as Date,language),location:appt.location as string || "",status:appt.status as string,email:appt.email as string,phone:appt.phone as string,documents,language});}
