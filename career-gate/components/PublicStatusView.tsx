@@ -44,7 +44,7 @@ export function PublicStatusView({ s, verifiedRef }: { s: PublicStatus; verified
           </dl>
         </div>
       )}
-      {s.interview?.id && <ClientAppointmentActions refCode={verifiedRef??s.ref} appointmentId={s.interview.id} status={s.interview.status??"scheduled"}/>} 
+      {s.interview?.id && <ClientAppointmentActions refCode={verifiedRef??s.ref} appointmentId={s.interview.id}/>} 
       <div>
         <h2 className="text-sm font-semibold">File Updates</h2>
         <ol className="mt-3 space-y-3 border-l border-slate-200 pl-4">
