@@ -1,0 +1,210 @@
+{
+  "base": "http://127.0.0.1:3457",
+  "samples": 20,
+  "results": [
+    {
+      "route": "staff dashboard",
+      "path": "/staff",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 1046,
+      "p95_ms": 1145,
+      "p99_ms": 1167,
+      "payload_kb": 82.8
+    },
+    {
+      "route": "clients list",
+      "path": "/staff/clients",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 147,
+      "p95_ms": 228,
+      "p99_ms": 242,
+      "payload_kb": 85.2
+    },
+    {
+      "route": "client workspace",
+      "path": "/staff/client/9009d9ca-2394-40a0-b532-e51a9f395867",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 77,
+      "p95_ms": 106,
+      "p99_ms": 123,
+      "payload_kb": 96.1
+    },
+    {
+      "route": "client workspace ?tab=documents (tab switch)",
+      "path": "/staff/client/9009d9ca-2394-40a0-b532-e51a9f395867?tab=documents",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 73,
+      "p95_ms": 95,
+      "p99_ms": 110,
+      "payload_kb": 91.2
+    },
+    {
+      "route": "client workspace ?tab=activity (tab switch)",
+      "path": "/staff/client/9009d9ca-2394-40a0-b532-e51a9f395867?tab=activity",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 68,
+      "p95_ms": 99,
+      "p99_ms": 104,
+      "payload_kb": 88.7
+    },
+    {
+      "route": "appointments",
+      "path": "/staff/appointments",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 231,
+      "p95_ms": 270,
+      "p99_ms": 294,
+      "payload_kb": 1839.7
+    },
+    {
+      "route": "pipeline",
+      "path": "/staff/pipeline",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 182,
+      "p95_ms": 243,
+      "p99_ms": 329,
+      "payload_kb": 1757.9
+    },
+    {
+      "route": "accounting",
+      "path": "/staff/accounting",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 514,
+      "p95_ms": 552,
+      "p99_ms": 596,
+      "payload_kb": 2638.8
+    },
+    {
+      "route": "reports",
+      "path": "/staff/reports",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 243,
+      "p95_ms": 341,
+      "p99_ms": 345,
+      "payload_kb": 43.2
+    },
+    {
+      "route": "tasks",
+      "path": "/staff/tasks",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 148,
+      "p95_ms": 174,
+      "p99_ms": 210,
+      "payload_kb": 565.5
+    },
+    {
+      "route": "follow-ups",
+      "path": "/staff/follow-ups",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 14,
+      "p95_ms": 18,
+      "p99_ms": 19,
+      "payload_kb": 31.4
+    },
+    {
+      "route": "today",
+      "path": "/staff/today",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 17,
+      "p95_ms": 24,
+      "p99_ms": 30,
+      "payload_kb": 26.9
+    },
+    {
+      "route": "week",
+      "path": "/staff/week",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 16,
+      "p95_ms": 22,
+      "p99_ms": 23,
+      "payload_kb": 26.9
+    },
+    {
+      "route": "distribution",
+      "path": "/staff/distribution",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 17,
+      "p95_ms": 21,
+      "p99_ms": 21,
+      "payload_kb": 27
+    },
+    {
+      "route": "archive",
+      "path": "/staff/archive",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 14,
+      "p95_ms": 19,
+      "p99_ms": 20,
+      "payload_kb": 28.4
+    },
+    {
+      "route": "api search q=TEST",
+      "path": "/api/staff/search?q=TEST",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 163,
+      "p95_ms": 218,
+      "p99_ms": 263,
+      "payload_kb": 3.2
+    },
+    {
+      "route": "api client-resource (targeted notes,activity)",
+      "path": "/api/staff/client-resource?client_id=9009d9ca-2394-40a0-b532-e51a9f395867&payloads=notes,activity",
+      "n": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 15,
+      "p95_ms": 19,
+      "p99_ms": 21,
+      "payload_kb": 3.4
+    }
+  ]
+}
