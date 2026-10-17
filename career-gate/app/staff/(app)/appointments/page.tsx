@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MobileAppointmentCards } from "@/components/staff/MobileAppointmentCards";
 import { AppointmentNotificationPanel } from "@/components/staff/AppointmentNotificationPanel";
 import { redirect } from "next/navigation";
 import { AppointmentRowActions } from "@/components/staff/sections/Work";
@@ -23,14 +24,14 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           <h1>Appointments <span className="text-amber-300">/ المواعيد</span></h1>
           <p>{rows.length} appointment{rows.length === 1 ? "" : "s"} in this view · internal office calendar</p>
         </div>
-        <nav className="flex flex-wrap items-center gap-2 text-sm" aria-label="Views">
-          {VIEWS.map(([k, l]) => <Link key={k} href={`/staff/appointments?view=${k}`} aria-current={k === view ? "page" : undefined} className={k === view ? "rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 font-semibold text-amber-200" : "rounded-xl border border-white/10 px-3 py-2 text-slate-300 transition-all duration-300 hover:border-sky-400/40 hover:bg-white/5"}>{l}</Link>)}
+        <nav className="grid w-full grid-cols-4 gap-2 text-sm sm:flex sm:w-auto" aria-label="Views">
+          {VIEWS.map(([k, l]) => <Link key={k} href={`/staff/appointments?view=${k}`} aria-current={k === view ? "page" : undefined} className={k === view ? "flex min-h-11 items-center justify-center rounded-xl border border-amber-300/50 bg-amber-300/10 px-2 py-2 font-semibold text-amber-200" : "flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-2 py-2 text-slate-300 transition-all duration-300 hover:border-sky-400/40 hover:bg-white/5"}>{l}</Link>)}
         </nav>
       </header>
       {rows.length === 0 ? (
         <EmptyState title="No appointments in this view" text="Open a client file and use Add Appointment to book the next free slot." action={<Link href="/staff/clients" className="text-sm text-brand-700 hover:underline">Go to clients</Link>} />
       ) : (
-        <div className="ops-glass-card min-w-0 overflow-x-auto rounded-2xl border border-sky-400/20 p-0 shadow-[0_20px_55px_rgba(0,0,0,.2)]">
+        <><MobileAppointmentCards appointments={rows}/><div className="ops-glass-card hidden min-w-0 overflow-x-auto lg:block rounded-2xl border border-sky-400/20 p-0 shadow-[0_20px_55px_rgba(0,0,0,.2)]">
           <table className="table w-full min-w-[900px]">
             <thead><tr><th>When</th><th>Client</th><th>Type</th><th>Location</th><th>Status</th><th>Booked by</th><th /></tr></thead>
             <tbody>
@@ -47,7 +48,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               ))}
             </tbody>
           </table>
-        </div>
+        </div></>
       )}
     </div>
   );
