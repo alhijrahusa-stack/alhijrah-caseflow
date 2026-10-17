@@ -62,7 +62,7 @@ export function renderAppointmentCard(input: AppointmentCard) {
   const header = '<header style="text-align:center;padding:25px 16px 27px;border-bottom:1px solid #3e5670;background:linear-gradient(135deg,#10283f,#183b59)">'
     + '<div style="margin-bottom:10px">' + emblem + '</div>'
     + '<div style="font-size:27px;line-height:1.25;font-weight:900;letter-spacing:2px;color:#ffae48">CAREER GATE</div>'
-    + '<div lang="ar" dir="rtl" style="font-size:17px;font-weight:800;color:#fff;margin-top:6px">بوابة التوظيف</div>'
+    + '<div style="font-size:17px;font-weight:800;color:#fff;margin-top:6px">بوابة التوظيف</div>'
     + '<div style="font-size:10px;letter-spacing:2px;color:#b9cce0;margin-top:7px">EXECUTIVE SMART GATE PASS</div></header>';
   const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Career Gate Appointment Confirmation</title></head>'
     + '<body style="margin:0;padding:0;background:#071725;color:#fff;font-family:Arial,Tahoma,sans-serif;-webkit-font-smoothing:antialiased">'
