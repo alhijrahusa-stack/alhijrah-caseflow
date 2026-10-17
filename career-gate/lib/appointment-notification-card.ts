@@ -71,6 +71,7 @@ export function renderAppointmentCard(input: AppointmentCard) {
     + header + '<main style="padding:22px 24px 26px;background:linear-gradient(160deg,#102b49,#0a2038)">'
     + languages.map(section).join('<div style="height:1px;background:#47627d;margin:30px 0"></div>') + '</main></div>'
     + '<footer style="text-align:center;padding:22px 0">'
+    + contact("https://alhijrah-caseflow.vercel.app/status","متابعة حالة الملف / Track Status","#bd8e47")
     + contact("https://wa.me/13139194292","WhatsApp","#176a55")
     + contact("tel:+13133393566","Call / اتصال","#25578d")
     + contact("mailto:careergate.official@gmail.com","Email / بريد","#a7601c")
@@ -81,6 +82,7 @@ export function renderAppointmentCard(input: AppointmentCard) {
       ar ? "الأستاذ/ " + name : "Dear " + name + ",",
       ar ? "نُثمن اختياركم لبوابة التوظيف Career Gate، ويسعدنا تأكيد موعد المقابلة الوظيفية الخاصة بكم." : "Thank you for choosing Career Gate. Your job interview appointment is confirmed.",
       input.date,input.location,...selected.map(d => d[lang]),input.email,input.phone,
+      "https://alhijrah-caseflow.vercel.app/status",
       ar ? "هذه التذكرة مخصصة لصاحب الموعد." : "This pass is intended for the named applicant."].join("\n");
   }).join("\n\n");
   return {subject: input.language === "en" ? "Career Gate | Job Interview Confirmation" : "Career Gate | تأكيد موعد مقابلة العمل",html,text};
