@@ -51,7 +51,7 @@ export function MobileAppointmentCards({ appointments }: Props) {
     </div>
     {selected && <div className="fixed inset-0 z-[1000] lg:hidden" data-testid="executive-bottom-drawer">
       <button type="button" className="absolute inset-0 h-full w-full bg-[#020a15]/75 backdrop-blur-[3px]" onClick={dismiss} aria-label="Close appointment actions" />
-      <section role="dialog" aria-modal="true" aria-labelledby="smart-gate-heading" className="absolute inset-x-0 bottom-0 flex max-h-[min(88dvh,850px)] min-h-0 flex-col overflow-hidden rounded-t-[28px] border border-amber-300/25 bg-[#0b1d30] text-white shadow-[0_-25px_65px_rgba(0,0,0,.55)]" style={{ transform: `translateY(${offset}px)`, transition: startY.current === null ? "transform 220ms cubic-bezier(.2,.8,.2,1)" : "none", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="smart-gate-heading" className="absolute inset-x-0 bottom-0 flex max-h-[min(88dvh,850px)] min-h-0 flex-col overflow-hidden rounded-t-[28px] border border-amber-300/25 bg-[#0b1d30] text-white shadow-[0_-25px_65px_rgba(0,0,0,.55)]" style={{ transform: `translateY(${offset}px)`, transition: "transform 220ms cubic-bezier(.2,.8,.2,1)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <div className="shrink-0 touch-pan-x px-4 pt-3" onTouchStart={e => {startY.current=e.touches[0].clientY;}} onTouchMove={e => {if(startY.current !== null)setOffset(Math.max(0,e.touches[0].clientY-startY.current));}} onTouchEnd={() => {if(offset > 110)dismiss();else setOffset(0);startY.current=null;}}>
           <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-400/70" />
           <div className="flex min-w-0 items-start justify-between gap-3 pb-3">
