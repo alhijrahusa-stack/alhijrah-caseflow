@@ -2701,3 +2701,15 @@ code, kbd, pre, .font-mono {
     background: #061a31 !important;
   }
 }
+
+
+/* Career Gate digital command deck: scoped effects respect reduced-motion settings. */
+@keyframes cg-number-rise { 0% {transform:translateY(5px) scale(.95);filter:brightness(1.9)} 65% {transform:translateY(-2px) scale(1.07)} 100% {transform:translateY(0) scale(1);filter:brightness(1)} }
+@keyframes cg-assignment-ring { 0% {box-shadow:0 0 0 0 rgba(251,146,60,.48)} 100% {box-shadow:0 0 0 13px rgba(251,146,60,0)} }
+.cg-telemetry-number {display:inline-block;animation:cg-number-rise .55s cubic-bezier(.2,.9,.2,1) both;}
+.cg-assignment-pulse {animation:cg-assignment-ring 1.3s ease-out both;}
+.cg-ambient-card {--cg-pointer-x:75%;--cg-pointer-y:10%;background-image:radial-gradient(380px circle at var(--cg-pointer-x) var(--cg-pointer-y),rgba(251,146,60,.16),transparent 68%);background-blend-mode:screen;}
+.cg-registry-row {transition:transform .18s ease,background-color .18s ease,box-shadow .18s ease;}
+.cg-registry-row:hover {transform:translateY(-1px);background:rgba(240,174,70,.07);box-shadow:inset 3px 0 rgba(255,168,51,.62);}
+.cg-status-dot {width:6px;height:6px;border-radius:999px;background:currentColor;display:inline-block;box-shadow:0 0 9px currentColor;animation:pulse 2.4s ease-in-out infinite;}
+@media (prefers-reduced-motion:reduce) {.cg-telemetry-number,.cg-assignment-pulse,.cg-status-dot {animation:none}.cg-registry-row {transition:none}.cg-registry-row:hover {transform:none}}
