@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StaffAppointmentAlerts } from "@/components/staff/StaffAppointmentAlerts";
 import { MobileAppointmentCards } from "@/components/staff/MobileAppointmentCards";
 import { AppointmentNotificationPanel } from "@/components/staff/AppointmentNotificationPanel";
 import { redirect } from "next/navigation";
@@ -28,6 +29,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           {VIEWS.map(([k, l]) => <Link key={k} href={`/staff/appointments?view=${k}`} aria-current={k === view ? "page" : undefined} className={k === view ? "flex min-h-11 items-center justify-center rounded-xl border border-amber-300/50 bg-amber-300/10 px-2 py-2 font-semibold text-amber-200" : "flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-2 py-2 text-slate-300 transition-all duration-300 hover:border-sky-400/40 hover:bg-white/5"}>{l}</Link>)}
         </nav>
       </header>
+      <StaffAppointmentAlerts />
       {rows.length === 0 ? (
         <EmptyState title="No appointments in this view" text="Open a client file and use Add Appointment to book the next free slot." action={<Link href="/staff/clients" className="text-sm text-brand-700 hover:underline">Go to clients</Link>} />
       ) : (

@@ -8,7 +8,7 @@ function statusLabel(value: string): string {
 
 type PublicLocation = { site_code: string; site_name: string; address: string | null; city: string } | null;
 type PublicShift = { name: string; days: string | null; time: string | null } | null;
-type PublicInterview = { type: string; scheduled_at: string; location: string | null } | null;
+type PublicInterview = { id?: string; status?: string; type: string; scheduled_at: string; location: string | null } | null;
 type PublicHistory = { status: string; label: string; updated_at: string }[];
 
 export type PublicStatus = {
@@ -53,7 +53,7 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
     limit 1`;
 
   const [interview] = await db`
-    select appointment_type, scheduled_at, location, timezone
+    select id, status, appointment_type, scheduled_at, location, timezone
     from appointments
     where client_id = ${clientId}
       and status in ('scheduled', 'confirmed', 'rescheduled')
@@ -109,6 +109,8 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
 
   const interviewPublic: PublicInterview = interview
     ? {
+        id: String(interview.id),
+        status: String(interview.status),
         type: interview.appointment_type as string,
         scheduled_at: new Date(interview.scheduled_at).toISOString(),
         location: interview.location as string | null,

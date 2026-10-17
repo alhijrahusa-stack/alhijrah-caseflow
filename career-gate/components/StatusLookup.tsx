@@ -52,7 +52,9 @@ export function StatusLookup() {
       setError(data?.error?.message ?? `Verification failed (${res.status})`);
       return;
     }
-    router.push(`/status/${encodeURIComponent(String(data.ref))}`);
+    const action=params.get("appointment_action");
+    const suffix=action&&["confirm","reschedule","cancel"].includes(action)?`?appointment_action=${action}`:"";
+    router.push(`/status/${encodeURIComponent(String(data.ref))}${suffix}`);
     router.refresh();
   }
 

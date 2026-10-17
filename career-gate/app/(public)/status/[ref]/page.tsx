@@ -9,8 +9,9 @@ import { sessionStatusSubject, STATUS_COOKIE } from "@/lib/status-access";
 export const metadata: Metadata = { title: "Application status", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
-export default async function StatusPage({ params }: { params: Promise<{ ref: string }> }) {
+export default async function StatusPage({ params, searchParams }: { params: Promise<{ ref: string }>; searchParams: Promise<{ appointment_action?: string }> }) {
   const { ref } = await params;
+  const { appointment_action } = await searchParams;
   const r = decodeURIComponent(ref).trim().toUpperCase();
   const token = (await cookies()).get(STATUS_COOKIE)?.value;
   const subject = await sessionStatusSubject(r, token);
@@ -38,7 +39,7 @@ export default async function StatusPage({ params }: { params: Promise<{ ref: st
 
   return (
     <>
-      <PublicStatusView s={s} />
+      <PublicStatusView s={s} verifiedRef={r} appointmentAction={appointment_action} />
       <StatusPoller refCode={s.ref} />
     </>
   );
