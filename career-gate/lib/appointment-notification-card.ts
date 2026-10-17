@@ -16,13 +16,12 @@ export type AppointmentCard = {
 
 const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 const titleCase = (name: string) => { const clean = name.trim().replace(/\s+/g, " "); return /[<>]/.test(clean) ? clean : clean.replace(/[A-Za-z][A-Za-z'-]*/g, word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()); };
-const box = (content: string, style = "") => '<div style="background:#122c49;border:1px solid #365477;border-radius:15px;padding:16px 18px;' + style + '">' + content + '</div>';
-const caption = (value: string) => '<div style="color:#afc4dc;font-size:12px;font-weight:600;letter-spacing:.3px;margin-bottom:7px">' + value + '</div>';
-const detail = (label: string, value: string, special = "") =>
-  box(caption(label) + '<div style="font-size:17px;line-height:1.7;font-weight:700;color:#fff;overflow-wrap:anywhere;' + special + '">' + esc(value) + '</div>');
-const contact = (href: string, name: string, color: string) =>
-  '<a href="' + href + '" style="display:inline-block;text-decoration:none;background:' + color + ';color:#fff;border:1px solid #ffffff22;border-radius:12px;padding:12px 17px;margin:5px;font-size:13px;font-weight:700">' + name + '</a>';
-
+const palette = { background: "#040914", panel: "#0A122C", gold: "#C5A059", text: "#F7F5EF", muted: "#C9D4E4" };
+const cell = (body: string, padding = "16px") => '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:separate;background-color:'+palette.panel+';border:1px solid #526078;border-radius:12px"><tr><td style="padding:'+padding+';font-family:Arial,Tahoma,sans-serif;overflow-wrap:break-word;word-break:break-word">'+body+'</td></tr></table>';
+const labelText = (value: string) => '<div style="color:#C9D4E4;font-size:12px;font-weight:600;line-height:1.6;margin-bottom:5px">'+value+'</div>';
+const detail = (label: string, value: string) => cell(labelText(label)+'<div style="font-size:17px;line-height:1.6;font-weight:700;color:#FFFFFF;overflow-wrap:break-word;word-break:break-word">'+esc(value)+'</div>');
+const action = (href: string, name: string, bg: string, fg = "#FFFFFF") => '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse"><tr><td align="center" bgcolor="'+bg+'" style="background-color:'+bg+';border:1px solid #C5A059;border-radius:10px"><a href="'+href+'" style="display:block;padding:14px 10px;font-family:Arial,Tahoma,sans-serif;font-size:14px;line-height:1.4;font-weight:700;text-align:center;text-decoration:none;color:'+fg+'">'+name+'</a></td></tr></table>';
+const gap = (height = 12) => '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td height="'+height+'" style="height:'+height+'px;font-size:0;line-height:0">&nbsp;</td></tr></table>';
 export function renderAppointmentCard(input: AppointmentCard) {
   if (!input.clientName.trim() || !input.date.trim() || !input.location.trim()) throw new Error("Missing appointment details");
   if (input.status !== "confirmed") throw new Error("Only confirmed appointments can generate confirmations");
@@ -32,50 +31,48 @@ export function renderAppointmentCard(input: AppointmentCard) {
   const name = titleCase(input.clientName);
   const section = (lang: "ar" | "en") => {
     const ar = lang === "ar";
-    const heading = ar ? "تأكيد موعد مقابلة العمل" : "Job Interview Confirmation";
+    const heading = ar ? "تأكيد موعد المقابلة الوظيفية" : "Your Job Interview Is Confirmed";
     const greeting = ar ? "الأستاذ/ " + name : "Dear " + name + ",";
     const intro = ar
-      ? "نُثمن اختياركم لبوابة التوظيف Career Gate، ويسعدنا إبلاغكم بتأكيد موعد المقابلة الوظيفية الخاصة بكم، وفق البيانات المعتمدة أدناه."
-      : "Thank you for choosing Career Gate. We are pleased to confirm your job interview appointment with the verified details below.";
-    const label = ar
-      ? ["اسم المتقدم","تاريخ ووقت الموعد","الموقع","المستندات المطلوب إحضارها","بيانات التواصل","البريد الإلكتروني","رقم الهاتف","هذه التذكرة مخصصة لصاحب الموعد. يرجى الاحتفاظ بها وعدم مشاركة بياناتها مع الآخرين."]
-      : ["Applicant Name","Appointment Date & Time","Location","Required Documents","Contact Details","Email Address","Phone Number","This pass is intended only for the named applicant. Please keep it secure and do not share its details."];
-    const docs = selected.length
-      ? selected.map(d => '<div style="margin:8px 0;padding:11px 13px;background:#183a5c;border:1px solid #365477;border-radius:10px;font-size:14px;line-height:1.65;color:#f5f9ff">✓ ' + esc(d[lang]) + '</div>').join("")
-      : '<div style="color:#bfd0e2;font-size:14px">' + (ar ? "لم تُحدد مستندات إضافية لهذا الموعد." : "No additional documents specified for this appointment.") + '</div>';
-    const subheading = (v: string) => '<h2 style="color:#f4b85e;font-size:15px;font-weight:800;letter-spacing:.2px;margin:24px 0 12px">' + v + '</h2>';
-    return '<section lang="' + lang + '" dir="' + (ar ? "rtl" : "ltr") + '" style="padding:7px 0">'
-      + '<div style="display:inline-block;background:#254364;color:#f4b85e;border:1px solid #6b664d;border-radius:100px;padding:7px 13px;font-size:11px;font-weight:800;letter-spacing:1px">✓ ' + (ar ? "موعد مؤكد" : "CONFIRMED APPOINTMENT") + '</div>'
-      + '<h1 style="font-size:24px;line-height:1.5;color:#ffbf68;margin:15px 0 12px;font-weight:800">' + heading + '</h1>'
-      + '<div style="font-size:17px;font-weight:800;color:#fff;margin:0 0 10px">' + esc(greeting) + '</div>'
-      + '<p style="font-size:14px;line-height:2;color:#d9e6f4;margin:0 0 21px">' + intro + '</p>'
-      + '<div style="display:grid;grid-template-columns:1fr;gap:10px">'
-      + detail(label[0],name) + detail(label[1],input.date,"font-variant-numeric:tabular-nums;") + detail(label[2],input.location)
-      + '</div>' + subheading(label[3]) + box(docs,"background:#0d2540;")
-      + subheading(label[4]) + detail(label[5],input.email) + '<div style="height:9px"></div>' + detail(label[6],input.phone)
-      + '<div style="margin-top:24px;background:#292b34;border:1px solid #9b7b43;border-radius:14px;padding:14px 16px;color:#f2d8a7;font-size:12px;line-height:1.9">◆ ' + label[7] + '</div>'
-      + '</section>';
+      ? "يسعدنا إبلاغكم بأنه تم تأكيد موعد المقابلة الوظيفية الخاصة بكم بنجاح. نرجو منكم الحضور إلى العنوان الموضح في الوقت المحدد، والاطّلاع على تفاصيل الموعد والمستندات المطلوبة أدناه لضمان سير إجراءاتكم بسلاسة."
+      : "We are pleased to confirm your job interview appointment. Please arrive at the address below on time and review the appointment details and required documents to help everything go smoothly.";
+    const closing = ar
+      ? "إذا رغبتم في تعديل الموعد أو إلغائه، أو كانت لديكم أي استفسارات، يُرجى التواصل معنا، ويسعدنا مساعدتكم."
+      : "If you need to reschedule or cancel your appointment, or have any questions, please contact us. We will be happy to assist you.";
+    const labels = ar ? ["اسم المتقدم","تاريخ ووقت المقابلة","مكان المقابلة والعنوان","المستندات المطلوب إحضارها","بيانات التواصل","البريد الإلكتروني","رقم الهاتف"] : ["Applicant","Interview Date & Time","Interview Location & Address","Documents to Bring","Contact Details","Email","Phone"];
+    const docs = selected.length ? selected.map(d=>cell('<span style="font-size:14px;line-height:1.7;color:#FFFFFF">✓ '+esc(d[lang])+'</span>',"11px 13px")).join(gap(8)) : '<p style="font-size:14px;color:#C9D4E4">'+(ar?"لم تُحدد مستندات إضافية لهذا الموعد.":"No additional documents specified.")+'</p>';
+    const headingSmall = (value:string) => '<h2 style="font-size:16px;line-height:1.6;color:#E6BF79;font-weight:700;margin:22px 0 12px">'+value+'</h2>';
+    return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" lang="'+lang+'" dir="'+(ar?"rtl":"ltr")+'" style="width:100%;border-collapse:collapse;direction:'+(ar?"rtl":"ltr")+'"><tr><td style="font-family:Arial,Tahoma,sans-serif;text-align:'+(ar?"right":"left")+';padding:4px 0">'
+      +'<p style="margin:0 0 10px;color:#E6BF79;font-size:12px;font-weight:700">✓ '+(ar?"موعد مؤكد":"CONFIRMED APPOINTMENT")+'</p>'
+      +'<h1 style="font-size:23px;line-height:1.5;color:#F4D6A2;margin:0 0 14px;font-weight:800">'+heading+'</h1>'
+      +'<p style="font-size:17px;line-height:1.7;font-weight:700;color:#FFFFFF;margin:0 0 12px">'+esc(greeting)+'</p>'
+      +'<p style="font-size:14px;line-height:1.9;color:#E2E8F0;margin:0 0 20px">'+intro+'</p>'
+      +detail(labels[0],name)+gap()+detail(labels[1],input.date)+gap()+detail(labels[2],input.location)
+      +headingSmall(labels[3])+docs+headingSmall(labels[4])+detail(labels[5],input.email)+gap()+detail(labels[6],input.phone)
+      +'<p style="font-size:14px;line-height:1.9;color:#E2E8F0;margin:22px 0 0">'+closing+'</p>'
+      +'</td></tr></table>';
   };
   const languages = input.language === "both" ? (["ar","en"] as const) : [input.language];
-  // Inline SVG wordmark is decorative; the text brand remains visible in email clients that strip SVG.
-  const emblem = '<svg xmlns="http://www.w3.org/2000/svg" width="45" height="45" viewBox="0 0 48 48" role="img" aria-label="Career Gate"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffd18b"/><stop offset="1" stop-color="#f58d24"/></linearGradient></defs><rect x="3" y="3" width="42" height="42" rx="12" fill="#153451" stroke="#c58e48"/><path d="M14 34V14h20v20M20 34V21h8v13" fill="none" stroke="url(#cg)" stroke-width="3" stroke-linecap="round"/></svg>';
-  const header = '<header style="text-align:center;padding:25px 16px 27px;border-bottom:1px solid #3e5670;background:linear-gradient(135deg,#10283f,#183b59)">'
-    + '<div style="margin-bottom:10px">' + emblem + '</div>'
-    + '<div style="font-size:27px;line-height:1.25;font-weight:900;letter-spacing:2px;color:#ffae48">CAREER GATE</div>'
-    + '<div style="font-size:17px;font-weight:800;color:#fff;margin-top:6px">بوابة التوظيف</div>'
-    + '<div style="font-size:10px;letter-spacing:2px;color:#b9cce0;margin-top:7px">EXECUTIVE SMART GATE PASS</div></header>';
-  const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Career Gate Appointment Confirmation</title></head>'
-    + '<body style="margin:0;padding:0;background:#071725;color:#fff;font-family:Arial,Tahoma,sans-serif;-webkit-font-smoothing:antialiased">'
-    + '<div style="max-width:660px;margin:0 auto;padding:25px 12px">'
-    + '<div style="border:1px solid #6c7690;border-radius:24px;overflow:hidden;background:#0c223a;box-shadow:0 15px 45px #0007">'
-    + header + '<main style="padding:22px 24px 26px;background:linear-gradient(160deg,#102b49,#0a2038)">'
-    + languages.map(section).join('<div style="height:1px;background:#47627d;margin:30px 0"></div>') + '</main></div>'
-    + '<footer style="text-align:center;padding:22px 0">'
-    + contact("https://alhijrah-caseflow.vercel.app/status","متابعة حالة الملف / Track Status","#bd8e47")
-    + contact("https://wa.me/13139194292","WhatsApp","#176a55")
-    + contact("tel:+13133393566","Call / اتصال","#25578d")
-    + contact("mailto:careergate.official@gmail.com","Email / بريد","#a7601c")
-    + '<div style="font-size:11px;color:#9db4cb;margin-top:13px">CAREER GATE · بوابة التوظيف</div></footer></div></body></html>';
+  const header = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;background-color:#0A122C"><tr><td align="center" style="padding:26px 16px;border-bottom:1px solid #C5A059;font-family:Arial,Tahoma,sans-serif">'
+    +'<div style="font-size:28px;line-height:1.35;font-weight:800;letter-spacing:1px;color:#E6A64F">CAREER GATE</div>'
+    +'<div lang="ar" dir="rtl" style="font-size:17px;line-height:1.7;font-weight:700;color:#FFFFFF">بوابة التوظيف</div>'
+    +'<div style="font-size:10px;line-height:1.6;letter-spacing:1px;color:#C9D4E4">EXECUTIVE SMART GATE PASS</div></td></tr></table>';
+  const footer = '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse"><tr><td style="padding:18px 16px 0">'
+    +action("https://alhijrah-caseflow.vercel.app/status","متابعة حالة الملف / Track Status","#C5A059","#040914")
+    +gap(10)+action("https://wa.me/13139194292","WhatsApp / واتساب","#173F43")
+    +gap(10)+action("tel:+13133393566","Call / اتصال","#183B64")
+    +gap(10)+action("mailto:careergate.official@gmail.com","Email / بريد","#44362A")
+    +'<p style="font-size:12px;line-height:1.9;text-align:center;color:#C9D4E4;margin:24px 0 0" dir="rtl">مكتب الهجرة للاستشارات وخدمات التوظيف<br>Career Gate — بوابة التوظيف<br>ديربورن، ميشيغان — الولايات المتحدة الأمريكية</p>'
+    +'<p style="font-size:11px;line-height:1.7;text-align:center;color:#9AAEC8;margin:8px 0 0">ALHIJRAH VISA &amp; IMMIGRATION SERVICES LLC · Dearborn, Michigan</p>'
+    +'</td></tr></table>';
+  const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark"><title>Career Gate Appointment Confirmation</title></head>'
+    +'<body style="margin:0;padding:0;background-color:#040914;color:#FFFFFF;font-family:Arial,Tahoma,sans-serif">'
+    +'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#040914" style="width:100%;border-collapse:collapse;background-color:#040914"><tr><td align="center" style="padding:12px 8px">'
+    +'<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;border-collapse:separate;border:1px solid #C5A059;background-color:#0A122C;border-radius:16px">'
+    +'<tr><td>'+header+'</td></tr>'
+    +'<tr><td style="padding:22px 16px 8px">'+languages.map(section).join(gap(24)+'<hr style="border:0;border-top:1px solid #C5A059;margin:0">'+gap(24))+'</td></tr>'
+    +'<tr><td style="padding:0 0 22px">'+footer+'</td></tr></table>'
+    +'</td></tr></table></body></html>';
   const text = languages.map(lang => {
     const ar = lang === "ar";
     return [ar ? "بوابة التوظيف | تأكيد موعد مقابلة العمل" : "CAREER GATE | Job Interview Confirmation",
