@@ -1,12 +1,14 @@
 "use client";
 import { useMemo, useState } from "react";
 import type { OperationsClient } from "@/lib/operations";
+import { AMAZON_LOCATIONS } from "@/lib/location-shift-options";
 
 /** Totals are derived from the same active client records as the Pipeline, never from fixture counters. */
 export function LocationShiftTelemetry({clients, periodOf}:{clients:OperationsClient[];periodOf:(client:OperationsClient)=>"morning"|"evening"|"night"|"needs_manual_review"}){
  const [expanded,setExpanded]=useState(false);
  const {entries,total,assigned}=useMemo(()=>{
    const counts=new Map<string,{name:string;morning:number;evening:number;night:number;needs_manual_review:number}>();
+   AMAZON_LOCATIONS.forEach(([name],index)=>counts.set(`MI_LOC_${String(index+1).padStart(2,"0")}`,{name,morning:0,evening:0,night:0,needs_manual_review:0}));
    let assigned=0;
    for(const client of clients){
      if(client.assigned_staff)assigned++;
