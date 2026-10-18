@@ -46,7 +46,11 @@ test("verified mobile status preserves appointment actions with concise, readabl
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 
+  const actionResponse = page.waitForResponse(response =>
+    response.url().endsWith("/api/status/appointment-action") && response.request().method() === "POST");
   await status.getByRole("button", { name: /Confirm Appointment/ }).click();
+  const confirmed = await actionResponse;
+  expect(confirmed.status(), await confirmed.text()).toBe(200);
   await expect(status.getByText("Acknowledged / تم التأكيد")).toBeVisible();
   await expect(status.getByRole("button", { name: /Confirm Appointment/ })).toHaveCount(0);
   await page.reload();
