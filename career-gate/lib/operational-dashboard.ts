@@ -59,7 +59,8 @@ async function systemHealth(session: StaffSession): Promise<DashboardSystemHealt
   const db = sql();
   const started = performance.now();
   try {
-    const [row] = await db`
+    const [[row], [{ failed_notifications_24h }], [{ open_audit_alerts }]] = await Promise.all([
+      db`
       select
         count(*) filter (where status='queued')::int as queued,
         count(*) filter (where status='running')::int as running,
@@ -67,11 +68,12 @@ async function systemHealth(session: StaffSession): Promise<DashboardSystemHealt
         count(*) filter (where status='dead')::int as dead,
         count(*) filter (where status='not_configured')::int as not_configured,
         extract(epoch from (now()-min(created_at) filter (where status='queued')))::int as oldest_queued_seconds
-      from jobs`;
-    const [{ failed_notifications_24h }] = await db`
+      from jobs`,
+      db`
       select count(*)::int as failed_notifications_24h
-      from notifications where status='failed' and updated_at>=now()-interval '24 hours'`;
-    const [{ open_audit_alerts }] = await db`select count(*)::int as open_audit_alerts from audit_alerts where status='open'`;
+      from notifications where status='failed' and updated_at>=now()-interval '24 hours'`,
+      db`select count(*)::int as open_audit_alerts from audit_alerts where status='open'`,
+    ]);
     const dbMs = Math.round(performance.now() - started);
     const providers = providerStates();
     const failed = Number(row?.dead ?? 0) > 0 || Number(failed_notifications_24h ?? 0) > 0;
@@ -124,6 +126,14 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
              and not exists (select 1 from followups f where f.client_id=a.id and f.status='open' and f.due_date<(now() at time zone ${TZ})::date)
              and not exists (select 1 from latest_docs d where d.client_id=a.id and d.status=any(${BLOCKING_DOCUMENT_STATES}))) as healthy
           from active a
+        ),
+        readiness_rollup as (
+          select
+            count(*) filter (where r.total_requirements>0 and r.readiness_percent=100)::int as ready_count,
+            count(*) filter (where r.total_requirements>0 and r.readiness_percent between 75 and 99)::int as nearly_ready_count,
+            count(*) filter (where r.total_requirements>0 and coalesce(r.readiness_percent,0)<75)::int as blocked_count,
+            coalesce(sum(greatest(r.total_requirements-r.completed_requirements,0)),0)::int as missing_requirements
+          from client_readiness r join active a on a.id=r.client_id
         )
         select
           (select count(*)::int from clients c where c.deleted_at is null and c.current_status='new_intake') as new_clients,
@@ -136,14 +146,15 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
           (select count(distinct l.client_id)::int from activity_log l where l.action in ('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now())) as completed_this_month,
           (select count(*)::int from health) as active_count,
           (select count(*) filter (where healthy)::int from health) as healthy_count,
-          (select count(*)::int from client_readiness r join active a on a.id=r.client_id where r.total_requirements>0 and r.readiness_percent=100) as ready_count,
-          (select count(*)::int from client_readiness r join active a on a.id=r.client_id where r.total_requirements>0 and r.readiness_percent between 75 and 99) as nearly_ready_count,
-          (select count(*)::int from client_readiness r join active a on a.id=r.client_id where r.total_requirements>0 and coalesce(r.readiness_percent,0)<75) as blocked_count,
-          (select coalesce(sum(greatest(r.total_requirements-r.completed_requirements,0)),0)::int from client_readiness r join active a on a.id=r.client_id) as missing_requirements,
+          rr.ready_count,
+          rr.nearly_ready_count,
+          rr.blocked_count,
+          rr.missing_requirements,
           (select coalesce(sum(greatest(b.balance,0)),0)::numeric from client_account_balances b join active a on a.id=b.client_id) as receivables,
           (select coalesce(sum(t.amount),0)::numeric from payment_transactions t join active a on a.id=t.client_id where t.transaction_type='payment' and t.status='confirmed' and t.created_at>=date_trunc('month',now())) as collected_this_month,
           (select coalesce(sum(t.amount),0)::numeric from payment_transactions t join active a on a.id=t.client_id where t.transaction_type='refund' and t.status='confirmed' and t.created_at>=date_trunc('month',now())) as refunds_this_month,
-          (select count(*)::int from commissions c join active a on a.id=c.client_id where c.status in ('pending','eligible')) as commissions_attention`;
+          (select count(*)::int from commissions c join active a on a.id=c.client_id where c.status in ('pending','eligible')) as commissions_attention
+        from readiness_rollup rr`;
       const pipelineRows = await tx`
         select current_status as status,count(*)::int as total
         from clients
