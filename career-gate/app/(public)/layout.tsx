@@ -23,7 +23,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         <main className="min-w-0">{children}</main>
         <footer className="mt-8 rounded-2xl border border-white/15 bg-white/[.07] p-5 text-slate-200 backdrop-blur-lg">
           <p className="mb-2 text-sm font-bold text-[#E6C585]">Career Gate · بوابة التوظيف</p>
-          <div className="[&_a]:text-[#C9DEFF] [&_a]:underline-offset-4"><OfficeContact /></div>
+          <OfficeContact theme="dark" />
           <p className="mt-4 text-xs leading-6 text-slate-300">Career Gate is operated by ALHIJRAH SERVICES LLC. It is not affiliated with or operated by Amazon. Hiring decisions are made by the employer.</p>
         </footer>
       </div>
