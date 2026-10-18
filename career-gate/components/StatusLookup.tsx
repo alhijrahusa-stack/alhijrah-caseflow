@@ -22,23 +22,27 @@ export function StatusLookup() {
   // Restore a valid challenge when the mobile browser reloads after opening
   // the email app. The OTP code itself is never stored in browser storage.
   useEffect(() => {
-    try {
-      const raw = window.sessionStorage.getItem(ACTIVE_CHALLENGE_KEY);
-      if (!raw) return;
-      const stored = JSON.parse(raw) as StoredChallenge;
-      if (stored.identifier.trim().toLowerCase() !== identifier.trim().toLowerCase() ||
-          typeof stored.challengeId !== "string" ||
-          typeof stored.expiresAt !== "number" ||
-          stored.expiresAt <= Date.now()) {
-        window.sessionStorage.removeItem(ACTIVE_CHALLENGE_KEY);
-        return;
+    // Defer session restoration outside the synchronous effect phase.
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = window.sessionStorage.getItem(ACTIVE_CHALLENGE_KEY);
+        if (!raw) return;
+        const stored = JSON.parse(raw) as StoredChallenge;
+        if (stored.identifier.trim().toLowerCase() !== identifier.trim().toLowerCase() ||
+            typeof stored.challengeId !== "string" ||
+            typeof stored.expiresAt !== "number" ||
+            stored.expiresAt <= Date.now()) {
+          window.sessionStorage.removeItem(ACTIVE_CHALLENGE_KEY);
+          return;
+        }
+        setChallengeId(stored.challengeId);
+        setExpiresAt(stored.expiresAt);
+        setNow(Date.now());
+      } catch {
+        // Browser storage may be disabled; normal OTP lookup remains available.
       }
-      setChallengeId(stored.challengeId);
-      setExpiresAt(stored.expiresAt);
-      setNow(Date.now());
-    } catch {
-      // Browser storage may be disabled; normal OTP lookup remains available.
-    }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [identifier]);
 
   useEffect(() => {
