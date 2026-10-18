@@ -24,7 +24,6 @@ export function PublicStatusView({ s, verifiedRef, appointmentAction, readOnly =
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">Application Status</h1>
           <p className="mt-1 text-sm text-slate-300">حالة ملف العميل</p>
         </div>
-        <span className="inline-flex max-w-full items-center rounded-full border border-amber-300/35 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-100">{s.status_label}</span>
       </header>
 
       <div className="rounded-2xl border border-white/15 bg-[#0E244B]/65 p-4 sm:p-5">
@@ -39,7 +38,7 @@ export function PublicStatusView({ s, verifiedRef, appointmentAction, readOnly =
           </div>
           <div className="grid grid-cols-[minmax(90px,1fr)_minmax(0,2fr)] items-baseline gap-3">
             <dt className="text-slate-300">Current Status</dt>
-            <dd className="min-w-0 font-semibold text-white" data-testid="status-current-status">{s.status_label}</dd>
+            <dd className="min-w-0 font-semibold text-white" data-testid="status-current-status"><span className="inline-flex max-w-full rounded-full border border-amber-300/35 bg-amber-300/10 px-3 py-1 text-xs font-semibold text-amber-100">{s.status_label}</span></dd>
           </div>
         </dl>
         <div className="mt-4 rounded-xl border border-sky-300/15 bg-sky-300/[.07] p-3">
