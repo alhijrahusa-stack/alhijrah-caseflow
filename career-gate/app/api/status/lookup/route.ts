@@ -24,6 +24,7 @@ export async function POST(req: Request) {
   const challenge = await startLookup(parsed.data.identifier, ip, traceId);
   return ok({
     challenge_id: challenge.challengeId,
+    expires_at: challenge.expiresAt,
     verification_required: true,
     message: "If the information matches a Career Gate file, a verification code has been sent to the contact on file.",
   }, 200, traceId);
