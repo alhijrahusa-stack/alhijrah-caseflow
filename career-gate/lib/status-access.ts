@@ -98,7 +98,7 @@ export async function startLookup(identifier: string, ipHash: string, traceId: s
   if (!subject) {
     const [row] = await db`
       insert into otp_requests (delivery_status, expires_at, ip_hash) values ('no_match', ${expires}, ${ipHash}) returning id`;
-    return { challengeId: row.id as string, delivery: "no_match" as const };
+    return { challengeId: row.id as string, delivery: "no_match" as const, expiresAt: expires.toISOString() };
   }
 
   const channel: "email" | "sms" = c!.kind === "phone" || !subject.email ? "sms" : "email";
@@ -107,7 +107,7 @@ export async function startLookup(identifier: string, ipHash: string, traceId: s
     const [row] = await db`
       insert into otp_requests (client_id, import_case_id, delivery_status, expires_at, ip_hash)
       values (${subject.clientId}, ${subject.importCaseId}, 'no_contact', ${expires}, ${ipHash}) returning id`;
-    return { challengeId: row.id as string, delivery: "no_contact" as const };
+    return { challengeId: row.id as string, delivery: "no_contact" as const, expiresAt: expires.toISOString() };
   }
 
   const contactHash = hashIdentifier(`${channel}:${to}`);
@@ -118,14 +118,27 @@ export async function startLookup(identifier: string, ipHash: string, traceId: s
 
   if (!(await hit("otp_send_hour", contactHash))) {
     await db`update otp_requests set delivery_status = 'failed' where id = ${challengeId}`;
-    return { challengeId, delivery: "rate_limited" as const, contactHash };
+    return { challengeId, delivery: "rate_limited" as const, contactHash, expiresAt: expires.toISOString() };
   }
 
+  // Persist the secret before dispatch. A successful provider send must never
+  // produce a code that cannot be verified because a later status write fails.
   const code = newOtpCode();
-  const result = await deliverOtp(channel, to, code);
-  const delivery = result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : "failed";
-  await db`update otp_requests set otp_hash = ${delivery === "sent" ? otpHash(challengeId, code) : null}, delivery_status = ${delivery}
-           where id = ${challengeId}`;
+  await db`update otp_requests set otp_hash = ${otpHash(challengeId, code)} where id = ${challengeId}`;
+  let delivery: "sent" | "not_configured" | "failed" = "failed";
+  try {
+    const result = await deliverOtp(channel, to, code);
+    delivery = result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : "failed";
+  } catch (error) {
+    console.error("OTP provider dispatch failed", { challengeId, traceId, error: error instanceof Error ? error.message : "unknown" });
+  }
+  // Provider acknowledgement is secondary to the already persisted challenge.
+  // Do not turn an emailed OTP into a 503 that hides its verification form.
+  try {
+    await db`update otp_requests set delivery_status = ${delivery} where id = ${challengeId}`;
+  } catch (error) {
+    console.error("OTP delivery status update failed", { challengeId, traceId, error: error instanceof Error ? error.message : "unknown" });
+  }
 
   if (subject.clientId) {
     try { await logActivity(db, {
@@ -137,7 +150,7 @@ export async function startLookup(identifier: string, ipHash: string, traceId: s
       newValue: { channel, delivery },
     }); } catch (error) { console.error("OTP audit unavailable", error); }
   }
-  return { challengeId, delivery, contactHash };
+  return { challengeId, delivery, contactHash, expiresAt: expires.toISOString() };
 }
 
 export type VerifyResult = { ok: true; ref: string; token: string } | { ok: false; code: "invalid" | "expired" | "locked" };
