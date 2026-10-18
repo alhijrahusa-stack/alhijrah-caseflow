@@ -27,7 +27,7 @@ test("client appointment actions surface across staff pages without enabling aud
     await bell.click();
     const inbox = page.getByRole("region", { name: "Appointment notification inbox" });
     await expect(inbox.getByText(name)).toBeVisible();
-    await expect(inbox.getByText("Appointment acknowledged / تم تأكيد الموعد")).toBeVisible();
+    await expect(inbox.getByRole("link", { name: new RegExp(`Appointment acknowledged.*${name}`) })).toBeVisible();
     await inbox.getByRole("button", { name: /Mark all read/ }).click();
     await expect(page.getByRole("button", { name: "Appointment alerts, 0 unread" })).toBeVisible();
     await page.goto("/staff/appointments");

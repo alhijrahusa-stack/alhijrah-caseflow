@@ -8,7 +8,7 @@ function statusLabel(value: string): string {
 
 type PublicLocation = { site_code: string; site_name: string; address: string | null; city: string } | null;
 type PublicShift = { name: string; days: string | null; time: string | null } | null;
-type PublicInterview = { id?: string; status?: string; type: string; scheduled_at: string; location: string | null } | null;
+type PublicInterview = { id?: string; status?: string; type: string; scheduled_at: string; location: string | null; client_acknowledged?: boolean } | null;
 type PublicHistory = { status: string; label: string; updated_at: string }[];
 
 export type PublicStatus = {
@@ -45,38 +45,48 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
     where c.id = ${clientId} and c.deleted_at is null`;
   if (!c) return null;
 
-  const [pref] = await db`
-    select city, site_code, site_name, site_address, job_title, shift_name, shift_code, days, hours
-    from client_preferences
-    where client_id = ${clientId}
-    order by case rank when 'primary' then 0 else 1 end, preference_order, created_at
-    limit 1`;
+  // These independent public-safe reads can run concurrently after client
+  // identity verification. Appointment acknowledgement remains dependent on
+  // the selected appointment and is evaluated immediately afterwards.
+  const [[pref], [interview], [docSummary], historyRows] = await Promise.all([
+    db`
+      select city, site_code, site_name, site_address, job_title, shift_name, shift_code, days, hours
+      from client_preferences
+      where client_id = ${clientId}
+      order by case rank when 'primary' then 0 else 1 end, preference_order, created_at
+      limit 1`,
+    db`
+      select id, status, appointment_type, scheduled_at, location, timezone
+      from appointments
+      where client_id = ${clientId}
+        and status in ('scheduled', 'confirmed', 'rescheduled')
+        and ends_at >= now()
+      order by scheduled_at
+      limit 1`,
+    db`
+      select count(*) filter (
+               where file_name <> 'signature.png' and file_name not like 'client-photo-%'
+             )::int as total,
+             count(*) filter (
+               where file_name <> 'signature.png' and file_name not like 'client-photo-%' and status = 'verified'
+             )::int as verified
+      from documents where client_id = ${clientId}`,
+    db`
+      select new_value->>'status' as status, created_at
+      from activity_log
+      where client_id = ${clientId}
+        and action in ('client_created', 'status_changed', 'status_overridden')
+        and new_value->>'status' is not null
+      order by created_at asc`,
+  ]);
 
-  const [interview] = await db`
-    select id, status, appointment_type, scheduled_at, location, timezone
-    from appointments
-    where client_id = ${clientId}
-      and status in ('scheduled', 'confirmed', 'rescheduled')
-      and ends_at >= now()
-    order by scheduled_at
-    limit 1`;
-
-  const [docSummary] = await db`
-    select count(*) filter (
-             where file_name <> 'signature.png' and file_name not like 'client-photo-%'
-           )::int as total,
-           count(*) filter (
-             where file_name <> 'signature.png' and file_name not like 'client-photo-%' and status = 'verified'
-           )::int as verified
-    from documents where client_id = ${clientId}`;
-
-  const historyRows = await db`
-    select new_value->>'status' as status, created_at
-    from activity_log
-    where client_id = ${clientId}
-      and action in ('client_created', 'status_changed', 'status_overridden')
-      and new_value->>'status' is not null
-    order by created_at asc`;
+  const [acknowledgment] = interview ? await db`
+    select 1 from activity_log
+    where client_id = ${clientId} and entity_id = ${String(interview.id)}
+      and action = 'appointment_updated'
+      and new_value->>'client_action' = 'confirm'
+      and new_value->>'appointment_at' = ${new Date(interview.scheduled_at).toISOString()}
+    limit 1` : [];
 
   const history: PublicHistory = historyRows.length > 0
     ? historyRows.map((r) => ({
@@ -114,6 +124,7 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
         type: interview.appointment_type as string,
         scheduled_at: new Date(interview.scheduled_at).toISOString(),
         location: interview.location as string | null,
+        client_acknowledged: Boolean(acknowledgment),
       }
     : null;
 
