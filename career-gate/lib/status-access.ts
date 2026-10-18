@@ -106,7 +106,7 @@ export async function startLookup(identifier: string, ipHash: string, traceId: s
   if (!to) {
     const [row] = await db`
       insert into otp_requests (client_id, import_case_id, delivery_status, expires_at, ip_hash)
-      values (${subject.clientId}, ${subject.importCaseId}, 'no_contact', ${expires}, ${ipHash}) returning id`;
+      values (${subject.clientId}, ${subject.importCaseId}, 'failed', ${expires}, ${ipHash}) returning id`;
     return { challengeId: row.id as string, delivery: "no_contact" as const, expiresAt: expires.toISOString() };
   }
 
