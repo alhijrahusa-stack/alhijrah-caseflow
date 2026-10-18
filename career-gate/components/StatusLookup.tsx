@@ -3,6 +3,10 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+const ACTIVE_CHALLENGE_KEY = "cg-status-active-challenge";
+
+type StoredChallenge = { identifier: string; challengeId: string; expiresAt: number };
+
 export function StatusLookup() {
   const router = useRouter();
   const params = useSearchParams();
@@ -14,6 +18,32 @@ export function StatusLookup() {
   const [now, setNow] = useState(() => Date.now());
   const secondsLeft = expiresAt === null ? 0 : Math.max(0, Math.ceil((expiresAt - now) / 1000));
   const remaining = `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(secondsLeft % 60).padStart(2, "0")}`;
+
+  // Restore a valid challenge when the mobile browser reloads after opening
+  // the email app. The OTP code itself is never stored in browser storage.
+  useEffect(() => {
+    // Defer session restoration outside the synchronous effect phase.
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = window.sessionStorage.getItem(ACTIVE_CHALLENGE_KEY);
+        if (!raw) return;
+        const stored = JSON.parse(raw) as StoredChallenge;
+        if (stored.identifier.trim().toLowerCase() !== identifier.trim().toLowerCase() ||
+            typeof stored.challengeId !== "string" ||
+            typeof stored.expiresAt !== "number" ||
+            stored.expiresAt <= Date.now()) {
+          window.sessionStorage.removeItem(ACTIVE_CHALLENGE_KEY);
+          return;
+        }
+        setChallengeId(stored.challengeId);
+        setExpiresAt(stored.expiresAt);
+        setNow(Date.now());
+      } catch {
+        // Browser storage may be disabled; normal OTP lookup remains available.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [identifier]);
 
   useEffect(() => {
     if (!expiresAt) return;
@@ -40,9 +70,19 @@ export function StatusLookup() {
       setError(data?.error?.message ?? `Request failed (${res.status})`);
       return;
     }
-    setChallengeId(String(data.challenge_id));
-    setExpiresAt(Date.now() + 300_000);
+    const id = String(data.challenge_id);
+    const expiry = typeof data.expires_at === "string" ? Date.parse(data.expires_at) : NaN;
+    const expires = Number.isFinite(expiry) ? expiry : Date.now() + 300_000;
+    setChallengeId(id);
+    setExpiresAt(expires);
     setNow(Date.now());
+    try {
+      window.sessionStorage.setItem(ACTIVE_CHALLENGE_KEY, JSON.stringify({
+        identifier: identifier.trim(), challengeId: id, expiresAt: expires,
+      } satisfies StoredChallenge));
+    } catch {
+      // Storage is an optional continuity enhancement, not an OTP requirement.
+    }
     setCode("");
     setMessage(String(data.message ?? "If the information matches a file, a verification code has been sent."));
     } catch { setPending(false); setError("Unable to connect. Please try again shortly. / تعذر الاتصال، يرجى المحاولة مجددًا."); }
@@ -64,6 +104,7 @@ export function StatusLookup() {
       setError(data?.error?.message ?? `Verification failed (${res.status})`);
       return;
     }
+    try { window.sessionStorage.removeItem(ACTIVE_CHALLENGE_KEY); } catch {}
     const action=params.get("appointment_action");
     const suffix=action&&["confirm","reschedule","cancel"].includes(action)?`?appointment_action=${action}`:"";
     router.push(`/status/${encodeURIComponent(String(data.ref))}${suffix}`);
@@ -72,6 +113,7 @@ export function StatusLookup() {
   }
 
   function changeIdentifier(value: string) {
+    try { window.sessionStorage.removeItem(ACTIVE_CHALLENGE_KEY); } catch {}
     setIdentifier(value);
     setChallengeId(null);
     setExpiresAt(null);
@@ -104,7 +146,8 @@ export function StatusLookup() {
 
         {challengeId && (
           <form className="mt-6 border-t border-white/20 pt-5" onSubmit={verify}>
-            <label className="mb-2 block text-sm font-semibold text-[#F0D18E]" htmlFor="status-code">Verification code</label>\n            <p className="mb-2 text-xs text-slate-300">Enter the 6-digit code sent to your registered contact / أدخل رمز التحقق المرسل إليك</p>
+            <label className="mb-2 block text-sm font-semibold text-[#F0D18E]" htmlFor="status-code">Verification code</label>
+            <p className="mb-2 text-xs text-slate-300">Enter the 6-digit code sent to your registered contact / أدخل رمز التحقق المرسل إليك</p>
             <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
               <input
                 id="status-code"
