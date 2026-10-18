@@ -91,7 +91,7 @@ export function PublicStatusView({ s, verifiedRef, appointmentAction, readOnly =
           {detailRows.map(([name, value]) => (
             <div className="grid grid-cols-[minmax(100px,1fr)_minmax(0,2fr)] gap-3" key={name}>
               <dt className="text-slate-300">{name}</dt>
-              <dd className="min-w-0 break-words font-medium text-white">{value}</dd>
+              <dd className="min-w-0 break-words font-medium text-white" data-testid={name === "Start Date" ? "status-start-date" : undefined}>{value}</dd>
             </div>
           ))}
         </dl>
