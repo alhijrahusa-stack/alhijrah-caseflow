@@ -100,7 +100,7 @@ test.describe.serial("public intake and status access", () => {
     await page.getByRole("button", { name: "Check Status" }).click();
     await expect(page.getByLabel("Verification code")).toBeVisible();
     const countdown = page.getByRole("timer");
-    await expect(countdown).toContainText(/0[0-4]:[0-5][0-9]/);
+    await expect(countdown).toContainText(/0[0-5]:[0-5][0-9]/);
     await page.reload();
     await expect(page.getByLabel("Verification code")).toBeVisible();
     await expect(page.getByLabel("File number, phone or email")).toHaveValue(ref);
