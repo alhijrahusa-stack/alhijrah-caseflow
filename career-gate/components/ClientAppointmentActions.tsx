@@ -2,8 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePublicTactileAudio } from "@/components/usePublicTactileAudio";
 
 type Slot = { start: string };
+
+function ActionGlyph({ kind }: { kind: "confirm" | "reschedule" | "cancel" }) {
+  if (kind === "confirm") return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0">
+      <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 2v6M17 2v6M3 10h18m-12 5 2 2 4-4" />
+    </svg>
+  );
+  if (kind === "reschedule") return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0">
+      <path d="M12 3a9 9 0 1 0 8.5 12M12 7v5l3 2m1-11h5v5" />
+    </svg>
+  );
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0">
+      <path d="M4 7h16M10 11v7m4-7v7M6 7l1 14h10l1-14M9 7V4h6v3" />
+    </svg>
+  );
+}
 
 export function ClientAppointmentActions({
   refCode,
@@ -19,6 +38,7 @@ export function ClientAppointmentActions({
   embedded?: boolean;
 }) {
   const router = useRouter();
+  const { soundEnabled, setSoundEnabled, playFeedback } = usePublicTactileAudio();
   const [panel, setPanel] = useState<"reschedule" | "cancel" | null>(
     initialAction === "cancel" ? "cancel" : initialAction === "reschedule" ? "reschedule" : null,
   );
@@ -115,35 +135,50 @@ export function ClientAppointmentActions({
     <section className={embedded
       ? "mt-5 border-t border-[#C5A059]/20 pt-4 text-white"
       : "mt-4 space-y-3 rounded-2xl border border-[#C5A059]/40 bg-[#0A122C] p-4 text-white"}>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-bold text-[#E6C585]">Manage Appointment / إدارة الموعد</h3>
-        {alreadyAcknowledged && (!embedded || !initialAcknowledged) && <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2 py-1 text-[11px] font-semibold text-emerald-200">Acknowledged / تم التأكيد</span>}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-bold tracking-[-.01em] text-[#F3D69A] sm:text-base">Appointment Actions <span lang="ar" dir="rtl" className="font-semibold">/ إدارة الموعد</span></h3>
+        <button
+          type="button"
+          aria-label={soundEnabled ? "Mute appointment button sounds" : "Enable appointment button sounds"}
+          aria-pressed={soundEnabled}
+          onClick={() => setSoundEnabled(value => !value)}
+          className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/20 bg-white/[.06] px-3 py-1.5 text-[11px] font-medium text-slate-200 transition-colors hover:border-amber-300/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F3D69A]"
+        >
+          <span aria-hidden="true">{soundEnabled ? "♪" : "♩"}</span>
+          {soundEnabled ? "Sound on" : "Sound off"}
+        </button>
       </div>
-      {!alreadyAcknowledged && (
-        <button type="button" disabled={pending} onClick={() => void submit("confirm")}
-          className="min-h-12 w-full rounded-xl bg-gradient-to-r from-[#C5A059] to-[#F5D48E] px-4 py-3 text-sm font-bold text-[#08162e] shadow-[0_8px_20px_rgba(0,0,0,.15)] transition-colors hover:from-[#D4AD62] hover:to-[#FFE5A3] disabled:opacity-50">
-          {pending ? "Processing…" : "Confirm Appointment / تأكيد الموعد"}
-        </button>
+      {alreadyAcknowledged && (!embedded || !initialAcknowledged) && (
+        <p role="status" className="mb-3 inline-flex rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200">Acknowledged / تم التأكيد</p>
       )}
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <button type="button" disabled={pending} onClick={() => void openReschedule()}
-          className="min-h-12 rounded-xl border border-[#C5A059]/60 px-2 py-3 text-xs font-semibold leading-5 text-amber-100 transition-colors hover:bg-amber-300/10 disabled:opacity-50 sm:text-sm">
-          Reschedule / تعديل
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+        {!alreadyAcknowledged && (
+          <button type="button" disabled={pending} onClick={() => { playFeedback("confirm"); void submit("confirm"); }}
+            className="cg-lux-action cg-lux-action--primary col-span-2 flex min-h-[66px] w-full items-center justify-center gap-3 rounded-2xl px-3 py-3 text-sm font-bold sm:col-span-1">
+            <ActionGlyph kind="confirm" />
+            <span className="flex flex-col items-start leading-tight"><span>{pending ? "Processing…" : "Confirm Appointment"}</span><span lang="ar" dir="rtl" className="mt-1 text-xs font-semibold">تأكيد الموعد</span></span>
+          </button>
+        )}
+        <button type="button" disabled={pending} onClick={() => { playFeedback("reschedule"); void openReschedule(); }}
+          className={`cg-lux-action cg-lux-action--blue flex min-h-[66px] items-center justify-center gap-2 rounded-2xl px-2 py-3 text-[#E0EEFF] ${alreadyAcknowledged ? "col-span-1" : ""}`}>
+          <ActionGlyph kind="reschedule" />
+          <span className="flex flex-col items-start text-left leading-tight"><span className="text-[13px] font-bold sm:text-sm">Reschedule</span><span lang="ar" dir="rtl" className="mt-1 text-xs font-medium">طلب تعديل</span></span>
         </button>
-        <button type="button" disabled={pending} onClick={() => { setPanel("cancel"); setError(""); }}
-          className="min-h-12 rounded-xl border border-rose-300/35 px-2 py-3 text-xs font-semibold leading-5 text-slate-200 transition-colors hover:bg-rose-400/10 disabled:opacity-50 sm:text-sm">
-          Cancel / إلغاء
+        <button type="button" disabled={pending} onClick={() => { playFeedback("cancel"); setPanel("cancel"); setError(""); }}
+          className="cg-lux-action cg-lux-action--danger flex min-h-[66px] items-center justify-center gap-2 rounded-2xl px-2 py-3 text-rose-100">
+          <ActionGlyph kind="cancel" />
+          <span className="flex flex-col items-start text-left leading-tight"><span className="text-[13px] font-bold sm:text-sm">Cancel</span><span lang="ar" dir="rtl" className="mt-1 text-xs font-medium">إلغاء</span></span>
         </button>
       </div>
       {message && <p role="status" className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-sm leading-6 text-emerald-100">{message}</p>}
       {error && !panel && <p role="alert" className="mt-3 rounded-xl bg-rose-800/40 p-3 text-sm text-rose-100">{error}</p>}
 
       {panel && (
-        <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/75 px-0 sm:items-center sm:p-4" role="presentation" onClick={() => setPanel(null)}>
+        <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/75 px-0 sm:items-center sm:p-4" role="presentation" onClick={() => { playFeedback("tap"); setPanel(null); }}>
           <section
             role="dialog" aria-modal="true"
             aria-label={panel === "reschedule" ? "Request a new appointment" : "Cancel appointment"}
-            className="max-h-[88dvh] w-full max-w-xl overflow-y-auto rounded-t-[26px] border border-[#C5A059]/65 bg-[#101D3F] p-5 pb-[max(24px,env(safe-area-inset-bottom))] text-white shadow-[0_28px_80px_rgba(0,0,0,.65)] sm:rounded-[26px] sm:p-6"
+            className="cg-lux-card max-h-[88dvh] w-full max-w-xl overflow-y-auto rounded-t-[26px] border border-[#C5A059]/65 bg-[#101D3F] p-5 pb-[max(24px,env(safe-area-inset-bottom))] text-white shadow-[0_28px_80px_rgba(0,0,0,.65)] sm:rounded-[26px] sm:p-6"
             onClick={event => event.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -153,7 +188,7 @@ export function ClientAppointmentActions({
                   {panel === "reschedule" ? "Choose a new available time / اختر موعداً متاحاً" : "Cancel appointment / إلغاء الموعد"}
                 </h4>
               </div>
-              <button type="button" onClick={() => setPanel(null)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/30 text-xl" aria-label="Close">×</button>
+              <button type="button" onClick={() => { playFeedback("tap"); setPanel(null); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/30 text-xl" aria-label="Close">×</button>
             </div>
             {panel === "reschedule" ? (
               <>
@@ -187,8 +222,8 @@ export function ClientAppointmentActions({
             {error && <p role="alert" className="my-3 rounded-xl border border-rose-300/30 bg-rose-900/40 p-3 text-sm text-rose-100">{error}</p>}
             {(panel === "cancel" || (!loadingSlots && slots.length > 0)) && (
               <button type="button" disabled={pending || (panel === "reschedule" ? !selectedSlot : reason.trim().length < 5)}
-                onClick={() => void submit(panel)}
-                className="mt-4 min-h-12 w-full rounded-xl bg-gradient-to-r from-[#C5A059] to-[#F5D48E] px-4 py-3 text-sm font-bold text-[#08162e] disabled:opacity-50">
+                onClick={() => { playFeedback(panel); void submit(panel); }}
+                className="cg-lux-action cg-lux-action--primary mt-4 min-h-12 w-full rounded-xl px-4 py-3 text-sm font-bold">
                 {pending ? "Sending…" : panel === "reschedule" ? "Send Reschedule Request / إرسال طلب التعديل" : "Confirm Cancellation / تأكيد الإلغاء"}
               </button>
             )}
