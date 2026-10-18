@@ -224,7 +224,9 @@ export async function clientFile(s: StaffSession, id: string) {
   return out as ClientFileSliceData & { client: Record<string, unknown> };
 }
 
-export async function appointmentList(s: StaffSession, view: string) {
+export async function appointmentList(s: StaffSession, view: string, limit = 300, offset = 0) {
+  const pageLimit = Number.isSafeInteger(limit) ? Math.min(Math.max(limit, 1), 300) : 300;
+  const pageOffset = Number.isSafeInteger(offset) ? Math.max(offset, 0) : 0;
   return withStaff(s, (tx) => tx`
     select a.*, c.full_name, c.ref, s.display_name as created_by_name
     from appointments a join clients c on c.id = a.client_id left join staff s on s.id = a.created_by_staff
@@ -238,7 +240,7 @@ export async function appointmentList(s: StaffSession, view: string) {
             : tx`a.ends_at >= now() and a.status = any(${OPEN_APPT})`
     }
     order by a.scheduled_at ${view === "past" ? tx`desc` : tx`asc`}
-    limit 300`);
+    limit ${pageLimit} offset ${pageOffset}`);
 }
 
 export async function taskList(s: StaffSession, view: string, assignee?: string) {
