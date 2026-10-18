@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CommandPalette } from "@/components/staff/CommandPalette";
+import { StaffAppointmentAlerts } from "@/components/staff/StaffAppointmentAlerts";
 import { ExecutiveTactileFX } from "@/components/staff/ExecutiveTactileFX";
 import { ExecutiveTelemetry } from "@/components/staff/ExecutiveTelemetry";
 import { QuickClientSearch } from "@/components/staff/QuickClientSearch";
@@ -49,6 +50,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
                 <ExecutiveTelemetry />
                 <QuickClientSearch />
                 <CommandPalette />
+                <StaffAppointmentAlerts staffId={session.staff.id} />
                 {mgmt && <Link href="/staff/audit-alerts" className="staff-header-alert" aria-label="Audit alerts" data-executive-tactile="true">Alerts</Link>}
                 <div className="staff-session-cluster">
                   <span className="staff-session-chip hidden sm:flex" data-testid="me"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.7)]" /><span className="max-w-32 truncate text-xs text-slate-200">{session.staff.display_name}</span><span className="text-[10px] uppercase tracking-wide text-slate-500">{session.staff.role}</span></span>
