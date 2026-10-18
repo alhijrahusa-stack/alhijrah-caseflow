@@ -60,6 +60,28 @@ test.describe.serial("office workflow", () => {
     await page.getByRole("button", { name: "Profile", exact: true }).click();
   });
 
+  test("client tabs switch locally and remain deep-linkable", async () => {
+    await page.goto(`/staff/client/${clientId}?tab=profile`);
+    const routeFetches: string[] = [];
+    const watch = (request: import("@playwright/test").Request) => {
+      const target = new URL(request.url());
+      if (target.pathname === `/staff/client/${clientId}` &&
+          (target.searchParams.has("_rsc") || request.resourceType() === "document")) {
+        routeFetches.push(request.url());
+      }
+    };
+    page.on("request", watch);
+    await page.getByRole("button", { name: /Documents/ }).click();
+    await expect(page.getByTestId("documents-tab-content")).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/staff/client/${clientId}\\?tab=documents`));
+    expect(routeFetches).toEqual([]);
+    page.off("request", watch);
+    await page.reload();
+    await expect(page.getByTestId("documents-tab-content")).toBeVisible();
+    await page.getByRole("button", { name: "Profile", exact: true }).click();
+    await expect(page.getByTestId("section-status-timeline")).toBeVisible();
+  });
+
   test("Client 360 executive surface remains usable on mobile", async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/staff/client/${clientId}?tab=profile`);
