@@ -82,6 +82,7 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
           typeof e.id === "string" && typeof e.at === "string" &&
           ["confirm", "reschedule", "cancel"].includes(e.action) && !known.has(e.id));
         for (const e of incoming) if (typeof e.id === "string") known.add(e.id);
+        const isInitial = firstPoll;
         if (firstPoll) {
           setReadIds(stored);
           firstPoll = false;
@@ -92,7 +93,7 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
             for (const item of [...previous, ...fresh]) unique.set(item.id, item);
             return [...unique.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, MAX_VISIBLE);
           });
-          if (!document.hidden && soundRef.current && !firstPoll) {
+          if (!document.hidden && soundRef.current && !isInitial) {
             // Sound is triggered only for newly received events after initial history load.
             const latest = fresh[fresh.length - 1];
             if (latest) soundFor(latest.action);
