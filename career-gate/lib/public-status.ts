@@ -8,7 +8,7 @@ function statusLabel(value: string): string {
 
 type PublicLocation = { site_code: string; site_name: string; address: string | null; city: string } | null;
 type PublicShift = { name: string; days: string | null; time: string | null } | null;
-type PublicInterview = { id?: string; status?: string; type: string; scheduled_at: string; location: string | null } | null;
+type PublicInterview = { id?: string; status?: string; type: string; scheduled_at: string; location: string | null; client_acknowledged?: boolean } | null;
 type PublicHistory = { status: string; label: string; updated_at: string }[];
 
 export type PublicStatus = {
@@ -60,6 +60,14 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
       and ends_at >= now()
     order by scheduled_at
     limit 1`;
+
+  const [acknowledgment] = interview ? await db`
+    select 1 from activity_log
+    where client_id = ${clientId} and entity_id = ${String(interview.id)}
+      and action = 'appointment_updated'
+      and new_value->>'client_action' = 'confirm'
+      and new_value->>'appointment_at' = ${new Date(interview.scheduled_at).toISOString()}
+    limit 1` : [];
 
   const [docSummary] = await db`
     select count(*) filter (
@@ -114,6 +122,7 @@ export async function publicStatus(clientId: string): Promise<PublicStatus | nul
         type: interview.appointment_type as string,
         scheduled_at: new Date(interview.scheduled_at).toISOString(),
         location: interview.location as string | null,
+        client_acknowledged: Boolean(acknowledgment),
       }
     : null;
 
