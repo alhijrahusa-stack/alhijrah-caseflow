@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   AddNoteForm, AppointmentForm, AssignForm, ContactedForm, DocumentForm, FollowupForm, NextStepForm, type Panel, StatusForm, TaskForm,
@@ -116,7 +116,6 @@ export function ClientFile({
   const account = live.account;
   const { client: c } = data;
   const { isManager, isAdmin } = useStaff();
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [panel, setPanel] = useState<Panel | null>(initialPanel);
@@ -133,7 +132,9 @@ export function ClientFile({
     params.set("tab", nextTab);
     params.delete("action");
     const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    // Next.js App Router synchronizes useSearchParams with the native History API.
+    // Switching an already loaded client tab must not trigger a server render.
+    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
   };
 
   const close = () => setPanel(null);
