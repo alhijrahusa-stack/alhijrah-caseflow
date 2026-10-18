@@ -34,6 +34,11 @@ test("verified mobile status preserves appointment actions with concise, readabl
   await expect(status.getByTestId("status-current-status")).toContainText("New Intake");
   await expect(status.getByTestId("status-appointment-location")).toHaveText("Office Room B");
   await expect(status.getByRole("button", { name: /Confirm Appointment/ })).toBeVisible();
+  await expect(status.locator(".cg-lux-action")).toHaveCount(3);
+  const muteSound = status.getByRole("button", { name: "Mute appointment button sounds" });
+  await expect(muteSound).toHaveAttribute("aria-pressed", "true");
+  await muteSound.click();
+  await expect(status.getByRole("button", { name: "Enable appointment button sounds" })).toHaveAttribute("aria-pressed", "false");
   await expect(status.getByText("File Details / تفاصيل الملف")).toBeVisible();
   await expect(status.getByText("File Updates / تحديثات الملف")).toBeVisible();
   await expect(status.getByText("Contact the office / تواصل معنا")).toHaveCount(0);
