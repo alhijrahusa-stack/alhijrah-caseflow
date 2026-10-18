@@ -27,14 +27,17 @@ describe("public OTP issuance survives post-delivery failures", () => {
     vi.restoreAllMocks();
   });
 
-  function database(options: { failHash?: boolean; failDeliveryStatus?: boolean } = {}) {
+  function database(options: { failHash?: boolean; failDeliveryStatus?: boolean; missingContact?: boolean } = {}) {
     let hashSaved = false;
     const query = vi.fn(async (parts: TemplateStringsArray) => {
       const statement = parts.join("?").replace(/\s+/g, " ").toLowerCase();
       if (statement.includes("from clients where")) {
-        return [{ id: "00000000-0000-4000-8000-000000000001", email: "recipient@example.test", phone: "3135550100" }];
+        return [{ id: "00000000-0000-4000-8000-000000000001", email: options.missingContact ? null : "recipient@example.test", phone: options.missingContact ? "" : "3135550100" }];
       }
       if (statement.includes("insert into otp_requests")) {
+        if (options.missingContact && !statement.includes("'failed'")) {
+          throw new Error("No-contact delivery state must match the live PostgreSQL CHECK constraint");
+        }
         return [{ id: "00000000-0000-4000-8000-000000000002" }];
       }
       if (statement.includes("set delivery_status")) {
@@ -73,4 +76,16 @@ describe("public OTP issuance survives post-delivery failures", () => {
     await expect(startLookup("recipient@example.test", "ip-hash", "trace-456")).rejects.toThrow("OTP hash write failed");
     expect(sendEmail).not.toHaveBeenCalled();
   });
+  it("keeps an opaque challenge for a client with no reachable contact using a schema-valid delivery status", async () => {
+    database({ missingContact: true });
+    const response = await startLookup("CG-2026-000001", "ip-hash", "trace-no-contact");
+    expect(response).toMatchObject({
+      challengeId: "00000000-0000-4000-8000-000000000002",
+      delivery: "no_contact",
+    });
+    expect(new Date(response.expiresAt).getTime()).toBeGreaterThan(Date.now());
+    expect(hit).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
 });
