@@ -135,7 +135,7 @@ export async function startLookup(identifier: string, ipHash: string, traceId: s
   // Provider acknowledgement is secondary to the already persisted challenge.
   // Do not turn an emailed OTP into a 503 that hides its verification form.
   try {
-    await db`update otp_requests set delivery_status = ${delivery} where id = ${challengeId}`;
+    await db`update otp_requests set delivery_status = ${delivery}, otp_hash = ${delivery === "sent" ? otpHash(challengeId, code) : null} where id = ${challengeId}`;
   } catch (error) {
     console.error("OTP delivery status update failed", { challengeId, traceId, error: error instanceof Error ? error.message : "unknown" });
   }
