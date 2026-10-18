@@ -2713,3 +2713,103 @@ code, kbd, pre, .font-mono {
 .cg-registry-row:hover {transform:translateY(-1px);background:rgba(240,174,70,.07);box-shadow:inset 3px 0 rgba(255,168,51,.62);}
 .cg-status-dot {width:6px;height:6px;border-radius:999px;background:currentColor;display:inline-block;box-shadow:0 0 9px currentColor;animation:pulse 2.4s ease-in-out infinite;}
 @media (prefers-reduced-motion:reduce) {.cg-telemetry-number,.cg-assignment-pulse,.cg-status-dot {animation:none}.cg-registry-row {transition:none}.cg-registry-row:hover {transform:none}}
+
+
+/* Career Gate public portal — scoped Midnight Lux, compatible with existing Inter/Plex fonts. */
+.cg-public {
+  color-scheme: dark;
+  font-family: var(--font-inter), var(--font-plex-arabic), system-ui, sans-serif;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+}
+.cg-public :lang(ar) {
+  font-family: var(--font-plex-arabic), var(--font-inter), sans-serif;
+  letter-spacing: 0;
+  line-height: 1.8;
+}
+.cg-public .cg-lux-card {
+  position: relative;
+  border: 1px solid rgba(154, 190, 244, .31);
+  background: linear-gradient(136deg, rgba(34, 68, 120, .92), rgba(14, 36, 76, .95) 52%, rgba(10, 27, 61, .96));
+  box-shadow: 0 12px 34px rgba(0, 7, 24, .24), inset 0 1px 0 rgba(236, 246, 255, .13), inset 0 -1px 0 rgba(255, 255, 255, .035);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.cg-public .cg-lux-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 6%, rgba(249, 210, 133, .68) 32%, rgba(191, 223, 255, .25) 75%, transparent);
+}
+.cg-public .cg-lux-icon {
+  border: 1px solid rgba(231, 192, 113, .38);
+  background: linear-gradient(145deg, rgba(233, 200, 133, .23), rgba(36, 81, 145, .47));
+  color: #F2D7A1;
+  box-shadow: inset 0 1px 0 rgba(255, 245, 209, .19), 0 3px 12px rgba(0, 12, 40, .26);
+}
+.cg-public .cg-lux-action {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(236, 197, 118, .60);
+  background: linear-gradient(180deg, rgba(37, 60, 98, .97), rgba(9, 27, 61, .97));
+  box-shadow: inset 0 1px 0 rgba(255, 244, 219, .16), 0 5px 17px rgba(0, 8, 27, .20);
+  transition: transform 140ms cubic-bezier(.2,.8,.3,1), background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.cg-public .cg-lux-action::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  width: 76%;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 230, 176, .69), transparent);
+}
+.cg-public .cg-lux-action::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  left: 0;
+  width: 2px;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(243, 194, 117, .77), transparent);
+}
+.cg-public .cg-lux-action--primary {
+  border-color: rgba(250, 213, 142, .95);
+  background: linear-gradient(135deg, #B58E4C, #F4D492 49%, #C7A362);
+  color: #08172D;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.48), 0 6px 17px rgba(162, 113, 40, .17);
+}
+.cg-public .cg-lux-action--primary::before { background: linear-gradient(90deg,transparent,rgba(255,255,255,.84),transparent); }
+.cg-public .cg-lux-action--blue { border-color: rgba(81, 158, 255, .58); }
+.cg-public .cg-lux-action--blue::after { background: linear-gradient(180deg, transparent, rgba(103, 181, 255, .91), transparent); }
+.cg-public .cg-lux-action--danger { border-color: rgba(246, 126, 145, .52); }
+.cg-public .cg-lux-action--danger::after { background: linear-gradient(180deg, transparent, rgba(255, 121, 149, .84), transparent); }
+@media (hover: hover) {
+  .cg-public .cg-lux-action:not(:disabled):hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 225, 169, .96);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .26), 0 9px 22px rgba(0, 11, 37, .28);
+  }
+}
+.cg-public .cg-lux-action:not(:disabled):active { transform: translateY(1px) scale(.997); }
+.cg-public .cg-lux-action:focus-visible {
+  outline: 2px solid #F4D492;
+  outline-offset: 3px;
+}
+.cg-public .cg-lux-action:disabled { cursor: not-allowed; opacity: .54; }
+.cg-public .cg-lux-numeral { font-variant-numeric: tabular-nums; letter-spacing: -.015em; }
+@media (max-width: 640px) {
+  .cg-public .cg-lux-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cg-public .cg-lux-action { transition: none; }
+  .cg-public .cg-lux-action:not(:disabled):hover,
+  .cg-public .cg-lux-action:not(:disabled):active { transform: none; }
+}
