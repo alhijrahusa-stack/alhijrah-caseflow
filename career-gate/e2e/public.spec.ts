@@ -99,6 +99,12 @@ test.describe.serial("public intake and status access", () => {
     await expect(page.getByLabel("File number, phone or email")).toHaveValue(ref);
     await page.getByRole("button", { name: "Check Status" }).click();
     await expect(page.getByLabel("Verification code")).toBeVisible();
+    const countdown = page.getByRole("timer");
+    await expect(countdown).toContainText(/0[0-4]:[0-5][0-9]/);
+    await page.reload();
+    await expect(page.getByLabel("Verification code")).toBeVisible();
+    await expect(page.getByLabel("File number, phone or email")).toHaveValue(ref);
+    await expect(page.getByRole("timer")).toBeVisible();
 
     const [client] = await db()`select id from clients where ref = ${ref}`;
     const [challenge] = await db()`select id from otp_requests where client_id = ${client.id} order by created_at desc limit 1`;
