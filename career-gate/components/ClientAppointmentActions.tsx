@@ -117,7 +117,7 @@ export function ClientAppointmentActions({
       : "mt-4 space-y-3 rounded-2xl border border-[#C5A059]/40 bg-[#0A122C] p-4 text-white"}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-[#E6C585]">Manage Appointment / إدارة الموعد</h3>
-        {alreadyAcknowledged && <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2 py-1 text-[11px] font-semibold text-emerald-200">Acknowledged / تم التأكيد</span>}
+        {alreadyAcknowledged && !embedded && <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2 py-1 text-[11px] font-semibold text-emerald-200">Acknowledged / تم التأكيد</span>}
       </div>
       {!alreadyAcknowledged && (
         <button type="button" disabled={pending} onClick={() => void submit("confirm")}
