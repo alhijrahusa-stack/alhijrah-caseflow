@@ -37,13 +37,13 @@ describe("public OTP issuance survives post-delivery failures", () => {
       if (statement.includes("insert into otp_requests")) {
         return [{ id: "00000000-0000-4000-8000-000000000002" }];
       }
+      if (statement.includes("set delivery_status")) {
+        if (options.failDeliveryStatus) throw new Error("status update unavailable");
+        return [];
+      }
       if (statement.includes("set otp_hash")) {
         if (options.failHash) throw new Error("OTP hash write failed");
         hashSaved = true;
-        return [];
-      }
-      if (statement.includes("set delivery_status")) {
-        if (options.failDeliveryStatus) throw new Error("status update unavailable");
         return [];
       }
       throw new Error("Unexpected database call: " + statement);
