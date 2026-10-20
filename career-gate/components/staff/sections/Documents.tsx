@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
 import { DOC_LABELS, DOC_STATUS_LABELS, type DocStatus } from "@/lib/domain";
 import { dateTime } from "@/lib/format";
-import { Card, SmallBtn, useRowAction, type Row } from "./common";
+import { Card, SmallBtn, useProgressiveList, useRowAction, type Row } from "./common";
 
 const STATUS_TONE: Record<DocStatus, string> = {
   pending: "bg-slate-100 text-slate-700",
@@ -57,6 +57,7 @@ function Trust({ ex }: { ex: Row | undefined }) {
 }
 
 export function Documents({ docs, extractions, onAdd }: { docs: Row[]; extractions: Row[]; onAdd: () => void }) {
+  const visibleDocs = useProgressiveList(docs);
   const { isManager } = useStaff();
   const toast = useToast();
   const a = useRowAction("Document review saved");
@@ -85,7 +86,7 @@ export function Documents({ docs, extractions, onAdd }: { docs: Row[]; extractio
         <EmptyState title="No documents yet" text="Upload the client's photo ID and work authorization." action={<SmallBtn onClick={onAdd}>+ Add document</SmallBtn>} />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {docs.map((d) => {
+          {visibleDocs.map((d) => {
             const ex = extractions.find((e) => e.document_id === d.id);
             const advisories = ((d.quality?.advisories as string[]) ?? []).join(", ");
             return (

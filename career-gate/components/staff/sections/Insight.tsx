@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/Toast";
 import { ASSESSMENT_SOURCE_LABELS, ASSESSMENT_SOURCES, ASSESSMENT_STATUSES, STATUS_LABELS, type Status } from "@/lib/domain";
 import { dateTime } from "@/lib/format";
 import { OFFICE } from "@/lib/office";
-import { Card, SmallBtn, useRowAction, type Row } from "./common";
+import { Card, SmallBtn, useProgressiveList, useRowAction, type Row } from "./common";
 
 function AssessmentRow({ clientId, item, canEdit }: { clientId: string; item: Row; canEdit: boolean }) {
   const a = useRowAction("Assessment item saved");
@@ -234,11 +234,12 @@ function summarize(v: unknown) {
 }
 
 export function Activity({ activity }: { activity: Row[] }) {
+  const visible = useProgressiveList(activity);
   return (
     <Card title="Activity Log" id="activity">
       {activity.length === 0 ? <EmptyState title="No activity" text="Every change to this file is recorded here." /> : (
         <ol className="relative space-y-3 border-l border-slate-200 pl-4">
-          {activity.map((l) => {
+          {visible.map((l) => {
             const before = summarize(l.old_value);
             const after = summarize(l.new_value);
             return (

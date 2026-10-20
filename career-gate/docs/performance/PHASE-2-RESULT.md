@@ -46,6 +46,10 @@ claimed as improved or regressed.
 
 ## Interaction to Next Paint (worst measured interaction per route)
 
+> **Correction (Package A):** each figure in this table is a single sample — the profiler measures one
+> interaction per route. Repeated sampling (20 per tab) does not support the "at or under 200 ms" reading
+> for Client 360; see `PHASE-3-RESULT.md`.
+
 | Route · viewport | Before | After |
 |---|---|---|
 | client workspace · desktop (tab switch) | 480 ms | 200 ms |
