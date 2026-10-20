@@ -27,7 +27,7 @@ export default async function StaffPage({searchParams}:{searchParams:Promise<{ta
 
   return <div className="ops-page space-y-4">
     <header className="ops-hero"><div><p className="ops-kicker">CAREER GATE · STAFF OPERATIONS</p><h1>Staff</h1><p>One team center for workload, assignments and operational activity.</p></div><RealtimeRefresher/></header>
-    <nav className="ops-segmented w-fit" aria-label="Staff sections"><Link href="/staff/staff?tab=team" data-active={tab==="team"}>Team</Link>{management&&<Link href="/staff/staff?tab=assignments" data-active={tab==="assignments"}>Assignments</Link>}<Link href="/staff/staff?tab=activity" data-active={tab==="activity"}>Activity</Link></nav>
+    <nav className="ops-segmented w-fit" aria-label="Staff sections"><Link href="/staff/staff?tab=team" data-active={tab==="team"} aria-current={tab==="team"?"page":undefined}>Team</Link>{management&&<Link href="/staff/staff?tab=assignments" data-active={tab==="assignments"} aria-current={tab==="assignments"?"page":undefined}>Assignments</Link>}<Link href="/staff/staff?tab=activity" data-active={tab==="activity"} aria-current={tab==="activity"?"page":undefined}>Activity</Link></nav>
 
     {team&&<div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Active Staff" value={team.active_staff}/><Metric label="Active Clients" value={team.active_clients}/><Metric label="Unassigned Clients" value={team.unassigned_clients}/><Metric label="Open Tasks" value={team.open_tasks}/><Metric label="Overdue Tasks" value={team.overdue_tasks}/><Metric label="Appointments Today" value={team.appointments_today}/><Metric label="Follow-Ups Due" value={team.followups_due}/></div>

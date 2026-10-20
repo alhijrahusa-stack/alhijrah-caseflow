@@ -54,7 +54,7 @@ function Compensation({ staff }: { staff: S }) {
   }
 
   return <div className="flex min-w-[300px] flex-wrap items-center gap-1.5">
-    <select className="input w-24 py-1" value={type} disabled={busy} onChange={(e) => setType(e.target.value as "fixed" | "percent")}><option value="fixed">fixed</option><option value="percent">percent</option></select>
+    <select aria-label="Commission type" className="input w-24 py-1" value={type} disabled={busy} onChange={(e) => setType(e.target.value as "fixed" | "percent")}><option value="fixed">fixed</option><option value="percent">percent</option></select>
     <input className="input w-24 py-1" inputMode="decimal" value={value} disabled={busy} onChange={(e) => setValue(e.target.value)} aria-label={`Commission for ${staff.display_name}`} />
     <label className="flex items-center gap-1.5 rounded-lg border border-white/[.07] px-2 py-1.5 text-[10px] text-slate-400"><input type="checkbox" checked={eligible} disabled={busy} onChange={(e) => setEligible(e.target.checked)} /> Round-robin</label>
     <button type="button" className="rounded-lg border border-white/[.09] px-2.5 py-1.5 text-[10px] text-slate-300 hover:bg-white/[.05]" disabled={busy} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</button>

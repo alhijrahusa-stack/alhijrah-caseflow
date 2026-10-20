@@ -34,7 +34,7 @@ export default async function ClientsPage({searchParams}:{searchParams:Promise<R
 
     {view==="active"&&<ClientLocationShiftCard clients={rows.map(c=>({id:c.id,full_name:c.full_name,ref:c.ref}))}/>}
 
-    <div className="ops-segmented w-fit" role="tablist" aria-label="Client lifecycle views"><Link href={href("active")} data-active={view==="active"}>Active Candidates</Link><Link href={href("completed")} data-active={view==="completed"}>Completed & Working (Placements)</Link><Link href={href("all")} data-active={view==="all"}>All Records</Link></div>
+    <nav className="ops-segmented w-fit" aria-label="Client lifecycle views"><Link href={href("active")} data-active={view==="active"} aria-current={view==="active"?"page":undefined}>Active Candidates</Link><Link href={href("completed")} data-active={view==="completed"} aria-current={view==="completed"?"page":undefined}>Completed & Working (Placements)</Link><Link href={href("all")} data-active={view==="all"} aria-current={view==="all"?"page":undefined}>All Records</Link></nav>
 
     <form className="ops-glass-card flex flex-wrap items-end gap-2" role="search"><input type="hidden" name="view" value={view}/><input name="q" defaultValue={q} placeholder="Reference, name, phone or email" className="input w-72" aria-label="Search clients"/><select name="status" defaultValue={status??""} className="input w-56" aria-label="Status"><option value="">All statuses</option>{STATUSES.map((s)=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}</select><button className="ops-primary-button">Apply</button><Link href={`/staff/clients?view=${view}`} className="px-3 py-2 text-sm text-slate-500">Clear</Link></form>
 

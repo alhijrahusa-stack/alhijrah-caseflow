@@ -1,0 +1,1314 @@
+[
+ {
+  "vp": 390,
+  "route": "/staff",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Documents",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 79,
+    "sample": [
+     {
+      "t": "#document-d680bc86-442c-4262-9aca-0814740cf635 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-caaa8094-9551-44ac-a7fa-d228df81a670 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-9f90527d-9f88-4013-9ad5-14cd763233d0 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Appointments",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Notes",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Activity",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Preferences",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Profile",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Add Note",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Add Task",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Add Follow-Up",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Change Status",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Assign Staff",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Add Document",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 79,
+    "sample": [
+     {
+      "t": "#document-d680bc86-442c-4262-9aca-0814740cf635 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-caaa8094-9551-44ac-a7fa-d228df81a670 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-9f90527d-9f88-4013-9ad5-14cd763233d0 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Add Appointment",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "/staff",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Documents",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 80,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-d680bc86-442c-4262-9aca-0814740cf635 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-caaa8094-9551-44ac-a7fa-d228df81a670 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Appointments",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Notes",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Activity",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Preferences",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Profile",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Add Note",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Add Task",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Add Follow-Up",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Change Status",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Assign Staff",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Add Document",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 80,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-d680bc86-442c-4262-9aca-0814740cf635 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-caaa8094-9551-44ac-a7fa-d228df81a670 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Add Appointment",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:command palette",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "aria-required-children",
+    "impact": "critical",
+    "n": 1,
+    "sample": [
+     {
+      "t": "#cmdk-list",
+      "s": "Fix any of the following:   Element has children which are not allowed: li"
+     }
+    ]
+   },
+   {
+    "id": "listitem",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "li",
+      "s": "Fix any of the following:   List item parent element has a role that is not role=\"list\""
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "/staff",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Documents",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 80,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-d680bc86-442c-4262-9aca-0814740cf635 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-caaa8094-9551-44ac-a7fa-d228df81a670 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Appointments",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Notes",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Activity",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Preferences",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Profile",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Add Note",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Add Task",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Add Follow-Up",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Change Status",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Assign Staff",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Add Document",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 80,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-d680bc86-442c-4262-9aca-0814740cf635 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     },
+     {
+      "t": "#document-caaa8094-9551-44ac-a7fa-d228df81a670 > .h-24.w-20.overflow-hidden > .h-full.justify-center.items-center",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Add Appointment",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:command palette",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "aria-required-children",
+    "impact": "critical",
+    "n": 1,
+    "sample": [
+     {
+      "t": "#cmdk-list",
+      "s": "Fix any of the following:   Element has children which are not allowed: li"
+     }
+    ]
+   },
+   {
+    "id": "listitem",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "li",
+      "s": "Fix any of the following:   List item parent element has a role that is not role=\"list\""
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ }
+]

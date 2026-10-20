@@ -21,7 +21,7 @@ export default function StaffRouteError({ error, reset }: { error: Error & { dig
         <h1 className="text-xl font-bold text-white">This view could not load</h1>
         <p className="text-sm text-slate-300">No data was changed. Navigation and the rest of the workspace remain available.</p>
         <p className="text-sm text-slate-300" dir="rtl">تعذّر تحميل هذه الصفحة. لم يتغير أي بيان، وبقية النظام تعمل.</p>
-        {error.digest && <p className="font-mono text-xs text-slate-500">Reference: {error.digest}</p>}
+        {error.digest && <p className="font-mono text-xs text-slate-400">Reference: {error.digest}</p>}
         <div className="flex flex-wrap justify-center gap-2">
           <button type="button" className="ops-primary-button" onClick={reset}>Try again</button>
           <Link href="/staff" className="ops-secondary-button">Dashboard</Link>

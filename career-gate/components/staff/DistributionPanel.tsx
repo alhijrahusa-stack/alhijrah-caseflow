@@ -134,8 +134,8 @@ export function DistributionPanel({
 
       <section className="ops-glass-card">
         <div className="ops-toolbar">
-          <input className="ops-input ops-search-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search client, phone, email or file" />
-          <select className="ops-select" value={target} onChange={(e) => setTarget(e.target.value)}>
+          <input aria-label="Search clients" className="ops-input ops-search-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search client, phone, email or file" />
+          <select aria-label="Assign selected clients to" className="ops-select" value={target} onChange={(e) => setTarget(e.target.value)}>
             <option value="">Unassigned</option>
             {staff.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</option>)}
           </select>
@@ -144,7 +144,7 @@ export function DistributionPanel({
           </button>
         </div>
 
-        <div className="ops-distribution-table-wrap">
+        <div className="ops-distribution-table-wrap" tabIndex={0} role="region" aria-label="Clients to distribute">
           <table className="ops-table">
             <thead>
               <tr><th><input type="checkbox" aria-label="Select visible clients" checked={filtered.length > 0 && filtered.every((c) => selected.has(c.id))} onChange={(e) => {

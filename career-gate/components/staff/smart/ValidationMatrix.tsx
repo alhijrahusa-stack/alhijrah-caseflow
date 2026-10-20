@@ -88,7 +88,7 @@ export function ValidationMatrix({ read, onCommit, evidence, missingFields, conf
     : null;
 
   return (
-    <div className="cg-matrix overflow-x-auto">
+    <div className="cg-matrix overflow-x-auto" tabIndex={0} role="region" aria-label="Validation matrix">
       <table className="w-full border-collapse text-left">
         <caption className="sr-only">
           Client data validation matrix: every reviewed Smart field with its current value, validation state, provenance and authority.

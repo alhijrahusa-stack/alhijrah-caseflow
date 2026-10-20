@@ -243,7 +243,7 @@ export function PostHire({ clientId, items, startDate, embedded = false }: { cli
         </div>
         <div className="cg-workflow-progress">
           <div className="cg-workflow-progress-copy"><strong>{percent}%</strong><span>{completed}/{POST_HIRE_ITEMS.length} complete</span></div>
-          <div className="cg-workflow-progress-track" aria-label={`${percent}% complete`}><span style={{ width: `${percent}%` }} /></div>
+          <div className="cg-workflow-progress-track" role="progressbar" aria-label="Post-hire checklist" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${percent}% complete`}><span style={{ width: `${percent}%` }} /></div>
         </div>
       </div>
       <div className="cg-workflow-pods">

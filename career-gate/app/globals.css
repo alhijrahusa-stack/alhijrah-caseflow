@@ -155,6 +155,7 @@ code, kbd, pre, .font-mono {
 .staff-shell .bg-white { background-color: rgba(255,255,255,.03) !important; }
 .staff-shell .bg-slate-50 { background-color: rgba(255,255,255,.018) !important; }
 .staff-shell .bg-slate-50\/95 { background-color: rgba(8,9,13,.95) !important; }
+.staff-shell .bg-slate-100 { background-color: rgba(255,255,255,.06) !important; }
 .staff-shell .border-slate-100,
 .staff-shell .border-slate-200,
 .staff-shell .border-slate-300 { border-color: var(--cg-border) !important; }
@@ -165,6 +166,7 @@ code, kbd, pre, .font-mono {
 .staff-shell .text-slate-500,
 .staff-shell .text-slate-400 { color: var(--cg-muted) !important; }
 .staff-shell .hover\:bg-slate-50:hover { background-color: rgba(255,255,255,.055) !important; }
+.staff-shell .hover\:bg-slate-100:hover { background-color: rgba(255,255,255,.07) !important; }
 .staff-shell .hover\:text-slate-900:hover { color: #fff !important; }
 
 @media (max-width: 767px) {
