@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { STATUS_LABELS, type Status } from "@/lib/domain";
-import type { DashboardCommandData } from "@/lib/operational-dashboard";
+import type { DashboardCommandData, DashboardOperationalData, DashboardSystemHealth } from "@/lib/operational-dashboard";
 
 function Kpi({label,value,href,tone="neutral",detail}:{label:string;value:ReactNode;href?:string;tone?:"neutral"|"warn"|"danger"|"good";detail?:string}){
   const cls=tone==="danger"?"text-red-300":tone==="warn"?"text-amber-300":tone==="good"?"text-emerald-300":"text-slate-100";
@@ -18,16 +18,20 @@ function SectionTitle({title,subtitle,href,label}:{title:string;subtitle:string;
   return <div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="text-xl font-semibold text-slate-100">{title}</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p></div>{href&&<Link href={href} className="text-sm font-medium text-amber-200 hover:text-amber-100">{label??"Open"}</Link>}</div>;
 }
 
-export function OperationalDashboard({data}:{data:DashboardCommandData}){
-  const activeMembers=data.team.members.filter((m)=>m.active);
-  const configuredProviders=data.system?Object.values(data.system.providers).filter((s)=>s==="CONFIGURED").length:0;
-  const totalProviders=data.system?Object.keys(data.system.providers).length:0;
-  return <div className="ops-page space-y-6">
-    <header className="ops-hero">
-      <div><p className="ops-kicker">CAREER GATE · EXECUTIVE COMMAND CENTER</p><h1>Operations Command Center</h1><p>Exceptions first. Workload, readiness, finance and system health from canonical operational data.</p></div>
-      <div className="flex items-center gap-3"><span className={`rounded-full border px-3 py-1 text-xs font-semibold ${data.exceptions>0?"border-amber-300/30 bg-amber-300/10 text-amber-200":"border-emerald-300/30 bg-emerald-300/10 text-emerald-200"}`}>{data.exceptions} exceptions</span><RealtimeRefresher /></div>
-    </header>
 
+export function DashboardExceptionsBadge({exceptions}:{exceptions:number}){
+  return <span data-testid="dashboard-exceptions" className={`rounded-full border px-3 py-1 text-xs font-semibold ${exceptions>0?"border-amber-300/30 bg-amber-300/10 text-amber-200":"border-emerald-300/30 bg-emerald-300/10 text-emerald-200"}`}>{exceptions} exceptions</span>;
+}
+
+export function DashboardHeading({badge}:{badge:ReactNode}){
+  return <header className="ops-hero">
+    <div><p className="ops-kicker">CAREER GATE · EXECUTIVE COMMAND CENTER</p><h1>Operations Command Center</h1><p>Exceptions first. Workload, readiness, finance and system health from canonical operational data.</p></div>
+    <div className="flex items-center gap-3">{badge}<RealtimeRefresher /></div>
+  </header>;
+}
+
+export function DashboardCore({data}:{data:DashboardOperationalData}){
+  return <div className="space-y-6" data-testid="dashboard-core">
     <section aria-labelledby="now-heading">
       <SectionTitle title="Now" subtitle="Items requiring operational attention."/>
       <h2 id="now-heading" className="sr-only">Current exceptions</h2>
@@ -36,7 +40,7 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
         <Kpi label="Overdue Follow-Ups" value={data.overdue_followups} href="/staff/follow-ups" tone={data.overdue_followups?"danger":"good"}/>
         <Kpi label="Documents Needing Action" value={data.document_attention} href="/staff/clients" tone={data.document_attention?"warn":"good"}/>
         <Kpi label="Unassigned Files" value={data.unassigned_clients} href="/staff/staff?tab=assignments&scope=unassigned" tone={data.unassigned_clients?"warn":"good"}/>
-        {data.system&&<><Kpi label="Dead Jobs" value={data.system.queue.dead} tone={data.system.queue.dead?"danger":"good"}/><Kpi label="Delivery Failures · 24h" value={data.system.failed_notifications_24h} tone={data.system.failed_notifications_24h?"danger":"good"}/><Kpi label="Open Audit Alerts" value={data.system.open_audit_alerts} href="/staff/audit-alerts" tone={data.system.open_audit_alerts?"warn":"good"}/><Kpi label="System" value={data.system.status} tone={data.system.status==="HEALTHY"?"good":data.system.status==="DEGRADED"?"warn":"danger"} detail={`DB ${data.system.db_ms} ms`}/></>}
+
       </div>
     </section>
 
@@ -80,6 +84,24 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
       </div>
     </section>
 
+  </div>;
+}
+
+export function DashboardSystemSignals({system}:{system:DashboardSystemHealth|null}){
+  if (!system) return null;
+  return <section className="ops-glass-card" aria-label="System Health" data-testid="dashboard-system-signals">
+    <SectionTitle title="System Health" subtitle="Production jobs, deliveries, audit alerts and database health."/>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Kpi label="Dead Jobs" value={system.queue.dead} tone={system.queue.dead?"danger":"good"}/><Kpi label="Delivery Failures · 24h" value={system.failed_notifications_24h} tone={system.failed_notifications_24h?"danger":"good"}/><Kpi label="Open Audit Alerts" value={system.open_audit_alerts} href="/staff/audit-alerts" tone={system.open_audit_alerts?"warn":"good"}/><Kpi label="System" value={system.status} tone={system.status==="HEALTHY"?"good":system.status==="DEGRADED"?"warn":"danger"} detail={`DB ${system.db_ms} ms`}/>
+    </div>
+  </section>;
+}
+
+export function DashboardTeamHealth({data}:{data:DashboardCommandData}){
+  const activeMembers=data.team.members.filter((m)=>m.active);
+  const configuredProviders=data.system?Object.values(data.system.providers).filter((s)=>s==="CONFIGURED").length:0;
+  const totalProviders=data.system?Object.keys(data.system.providers).length:0;
+  return <div data-testid="dashboard-team-health">
     <section className="grid gap-4 xl:grid-cols-[1.4fr_.6fr]">
       <div className="ops-glass-card">
         <SectionTitle title="Team Workload" subtitle="Active files and due-work pressure." href="/staff/staff?tab=team" label="View Team"/>
@@ -100,5 +122,15 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
         <dl className="mt-6 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-slate-500">Active Files</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{data.team.active_clients}</dd></div><div><dt className="text-slate-500">Unassigned</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{data.team.unassigned_clients}</dd></div>{data.system&&<><div><dt className="text-slate-500">Queue</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{data.system.queue.queued}</dd></div><div><dt className="text-slate-500">Providers</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{configuredProviders}/{totalProviders}</dd></div></>}</dl>
       </div>
     </section>
+  </div>;
+}
+
+/** Full composition remains available for existing consumers. */
+export function OperationalDashboard({data}:{data:DashboardCommandData}){
+  return <div className="ops-page space-y-6">
+    <DashboardHeading badge={<DashboardExceptionsBadge exceptions={data.exceptions}/>}/>
+    <DashboardCore data={data}/>
+    <DashboardSystemSignals system={data.system}/>
+    <DashboardTeamHealth data={data}/>
   </div>;
 }
