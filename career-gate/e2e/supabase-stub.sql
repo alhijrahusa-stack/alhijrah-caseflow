@@ -4,6 +4,9 @@
 create role anon nologin;
 create role authenticated nologin;
 create role service_role nologin;
+-- Supabase grants service_role everything on new public tables by default; a
+-- migration that means less must revoke it.
+alter default privileges in schema public grant all on tables to service_role;
 create schema auth;
 create table auth.users (id uuid primary key, email text);
 create function auth.uid() returns uuid language sql stable as $$

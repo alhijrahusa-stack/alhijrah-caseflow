@@ -77,5 +77,10 @@ export async function processJobs(limit = 10) {
     });
     results.push({ id: job.id, type: job.type, status });
   }
+  // Seal new activity rows while the request's work is fresh; the nightly
+  // full seal catches rows that committed out of id order. sealAuditChain never
+  // throws and returns at once when another sealer holds the chain.
+  const { sealAuditChain } = await import("@/lib/audit-chain");
+  await sealAuditChain({ maxBatches: 1, traceId: newTraceId() });
   return results;
 }
