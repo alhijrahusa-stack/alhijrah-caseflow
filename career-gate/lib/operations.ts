@@ -14,7 +14,9 @@ export type PipelineStage = {
   terminal: boolean;
 };
 
-export type DispatchPeriod = "morning" | "evening" | "night" | "needs_manual_review";
+import type { DispatchPeriod } from "@/lib/pipeline-period";
+
+export type { DispatchPeriod } from "@/lib/pipeline-period";
 export type LedgerPaymentStatus = "unpaid" | "partially_paid" | "paid" | "refunded";
 export type { TransactionDirection, TransactionType } from "@/lib/accounting-ledger-read";
 

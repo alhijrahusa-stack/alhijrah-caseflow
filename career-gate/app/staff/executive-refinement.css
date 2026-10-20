@@ -76,3 +76,9 @@
 .staff-shell :is(.ops-glass-card,.report-glass-card,.ops-metric,.ops-account-row):hover { border-color:var(--cg-rose-hover); }
 .staff-shell :is(a,button,input,select,textarea,[role="tab"]):focus-visible { outline-color:var(--cg-rose); }
 .staff-shell [aria-busy="true"] { cursor:progress; }
+
+/* Phone header: the live telemetry chip changes width when its status and the
+   web font arrive. Given its own row it cannot push the alert controls onto a
+   new line after first paint (measured CLS 0.0176 on every mobile staff route). */
+@media (max-width:760px){.staff-shell .staff-header-actions>.cg-telemetry{flex:1 0 100%;justify-content:flex-start}}
+.staff-shell .cg-telemetry{font-variant-numeric:tabular-nums}

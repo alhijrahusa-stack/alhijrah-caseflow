@@ -1,8 +1,24 @@
 "use client";
 
+import { startTransition, useEffect, useState } from "react";
 import { useAction } from "@/components/forms/useAction";
 
 export type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/**
+ * Renders the first `first` items on the commit that shows the list, then the
+ * rest in a low-priority transition right after. Every item still renders; the
+ * interaction that opened the list just paints before the long tail is built.
+ */
+export function useProgressiveList<T>(items: T[], first = 40): T[] {
+  const [limit, setLimit] = useState(first);
+  useEffect(() => {
+    if (items.length <= limit) return;
+    const timer = window.setTimeout(() => startTransition(() => setLimit(items.length)), 0);
+    return () => window.clearTimeout(timer);
+  }, [items.length, limit]);
+  return items.length <= limit ? items : items.slice(0, limit);
+}
 
 export function Card({ title, id, actions, children }: { title: string; id: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
