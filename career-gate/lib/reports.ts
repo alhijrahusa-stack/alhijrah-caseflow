@@ -118,11 +118,42 @@ export function deriveInsights(k: ReportKpis, stalled: StalledStatus[], period: 
 }
 
 export async function reportIntelligence(session: StaffSession, period: ReportPeriod): Promise<ReportIntelligence> {
+  // Two RLS-scoped transactions on separate connections: the period figures and
+  // the standing distributions do not depend on each other, so they run in parallel.
+  const [live, distributions] = await Promise.all([periodFigures(session, period), standingDistributions(session)]);
+  return { ...live, ...distributions, period, insights: deriveInsights(live.kpis, live.stalled, period) };
+}
+
+async function standingDistributions(session: StaffSession) {
+  return withStaff(session, async (tx) => {
+    const [bySource, byStaff, bySite, docs, alerts] = await Promise.all([
+      tx`select source as key,count(*)::int as n from clients where deleted_at is null group by 1 order by 2 desc`,
+      tx`
+        select coalesce(st.display_name,'Unassigned') as name,count(*)::int as n,
+               count(*) filter (where c.current_status in ('completed','ready_for_first_day'))::int as ready_or_done
+        from clients c left join staff st on st.id=c.assigned_staff where c.deleted_at is null group by 1 order by 2 desc`,
+      tx`
+        select p.site_name as key,count(distinct p.client_id)::int as n from client_preferences p join clients c on c.id=p.client_id
+        where c.deleted_at is null and p.rank='primary' group by 1 order by 2 desc`,
+      tx`select status as key,count(*)::int as n from documents d join clients c on c.id=d.client_id where c.deleted_at is null group by 1 order by 2 desc`,
+      tx`select severity as key,count(*)::int as n from audit_alerts where status='open' group by 1 order by 2 desc`,
+    ]);
+    return {
+      bySource: (bySource as unknown as CountRow[]).map((r) => ({ key: r.key, n: num(r.n) })),
+      byStaff: (byStaff as unknown as { name: string; n: number; ready_or_done: number }[]).map((r) => ({ name: r.name, n: num(r.n), ready_or_done: num(r.ready_or_done) })),
+      bySite: (bySite as unknown as CountRow[]).map((r) => ({ key: r.key, n: num(r.n) })),
+      docs: (docs as unknown as CountRow[]).map((r) => ({ key: r.key, n: num(r.n) })),
+      alerts: (alerts as unknown as CountRow[]).map((r) => ({ key: r.key, n: num(r.n) })),
+    };
+  });
+}
+
+async function periodFigures(session: StaffSession, period: ReportPeriod) {
   return withStaff(session, async (tx) => {
     // Fresh fragments per use: a fragment is bound to the statement it is interpolated into.
     const current = () => tx`now() - make_interval(days => ${period})`;
     const previous = () => tx`now() - make_interval(days => ${period * 2})`;
-    const [kpiRows, byStatus, weekly, staff, stalled, bySource, byStaff, bySite, docs, alerts] = await Promise.all([
+    const [kpiRows, byStatus, weekly, staff, stalled] = await Promise.all([
       tx`
         with active as (
           select id,assigned_staff,updated_at from clients
@@ -155,10 +186,15 @@ export async function reportIntelligence(session: StaffSession, period: ReportPe
           (select count(*) from audit_alerts where status='open' and severity in ('high','critical'))::int urgent_alerts`,
       tx`select current_status as key,count(*)::int as n from clients where deleted_at is null group by 1`,
       tx`
-        select to_char(w.week_start,'YYYY-MM-DD') week_start,count(c.id)::int n
+        select to_char(w.week_start,'YYYY-MM-DD') week_start,coalesce(c.n,0)::int n
         from generate_series(date_trunc('week',now())-interval '11 weeks',date_trunc('week',now()),interval '1 week') w(week_start)
-        left join clients c on c.deleted_at is null and c.created_at>=w.week_start and c.created_at<w.week_start+interval '1 week'
-        group by w.week_start order by w.week_start`,
+        left join (
+          select date_trunc('week',created_at) week_start,count(*) n
+          from clients
+          where deleted_at is null and created_at>=date_trunc('week',now())-interval '11 weeks'
+          group by 1
+        ) c on c.week_start=w.week_start
+        order by w.week_start`,
       tx`
         select st.id,st.display_name as name,
                count(c.id) filter (where c.current_status not in ('completed','cancelled'))::int active,
@@ -179,16 +215,6 @@ export async function reportIntelligence(session: StaffSession, period: ReportPe
         where deleted_at is null and current_status not in ('completed','cancelled')
           and updated_at<now()-make_interval(days => ${STALL_DAYS})
         group by 1 order by 2 desc`,
-      tx`select source as key,count(*)::int as n from clients where deleted_at is null group by 1 order by 2 desc`,
-      tx`
-        select coalesce(st.display_name,'Unassigned') as name,count(*)::int as n,
-               count(*) filter (where c.current_status in ('completed','ready_for_first_day'))::int as ready_or_done
-        from clients c left join staff st on st.id=c.assigned_staff where c.deleted_at is null group by 1 order by 2 desc`,
-      tx`
-        select p.site_name as key,count(distinct p.client_id)::int as n from client_preferences p join clients c on c.id=p.client_id
-        where c.deleted_at is null and p.rank='primary' group by 1 order by 2 desc`,
-      tx`select status as key,count(*)::int as n from documents d join clients c on c.id=d.client_id where c.deleted_at is null group by 1 order by 2 desc`,
-      tx`select severity as key,count(*)::int as n from audit_alerts where status='open' group by 1 order by 2 desc`,
     ]);
 
     const k = kpiRows[0] ?? {};
@@ -212,7 +238,6 @@ export async function reportIntelligence(session: StaffSession, period: ReportPe
     const stalledRows = (stalled as unknown as StalledStatus[]).map((r) => ({ status: r.status, n: num(r.n), oldest_days: num(r.oldest_days) }));
 
     return {
-      period,
       kpis,
       funnel: STATUSES.map((status) => ({ status, label: STATUS_LABELS[status], n: statusCounts.get(status) ?? 0 })),
       weekly: (weekly as unknown as WeeklyIntake[]).map((w) => ({ week_start: w.week_start, n: num(w.n) })),
@@ -222,12 +247,6 @@ export async function reportIntelligence(session: StaffSession, period: ReportPe
       })),
       stalled: stalledRows,
       byStatus: [...statusCounts.entries()].map(([key, n]) => ({ key, n })).sort((a, b) => b.n - a.n),
-      bySource: (bySource as unknown as CountRow[]).map((r) => ({ key: r.key, n: num(r.n) })),
-      byStaff: (byStaff as unknown as { name: string; n: number; ready_or_done: number }[]).map((r) => ({ name: r.name, n: num(r.n), ready_or_done: num(r.ready_or_done) })),
-      bySite: (bySite as unknown as CountRow[]).map((r) => ({ key: r.key, n: num(r.n) })),
-      docs: (docs as unknown as CountRow[]).map((r) => ({ key: r.key, n: num(r.n) })),
-      alerts: (alerts as unknown as CountRow[]).map((r) => ({ key: r.key, n: num(r.n) })),
-      insights: deriveInsights(kpis, stalledRows, period),
     };
   });
 }

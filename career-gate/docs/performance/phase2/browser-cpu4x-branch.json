@@ -1,0 +1,1852 @@
+{
+  "commit": "4418265",
+  "run_label": "4418265",
+  "base_url": "http://127.0.0.1:3462",
+  "runs_per_route": 3,
+  "cpu_throttle": 4,
+  "generated_at": "2026-10-20T00:37:31.761Z",
+  "results": [
+    {
+      "viewport": "desktop",
+      "route": "staff dashboard",
+      "path": "/staff",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 34.6,
+        "p95": 280.1,
+        "max": 280.1
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 400,
+        "p95": 752,
+        "max": 752
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 400,
+        "p95": 752,
+        "max": 752
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 551.3,
+        "p95": 1090,
+        "max": 1090
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 262,
+        "p95": 395,
+        "max": 395
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 5,
+        "p95": 5,
+        "max": 5
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 180,
+        "p95": 226,
+        "max": 226
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 10,
+        "p95": 11,
+        "max": 11
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 215.89,
+        "p95": 215.89,
+        "max": 215.89
+      },
+      "script_count": 12,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 748,
+          "inp_ms": 104,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "desktop",
+      "route": "clients list",
+      "path": "/staff/clients",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 25.6,
+        "p95": 26.7,
+        "max": 26.7
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 416,
+        "p95": 420,
+        "max": 420
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 416,
+        "p95": 420,
+        "max": 420
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 782.4,
+        "p95": 782.8,
+        "max": 782.8
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 335,
+        "p95": 415,
+        "max": 415
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 4,
+        "p95": 6,
+        "max": 6
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 191,
+        "p95": 224,
+        "max": 224
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0.01,
+        "max": 0.01
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 9,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 159.3,
+        "p95": 159.3,
+        "max": 159.3
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 758,
+          "inp_ms": 160,
+          "event_count": 3,
+          "react_commits": 3
+        }
+      ]
+    },
+    {
+      "viewport": "desktop",
+      "route": "client workspace",
+      "path": "/staff/client/ab9da555-07e0-4bba-94fd-2930d507b960",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 36.6,
+        "p95": 49.5,
+        "max": 49.5
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 440,
+        "p95": 488,
+        "max": 488
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 1328,
+        "p95": 1384,
+        "max": 1384
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 721.2,
+        "p95": 1101.8,
+        "max": 1101.8
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 848,
+        "p95": 875,
+        "max": 875
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 5,
+        "p95": 6,
+        "max": 6
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 348,
+        "p95": 359,
+        "max": 359
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 7,
+        "p95": 8,
+        "max": 8
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 344.32,
+        "p95": 344.32,
+        "max": 344.32
+      },
+      "script_count": 15,
+      "interactions": [
+        {
+          "interaction": "tab → documents",
+          "ok": true,
+          "wall_ms": 1181,
+          "inp_ms": 200,
+          "event_count": 3,
+          "react_commits": 9
+        },
+        {
+          "interaction": "tab → appointments",
+          "ok": true,
+          "wall_ms": 817,
+          "inp_ms": 104,
+          "event_count": 3,
+          "react_commits": 2
+        },
+        {
+          "interaction": "tab → work",
+          "ok": true,
+          "wall_ms": 784,
+          "inp_ms": 56,
+          "event_count": 3,
+          "react_commits": 2
+        },
+        {
+          "interaction": "tab → activity",
+          "ok": true,
+          "wall_ms": 962,
+          "inp_ms": 160,
+          "event_count": 3,
+          "react_commits": 2
+        },
+        {
+          "interaction": "tab → profile",
+          "ok": true,
+          "wall_ms": 900,
+          "inp_ms": 192,
+          "event_count": 3,
+          "react_commits": 4
+        },
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 969,
+          "inp_ms": 88,
+          "event_count": 3,
+          "react_commits": 4
+        }
+      ]
+    },
+    {
+      "viewport": "desktop",
+      "route": "appointments",
+      "path": "/staff/appointments",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 29.1,
+        "p95": 29.6,
+        "max": 29.6
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 376,
+        "p95": 392,
+        "max": 392
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 376,
+        "p95": 392,
+        "max": 392
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 672.5,
+        "p95": 750.2,
+        "max": 750.2
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 343,
+        "p95": 381,
+        "max": 381
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 6,
+        "p95": 6,
+        "max": 6
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 210,
+        "p95": 217,
+        "max": 217
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 9,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 161.89,
+        "p95": 161.89,
+        "max": 161.89
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 735,
+          "inp_ms": 160,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "desktop",
+      "route": "pipeline",
+      "path": "/staff/pipeline",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 30.1,
+        "p95": 40.8,
+        "max": 40.8
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 416,
+        "p95": 484,
+        "max": 484
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 416,
+        "p95": 484,
+        "max": 484
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 809.3,
+        "p95": 881.3,
+        "max": 881.3
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 711,
+        "p95": 919,
+        "max": 919
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 6,
+        "p95": 6,
+        "max": 6
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 405,
+        "p95": 636,
+        "max": 636
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 5,
+        "p95": 6,
+        "max": 6
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 159.13,
+        "p95": 159.13,
+        "max": 159.13
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 961,
+          "inp_ms": 176,
+          "event_count": 3,
+          "react_commits": 8
+        }
+      ]
+    },
+    {
+      "viewport": "desktop",
+      "route": "accounting",
+      "path": "/staff/accounting",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 24.7,
+        "p95": 26.6,
+        "max": 26.6
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 420,
+        "p95": 440,
+        "max": 440
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 420,
+        "p95": 440,
+        "max": 440
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 589.3,
+        "p95": 927,
+        "max": 927
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 370,
+        "p95": 582,
+        "max": 582
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 7,
+        "p95": 7,
+        "max": 7
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 208,
+        "p95": 249,
+        "max": 249
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 9,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 161.09,
+        "p95": 161.09,
+        "max": 161.09
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 811,
+          "inp_ms": 192,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "desktop",
+      "route": "reports",
+      "path": "/staff/reports",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 33.7,
+        "p95": 35.8,
+        "max": 35.8
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 428,
+        "p95": 456,
+        "max": 456
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 428,
+        "p95": 456,
+        "max": 456
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 799.6,
+        "p95": 819.7,
+        "max": 819.7
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 425,
+        "p95": 466,
+        "max": 466
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 6,
+        "p95": 7,
+        "max": 7
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 209,
+        "p95": 220,
+        "max": 220
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 9,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 151.11,
+        "p95": 151.11,
+        "max": 151.11
+      },
+      "script_count": 10,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 804,
+          "inp_ms": 192,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "tablet",
+      "route": "staff dashboard",
+      "path": "/staff",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 18.4,
+        "p95": 24.9,
+        "max": 24.9
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 396,
+        "p95": 648,
+        "max": 648
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 1420,
+        "p95": 1612,
+        "max": 1612
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 687.1,
+        "p95": 737.4,
+        "max": 737.4
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 398,
+        "p95": 403,
+        "max": 403
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 227,
+        "p95": 302,
+        "max": 302
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 10,
+        "p95": 11,
+        "max": 11
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 215.89,
+        "p95": 215.89,
+        "max": 215.89
+      },
+      "script_count": 12,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 781,
+          "inp_ms": 80,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "tablet",
+      "route": "clients list",
+      "path": "/staff/clients",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 16.5,
+        "p95": 19.4,
+        "max": 19.4
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 344,
+        "p95": 372,
+        "max": 372
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 344,
+        "p95": 372,
+        "max": 372
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 562.9,
+        "p95": 768.1,
+        "max": 768.1
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 320,
+        "p95": 405,
+        "max": 405
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 200,
+        "p95": 238,
+        "max": 238
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 8,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 159.3,
+        "p95": 159.3,
+        "max": 159.3
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 738,
+          "inp_ms": 104,
+          "event_count": 3,
+          "react_commits": 3
+        }
+      ]
+    },
+    {
+      "viewport": "tablet",
+      "route": "client workspace",
+      "path": "/staff/client/ab9da555-07e0-4bba-94fd-2930d507b960",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 19.7,
+        "p95": 23.2,
+        "max": 23.2
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 328,
+        "p95": 356,
+        "max": 356
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 328,
+        "p95": 1196,
+        "max": 1196
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 1015.6,
+        "p95": 1018.6,
+        "max": 1018.6
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 899,
+        "p95": 903,
+        "max": 903
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 6,
+        "p95": 7,
+        "max": 7
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 373,
+        "p95": 390,
+        "max": 390
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0.01,
+        "max": 0.01
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 10,
+        "p95": 11,
+        "max": 11
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 344.32,
+        "p95": 344.32,
+        "max": 344.32
+      },
+      "script_count": 15,
+      "interactions": [
+        {
+          "interaction": "tab → documents",
+          "ok": true,
+          "wall_ms": 1119,
+          "inp_ms": 168,
+          "event_count": 3,
+          "react_commits": 9
+        },
+        {
+          "interaction": "tab → appointments",
+          "ok": true,
+          "wall_ms": 819,
+          "inp_ms": 120,
+          "event_count": 3,
+          "react_commits": 2
+        },
+        {
+          "interaction": "tab → work",
+          "ok": true,
+          "wall_ms": 782,
+          "inp_ms": 48,
+          "event_count": 3,
+          "react_commits": 2
+        },
+        {
+          "interaction": "tab → activity",
+          "ok": true,
+          "wall_ms": 902,
+          "inp_ms": 128,
+          "event_count": 3,
+          "react_commits": 2
+        },
+        {
+          "interaction": "tab → profile",
+          "ok": true,
+          "wall_ms": 1016,
+          "inp_ms": 152,
+          "event_count": 3,
+          "react_commits": 3
+        },
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 792,
+          "inp_ms": 96,
+          "event_count": 3,
+          "react_commits": 4
+        }
+      ]
+    },
+    {
+      "viewport": "tablet",
+      "route": "appointments",
+      "path": "/staff/appointments",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 29.8,
+        "p95": 30.7,
+        "max": 30.7
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 400,
+        "p95": 552,
+        "max": 552
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 400,
+        "p95": 552,
+        "max": 552
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 589.1,
+        "p95": 753.5,
+        "max": 753.5
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 305,
+        "p95": 340,
+        "max": 340
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 5,
+        "p95": 6,
+        "max": 6
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 196,
+        "p95": 204,
+        "max": 204
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 8,
+        "p95": 8,
+        "max": 8
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 161.89,
+        "p95": 161.89,
+        "max": 161.89
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 725,
+          "inp_ms": 64,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "tablet",
+      "route": "pipeline",
+      "path": "/staff/pipeline",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 17.8,
+        "p95": 20.9,
+        "max": 20.9
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 408,
+        "p95": 456,
+        "max": 456
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 408,
+        "p95": 456,
+        "max": 456
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 779.9,
+        "p95": 791.2,
+        "max": 791.2
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 629,
+        "p95": 695,
+        "max": 695
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 452,
+        "p95": 473,
+        "max": 473
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 8,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 159.13,
+        "p95": 159.13,
+        "max": 159.13
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 729,
+          "inp_ms": 112,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "tablet",
+      "route": "accounting",
+      "path": "/staff/accounting",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 18.9,
+        "p95": 23.4,
+        "max": 23.4
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 332,
+        "p95": 368,
+        "max": 368
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 332,
+        "p95": 368,
+        "max": 368
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 652.9,
+        "p95": 717.5,
+        "max": 717.5
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 296,
+        "p95": 310,
+        "max": 310
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 3,
+        "p95": 4,
+        "max": 4
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 173,
+        "p95": 201,
+        "max": 201
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 9,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 161.09,
+        "p95": 161.09,
+        "max": 161.09
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 717,
+          "inp_ms": 104,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "tablet",
+      "route": "reports",
+      "path": "/staff/reports",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 29.5,
+        "p95": 35.1,
+        "max": 35.1
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 428,
+        "p95": 492,
+        "max": 492
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 428,
+        "p95": 492,
+        "max": 492
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 652.1,
+        "p95": 857.9,
+        "max": 857.9
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 361,
+        "p95": 391,
+        "max": 391
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 251,
+        "p95": 254,
+        "max": 254
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 8,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 151.11,
+        "p95": 151.11,
+        "max": 151.11
+      },
+      "script_count": 10,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 763,
+          "inp_ms": 128,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "mobile",
+      "route": "staff dashboard",
+      "path": "/staff",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 23.3,
+        "p95": 32.4,
+        "max": 32.4
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 352,
+        "p95": 384,
+        "max": 384
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 352,
+        "p95": 384,
+        "max": 384
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 630,
+        "p95": 635,
+        "max": 635
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 296,
+        "p95": 321,
+        "max": 321
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 198,
+        "p95": 256,
+        "max": 256
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0.02,
+        "p95": 0.02,
+        "max": 0.02
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 10,
+        "p95": 10,
+        "max": 10
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 215.89,
+        "p95": 215.89,
+        "max": 215.89
+      },
+      "script_count": 12,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 785,
+          "inp_ms": 88,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "mobile",
+      "route": "clients list",
+      "path": "/staff/clients",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 17.1,
+        "p95": 22.5,
+        "max": 22.5
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 308,
+        "p95": 332,
+        "max": 332
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 308,
+        "p95": 332,
+        "max": 332
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 713.5,
+        "p95": 786.2,
+        "max": 786.2
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 315,
+        "p95": 412,
+        "max": 412
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 193,
+        "p95": 268,
+        "max": 268
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0.02,
+        "p95": 0.02,
+        "max": 0.02
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 8,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 159.3,
+        "p95": 159.3,
+        "max": 159.3
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 760,
+          "inp_ms": 72,
+          "event_count": 3,
+          "react_commits": 3
+        }
+      ]
+    },
+    {
+      "viewport": "mobile",
+      "route": "client workspace",
+      "path": "/staff/client/ab9da555-07e0-4bba-94fd-2930d507b960",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 24.2,
+        "p95": 34.4,
+        "max": 34.4
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 324,
+        "p95": 344,
+        "max": 344
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 1072,
+        "p95": 1164,
+        "max": 1164
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 710.8,
+        "p95": 1004.8,
+        "max": 1004.8
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 844,
+        "p95": 928,
+        "max": 928
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 6,
+        "p95": 7,
+        "max": 7
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 367,
+        "p95": 399,
+        "max": 399
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 7,
+        "p95": 13,
+        "max": 13
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 344.32,
+        "p95": 344.32,
+        "max": 344.32
+      },
+      "script_count": 15,
+      "interactions": [
+        {
+          "interaction": "tab → documents",
+          "ok": true,
+          "wall_ms": 1421,
+          "inp_ms": 136,
+          "event_count": 3,
+          "react_commits": 10
+        },
+        {
+          "interaction": "tab → appointments",
+          "ok": true,
+          "wall_ms": 807,
+          "inp_ms": 104,
+          "event_count": 3,
+          "react_commits": 2
+        },
+        {
+          "interaction": "tab → work",
+          "ok": true,
+          "wall_ms": 781,
+          "inp_ms": 48,
+          "event_count": 3,
+          "react_commits": 2
+        },
+        {
+          "interaction": "tab → activity",
+          "ok": true,
+          "wall_ms": 971,
+          "inp_ms": 144,
+          "event_count": 3,
+          "react_commits": 2
+        },
+        {
+          "interaction": "tab → profile",
+          "ok": true,
+          "wall_ms": 876,
+          "inp_ms": 176,
+          "event_count": 3,
+          "react_commits": 3
+        },
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 820,
+          "inp_ms": 80,
+          "event_count": 3,
+          "react_commits": 4
+        }
+      ]
+    },
+    {
+      "viewport": "mobile",
+      "route": "appointments",
+      "path": "/staff/appointments",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 24.5,
+        "p95": 24.8,
+        "max": 24.8
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 320,
+        "p95": 340,
+        "max": 340
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 320,
+        "p95": 340,
+        "max": 340
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 687.5,
+        "p95": 758.1,
+        "max": 758.1
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 314,
+        "p95": 348,
+        "max": 348
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 228,
+        "p95": 258,
+        "max": 258
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0.02,
+        "p95": 0.02,
+        "max": 0.02
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 8,
+        "p95": 8,
+        "max": 8
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 161.89,
+        "p95": 161.89,
+        "max": 161.89
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 738,
+          "inp_ms": 64,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "mobile",
+      "route": "pipeline",
+      "path": "/staff/pipeline",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 18.3,
+        "p95": 23.4,
+        "max": 23.4
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 268,
+        "p95": 292,
+        "max": 292
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 268,
+        "p95": 292,
+        "max": 292
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 794.1,
+        "p95": 795.7,
+        "max": 795.7
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 669,
+        "p95": 707,
+        "max": 707
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 443,
+        "p95": 506,
+        "max": 506
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0.02,
+        "p95": 0.02,
+        "max": 0.02
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 9,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 159.13,
+        "p95": 159.13,
+        "max": 159.13
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 788,
+          "inp_ms": 88,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "mobile",
+      "route": "accounting",
+      "path": "/staff/accounting",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 18.3,
+        "p95": 24,
+        "max": 24
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 280,
+        "p95": 296,
+        "max": 296
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 280,
+        "p95": 296,
+        "max": 296
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 756.5,
+        "p95": 842.2,
+        "max": 842.2
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 346,
+        "p95": 442,
+        "max": 442
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 3,
+        "p95": 3,
+        "max": 3
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 254,
+        "p95": 274,
+        "max": 274
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0.02,
+        "p95": 0.02,
+        "max": 0.02
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 9,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 161.09,
+        "p95": 161.09,
+        "max": 161.09
+      },
+      "script_count": 11,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 747,
+          "inp_ms": 72,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    },
+    {
+      "viewport": "mobile",
+      "route": "reports",
+      "path": "/staff/reports",
+      "runs": 3,
+      "failures": 0,
+      "first_error": null,
+      "statuses": [
+        200
+      ],
+      "ttfb_ms": {
+        "n": 3,
+        "p50": 21,
+        "p95": 23.3,
+        "max": 23.3
+      },
+      "fcp_ms": {
+        "n": 3,
+        "p50": 304,
+        "p95": 324,
+        "max": 324
+      },
+      "lcp_ms": {
+        "n": 3,
+        "p50": 304,
+        "p95": 324,
+        "max": 324
+      },
+      "load_ms": {
+        "n": 3,
+        "p50": 593.6,
+        "p95": 670.6,
+        "max": 670.6
+      },
+      "tbt_ms": {
+        "n": 3,
+        "p50": 307,
+        "p95": 315,
+        "max": 315
+      },
+      "long_task_count": {
+        "n": 3,
+        "p50": 3,
+        "p95": 3,
+        "max": 3
+      },
+      "longest_task_ms": {
+        "n": 3,
+        "p50": 197,
+        "p95": 239,
+        "max": 239
+      },
+      "cls": {
+        "n": 3,
+        "p50": 0.02,
+        "p95": 0.02,
+        "max": 0.02
+      },
+      "react_commits_on_load": {
+        "n": 3,
+        "p50": 8,
+        "p95": 9,
+        "max": 9
+      },
+      "script_kb": {
+        "n": 3,
+        "p50": 151.11,
+        "p95": 151.11,
+        "max": 151.11
+      },
+      "script_count": 10,
+      "interactions": [
+        {
+          "interaction": "nav → clients",
+          "ok": true,
+          "wall_ms": 741,
+          "inp_ms": 64,
+          "event_count": 3,
+          "react_commits": 5
+        }
+      ]
+    }
+  ]
+}

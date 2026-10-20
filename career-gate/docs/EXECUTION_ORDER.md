@@ -7,6 +7,21 @@ This document replaces the "Supreme Engineering Execution Protocol" as the worki
 intent is kept; its repetition and its technology wish-list are replaced by verified gaps, each with one
 package, one acceptance test and one piece of evidence.
 
+## Status — 2026-10-20
+
+| Gap | State | Evidence |
+|---|---|---|
+| G1 accounting, G2 pipeline, G4 realtime churn | Closed | `docs/performance/PHASE-2-RESULT.md` |
+| G3 appointments dual render | Open, low value: appointments is paged at 25 since PR #120 (151 KB) | — |
+| G5 refresh sites | Closed: location/shift save and bulk assignment publish targeted mutations; bulk assignment is optimistic with rollback | `ClientLocationShiftCard.tsx`, `ClientCommandTable.tsx` |
+| G6 Client 360 freeze | Tab-switch INP 480–608 → 168–200 ms via transition; component split still open | PHASE-2 result |
+| G7–G9 duplicate integrity | Closed, except the `staff_manual` phone-only guard, which awaits the owner's decision | `lib/http.ts`, `DuplicateNotice.tsx`, `identity_review_shared_email` rule |
+| G10 tamper-evident audit, G11 tracing | Open | — |
+| G12 dead code | Closed | removed files |
+| G13 tokens | Rose-gold accent layer added on existing glass surfaces; full token consolidation open | `executive-refinement.css` |
+| G14 re-measurement | Closed | PHASE-2 result |
+| G15 human gates | Open | `docs/go-live/OPERATIONAL_CLOSURE_STATE.md` |
+
 ---
 
 ## 1. Rules (apply to every package)
