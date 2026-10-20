@@ -54,7 +54,9 @@ export type DashboardCommandData = {
   system: DashboardSystemHealth | null;
 };
 
-async function systemHealth(session: StaffSession): Promise<DashboardSystemHealth | null> {
+export type DashboardOperationalData = Omit<DashboardCommandData, "team" | "system" | "exceptions">;
+
+export async function dashboardSystemHealth(session: StaffSession): Promise<DashboardSystemHealth | null> {
   if (session.staff.role !== "admin") return null;
   const db = sql();
   const started = performance.now();
@@ -105,10 +107,8 @@ async function systemHealth(session: StaffSession): Promise<DashboardSystemHealt
   }
 }
 
-export async function dashboardCommandData(session: StaffSession): Promise<DashboardCommandData> {
-  const [team, operational, system] = await Promise.all([
-    teamWorkload(session),
-    withStaff(session, async (tx) => {
+export async function dashboardOperationalData(session: StaffSession): Promise<DashboardOperationalData> {
+  return withStaff(session, async (tx) => {
       const [row] = await tx`
         with active as (
           select id,assigned_staff from clients
@@ -196,9 +196,25 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
         pipeline: pipelineRows.map((p) => ({ status: String(p.status), total: Number(p.total) })),
       };
       return metrics;
-    }),
-    systemHealth(session),
+  });
+}
+
+export function dashboardExceptionCount(
+  operational: DashboardOperationalData,
+  system: DashboardSystemHealth | null,
+): number {
+  return operational.overdue_tasks + operational.overdue_followups +
+    operational.document_attention + operational.unassigned_clients +
+    operational.readiness.blocked + (system?.queue.dead ?? 0) +
+    (system?.failed_notifications_24h ?? 0) + (system?.open_audit_alerts ?? 0);
+}
+
+/** Backwards-compatible aggregate for consumers that require an atomic dashboard snapshot. */
+export async function dashboardCommandData(session: StaffSession): Promise<DashboardCommandData> {
+  const [team, operational, system] = await Promise.all([
+    teamWorkload(session),
+    dashboardOperationalData(session),
+    dashboardSystemHealth(session),
   ]);
-  const exceptions = operational.overdue_tasks + operational.overdue_followups + operational.document_attention + operational.unassigned_clients + operational.readiness.blocked + (system?.queue.dead ?? 0) + (system?.failed_notifications_24h ?? 0) + (system?.open_audit_alerts ?? 0);
-  return { ...operational, exceptions, team, system };
+  return { ...operational, exceptions: dashboardExceptionCount(operational, system), team, system };
 }
