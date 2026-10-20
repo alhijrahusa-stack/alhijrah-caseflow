@@ -15,6 +15,7 @@ import { Activity, Alerts, Assessments, IntakeAgent, Messages } from "@/componen
 import { Preferences } from "@/components/staff/sections/Profile";
 import { Appointments, Contacts, Followups, Notes, Tasks } from "@/components/staff/sections/Work";
 import type { ClientAccountSummary } from "@/lib/client-account";
+import { afterNextPaint } from "@/lib/after-paint";
 
 export type ClientFileData = {
   client: Row; employment: Row[]; preferences: Row[]; documents: Row[]; extractions: Row[]; appointments: Row[]; notes: Row[];
@@ -115,7 +116,9 @@ export function ClientFile({
   }
 
   const replaceTab = useCallback((nextTab: ClientTab) => {
-    startTabTransition(() => setTab(nextTab));
+    // The tab bar marks the choice at once; the section, which can be large,
+    // renders after that frame has painted, so it never delays the feedback.
+    afterNextPaint(() => startTabTransition(() => setTab(nextTab)));
     const params = new URLSearchParams(window.location.search);
     params.set("tab", nextTab);
     params.delete("action");

@@ -2,21 +2,22 @@
 
 import { startTransition, useEffect, useState } from "react";
 import { useAction } from "@/components/forms/useAction";
+import { afterNextPaint } from "@/lib/after-paint";
 
 export type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /**
  * Renders the first `first` items on the commit that shows the list, then the
- * rest in a low-priority transition right after. Every item still renders; the
- * interaction that opened the list just paints before the long tail is built.
+ * rest `step` at a time, each step a low-priority transition that starts only
+ * after the previous frame has painted. Every item still renders; neither the
+ * interaction that opened the list nor the next one waits on the long tail.
  */
-export function useProgressiveList<T>(items: T[], first = 40): T[] {
+export function useProgressiveList<T>(items: T[], first = 40, step = 120): T[] {
   const [limit, setLimit] = useState(first);
   useEffect(() => {
     if (items.length <= limit) return;
-    const timer = window.setTimeout(() => startTransition(() => setLimit(items.length)), 0);
-    return () => window.clearTimeout(timer);
-  }, [items.length, limit]);
+    return afterNextPaint(() => startTransition(() => setLimit((current) => Math.min(items.length, current + step))));
+  }, [items.length, limit, step]);
   return items.length <= limit ? items : items.slice(0, limit);
 }
 
