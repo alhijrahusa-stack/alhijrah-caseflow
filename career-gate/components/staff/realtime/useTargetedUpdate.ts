@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { requestRecovery, subscribeResources } from "@/components/staff/realtime/update-bus";
 import { payloadsForResources, type Resource } from "@/lib/realtime-resources";
 
@@ -34,6 +34,16 @@ export function useTargetedPayloads<T>(opts: {
     setPatched(null);
   }
 
+  // The subscription depends only on what is rendered and for whom. The seed and
+  // the patch function are read through refs, so a server re-render patches the
+  // value without tearing down and re-establishing the channel.
+  const seedRef = useRef(seed);
+  const applyRef = useRef(apply);
+  useEffect(() => {
+    seedRef.current = seed;
+    applyRef.current = apply;
+  });
+
   const key = resources.join(",");
 
   useEffect(() => {
@@ -63,7 +73,7 @@ export function useTargetedPayloads<T>(opts: {
             return;
           }
           const next = body.payloads;
-          setPatched((current) => apply(current ?? seed, next));
+          setPatched((current) => applyRef.current(current ?? seedRef.current, next));
         })();
       },
     });
@@ -72,7 +82,7 @@ export function useTargetedPayloads<T>(opts: {
       cancelled = true;
       off();
     };
-  }, [clientId, key, apply, seed]);
+  }, [clientId, key]);
 
   return patched ?? initial;
 }

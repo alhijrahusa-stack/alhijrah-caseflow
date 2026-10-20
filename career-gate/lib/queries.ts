@@ -243,16 +243,20 @@ export async function appointmentList(s: StaffSession, view: string, limit = 300
     limit ${pageLimit} offset ${pageOffset}`);
 }
 
-export async function taskList(s: StaffSession, view: string, assignee?: string) {
+export async function taskList(s: StaffSession, view: string, assignee?: string, limit = 300, offset = 0) {
+  const pageLimit = Number.isSafeInteger(limit) ? Math.min(Math.max(limit, 1), 300) : 300;
+  const pageOffset = Number.isSafeInteger(offset) ? Math.max(offset, 0) : 0;
   return withStaff(s, (tx) => tx`
-    select t.*, (t.due_at < now()) as overdue, c.full_name, c.ref, a.display_name as assigned_to_name, d.display_name as completed_by_name
+    select t.id, t.client_id, t.title, t.description, t.status, t.due_at, t.completed_at, t.created_at, t.updated_at,
+           (t.due_at < now()) as overdue, c.full_name, c.ref, a.display_name as assigned_to_name, d.display_name as completed_by_name,
+           count(*) over ()::int as total_count
     from tasks t left join clients c on c.id = t.client_id
     left join staff a on a.id = t.assigned_to left join staff d on d.id = t.completed_by
     where (c.id is null or c.deleted_at is null)
       and ${view === "closed" ? tx`t.status in ('completed','cancelled')` : tx`t.status in ('pending','in_progress')`}
       ${assignee ? tx`and t.assigned_to = ${assignee}` : tx``}
-    order by ${view === "closed" ? tx`t.updated_at desc` : tx`t.due_at asc nulls last, t.created_at`}
-    limit 300`);
+    order by ${view === "closed" ? tx`t.updated_at desc, t.id` : tx`t.due_at asc nulls last, t.created_at, t.id`}
+    limit ${pageLimit} offset ${pageOffset}`);
 }
 
 export async function followupList(s: StaffSession, view: string) {
@@ -293,19 +297,3 @@ export async function availability(s: StaffSession) {
   }));
 }
 
-export async function reports(s: StaffSession) {
-  return withStaff(s, async (tx) => ({
-    byStatus: await tx`select current_status, count(*)::int as n from clients where deleted_at is null group by 1 order by 2 desc`,
-    bySource: await tx`select source, count(*)::int as n from clients where deleted_at is null group by 1`,
-    byStaff: await tx`
-      select coalesce(st.display_name, 'Unassigned') as name, count(*)::int as n,
-             count(*) filter (where c.current_status in ('completed', 'ready_for_first_day'))::int as ready_or_done
-      from clients c left join staff st on st.id = c.assigned_staff where c.deleted_at is null group by 1 order by 2 desc`,
-    bySite: await tx`
-      select p.site_name, count(distinct p.client_id)::int as n from client_preferences p join clients c on c.id = p.client_id
-      where c.deleted_at is null and p.rank = 'primary' group by 1 order by 2 desc`,
-    last30: await tx`select count(*)::int as n from clients where deleted_at is null and created_at >= now() - interval '30 days'`,
-    docs: await tx`select status, count(*)::int as n from documents d join clients c on c.id = d.client_id where c.deleted_at is null group by 1`,
-    alerts: await tx`select severity, count(*)::int as n from audit_alerts where status = 'open' group by 1`,
-  }));
-}

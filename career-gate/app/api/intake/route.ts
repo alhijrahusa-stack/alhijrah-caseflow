@@ -113,6 +113,8 @@ export async function POST(req: Request) {
           payload: { first_name: d.profile.full_name.split(" ")[0], ref: c.ref, submitted_at: new Date(c.created_at).toISOString() },
         }, actor);
         await enqueue(tx, { type: "intake_analysis", entityId: c.id, dedupeKey: `intake:${c.id}`, traceId });
+        // Shared-email and other identity rules are evaluated for the new file at once, not at the nightly scan.
+        await enqueue(tx, { type: "audit_scan", payload: { client_id: c.id }, dedupeKey: `audit:${c.id}`, traceId });
         await tx`select public.rate_limit_hit('intake_accept_5min', ${ip}, 300, 1)`;
         const body = { ok: true, ref: c.ref, status_url: "/status", submitted_at: new Date(c.created_at).toISOString(), notifications, client_id: c.id };
         await completeKey(tx, OPERATION, key, 201, body);
@@ -126,6 +128,11 @@ export async function POST(req: Request) {
       return respond(out.kind === "new" ? 201 : out.status, { ...body, client_id: undefined, upload_token, replayed: out.kind === "replay" }, traceId);
     } catch (e) {
       if (e instanceof ActionError) return err(e.code, e.message, e.status, traceId);
+      const pg = e as { code?: string; message?: string };
+      if (pg?.code === "P0001" && pg.message?.startsWith("duplicate_client_identity|")) {
+        // The match is never described to a public caller: no reference, stage or owner.
+        return err("duplicate_application", "An existing file matches this applicant. Please contact Customer Service to continue it.", 409, traceId);
+      }
       return dbErrorResponse(e, traceId);
     }
   }, (res) => ({ result: res.status < 400 ? "ok" : "error", error_code: res.status < 400 ? null : String(res.status) }));

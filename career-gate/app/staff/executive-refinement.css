@@ -68,3 +68,11 @@
 @media (max-width:1200px){.staff-shell .staff-executive-header-row{grid-template-columns:minmax(245px,1fr) minmax(300px,1.2fr)}.staff-shell .staff-header-actions{grid-column:1/-1;justify-content:flex-end}.staff-shell .staff-institutional-masthead{text-align:end}}
 @media (max-width:760px){.staff-shell .staff-executive-header-row{grid-template-columns:1fr}.staff-shell .staff-brand-capsule{width:100%}.staff-shell .staff-institutional-masthead{text-align:center;order:2}.staff-shell .staff-header-actions{grid-column:auto;justify-content:flex-start;order:3}.staff-shell .staff-nav-strip{border-radius:13px}.staff-shell [data-testid="gate-job-email-vault"] > .grid.grid-cols-3 > button{min-width:132px}.staff-shell .archive-summary-grid{width:100%}.staff-shell .archive-hero{align-items:stretch}}
 @media (prefers-reduced-motion:reduce){.staff-shell *{scroll-behavior:auto!important}.staff-shell :is(.staff-nav-link,.report-glass-card,.ops-account-row,.archive-link-button,.archive-client-button,.archive-restore-button,.archive-confirm-button){transition:none!important;transform:none!important}}
+
+/* Rose Gold accent layer: hairline top edges, hover edges and keyboard focus on
+   the existing glass surfaces. Colour only; geometry, motion and layout unchanged. */
+.staff-shell { --cg-rose:#e8b4a0; --cg-rose-deep:#c9a27e; --cg-rose-edge:rgba(232,180,160,.34); --cg-rose-hover:rgba(232,180,160,.42); }
+.staff-shell :is(.ops-glass-card,.report-glass-card,.ops-metric,.ops-account-row,.ops-column,.ops-hero) { border-top-color:var(--cg-rose-edge); }
+.staff-shell :is(.ops-glass-card,.report-glass-card,.ops-metric,.ops-account-row):hover { border-color:var(--cg-rose-hover); }
+.staff-shell :is(a,button,input,select,textarea,[role="tab"]):focus-visible { outline-color:var(--cg-rose); }
+.staff-shell [aria-busy="true"] { cursor:progress; }

@@ -9,6 +9,7 @@ import { QuickClientSearch } from "@/components/staff/QuickClientSearch";
 import { SignOutButton } from "@/components/staff/SignOutButton";
 import { StaffNavigation } from "@/components/staff/StaffNavigation";
 import { StaffProvider } from "@/components/staff/StaffContext";
+import { SectionBoundary } from "@/components/ui/SectionBoundary";
 import { getStaffSession } from "@/lib/auth";
 import { OFFICE } from "@/lib/office";
 import { staffDirectory } from "@/lib/queries";
@@ -28,7 +29,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
 
   return (
     <StaffProvider me={{ id: session.staff.id, display_name: session.staff.display_name, role: session.staff.role }} staff={staff}>
-      <ExecutiveTactileFX />
+      <SectionBoundary name="tactile-fx" fallback={null}><ExecutiveTactileFX /></SectionBoundary>
       <div className="staff-shell">
         <header className="staff-topbar sticky top-0 z-30">
           <div className="staff-executive-header mx-auto max-w-[1800px] px-4 py-3 lg:px-6">
@@ -47,10 +48,10 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               </div>
 
               <div className="staff-header-actions">
-                <ExecutiveTelemetry />
-                <QuickClientSearch />
-                <CommandPalette />
-                <StaffAppointmentAlerts staffId={session.staff.id} />
+                <SectionBoundary name="telemetry" fallback={null}><ExecutiveTelemetry /></SectionBoundary>
+                <SectionBoundary name="quick-search" fallback={null}><QuickClientSearch /></SectionBoundary>
+                <SectionBoundary name="command-palette" fallback={null}><CommandPalette /></SectionBoundary>
+                <SectionBoundary name="appointment-alerts" fallback={null}><StaffAppointmentAlerts staffId={session.staff.id} /></SectionBoundary>
                 {mgmt && <Link href="/staff/audit-alerts" className="staff-header-alert" aria-label="Audit alerts" data-executive-tactile="true">Alerts</Link>}
                 <div className="staff-session-cluster">
                   <span className="staff-session-chip hidden sm:flex" data-testid="me"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.7)]" /><span className="max-w-32 truncate text-xs text-slate-200">{session.staff.display_name}</span><span className="text-[10px] uppercase tracking-wide text-slate-500">{session.staff.role}</span></span>

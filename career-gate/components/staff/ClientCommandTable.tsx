@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useTargetedMutationBatch } from "@/components/staff/realtime/useTargetedMutation";
 
 export type CommandClient={
  id:string;ref:string;full_name:string;phone:string;email:string|null;city:string|null;
@@ -10,7 +10,11 @@ export type CommandClient={
 };
 type Staff={id:string;display_name:string};
 export function ClientCommandTable({clients,staff,management}:{clients:CommandClient[];staff:Staff[];management:boolean}){
- const router=useRouter();
+ const onMutated=useTargetedMutationBatch();
+ const [assigned,setAssigned]=useState<Record<string,{assigned_staff:string|null;assigned_name:string|null}>>({});
+ const [seen,setSeen]=useState(clients);
+ if(seen!==clients){setSeen(clients);setAssigned({});}
+ const rows=useMemo(()=>clients.map(c=>assigned[c.id]?{...c,...assigned[c.id]}:c),[clients,assigned]);
  const [query,setQuery]=useState("");
  const [filter,setFilter]=useState("all");
  const [selected,setSelected]=useState<string[]>([]);
@@ -19,21 +23,25 @@ export function ClientCommandTable({clients,staff,management}:{clients:CommandCl
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [view,setView]=useState<"table"|"grid">("table");
- const matching=useMemo(()=>clients.filter(c=>{
+ const matching=useMemo(()=>rows.filter(c=>{
   const term=query.toLowerCase().trim();
   if(term && ![c.ref,c.full_name,c.phone,c.email??"",c.assigned_name??""].some(x=>x.toLowerCase().includes(term)))return false;
   return filter==="all" || (filter==="unassigned" && !c.assigned_staff) ||
    (filter==="mine" && c.assigned_staff===owner) || (filter==="review"&&["needs_review","new_intake"].includes(c.current_status));
- }),[clients,query,filter,owner]);
+ }),[rows,query,filter,owner]);
  async function bulkAssign(){
   if(!management || !selected.length)return;
   setBusy(true);setError("");
+  const ids=[...selected];
+  const previous=assigned;
+  const next={assigned_staff:owner||null,assigned_name:staff.find(s=>s.id===owner)?.display_name??null};
+  setAssigned(cur=>({...cur,...Object.fromEntries(ids.map(id=>[id,next]))}));
   try{
-   const response=await fetch("/api/staff/operations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"bulk_assign",client_ids:selected,staff_id:owner||null})});
+   const response=await fetch("/api/staff/operations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"bulk_assign",client_ids:ids,staff_id:owner||null})});
    const result=await response.json().catch(()=>null);
    if(!response.ok||!result?.ok)throw Error(result?.error?.message??"Assignment failed");
-   setSelected([]);router.refresh();
-  }catch(e){setError(e instanceof Error?e.message:"Assignment failed")}finally{setBusy(false)}
+   setSelected([]);onMutated("bulk_assign",ids);
+  }catch(e){setAssigned(previous);setError(e instanceof Error?e.message:"Assignment failed")}finally{setBusy(false)}
  }
  const toggle=(id:string)=>setSelected(cur=>cur.includes(id)?cur.filter(x=>x!==id):[...cur,id]);
  const badge=(s:string)=>{const fresh=s==="new_intake",progress=s==="application_in_progress";return <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold capitalize shadow-[inset_0_1px_rgba(255,255,255,.08)] ${fresh?"border-cyan-300/35 bg-cyan-400/10 text-cyan-200":progress?"border-amber-300/35 bg-gradient-to-r from-orange-400/15 to-amber-300/10 text-amber-200":"border-amber-300/20 bg-amber-200/10 text-amber-100"}`}>{fresh&&<span className="cg-status-dot"/>}{s.replaceAll("_"," ")}{progress&&<span className="ml-1 h-0.5 w-6 rounded-full bg-gradient-to-r from-orange-300 to-amber-100/30"/>}</span>};
