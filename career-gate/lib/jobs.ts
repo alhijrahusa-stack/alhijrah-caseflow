@@ -78,13 +78,9 @@ export async function processJobs(limit = 10) {
     results.push({ id: job.id, type: job.type, status });
   }
   // Seal new activity rows while the request's work is fresh; the nightly
-  // full seal catches rows that committed out of id order. A seal failure is
-  // logged and never fails job processing.
-  try {
-    const { sealAuditChain } = await import("@/lib/audit-chain");
-    await sealAuditChain({ maxBatches: 1, traceId: newTraceId() });
-  } catch (e) {
-    log("error", { event: "audit_chain_seal_failed", error_message: e instanceof Error ? e.message.slice(0, 300) : "unknown" });
-  }
+  // full seal catches rows that committed out of id order. sealAuditChain never
+  // throws and returns at once when another sealer holds the chain.
+  const { sealAuditChain } = await import("@/lib/audit-chain");
+  await sealAuditChain({ maxBatches: 1, traceId: newTraceId() });
   return results;
 }

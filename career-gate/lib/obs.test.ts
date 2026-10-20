@@ -12,7 +12,7 @@ describe("traceparent", () => {
     expect(parseTraceparent(VALID.replace(/-01$/, "-00"))?.sampled).toBe(false);
   });
 
-  it("rejects malformed, upper-case, unknown-version and all-zero identifiers", () => {
+  it("rejects malformed, upper-case, version-ff, padded version-00 and all-zero identifiers", () => {
     for (const value of [
       null, "", "garbage",
       VALID.toUpperCase(),
@@ -20,7 +20,16 @@ describe("traceparent", () => {
       "00-00000000000000000000000000000000-00f067aa0ba902b7-01",
       "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",
       "00-4bf92f3577b34da6a3ce929d0e0e473-00f067aa0ba902b7-01",
+      `${VALID}-extra`,
+      VALID.replace(/^00/, "ff") + "-extra",
     ]) expect(parseTraceparent(value)).toBeNull();
+  });
+
+  it("reads a later version by its first four fields", () => {
+    const v1 = VALID.replace(/^00/, "01");
+    expect(parseTraceparent(v1)?.traceId).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
+    expect(parseTraceparent(`${v1}-future-field`)?.parentSpanId).toBe("00f067aa0ba902b7");
+    expect(parseTraceparent(`${v1}future`)).toBeNull();
   });
 
   it("joins an incoming trace as a new child span", () => {

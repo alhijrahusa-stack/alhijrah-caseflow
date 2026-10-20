@@ -12,15 +12,21 @@ export function newSpanId() {
   return randomBytes(8).toString("hex");
 }
 
-const TRACEPARENT = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
+const TRACEPARENT = /^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})(-.*)?$/;
 const ZERO_TRACE = "0".repeat(32);
 const ZERO_SPAN = "0".repeat(16);
 
-/** W3C Trace Context `traceparent`, version 00. Invalid or all-zero identifiers are rejected, per the specification. */
+/**
+ * W3C Trace Context `traceparent`. Version 00 must be exactly its four fields;
+ * a later version is read by its first four fields when they are followed by
+ * "-" or the end, as the specification asks. Version ff and all-zero
+ * identifiers are rejected.
+ */
 export function parseTraceparent(value: string | null | undefined): { traceId: string; parentSpanId: string; sampled: boolean } | null {
   const m = value?.trim().match(TRACEPARENT);
-  if (!m || m[1] === ZERO_TRACE || m[2] === ZERO_SPAN) return null;
-  return { traceId: m[1], parentSpanId: m[2], sampled: (parseInt(m[3], 16) & 1) === 1 };
+  if (!m || m[1] === "ff" || (m[1] === "00" && m[5] !== undefined)) return null;
+  if (m[2] === ZERO_TRACE || m[3] === ZERO_SPAN) return null;
+  return { traceId: m[2], parentSpanId: m[3], sampled: (parseInt(m[4], 16) & 1) === 1 };
 }
 
 export type TraceContext = { traceId: string; spanId: string; parentSpanId: string | null; sampled: boolean };
