@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { expireGateJobReservations } from "@/lib/gate-job-account/service";
 import { runAudit } from "@/lib/audit";
+import { sealAuditChain, verifyAuditChain } from "@/lib/audit-chain";
 import { sql } from "@/lib/db";
 import { err, ok } from "@/lib/http";
 import { processJobs } from "@/lib/jobs";
@@ -10,7 +11,7 @@ import { registry } from "@/lib/providers/config";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-/** Vercel Cron: drains jobs, runs the full audit scan and removes expired rows. */
+/** Vercel Cron: drains jobs, runs the full audit scan, seals and verifies the activity chain, and removes expired rows. */
 export async function GET(req: Request) {
   const traceId = traceIdFrom(req);
   const secret = registry.app().cronSecret;
@@ -22,6 +23,10 @@ export async function GET(req: Request) {
   const jobs = await processJobs(50);
   const audit = await runAudit(null, traceId);
   const gateJobReservations = await expireGateJobReservations(traceId);
+  const auditChain = {
+    seal: await sealAuditChain({ full: true, maxBatches: 40, traceId }),
+    verify: await verifyAuditChain(traceId),
+  };
   const cleanup = {
     idempotency_keys: (await db`delete from idempotency_keys where expires_at < now()`).count,
     rate_limits: (await db`delete from rate_limits where window_start < now() - interval '1 day'`).count,
@@ -30,5 +35,5 @@ export async function GET(req: Request) {
     upload_grants: (await db`delete from upload_grants where expires_at < now()`).count,
     gate_job_reservations: gateJobReservations,
   };
-  return ok({ jobs: jobs.length, audit, cleanup }, 200, traceId);
+  return ok({ jobs: jobs.length, audit, audit_chain: auditChain, cleanup }, 200, traceId);
 }
