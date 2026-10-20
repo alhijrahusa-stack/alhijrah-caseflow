@@ -1,0 +1,1323 @@
+[
+ {
+  "vp": 390,
+  "route": "/staff",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/accounting",
+  "v": [
+   {
+    "id": "select-name",
+    "impact": "critical",
+    "n": 2,
+    "sample": [
+     {
+      "t": "select[data-testid=\"accounting-status\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "select[data-testid=\"accounting-staff\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/appointments",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/archive",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/audit-alerts",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/clients",
+  "v": [
+   {
+    "id": "aria-required-children",
+    "impact": "critical",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".ops-segmented",
+      "s": "Fix any of the following:   Element has children which are not allowed: a"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/distribution",
+  "v": [
+   {
+    "id": "label",
+    "impact": "critical",
+    "n": 1000,
+    "sample": [
+     {
+      "t": "tr:nth-child(1) > td:nth-child(1) > input[type=\"checkbox\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr:nth-child(2) > td:nth-child(1) > input[type=\"checkbox\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr:nth-child(3) > td:nth-child(1) > input[type=\"checkbox\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   },
+   {
+    "id": "select-name",
+    "impact": "critical",
+    "n": 1,
+    "sample": [
+     {
+      "t": "select",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/follow-ups",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/gate-job-account",
+  "v": [
+   {
+    "id": "scrollable-region-focusable",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".overflow-x-auto",
+      "s": "Fix any of the following:   Element should have focusable content"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/import",
+  "v": [
+   {
+    "id": "scrollable-region-focusable",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".overflow-x-auto",
+      "s": "Fix any of the following:   Element should have focusable content"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/new-client",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/pipeline",
+  "v": [
+   {
+    "id": "aria-required-children",
+    "impact": "critical",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".ops-segmented",
+      "s": "Fix any of the following:   Element has children which are not allowed: button"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/reports",
+  "v": [
+   {
+    "id": "scrollable-region-focusable",
+    "impact": "serious",
+    "n": 6,
+    "sample": [
+     {
+      "t": "section[aria-label=\"Staff performance\"] > .overflow-x-auto",
+      "s": "Fix any of the following:   Element should have focusable content"
+     },
+     {
+      "t": ".report-glass-card.p-4:nth-child(1) > .overflow-x-auto",
+      "s": "Fix any of the following:   Element should have focusable content"
+     },
+     {
+      "t": ".report-glass-card.p-4:nth-child(2) > .overflow-x-auto",
+      "s": "Fix any of the following:   Element should have focusable content"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/settings",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/staff",
+  "v": [
+   {
+    "id": "select-name",
+    "impact": "critical",
+    "n": 8,
+    "sample": [
+     {
+      "t": "tr[data-testid=\"team-row\"]:nth-child(1) > td:nth-child(8) > .min-w-\\[300px\\].flex-wrap.gap-1\\.5 > .w-24:nth-child(1)",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr[data-testid=\"team-row\"]:nth-child(2) > td:nth-child(8) > .min-w-\\[300px\\].flex-wrap.gap-1\\.5 > .w-24:nth-child(1)",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr[data-testid=\"team-row\"]:nth-child(3) > td:nth-child(8) > .min-w-\\[300px\\].flex-wrap.gap-1\\.5 > .w-24:nth-child(1)",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/tasks",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/today",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/week",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 390,
+  "route": "/staff/client/[id]",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/accounting",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   },
+   {
+    "id": "select-name",
+    "impact": "critical",
+    "n": 2,
+    "sample": [
+     {
+      "t": "select[data-testid=\"accounting-status\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "select[data-testid=\"accounting-staff\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/appointments",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/archive",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/audit-alerts",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/clients",
+  "v": [
+   {
+    "id": "aria-required-children",
+    "impact": "critical",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".ops-segmented",
+      "s": "Fix any of the following:   Element has children which are not allowed: a"
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/distribution",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   },
+   {
+    "id": "label",
+    "impact": "critical",
+    "n": 1000,
+    "sample": [
+     {
+      "t": "tr:nth-child(1) > td:nth-child(1) > input[type=\"checkbox\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr:nth-child(2) > td:nth-child(1) > input[type=\"checkbox\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr:nth-child(3) > td:nth-child(1) > input[type=\"checkbox\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   },
+   {
+    "id": "select-name",
+    "impact": "critical",
+    "n": 1,
+    "sample": [
+     {
+      "t": "select",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/follow-ups",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/gate-job-account",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/import",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   },
+   {
+    "id": "scrollable-region-focusable",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".overflow-x-auto",
+      "s": "Fix any of the following:   Element should have focusable content"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/new-client",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/pipeline",
+  "v": [
+   {
+    "id": "aria-required-children",
+    "impact": "critical",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".ops-segmented",
+      "s": "Fix any of the following:   Element has children which are not allowed: button"
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/reports",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/settings",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/staff",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   },
+   {
+    "id": "select-name",
+    "impact": "critical",
+    "n": 8,
+    "sample": [
+     {
+      "t": "tr[data-testid=\"team-row\"]:nth-child(1) > td:nth-child(8) > .min-w-\\[300px\\].flex-wrap.gap-1\\.5 > .w-24:nth-child(1)",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr[data-testid=\"team-row\"]:nth-child(2) > td:nth-child(8) > .min-w-\\[300px\\].flex-wrap.gap-1\\.5 > .w-24:nth-child(1)",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr[data-testid=\"team-row\"]:nth-child(3) > td:nth-child(8) > .min-w-\\[300px\\].flex-wrap.gap-1\\.5 > .w-24:nth-child(1)",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/tasks",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/today",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/week",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 820,
+  "route": "/staff/client/[id]",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/accounting",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   },
+   {
+    "id": "select-name",
+    "impact": "critical",
+    "n": 2,
+    "sample": [
+     {
+      "t": "select[data-testid=\"accounting-status\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "select[data-testid=\"accounting-staff\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/appointments",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/archive",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/audit-alerts",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/clients",
+  "v": [
+   {
+    "id": "aria-required-children",
+    "impact": "critical",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".ops-segmented",
+      "s": "Fix any of the following:   Element has children which are not allowed: a"
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/distribution",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   },
+   {
+    "id": "label",
+    "impact": "critical",
+    "n": 1000,
+    "sample": [
+     {
+      "t": "tr:nth-child(1) > td:nth-child(1) > input[type=\"checkbox\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr:nth-child(2) > td:nth-child(1) > input[type=\"checkbox\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr:nth-child(3) > td:nth-child(1) > input[type=\"checkbox\"]",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   },
+   {
+    "id": "select-name",
+    "impact": "critical",
+    "n": 1,
+    "sample": [
+     {
+      "t": "select",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/follow-ups",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/gate-job-account",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/import",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/new-client",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/pipeline",
+  "v": [
+   {
+    "id": "aria-required-children",
+    "impact": "critical",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".ops-segmented",
+      "s": "Fix any of the following:   Element has children which are not allowed: button"
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/reports",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/settings",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/staff",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   },
+   {
+    "id": "select-name",
+    "impact": "critical",
+    "n": 8,
+    "sample": [
+     {
+      "t": "tr[data-testid=\"team-row\"]:nth-child(1) > td:nth-child(8) > .min-w-\\[300px\\].flex-wrap.gap-1\\.5 > .w-24:nth-child(1)",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr[data-testid=\"team-row\"]:nth-child(2) > td:nth-child(8) > .min-w-\\[300px\\].flex-wrap.gap-1\\.5 > .w-24:nth-child(1)",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     },
+     {
+      "t": "tr[data-testid=\"team-row\"]:nth-child(3) > td:nth-child(8) > .min-w-\\[300px\\].flex-wrap.gap-1\\.5 > .w-24:nth-child(1)",
+      "s": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/tasks",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/today",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/week",
+  "v": [
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/client/[id]",
+  "v": [
+   {
+    "id": "aria-prohibited-attr",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": ".cg-workflow-progress-track",
+      "s": "Fix all of the following:   aria-label attribute cannot be used on a div with no valid role attribute."
+     }
+    ]
+   },
+   {
+    "id": "color-contrast",
+    "impact": "serious",
+    "n": 1,
+    "sample": [
+     {
+      "t": "kbd",
+      "s": "Fix any of the following:   Element has insufficient color contrast of 1.9 (foreground color: #a7b5c6, background color: #f1f5f9, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ra"
+     }
+    ]
+   }
+  ],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40542,
+  "cssDecoded": 213576
+ }
+]

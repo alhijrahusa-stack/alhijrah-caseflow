@@ -1,0 +1,884 @@
+[
+ {
+  "vp": 390,
+  "route": "/staff",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/accounting",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/appointments",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/archive",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/audit-alerts",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/clients",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/distribution",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/follow-ups",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/gate-job-account",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/import",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/new-client",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/pipeline",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/reports",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/settings",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/staff",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/tasks",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/today",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/week",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "/staff/client/[id]",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Documents",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Appointments",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Notes",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Activity",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Preferences",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:client tab Profile",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Add Note",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Add Task",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Add Follow-Up",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Change Status",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Assign Staff",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Add Document",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 390,
+  "route": "state:panel Add Appointment",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "/staff",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/accounting",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/appointments",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/archive",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/audit-alerts",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/clients",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/distribution",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/follow-ups",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/gate-job-account",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/import",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/new-client",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/pipeline",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/reports",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/settings",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/staff",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/tasks",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/today",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/week",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "/staff/client/[id]",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Documents",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Appointments",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Notes",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Activity",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Preferences",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:client tab Profile",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Add Note",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Add Task",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Add Follow-Up",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Change Status",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Assign Staff",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Add Document",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:panel Add Appointment",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 820,
+  "route": "state:command palette",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "/staff",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/accounting",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/appointments",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/archive",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/audit-alerts",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/clients",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/distribution",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/follow-ups",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/gate-job-account",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/import",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/new-client",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/pipeline",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/reports",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/settings",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/staff",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/tasks",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/today",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/week",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "/staff/client/[id]",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 40559,
+  "cssDecoded": 213717
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Documents",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Appointments",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Notes",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Activity",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Preferences",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:client tab Profile",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Add Note",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Add Task",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Add Follow-Up",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Change Status",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Assign Staff",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Add Document",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:panel Add Appointment",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ },
+ {
+  "vp": 1920,
+  "route": "state:command palette",
+  "v": [],
+  "dead": [],
+  "deadLinks": 0,
+  "css": 0,
+  "cssDecoded": 0
+ }
+]
