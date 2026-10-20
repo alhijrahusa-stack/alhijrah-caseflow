@@ -65,6 +65,43 @@ Chromium does not present a frame promptly when nothing visible changes. Mobile 
 that artifact as much as the application. One mobile result is still attributable: the Activity tab's
 progressive list cut its p50 from 456 to 240 ms. Mobile INP needs measurement on a real device.
 
+## Worst-sample fix: tab content renders after the feedback paint
+
+**Cause.** The tab bar already marked the chosen tab urgently and rendered the section in a
+transition, but the transition could finish and commit (DOM, style, layout) before the browser's next
+frame. That paint then waited for the whole section, so a click's latency included its largest commit.
+`useProgressiveList` did the same with its full-list commit, queued by `setTimeout(0)` right after the
+first one.
+
+**Change.** The section switch, and each step of the progressive list (120 items at a time), now starts
+from a task queued in `requestAnimationFrame`, i.e. after the frame that shows the tab highlight.
+
+Re-measured on the same seed, both builds served side by side, 20 switches per tab, desktop, 4× CPU
+(raw: `phase3/inp-tabs-after-paint.json`):
+
+| Tab | `main` p50 / p75 / max | Package A run 1 | Package A run 2 |
+|---|---|---|---|
+| documents | 128 / 160 / 1,432 | 64 / 72 / 120 | 72 / 80 / 104 |
+| appointments | 120 / 144 / 224 | 56 / 64 / 96 | 56 / 72 / 80 |
+| work | 56 / 56 / 72 | 56 / 56 / 72 | 56 / 64 / 72 |
+| activity | 168 / 184 / 248 | 56 / 64 / 80 | 56 / 64 / 88 |
+| profile | 176 / 216 / 304 | 56 / 56 / 72 | 56 / 64 / 72 |
+
+Every desktop sample in both runs is under 200 ms (worst 120 ms). The section itself is not faster to
+build: time from pointer-down to the section being present is p50 280–475 ms on the branch against
+317–520 ms on `main`, with single slow samples up to 1,200 ms (profile, run 2). That is content
+readiness, not interaction latency, and is reported so the INP figures are not read as "the tab loads
+in 70 ms".
+
+Headless mobile (10 per tab) reads p50 232–240 ms on every tab, including `work`, which is light on
+desktop: the same headless presentation floor described above. Mobile stays unverified here.
+
+**Real-device path.** Signed-in staff pages now send INP, CLS and LCP to `/api/staff/vitals`, which
+writes one `web_vital` log line (metric, value, rating, route pattern, screen class phone/tablet/desktop;
+no staff or client id, nothing stored). Mobile INP is verified by opening Client 360 on a phone,
+switching tabs, and reading the `web_vital` lines with `name=INP` and `screen=phone` in the deployment
+logs. That requires a deployment and a person with a phone.
+
 ## Correction to the Phase 2 record
 
 `PHASE-2-RESULT.md` reported Client 360 tab-switch INP of 168–200 ms. Those were single samples per tab
@@ -76,6 +113,6 @@ and do not hold under repeated sampling (above). That record has been annotated.
 |---|---|
 | Accounting, Pipeline, Appointments payload < 300 KB | PASS (101 / 207 / 151 KB) |
 | Longest task at 4× < 500 ms | PASS (largest 354 ms) |
-| INP < 200 ms | PASS at p75 on desktop; FAIL for single worst samples (activity 272, profile 232); mobile BLOCKED — needs a real device |
+| INP < 200 ms | Desktop PASS on every sample (worst 120 ms, two runs of 20 per tab); mobile BLOCKED — needs a real device (field beacon added) |
 | CLS ≤ 0.01 | PASS (0.0000–0.0003) |
 | `/staff` p50 < 500 ms | PASS (280 ms) |

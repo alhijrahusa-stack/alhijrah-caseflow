@@ -1,0 +1,165 @@
+{
+ "meta": {
+  "method": "Chromium 4x CPU, 1920x1080 desktop (mobile 390x844 DPR3), 20 switches per tab (mobile 10), Event Timing worst entry per click; content = pointerdown to tab section present (rAF polling)",
+  "seed": "scripts/perf-seed.sql, client 02caec63",
+  "date": "2026-10-20"
+ },
+ "runs": {
+  "main_c6aa84f": {
+   "desktop": {
+    "documents": {
+     "p50": 128,
+     "p75": 160,
+     "max": 1432,
+     "content_p50": 469,
+     "content_max": 2820
+    },
+    "appointments": {
+     "p50": 120,
+     "p75": 144,
+     "max": 224,
+     "content_p50": 317,
+     "content_max": 632
+    },
+    "work": {
+     "p50": 56,
+     "p75": 56,
+     "max": 72,
+     "content_p50": 324,
+     "content_max": 502
+    },
+    "activity": {
+     "p50": 168,
+     "p75": 184,
+     "max": 248,
+     "content_p50": 520,
+     "content_max": 755
+    },
+    "profile": {
+     "p50": 176,
+     "p75": 216,
+     "max": 304,
+     "content_p50": 456,
+     "content_max": 739
+    }
+   }
+  },
+  "package_a_run1": {
+   "desktop": {
+    "documents": {
+     "p50": 64,
+     "p75": 72,
+     "max": 120,
+     "content_p50": 280,
+     "content_max": 689
+    },
+    "appointments": {
+     "p50": 56,
+     "p75": 64,
+     "max": 96,
+     "content_p50": 240,
+     "content_max": 371
+    },
+    "work": {
+     "p50": 56,
+     "p75": 56,
+     "max": 72,
+     "content_p50": 280,
+     "content_max": 372
+    },
+    "activity": {
+     "p50": 56,
+     "p75": 64,
+     "max": 80,
+     "content_p50": 285,
+     "content_max": 530
+    },
+    "profile": {
+     "p50": 56,
+     "p75": 56,
+     "max": 72,
+     "content_p50": 394,
+     "content_max": 566
+    }
+   }
+  },
+  "package_a_run2": {
+   "desktop": {
+    "documents": {
+     "p50": 72,
+     "p75": 80,
+     "max": 104,
+     "content_p50": 308,
+     "content_max": 1012
+    },
+    "appointments": {
+     "p50": 56,
+     "p75": 72,
+     "max": 80,
+     "content_p50": 241,
+     "content_max": 361
+    },
+    "work": {
+     "p50": 56,
+     "p75": 64,
+     "max": 72,
+     "content_p50": 330,
+     "content_max": 451
+    },
+    "activity": {
+     "p50": 56,
+     "p75": 64,
+     "max": 88,
+     "content_p50": 280,
+     "content_max": 520
+    },
+    "profile": {
+     "p50": 56,
+     "p75": 64,
+     "max": 72,
+     "content_p50": 475,
+     "content_max": 1200
+    }
+   }
+  },
+  "package_a_mobile_headless": {
+   "mobile": {
+    "documents": {
+     "p50": 240,
+     "p75": 248,
+     "max": 256,
+     "content_p50": 388,
+     "content_max": 473
+    },
+    "appointments": {
+     "p50": 232,
+     "p75": 240,
+     "max": 384,
+     "content_p50": 269,
+     "content_max": 328
+    },
+    "work": {
+     "p50": 232,
+     "p75": 232,
+     "max": 616,
+     "content_p50": 332,
+     "content_max": 709
+    },
+    "activity": {
+     "p50": 232,
+     "p75": 408,
+     "max": 480,
+     "content_p50": 370,
+     "content_max": 610
+    },
+    "profile": {
+     "p50": 240,
+     "p75": 424,
+     "max": 480,
+     "content_p50": 483,
+     "content_max": 568
+    }
+   }
+  }
+ }
+}
