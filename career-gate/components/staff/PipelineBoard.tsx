@@ -299,7 +299,7 @@ export function PipelineBoard({ data, staff, canAssign }: { data: PipelineBoardD
       <div className="flex items-center justify-end"><label className="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-300/20 bg-white/[.04] px-3 py-2 text-sm text-slate-200"><input type="checkbox" checked={voiceEnabled} onChange={e => setVoiceEnabled(e.target.checked)} /> Arabic voice confirmations</label></div>
 
       {view === "pipeline" ? (
-        <div className="ops-kanban" data-testid="pipeline-board">
+        <div className="ops-kanban" data-testid="pipeline-board" tabIndex={0} role="region" aria-label="Pipeline columns">
           {data.stages.map((stage) => {
             const column = columns[stage.key] ?? { cards: [], total: 0 };
             return (

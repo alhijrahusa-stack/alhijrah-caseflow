@@ -144,7 +144,7 @@ export function DistributionPanel({
           </button>
         </div>
 
-        <div className="ops-distribution-table-wrap">
+        <div className="ops-distribution-table-wrap" tabIndex={0} role="region" aria-label="Clients to distribute">
           <table className="ops-table">
             <thead>
               <tr><th><input type="checkbox" aria-label="Select visible clients" checked={filtered.length > 0 && filtered.every((c) => selected.has(c.id))} onChange={(e) => {

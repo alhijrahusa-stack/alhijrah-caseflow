@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
-import { db, signIn } from "./helpers";
+import { db, intakeBody, RUN, signIn, submitIntake } from "./helpers";
 
 /**
  * WCAG 2.1 A/AA scan (axe-core) of every staff route and of the Client 360
@@ -44,11 +44,12 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1920, height: 1080
       expect(found).toEqual([]);
     });
 
-    test("Client 360 tabs and the command palette have no serious or critical WCAG findings", async ({ page, context, baseURL }) => {
+    test("Client 360 tabs and the command palette have no serious or critical WCAG findings", async ({ page, context, request, baseURL }) => {
       test.setTimeout(120_000);
+      const intake = await submitIntake(request, intakeBody(`TEST Accessibility ${viewport.width} ${RUN}`));
+      expect(intake.res.status(), JSON.stringify(intake.json)).toBe(201);
+      const [client] = await db()`select id from clients where ref = ${intake.json.ref}`;
       await signIn(context, baseURL!, "admin");
-      const [client] = await db()`select id from clients where deleted_at is null order by created_at limit 1`;
-      expect(client, "the e2e seed has a client").toBeTruthy();
       await page.goto(`/staff/client/${client.id}`, { waitUntil: "networkidle" });
       const found: string[] = [];
       for (const tab of ["Documents", "Appointments", "Notes", "Activity", "Profile"]) {
