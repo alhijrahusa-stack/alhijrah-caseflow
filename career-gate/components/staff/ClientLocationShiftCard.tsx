@@ -1,10 +1,10 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 import { AMAZON_LOCATIONS, SHIFT_TYPES, DAY_PATTERNS, SHIFT_DEFAULT_DAYS, SHIFT_DEFAULT_HOURS } from "@/lib/location-shift-options";
 
 export function ClientLocationShiftCard({clients}:{clients:{id:string;full_name:string;ref:string}[]}){
- const router=useRouter();
+ const onMutated=useTargetedMutation();
  const [client,setClient]=useState("");
  const [location,setLocation]=useState("");
  const [shift,setShift]=useState("");
@@ -23,7 +23,7 @@ export function ClientLocationShiftCard({clients}:{clients:{id:string;full_name:
    const result=await res.json();
    if(!res.ok||!result?.ok)throw new Error(result?.error?.message??"Could not save selection");
    setMessage("Saved. The existing client file is now grouped under the selected location and shift.");
-   router.refresh();
+   onMutated("add_preference",client);
   }catch(e){setMessage(e instanceof Error?e.message:"Save failed");}finally{setBusy(false);}
  }
  return <section className="cg-ambient-card relative overflow-hidden rounded-3xl border border-orange-300/30 bg-gradient-to-br from-[#080c13]/95 via-[#13161d]/95 to-[#27190b]/90 p-6 text-white shadow-[0_20px_70px_rgba(0,0,0,.32)] backdrop-blur-2xl transition-shadow duration-300 hover:shadow-[0_25px_72px_rgba(245,158,11,.15)]" aria-label="Smart location and shift assignment" onPointerMove={e=>{if(e.pointerType==="mouse"){const rect=e.currentTarget.getBoundingClientRect();e.currentTarget.style.setProperty("--cg-pointer-x",`${e.clientX-rect.left}px`);e.currentTarget.style.setProperty("--cg-pointer-y",`${e.clientY-rect.top}px`);}}}>

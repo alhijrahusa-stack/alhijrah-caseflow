@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { LocationShiftTelemetry } from "@/components/staff/LocationShiftTelemetry";
-import { useEffect, useMemo, useState } from "react";
-import type { DispatchPeriod, OperationsClient, PipelineStage } from "@/lib/operations";
+import { useMemo, useState } from "react";
+import type { DispatchPeriod, PipelineClient, PipelineStage } from "@/lib/operations";
 import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 
 function legacyShiftPeriod(hours: string | null): DispatchPeriod {
@@ -23,13 +23,27 @@ function legacyShiftPeriod(hours: string | null): DispatchPeriod {
   return "needs_manual_review";
 }
 
-function normalizedPeriod(client: OperationsClient): DispatchPeriod {
+function normalizedPeriod(client: PipelineClient): DispatchPeriod {
   if(client.shift_code==="night") return "night";
   if(client.shift_code==="morning") return "morning";
   const value = client.shift_period;
   if (value === "morning" || value === "evening" || value === "night" || value === "needs_manual_review") return value;
   if (value === "unspecified") return "needs_manual_review";
   return legacyShiftPeriod(client.shift_hours);
+}
+
+/** Cards mounted per column or lane before the user asks for more; counts always cover every client. */
+const COLUMN_BATCH = 30;
+const LANE_BATCH = 24;
+
+function ShowMore({ hidden, step, onMore, testId }: { hidden: number; step: number; onMore: () => void; testId: string }) {
+  if (hidden <= 0) return null;
+  return (
+    <button type="button" onClick={onMore} data-testid={testId}
+      className="w-full rounded-xl border border-amber-300/30 bg-amber-300/[.06] px-3 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/10">
+      Show {Math.min(step, hidden)} more · {hidden} hidden
+    </button>
+  );
 }
 
 async function operation(body: Record<string, unknown>) {
@@ -44,9 +58,9 @@ async function operation(body: Record<string, unknown>) {
 }
 
 function ClientCard({ client, stages, onMove, busy }: {
-  client: OperationsClient;
+  client: PipelineClient;
   stages: PipelineStage[];
-  onMove: (client: OperationsClient, stage: string) => void;
+  onMove: (client: PipelineClient, stage: string) => void;
   busy: boolean;
 }) {
   return (
@@ -92,14 +106,14 @@ type LocationGroup = {
   siteCode: string;
   siteName: string;
   siteAddress: string | null;
-  morning: OperationsClient[];
-  evening: OperationsClient[];
-  night: OperationsClient[];
-  needs_manual_review: OperationsClient[];
+  morning: PipelineClient[];
+  evening: PipelineClient[];
+  night: PipelineClient[];
+  needs_manual_review: PipelineClient[];
 };
 
 type StaffOption={id:string;display_name:string};
-function DispatchClient({client,staff,canAssign,onAssign,busy,pulsing}:{client:OperationsClient;staff:StaffOption[];canAssign:boolean;onAssign:(client:OperationsClient,staffId:string|null)=>void;busy:boolean;pulsing:boolean}){
+function DispatchClient({client,staff,canAssign,onAssign,busy,pulsing}:{client:PipelineClient;staff:StaffOption[];canAssign:boolean;onAssign:(client:PipelineClient,staffId:string|null)=>void;busy:boolean;pulsing:boolean}){
  return <article className={`ops-dispatch-client min-w-0 !p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(242,142,34,.12)] ${pulsing?"cg-assignment-pulse":""}`}>
    <div className="ops-dispatch-client-head">
      <div className="min-w-0"><Link href={`/staff/client/${client.id}`} className="block truncate text-base font-bold text-white hover:text-orange-300">{client.full_name}</Link>
@@ -124,10 +138,11 @@ function DispatchClient({client,staff,canAssign,onAssign,busy,pulsing}:{client:O
 function DispatchLane({ title, subtitle, clients, tone, staff, canAssign, onAssign, busyId, lastAssignedId }: {
   title: string;
   subtitle: string;
-  clients: OperationsClient[];
+  clients: PipelineClient[];
   tone: "morning" | "evening" | "night" | "needs_manual_review";
-  staff: StaffOption[]; canAssign:boolean; onAssign:(client:OperationsClient,staffId:string|null)=>void; busyId:string|null; lastAssignedId:string|null;
+  staff: StaffOption[]; canAssign:boolean; onAssign:(client:PipelineClient,staffId:string|null)=>void; busyId:string|null; lastAssignedId:string|null;
 }) {
+  const [limit, setLimit] = useState(LANE_BATCH);
   return (
     <section className="ops-dispatch-lane" data-tone={tone}>
       <header>
@@ -135,28 +150,32 @@ function DispatchLane({ title, subtitle, clients, tone, staff, canAssign, onAssi
         <b>{clients.length}</b>
       </header>
       <div className="ops-dispatch-list">
-        {clients.map((client) => <DispatchClient key={client.id} client={client} staff={staff} canAssign={canAssign} onAssign={onAssign} busy={busyId===client.id} pulsing={lastAssignedId===client.id}/>)}
+        {clients.slice(0, limit).map((client) => <DispatchClient key={client.id} client={client} staff={staff} canAssign={canAssign} onAssign={onAssign} busy={busyId===client.id} pulsing={lastAssignedId===client.id}/>)}
+        <ShowMore hidden={clients.length - limit} step={LANE_BATCH} onMore={() => setLimit((n) => n + LANE_BATCH)} testId="lane-show-more" />
         {!clients.length && <div className="ops-dispatch-empty">No clients in this lane.</div>}
       </div>
     </section>
   );
 }
 
-export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: PipelineStage[]; clients: OperationsClient[]; staff:StaffOption[]; canAssign:boolean }) {
+export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: PipelineStage[]; clients: PipelineClient[]; staff:StaffOption[]; canAssign:boolean }) {
   const onMutated = useTargetedMutation();
   const [rows, setRows] = useState(clients);
+  const [seen, setSeen] = useState(clients);
+  const [limits, setLimits] = useState<Record<string, number>>({});
+  if (seen !== clients) {
+    // A server render supersedes every optimistic row.
+    setSeen(clients);
+    setRows(clients);
+  }
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"pipeline" | "location">("pipeline");
   const [voiceEnabled,setVoiceEnabled]=useState(false);
   const [lastAssignedId,setLastAssignedId]=useState<string|null>(null);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setRows(clients), 0);
-    return () => window.clearTimeout(timer);
-  }, [clients]);
 
-  async function move(client: OperationsClient, nextStage: string) {
+  async function move(client: PipelineClient, nextStage: string) {
     if (nextStage === client.pipeline_stage) return;
     const previous = client.pipeline_stage;
     setBusyId(client.id);
@@ -173,7 +192,7 @@ export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: P
     }
   }
 
-  async function assign(client:OperationsClient,staffId:string|null){
+  async function assign(client:PipelineClient,staffId:string|null){
     if(client.assigned_staff===staffId)return;
     setBusyId(client.id);setError(null);
     const oldId=client.assigned_staff,oldName=client.assigned_name;
@@ -193,6 +212,16 @@ export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: P
       setError(e instanceof Error?e.message:"Assignment failed");
     }finally{setBusyId(null);}
   }
+
+  const byStage = useMemo(() => {
+    const map = new Map<string, PipelineClient[]>();
+    for (const client of rows) {
+      const list = map.get(client.pipeline_stage);
+      if (list) list.push(client);
+      else map.set(client.pipeline_stage, [client]);
+    }
+    return map;
+  }, [rows]);
 
   const locations = useMemo<LocationGroup[]>(() => {
     const map = new Map<string, LocationGroup>();
@@ -235,7 +264,8 @@ export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: P
       {view === "pipeline" ? (
         <div className="ops-kanban" data-testid="pipeline-board">
           {stages.map((stage) => {
-            const group = rows.filter((c) => c.pipeline_stage === stage.key);
+            const group = byStage.get(stage.key) ?? [];
+            const limit = limits[stage.key] ?? COLUMN_BATCH;
             return (
               <section
                 key={stage.key}
@@ -254,7 +284,8 @@ export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: P
                   <b>{group.length}</b>
                 </div>
                 <div className="ops-column-list">
-                  {group.map((client) => <ClientCard key={client.id} client={client} stages={stages} onMove={move} busy={busyId === client.id} />)}
+                  {group.slice(0, limit).map((client) => <ClientCard key={client.id} client={client} stages={stages} onMove={move} busy={busyId === client.id} />)}
+                  <ShowMore hidden={group.length - limit} step={COLUMN_BATCH} onMore={() => setLimits((current) => ({ ...current, [stage.key]: limit + COLUMN_BATCH }))} testId="column-show-more" />
                   {!group.length && <div className="ops-empty">Drop client here</div>}
                 </div>
               </section>

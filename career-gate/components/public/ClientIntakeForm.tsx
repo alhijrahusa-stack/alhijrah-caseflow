@@ -1,11 +1,11 @@
 "use client";
 
+import { DuplicateNotice } from "@/components/public/DuplicateNotice";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClientIntakeBrand, ClientIntakeShell, GlassCard } from "@/components/public/ClientIntakeShell";
 import {
   CASE_STATUS_PATH,
   INTAKE_COPY,
-  OFFICE_WHATSAPP_DISPLAY,
   OFFICE_WHATSAPP_URL,
   type IntakeLocale,
 } from "@/components/public/intake-copy";
@@ -781,21 +781,7 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
             <p className="mx-auto mt-1.5 max-w-[48ch] text-[13.5px] leading-relaxed text-slate-700">{t.sharedEmailBody}</p>
           </div>
         )}
-        {duplicateIdentity && (
-          <div className="mt-3 rounded-2xl border border-[#b87975]/45 bg-[#fff3f1] px-4 py-4 text-center shadow-[0_14px_34px_-26px_rgba(158,91,83,.28)]" role="alert" data-testid="intake-duplicate-alert">
-            <p className="text-[16px] font-semibold text-[#0a2d63]">{t.duplicateHeading}</p>
-            <p className="mx-auto mt-1.5 max-w-[46ch] text-[13.5px] leading-relaxed text-slate-700">{t.duplicateBody}</p>
-            <a
-              href={OFFICE_WHATSAPP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mx-auto mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-white px-4 text-[14px] font-semibold text-emerald-800 shadow-[0_10px_24px_-18px_rgba(16,122,87,.55)]"
-            >
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 11.7a7.9 7.9 0 0 1-11.6 7l-4 1.2 1.2-3.9A7.9 7.9 0 1 1 20 11.7Z" /></svg>
-              <span>{t.whatsappOffice} · {OFFICE_WHATSAPP_DISPLAY}</span>
-            </a>
-          </div>
-        )}
+        {duplicateIdentity && <DuplicateNotice heading={t.duplicateHeading} body={t.duplicateBody} whatsappLabel={t.whatsappOffice} />}
         {error && !duplicateIdentity && (
           <p className="mt-3 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-center text-[14px] text-red-800" role="alert" data-testid="intake-error">
             {error}

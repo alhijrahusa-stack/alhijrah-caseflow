@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { FinancialActionForm, type FinancialAction, operationFor } from "@/components/staff/accounting/FinancialActions";
 import { formatMoney, formatPercent } from "@/components/staff/accounting/money";
 import { TransactionHistory } from "@/components/staff/accounting/TransactionHistory";
 import { postAccounting, useFinancialMutation } from "@/components/staff/accounting/useFinancialMutation";
 import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
-import type { AccountingRow, OperationsStaff } from "@/lib/operations";
+import type { AccountingFilters, AccountingPage, AccountingRow, OperationsStaff } from "@/lib/operations";
 
 /**
  * Accounts & Commissions.
@@ -244,59 +245,75 @@ function AccountRow({ row, onDone }: { row: AccountingRow; onDone: (operation: s
   );
 }
 
-export function AccountingBoard({ rows, staff, initialClient = null }: { rows: AccountingRow[]; staff: OperationsStaff[]; initialClient?: string | null }) {
+function accountingHref(filters: AccountingFilters, patch: Partial<AccountingFilters>) {
+  const next = { ...filters, page: 1, ...patch };
+  const params = new URLSearchParams();
+  if (next.clientId) params.set("client", next.clientId);
+  if (next.status !== "all") params.set("status", next.status);
+  if (next.staffId) params.set("staff", next.staffId);
+  if (next.q) params.set("q", next.q);
+  if (next.page > 1) params.set("page", String(next.page));
+  const query = params.toString();
+  return query ? `/staff/accounting?${query}` : "/staff/accounting";
+}
+
+export function AccountingBoard({ data, filters, staff }: { data: AccountingPage; filters: AccountingFilters; staff: OperationsStaff[] }) {
   const onMutated = useTargetedMutation();
-  const [status, setStatus] = useState("all");
-  const [staffId, setStaffId] = useState("all");
-  const [q, setQ] = useState("");
-  // Opening Accounting from a client file lands on that client's account.
-  const [clientFocus, setClientFocus] = useState(initialClient);
+  const router = useRouter();
+  const [navigating, startNavigation] = useTransition();
+  const [q, setQ] = useState(filters.q);
+  const searchTimer = useRef<number | null>(null);
 
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    return rows.filter((row) => {
-      if (clientFocus && row.client_id !== clientFocus) return false;
-      if (status !== "all" && row.payment_status !== status) return false;
-      if (staffId !== "all" && row.assigned_staff !== staffId && row.commission_staff_id !== staffId && row.application_completed_by !== staffId) return false;
-      if (!term) return true;
-      return [row.full_name, row.ref, row.phone, row.email ?? "", row.site_code ?? "", row.site_name ?? ""]
-        .some((value) => value.toLowerCase().includes(term));
-    });
-  }, [rows, status, staffId, q, clientFocus]);
+  useEffect(() => () => { if (searchTimer.current) window.clearTimeout(searchTimer.current); }, []);
 
-  const totals = useMemo(() => ({
-    outstanding: filtered.reduce((n, r) => n + Math.max(0, r.balance), 0),
-    paid: filtered.reduce((n, r) => n + r.amount_paid, 0),
-    refunded: filtered.reduce((n, r) => n + r.refund_amount, 0),
-    commissions: filtered.filter((r) => r.commission_status && !["cancelled", "reversed"].includes(r.commission_status)).reduce((n, r) => n + r.commission_amount, 0),
-  }), [filtered]);
+  const go = useCallback((patch: Partial<AccountingFilters>) => {
+    startNavigation(() => { router.replace(accountingHref(filters, patch), { scroll: false }); });
+  }, [filters, router]);
+
+  function onSearch(value: string) {
+    setQ(value);
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    searchTimer.current = window.setTimeout(() => go({ q: value.trim().slice(0, 120) }), 250);
+  }
+
+  const { rows, totals, page, pageCount } = data;
+  const activeStaff = useMemo(() => staff.filter((s) => s.active), [staff]);
 
   return (
     <div className="ops-page">
       <header className="ops-hero"><div><p className="ops-kicker">CAREER GATE · ACCOUNTS</p><h1>Accounts &amp; Commissions</h1><p>Immutable transaction ledger, derived balances, and auditable commissions.</p></div></header>
       <div className="ops-metric-grid">
-        <div className="ops-metric"><span>Outstanding</span><strong>{money(totals.outstanding)}</strong></div>
-        <div className="ops-metric"><span>Payments</span><strong>{money(totals.paid)}</strong></div>
-        <div className="ops-metric"><span>Refunds</span><strong>{money(totals.refunded)}</strong></div>
-        <div className="ops-metric"><span>Commissions</span><strong>{money(totals.commissions)}</strong></div>
+        <div className="ops-metric"><span>Outstanding</span><strong data-testid="total-outstanding">{money(totals.outstanding)}</strong></div>
+        <div className="ops-metric"><span>Payments</span><strong data-testid="total-paid">{money(totals.paid)}</strong></div>
+        <div className="ops-metric"><span>Refunds</span><strong data-testid="total-refunded">{money(totals.refunded)}</strong></div>
+        <div className="ops-metric"><span>Commissions</span><strong data-testid="total-commissions">{money(totals.commissions)}</strong></div>
       </div>
 
-      <section className="ops-glass-card">
+      <section className="ops-glass-card" aria-busy={navigating}>
         <div className="ops-toolbar">
-          <input className="ops-input ops-search-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, phone, email, file or site" />
-          <select className="ops-select" value={status} onChange={(e) => setStatus(e.target.value)}><option value="all">All accounts</option><option value="unpaid">Unpaid</option><option value="partially_paid">Partially paid</option><option value="paid">Paid</option><option value="refunded">Refunded</option></select>
-          <select className="ops-select" value={staffId} onChange={(e) => setStaffId(e.target.value)}><option value="all">All staff</option>{staff.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</option>)}</select>
-          {clientFocus && (
-            <button type="button" className="ops-secondary-button" data-testid="clear-client-focus" onClick={() => setClientFocus(null)}>
+          <input className="ops-input ops-search-input" value={q} onChange={(e) => onSearch(e.target.value)} placeholder="Search name, phone, email, file or site" data-testid="accounting-search" />
+          <select className="ops-select" value={filters.status} onChange={(e) => go({ status: e.target.value as AccountingFilters["status"] })} data-testid="accounting-status"><option value="all">All accounts</option><option value="unpaid">Unpaid</option><option value="partially_paid">Partially paid</option><option value="paid">Paid</option><option value="refunded">Refunded</option></select>
+          <select className="ops-select" value={filters.staffId ?? "all"} onChange={(e) => go({ staffId: e.target.value === "all" ? null : e.target.value })} data-testid="accounting-staff"><option value="all">All staff</option>{activeStaff.map((s) => <option key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</option>)}</select>
+          {filters.clientId && (
+            <button type="button" className="ops-secondary-button" data-testid="clear-client-focus" onClick={() => go({ clientId: null })}>
               Showing one client · show all
             </button>
           )}
+          <span className="ops-note" data-testid="accounting-count">{totals.count} account{totals.count === 1 ? "" : "s"}</span>
         </div>
 
-        <div className="ops-account-list">
-          {filtered.map((row) => <AccountRow key={row.account_id} row={row} onDone={(operation) => onMutated(operation, row.client_id)} />)}
-          {!filtered.length && <div className="ops-empty-large">No accounts match this filter.</div>}
+        <div className={`ops-account-list transition-opacity duration-200 ${navigating ? "opacity-60" : "opacity-100"}`}>
+          {rows.map((row) => <AccountRow key={row.account_id} row={row} onDone={(operation) => onMutated(operation, row.client_id)} />)}
+          {!rows.length && <div className="ops-empty-large">No accounts match this filter.</div>}
         </div>
+
+        {pageCount > 1 && (
+          <nav aria-label="Account pages" className="mt-4 flex items-center justify-between gap-3" data-testid="accounting-pager">
+            <button type="button" className="ops-secondary-button" disabled={page <= 1 || navigating} onClick={() => go({ page: page - 1 })}>Previous</button>
+            <span className="ops-note">Page {page} of {pageCount}</span>
+            <button type="button" className="ops-primary-button" disabled={page >= pageCount || navigating} onClick={() => go({ page: page + 1 })}>Next</button>
+          </nav>
+        )}
       </section>
     </div>
   );

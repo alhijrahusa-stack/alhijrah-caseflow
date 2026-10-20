@@ -114,17 +114,25 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
           select id,assigned_staff from clients
           where deleted_at is null and current_status not in ('completed','cancelled')
         ),
-        latest_docs as (
-          select distinct on (d.client_id,d.doc_type) d.client_id,d.doc_type,d.status
+        -- The latest document of each (client, type) that is in a blocking state.
+        -- Candidates are narrowed by status first so the RLS predicate runs on
+        -- them alone, not on every document of every active client.
+        attention_docs as (
+          select d.client_id
           from documents d join active a on a.id=d.client_id
-          order by d.client_id,d.doc_type,d.uploaded_at desc,d.id desc
+          where d.status=any(${BLOCKING_DOCUMENT_STATES})
+            and not exists (
+              select 1 from documents n
+              where n.client_id=d.client_id and n.doc_type=d.doc_type
+                and (n.uploaded_at,n.id)>(d.uploaded_at,d.id)
+            )
         ),
         health as (
           select a.id,
             (a.assigned_staff is not null
              and not exists (select 1 from tasks t where t.client_id=a.id and t.status=any(${OPEN_TASKS}) and t.due_at is not null and t.due_at<now())
              and not exists (select 1 from followups f where f.client_id=a.id and f.status='open' and f.due_date<(now() at time zone ${TZ})::date)
-             and not exists (select 1 from latest_docs d where d.client_id=a.id and d.status=any(${BLOCKING_DOCUMENT_STATES}))) as healthy
+             and not exists (select 1 from attention_docs d where d.client_id=a.id)) as healthy
           from active a
         ),
         readiness_rollup as (
@@ -141,7 +149,7 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
           (select count(*)::int from tasks t join active c on c.id=t.client_id where t.status=any(${OPEN_TASKS}) and t.due_at is not null and (t.due_at at time zone ${TZ})::date=(now() at time zone ${TZ})::date) as tasks_due,
           (select count(*)::int from tasks t join active c on c.id=t.client_id where t.status=any(${OPEN_TASKS}) and t.due_at is not null and t.due_at<now()) as overdue_tasks,
           (select count(*)::int from followups f join active c on c.id=f.client_id where f.status='open' and f.due_date<(now() at time zone ${TZ})::date) as overdue_followups,
-          (select count(distinct d.client_id)::int from latest_docs d where d.status=any(${BLOCKING_DOCUMENT_STATES})) as document_attention,
+          (select count(distinct d.client_id)::int from attention_docs d) as document_attention,
           (select count(*)::int from active where assigned_staff is null) as unassigned_clients,
           (select count(distinct l.client_id)::int from activity_log l where l.action in ('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now())) as completed_this_month,
           (select count(*)::int from health) as active_count,

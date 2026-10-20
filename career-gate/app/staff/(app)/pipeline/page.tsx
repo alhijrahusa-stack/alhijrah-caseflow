@@ -10,8 +10,10 @@ export const dynamic = "force-dynamic";
 export default async function PipelinePage(){
   const session=await getStaffSession();
   if(!session)redirect("/staff/login");
-  const data=await activePipelineData(session);
-  const staff=await withStaff(session,tx=>tx`select id,display_name from staff where active order by display_name`);
+  const [data,staff]=await Promise.all([
+    activePipelineData(session),
+    withStaff(session,tx=>tx`select id,display_name from staff where active order by display_name`),
+  ]);
   const canAssign=session.staff.role!=="staff";
   return <div className="space-y-4">
     {data.exceptions.length>0&&<section className="ops-glass-card border border-amber-400/20">

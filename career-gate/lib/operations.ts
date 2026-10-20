@@ -2,7 +2,7 @@ import "server-only";
 import { LEDGER_JSON, normalizeLedger, type PaymentTransactionRow } from "@/lib/accounting-ledger-read";
 
 export type { PaymentTransactionRow } from "@/lib/accounting-ledger-read";
-import { BALANCE_NET_FEE, DISCOUNT_AMOUNT, JSON_FIELD } from "@/lib/accounting-schema";
+import { BALANCE_NET_FEE, CLIENT_FIELD, DISCOUNT_AMOUNT, JSON_FIELD } from "@/lib/accounting-schema";
 import { withStaff, type StaffSession } from "@/lib/auth";
 
 export type PipelineStage = {
@@ -46,6 +46,11 @@ export type OperationsClient = {
   fee_amount: number | null;
 };
 
+/** The fields the pipeline board and the location dispatcher render, and nothing else. */
+export type PipelineClient = Pick<OperationsClient,
+  "id" | "ref" | "full_name" | "pipeline_stage" | "current_status" | "next_step" | "assigned_staff" | "assigned_name" |
+  "site_code" | "site_name" | "site_address" | "shift_code" | "shift_name" | "shift_days" | "shift_hours" | "shift_period" |
+  "auto_dispatched_at" | "payment_status" | "fee_amount">;
 
 export type AccountingRow = {
   account_id: string;
@@ -99,91 +104,208 @@ function normalizeRows<T>(rows: unknown) {
   return rows as T[];
 }
 
-export async function pipelineData(session: StaffSession) {
+export const ACCOUNTING_PAGE_SIZE = 25;
+export const ACCOUNTING_STATUSES = ["unpaid", "partially_paid", "paid", "refunded"] as const;
+
+export type AccountingFilters = {
+  status: LedgerPaymentStatus | "all";
+  staffId: string | null;
+  q: string;
+  clientId: string | null;
+  page: number;
+};
+
+export type AccountingTotals = {
+  count: number;
+  outstanding: number;
+  paid: number;
+  refunded: number;
+  commissions: number;
+};
+
+export type AccountingPage = {
+  rows: AccountingRow[];
+  totals: AccountingTotals;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/** Turns untrusted search params into a closed filter set. Anything unknown falls back to "all". */
+export function parseAccountingFilters(params: Record<string, string | string[] | undefined>): AccountingFilters {
+  const status = first(params.status);
+  const staff = first(params.staff);
+  const client = first(params.client);
+  const rawPage = Number(first(params.page) ?? "1");
+  return {
+    status: (ACCOUNTING_STATUSES as readonly string[]).includes(status ?? "") ? (status as LedgerPaymentStatus) : "all",
+    staffId: staff && UUID_RE.test(staff) ? staff : null,
+    q: (first(params.q) ?? "").trim().slice(0, 120),
+    clientId: client && UUID_RE.test(client) ? client : null,
+    page: Number.isSafeInteger(rawPage) && rawPage > 0 ? Math.min(rawPage, 10000) : 1,
+  };
+}
+
+function likePattern(term: string) {
+  return `%${term.toLowerCase().replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+}
+
+/**
+ * One page of accounts plus totals over the whole filtered set, in one statement.
+ * Filtering, ordering and paging happen in Postgres so the browser receives
+ * only the rows it renders; the ledger is built for those rows alone.
+ */
+export async function accountingData(session: StaffSession, filters: AccountingFilters): Promise<AccountingPage> {
   return withStaff(session, async (tx) => {
-    const [stages, clients] = await Promise.all([
-      tx`select key,position,label_en,label_ar,color,terminal from pipeline_stages order by position`,
-      tx`
-        select c.id,c.ref,c.full_name,c.phone,c.email,c.pipeline_stage,c.current_status,c.next_step,
-               c.assigned_staff,c.created_at,c.updated_at,
-               s.display_name assigned_name,s.staff_code,
-               p.site_code,p.site_name,p.site_address,p.shift_code,p.shift_name,p.days shift_days,p.hours shift_hours,
-               p.shift_period,p.auto_dispatched_at,p.pay_snapshot,
-               b.payment_status,b.fee_amount
-        from clients c
-        left join staff s on s.id=c.assigned_staff
-        left join lateral (
-          select site_code,site_name,site_address,shift_code,shift_name,days,hours,shift_period,auto_dispatched_at,pay_snapshot
-          from client_preferences p
-          where p.client_id=c.id
-          order by case p.rank when 'primary' then 0 else 1 end,p.preference_order
-          limit 1
-        ) p on true
-        left join client_account_balances b on b.client_id=c.id
+    const term = filters.q ? likePattern(filters.q) : null;
+    const offset = (filters.page - 1) * ACCOUNTING_PAGE_SIZE;
+    const rows = await tx`
+      with base as (
+        select a.id account_id,a.client_id,c.ref,c.full_name,c.phone,c.email,c.created_at,
+               b.fee_amount,b.amount_paid,b.refund_amount,b.net_credits,b.balance,b.payment_status,
+               ${filters.staffId ? tx`(${tx.unsafe(CLIENT_FIELD("c", "application_completed_by"))})` : tx`null::text`} application_completed_by,
+               a.assigned_staff,
+               cm.id commission_id,cm.employee_id commission_staff_id,
+               coalesce(cm.amount,0) commission_amount,cm.status commission_status,a.updated_at,
+               case b.payment_status when 'unpaid' then 0 when 'partially_paid' then 1 when 'paid' then 2 else 3 end status_rank
+        from client_accounts a
+        join client_account_balances b on b.account_id=a.id
+        join clients c on c.id=a.client_id
+        left join commissions cm on cm.account_id=a.id and cm.trigger_event='account_paid'
         where c.deleted_at is null
-        order by c.updated_at desc
-        limit 1000`,
-    ]);
+          ${filters.clientId ? tx`and a.client_id=${filters.clientId}` : tx``}
+      ),
+      filtered as materialized (
+        select * from base
+        where true
+          ${filters.status !== "all" ? tx`and payment_status=${filters.status}` : tx``}
+          ${filters.staffId ? tx`and (assigned_staff=${filters.staffId} or commission_staff_id=${filters.staffId} or application_completed_by=${filters.staffId})` : tx``}
+          ${term ? tx`and (lower(full_name) like ${term} or lower(ref) like ${term} or lower(coalesce(phone,'')) like ${term}
+                       or lower(coalesce(email,'')) like ${term}
+                       or exists (
+                         select 1 from (
+                           select site_code,site_name from client_preferences p
+                           where p.client_id=base.client_id
+                           order by case p.rank when 'primary' then 0 else 1 end,p.preference_order
+                           limit 1
+                         ) primary_site
+                         where lower(coalesce(primary_site.site_code,'')) like ${term} or lower(coalesce(primary_site.site_name,'')) like ${term}))` : tx``}
+      ),
+      totals as (
+        select count(*)::int total_count,
+               coalesce(sum(greatest(balance,0)),0) total_outstanding,
+               coalesce(sum(amount_paid),0) total_paid,
+               coalesce(sum(refund_amount),0) total_refunded,
+               coalesce(sum(commission_amount) filter (where commission_status is not null and commission_status not in ('cancelled','reversed')),0) total_commissions
+        from filtered
+      ),
+      page as (
+        select * from filtered
+        order by status_rank,updated_at desc,account_id
+        limit ${ACCOUNTING_PAGE_SIZE} offset ${offset}
+      )
+      select page.account_id,page.client_id,page.ref,page.full_name,page.phone,page.email,page.created_at,
+             page.fee_amount,page.amount_paid,page.refund_amount,page.net_credits,page.balance,page.payment_status,
+             page.assigned_staff,page.commission_id,page.commission_staff_id,page.commission_amount,page.commission_status,
+             page.updated_at,page.status_rank,
+             ${tx.unsafe(DISCOUNT_AMOUNT("pb"))} discount_amount,${tx.unsafe(BALANCE_NET_FEE("pb"))} net_fee,
+             ${tx.unsafe(`to_jsonb(pa)->>'discount_reason'`)} discount_reason,
+             ${tx.unsafe(`to_jsonb(pa)->>'discount_input_type'`)} discount_input_type,
+             ${tx.unsafe(`(to_jsonb(pa)->>'discount_input_value')::numeric`)} discount_input_value,
+             ${tx.unsafe(JSON_FIELD("cj.j", "application_status"))} application_status,
+             ${tx.unsafe(JSON_FIELD("cj.j", "application_completed_by"))} application_completed_by,
+             p.site_code,p.site_name,
+             completer.display_name application_completed_name,
+             owner.display_name assigned_name,owner.staff_code,
+             cs.display_name commission_name,
+             coalesce(tr.transactions,'[]'::jsonb) transactions,totals.*
+      from totals
+      left join page on true
+      left join client_accounts pa on pa.id=page.account_id
+      left join client_account_balances pb on pb.account_id=page.account_id
+      left join clients pc on pc.id=page.client_id
+      -- Columns added by migration 033 are read off the serialized row, for the
+      -- page only, so a pre-033 schema still renders.
+      left join lateral (select to_jsonb(pc) j) cj on page.account_id is not null
+      left join staff owner on owner.id=page.assigned_staff
+      left join staff completer on completer.id=${tx.unsafe(JSON_FIELD("cj.j", "application_completed_by"))}::uuid
+      left join staff cs on cs.id=page.commission_staff_id
+      left join lateral (
+        select site_code,site_name from client_preferences p
+        where p.client_id=page.client_id
+        order by case p.rank when 'primary' then 0 else 1 end,p.preference_order
+        limit 1
+      ) p on page.account_id is not null
+      left join lateral (select page.account_id id) acct on page.account_id is not null
+      left join lateral (${tx.unsafe(LEDGER_JSON("acct"))}) tr on page.account_id is not null
+      order by page.status_rank,page.updated_at desc,page.account_id`;
+    const head = rows[0] as Record<string, unknown> | undefined;
+    const totals: AccountingTotals = {
+      count: Number(head?.total_count ?? 0),
+      outstanding: Number(head?.total_outstanding ?? 0),
+      paid: Number(head?.total_paid ?? 0),
+      refunded: Number(head?.total_refunded ?? 0),
+      commissions: Number(head?.total_commissions ?? 0),
+    };
+    const pageRows = normalizeRows<AccountingRow & Record<string, unknown>>(rows)
+      .filter((r) => r.account_id != null)
+      .map((r): AccountingRow => ({
+        account_id: r.account_id,
+        client_id: r.client_id,
+        ref: r.ref,
+        full_name: r.full_name,
+        phone: r.phone,
+        email: r.email,
+        created_at: r.created_at,
+        site_code: r.site_code,
+        site_name: r.site_name,
+        fee_amount: Number(r.fee_amount),
+        discount_amount: Number(r.discount_amount),
+        net_fee: Number(r.net_fee),
+        discount_reason: r.discount_reason,
+        discount_input_type: r.discount_input_type,
+        discount_input_value: r.discount_input_value == null ? null : Number(r.discount_input_value),
+        amount_paid: Number(r.amount_paid),
+        refund_amount: Number(r.refund_amount),
+        net_credits: Number(r.net_credits),
+        balance: Number(r.balance),
+        payment_status: r.payment_status,
+        application_status: r.application_status,
+        application_completed_by: r.application_completed_by,
+        application_completed_name: r.application_completed_name,
+        assigned_staff: r.assigned_staff,
+        assigned_name: r.assigned_name,
+        staff_code: r.staff_code,
+        commission_id: r.commission_id,
+        commission_staff_id: r.commission_staff_id,
+        commission_name: r.commission_name,
+        commission_amount: Number(r.commission_amount),
+        commission_status: r.commission_status,
+        transactions: normalizeLedger(r.transactions),
+        updated_at: r.updated_at,
+      }));
     return {
-      stages: normalizeRows<PipelineStage>(stages),
-      clients: normalizeRows<OperationsClient>(clients).map((c) => ({
-        ...c,
-        fee_amount: c.fee_amount == null ? null : Number(c.fee_amount),
-      })),
+      rows: pageRows,
+      totals,
+      page: filters.page,
+      pageSize: ACCOUNTING_PAGE_SIZE,
+      pageCount: Math.max(1, Math.ceil(totals.count / ACCOUNTING_PAGE_SIZE)),
     };
   });
 }
 
-export async function accountingData(session: StaffSession) {
+/** Active and inactive staff for filters and pickers, without the client list `distributionData` carries. */
+export async function staffDirectory(session: StaffSession) {
   return withStaff(session, async (tx) => {
-    const rows = await tx`
-      select a.id account_id,a.client_id,c.ref,c.full_name,c.phone,c.email,c.created_at,
-             p.site_code,p.site_name,
-             b.fee_amount,${tx.unsafe(DISCOUNT_AMOUNT("b"))} discount_amount,${tx.unsafe(BALANCE_NET_FEE("b"))} net_fee,
-             ${tx.unsafe(`to_jsonb(a)->>'discount_reason'`)} discount_reason,
-             ${tx.unsafe(`to_jsonb(a)->>'discount_input_type'`)} discount_input_type,
-             ${tx.unsafe(`(to_jsonb(a)->>'discount_input_value')::numeric`)} discount_input_value,
-             b.amount_paid,b.refund_amount,b.net_credits,b.balance,b.payment_status,
-             ${tx.unsafe(JSON_FIELD("cj.j", "application_status"))} application_status,
-             ${tx.unsafe(JSON_FIELD("cj.j", "application_completed_by"))} application_completed_by,
-             completer.display_name application_completed_name,
-             a.assigned_staff,owner.display_name assigned_name,owner.staff_code,
-             cm.id commission_id,cm.employee_id commission_staff_id,cs.display_name commission_name,
-             coalesce(cm.amount,0) commission_amount,cm.status commission_status,
-             coalesce(tr.transactions,'[]'::jsonb) transactions,a.updated_at
-      from client_accounts a
-      join client_account_balances b on b.account_id=a.id
-      join clients c on c.id=a.client_id
-      left join staff owner on owner.id=a.assigned_staff
-      -- The row is serialized once per client rather than once per reference;
-      -- this join disappears with the pre-033 fallback it exists for.
-      join lateral (select to_jsonb(c) j) cj on true
-      left join staff completer on completer.id=${tx.unsafe(JSON_FIELD("cj.j", "application_completed_by"))}::uuid
-      left join commissions cm on cm.account_id=a.id and cm.trigger_event='account_paid'
-      left join staff cs on cs.id=cm.employee_id
-      left join lateral (
-        select site_code,site_name from client_preferences p
-        where p.client_id=c.id
-        order by case p.rank when 'primary' then 0 else 1 end,p.preference_order
-        limit 1
-      ) p on true
-      left join lateral (${tx.unsafe(LEDGER_JSON("a"))}) tr on true
-      where c.deleted_at is null
-      order by case b.payment_status when 'unpaid' then 0 when 'partially_paid' then 1 when 'paid' then 2 else 3 end,a.updated_at desc
-      limit 1000`;
-    return normalizeRows<AccountingRow>(rows).map((r) => ({
-      ...r,
-      fee_amount: Number(r.fee_amount),
-      discount_amount: Number(r.discount_amount),
-      discount_input_value: r.discount_input_value == null ? null : Number(r.discount_input_value),
-      net_fee: Number(r.net_fee),
-      amount_paid: Number(r.amount_paid),
-      refund_amount: Number(r.refund_amount),
-      net_credits: Number(r.net_credits),
-      balance: Number(r.balance),
-      commission_amount: Number(r.commission_amount),
-      transactions: normalizeLedger(r.transactions),
-    }));
+    const staff = await tx`select id,display_name,email,role,active,staff_code,commission_type,commission_value,eligible_for_round_robin
+       from staff order by active desc,staff_code nulls last,display_name`;
+    return normalizeRows<OperationsStaff>(staff).map((s) => ({ ...s, commission_value: Number(s.commission_value) }));
   });
 }
 

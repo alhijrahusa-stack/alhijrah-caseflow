@@ -7,21 +7,37 @@ import { getStaffSession } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { staffDirectory, taskList } from "@/lib/queries";
 
-export default async function TasksPage({ searchParams }: { searchParams: Promise<{ view?: string; assignee?: string }> }) {
+const PAGE_SIZE = 50;
+
+function tasksHref(view: string, assignee: string | undefined, page: number) {
+  const params = new URLSearchParams();
+  if (view === "closed") params.set("view", "closed");
+  if (assignee) params.set("assignee", assignee);
+  if (page > 1) params.set("page", String(page));
+  const query = params.toString();
+  return query ? `/staff/tasks?${query}` : "/staff/tasks";
+}
+
+export default async function TasksPage({ searchParams }: { searchParams: Promise<{ view?: string; assignee?: string; page?: string }> }) {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
   const sp = await searchParams;
   const view = sp.view === "closed" ? "closed" : "open";
   const staff = await staffDirectory(session);
   const assignee = staff.some((s) => s.id === sp.assignee) ? sp.assignee : undefined;
-  const rows = JSON.parse(JSON.stringify(await taskList(session, view, assignee)));
+  const requestedPage = Number(sp.page ?? "1");
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1;
+  const fetched = await taskList(session, view, assignee, PAGE_SIZE, (page - 1) * PAGE_SIZE);
+  const total = Number(fetched[0]?.total_count ?? 0);
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const rows = JSON.parse(JSON.stringify(fetched));
   return (
     <div className="ops-page space-y-4">
       <header className="ops-hero">
         <div>
           <p className="ops-kicker">CAREER GATE · TASK CONTROL</p>
           <h1>Tasks</h1>
-          <p>{rows.length} {view === "open" ? "open" : "completed / cancelled"} task{rows.length === 1 ? "" : "s"}</p>
+          <p>{total} {view === "open" ? "open" : "completed / cancelled"} task{total === 1 ? "" : "s"}{pageCount > 1 ? ` · page ${page} of ${pageCount}` : ""}</p>
         </div>
         <div><NewTaskButton /></div>
       </header>
@@ -64,6 +80,13 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
             </tbody>
           </table>
         </div>
+      )}
+      {pageCount > 1 && (
+        <nav aria-label="Task pages" className="flex items-center justify-between gap-3" data-testid="tasks-pager">
+          {page > 1 ? <Link href={tasksHref(view, assignee, page - 1)} className="ops-secondary-button">Previous</Link> : <span />}
+          <span className="text-sm text-slate-300">Page {page} of {pageCount}</span>
+          {page < pageCount ? <Link href={tasksHref(view, assignee, page + 1)} className="ops-primary-button">Next</Link> : <span />}
+        </nav>
       )}
     </div>
   );

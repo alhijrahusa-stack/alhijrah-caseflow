@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
   AddNoteForm, AppointmentForm, AssignForm, ContactedForm, DocumentForm, FollowupForm, NextStepForm, type Panel, StatusForm, TaskForm,
 } from "@/components/staff/ClientActions";
@@ -31,7 +30,6 @@ export type ClientFileData = {
 export type ClientPanel = Panel;
 export type ClientTab = "profile" | "preferences" | "documents" | "appointments" | "work" | "activity";
 
-const CLIENT_TABS = new Set<ClientTab>(["profile", "preferences", "documents", "appointments", "work", "activity"]);
 const panelTab: Record<Panel, ClientTab> = {
   document: "documents",
   appointment: "appointments",
@@ -88,10 +86,6 @@ function pipelineLabel(value: unknown) {
   return String(value ?? "portal_intake").replace(/_/g, " ");
 }
 
-function validTab(value: string | null): value is ClientTab {
-  return Boolean(value && CLIENT_TABS.has(value as ClientTab));
-}
-
 export function ClientFile({
   data: serverData,
   account: serverAccount = null,
@@ -116,25 +110,31 @@ export function ClientFile({
   const account = live.account;
   const { client: c } = data;
   const { isManager, isAdmin } = useStaff();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [panel, setPanel] = useState<Panel | null>(initialPanel);
 
-  const urlTab = searchParams.get("tab");
-  const tab: ClientTab = validTab(urlTab)
-    ? urlTab
-    : initialPanel
-      ? panelTab[initialPanel]
-      : initialTab ?? "profile";
+  // The server resolves the requested tab from the URL. After that the tab is
+  // local: the button highlights at once, and the section body renders in a
+  // transition so the click paints before the heavier section is built.
+  const startTab: ClientTab = initialTab ?? (initialPanel ? panelTab[initialPanel] : "profile");
+  const [selectedTab, setSelectedTab] = useState<ClientTab>(startTab);
+  const [tab, setTab] = useState<ClientTab>(startTab);
+  const [seenStartTab, setSeenStartTab] = useState<ClientTab>(startTab);
+  const [, startTabTransition] = useTransition();
+  if (seenStartTab !== startTab) {
+    setSeenStartTab(startTab);
+    setSelectedTab(startTab);
+    setTab(startTab);
+  }
 
   const replaceTab = (nextTab: ClientTab) => {
-    const params = new URLSearchParams(searchParams.toString());
+    setSelectedTab(nextTab);
+    startTabTransition(() => setTab(nextTab));
+    const params = new URLSearchParams(window.location.search);
     params.set("tab", nextTab);
     params.delete("action");
     const query = params.toString();
-    // Next.js App Router synchronizes useSearchParams with the native History API.
-    // Switching an already loaded client tab must not trigger a server render.
-    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+    // Keeps the link shareable without a server render: the data is already here.
+    window.history.replaceState(window.history.state, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
   };
 
   const close = () => setPanel(null);
@@ -169,10 +169,10 @@ export function ClientFile({
     return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
   });
 
-  const statusEvents = data.activity
+  const statusEvents = useMemo(() => data.activity
     .filter((l) => l.action === "status_changed" || l.action === "status_overridden")
     .map((l) => ({ at: l.created_at, from: l.old_value?.status as Status, to: l.new_value?.status as Status, by: l.staff_name, override: l.action === "status_overridden" }))
-    .reverse();
+    .reverse(), [data.activity]);
   const createdEvent = data.activity.find((l) => l.action === "client_created");
   const createdStatus = (createdEvent?.new_value?.status as Status) ?? (statusEvents[0]?.from ?? c.current_status);
 
@@ -235,7 +235,7 @@ export function ClientFile({
 
       <div className="cg-profile-tabs" aria-label="Client file sections">
         {tabs.map((item) => (
-          <button key={item.id} type="button" className="staff-tab cg-profile-tab whitespace-nowrap" data-active={tab === item.id} onClick={() => replaceTab(item.id)}>
+          <button key={item.id} type="button" className="staff-tab cg-profile-tab whitespace-nowrap" data-active={selectedTab === item.id} aria-busy={selectedTab === item.id && tab !== item.id} onClick={() => replaceTab(item.id)}>
             {item.label}{item.count != null && <span className="ml-1.5 font-mono text-[9px] text-slate-600">{item.count}</span>}
           </button>
         ))}

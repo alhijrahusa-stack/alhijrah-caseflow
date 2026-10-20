@@ -12,6 +12,7 @@ import {
   profilePayload,
   type ProfileForm,
 } from "@/components/forms/ProfileFields";
+import { DuplicateNotice } from "@/components/public/DuplicateNotice";
 import { Button } from "@/components/ui/Button";
 import { options } from "@/lib/catalog";
 import { DOC_LABELS, DOC_MAX_BYTES, DOC_TYPES } from "@/lib/domain";
@@ -59,6 +60,7 @@ export function IntakeWizard() {
   const [website, setWebsite] = useState("");
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState(false);
   const [done, setDone] = useState<Done | null>(null);
 
   const current = STEPS[step];
@@ -83,6 +85,7 @@ export function IntakeWizard() {
   async function submit() {
     setSubmitting("Submitting application…");
     setError(null);
+    setDuplicate(false);
     try {
       const res = await fetch("/api/intake", {
         method: "POST",
@@ -104,6 +107,10 @@ export function IntakeWizard() {
         }),
       });
       const data = await res.json().catch(() => null);
+      if (res.status === 409 && data?.error?.code === "duplicate_application") {
+        setDuplicate(true);
+        return;
+      }
       if (!data?.ok) throw new Error(data?.error?.message ?? `Submission failed (${res.status})`);
 
       const failed: Done["failed"] = [];
@@ -290,6 +297,21 @@ export function IntakeWizard() {
 
         <input tabIndex={-1} aria-hidden="true" autoComplete="off" className="hidden" name="website" value={website} onChange={(e) => setWebsite(e.target.value)} />
 
+        {duplicate && (
+          <>
+            <DuplicateNotice
+              heading="This application was already submitted"
+              body="An existing file matches this applicant. Please contact Customer Service to continue it."
+              whatsappLabel="WhatsApp Office"
+            />
+            <DuplicateNotice
+              dir="rtl"
+              heading="هذا الملف قُدِّم مسبقًا"
+              body="يوجد ملف سابق مطابق لبيانات مقدم الطلب. يرجى التواصل مع خدمة العملاء لمتابعته."
+              whatsappLabel="واتساب المكتب"
+            />
+          </>
+        )}
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         {submitting && <p className="text-sm text-slate-600" aria-live="polite">{submitting}</p>}
       </div>

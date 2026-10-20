@@ -183,7 +183,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
     }
     throw new ActionError(
       "duplicate_application",
-      "An application already exists for this phone number or email. Use Track Status or contact the office instead of submitting another application.",
+      "An existing file matches this applicant. Please contact Customer Service to continue it.",
       409,
     );
   }

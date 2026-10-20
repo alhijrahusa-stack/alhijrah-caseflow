@@ -19,6 +19,21 @@ const scope = (db: postgres.Sql, clientId: string | null, col = "c.id") =>
 
 export const RULES: Rule[] = [
   {
+    rule: "identity_review_shared_email",
+    severity: "medium",
+    recommended_action: "Verify whether these files belong to the same applicant. If they do, continue the earlier file and archive this one; if they do not, ignore this alert with the verification note.",
+    explanation: "Another active file uses the same email address. Email alone does not identify a person, so both files were kept and a person must verify the applicant.",
+    query: (db, id) => db`
+      select c.id as client_id,
+             jsonb_build_object('shared_with', jsonb_agg(o.ref order by o.ref)) as evidence
+      from clients c
+      join clients o on o.id <> c.id and o.deleted_at is null
+        and lower(trim(o.email)) = lower(trim(c.email))
+      where c.deleted_at is null and nullif(trim(c.email), '') is not null
+        ${scope(db, id)}
+      group by c.id` as never,
+  },
+  {
     rule: "i9_available_without_required_prior_steps",
     severity: "high",
     recommended_action: "Confirm screening was completed and record it under Post-Hire Tasks, or correct the status.",
