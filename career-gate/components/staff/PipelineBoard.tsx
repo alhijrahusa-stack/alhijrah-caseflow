@@ -288,9 +288,9 @@ export function PipelineBoard({ data, staff, canAssign }: { data: PipelineBoardD
           <h1>Candidate Pipeline</h1>
           <p>ملف واحد لكل عميل · نقل مرحلي بدون إنشاء نسخ مكررة</p>
         </div>
-        <div className="ops-segmented" role="tablist" aria-label="Pipeline views">
-          <button type="button" data-active={view === "pipeline"} onClick={() => showView("pipeline")}>Pipeline</button>
-          <button type="button" data-active={view === "location"} onClick={() => showView("location")}>Location & Shift</button>
+        <div className="ops-segmented" role="group" aria-label="Pipeline views">
+          <button type="button" data-active={view === "pipeline"} aria-pressed={view === "pipeline"} onClick={() => showView("pipeline")}>Pipeline</button>
+          <button type="button" data-active={view === "location"} aria-pressed={view === "location"} onClick={() => showView("location")}>Location & Shift</button>
         </div>
       </header>
 

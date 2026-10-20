@@ -16,7 +16,7 @@ function Table({ title, rows, label, extra }: { title: string; rows: (CountRow |
         <span className="rounded-full border border-white/[.08] bg-white/[.02] px-2.5 py-1 font-mono text-[10px] text-slate-400">{rows.length}</span>
       </div>
       {rows.length === 0 ? <p className="text-sm text-slate-500">No data.</p> : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={title}>
           <table className="table">
             <tbody>
               {rows.map((r, i) => (
@@ -159,7 +159,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       <section className="report-glass-card p-4" aria-label="Staff performance" data-testid="report-staff">
         <h2 className="mb-3 text-sm font-semibold text-slate-100">Staff performance · {period} days</h2>
         {r.staff.length === 0 ? <p className="text-sm text-slate-500">No active staff.</p> : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Staff performance table">
             <table className="table">
               <thead><tr><th>Staff</th><th className="text-right">Active files</th><th className="text-right">Completed · {period}d</th><th className="text-right">Ready / completed</th><th className="text-right">Overdue tasks</th></tr></thead>
               <tbody>
@@ -181,7 +181,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       {r.stalled.length > 0 && (
         <section className="report-glass-card p-4" aria-label="Stalled files" data-testid="report-stalled-table">
           <h2 className="mb-3 text-sm font-semibold text-slate-100">Stalled files · no update for {STALL_DAYS}+ days</h2>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Stalled files table">
             <table className="table">
               <thead><tr><th>Status</th><th className="text-right">Files</th><th className="text-right">Oldest (days)</th></tr></thead>
               <tbody>

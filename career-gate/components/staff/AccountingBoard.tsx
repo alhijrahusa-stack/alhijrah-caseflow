@@ -292,8 +292,8 @@ export function AccountingBoard({ data, filters, staff }: { data: AccountingPage
       <section className="ops-glass-card" aria-busy={navigating}>
         <div className="ops-toolbar">
           <input className="ops-input ops-search-input" value={q} onChange={(e) => onSearch(e.target.value)} placeholder="Search name, phone, email, file or site" data-testid="accounting-search" />
-          <select className="ops-select" value={filters.status} onChange={(e) => go({ status: e.target.value as AccountingFilters["status"] })} data-testid="accounting-status"><option value="all">All accounts</option><option value="unpaid">Unpaid</option><option value="partially_paid">Partially paid</option><option value="paid">Paid</option><option value="refunded">Refunded</option></select>
-          <select className="ops-select" value={filters.staffId ?? "all"} onChange={(e) => go({ staffId: e.target.value === "all" ? null : e.target.value })} data-testid="accounting-staff"><option value="all">All staff</option>{activeStaff.map((s) => <option key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</option>)}</select>
+          <select aria-label="Account status" className="ops-select" value={filters.status} onChange={(e) => go({ status: e.target.value as AccountingFilters["status"] })} data-testid="accounting-status"><option value="all">All accounts</option><option value="unpaid">Unpaid</option><option value="partially_paid">Partially paid</option><option value="paid">Paid</option><option value="refunded">Refunded</option></select>
+          <select aria-label="Assigned staff" className="ops-select" value={filters.staffId ?? "all"} onChange={(e) => go({ staffId: e.target.value === "all" ? null : e.target.value })} data-testid="accounting-staff"><option value="all">All staff</option>{activeStaff.map((s) => <option key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</option>)}</select>
           {filters.clientId && (
             <button type="button" className="ops-secondary-button" data-testid="clear-client-focus" onClick={() => go({ clientId: null })}>
               Showing one client · show all
