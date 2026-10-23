@@ -80,6 +80,35 @@ test.describe.serial("public intake and status access", () => {
     expect(second.res.status()).toBe(429);
   });
 
+  test("a valid case still shows current status when unrelated lookups exhaust a shared IP", async ({ request }) => {
+    // Create the case within this test so unrelated status/workflow tests cannot
+    // invalidate the fixture before the lookup.
+    const created = await submitIntake(request, intakeBody(`TEST Tracking ${RUN}`));
+    expect(created.res.status()).toBe(201);
+    const liveRef = String(created.json.ref);
+    const [original] = await db()`select id,ref,deleted_at from clients where ref=${liveRef}`;
+    expect(original).toBeTruthy();
+    expect(original.deleted_at).toBeNull();
+    const ip = uniqueIp();
+    const headers = { "x-forwarded-for": ip };
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const response = await request.post("/api/track", {
+        data: { type: "case", value: "CG-1999-999999" }, headers,
+      });
+      expect(response.status()).toBe(attempt < 5 ? 404 : 429);
+    }
+    // The recorded case is not missing and does not inherit another caller's exhausted bucket.
+    const current = await request.post("/api/track", {
+      data: { type: "case", value: liveRef }, headers,
+    });
+    const payload = await current.json();
+    expect(current.status(), JSON.stringify(payload)).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.application.caseNumber).toBe(liveRef);
+    expect(payload.application.currentStatus).toBeTruthy();
+    expect(Array.isArray(payload.updates)).toBe(true);
+  });
+
   test("public status lookup is non-enumerating and verified status access requires OTP", async ({ page, request }) => {
     const lookup = async (identifier: string) => {
       const response = await request.post("/api/status/lookup", { data: { identifier }, headers: { "x-forwarded-for": uniqueIp() } });
