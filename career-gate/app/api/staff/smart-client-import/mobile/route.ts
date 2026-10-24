@@ -2,7 +2,7 @@ import { ActionError } from "@/lib/service";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { staffGuard } from "@/lib/staff-api";
-import { enrichMobileImportCase, stageMobileImportV2 } from "@/lib/smart-client-mobile";
+import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,24 +18,14 @@ export async function POST(req: Request) {
     const files = form.getAll("files").filter((value): value is File => value instanceof File && value.size > 0);
     const idempotencyKey = req.headers.get("idempotency-key") ?? String(form.get("idempotency_key") ?? "");
     const result = await stageMobileImportV2({ session: guard.session, notes, files, idempotencyKey });
-    // Reviewed browser OCR is already present in the notes staged by the server.\n    // Avoid a second quota-limited Gemini call for the same document.\n    if (!files.length || form.get("local_ocr_reviewed") === "1") return ok({ ...result, enrichment_url: null }, 202, traceId);
-    try {
-      const enriched = await enrichMobileImportCase(guard.session, result.case_id);
-      return ok({ ...result, ...enriched, enrichment_url: null }, 202, traceId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Document enrichment failed";
-      return ok({
-        ...result,
-        enrichment_url: `/api/staff/smart-client-import/${result.case_id}/retry`,
-        enrichment_error: message,
-        verification_result: {
-          ...(result.verification_result ?? {}),
-          processing_state: "REVIEW_REQUIRED",
-          ai_state: "FAILED",
-          extraction_errors: [{ code: "AUTO_ENRICH_FAILED", message }],
-        },
-      }, 202, traceId);
-    }
+    // Persist the original intake first and return immediately. The browser
+    // triggers the authenticated Gemini retry endpoint without blocking capture.
+    // Browser-only OCR is preliminary, never a substitute for source-backed
+    // server-side Gemini document extraction and field evidence.
+    return ok({
+      ...result,
+      enrichment_url: files.length ? `/api/staff/smart-client-import/${result.case_id}/retry` : null,
+    }, 202, traceId);
   } catch (error) {
     if (error instanceof ActionError) return err(error.code, error.message, error.status, traceId);
     return err("mobile_import_failed", error instanceof Error ? error.message : "Mobile import failed", 500, traceId);
