@@ -12,7 +12,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   if (params.tab === "reports") redirect(`/staff/reports${params.period ? `?period=${params.period}` : ""}`);
   if (params.tab === "settings") redirect("/staff/settings");
-  if (params.tab === "week") redirect("/staff");
+  if (params.tab === "today") redirect("/staff/today");
+  if (params.tab === "week") redirect("/staff/week");
 
   const data = await dashboardCommandData(session);
   return <OperationalDashboard data={data} />;
