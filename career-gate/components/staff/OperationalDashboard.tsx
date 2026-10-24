@@ -42,9 +42,10 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
 
     <section aria-labelledby="today-heading">
       <SectionTitle title="Today" subtitle="Immediate production workload." href="/staff/today" label="Open Today"/>
+      <div className="mb-3 text-right"><Link className="text-sm font-medium text-amber-200 hover:text-amber-100" href="/staff/week">Open This Week →</Link></div>
       <h2 id="today-heading" className="sr-only">Today&apos;s workload</h2>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="New Clients" value={data.new_clients} href="/staff/clients"/>
+        <Kpi label="New Clients" value={data.new_clients} href="/staff/clients?status=new_intake"/>
         <Kpi label="Appointments · Next 2 Hours" value={data.appointments_2h} href="/staff/appointments" tone={data.appointments_2h?"warn":"neutral"}/>
         <Kpi label="Tasks Due Today" value={data.tasks_due} href="/staff/tasks"/>
         <Kpi label="Completed This Month" value={data.completed_this_month} href="/staff/clients?view=completed" tone="good"/>

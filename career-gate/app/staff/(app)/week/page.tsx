@@ -1,5 +1,13 @@
 import { redirect } from "next/navigation";
+import { OperationalWorkWindow } from "@/components/staff/OperationalWorkWindow";
+import { getStaffSession } from "@/lib/auth";
+import { operationalWorkWindow } from "@/lib/operational-work-window";
 
-export default function WeekRoute() {
-  redirect("/staff?tab=week");
+export const dynamic = "force-dynamic";
+
+export default async function WeekRoute() {
+  const session = await getStaffSession();
+  if (!session) redirect("/staff/login");
+  const data = await operationalWorkWindow(session, "week");
+  return <OperationalWorkWindow kind="week" data={data} />;
 }

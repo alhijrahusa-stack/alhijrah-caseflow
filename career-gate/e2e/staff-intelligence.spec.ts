@@ -72,6 +72,21 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await expect(page.getByTestId("report-new-current")).toBeVisible();
   });
 
+  test("Today and Week open actionable, authenticated work windows", async () => {
+    await page.goto("/staff/today");
+    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Open Tasks Due/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Upcoming Appointments/ })).toBeVisible();
+    await page.getByRole("link", { name: "Week", exact: true }).click();
+    await expect(page).toHaveURL(/\/staff\/week$/);
+    await expect(page.getByRole("heading", { name: "This Week", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Open Follow-Ups Due/ })).toBeVisible();
+    await page.goto("/staff?tab=week");
+    await expect(page).toHaveURL(/\/staff\/week$/);
+    await page.goto("/staff?tab=today");
+    await expect(page).toHaveURL(/\/staff\/today$/);
+  });
+
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();
