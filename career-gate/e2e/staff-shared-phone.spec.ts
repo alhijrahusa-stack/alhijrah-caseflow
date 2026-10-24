@@ -24,7 +24,9 @@ test("staff shared phone persists distinct files, shows review alert and protect
   await page.reload();
   await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
   await signIn(page.context(), baseURL!, "admin");
-  await page.reload();
+  // Re-enter through a fresh server navigation after changing the session cookie.
+  // Reloading an already-rendered App Router tree can retain a stale auth result.
+  await page.goto(`/staff/client/${id}`);
   await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
   const repeat = await create(name, "1995-02-02");
   expect(repeat.status).toBe(409);
