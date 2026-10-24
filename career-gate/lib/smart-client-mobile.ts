@@ -573,7 +573,8 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
 
   for (const result of results) {
     const doc = result.doc;
-    if (result.rows[0]) {
+    // A multi-person image must never seed a single client draft.
+    if (result.rows.length === 1) {
       sources.push({
         row: result.rows[0],
         source: String(doc.original_filename),
