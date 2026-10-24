@@ -419,7 +419,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         : a.decision.startsWith("cancelled") ? "cancelled" : "attended";
       const status = a.decision === "pass" ? "pre_hire_completed"
         : a.decision === "cancelled_not_interested" ? "cancelled" : "appointment_required";
-      const stage = a.decision === "pass" ? "interview_passed"
+      const stage = a.decision === "pass" ? "payment_required"
         : a.decision === "fail" ? "need_new_appointment"
           : a.decision === "cancelled_not_interested" ? "archive_not_interested" : "amazon_account_waiting_job";
       const nextStep = a.decision === "pass"
