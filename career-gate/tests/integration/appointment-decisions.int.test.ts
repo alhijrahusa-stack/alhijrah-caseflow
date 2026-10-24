@@ -41,7 +41,7 @@ async function makeAppointment(n: number) {
   });
   const scheduledAt = new Date(Date.now() + 7 * 86400000 + n * 3600000).toISOString();
   const result = await act(manager, {
-    action: "schedule_appointment", client_id: client.id, appointment_type: "Employment Interview",
+    action: "schedule_appointment", client_id: client.id, appointment_type: "Employment Interview", lifecycle_interview: true,
     scheduled_at: scheduledAt, duration_minutes: 30,
     resource_key: `staff:${manager.staff.id}`, location: "Office", notes: null,
   });
@@ -101,7 +101,7 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     });
     await expect(act(manager, {
       action: "appointment_decision", appointment_id: booking.appointment_id, decision: "pass", note: null,
-    })).rejects.toMatchObject({ code: "lifecycle_conflict" });
+    })).rejects.toMatchObject({ code: "invalid_appointment_kind" });
     const [state] = await db`select status from appointments where id=${booking.appointment_id}`;
     expect(state.status).toBe("scheduled");
     const rows = await db`select * from appointment_outcomes where appointment_id=${booking.appointment_id}`;
