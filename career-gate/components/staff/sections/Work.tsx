@@ -25,6 +25,7 @@ export function AppointmentRowActions({ appt }: { appt: Row }) {
   const [decisionNote, setDecisionNote] = useState("");
   if (!isManager) return null;
   const closed = ["cancelled", "attended", "missed"].includes(appt.status);
+  const interview = appt.appointment_kind === "employment_interview";
   const decide = (decision: "pass" | "fail" | "missed" | "cancelled_interested" | "cancelled_not_interested") =>
     a.go({ action: "appointment_decision", appointment_id: appt.id, decision, note: decisionNote || null });
   return (
@@ -33,13 +34,20 @@ export function AppointmentRowActions({ appt }: { appt: Row }) {
       {!closed && <>
         <div className="flex flex-wrap gap-2">
           {appt.status !== "confirmed" && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "confirmed" })}>Confirm booking</SmallBtn>}
-          <SmallBtn disabled={a.pending} onClick={() => decide("pass")}>Pass / نجح</SmallBtn>
-          <SmallBtn disabled={a.pending} onClick={() => decide("fail")}>Fail / رسب</SmallBtn>
-          <SmallBtn disabled={a.pending} onClick={() => decide("missed")}>Missed / تخلف</SmallBtn>
+          {interview ? <>
+            <SmallBtn disabled={a.pending} onClick={() => decide("pass")}>Pass / نجح</SmallBtn>
+            <SmallBtn disabled={a.pending} onClick={() => decide("fail")}>Fail / رسب</SmallBtn>
+            <SmallBtn disabled={a.pending} onClick={() => decide("missed")}>Missed / تخلف</SmallBtn>
+          </> : <>
+            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "attended" })}>Attended / حضر</SmallBtn>
+            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "missed" })}>Missed / تخلف</SmallBtn>
+          </>}
           <SmallBtn disabled={a.pending} onClick={() => setEditing((v) => !v)}>Reschedule / إعادة جدولة</SmallBtn>
-          <SmallBtn disabled={a.pending} onClick={() => setCancelling((v) => !v)}>Canceled / إلغاء</SmallBtn>
+          {interview
+            ? <SmallBtn disabled={a.pending} onClick={() => setCancelling((v) => !v)}>Canceled / إلغاء</SmallBtn>
+            : <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "cancelled" })}>Cancel / إلغاء</SmallBtn>}
         </div>
-        <input className="input w-full" aria-label="Interview decision note" placeholder="Decision evidence or note" value={decisionNote} maxLength={1000} onChange={(e) => setDecisionNote(e.target.value)} />
+        {interview && <input className="input w-full" aria-label="Interview decision note" placeholder="Decision evidence or note" value={decisionNote} maxLength={1000} onChange={(e) => setDecisionNote(e.target.value)} />}
         {cancelling && <div className="flex flex-wrap gap-2 rounded-xl border border-amber-300/20 bg-white/5 p-3">
           <SmallBtn disabled={a.pending} onClick={() => decide("cancelled_interested")}>Interested — return to Job Ready</SmallBtn>
           <SmallBtn disabled={a.pending} onClick={() => decide("cancelled_not_interested")}>Not interested — close file</SmallBtn>
