@@ -202,7 +202,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
   // A shared phone is a review signal. Queue its audit atomically with the
   // new file so import approval does not depend on an in-memory callback.
   const phone = normalizeClientPhone(p.phone);
-  const [sharedPhone] = phone && phone.length >= 7 ? await tx`
+  const [sharedPhone] = (input.source === "staff_manual" || input.ref) && phone && phone.length >= 7 ? await tx`
     select 1 from clients where deleted_at is null and id<>${client.id}
       and regexp_replace(coalesce(phone,''),'\\D','','g')=${phone} limit 1` : [];
   if (sharedPhone) await enqueue(tx, { type: "audit_scan", entityId: client.id,
