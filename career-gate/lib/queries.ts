@@ -284,6 +284,34 @@ export async function followupList(s: StaffSession, view: string) {
   });
 }
 
+export async function followupPage(s: StaffSession, view: string, requestedPage = 1, pageSize = 50) {
+  const size = Number.isSafeInteger(pageSize) ? Math.min(Math.max(pageSize, 1), 100) : 50;
+  return withStaff(s, async (tx) => {
+    const today = tx`(now() at time zone ${TZ})::date`;
+    const filter = tx`c.deleted_at is null ${view === "completed" ? tx`` : tx`and c.current_status not in ('completed','cancelled')`} and ${
+      view === "completed"
+        ? tx`f.status = 'completed'`
+        : view === "upcoming"
+          ? tx`f.status = 'open' and f.due_date > ${today}`
+          : view === "overdue"
+            ? tx`f.status = 'open' and f.due_date < ${today}`
+            : tx`f.status = 'open' and f.due_date = ${today}`
+    }`;
+    const [count] = await tx`select count(*)::int total from followups f join clients c on c.id=f.client_id where ${filter}`;
+    const total = Number(count?.total ?? 0);
+    const pages = Math.max(1, Math.ceil(total / size));
+    const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pages) : 1;
+    const rows = await tx`
+      select f.*, c.full_name, c.ref, c.phone, s.display_name as created_by_name, d.display_name as completed_by_name
+      from followups f join clients c on c.id=f.client_id
+      left join staff s on s.id=f.created_by left join staff d on d.id=f.completed_by
+      where ${filter}
+      order by ${view === "completed" ? tx`f.completed_at desc, f.id` : tx`f.due_date asc, f.id`}
+      limit ${size} offset ${(page-1)*size}`;
+    return { rows, total, page, pages };
+  });
+}
+
 export async function auditAlerts(s: StaffSession, status: string) {
   return withStaff(s, (tx) => tx`
     select a.*, c.ref, c.full_name, r.display_name as resolved_by_name
