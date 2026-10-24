@@ -137,8 +137,10 @@ test("AC-01 / AC-05 / AC-07: concurrent HTML intake retains canonical language, 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ full_name: `${payload.firstName} ${payload.lastName}`, phone: payload.phone, email: payload.email, date_of_birth: payload.dob, preferred_language: "es", english_proficiency: "GOOD", street: payload.address1, city: payload.city, state: payload.state, zip: payload.zip, preferred_location: "Romulus", location_option_1: "Detroit", location_option_2: "Livonia", shift_days: ["THU","FRI","SAT","SUN","MON"], starts: "18:00:00", ends: "04:30:00" });
   expect((await db()`select count(*)::int n from career_gate_applications where submission_uid=${payload.uid}`)[0].n).toBe(1);
-  const created = await db()`select action from activity_log where client_id=${rows[0].id} and action in ('client_created','application_submitted') order by created_at`;
-  expect(created.map((r) => r.action)).toEqual(["client_created", "application_submitted"]);
+  await expect.poll(async () => (await db()`select status from jobs where dedupe_key=${`audit:${rows[0].id}`}`)[0]?.status).toBe("succeeded");
+  const created = await db()`select action,entity_type,new_value from activity_log where client_id=${rows[0].id} and (action='client_created' or (action='client_updated' and entity_type='application')) order by created_at`;
+  expect(created.map((r) => r.action)).toEqual(["client_created", "client_updated"]);
+  expect(created[1]).toMatchObject({ entity_type: "application", new_value: { event: "application_submitted" } });
   await signIn(page.context(), baseURL!, "admin");
   await page.goto(`/staff/client/${rows[0].id}?tab=profile`);
   for (const value of ["GOOD", "Romulus", "Detroit", "Livonia", "THU, FRI, SAT, SUN, MON", "18:00:00 – 04:30:00"]) await expect(page.locator("#client-info")).toContainText(value);
@@ -158,10 +160,10 @@ test("AC-06 / E: every dashboard KPI opens its source and readiness lists match 
         or (${readiness}='nearly_ready' and r.readiness_percent between 75 and 99)
         or (${readiness}='blocked' and coalesce(r.readiness_percent,0)<75)
         or (${readiness}='missing' and r.total_requirements>r.completed_requirements))`;
-    await expect(page.getByTestId("client-total")).toContainText(`${count.n} clients`);
+    await expect(page.getByTestId("client-total")).toContainText(`${count.n} client${count.n === 1 ? "" : "s"}`);
     await page.getByRole("search").getByRole("button", { name: "Apply", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`readiness=${readiness}`));
-    await expect(page.getByTestId("client-total")).toContainText(`${count.n} clients`);
+    await expect(page.getByTestId("client-total")).toContainText(`${count.n} client${count.n === 1 ? "" : "s"}`);
   }
   await page.goto("/staff/settings#system-health");
   await expect(page.getByRole("heading", { name: "Operational System Health", exact: true })).toBeVisible();

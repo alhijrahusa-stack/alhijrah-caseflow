@@ -18,7 +18,7 @@ export class ActionError extends Error {
 }
 
 export type ActivityAction =
-  | "client_created" | "application_submitted" | "client_updated" | "client_deleted" | "preference_added" | "preference_removed"
+  | "client_created" | "client_updated" | "client_deleted" | "preference_added" | "preference_removed"
   | "status_changed" | "status_overridden" | "next_step_changed" | "staff_assigned"
   | "document_uploaded" | "document_processing_started" | "document_processed" | "document_verified"
   | "document_rejected" | "document_reupload_requested" | "document_opened"

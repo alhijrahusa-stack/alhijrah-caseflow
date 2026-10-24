@@ -5,11 +5,12 @@ import { sql } from "@/lib/db";
 import { DEFAULT_NEXT_STEP } from "@/lib/domain";
 import { err, ipHash } from "@/lib/http";
 import { claimKey, completeKey } from "@/lib/idempotency";
+import { enqueue, processJobs } from "@/lib/jobs";
 import { traceIdFrom } from "@/lib/obs";
 import { hit } from "@/lib/ratelimit";
 import { ActionError, insertClient, logActivity, normalizeClientPhone, type Tx } from "@/lib/service";
 import { normalizeEnglishProficiency, normalizeShiftDays, normalizeSmartDate, parseShiftRange } from "@/lib/smart-client-fields";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
@@ -193,6 +194,7 @@ export async function POST(req: Request) {
       }
 
       const { client, reused } = await createOperationalClient(tx, d, digits, traceId);
+      await enqueue(tx, { type: "audit_scan", entityId: client.id, payload: { client_id: client.id }, dedupeKey: `audit:${client.id}`, traceId });
       const app = await insertApplication(tx, client.id, d);
 
       await tx`
@@ -210,11 +212,12 @@ export async function POST(req: Request) {
 
       await logActivity(tx, {
         clientId: client.id,
-        action: "application_submitted",
+        action: "client_updated",
         actor: { staffId: null, traceId },
         entityType: "application",
         entityId: app.id,
         newValue: {
+          event: "application_submitted",
           ref: client.ref,
           case_number: app.case_number,
           status: "new_intake",
@@ -259,6 +262,7 @@ export async function POST(req: Request) {
       }
     }
     const caseNumber = String(body.caseNumber ?? "");
+    if (out.kind === "new") after(() => processJobs(10).catch((error) => console.error("application audit processing failed", { traceId, error })));
 
     return NextResponse.json({
       ok: true,

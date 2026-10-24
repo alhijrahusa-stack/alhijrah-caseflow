@@ -213,7 +213,7 @@ export function Alerts({ alerts }: { alerts: Row[] }) {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  client_created: "Client created", application_submitted: "Application submitted", client_updated: "Client updated", client_deleted: "Client deleted",
+  client_created: "Client created", client_updated: "Client updated", client_deleted: "Client deleted",
   preference_added: "Preference added", preference_removed: "Preference removed", status_changed: "Status changed",
   status_overridden: "Status overridden (admin)", next_step_changed: "Next step changed", staff_assigned: "Staff assigned",
   document_uploaded: "Document uploaded", document_processing_started: "Document processing started", document_processed: "Document processed",
