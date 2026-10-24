@@ -119,6 +119,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     location: optText(300),
     notes: optText(2000),
   }),
+  z.object({ action: z.literal("appointment_decision"), appointment_id: id, decision: z.enum(["pass", "fail", "missed", "cancelled_interested", "cancelled_not_interested"]), note: optText(1000) }),
   z.object({
     action: z.literal("update_appointment"),
     appointment_id: id,
@@ -394,6 +395,57 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       await touchClient(tx, a.client_id);
       await logActivity(tx, { clientId: a.client_id, action: "appointment_created", actor, entityType: "appointment", entityId: appt.id, newValue: { type: a.appointment_type, scheduled_at: start.toISOString(), ends_at: end.toISOString(), resource: a.resource_key, location: a.location } });
       return { appointment_id: appt.id };
+    }
+
+    case "appointment_decision": {
+      const [appt] = await tx`
+        select a.id, a.client_id, a.status, c.current_status, c.pipeline_stage
+        from appointments a join clients c on c.id=a.client_id
+        where a.id=${{a.appointment_id} and c.deleted_at is null
+        for update of a,c`;
+      if (!appt) throw new ActionError("not_found", "Appointment not found", 404);
+      const [existing] = await tx`select decision from appointment_outcomes where appointment_id=${{a.appointment_id}`;
+      if (existing) {
+        if (existing.decision === a.decision) return { changed: false, decision: a.decision };
+        throw new ActionError("decision_locked", "Final decision already recorded", 409);
+      }
+      if (!["scheduled", "confirmed", "rescheduled"].includes(String(appt.status))) {
+        throw new ActionError("appointment_closed", "Appointment is no longer open", 409);
+      }
+      if (appt.current_status !== "appointment_scheduled") {
+        throw new ActionError("lifecycle_conflict", "Client must be in Appointment Scheduled", 409);
+      }
+      const appointmentStatus = a.decision === "missed" ? "missed"
+        : a.decision.startsWith("cancelled") ? "cancelled" : "attended";
+      const status = a.decision === "pass" ? "pre_hire_completed"
+        : a.decision === "cancelled_not_interested" ? "cancelled" : "appointment_required";
+      const stage = a.decision === "pass" ? "interview_passed"
+        : a.decision === "fail" ? "need_new_appointment"
+          : a.decision === "cancelled_not_interested" ? "archive_not_interested" : "amazon_account_waiting_job";
+      const nextStep = a.decision === "pass"
+        ? "Interview passed. Verify payment against the ledger before completing paperwork."
+        : a.decision === "fail" ? "Review interview result and arrange a new appointment."
+          : a.decision === "missed" ? "Missed appointment: contact client to reschedule."
+            : a.decision === "cancelled_interested" ? "Client remains interested: arrange new appointment."
+              : "Client confirmed not interested; file closed.";
+      await tx`update appointments set status=${{appointmentStatus},updated_at=now() where id=${{a.appointment_id}`;
+      await tx`insert into appointment_outcomes (appointment_id,client_id,decision,note,recorded_by)
+        values (${{a.appointment_id},${{appt.client_id},${{a.decision},${{a.note},${{by})
+        on conflict (appointment_id) do update set
+        decision=excluded.decision,note=excluded.note,recorded_by=excluded.recorded_by,recorded_at=now()`;
+      await tx`update clients set current_status=${{status},pipeline_stage=${{stage},next_step=${{nextStep} where id=${{appt.client_id}`;
+      await logActivity(tx, {
+        clientId: appt.client_id, action: "appointment_completed", actor,
+        entityType: "appointment", entityId: a.appointment_id,
+        oldValue: { status: appt.status, stage: appt.pipeline_stage },
+        newValue: { status: appointmentStatus, decision: a.decision, stage, note: a.note },
+      });
+      await logActivity(tx, {
+        clientId: appt.client_id, action: "status_changed", actor,
+        entityType: "client", entityId: appt.client_id,
+        oldValue: { status: appt.current_status }, newValue: { status },
+      });
+      return { changed: true, decision: a.decision, client_id: appt.client_id };
     }
 
     case "update_appointment": {
