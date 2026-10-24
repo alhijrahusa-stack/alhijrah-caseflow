@@ -225,6 +225,22 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await page.goto("/staff/appointments?view=all&page=not-a-number");
     await expect(page.locator(".ops-hero p").last()).toContainText(`Page 1 of ${pages}`);
   });
+  test("audit-alert register shows total, severity queue and bounded pages", async () => {
+    await page.goto("/staff/audit-alerts?status=open&page=999999");
+    await expect(page.getByRole("heading", { name: "Audit Alerts" })).toBeVisible();
+    const summary = await page.getByTestId("audit-alert-total").innerText();
+    const pages = summary.match(/Page ([0-9]+) of ([0-9]+)/);
+    expect(pages).not.toBeNull();
+    expect(pages![1]).toBe(pages![2]);
+    expect(await page.getByTestId("alert-row").count()).toBeLessThanOrEqual(50);
+    if (Number(pages![2]) > 1) {
+      await page.getByTestId("audit-alert-pager").getByRole("link", { name: "Previous" }).click();
+      await expect(page).toHaveURL(/status=open&page=/);
+    }
+    await page.goto("/staff/audit-alerts?status=ignored&page=invalid");
+    await expect(page.getByTestId("audit-alert-total")).toContainText("Page 1 of");
+    await expect(page.getByRole("link", { name: "ignored", exact: true })).toHaveAttribute("aria-current", "page");
+  });
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();

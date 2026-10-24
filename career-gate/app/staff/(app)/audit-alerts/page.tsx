@@ -5,27 +5,31 @@ import { RunAuditButton } from "@/components/staff/RunAuditButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getStaffSession } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
-import { auditAlerts } from "@/lib/queries";
+import { auditAlertsPage } from "@/lib/queries";
 
 const SEV: Record<string, string> = { critical: "bg-red-700", high: "bg-red-500", medium: "bg-amber-500", low: "bg-slate-400" };
+const PAGE_SIZE = 50;
 
-export default async function AuditAlertsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+export default async function AuditAlertsPage({ searchParams }: { searchParams: Promise<{ status?: string; page?: string }> }) {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
   if (session.staff.role === "staff") return <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" data-testid="forbidden">403 — Admin or manager only.</p>;
-  const { status: s } = await searchParams;
+  const { status: s, page: rawPage } = await searchParams;
   const status = ["open", "resolved", "ignored"].includes(s ?? "") ? s! : "open";
-  const rows = JSON.parse(JSON.stringify(await auditAlerts(session, status)));
+  const result = await auditAlertsPage(session, status, Number(rawPage ?? "1"), PAGE_SIZE);
+  const { total, page, pages } = result;
+  const rows = JSON.parse(JSON.stringify(result.rows));
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-4">
         <h1 className="text-2xl font-semibold">Audit Alerts</h1>
-        <nav className="flex gap-3 text-sm">
-          {["open", "resolved", "ignored"].map((k) => <Link key={k} href={`/staff/audit-alerts?status=${k}`} className={k === status ? "font-semibold capitalize text-brand-700" : "capitalize text-slate-500"}>{k}</Link>)}
+        <nav className="flex flex-wrap gap-3 text-sm" aria-label="Alert status">
+          {["open", "resolved", "ignored"].map((k) => <Link key={k} href={`/staff/audit-alerts?status=${k}`} aria-current={k === status ? "page" : undefined} className={k === status ? "font-semibold capitalize text-brand-700" : "capitalize text-slate-500"}>{k}</Link>)}
         </nav>
         <div className="ml-auto"><RunAuditButton /></div>
       </div>
       <p className="text-sm text-slate-500">Deterministic rules flag inconsistencies. Alerts never change client data.</p>
+      <p data-testid="audit-alert-total" className="text-sm text-slate-500">{total} {status} alert{total === 1 ? "" : "s"} · Page {page} of {pages}</p>
       {rows.length === 0 ? <EmptyState title={`No ${status} alerts`} text="The rule scan runs after every change and daily." /> : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="table">
@@ -45,6 +49,13 @@ export default async function AuditAlertsPage({ searchParams }: { searchParams: 
             </tbody>
           </table>
         </div>
+      )}
+      {pages > 1 && (
+        <nav aria-label="Audit alert pages" data-testid="audit-alert-pager" className="flex items-center justify-between gap-3">
+          {page > 1 ? <Link className="ops-secondary-button" href={`/staff/audit-alerts?status=${status}&page=${page - 1}`}>Previous</Link> : <span />}
+          <span className="text-sm text-slate-500">Page {page} of {pages}</span>
+          {page < pages ? <Link className="ops-primary-button" href={`/staff/audit-alerts?status=${status}&page=${page + 1}`}>Next</Link> : <span />}
+        </nav>
       )}
     </div>
   );
