@@ -122,6 +122,21 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await page.getByRole("button", { name: "Apply" }).click();
     await expect(page).toHaveURL(/completed_this_month=1/);
   });
+  test("overdue follow-up dashboard KPI matches the actionable queue", async () => {
+    await page.goto("/staff");
+    const tile = page.getByRole("link", { name: /Overdue Follow-Ups/ });
+    const count = (await tile.innerText()).match(/[0-9]+/);
+    expect(count).not.toBeNull();
+    await tile.click();
+    await expect(page).toHaveURL(/view=overdue/);
+    await expect(page.getByRole("heading", { name: "Follow-Ups", exact: true })).toBeVisible();
+    const [expected] = await db()`select count(*)::int as n from followups f
+      join clients c on c.id=f.client_id
+      where c.deleted_at is null and c.current_status not in (\u0027completed\u0027,\u0027cancelled\u0027)
+      and f.status=\u0027open\u0027 and f.due_date<(now() at time zone \u0027America/Detroit\u0027)::date`;
+    expect(Number(count![0])).toBe(Number(expected.n));
+    await expect(page.getByText(`${count![0]} follow-up item`, { exact: false })).toBeVisible();
+  });
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();

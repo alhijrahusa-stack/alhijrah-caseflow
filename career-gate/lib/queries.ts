@@ -270,7 +270,7 @@ export async function followupList(s: StaffSession, view: string) {
       select f.*, c.full_name, c.ref, c.phone, s.display_name as created_by_name, d.display_name as completed_by_name
       from followups f join clients c on c.id = f.client_id
       left join staff s on s.id = f.created_by left join staff d on d.id = f.completed_by
-      where c.deleted_at is null and ${
+      where c.deleted_at is null ${view === "completed" ? tx`` : tx`and c.current_status not in ('completed','cancelled')`} and ${
         view === "completed"
           ? tx`f.status = 'completed'`
           : view === "upcoming"
