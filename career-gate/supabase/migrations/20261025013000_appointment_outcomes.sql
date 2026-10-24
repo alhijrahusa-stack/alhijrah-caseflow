@@ -24,11 +24,11 @@ revoke all on public.appointment_outcomes from public,anon;
 grant select,insert on public.appointment_outcomes to authenticated;
 
 create or replace function public.cg_reject_appointment_outcome_mutation()
-returns trigger language plpgsql set search_path=public as $
+returns trigger language plpgsql set search_path=public as $appointment_guard$
 begin
   raise exception 'Recorded appointment decisions are immutable' using errcode='P0001';
 end;
-$;
+$appointment_guard$;
 revoke all on function public.cg_reject_appointment_outcome_mutation() from public,anon,authenticated;
 drop trigger if exists appointment_outcomes_immutable on public.appointment_outcomes;
 create trigger appointment_outcomes_immutable
