@@ -21,12 +21,13 @@ export default async function ClientsPage({searchParams}:{searchParams:Promise<R
   const sp=await searchParams;
   const requested=sp.view as ClientView|undefined;
   const view:ClientView=requested&&VIEWS.has(requested)?requested:"active";
-  const page=Math.max(1,Number.parseInt(sp.page??"1",10)||1);
+  const rawPage=Number(sp.page??"1");
+  const requestedPage=Number.isSafeInteger(rawPage) && rawPage>0 ? rawPage : 1;
   const status=(STATUSES as readonly string[]).includes(sp.status??"")?sp.status:undefined;
   const q=sp.q?.slice(0,100)||undefined;
   const attention=sp.attention==="documents"?"documents":undefined;
   const completedThisMonth=sp.completed_this_month==="1";
-  const {rows,total}=await operationalClientList(session,view,page,PAGE_SIZE,{q,status,attention,completedThisMonth});
+  const {rows,total,page}=await operationalClientList(session,view,requestedPage,PAGE_SIZE,{q,status,attention,completedThisMonth});
   const staffRoster=await withStaff(session,tx=>tx`select id,display_name from staff where active order by display_name`);
   const pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
   const href=(nextView:ClientView,nextPage=1)=>`/staff/clients?view=${nextView}&page=${nextPage}${q?`&q=${encodeURIComponent(q)}`:""}${status?`&status=${status}`:""}${attention?`&attention=${attention}`:""}${completedThisMonth?"&completed_this_month=1":""}`;
