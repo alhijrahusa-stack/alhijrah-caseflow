@@ -215,9 +215,13 @@ export async function claimIntakeLink(rawToken: string): Promise<
     returning id,issued_by,import_case_id`;
 
   if (!claimed) {
-    if (existing.status === "USED" || existing.status === "REVOKED") return { ok: false, reason: "gone" };
-    if (existing.status === "PROCESSING") return { ok: false, reason: "busy" };
-    // ACTIVE but the UPDATE matched nothing: the link has expired.
+    // The status read before the UPDATE may be stale: another concurrent claim
+    // can change ACTIVE to PROCESSING while this UPDATE waits for its row lock.
+    // Read the committed state after the failed claim to classify the result.
+    const [current] = await sql()`select status,expires_at from client_import_links where token_hash=${tokenHash}`;
+    if (current?.status === "PROCESSING" && new Date(current.expires_at as Date).getTime() > Date.now()) {
+      return { ok: false, reason: "busy" };
+    }
     return { ok: false, reason: "gone" };
   }
 

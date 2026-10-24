@@ -116,9 +116,19 @@ test.describe.serial("office workflow", () => {
   test("edit client and assign staff", async () => {
     await page.getByRole("link", { name: "Edit Client", exact: true }).click();
     await page.locator('input[name="via_agency"][value="yes"]').check();
+    await page.getByLabel("English proficiency", { exact: true }).selectOption("GOOD");
     await page.getByRole("button", { name: "Save changes" }).click();
     await page.waitForURL(`**/staff/client/${clientId}`);
     await expect(page.getByTestId("section-amazon-history")).toContainText("Via third-party agency");
+    await expect(page.getByTestId("inline-english_proficiency")).toHaveText(/GOOD/);
+    expect((await db()`select english_proficiency from clients where id=${clientId}`)[0].english_proficiency).toBe("GOOD");
+    await page.getByTestId("inline-english_proficiency").click();
+    await page.getByTestId("inline-edit-english_proficiency").getByLabel("English proficiency", { exact: true }).selectOption("FAIR");
+    await page.getByTestId("inline-edit-english_proficiency").getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByTestId("inline-english_proficiency")).toContainText("FAIR");
+    await page.reload();
+    await expect(page.getByTestId("inline-english_proficiency")).toContainText("FAIR");
+    expect((await db()`select english_proficiency from clients where id=${clientId}`)[0].english_proficiency).toBe("FAIR");
     await page.getByTestId("quick-actions").getByRole("button", { name: "Assign Staff" }).click();
     const assign = page.getByTestId("form-assign");
     await assign.locator(".staff-picker-trigger").click();

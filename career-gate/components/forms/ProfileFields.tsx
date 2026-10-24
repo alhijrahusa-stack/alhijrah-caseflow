@@ -1,6 +1,6 @@
 "use client";
 
-import { LANGUAGES } from "@/lib/domain";
+import { ENGLISH_PROFICIENCY_VALUES, LANGUAGES } from "@/lib/domain";
 import { AMAZON_HISTORY, isVisible } from "@/lib/intake-schema";
 
 export type YesNo = "" | "yes" | "no";
@@ -12,7 +12,8 @@ export type ProfileForm = {
   phone: string;
   email: string;
   date_of_birth: string;
-  preferred_language: keyof typeof LANGUAGES;
+  preferred_language: keyof typeof LANGUAGES | "";
+  english_proficiency: (typeof ENGLISH_PROFICIENCY_VALUES)[number] | "";
   street: string;
   city: string;
   state: string;
@@ -34,6 +35,7 @@ export const emptyProfile: ProfileForm = {
   email: "",
   date_of_birth: "",
   preferred_language: "en",
+  english_proficiency: "",
   street: "",
   city: "",
   state: "MI",
@@ -56,6 +58,8 @@ export const fromBool = (v: boolean | null | undefined): YesNo => (v === true ? 
 export function profilePayload(p: ProfileForm) {
   return {
     ...p,
+    preferred_language: p.preferred_language || null,
+    english_proficiency: p.english_proficiency || null,
     amazon_worked_before: yn(p.amazon_worked_before),
     amazon_applied_before: yn(p.amazon_applied_before),
     currently_amazon: yn(p.currently_amazon),
@@ -121,7 +125,14 @@ export function ProfileFields({ value: v, onChange, section = "all" }: Props) {
             </Field>
             <Field id="preferred_language" label="Preferred language">
               <select id="preferred_language" className="input" value={v.preferred_language} onChange={(e) => set({ preferred_language: e.target.value as ProfileForm["preferred_language"] })}>
+                <option value="">Not provided</option>
                 {Object.entries(LANGUAGES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </Field>
+            <Field id="english_proficiency" label="English proficiency">
+              <select id="english_proficiency" className="input" value={v.english_proficiency} onChange={(e) => set({ english_proficiency: e.target.value as ProfileForm["english_proficiency"] })}>
+                <option value="">Not provided</option>
+                {ENGLISH_PROFICIENCY_VALUES.map((value) => <option key={value} value={value}>{value}</option>)}
               </select>
             </Field>
             <Field id="street" label="Street address" className="sm:col-span-2">

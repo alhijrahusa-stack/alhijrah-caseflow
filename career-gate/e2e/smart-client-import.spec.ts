@@ -143,6 +143,25 @@ test.describe("Smart Career Collect Client", () => {
     expect(approved?.status).toBe("APPROVED_FILE");
     const [followup] = await db()`select count(*)::int as n from tasks where client_id=${client.id} and title='Collect missing client documents'`;
     expect(Number(followup.n)).toBe(1);
+    await page.goto(`/staff/client/${client.id}?tab=profile`);
+    const info = page.locator("#client-info");
+    await expect(page.getByTestId("inline-english_proficiency")).toContainText("GOOD");
+    const field = (label: string) => info.locator(".cg-profile-info-cell").filter({ has: page.locator("dt", { hasText: new RegExp(`^${label}$`) }) }).locator("dd");
+    await expect(field("Preferred Location")).toHaveText("Romulus");
+    await expect(field("Location Option 2")).toHaveText("Detroit");
+    await expect(field("Shift Days")).toHaveText("THU, FRI, SAT, SUN, MON");
+    await expect(field("Shift Time")).toHaveText("18:00:00 – 04:30:00");
+    await page.getByRole("link", { name: "Edit Client", exact: true }).click();
+    await expect(page.getByLabel("English proficiency", { exact: true })).toHaveValue("GOOD");
+    await page.getByLabel("English proficiency", { exact: true }).selectOption("EXCELLENT");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.waitForURL(`**/staff/client/${client.id}`);
+    await page.reload();
+    await expect(page.getByTestId("inline-english_proficiency")).toContainText("EXCELLENT");
+    await expect(field("Preferred Location")).toHaveText("Romulus");
+    await expect(field("Shift Days")).toHaveText("THU, FRI, SAT, SUN, MON");
+    const [saved] = await db()`select english_proficiency,preferred_location,shift_days from clients where id=${client.id}`;
+    expect(saved).toMatchObject({ english_proficiency: "EXCELLENT", preferred_location: "Romulus", shift_days: ["THU", "FRI", "SAT", "SUN", "MON"] });
   });
 
   test("archives an import softly from the active queue", async ({ page, baseURL }) => {
