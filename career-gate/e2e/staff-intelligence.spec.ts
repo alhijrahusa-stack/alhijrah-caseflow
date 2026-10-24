@@ -187,6 +187,16 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await expect(page).toHaveURL(/assigned=none/);
   });
 
+  test("follow-up views use bounded, server-paged results", async () => {
+    await page.goto("/staff/follow-ups?view=overdue&page=999999");
+    await expect(page.getByRole("heading", { name: "Follow-Ups" })).toBeVisible();
+    const rows = await page.locator("tbody tr").count();
+    expect(rows).toBeLessThanOrEqual(50);
+    await page.goto("/staff/follow-ups?view=due&overdue_page=999999&today_page=999999");
+    await expect(page.getByRole("heading", { name: "Follow-Ups" })).toBeVisible();
+    expect(await page.locator("tbody tr").count()).toBeLessThanOrEqual(100);
+  });
+
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();
