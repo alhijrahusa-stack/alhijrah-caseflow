@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 function active(pathname: string, href: string) {
   return href === "/staff" ? pathname === "/staff" : pathname === href || pathname.startsWith(`${href}/`);
@@ -11,8 +11,8 @@ function active(pathname: string, href: string) {
 export function StaffNavigation({ management }: { management: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [opening, setOpening] = useState<string | null>(null);
-  useEffect(() => setOpening(null), [pathname]);
+  const [pending, setPending] = useState<{ from: string; to: string } | null>(null);
+  const opening = pending?.from === pathname ? pending.to : null;
   const item = (label: string, href: string) => (
     <Link
       key={href}
@@ -23,7 +23,7 @@ export function StaffNavigation({ management }: { management: boolean }) {
       prefetch={false}
       onMouseEnter={() => router.prefetch(href)}
       onFocus={() => router.prefetch(href)}
-      onClick={() => setOpening(href)}
+      onClick={() => setPending({ from: pathname, to: href })}
     >
       {label}{opening === href && !active(pathname,href) && <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-amber-300" aria-hidden="true" />}
     </Link>
