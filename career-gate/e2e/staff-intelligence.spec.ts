@@ -175,6 +175,18 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await expect(page.getByTestId("client-total")).toContainText("page 1 of");
   });
 
+  test("unassigned dashboard KPI shows all eligible client records through server paging", async () => {
+    await page.goto("/staff");
+    const kpi = page.getByRole("link", { name: /Unassigned Files/ });
+    const count = (await kpi.innerText()).match(/[0-9]+/);
+    expect(count).not.toBeNull();
+    await kpi.click();
+    await expect(page).toHaveURL(/assigned=none/);
+    await expect(page.getByTestId("client-total")).toContainText(`${count![0]} client`);
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page).toHaveURL(/assigned=none/);
+  });
+
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();

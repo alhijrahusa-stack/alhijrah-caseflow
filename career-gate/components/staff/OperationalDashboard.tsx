@@ -36,7 +36,7 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
         <Kpi label="Overdue Tasks" value={data.overdue_tasks} href="/staff/tasks?view=overdue" tone={data.overdue_tasks?"danger":"good"}/>
         <Kpi label="Overdue Follow-Ups" value={data.overdue_followups} href="/staff/follow-ups?view=overdue" tone={data.overdue_followups?"danger":"good"}/>
         <Kpi label="Documents Needing Action" value={data.document_attention} href="/staff/clients?attention=documents" tone={data.document_attention?"warn":"good"}/>
-        <Kpi label="Unassigned Files" value={data.unassigned_clients} href="/staff/staff?tab=assignments&scope=unassigned" tone={data.unassigned_clients?"warn":"good"}/>
+        <Kpi label="Unassigned Files" value={data.unassigned_clients} href="/staff/clients?assigned=none" tone={data.unassigned_clients?"warn":"good"}/>
         {data.system&&<><Kpi label="Dead Jobs" value={data.system.queue.dead} tone={data.system.queue.dead?"danger":"good"}/><Kpi label="Delivery Failures · 24h" value={data.system.failed_notifications_24h} tone={data.system.failed_notifications_24h?"danger":"good"}/><Kpi label="Open Audit Alerts" value={data.system.open_audit_alerts} href="/staff/audit-alerts" tone={data.system.open_audit_alerts?"warn":"good"}/><Kpi label="System" value={data.system.status} tone={data.system.status==="HEALTHY"?"good":data.system.status==="DEGRADED"?"warn":"danger"} detail={`DB ${data.system.db_ms} ms`}/></>}
       </div>
     </section>
