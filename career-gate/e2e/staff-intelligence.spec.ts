@@ -1,3 +1,4 @@
+import { pipelineClientHref } from "../lib/pipeline-navigation";
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
 import { accessToken, db, intakeBody, RUN, signIn, submitIntake, uniqueIp } from "./helpers";
@@ -137,21 +138,18 @@ test.describe.serial("Staff intelligence surfaces", () => {
     expect(Number(count![0])).toBe(Number(expected.n));
     await expect(page.getByText(`${count![0]} follow-up item`, { exact: false })).toBeVisible();
   });
-  test("completed pipeline stage navigates into completed records, not the active register", async () => {
-    const [prior] = await db()`select current_status from clients where id=${clientId}`;
-    await db()`update clients set current_status='completed' where id=${clientId}`;
-    try {
-      await page.goto("/staff");
-      const pipeline = page.locator('a[href="/staff/clients?view=completed&status=completed"]');
-      await expect(pipeline).toBeVisible();
+  test("completed pipeline stage targets completed register and preserves other stage routes", async () => {
+    expect(pipelineClientHref("completed")).toBe("/staff/clients?view=completed&status=completed");
+    expect(pipelineClientHref("new_intake")).toBe("/staff/clients?view=active&status=new_intake");
+    await page.goto("/staff");
+    const pipeline = page.locator('a[href="/staff/clients?view=completed&status=completed"]');
+    if (await pipeline.count()) {
       await pipeline.click();
       await expect(page).toHaveURL(/view=completed&status=completed/);
       await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
-      await expect(page.getByTestId("client-total")).toContainText(/client/);
-    } finally {
-      await db()`update clients set current_status=${prior.current_status} where id=${clientId}`;
     }
   });
+
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();

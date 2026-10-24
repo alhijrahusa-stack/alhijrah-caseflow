@@ -1,3 +1,4 @@
+import { pipelineClientHref } from "@/lib/pipeline-navigation";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
@@ -77,7 +78,7 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
     <section className="ops-glass-card">
       <SectionTitle title="Pipeline" subtitle="Active workload by authoritative workflow status." href="/staff/pipeline" label="Open Pipeline"/>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {data.pipeline.map((p)=><Link key={p.status} href={`/staff/clients?view=${p.status === "completed" ? "completed" : "active"}&status=${encodeURIComponent(p.status)}`} className="staff-glass flex items-center justify-between rounded-xl px-4 py-3 transition hover:border-amber-300/30"><span className="truncate text-sm text-slate-300">{STATUS_LABELS[p.status as Status]??p.status.replace(/_/g," ")}</span><strong className="ml-3 tabular-nums text-slate-100">{p.total}</strong></Link>)}
+        {data.pipeline.map((p)=><Link key={p.status} href={pipelineClientHref(p.status)} className="staff-glass flex items-center justify-between rounded-xl px-4 py-3 transition hover:border-amber-300/30"><span className="truncate text-sm text-slate-300">{STATUS_LABELS[p.status as Status]??p.status.replace(/_/g," ")}</span><strong className="ml-3 tabular-nums text-slate-100">{p.total}</strong></Link>)}
       </div>
     </section>
 
