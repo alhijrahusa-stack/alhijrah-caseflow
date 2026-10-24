@@ -101,12 +101,12 @@ test("combined save rolls back every mutation and audit row on domain failure an
   const escalation = await staffAction(request, "staff", { action: "update_client", client_id: client.id, profile: { ...profile, city: "Forbidden" }, assigned_staff: null });
   expect(escalation.status).toBe(403);
   try {
-    await db()`update staff set permission_mode='custom',custom_permissions=${db().json(["update_client"])} where id=${staff.id}`;
+    await db()`update staff set permission_mode='custom',custom_permissions=${["update_client"]} where id=${staff.id}`;
     const denied = await staffAction(request, "staff", { action: "update_client", client_id: client.id, profile: { ...profile, city: "Forbidden" }, next_step: "Forbidden" });
     expect(denied.status).toBe(403);
     expect((await db()`select city from clients where id=${client.id}`)[0].city).toBe(client.city);
   } finally {
-    await db()`update staff set permission_mode=${staff.permission_mode},custom_permissions=${db().json(staff.custom_permissions)} where id=${staff.id}`;
+    await db()`update staff set permission_mode=${staff.permission_mode},custom_permissions=${staff.custom_permissions} where id=${staff.id}`;
   }
 });
 
