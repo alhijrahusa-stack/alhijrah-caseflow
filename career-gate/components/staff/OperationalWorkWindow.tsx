@@ -2,8 +2,8 @@ import Link from "next/link";
 import { dateOnly, dateTime } from "@/lib/format";
 import type { WorkWindowData, WorkWindowItem, WorkWindowKind } from "@/lib/operational-work-window";
 
-function WorkList({ title, href, items, total, dateOnlyFormat = false }: {
-  title: string; href: string; items: WorkWindowItem[]; total: number; dateOnlyFormat?: boolean;
+function WorkList({ title, href, items, total, dateOnlyFormat = false, tab = "work" }: {
+  title: string; href: string; items: WorkWindowItem[]; total: number; dateOnlyFormat?: boolean; tab?: "work" | "appointments";
 }) {
   return (
     <section className="ops-glass-card space-y-3">
@@ -16,7 +16,7 @@ function WorkList({ title, href, items, total, dateOnlyFormat = false }: {
           {items.map((item) => (
             <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
               <div className="min-w-0 flex-1">
-                <Link href={item.clientId ? `/staff/client/${item.clientId}?tab=work` : href} className="font-semibold text-slate-100 hover:text-amber-200">{item.label}</Link>
+                <Link href={item.clientId ? `/staff/client/${item.clientId}?tab=${tab}` : href} className="font-semibold text-slate-100 hover:text-amber-200">{item.label}</Link>
                 <p className="mt-1 text-xs text-slate-400">{item.clientName ?? "Office"}{item.clientRef ? ` · ${item.clientRef}` : ""}</p>
               </div>
               <span className={item.overdue ? "text-xs font-semibold text-red-300" : "text-xs text-slate-400"}>
@@ -49,7 +49,7 @@ export function OperationalWorkWindow({ kind, data }: { kind: WorkWindowKind; da
       </header>
       <div className="grid gap-4 xl:grid-cols-2">
         <WorkList title="Open Tasks Due" href="/staff/tasks" items={data.tasks} total={data.totals.tasks} />
-        <WorkList title="Upcoming Appointments" href="/staff/appointments?view=upcoming" items={data.appointments} total={data.totals.appointments} />
+        <WorkList title="Upcoming Appointments" href="/staff/appointments?view=upcoming" items={data.appointments} total={data.totals.appointments} tab="appointments" />
         <WorkList title="Open Follow-Ups Due" href="/staff/follow-ups?view=due" items={data.followups} total={data.totals.followups} dateOnlyFormat />
       </div>
     </div>
