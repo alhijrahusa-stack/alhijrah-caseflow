@@ -28,10 +28,13 @@ export function MobileAppointmentCards({ appointments }: Props) {
     window.addEventListener("keydown", onKey);
     return () => { document.body.style.overflow = previous; window.removeEventListener("keydown", onKey); };
   }, [selected]);
+  useEffect(() => {
+    if (selected && !appointments.some((a) => a.id === selected.id)) dismiss();
+  }, [appointments, selected]);
   const open = (appointment: Appointment) => { setTab(appointment.status === "confirmed" ? "notification" : "actions"); setOffset(0); setSelected(appointment); };
   return <>
-    <div className="grid min-w-0 gap-3 lg:hidden" data-testid="mobile-appointment-cards">
-      {appointments.map(a => <article key={a.id} className="min-w-0 overflow-hidden rounded-2xl border border-sky-300/20 bg-gradient-to-br from-[#132c46] to-[#0b1d30] p-4 shadow-lg">
+    <div className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-3" data-testid="mobile-appointment-cards">
+      {appointments.map(a => <article key={a.id} className="min-w-0 overflow-hidden rounded-[24px] border border-amber-300/15 bg-gradient-to-br from-[#14233b]/95 via-[#0d1a30]/95 to-[#091527]/95 p-5 shadow-[0_18px_45px_rgba(0,0,0,.22)] backdrop-blur-2xl transition duration-200 hover:-translate-y-0.5 hover:border-amber-300/35 hover:shadow-[0_22px_50px_rgba(0,0,0,.32)]">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-semibold tracking-[.13em] text-amber-300">CAREER GATE · APPOINTMENT</p>
@@ -40,6 +43,7 @@ export function MobileAppointmentCards({ appointments }: Props) {
           </div>
           <span className={a.status === "confirmed" ? "shrink-0 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200" : "shrink-0 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] text-amber-200"}>{a.status}</span>
         </div>
+{a.outcome && <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-emerald-300">Recorded: {a.outcome.replaceAll("_", " ")}</p>}
         <dl className="mt-3 grid min-w-0 gap-2 rounded-xl border border-white/10 bg-white/[.035] p-3 text-xs">
           <div><dt className="text-[10px] text-slate-400">Date & Time / الموعد</dt><dd className="mt-1 font-semibold text-white">{displayDate(a.scheduled_at)} · Detroit</dd></div>
           <div><dt className="text-[10px] text-slate-400">Type / النوع</dt><dd className="mt-1 break-words text-slate-100">{a.appointment_type}</dd></div>
@@ -49,7 +53,7 @@ export function MobileAppointmentCards({ appointments }: Props) {
         <button type="button" onClick={() => open(a)} className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-400/15 px-4 py-3 text-sm font-bold text-amber-200 active:scale-[.99]" aria-label={`Open actions for ${a.full_name}`}>Executive Smart Gate <span aria-hidden="true">↑</span></button>
       </article>)}
     </div>
-    {selected && <div className="fixed inset-0 z-[1000] lg:hidden" data-testid="executive-bottom-drawer">
+    {selected && <div className="fixed inset-0 z-[1000]" data-testid="executive-bottom-drawer">
       <button type="button" className="absolute inset-0 h-full w-full bg-[#020a15]/75 backdrop-blur-[3px]" onClick={dismiss} aria-label="Close appointment actions" />
       <section role="dialog" aria-modal="true" aria-labelledby="smart-gate-heading" className="absolute inset-x-0 bottom-0 flex max-h-[min(88dvh,850px)] min-h-0 flex-col overflow-hidden rounded-t-[28px] border border-amber-300/25 bg-[#0b1d30] text-white shadow-[0_-25px_65px_rgba(0,0,0,.55)]" style={{ transform: `translateY(${offset}px)`, transition: "transform 220ms cubic-bezier(.2,.8,.2,1)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <div className="shrink-0 touch-pan-x px-4 pt-3" onTouchStart={e => {startY.current=e.touches[0].clientY;}} onTouchMove={e => {if(startY.current !== null)setOffset(Math.max(0,e.touches[0].clientY-startY.current));}} onTouchEnd={() => {if(offset > 110)dismiss();else setOffset(0);startY.current=null;}}>
