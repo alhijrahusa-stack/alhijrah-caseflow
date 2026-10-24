@@ -251,13 +251,16 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
         dateOfBirth: match.date_of_birth,
         phone: match.phone,
       }));
-    const emailDuplicates = emailMatches.filter(sharesApplicant);
-    const rowMatches = emailDuplicates;
+    const rowMatches = matches.filter(sharesApplicant);
 
     // Same email, no agreeing identity signal: a different applicant using a
     // relative's address. Allowed, and surfaced so staff can see why.
     const sharedEmailOnly = !rowMatches.length && emailMatches.length > 0 ? emailMatches[0] : null;
 
+    const sharedPhoneOnly = !rowMatches.length ? matches.find(match => {
+      const m = identityKey(match.email, match.phone);
+      return Boolean(identity.phone && identity.phone.length >= 7 && m.phone === identity.phone);
+    }) : null;
     const exact = rowMatches.find((match) => {
       const m = identityKey(match.email, match.phone);
       return Boolean(identity.email && identity.phone && m.email === identity.email && m.phone === identity.phone);
@@ -267,6 +270,7 @@ export async function previewImportRows(session: StaffSession, rows: IntakeRow[]
     const first = exact ?? rowMatches[0] ?? null;
     const message = item.error
       ?? (first ? `Existing client ${first.ref} matches imported identity` : null)
+      ?? (sharedPhoneOnly ? `Phone already used by ${sharedPhoneOnly.ref}; verify the applicant. Creation remains available.` : null)
       ?? (sharedEmailOnly ? `Email already used by ${sharedEmailOnly.ref}; a different applicant may share it` : null);
     return {
       row: item.index + 2,
@@ -632,7 +636,10 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
   const docs = await tx`select count(*)::int as count from client_import_documents where import_case_id=${String(row.id)}`;
   const documentCount = Number(docs[0]?.count ?? 0);
   const conflicts = Array.isArray(row.conflicts) ? row.conflicts as unknown[] : [];
-  const blockingConflicts = [...conflicts];
+  // Identity findings are derived from the current draft and live files. Drop
+  // stale findings before rechecking, while retaining every other conflict.
+  const blockingConflicts = conflicts.filter(conflict =>
+    !(conflict && typeof conflict === "object" && "type" in conflict && conflict.type === "IDENTITY"));
 
   // Identity is resolved first: a duplicate is a destructive-conflict blocker.
   const persistable = assessApproval({ mappedDraft: row.mapped_draft });
@@ -647,7 +654,7 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
       lock: true,
       fullName: persistable.draft.profile.full_name,
       dateOfBirth: persistable.draft.profile.date_of_birth,
-      policy: fromPublicLink ? "public" : "legacy",
+      policy: fromPublicLink ? "public" : "staff",
     });
     if (identityMatches.length) blockingConflicts.push({ type: "IDENTITY", client_id: identityMatches[0].id, client_ref: identityMatches[0].ref });
   }

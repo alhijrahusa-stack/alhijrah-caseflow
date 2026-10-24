@@ -1,3 +1,5 @@
+import { after } from "next/server";
+import { processJobs } from "@/lib/jobs";
 import { z } from "zod";
 import { sql } from "@/lib/db";
 import { ActionError } from "@/lib/service";
@@ -97,14 +99,16 @@ export async function POST(req: Request) {
       informationConfirmed: body.information_match_confirmed,
     }), 200, traceId);
     if (body.action === "verify") return ok(await verifyImportCase(guard.session, body.id), 200, traceId);
-    return ok(await approveImportCase(guard.session, {
+    const result = await approveImportCase(guard.session, {
       id: body.id,
       reviewerId: body.reviewer_id,
       draft: body.draft,
       documentConfirmed: body.document_match_confirmed,
       informationConfirmed: body.information_match_confirmed,
       traceId,
-    }), 200, traceId);
+    });
+    after(() => processJobs(10).catch((error) => console.error(error)));
+    return ok(result, 200, traceId);
   } catch (error) {
     if (error instanceof ActionError) return err(error.code, error.message, error.status, traceId);
     if (error instanceof z.ZodError) return err("invalid_input", error.issues[0]?.message ?? "Invalid input", 400, traceId);

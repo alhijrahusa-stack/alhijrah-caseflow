@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       });
       const clientId = authz.clientId ?? (typeof result.client_id === "string" ? result.client_id : null);
       after(async () => {
-        if (clientId) await runAudit(clientId, traceId).catch((e) => console.error(e));
+        if (clientId && result.identity_review_pending !== true) await runAudit(clientId, traceId).catch((e) => console.error(e));
         await processJobs(10).catch((e) => console.error(e));
       });
       // The resolved client id lets the caller scope its targeted UI update;

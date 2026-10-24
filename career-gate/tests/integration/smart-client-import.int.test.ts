@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
 import type { StaffSession } from "@/lib/auth";
+import { runAudit } from "@/lib/audit";
 import { publicImportStatus } from "@/lib/public-status";
 import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
 import {
@@ -436,6 +437,54 @@ describe("Smart Career Collect Client staging security", () => {
 
     const [{ count }] = await db`select count(*)::int as count from clients where lower(email)=lower(${sharedEmail})`;
     expect(count).toBe(2);
+  });
+
+  it("approves distinct staff applicants sharing a phone, preserves refs, and queues an auditable alert", async () => {
+    const phone = "3135558840";
+    const stage = async (name: string, dob: string) => {
+      const staged = await stageSheetRows({ session: manager, source: "csv",
+        idempotencyKey: randomUUID(), rows: [{ full_name: name, phone, date_of_birth: dob }] });
+      const id = String(staged.cases[0].id);
+      const [row] = await db`select public_ref,mapped_draft from client_import_cases where id=${id}`;
+      return { id, row };
+    };
+    const approve = (item: Awaited<ReturnType<typeof stage>>) => approveImportCase(manager, {
+      id: item.id, reviewerId: manager.staff.id, draft: item.row.mapped_draft,
+      documentConfirmed: true, informationConfirmed: true, traceId: "staff-shared-phone",
+    });
+    const first = await stage("TEST Phone Family Alpha", "1980-01-01");
+    await approve(first);
+    const [preview] = await previewImportRows(manager, [{
+      full_name: "TEST Phone Family Beta", phone, date_of_birth: "1995-02-02",
+    }]);
+    expect(preview.result).toBe("VALID");
+    expect(preview.message).toContain("verify the applicant");
+    const second = await stage("TEST Phone Family Beta", "1995-02-02");
+    // A previous verification result must not survive correction of the draft.
+    await db`update client_import_cases set conflicts='[{"type":"IDENTITY"}]'::jsonb where id=${second.id}`;
+    await startImportReview(manager, second.id, manager.staff.id);
+    const verification = await verifyImportCase(manager, second.id);
+    expect(verification.approval_ready).toBe(true);
+    const created = await approve(second);
+    expect(created.ref).toBe(second.row.public_ref);
+    expect((await approve(second)).idempotent).toBe(true);
+    const [job] = await db`select payload from jobs where dedupe_key=${`identity-audit:${created.client_id}`}`;
+    expect(job.payload.client_id).toBe(created.client_id);
+    await runAudit(created.client_id, "staff-shared-phone");
+    await runAudit(created.client_id, "staff-shared-phone-retry");
+    const alerts = await db`select evidence from audit_alerts where client_id=${created.client_id}
+      and rule='identity_review_shared_phone' and status='open'`;
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].evidence.shared_with).toContain(first.row.public_ref);
+    // The same person remains blocked even without an email anchor.
+    const [repeat] = await previewImportRows(manager, [{ full_name: "TEST Phone Family Beta", phone, date_of_birth: "1995-02-02" }]);
+    expect(repeat.result).toBe("DUPLICATE");
+    // Bypassing application validation cannot bypass the database guard.
+    await expect(db`insert into clients(source,full_name,phone,date_of_birth,next_step)
+      values('staff_manual','TEST Phone Family Beta',${phone},'1995-02-02','Review')`)
+      .rejects.toMatchObject({ code: "P0001" });
+    const [count] = await db`select count(*)::int n from clients where phone=${phone}`;
+    expect(count.n).toBe(2);
   });
 
   it("still blocks the same applicant when email and identity match an existing file", async () => {
