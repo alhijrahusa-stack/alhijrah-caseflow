@@ -8,7 +8,7 @@ import { getStaffSession } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { appointmentList } from "@/lib/queries";
 
-const VIEWS = [["upcoming", "Upcoming"], ["today", "Today"], ["past", "Past"], ["all", "All"]] as const;
+const VIEWS = [["upcoming", "Upcoming"], ["next_2h", "Next 2 Hours"], ["today", "Today"], ["past", "Past"], ["all", "All"]] as const;
 const PAGE_SIZE = 25;
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ view?: string; page?: string }> }) {
@@ -29,7 +29,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           <h1>Appointments <span className="text-amber-300">/ المواعيد</span></h1>
           <p>Page {page} · {rows.length} appointment{rows.length === 1 ? "" : "s"} shown · internal office calendar</p>
         </div>
-        <nav className="grid w-full grid-cols-4 gap-2 text-sm sm:flex sm:w-auto" aria-label="Views">
+        <nav className="grid w-full grid-cols-2 sm:grid-cols-5 gap-2 text-sm sm:flex sm:w-auto" aria-label="Views">
           {VIEWS.map(([k, l]) => <Link key={k} href={`/staff/appointments?view=${k}`} aria-current={k === view ? "page" : undefined} className={k === view ? "flex min-h-11 items-center justify-center rounded-xl border border-amber-300/50 bg-amber-300/10 px-2 py-2 font-semibold text-amber-200" : "flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-2 py-2 text-slate-300 transition-all duration-300 hover:border-sky-400/40 hover:bg-white/5"}>{l}</Link>)}
         </nav>
       </header>

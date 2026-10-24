@@ -87,6 +87,19 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await expect(page).toHaveURL(/\/staff\/today$/);
   });
 
+  test("dashboard actionable KPIs open corresponding filtered authoritative lists", async () => {
+    await page.goto("/staff");
+    await page.getByRole("link", { name: /Overdue Tasks/ }).click();
+    await expect(page).toHaveURL(/view=overdue/);
+    await expect(page.getByRole("heading", { name: "Tasks", exact: true })).toBeVisible();
+    await page.goto("/staff/tasks?view=due_today");
+    await expect(page.getByRole("link", { name: "Due Today", exact: true })).toHaveClass(/font-semibold/);
+    await page.goto("/staff/appointments?view=next_2h");
+    await expect(page.getByRole("link", { name: "Next 2 Hours", exact: true })).toHaveAttribute("aria-current", "page");
+    await page.goto("/staff/follow-ups?view=overdue");
+    await expect(page.getByRole("heading", { name: "Follow-Ups", exact: true })).toBeVisible();
+  });
+
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();

@@ -32,8 +32,8 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
       <SectionTitle title="Now" subtitle="Items requiring operational attention."/>
       <h2 id="now-heading" className="sr-only">Current exceptions</h2>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Overdue Tasks" value={data.overdue_tasks} href="/staff/tasks" tone={data.overdue_tasks?"danger":"good"}/>
-        <Kpi label="Overdue Follow-Ups" value={data.overdue_followups} href="/staff/follow-ups" tone={data.overdue_followups?"danger":"good"}/>
+        <Kpi label="Overdue Tasks" value={data.overdue_tasks} href="/staff/tasks?view=overdue" tone={data.overdue_tasks?"danger":"good"}/>
+        <Kpi label="Overdue Follow-Ups" value={data.overdue_followups} href="/staff/follow-ups?view=overdue" tone={data.overdue_followups?"danger":"good"}/>
         <Kpi label="Documents Needing Action" value={data.document_attention} href="/staff/clients" tone={data.document_attention?"warn":"good"}/>
         <Kpi label="Unassigned Files" value={data.unassigned_clients} href="/staff/staff?tab=assignments&scope=unassigned" tone={data.unassigned_clients?"warn":"good"}/>
         {data.system&&<><Kpi label="Dead Jobs" value={data.system.queue.dead} tone={data.system.queue.dead?"danger":"good"}/><Kpi label="Delivery Failures · 24h" value={data.system.failed_notifications_24h} tone={data.system.failed_notifications_24h?"danger":"good"}/><Kpi label="Open Audit Alerts" value={data.system.open_audit_alerts} href="/staff/audit-alerts" tone={data.system.open_audit_alerts?"warn":"good"}/><Kpi label="System" value={data.system.status} tone={data.system.status==="HEALTHY"?"good":data.system.status==="DEGRADED"?"warn":"danger"} detail={`DB ${data.system.db_ms} ms`}/></>}
@@ -46,8 +46,8 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
       <h2 id="today-heading" className="sr-only">Today&apos;s workload</h2>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi label="New Clients" value={data.new_clients} href="/staff/clients?status=new_intake"/>
-        <Kpi label="Appointments · Next 2 Hours" value={data.appointments_2h} href="/staff/appointments" tone={data.appointments_2h?"warn":"neutral"}/>
-        <Kpi label="Tasks Due Today" value={data.tasks_due} href="/staff/tasks"/>
+        <Kpi label="Appointments · Next 2 Hours" value={data.appointments_2h} href="/staff/appointments?view=next_2h" tone={data.appointments_2h?"warn":"neutral"}/>
+        <Kpi label="Tasks Due Today" value={data.tasks_due} href="/staff/tasks?view=due_today"/>
         <Kpi label="Completed This Month" value={data.completed_this_month} href="/staff/clients?view=completed" tone="good"/>
       </div>
     </section>
