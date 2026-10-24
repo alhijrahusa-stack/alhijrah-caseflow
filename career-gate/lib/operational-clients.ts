@@ -33,7 +33,7 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
               and (n.uploaded_at,n.id)>(d.uploaded_at,d.id)
           )
       )`:tx``}
-      ${extra.assigned==="none"?tx`and c.assigned_staff is null`:extra.assigned?tx`and c.assigned_staff=${extra.assigned}`:tx``}
+      ${extra.assigned==="none"?tx`and c.assigned_staff is null and c.current_status not in ('completed','cancelled')`:extra.assigned?tx`and c.assigned_staff=${extra.assigned}`:tx``}
       ${term?tx`and (c.ref ilike ${like} or c.full_name ilike ${like} or c.email ilike ${like} or c.phone like ${like})`:tx``}`;
     const [{total}] = await tx`select count(*)::int as total from clients c where ${where}`;
     // Keep the view on a real page if filters or records changed since navigation.
