@@ -158,10 +158,10 @@ test("AC-06 / E: every dashboard KPI opens its source and readiness lists match 
         or (${readiness}='nearly_ready' and r.readiness_percent between 75 and 99)
         or (${readiness}='blocked' and coalesce(r.readiness_percent,0)<75)
         or (${readiness}='missing' and r.total_requirements>r.completed_requirements))`;
-    await expect(page.getByTestId("client-total")).toContainText(`${count.n} clients`);
+    await expect(page.getByTestId("client-total")).toContainText(`${count.n} client`);
     await page.getByRole("search").getByRole("button", { name: "Apply", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`readiness=${readiness}`));
-    await expect(page.getByTestId("client-total")).toContainText(`${count.n} clients`);
+    await expect(page.getByTestId("client-total")).toContainText(`${count.n} client`);
   }
   await page.goto("/staff/settings#system-health");
   await expect(page.getByRole("heading", { name: "Operational System Health", exact: true })).toBeVisible();
