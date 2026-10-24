@@ -245,6 +245,34 @@ export async function appointmentList(s: StaffSession, view: string, limit = 300
     limit ${pageLimit} offset ${pageOffset}`);
 }
 
+export async function appointmentPage(s: StaffSession, view: string, requestedPage = 1, pageSize = 25) {
+  const size = Number.isSafeInteger(pageSize) ? Math.min(Math.max(pageSize, 1), 100) : 25;
+  return withStaff(s, async (tx) => {
+    const filter = tx`c.deleted_at is null and ${
+      view === "next_2h"
+        ? tx`a.status = any(${OPEN_APPT}) and a.scheduled_at >= now() and a.scheduled_at <= now() + interval '2 hours' and c.current_status not in ('completed','cancelled')`
+        : view === "today"
+          ? tx`(a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date`
+          : view === "past"
+            ? tx`a.scheduled_at < now()`
+            : view === "all"
+              ? tx`true`
+              : tx`a.ends_at >= now() and a.status = any(${OPEN_APPT})`
+    }`;
+    const [count] = await tx`select count(*)::int as total from appointments a join clients c on c.id = a.client_id where ${filter}`;
+    const total = Number(count?.total ?? 0);
+    const pages = Math.max(1, Math.ceil(total / size));
+    const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pages) : 1;
+    const rows = await tx`
+      select a.*, c.full_name, c.ref, s.display_name as created_by_name
+      from appointments a join clients c on c.id = a.client_id left join staff s on s.id = a.created_by_staff
+      where ${filter}
+      order by a.scheduled_at ${view === "past" ? tx`desc` : tx`asc`}, a.id
+      limit ${size} offset ${(page-1)*size}`;
+    return {rows, total, pages, page};
+  });
+}
+
 export async function taskList(s: StaffSession, view: string, assignee?: string, limit = 300, offset = 0) {
   const pageLimit = Number.isSafeInteger(limit) ? Math.min(Math.max(limit, 1), 300) : 300;
   const pageOffset = Number.isSafeInteger(offset) ? Math.max(offset, 0) : 0;
