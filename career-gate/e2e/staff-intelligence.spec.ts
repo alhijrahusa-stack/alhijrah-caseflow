@@ -138,12 +138,19 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await expect(page.getByText(`${count![0]} follow-up item`, { exact: false })).toBeVisible();
   });
   test("completed pipeline stage navigates into completed records, not the active register", async () => {
-    await page.goto("/staff");
-    const pipeline = page.getByRole("link", { name: /^Completed\s+\d+$/ });
-    await expect(pipeline).toHaveAttribute("href", /view=completed&status=completed/);
-    await pipeline.click();
-    await expect(page).toHaveURL(/view=completed&status=completed/);
-    await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
+    const [prior] = await db()`select current_status from clients where id=${clientId}`;
+    await db()`update clients set current_status='completed' where id=${clientId}`;
+    try {
+      await page.goto("/staff");
+      const pipeline = page.locator('a[href="/staff/clients?view=completed&status=completed"]');
+      await expect(pipeline).toBeVisible();
+      await pipeline.click();
+      await expect(page).toHaveURL(/view=completed&status=completed/);
+      await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
+      await expect(page.getByTestId("client-total")).toContainText(/client/);
+    } finally {
+      await db()`update clients set current_status=${prior.current_status} where id=${clientId}`;
+    }
   });
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
