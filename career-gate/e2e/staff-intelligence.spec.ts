@@ -1,3 +1,4 @@
+import { pipelineClientHref } from "../lib/pipeline-navigation";
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
 import { accessToken, db, intakeBody, RUN, signIn, submitIntake, uniqueIp } from "./helpers";
@@ -137,6 +138,18 @@ test.describe.serial("Staff intelligence surfaces", () => {
     expect(Number(count![0])).toBe(Number(expected.n));
     await expect(page.getByText(`${count![0]} follow-up item`, { exact: false })).toBeVisible();
   });
+  test("completed pipeline stage targets completed register and preserves other stage routes", async () => {
+    expect(pipelineClientHref("completed")).toBe("/staff/clients?view=completed&status=completed");
+    expect(pipelineClientHref("new_intake")).toBe("/staff/clients?view=active&status=new_intake");
+    await page.goto("/staff");
+    const pipeline = page.locator('a[href="/staff/clients?view=completed&status=completed"]');
+    if (await pipeline.count()) {
+      await pipeline.click();
+      await expect(page).toHaveURL(/view=completed&status=completed/);
+      await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
+    }
+  });
+
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();
