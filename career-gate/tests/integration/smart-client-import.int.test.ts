@@ -462,6 +462,7 @@ describe("Smart Career Collect Client staging security", () => {
     const second = await stage("TEST Phone Family Beta", "1995-02-02");
     // A previous verification result must not survive correction of the draft.
     await db`update client_import_cases set conflicts='[{"type":"IDENTITY"}]'::jsonb where id=${second.id}`;
+    await startImportReview(manager, second.id, manager.staff.id);
     const verification = await verifyImportCase(manager, second.id);
     expect(verification.approval_ready).toBe(true);
     const created = await approve(second);

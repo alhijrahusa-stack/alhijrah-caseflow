@@ -20,6 +20,7 @@ test("staff shared phone persists distinct files, shows review alert and protect
     where client_id=${id} and rule='identity_review_shared_phone' and status='open'`)[0].n).toBe(1);
   await page.goto(`/staff/client/${id}`);
   await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+  await expect(page.getByText("Another active file uses the same phone. Phone alone does not identify an applicant and does not block staff creation.")).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
   await signIn(page.context(), baseURL!, "admin");
