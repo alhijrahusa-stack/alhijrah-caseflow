@@ -243,7 +243,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
   });
   test("appointments offer server-side search and preserve it through views", async () => {
     await page.goto("/staff/appointments");
-    await page.getByRole("searchbox", { name: "Search appointments by client name, case or phone" }).fill(`No Match ${RUN}`);
+    await page.getByRole("textbox", { name: "Search appointments by client name, case or phone" }).fill(`No Match ${RUN}`);
     await page.getByRole("button", { name: "Search appointments" }).click();
     await expect(page).toHaveURL(/q=No/);
     await page.getByRole("link", { name: "Past", exact: true }).click();
