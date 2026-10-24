@@ -401,10 +401,10 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       const [appt] = await tx`
         select a.id, a.client_id, a.status, c.current_status, c.pipeline_stage
         from appointments a join clients c on c.id=a.client_id
-        where a.id=${{a.appointment_id} and c.deleted_at is null
+        where a.id=${a.appointment_id} and c.deleted_at is null
         for update of a,c`;
       if (!appt) throw new ActionError("not_found", "Appointment not found", 404);
-      const [existing] = await tx`select decision from appointment_outcomes where appointment_id=${{a.appointment_id}`;
+      const [existing] = await tx`select decision from appointment_outcomes where appointment_id=${a.appointment_id}`;
       if (existing) {
         if (existing.decision === a.decision) return { changed: false, decision: a.decision };
         throw new ActionError("decision_locked", "Final decision already recorded", 409);
@@ -428,12 +428,12 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
           : a.decision === "missed" ? "Missed appointment: contact client to reschedule."
             : a.decision === "cancelled_interested" ? "Client remains interested: arrange new appointment."
               : "Client confirmed not interested; file closed.";
-      await tx`update appointments set status=${{appointmentStatus},updated_at=now() where id=${{a.appointment_id}`;
+      await tx`update appointments set status=${appointmentStatus},updated_at=now() where id=${a.appointment_id}`;
       await tx`insert into appointment_outcomes (appointment_id,client_id,decision,note,recorded_by)
-        values (${{a.appointment_id},${{appt.client_id},${{a.decision},${{a.note},${{by})
+        values (${a.appointment_id},${appt.client_id},${a.decision},${a.note},${by})
         on conflict (appointment_id) do update set
         decision=excluded.decision,note=excluded.note,recorded_by=excluded.recorded_by,recorded_at=now()`;
-      await tx`update clients set current_status=${{status},pipeline_stage=${{stage},next_step=${{nextStep} where id=${{appt.client_id}`;
+      await tx`update clients set current_status=${status},pipeline_stage=${stage},next_step=${nextStep} where id=${appt.client_id}`;
       await logActivity(tx, {
         clientId: appt.client_id, action: "appointment_completed", actor,
         entityType: "appointment", entityId: a.appointment_id,
