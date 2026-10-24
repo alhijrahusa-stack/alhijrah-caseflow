@@ -33,7 +33,7 @@ export function AppointmentRowActions({ appt }: { appt: Row }) {
       {appt.outcome && <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">Decision recorded: {String(appt.outcome).replaceAll("_", " ")}</p>}
       {!closed && <>
         <div className="flex flex-wrap gap-2">
-          {appt.status !== "confirmed" && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "confirmed" })}>Confirm booking</SmallBtn>}
+          {appt.status !== "confirmed" && <SmallBtn aria-label="Confirm" disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "confirmed" })}>Confirm booking</SmallBtn>}
           {interview ? <>
             <SmallBtn disabled={a.pending} onClick={() => decide("pass")}>Pass / نجح</SmallBtn>
             <SmallBtn disabled={a.pending} onClick={() => decide("fail")}>Fail / رسب</SmallBtn>
@@ -42,7 +42,7 @@ export function AppointmentRowActions({ appt }: { appt: Row }) {
             <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "attended" })}>Attended / حضر</SmallBtn>
             <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "missed" })}>Missed / تخلف</SmallBtn>
           </>}
-          <SmallBtn disabled={a.pending} onClick={() => setEditing((v) => !v)}>Reschedule / إعادة جدولة</SmallBtn>
+          <SmallBtn aria-label="Edit / Reschedule" disabled={a.pending} onClick={() => setEditing((v) => !v)}>Reschedule / إعادة جدولة</SmallBtn>
           {interview
             ? <SmallBtn disabled={a.pending} onClick={() => setCancelling((v) => !v)}>Canceled / إلغاء</SmallBtn>
             : <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "cancelled" })}>Cancel / إلغاء</SmallBtn>}
@@ -63,7 +63,7 @@ export function AppointmentRowActions({ appt }: { appt: Row }) {
         <QuickDateTime ariaLabel="New date and time" value={when} onChange={setWhen} required />
         <input aria-label="Location" className="input" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
         <input aria-label="Notes" className="input" placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        <SmallBtn type="submit" disabled={a.pending}>{a.pending ? "Saving..." : "Save new appointment"}</SmallBtn>
+        <SmallBtn type="submit" aria-label="Save changes" disabled={a.pending}>{a.pending ? "Saving..." : "Save changes"}</SmallBtn>
       </form>}
       {a.pending && <p role="status" className="text-xs text-amber-200">Saving to Career Gate...</p>}
       {a.error && <p role="alert" className="text-xs text-red-300">{a.error}</p>}
