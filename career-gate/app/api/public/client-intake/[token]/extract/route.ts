@@ -45,6 +45,7 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
     // diagnostic (including project identifiers or billing URLs) to a client.
     // The one-time intake link remains open: manual entry and submission work.
     if (error instanceof ActionError && (
+      ["ocr_not_configured", "ocr_quota_exceeded", "ocr_auth_failed"].includes(error.code) ||
       /quota exceeded|exceeded your current quota|resource_exhausted/i.test(error.message)
     )) {
       return err(

@@ -95,6 +95,8 @@ export async function rowsFromImageOrPdfDetailed(bytes: Uint8Array, mimeType: st
     if (!result.ok) {
       lastMessage = result.message;
       if (result.code === "NOT_CONFIGURED") throw new ActionError("ocr_not_configured", result.message, 503);
+      if (result.code === "QUOTA_EXCEEDED") throw new ActionError("ocr_quota_exceeded", result.message, 503);
+      if (result.code === "AUTH_FAILED") throw new ActionError("ocr_auth_failed", result.message, 503);
       continue;
     }
     let json: unknown;
