@@ -102,9 +102,10 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     await expect(act(manager, {
       action: "appointment_decision", appointment_id: booking.appointment_id, decision: "pass", note: null,
     })).rejects.toMatchObject({ code: "invalid_appointment_kind" });
-    const [state] = await db`select status from appointments where id=${booking.appointment_id}`;
+    const bookedId = String(booking.appointment_id);
+    const [state] = await db`select status from appointments where id=${bookedId}`;
     expect(state.status).toBe("scheduled");
-    const rows = await db`select * from appointment_outcomes where appointment_id=${booking.appointment_id}`;
+    const rows = await db`select * from appointment_outcomes where appointment_id=${bookedId}`;
     expect(rows).toHaveLength(0);
   });
 
