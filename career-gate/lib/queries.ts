@@ -263,6 +263,31 @@ export async function taskList(s: StaffSession, view: string, assignee?: string,
     limit ${pageLimit} offset ${pageOffset}`);
 }
 
+
+export async function taskPage(s: StaffSession, view: string, assignee?: string, requestedPage = 1, pageSize = 50) {
+  const size = Number.isSafeInteger(pageSize) ? Math.min(Math.max(pageSize, 1), 100) : 50;
+  return withStaff(s, async (tx) => {
+    const filter = tx`(c.id is null or c.deleted_at is null)
+      and ${view === "closed" ? tx`t.status in ('completed','cancelled')` : tx`t.status in ('pending','in_progress')`}
+      ${view === "overdue" ? tx`and t.due_at < now()` : view === "due_today" ? tx`and (t.due_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date` : tx``}
+      ${view === "overdue" || view === "due_today" ? tx`and c.id is not null and c.current_status not in ('completed','cancelled')` : tx``}
+      ${assignee ? tx`and t.assigned_to = ${assignee}` : tx``}`;
+    const [count] = await tx`select count(*)::int as total from tasks t left join clients c on c.id=t.client_id where ${filter}`;
+    const total = Number(count?.total ?? 0);
+    const pages = Math.max(1, Math.ceil(total / size));
+    const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pages) : 1;
+    const rows = await tx`
+      select t.id, t.client_id, t.title, t.description, t.status, t.due_at, t.completed_at, t.created_at, t.updated_at,
+             (t.due_at < now()) as overdue, c.full_name, c.ref, a.display_name as assigned_to_name, d.display_name as completed_by_name
+      from tasks t left join clients c on c.id=t.client_id
+      left join staff a on a.id=t.assigned_to left join staff d on d.id=t.completed_by
+      where ${filter}
+      order by ${view === "closed" ? tx`t.updated_at desc, t.id` : tx`t.due_at asc nulls last, t.created_at, t.id`}
+      limit ${size} offset ${(page-1)*size}`;
+    return {rows, total, pages, page};
+  });
+}
+
 export async function followupList(s: StaffSession, view: string) {
   return withStaff(s, (tx) => {
     const today = tx`(now() at time zone ${TZ})::date`;

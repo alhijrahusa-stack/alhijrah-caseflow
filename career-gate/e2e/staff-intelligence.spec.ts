@@ -197,6 +197,18 @@ test.describe.serial("Staff intelligence surfaces", () => {
     expect(await page.locator("tbody tr").count()).toBeLessThanOrEqual(100);
   });
 
+  test("task pagination clamps an out-of-range page without losing the total", async () => {
+    await page.goto("/staff/tasks?page=99999");
+    await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();
+    const [expected] = await db()`select count(*)::int as total from tasks t left join clients c on c.id=t.client_id where (c.id is null or c.deleted_at is null) and t.status in ('pending','in_progress')`;
+    await expect(page.locator(".ops-hero p").last()).toContainText(`${expected.total} open task`);
+    const lastPage = Math.max(1, Math.ceil(expected.total / 50));
+    if (lastPage > 1) {
+      await expect(page.getByTestId("tasks-pager")).toContainText(`Page ${lastPage} of ${lastPage}`);
+      await expect(page.getByTestId("tasks-pager").getByRole("link", { name: "Previous" })).toBeVisible();
+    }
+  });
+
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();
