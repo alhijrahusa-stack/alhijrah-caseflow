@@ -5,7 +5,7 @@ import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { STATUS_LABELS, type Status } from "@/lib/domain";
 import type { DashboardCommandData } from "@/lib/operational-dashboard";
 
-function Kpi({label,value,href,tone="neutral",detail}:{label:string;value:ReactNode;href?:string;tone?:"neutral"|"warn"|"danger"|"good";detail?:string}){
+function Kpi({label,value,href,tone="neutral",detail}:{label:string;value:ReactNode;href:string;tone?:"neutral"|"warn"|"danger"|"good";detail?:string}){
   const cls=tone==="danger"?"text-red-300":tone==="warn"?"text-amber-300":tone==="good"?"text-emerald-300":"text-slate-100";
   const body=<div className="staff-kpi rounded-2xl p-4"><p className="text-sm text-slate-400">{label}</p><p className={`mt-2 text-3xl font-semibold tabular-nums ${cls}`}>{value}</p>{detail&&<p className="mt-1 text-xs text-slate-500">{detail}</p>}</div>;
   return href?<Link href={href} className="block transition hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">{body}</Link>:body;
@@ -37,7 +37,7 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
         <Kpi label="Overdue Follow-Ups" value={data.overdue_followups} href="/staff/follow-ups?view=overdue" tone={data.overdue_followups?"danger":"good"}/>
         <Kpi label="Documents Needing Action" value={data.document_attention} href="/staff/clients?attention=documents" tone={data.document_attention?"warn":"good"}/>
         <Kpi label="Unassigned Files" value={data.unassigned_clients} href="/staff/clients?assigned=none" tone={data.unassigned_clients?"warn":"good"}/>
-        {data.system&&<><Kpi label="Dead Jobs" value={data.system.queue.dead} tone={data.system.queue.dead?"danger":"good"}/><Kpi label="Delivery Failures · 24h" value={data.system.failed_notifications_24h} tone={data.system.failed_notifications_24h?"danger":"good"}/><Kpi label="Open Audit Alerts" value={data.system.open_audit_alerts} href="/staff/audit-alerts" tone={data.system.open_audit_alerts?"warn":"good"}/><Kpi label="System" value={data.system.status} tone={data.system.status==="HEALTHY"?"good":data.system.status==="DEGRADED"?"warn":"danger"} detail={`DB ${data.system.db_ms} ms`}/></>}
+        {data.system&&<><Kpi label="Dead Jobs" href="/staff/settings#system-health" value={data.system.queue.dead} tone={data.system.queue.dead?"danger":"good"}/><Kpi label="Delivery Failures · 24h" href="/staff/settings#system-health" value={data.system.failed_notifications_24h} tone={data.system.failed_notifications_24h?"danger":"good"}/><Kpi label="Open Audit Alerts" value={data.system.open_audit_alerts} href="/staff/audit-alerts" tone={data.system.open_audit_alerts?"warn":"good"}/><Kpi label="System" href="/staff/settings#system-health" value={data.system.status} tone={data.system.status==="HEALTHY"?"good":data.system.status==="DEGRADED"?"warn":"danger"} detail={`DB ${data.system.db_ms} ms`}/></>}
       </div>
     </section>
 
@@ -57,20 +57,20 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
       <div className="ops-glass-card">
         <SectionTitle title="Readiness" subtitle="Derived from canonical requirements."/>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi label="Ready" value={data.readiness.ready} tone="good"/>
-          <Kpi label="Nearly Ready" value={data.readiness.nearly_ready}/>
-          <Kpi label="Blocked" value={data.readiness.blocked} tone={data.readiness.blocked?"warn":"good"}/>
-          <Kpi label="Missing Requirements" value={data.readiness.missing_requirements} tone={data.readiness.missing_requirements?"warn":"good"}/>
+          <Kpi label="Ready" href="/staff/clients?readiness=ready" value={data.readiness.ready} tone="good"/>
+          <Kpi label="Nearly Ready" href="/staff/clients?readiness=nearly_ready" value={data.readiness.nearly_ready}/>
+          <Kpi label="Blocked" href="/staff/clients?readiness=blocked" value={data.readiness.blocked} tone={data.readiness.blocked?"warn":"good"}/>
+          <Kpi label="Missing Requirements" href="/staff/clients?readiness=missing" value={data.readiness.missing_requirements} tone={data.readiness.missing_requirements?"warn":"good"}/>
         </div>
       </div>
 
       <div className="ops-glass-card">
         <SectionTitle title="Finance" subtitle="Ledger-backed operational projection." href="/staff/accounting" label="Open Accounting"/>
         <div className="grid grid-cols-2 gap-3">
-          <Kpi label="Receivables" value={<Money value={data.finance.receivables}/>} tone={data.finance.receivables>0?"warn":"good"}/>
-          <Kpi label="Collected · Month" value={<Money value={data.finance.collected_this_month}/>} tone="good"/>
-          <Kpi label="Refunds · Month" value={<Money value={data.finance.refunds_this_month}/>}/>
-          <Kpi label="Commissions Attention" value={data.finance.commissions_attention} tone={data.finance.commissions_attention?"warn":"neutral"}/>
+          <Kpi label="Receivables" href="/staff/accounting" value={<Money value={data.finance.receivables}/>} tone={data.finance.receivables>0?"warn":"good"}/>
+          <Kpi label="Collected · Month" href="/staff/accounting" value={<Money value={data.finance.collected_this_month}/>} tone="good"/>
+          <Kpi label="Refunds · Month" href="/staff/accounting" value={<Money value={data.finance.refunds_this_month}/>}/>
+          <Kpi label="Commissions Attention" href="/staff/accounting" value={data.finance.commissions_attention} tone={data.finance.commissions_attention?"warn":"neutral"}/>
         </div>
       </div>
     </section>

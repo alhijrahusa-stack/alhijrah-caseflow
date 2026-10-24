@@ -3,6 +3,8 @@ import { ACCOUNT_NET_FEE } from "@/lib/accounting-schema";
 import { withStaff, type StaffSession } from "@/lib/auth";
 
 export type ClientView = "active" | "completed" | "all";
+export const READINESS_FILTERS = ["ready", "nearly_ready", "blocked", "missing"] as const;
+export type ReadinessFilter = (typeof READINESS_FILTERS)[number];
 export type OperationalClientRow = {
   id:string; ref:string; full_name:string; phone:string; email:string|null; city:string|null;
   current_status:string; next_step:string; start_date:string|null; updated_at:string;
@@ -10,7 +12,7 @@ export type OperationalClientRow = {
   job_id:string|null; job_title:string|null; shift_code:string|null; shift_name:string|null;
   payment_status:string|null; fee_amount:number|null;
 };
-export type OperationalClientExtraFilters={q?:string;status?:string;assigned?:string;attention?:"documents";completedThisMonth?:boolean};
+export type OperationalClientExtraFilters={q?:string;status?:string;assigned?:string;attention?:"documents";completedThisMonth?:boolean;readiness?:ReadinessFilter};
 
 export async function operationalClientList(session:StaffSession, view:ClientView, page:number, pageSize:number, extra:OperationalClientExtraFilters={}){
   return withStaff(session, async(tx)=>{
@@ -23,6 +25,10 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
     const like=`%${term.replace(/[\\%_]/g,(m)=>`\\${m}`)}%`;
     const where=tx`c.deleted_at is null and ${lifecycle}
       ${extra.status?tx`and c.current_status=${extra.status}`:tx``}
+      ${extra.readiness?tx`and exists (
+        select 1 from client_readiness r where r.client_id=c.id and r.total_requirements>0
+        and ${extra.readiness==="ready"?tx`r.readiness_percent=100`:extra.readiness==="nearly_ready"?tx`r.readiness_percent between 75 and 99`:extra.readiness==="blocked"?tx`coalesce(r.readiness_percent,0)<75`:tx`r.total_requirements>r.completed_requirements`}
+      )`:tx``}
       ${extra.completedThisMonth?tx`and c.current_status='completed' and exists (select 1 from activity_log l where l.client_id=c.id and l.action in ('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now()))`:tx``}
       ${extra.attention==="documents"?tx`and exists (
         select 1 from documents d

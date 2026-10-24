@@ -123,6 +123,12 @@ test("concurrent profile saves reject the stale writer without losing the winner
 
 test("AC-01 / AC-05 / AC-07: concurrent HTML intake retains canonical language, address, location and overnight shift fields", async ({ request, page, baseURL }) => {
   const payload = { uid: randomUUID(), service: "employment", firstName: "TEST", lastName: `P2 HTML ${RUN}`, phone: "2025550168", email: `p2-html-${RUN}@test.invalid`, dob: "1991-02-03", preferredLanguage: "es", englishLevel: "Good", address1: "123 Test Road", city: "Dearborn", state: "MI", zip: "48126", workType: "Full-Time", shiftCode: "FHD", branch: "DET3", branchName: "Pontiac - DET3", preferredLocations: ["Romulus", "Detroit", "Livonia"], shiftDays: "Thursday–Monday", shiftHours: "6pm – 4:30am", signature: { captured: true }, consent: true };
+  const invalidDate = await request.post("/api/application", { data: { ...payload, dob: "1991-02-31" }, headers: { "x-forwarded-for": uniqueIp() } });
+  expect(invalidDate.status()).toBe(400);
+  expect((await invalidDate.json()).code).toBe("invalid_date");
+  const incomplete = await request.post("/api/application", { data: { ...payload, firstName: "" }, headers: { "x-forwarded-for": uniqueIp() } });
+  expect(incomplete.status()).toBe(400);
+  expect((await db()`select count(*)::int n from clients where email=${payload.email}`)[0].n).toBe(0);
   const responses = await Promise.all([1,2].map(() => request.post("/api/application", { data: payload, headers: { "x-forwarded-for": uniqueIp() } })));
   expect(responses.map((r) => r.status()).sort()).toEqual([200,201]);
   const bodies = await Promise.all(responses.map((r) => r.json()));
@@ -131,7 +137,36 @@ test("AC-01 / AC-05 / AC-07: concurrent HTML intake retains canonical language, 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ full_name: `${payload.firstName} ${payload.lastName}`, phone: payload.phone, email: payload.email, date_of_birth: payload.dob, preferred_language: "es", english_proficiency: "GOOD", street: payload.address1, city: payload.city, state: payload.state, zip: payload.zip, preferred_location: "Romulus", location_option_1: "Detroit", location_option_2: "Livonia", shift_days: ["THU","FRI","SAT","SUN","MON"], starts: "18:00:00", ends: "04:30:00" });
   expect((await db()`select count(*)::int n from career_gate_applications where submission_uid=${payload.uid}`)[0].n).toBe(1);
+  const created = await db()`select action from activity_log where client_id=${rows[0].id} and action in ('client_created','application_submitted') order by created_at`;
+  expect(created.map((r) => r.action)).toEqual(["client_created", "application_submitted"]);
   await signIn(page.context(), baseURL!, "admin");
   await page.goto(`/staff/client/${rows[0].id}?tab=profile`);
   for (const value of ["GOOD", "Romulus", "Detroit", "Livonia", "THU, FRI, SAT, SUN, MON", "18:00:00 – 04:30:00"]) await expect(page.locator("#client-info")).toContainText(value);
+});
+
+test("AC-06 / E: every dashboard KPI opens its source and readiness lists match the canonical requirements", async ({ page, baseURL }) => {
+  await signIn(page.context(), baseURL!, "admin");
+  await page.goto("/staff");
+  const links = await page.locator(".staff-kpi").evaluateAll((cards) => cards.map((card) => card.closest("a")?.getAttribute("href")));
+  expect(links.length).toBeGreaterThan(10);
+  for (const link of links) expect(link).toMatch(/^\/staff\//);
+  for (const readiness of ["ready", "nearly_ready", "blocked", "missing"]) {
+    await page.goto(`/staff/clients?readiness=${readiness}`);
+    const [count] = await db()`select count(*)::int n from clients c join client_readiness r on r.client_id=c.id
+      where c.deleted_at is null and c.current_status not in ('completed','cancelled') and r.total_requirements>0
+      and ((${readiness}='ready' and r.readiness_percent=100)
+        or (${readiness}='nearly_ready' and r.readiness_percent between 75 and 99)
+        or (${readiness}='blocked' and coalesce(r.readiness_percent,0)<75)
+        or (${readiness}='missing' and r.total_requirements>r.completed_requirements))`;
+    await expect(page.getByTestId("client-total")).toContainText(`${count.n} clients`);
+    await page.getByRole("search").getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`readiness=${readiness}`));
+    await expect(page.getByTestId("client-total")).toContainText(`${count.n} clients`);
+  }
+  await page.goto("/staff/settings#system-health");
+  await expect(page.getByRole("heading", { name: "Operational System Health", exact: true })).toBeVisible();
+  await expect(page.locator("#system-health")).toContainText("Dead jobs");
+  await signIn(page.context(), baseURL!, "manager");
+  await page.goto("/staff/settings#system-health");
+  await expect(page.locator("#system-health")).toHaveCount(0);
 });

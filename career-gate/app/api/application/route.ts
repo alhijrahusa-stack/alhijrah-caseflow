@@ -7,8 +7,8 @@ import { err, ipHash } from "@/lib/http";
 import { claimKey, completeKey } from "@/lib/idempotency";
 import { traceIdFrom } from "@/lib/obs";
 import { hit } from "@/lib/ratelimit";
-import { findClientIdentityMatches, logActivity, normalizeClientPhone, type Tx } from "@/lib/service";
-import { normalizeEnglishProficiency, normalizeShiftDays, parseShiftRange } from "@/lib/smart-client-fields";
+import { ActionError, insertClient, logActivity, normalizeClientPhone, type Tx } from "@/lib/service";
+import { normalizeEnglishProficiency, normalizeShiftDays, normalizeSmartDate, parseShiftRange } from "@/lib/smart-client-fields";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -78,8 +78,6 @@ const Payload = z.object({
 type Intake = z.infer<typeof Payload>;
 type ClientRow = { id: string; ref: string; created_at: Date };
 
-class IdentityConflictError extends Error {}
-
 function makeCaseNumber() {
   const now = new Date();
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -93,7 +91,7 @@ function makeCaseNumber() {
 }
 
 const nullable = (v: string | undefined) => v?.trim() || null;
-const dateOrNull = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+const dateOrNull = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) ? normalizeSmartDate(v) : null;
 const branchCity = (name: string) => name.split(/\s+-\s+/)[0]?.trim() || name.trim();
 
 async function newUploadGrant(clientId: string) {
@@ -124,36 +122,29 @@ async function insertApplication(tx: Tx, clientId: string, d: Intake) {
   throw new Error("Could not allocate a unique case number");
 }
 
-async function upsertOperationalClient(tx: Tx, d: Intake, digits: string): Promise<{ client: ClientRow; reused: boolean }> {
-  const email = d.email.trim().toLowerCase();
-  const fullName = `${d.firstName} ${d.lastName}`.trim();
-  const street = [d.address1, d.address2].filter(Boolean).join(", ") || null;
-  const dob = dateOrNull(d.dob);
-
-  // Keep the public adapter's response contract while sharing the canonical
-  // corroborated identity decision and transaction locks with every intake.
-  const [sameApplicant] = await findClientIdentityMatches(tx, email, digits, {
-    lock: true, fullName, dateOfBirth: dob, policy: "public",
-  });
-  if (sameApplicant) {
-    throw new IdentityConflictError("A prior application for this applicant needs staff review.");
-  }
-
+async function createOperationalClient(tx: Tx, d: Intake, digits: string, traceId: string): Promise<{ client: ClientRow; reused: boolean }> {
   const shift = parseShiftRange(d.shiftHours);
-  const [client] = await tx`
-    insert into clients (
-      source, full_name, phone, email, date_of_birth, preferred_language, english_proficiency, street, city, state, zip,
-      preferred_location, location_option_1, location_option_2, shift_days, shift_start_time, shift_end_time,
-      communication_consent, current_status, next_step, start_date
-    ) values (
-      'public_intake', ${fullName}, ${digits}, ${email}, ${dob}, ${d.preferredLanguage || 'ar'}, ${normalizeEnglishProficiency(d.englishLevel)},
-      ${street}, ${nullable(d.city)}, ${nullable(d.state)}, ${nullable(d.zip)},
-      ${nullable(d.preferredLocations[0]) ?? d.branchName}, ${nullable(d.preferredLocations[1])}, ${nullable(d.preferredLocations[2])},
-      ${normalizeShiftDays(d.shiftDays)}, ${shift?.start ?? null}, ${shift?.end ?? null},
-      true, 'new_intake', ${DEFAULT_NEXT_STEP.new_intake}, ${dateOrNull(d.startDate)}
-    )
-    returning id, ref, created_at`;
-  return { client: client as ClientRow, reused: false };
+  // Payload and the legacy phone/date checks validate this public contract.
+  // Adapt it to the same creation service as staff and standard public intake.
+  const client = await insertClient(tx, {
+    source: "public_intake",
+    profile: {
+      full_name: `${d.firstName} ${d.lastName}`.trim(), phone: digits, email: d.email.trim().toLowerCase(),
+      date_of_birth: dateOrNull(d.dob), preferred_language: d.preferredLanguage,
+      english_proficiency: normalizeEnglishProficiency(d.englishLevel), street: [d.address1, d.address2].filter(Boolean).join(", ") || null,
+      city: nullable(d.city), state: nullable(d.state), zip: nullable(d.zip),
+      appointment_availability: null, amazon_worked_before: null, amazon_worked_from: null, amazon_worked_to: null,
+      amazon_applied_before: null, amazon_application_email: null, currently_amazon: null, via_agency: null, employment_history: [],
+    },
+    primary: [], backup: [], status: "new_intake", nextStep: DEFAULT_NEXT_STEP.new_intake,
+    assignedStaff: null, createdBy: null, communicationConsent: d.consent, startDate: dateOrNull(d.startDate),
+    reviewFields: {
+      preferred_location: nullable(d.preferredLocations[0]) ?? d.branchName,
+      location_option_1: nullable(d.preferredLocations[1]), location_option_2: nullable(d.preferredLocations[2]),
+      shift_days: normalizeShiftDays(d.shiftDays), shift_start_time: shift?.start ?? null, shift_end_time: shift?.end ?? null,
+    },
+  }, { staffId: null, traceId });
+  return { client, reused: false };
 }
 
 export async function POST(req: Request) {
@@ -201,7 +192,7 @@ export async function POST(req: Request) {
         if (matches.length) return { kind: "case_duplicate" as const };
       }
 
-      const { client, reused } = await upsertOperationalClient(tx, d, digits);
+      const { client, reused } = await createOperationalClient(tx, d, digits, traceId);
       const app = await insertApplication(tx, client.id, d);
 
       await tx`
@@ -219,7 +210,7 @@ export async function POST(req: Request) {
 
       await logActivity(tx, {
         clientId: client.id,
-        action: reused ? "client_updated" : "client_created",
+        action: "application_submitted",
         actor: { staffId: null, traceId },
         entityType: "application",
         entityId: app.id,
@@ -282,7 +273,7 @@ export async function POST(req: Request) {
     }, { status: out.kind === "new" ? 201 : 200 });
   } catch (e) {
     console.error(e);
-    if (e instanceof IdentityConflictError) {
+    if (e instanceof ActionError && e.code === "duplicate_application") {
       return NextResponse.json({
         ok: false,
         code: "existing_applicant",
