@@ -5,7 +5,7 @@ import { TaskRowActions } from "@/components/staff/sections/Work";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getStaffSession } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
-import { staffDirectory, taskList } from "@/lib/queries";
+import { staffDirectory, taskPage } from "@/lib/queries";
 
 const PAGE_SIZE = 50;
 
@@ -26,11 +26,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const staff = await staffDirectory(session);
   const assignee = staff.some((s) => s.id === sp.assignee) ? sp.assignee : undefined;
   const requestedPage = Number(sp.page ?? "1");
-  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1;
-  const fetched = await taskList(session, view, assignee, PAGE_SIZE, (page - 1) * PAGE_SIZE);
-  const total = Number(fetched[0]?.total_count ?? 0);
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const rows = JSON.parse(JSON.stringify(fetched));
+  const result = await taskPage(session, view, assignee, requestedPage, PAGE_SIZE);
+  const {page, total, pages: pageCount} = result;
+  const rows = JSON.parse(JSON.stringify(result.rows));
   return (
     <div className="ops-page space-y-4">
       <header className="ops-hero">
@@ -60,7 +58,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       </section>
 
       {rows.length === 0 ? (
-        <EmptyState title={view === "open" ? "No open tasks" : "No completed tasks"} text="Tasks added to client files or the office appear here." />
+        <EmptyState title={view === "closed" ? "No completed tasks" : view === "overdue" ? "No overdue tasks" : view === "due_today" ? "No tasks due today" : "No open tasks"} text="Tasks added to client files or the office appear here." />
       ) : (
         <div className="ops-glass-card overflow-x-auto p-0">
           <table className="table">
