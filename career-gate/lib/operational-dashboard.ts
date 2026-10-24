@@ -145,7 +145,7 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
         )
         select
           (select count(*)::int from clients c where c.deleted_at is null and c.current_status='new_intake') as new_clients,
-          (select count(distinct a.client_id)::int from appointments a join active c on c.id=a.client_id where a.status=any(${OPEN_APPOINTMENTS}) and a.scheduled_at>=now() and a.scheduled_at<=now()+interval '2 hours') as appointments_2h,
+          (select count(*)::int from appointments a join active c on c.id=a.client_id where a.status=any(${OPEN_APPOINTMENTS}) and a.scheduled_at>=now() and a.scheduled_at<=now()+interval '2 hours') as appointments_2h,
           (select count(*)::int from tasks t join active c on c.id=t.client_id where t.status=any(${OPEN_TASKS}) and t.due_at is not null and (t.due_at at time zone ${TZ})::date=(now() at time zone ${TZ})::date) as tasks_due,
           (select count(*)::int from tasks t join active c on c.id=t.client_id where t.status=any(${OPEN_TASKS}) and t.due_at is not null and t.due_at<now()) as overdue_tasks,
           (select count(*)::int from followups f join active c on c.id=f.client_id where f.status='open' and f.due_date<(now() at time zone ${TZ})::date) as overdue_followups,
