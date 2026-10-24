@@ -76,6 +76,7 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
   const f = useSubmit(onDone, "Appointment saved");
   const { activeStaff } = useStaff();
   const [type, setType] = useState("Pre-hire appointment");
+  const [lifecycleInterview, setLifecycleInterview] = useState(false);
   const [resource, setResource] = useState("office");
   const [duration, setDuration] = useState(30);
   const [when, setWhen] = useState("");
@@ -96,7 +97,7 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
     return () => { off = true; };
   }, [resource, duration]);
 
-  const base = { client_id: clientId, appointment_type: type, location: location || null, notes: notes || null };
+  const base = { client_id: clientId, appointment_type: type, lifecycle_interview: lifecycleInterview, location: location || null, notes: notes || null };
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
@@ -109,7 +110,7 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
             <label className="label" htmlFor="appt_type">Appointment type</label>
             <input id="appt_type" list="appt-types" required className="input" value={type} onChange={(e) => setType(e.target.value)} />
             <datalist id="appt-types">
-              <option value="Office intake" /><option value="Document check" /><option value="Pre-hire appointment" />
+              <option value="Office intake" /><option value="Document check" /><option value="Employment interview" /><option value="Pre-hire appointment" />
               <option value="I-9 appointment" /><option value="Follow-up meeting" />
             </datalist>
           </div>
@@ -125,6 +126,15 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
             <input id="appt_duration" type="number" min={5} max={480} className="input" value={duration} onChange={(e) => setDuration(Number(e.target.value) || 30)} />
           </div>
         </div>
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200/20 bg-amber-200/[.06] p-3 text-sm text-slate-100">
+          <input type="checkbox" className="mt-1 h-4 w-4 accent-amber-300" checked={lifecycleInterview} onChange={(e) => {
+            setLifecycleInterview(e.target.checked);
+            if (e.target.checked && type === "Pre-hire appointment") setType("Employment interview");
+          }} />
+          <span><strong className="block text-amber-200">Employment interview · G3 Pipeline</strong>
+            <span className="mt-1 block text-xs text-slate-400">Moves an eligible Job Ready client to Appointment Scheduled in the same database transaction. Office and document appointments remain independent.</span>
+          </span>
+        </label>
         <div data-testid="slot-suggestions">
           <p className="label">Next available (office calendar)</p>
           {slotError && <p className="text-sm text-red-400">{slotError}</p>}
