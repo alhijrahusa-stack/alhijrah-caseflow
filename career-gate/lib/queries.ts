@@ -249,8 +249,7 @@ export async function appointmentPage(s: StaffSession, view: string, requestedPa
   const size = Number.isSafeInteger(pageSize) ? Math.min(Math.max(pageSize, 1), 100) : 25;
   return withStaff(s, async (tx) => {
     const q = search.trim().slice(0,100);
-    const like = `%${q.replace(/[\\%_]/g, "\\    const filter = tx`c.deleted_at is null and ${
-      view === "next_2h"")}%`;
+    const like = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
     const filter = tx`c.deleted_at is null
       ${q ? tx`and (c.full_name ilike ${like} or c.ref ilike ${like} or c.phone like ${like})` : tx``}
       and ${
