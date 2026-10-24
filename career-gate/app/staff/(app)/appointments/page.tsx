@@ -11,15 +11,17 @@ import { appointmentPage } from "@/lib/queries";
 const VIEWS = [["upcoming", "Upcoming"], ["next_2h", "Next 2 Hours"], ["today", "Today"], ["past", "Past"], ["all", "All"]] as const;
 const PAGE_SIZE = 25;
 
-export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ view?: string; page?: string }> }) {
+export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ view?: string; page?: string; q?: string }> }) {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
-  const { view: v, page: rawPage } = await searchParams;
+  const { view: v, page: rawPage, q: rawSearch } = await searchParams;
+  const q = (rawSearch ?? "").slice(0,100).trim();
   const view = VIEWS.some(([k]) => k === v) ? v! : "upcoming";
   const requestedPage = Number(rawPage ?? "1");
-  const result = await appointmentPage(session, view, requestedPage, PAGE_SIZE);
+  const result = await appointmentPage(session, view, requestedPage, PAGE_SIZE, q);
   const { page, pages, total } = result;
   const rows = JSON.parse(JSON.stringify(result.rows));
+  const href = (v: string, p = 1) => `/staff/appointments?view=${v}&page=${p}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
   return (
     <div className="ops-page min-w-0 space-y-5">
       <header className="ops-hero flex flex-wrap items-center justify-between gap-4">
@@ -29,9 +31,15 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           <p>{total} appointment{total === 1 ? "" : "s"} · Page {page} of {pages} · internal office calendar</p>
         </div>
         <nav className="grid w-full grid-cols-2 sm:grid-cols-5 gap-2 text-sm sm:flex sm:w-auto" aria-label="Views">
-          {VIEWS.map(([k, l]) => <Link key={k} href={`/staff/appointments?view=${k}`} aria-current={k === view ? "page" : undefined} className={k === view ? "flex min-h-11 items-center justify-center rounded-xl border border-amber-300/50 bg-amber-300/10 px-2 py-2 font-semibold text-amber-200" : "flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-2 py-2 text-slate-300 transition-all duration-300 hover:border-sky-400/40 hover:bg-white/5"}>{l}</Link>)}
+          {VIEWS.map(([k, l]) => <Link key={k} href={href(k)} aria-current={k === view ? "page" : undefined} className={k === view ? "flex min-h-11 items-center justify-center rounded-xl border border-amber-300/50 bg-amber-300/10 px-2 py-2 font-semibold text-amber-200" : "flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-2 py-2 text-slate-300 transition-all duration-300 hover:border-sky-400/40 hover:bg-white/5"}>{l}</Link>)}
         </nav>
       </header>
+      <form role="search" className="ops-glass-card flex flex-wrap items-center gap-3" action="/staff/appointments">
+        <input type="hidden" name="view" value={view}/>
+        <input name="q" defaultValue={q} maxLength={100} aria-label="Search appointments by client name, case or phone" placeholder="Search client, case ID or phone…" className="input min-w-48 flex-1"/>
+        <button type="submit" className="ops-primary-button">Search appointments</button>
+        {q && <Link href={href(view).split("&q=")[0]} className="ops-secondary-button">Clear</Link>}
+      </form>
       {rows.length === 0 ? (
         <EmptyState title="No appointments in this view" text="Open a client file and use Add Appointment to book the next free slot." action={<Link href="/staff/clients" className="text-sm text-brand-700 hover:underline">Go to clients</Link>} />
       ) : (
@@ -57,11 +65,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       {pages > 1 && (
         <nav aria-label="Appointment pages" className="flex items-center justify-between gap-3">
           {page > 1 ? (
-            <Link href={`/staff/appointments?view=${view}&page=${page - 1}`} className="inline-flex min-h-11 items-center rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white">Previous</Link>
+            <Link href={href(view,page-1)} className="inline-flex min-h-11 items-center rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white">Previous</Link>
           ) : <span />}
           <span className="text-sm text-slate-300">Page {page} of {pages}</span>
           {page < pages ? (
-            <Link href={`/staff/appointments?view=${view}&page=${page + 1}`} className="inline-flex min-h-11 items-center rounded-xl border border-amber-300/40 px-4 py-2 text-sm font-semibold text-amber-200">Next</Link>
+            <Link href={href(view,page+1)} className="inline-flex min-h-11 items-center rounded-xl border border-amber-300/40 px-4 py-2 text-sm font-semibold text-amber-200">Next</Link>
           ) : <span />}
         </nav>
       )}

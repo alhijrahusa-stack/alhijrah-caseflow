@@ -241,6 +241,18 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await expect(page.getByTestId("audit-alert-total")).toContainText("Page 1 of");
     await expect(page.getByRole("link", { name: "ignored", exact: true })).toHaveAttribute("aria-current", "page");
   });
+  test("appointments offer server-side search and preserve it through views", async () => {
+    await page.goto("/staff/appointments");
+    await page.getByRole("textbox", { name: "Search appointments by client name, case or phone" }).fill(`No Match ${RUN}`);
+    await page.getByRole("button", { name: "Search appointments" }).click();
+    await expect(page).toHaveURL(/q=No/);
+    await page.getByRole("link", { name: "Past", exact: true }).click();
+    await expect(page).toHaveURL(/view=past/);
+    await expect(page).toHaveURL(/q=No/);
+    await page.getByRole("link", { name: "Clear", exact: true }).click();
+    await expect(page).not.toHaveURL(/q=/);
+  });
+
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();
