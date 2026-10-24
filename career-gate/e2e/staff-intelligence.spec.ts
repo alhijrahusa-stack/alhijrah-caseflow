@@ -137,6 +137,14 @@ test.describe.serial("Staff intelligence surfaces", () => {
     expect(Number(count![0])).toBe(Number(expected.n));
     await expect(page.getByText(`${count![0]} follow-up item`, { exact: false })).toBeVisible();
   });
+  test("completed pipeline stage navigates into completed records, not the active register", async () => {
+    await page.goto("/staff");
+    const pipeline = page.getByRole("link", { name: /^Completed\s+\d+$/ });
+    await expect(pipeline).toHaveAttribute("href", /view=completed&status=completed/);
+    await pipeline.click();
+    await expect(page).toHaveURL(/view=completed&status=completed/);
+    await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
+  });
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();
