@@ -245,16 +245,21 @@ export async function appointmentList(s: StaffSession, view: string, limit = 300
     limit ${pageLimit} offset ${pageOffset}`);
 }
 
-export async function appointmentPage(s: StaffSession, view: string, requestedPage = 1, pageSize = 25) {
+export async function appointmentPage(s: StaffSession, view: string, requestedPage = 1, pageSize = 25, search = "") {
   const size = Number.isSafeInteger(pageSize) ? Math.min(Math.max(pageSize, 1), 100) : 25;
   return withStaff(s, async (tx) => {
-    const filter = tx`c.deleted_at is null and ${
+    const q = search.trim().slice(0,100);
+    const like = `%${q.replace(/[\\%_]/g, "\\    const filter = tx`c.deleted_at is null and ${
+      view === "next_2h"")}%`;
+    const filter = tx`c.deleted_at is null
+      ${q ? tx`and (c.full_name ilike ${like} or c.ref ilike ${like} or c.phone like ${like})` : tx``}
+      and ${
       view === "next_2h"
         ? tx`a.status = any(${OPEN_APPT}) and a.scheduled_at >= now() and a.scheduled_at <= now() + interval '2 hours' and c.current_status not in ('completed','cancelled')`
         : view === "today"
-          ? tx`(a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date`
+          ? tx`a.status = any(${OPEN_APPT}) and (a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date`
           : view === "past"
-            ? tx`a.scheduled_at < now()`
+            ? tx`(a.status in ('attended','missed','cancelled') or a.ends_at < now())`
             : view === "all"
               ? tx`true`
               : tx`a.ends_at >= now() and a.status = any(${OPEN_APPT})`
