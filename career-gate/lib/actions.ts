@@ -284,7 +284,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         ctx.semantic.push({ source: "note", id: n.id });
       }
       await enqueue(tx, { type: "intake_analysis", entityId: c.id, dedupeKey: `intake:${c.id}`, traceId: actor.traceId });
-      return { client_id: c.id, ref: c.ref };
+      return { client_id: c.id, ref: c.ref, identity_review_pending: c.identity_review_pending };
     }
 
     case "update_client": {

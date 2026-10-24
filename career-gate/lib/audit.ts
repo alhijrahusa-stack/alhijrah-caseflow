@@ -19,6 +19,21 @@ const scope = (db: postgres.Sql, clientId: string | null, col = "c.id") =>
 
 export const RULES: Rule[] = [
   {
+    rule: "identity_review_shared_phone",
+    severity: "medium",
+    recommended_action: "Verify the applicant. Continue the existing file if it belongs to the same person; otherwise retain both files and record the verification note.",
+    explanation: "Another active file uses the same phone. Phone alone does not identify an applicant and does not block staff creation.",
+    query: (db, id) => db`
+      select c.id as client_id,
+             jsonb_build_object('shared_with', jsonb_agg(o.ref order by o.ref)) as evidence
+      from clients c
+      join clients o on o.id <> c.id and o.deleted_at is null
+        and regexp_replace(coalesce(o.phone,''),'\\D','','g') = regexp_replace(coalesce(c.phone,''),'\\D','','g')
+      where c.deleted_at is null and length(regexp_replace(coalesce(c.phone,''),'\\D','','g')) >= 7
+        ${scope(db, id)}
+      group by c.id` as never,
+  },
+  {
     rule: "identity_review_shared_email",
     severity: "medium",
     recommended_action: "Verify whether these files belong to the same applicant. If they do, continue the earlier file and archive this one; if they do not, ignore this alert with the verification note.",
