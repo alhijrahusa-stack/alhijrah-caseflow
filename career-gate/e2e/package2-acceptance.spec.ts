@@ -170,3 +170,26 @@ test("AC-06 / E: every dashboard KPI opens its source and readiness lists match 
   await page.goto("/staff/settings#system-health");
   await expect(page.locator("#system-health")).toHaveCount(0);
 });
+
+test("AC-06: client registry dates hydrate consistently when the employee's browser is in another time zone", async ({ request, browser, baseURL }) => {
+  const { client } = await createClient(request, "timezone");
+  const context = await browser.newContext({ baseURL, timezoneId: "Pacific/Honolulu" });
+  try {
+    await signIn(context, baseURL!, "admin");
+    const page = await context.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    await page.goto(`/staff/clients?q=${encodeURIComponent(client.ref)}`);
+    const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: client.ref, exact: true }) });
+    await expect(row).toBeVisible();
+    const [stored] = await db()`select updated_at from clients where id=${client.id}`;
+    const officeTime = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Detroit" }).format(new Date(stored.updated_at));
+    await expect(row.locator("td").nth(5)).toHaveText(officeTime);
+    await row.getByRole("button", { name: "View", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Client quick view" })).toContainText(officeTime);
+    expect(errors.filter((message) => /hydration|#418|didn't match|does not match/i.test(message))).toEqual([]);
+  } finally {
+    await context.close();
+  }
+});
