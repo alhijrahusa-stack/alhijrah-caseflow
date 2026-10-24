@@ -48,7 +48,7 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
         <Kpi label="New Clients" value={data.new_clients} href="/staff/clients?status=new_intake"/>
         <Kpi label="Appointments · Next 2 Hours" value={data.appointments_2h} href="/staff/appointments?view=next_2h" tone={data.appointments_2h?"warn":"neutral"}/>
         <Kpi label="Tasks Due Today" value={data.tasks_due} href="/staff/tasks?view=due_today"/>
-        <Kpi label="Completed This Month" value={data.completed_this_month} href="/staff/clients?view=completed" tone="good"/>
+        <Kpi label="Completed This Month" value={data.completed_this_month} href="/staff/clients?view=completed&completed_this_month=1" tone="good"/>
       </div>
     </section>
 
