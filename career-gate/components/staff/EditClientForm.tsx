@@ -23,7 +23,8 @@ function toForm(c: R, employment: R[]): ProfileForm {
   const s = (v: unknown) => (v == null ? "" : String(v));
   return {
     full_name: s(c.full_name), phone: s(c.phone), email: s(c.email), date_of_birth: s(c.date_of_birth),
-    preferred_language: c.preferred_language, street: s(c.street), city: s(c.city), state: s(c.state), zip: s(c.zip),
+    preferred_language: c.preferred_language ?? "", english_proficiency: c.english_proficiency ?? "",
+    street: s(c.street), city: s(c.city), state: s(c.state), zip: s(c.zip),
     appointment_availability: s(c.appointment_availability),
     amazon_worked_before: fromBool(c.amazon_worked_before), amazon_worked_from: s(c.amazon_worked_from), amazon_worked_to: s(c.amazon_worked_to),
     amazon_applied_before: fromBool(c.amazon_applied_before), amazon_application_email: s(c.amazon_application_email),
@@ -61,7 +62,7 @@ export function EditClientForm({ client, employment, preferences }: { client: R;
         if (!raw) return;
         const draft = JSON.parse(raw) as Draft;
         if (!draft?.profile || typeof draft.nextStep !== "string" || typeof draft.assigned !== "string") return;
-        setProfile(draft.profile);
+        setProfile((current) => ({ ...current, ...draft.profile }));
         setNextStep(draft.nextStep);
         setAssigned(draft.assigned);
         setDraftState("restored");

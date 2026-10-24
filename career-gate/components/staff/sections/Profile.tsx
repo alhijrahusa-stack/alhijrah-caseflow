@@ -7,7 +7,7 @@ import { useStaff } from "@/components/staff/StaffContext";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { options } from "@/lib/catalog";
-import { LANGUAGES } from "@/lib/domain";
+import { ENGLISH_PROFICIENCY_VALUES, LANGUAGES } from "@/lib/domain";
 import { dateOnly, dateTime, formatPhone } from "@/lib/format";
 import { Card, SmallBtn, useRowAction, yn, type Row } from "./common";
 
@@ -37,14 +37,17 @@ export function ClientInfo({ c, authorization, preferences = [] }: { c: Row; aut
         ["Email", f("email", "Email", { type: "email" })],
         ["Date of birth", f("date_of_birth", "Date of birth", { type: "date", display: c.date_of_birth ? dateOnly(c.date_of_birth) : undefined })],
         ["Language", f("preferred_language", "Language", { options: Object.entries(LANGUAGES).map(([value, label]) => ({ value, label })), display: LANGUAGES[c.preferred_language as keyof typeof LANGUAGES] })],
+        ["English proficiency", f("english_proficiency", "English proficiency", { options: [{ value: "", label: "Not provided" }, ...ENGLISH_PROFICIENCY_VALUES.map((value) => ({ value, label: value }))] })],
         ["Street", f("street", "Street")],
         ["City", f("city", "City")],
         ["State", f("state", "State")],
         ["ZIP", f("zip", "ZIP")],
         ["Availability", f("appointment_availability", "Appointment availability", { multiline: true })],
-        ["Preferred Location", primary?.site_name ?? primary?.site_code ?? "—"],
-        ["Shift Days", primary?.days ?? "—"],
-        ["Shift Time", primary?.hours ?? primary?.shift_name ?? primary?.shift_code ?? "—"],
+        ["Preferred Location", c.preferred_location ?? primary?.site_name ?? primary?.site_code ?? "—"],
+        ["Location Option 1", c.location_option_1 ?? "—"],
+        ["Location Option 2", c.location_option_2 ?? "—"],
+        ["Shift Days", c.shift_days?.join(", ") ?? primary?.days ?? "—"],
+        ["Shift Time", c.shift_start_time || c.shift_end_time ? `${c.shift_start_time ?? "—"} – ${c.shift_end_time ?? "—"}` : primary?.hours ?? primary?.shift_name ?? primary?.shift_code ?? "—"],
         ["Contact consent", c.communication_consent ? "Yes" : "No"],
         ["Source", c.source === "public_intake" ? "Online application" : `Office${c.created_by_name ? ` (${c.created_by_name})` : ""}`],
         ["Created", dateTime(c.created_at)],

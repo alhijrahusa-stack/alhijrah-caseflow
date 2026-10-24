@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { runAction } from "@/lib/actions";
+import { ActionSchema, runAction } from "@/lib/actions";
 import { runAudit } from "@/lib/audit";
 import { withStaff, type StaffSession } from "@/lib/auth";
 import { otpHash } from "@/lib/crypto";
@@ -70,6 +70,23 @@ afterAll(async () => {
 });
 
 describe("row-level security (as authenticated role)", () => {
+  it("persists and audits English edits, preserves omitted values, and enforces RLS", async () => {
+    const client = await makeClient("TEST English Profile", { assigned: sessions.staff1.staff.id });
+    const profile = { full_name: "TEST English Profile", phone: (await db`select phone from clients where id=${client.id}`)[0].phone };
+    const update = (value: Record<string, unknown>) => ActionSchema.parse({ action: "update_client", client_id: client.id, profile: { ...profile, ...value } });
+    await act("staff1", update({ english_proficiency: "GOOD" }));
+    await act("staff1", update({ city: "Detroit" }));
+    expect((await db`select english_proficiency from clients where id=${client.id}`)[0].english_proficiency).toBe("GOOD");
+    await expect(act("staff2", update({ english_proficiency: "NONE" }))).rejects.toThrow();
+    await act("staff1", ActionSchema.parse({ action: "patch_client", client_id: client.id, field: "english_proficiency", value: "FAIR" }));
+    expect((await db`select english_proficiency from clients where id=${client.id}`)[0].english_proficiency).toBe("FAIR");
+    const logs = await db`select old_value,new_value from activity_log where client_id=${client.id} and new_value ? 'english_proficiency' order by created_at`;
+    expect(logs.map((r) => r.new_value.english_proficiency)).toEqual(["GOOD", "FAIR"]);
+    await expect(act("staff1", { action: "patch_client", client_id: client.id, field: "english_proficiency", value: "invented" })).rejects.toMatchObject({ code: "invalid_input" });
+    await act("staff1", update({ english_proficiency: null }));
+    expect((await db`select english_proficiency from clients where id=${client.id}`)[0].english_proficiency).toBeNull();
+  });
+
   const visible = async (key: string) => (await withStaff(sessions[key], (tx) => tx`select id from clients where id in (${A.id}, ${B.id})`)).map((r) => r.id).sort();
 
   it("staff sees only assigned clients; manager and admin see all", async () => {

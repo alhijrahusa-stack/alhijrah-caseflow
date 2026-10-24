@@ -9,6 +9,7 @@ import {
   CONTACT_METHODS,
   DOC_TYPES,
   ENTRY_STATUSES,
+  ENGLISH_PROFICIENCY_VALUES,
   LANGUAGES,
   POST_HIRE_ITEMS,
   POST_HIRE_STATUSES,
@@ -57,6 +58,7 @@ export const PATCHABLE = {
   email: z.email("Invalid email").max(200).nullable().or(z.literal("")).transform((v) => (v ? v.toLowerCase() : null)),
   date_of_birth: date.nullable().or(z.literal("")).transform((v) => v || null),
   preferred_language: z.enum(Object.keys(LANGUAGES) as [keyof typeof LANGUAGES]),
+  english_proficiency: z.enum(ENGLISH_PROFICIENCY_VALUES).nullable().or(z.literal("")).transform((v) => v || null),
   street: optText(200),
   city: optText(100),
   state: optText(40),
@@ -65,6 +67,18 @@ export const PATCHABLE = {
   next_step: text(500),
 } as const;
 export type PatchField = keyof typeof PATCHABLE;
+
+// Older callers do not send English proficiency. Preserve its stored value
+// when absent; an explicit null still clears it through the full-profile form.
+const UpdateProfileSchema = z.unknown().transform((raw, ctx) => {
+  const parsed = ProfileSchema.safeParse(raw);
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) ctx.addIssue({ ...issue });
+    return z.NEVER;
+  }
+  const hasEnglish = raw !== null && typeof raw === "object" && Object.hasOwn(raw, "english_proficiency");
+  return { ...parsed.data, english_proficiency: hasEnglish ? parsed.data.english_proficiency : undefined };
+});
 
 export const ActionSchema = z.discriminatedUnion("action", [
   z.object({
@@ -78,7 +92,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     assigned_staff: id.nullable().optional(),
     communication_consent: z.boolean().default(false),
   }),
-  z.object({ action: z.literal("update_client"), client_id: id, profile: ProfileSchema }),
+  z.object({ action: z.literal("update_client"), client_id: id, profile: UpdateProfileSchema }),
   z.object({ action: z.literal("patch_client"), client_id: id, field: z.enum(Object.keys(PATCHABLE) as [PatchField]), value: z.unknown() }),
   z.object({ action: z.literal("update_status"), client_id: id, status: z.enum(STATUSES), next_step: optText(500) }),
   z.object({ action: z.literal("override_status"), client_id: id, status: z.enum(STATUSES), reason: text(500), next_step: optText(500) }),
@@ -213,7 +227,7 @@ export function entityRef(a: ActionInput):
 }
 
 const PROFILE_COLUMNS = [
-  "full_name", "phone", "email", "date_of_birth", "preferred_language", "street", "city", "state", "zip",
+  "full_name", "phone", "email", "date_of_birth", "preferred_language", "english_proficiency", "street", "city", "state", "zip",
   "appointment_availability", "amazon_worked_before", "amazon_worked_from", "amazon_worked_to",
   "amazon_applied_before", "amazon_application_email", "currently_amazon", "via_agency",
 ] as const;
@@ -290,7 +304,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
     case "update_client": {
       const before = await requireClient(tx, a.client_id);
       const p = a.profile;
-      const after: Record<string, unknown> = Object.fromEntries(PROFILE_COLUMNS.map((k) => [k, p[k]]));
+      const after: Record<string, unknown> = Object.fromEntries(PROFILE_COLUMNS.filter((k) => p[k] !== undefined).map((k) => [k, p[k]]));
       const changes = diff(before, after);
       const oldHistory = await tx`select employment_kind, company, job_title, from_date, to_date from employment_history where client_id = ${a.client_id} order by created_at`;
       const historyChanged = JSON.stringify(oldHistory.map((r) => ({ ...r }))) !== JSON.stringify(p.employment_history);
