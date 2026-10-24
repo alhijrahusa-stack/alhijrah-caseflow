@@ -209,6 +209,22 @@ test.describe.serial("Staff intelligence surfaces", () => {
     }
   });
 
+  test("appointment list reports real totals and clamps invalid page offsets", async () => {
+    await page.goto("/staff/appointments?view=all&page=999999");
+    await expect(page.getByRole("heading", { name: /Appointments/ })).toBeVisible();
+    const [count] = await db()`select count(*)::int as total from appointments a join clients c on c.id=a.client_id where c.deleted_at is null`;
+    const total = Number(count.total);
+    const pages = Math.max(1, Math.ceil(total / 25));
+    await expect(page.locator(".ops-hero p").last()).toContainText(`${total} appointment`);
+    await expect(page.locator(".ops-hero p").last()).toContainText(`Page ${pages} of ${pages}`);
+    await expect(page.locator("tbody tr")).toHaveCount(Math.min(25, total - (pages - 1) * 25));
+    if (pages > 1) {
+      await page.getByRole("link", { name: "Previous" }).click();
+      await expect(page).toHaveURL(new RegExp(`page=${pages - 1}`));
+    }
+    await page.goto("/staff/appointments?view=all&page=not-a-number");
+    await expect(page.locator(".ops-hero p").last()).toContainText(`Page 1 of ${pages}`);
+  });
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();

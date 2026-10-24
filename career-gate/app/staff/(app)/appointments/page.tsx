@@ -6,7 +6,7 @@ import { AppointmentRowActions } from "@/components/staff/sections/Work";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getStaffSession } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
-import { appointmentList } from "@/lib/queries";
+import { appointmentPage } from "@/lib/queries";
 
 const VIEWS = [["upcoming", "Upcoming"], ["next_2h", "Next 2 Hours"], ["today", "Today"], ["past", "Past"], ["all", "All"]] as const;
 const PAGE_SIZE = 25;
@@ -17,17 +17,16 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const { view: v, page: rawPage } = await searchParams;
   const view = VIEWS.some(([k]) => k === v) ? v! : "upcoming";
   const requestedPage = Number(rawPage ?? "1");
-  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1;
-  const fetched = await appointmentList(session, view, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE);
-  const hasNext = fetched.length > PAGE_SIZE;
-  const rows = JSON.parse(JSON.stringify(fetched.slice(0, PAGE_SIZE)));
+  const result = await appointmentPage(session, view, requestedPage, PAGE_SIZE);
+  const { page, pages, total } = result;
+  const rows = JSON.parse(JSON.stringify(result.rows));
   return (
     <div className="ops-page min-w-0 space-y-5">
       <header className="ops-hero flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="ops-kicker">CAREER GATE · SCHEDULING</p>
           <h1>Appointments <span className="text-amber-300">/ المواعيد</span></h1>
-          <p>Page {page} · {rows.length} appointment{rows.length === 1 ? "" : "s"} shown · internal office calendar</p>
+          <p>{total} appointment{total === 1 ? "" : "s"} · Page {page} of {pages} · internal office calendar</p>
         </div>
         <nav className="grid w-full grid-cols-2 sm:grid-cols-5 gap-2 text-sm sm:flex sm:w-auto" aria-label="Views">
           {VIEWS.map(([k, l]) => <Link key={k} href={`/staff/appointments?view=${k}`} aria-current={k === view ? "page" : undefined} className={k === view ? "flex min-h-11 items-center justify-center rounded-xl border border-amber-300/50 bg-amber-300/10 px-2 py-2 font-semibold text-amber-200" : "flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-2 py-2 text-slate-300 transition-all duration-300 hover:border-sky-400/40 hover:bg-white/5"}>{l}</Link>)}
@@ -55,13 +54,13 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           </table>
         </div></>
       )}
-      {(page > 1 || hasNext) && (
+      {pages > 1 && (
         <nav aria-label="Appointment pages" className="flex items-center justify-between gap-3">
           {page > 1 ? (
             <Link href={`/staff/appointments?view=${view}&page=${page - 1}`} className="inline-flex min-h-11 items-center rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white">Previous</Link>
           ) : <span />}
-          <span className="text-sm text-slate-300">Page {page}</span>
-          {hasNext ? (
+          <span className="text-sm text-slate-300">Page {page} of {pages}</span>
+          {page < pages ? (
             <Link href={`/staff/appointments?view=${view}&page=${page + 1}`} className="inline-flex min-h-11 items-center rounded-xl border border-amber-300/40 px-4 py-2 text-sm font-semibold text-amber-200">Next</Link>
           ) : <span />}
         </nav>
