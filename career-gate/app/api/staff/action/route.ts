@@ -28,6 +28,17 @@ export async function POST(req: Request) {
     const authz = await authorize(req, session, a.action, { clientId: directClientId(a), entity: entityRef(a) }, traceId);
     if (!authz.ok) return authz.response;
 
+    // A combined profile save retains every constituent command's permission.
+    if (a.action === "update_client") {
+      for (const action of [
+        ...(a.next_step !== undefined ? ["set_next_step" as const] : []),
+        ...(a.assigned_staff !== undefined ? ["assign_staff" as const] : []),
+      ]) {
+        const allowed = await authorize(req, session, action, { clientId: a.client_id }, traceId);
+        if (!allowed.ok) return allowed.response;
+      }
+    }
+
     if (a.action === "run_intake_agent") {
       const run = await intakeAgentFor(a.client_id, session.staff.id, traceId);
       return run ? ok({ action: a.action, run }, 200, traceId) : err("not_found", "Client not found", 404, traceId);

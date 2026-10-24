@@ -7,7 +7,8 @@ import { err, ipHash } from "@/lib/http";
 import { claimKey, completeKey } from "@/lib/idempotency";
 import { traceIdFrom } from "@/lib/obs";
 import { hit } from "@/lib/ratelimit";
-import { lockClientIdentity, logActivity, normalizeClientPhone, type Tx } from "@/lib/service";
+import { findClientIdentityMatches, logActivity, normalizeClientPhone, type Tx } from "@/lib/service";
+import { normalizeEnglishProficiency, normalizeShiftDays, parseShiftRange } from "@/lib/smart-client-fields";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -91,7 +92,7 @@ function makeCaseNumber() {
   return `ALH-${get("year")}${get("month")}${get("day")}-${suffix}`;
 }
 
-const nullable = (v: string) => v.trim() || null;
+const nullable = (v: string | undefined) => v?.trim() || null;
 const dateOrNull = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
 const branchCity = (name: string) => name.split(/\s+-\s+/)[0]?.trim() || name.trim();
 
@@ -126,47 +127,29 @@ async function insertApplication(tx: Tx, clientId: string, d: Intake) {
 async function upsertOperationalClient(tx: Tx, d: Intake, digits: string): Promise<{ client: ClientRow; reused: boolean }> {
   const email = d.email.trim().toLowerCase();
   const fullName = `${d.firstName} ${d.lastName}`.trim();
-  const normalizedName = fullName.replace(/\s+/g, " ").toLowerCase();
   const street = [d.address1, d.address2].filter(Boolean).join(", ") || null;
   const dob = dateOrNull(d.dob);
 
-  // Email is only a candidate identity key; shared family/office email is permitted.
-  // Phone alone must never overwrite or merge another applicant's client record.
-  await lockClientIdentity(tx, email, null);
-  const [sameApplicant] = await tx`
-    select id from clients
-    where deleted_at is null
-      and lower(trim(email)) = ${email}
-      and (
-        (
-          lower(regexp_replace(trim(full_name), '\\s+', ' ', 'g')) = ${normalizedName}
-          and ${dob}::date is not null and date_of_birth = ${dob}::date
-        )
-        or (
-          lower(regexp_replace(trim(full_name), '\\s+', ' ', 'g')) = ${normalizedName}
-          and (date_of_birth is null or ${dob}::date is null or date_of_birth = ${dob}::date)
-          and length(${digits}) >= 7
-          and regexp_replace(coalesce(phone,''), '\\D', '', 'g') = ${digits}
-        )
-        or (
-          ${dob}::date is not null and date_of_birth = ${dob}::date
-          and length(${digits}) >= 7
-          and regexp_replace(coalesce(phone,''), '\\D', '', 'g') = ${digits}
-          and (full_name is null or lower(regexp_replace(trim(full_name), '\\s+', ' ', 'g')) = ${normalizedName})
-        )
-      )
-    limit 1 for update`;
+  // Keep the public adapter's response contract while sharing the canonical
+  // corroborated identity decision and transaction locks with every intake.
+  const [sameApplicant] = await findClientIdentityMatches(tx, email, digits, {
+    lock: true, fullName, dateOfBirth: dob, policy: "public",
+  });
   if (sameApplicant) {
     throw new IdentityConflictError("A prior application for this applicant needs staff review.");
   }
 
+  const shift = parseShiftRange(d.shiftHours);
   const [client] = await tx`
     insert into clients (
-      source, full_name, phone, email, date_of_birth, preferred_language, street, city, state, zip,
+      source, full_name, phone, email, date_of_birth, preferred_language, english_proficiency, street, city, state, zip,
+      preferred_location, location_option_1, location_option_2, shift_days, shift_start_time, shift_end_time,
       communication_consent, current_status, next_step, start_date
     ) values (
-      'public_intake', ${fullName}, ${digits}, ${email}, ${dob}, ${d.preferredLanguage || 'ar'},
+      'public_intake', ${fullName}, ${digits}, ${email}, ${dob}, ${d.preferredLanguage || 'ar'}, ${normalizeEnglishProficiency(d.englishLevel)},
       ${street}, ${nullable(d.city)}, ${nullable(d.state)}, ${nullable(d.zip)},
+      ${nullable(d.preferredLocations[0]) ?? d.branchName}, ${nullable(d.preferredLocations[1])}, ${nullable(d.preferredLocations[2])},
+      ${normalizeShiftDays(d.shiftDays)}, ${shift?.start ?? null}, ${shift?.end ?? null},
       true, 'new_intake', ${DEFAULT_NEXT_STEP.new_intake}, ${dateOrNull(d.startDate)}
     )
     returning id, ref, created_at`;
