@@ -20,7 +20,6 @@ export function StaffNavigation({ management }: { management: boolean }) {
       data-executive-tactile="true"
       aria-current={active(pathname, href) ? "page" : undefined}
       href={href}
-      prefetch={false}
       onMouseEnter={() => router.prefetch(href)}
       onFocus={() => router.prefetch(href)}
       onClick={() => setPending({ from: pathname, to: href })}
