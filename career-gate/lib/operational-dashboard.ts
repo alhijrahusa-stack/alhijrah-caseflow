@@ -54,7 +54,7 @@ export type DashboardCommandData = {
   system: DashboardSystemHealth | null;
 };
 
-async function systemHealth(session: StaffSession): Promise<DashboardSystemHealth | null> {
+export async function systemHealth(session: StaffSession): Promise<DashboardSystemHealth | null> {
   if (session.staff.role !== "admin") return null;
   const db = sql();
   const started = performance.now();

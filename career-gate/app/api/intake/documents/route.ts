@@ -32,6 +32,7 @@ export async function POST(req: Request) {
     docType: String(form.get("doc_type") ?? ""),
     file,
     actor: { staffId: null, traceId },
+    deduplicate: true,
   });
   if (!r.ok) return err(r.code, r.error, r.status, traceId);
 

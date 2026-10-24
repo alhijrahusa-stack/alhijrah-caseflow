@@ -68,7 +68,8 @@ export type NewClientInput = {
   profile: Profile;
   primary: Selection[];
   backup: Selection[];
-  reviewFields?: SmartReviewFields | null;
+  reviewFields?: Pick<SmartReviewFields, "preferred_location" | "location_option_1" | "location_option_2" | "shift_days" | "shift_start_time" | "shift_end_time"> | null;
+  startDate?: string | null;
   status: Status;
   nextStep: string | null;
   assignedStaff: string | null;
@@ -178,7 +179,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
       appointment_availability,
       amazon_worked_before, amazon_worked_from, amazon_worked_to,
       amazon_applied_before, amazon_application_email, currently_amazon, via_agency,
-      communication_consent, current_status, next_step, assigned_staff, created_by
+      communication_consent, current_status, next_step, assigned_staff, created_by, start_date
     ) values (
       coalesce(${input.ref ?? null}, next_client_ref()), ${input.source}, ${p.full_name}, ${p.phone}, ${p.email}, ${p.date_of_birth},
       ${p.preferred_language}, ${p.english_proficiency}, ${p.street}, ${p.city}, ${p.state}, ${p.zip},
@@ -188,7 +189,7 @@ export async function insertClient(tx: Tx, input: NewClientInput, actor: Actor) 
       ${p.amazon_worked_before}, ${p.amazon_worked_from}, ${p.amazon_worked_to},
       ${p.amazon_applied_before}, ${p.amazon_application_email}, ${p.currently_amazon}, ${p.via_agency},
       ${input.communicationConsent}, ${input.status},
-      ${input.nextStep?.trim() || DEFAULT_NEXT_STEP[input.status]}, ${input.assignedStaff}, ${input.createdBy}
+      ${input.nextStep?.trim() || DEFAULT_NEXT_STEP[input.status]}, ${input.assignedStaff}, ${input.createdBy}, ${input.startDate ?? null}
     )
     returning id, ref, created_at`;
 

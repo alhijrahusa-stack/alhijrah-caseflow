@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { db, RUN, uniqueIp } from "./helpers";
+import { db, PNG, RUN, uniqueIp } from "./helpers";
 
 // Runtime assertions are intentionally unchanged; this commit re-triggers PR checks after restoring intake initialization.
 async function fillStepOne(page: Page) {
@@ -114,6 +114,53 @@ test("public HTML application submits and stores an idempotent case without phon
 });
 
 test.describe("Career Gate public intake presentation system", () => {
+  test("AC-02: a lost committed response retries the same case and recovers attachments without duplicate documents", async ({ page, request }) => {
+    let uid = "";
+    let token = "";
+    let attempts = 0;
+    await page.route("**/api/application", async (route) => {
+      attempts += 1;
+      uid = route.request().postDataJSON().uid;
+      const response = await route.fetch();
+      expect(response.status()).toBe(attempts === 1 ? 201 : 200);
+      if (attempts === 1) return route.abort("failed");
+      token = (await response.json()).upload_token;
+      await route.fulfill({ response });
+    });
+    await page.goto("/career-gate.html");
+    await fillStepOne(page);
+    await page.locator("#lastName").fill(`Recovery ${RUN}`);
+    await page.locator("#email").fill(`recovery-${RUN}@test.invalid`);
+    await page.locator('[data-next="2"]').click();
+    await chooseStepTwo(page);
+    await page.locator('[data-next="3"]').click();
+    await page.locator("#docs").setInputFiles({ name: "recover.png", mimeType: "image/png", buffer: PNG });
+    await page.locator('[data-next="4"]').click();
+    await sign(page);
+    await page.locator("#consent").check({ force: true });
+    await page.locator("#submitBtn").click();
+    await expect(page.locator("#statusView")).toHaveText("Draft");
+    await expect(page.locator("#submitBtn")).toBeEnabled();
+    await expect(page.locator("#firstName")).toHaveValue("عبدالله");
+    await expect(page.locator("#reviewDocumentsGrid")).toContainText("recover.png");
+    await page.locator("#submitBtn").click();
+    await expect(page.locator("#receiptScreen")).toHaveClass(/active/);
+    expect(attempts).toBe(2);
+    const rows = await db()`select client_id from career_gate_applications where submission_uid=${uid}`;
+    expect(rows).toHaveLength(1);
+    const documents = await db()`select id,file_name from documents where client_id=${rows[0].client_id} order by file_name`;
+    expect(documents.map((r) => r.file_name)).toEqual(["recover.png", "signature.png"]);
+    // Replayed multipart uploads also resolve to the original document/job.
+    const upload = () => request.post("/api/intake/documents", { multipart: { upload_token: token, doc_type: "other", file: { name: "recover.png", mimeType: "image/png", buffer: PNG } } });
+    const retries = await Promise.all([upload(), upload()]);
+    for (const retry of retries) {
+      expect(retry.status()).toBe(201);
+      expect((await retry.json()).id).toBe(documents[0].id);
+    }
+    expect((await db()`select count(*)::int n from documents where client_id=${rows[0].client_id}`)[0].n).toBe(2);
+    expect((await db()`select count(*)::int n from jobs where type='document_extraction' and entity_id=${documents[0].id}`)[0].n).toBe(1);
+  });
+
   test("office WhatsApp is correct in the public footer, duplicate alert and receipt", async ({ page }) => {
     await page.goto("/career-gate.html");
     const expectedHref = "https://wa.me/13139194292";

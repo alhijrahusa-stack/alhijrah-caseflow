@@ -26,6 +26,7 @@ import { inviteUser } from "@/lib/providers/supabase-auth";
 import { sendEmail, sendSms } from "@/lib/providers/messaging";
 import { Phone, ProfileSchema, SelectionSchema } from "@/lib/schemas";
 import { slotIsBookable } from "@/lib/scheduling";
+import { SHIFT_DAY_CODES } from "@/lib/smart-client-fields";
 import {
   ActionError,
   type Actor,
@@ -50,6 +51,14 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 const instant = z.iso.datetime({ offset: true });
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM");
 const resource = z.string().regex(/^(office|staff:[0-9a-f-]{36})$/, "Invalid resource");
+const ClientReviewFieldsSchema = z.object({
+  preferred_location: z.string().trim().max(200).nullable().transform((v) => v || null),
+  location_option_1: z.string().trim().max(200).nullable().transform((v) => v || null),
+  location_option_2: z.string().trim().max(200).nullable().transform((v) => v || null),
+  shift_days: z.array(z.enum(SHIFT_DAY_CODES)).max(7).refine((v) => new Set(v).size === v.length, "Shift days must be unique").nullable(),
+  shift_start_time: time.nullable().or(z.literal("")).transform((v) => v || null),
+  shift_end_time: time.nullable().or(z.literal("")).transform((v) => v || null),
+});
 
 /** Inline-editable fields and their validators. */
 export const PATCHABLE = {
@@ -92,7 +101,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     assigned_staff: id.nullable().optional(),
     communication_consent: z.boolean().default(false),
   }),
-  z.object({ action: z.literal("update_client"), client_id: id, profile: UpdateProfileSchema }),
+  z.object({ action: z.literal("update_client"), client_id: id, profile: UpdateProfileSchema, review_fields: ClientReviewFieldsSchema.optional(), next_step: text(500).optional(), assigned_staff: id.nullable().optional(), expected_updated_at: instant.optional() }),
   z.object({ action: z.literal("patch_client"), client_id: id, field: z.enum(Object.keys(PATCHABLE) as [PatchField]), value: z.unknown() }),
   z.object({ action: z.literal("update_status"), client_id: id, status: z.enum(STATUSES), next_step: optText(500) }),
   z.object({ action: z.literal("override_status"), client_id: id, status: z.enum(STATUSES), reason: text(500), next_step: optText(500) }),
@@ -303,17 +312,32 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
 
     case "update_client": {
       const before = await requireClient(tx, a.client_id);
+      if (a.expected_updated_at && new Date(before.updated_at as string | Date).getTime() !== Date.parse(a.expected_updated_at)) {
+        throw new ActionError("edit_conflict", "This client was changed by another action. Your draft is preserved. Reload and review the latest values before saving.", 409);
+      }
       const p = a.profile;
       const after: Record<string, unknown> = Object.fromEntries(PROFILE_COLUMNS.filter((k) => p[k] !== undefined).map((k) => [k, p[k]]));
+      if (a.review_fields) Object.assign(after, a.review_fields);
       const changes = diff(before, after);
       const oldHistory = await tx`select employment_kind, company, job_title, from_date, to_date from employment_history where client_id = ${a.client_id} order by created_at`;
       const historyChanged = JSON.stringify(oldHistory.map((r) => ({ ...r }))) !== JSON.stringify(p.employment_history);
-      if (changes) await tx`update clients set ${tx(after as Record<string, string | boolean | null>)} where id = ${a.client_id}`;
+      if (changes) await tx`update clients set ${tx(after as Record<string, string | string[] | boolean | null>)} where id = ${a.client_id}`;
       if (historyChanged) {
         await tx`delete from employment_history where client_id = ${a.client_id}`;
         await insertEmployment(tx, a.client_id, p.employment_history);
       }
-      if (!changes && !historyChanged) return { changed: false };
+      // Reuse the existing commands inside this transaction, so a later domain
+      // error rolls back the entire Edit Client save, including its audit rows.
+      let relatedChanged = false;
+      if (a.next_step !== undefined) {
+        const result = await runAction(ctx, { action: "set_next_step", client_id: a.client_id, next_step: a.next_step });
+        relatedChanged ||= result.changed === true;
+      }
+      if (a.assigned_staff !== undefined) {
+        const result = await runAction(ctx, { action: "assign_staff", client_id: a.client_id, staff_id: a.assigned_staff });
+        relatedChanged ||= result.changed === true;
+      }
+      if (!changes && !historyChanged) return { changed: relatedChanged };
       if (!changes) await touchClient(tx, a.client_id);
       await logActivity(tx, {
         clientId: a.client_id, action: "client_updated", actor, entityType: "client", entityId: a.client_id,

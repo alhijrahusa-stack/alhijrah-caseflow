@@ -9,14 +9,21 @@ import { Preferences } from "@/components/staff/sections/Profile";
 import { StaffPicker } from "@/components/staff/StaffPicker";
 import { useStaff } from "@/components/staff/StaffContext";
 import { Button } from "@/components/ui/Button";
+import { SHIFT_DAY_CODES, type ShiftDayCode } from "@/lib/smart-client-fields";
 
 type R = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 type Draft = {
   profile: ProfileForm;
+  reviewFields?: ReviewFields;
   nextStep: string;
   assigned: string;
   savedAt: string;
+};
+
+type ReviewFields = {
+  preferred_location: string; location_option_1: string; location_option_2: string;
+  shift_days: ShiftDayCode[]; shift_start_time: string; shift_end_time: string;
 };
 
 function toForm(c: R, employment: R[]): ProfileForm {
@@ -50,6 +57,10 @@ export function EditClientForm({ client, employment, preferences }: { client: R;
   const { run, pending, error } = useAction({ successMessage: null });
   const { activeStaff, isManager } = useStaff();
   const [profile, setProfile] = useState<ProfileForm>(() => toForm(client, employment));
+  const [reviewFields, setReviewFields] = useState<ReviewFields>(() => ({
+    preferred_location: client.preferred_location ?? "", location_option_1: client.location_option_1 ?? "", location_option_2: client.location_option_2 ?? "",
+    shift_days: client.shift_days ?? [], shift_start_time: client.shift_start_time?.slice(0, 5) ?? "", shift_end_time: client.shift_end_time?.slice(0, 5) ?? "",
+  }));
   const [nextStep, setNextStep] = useState<string>(client.next_step);
   const [assigned, setAssigned] = useState<string>(client.assigned_staff ?? "");
   const [draftState, setDraftState] = useState<"idle" | "restored" | "saved">("idle");
@@ -63,6 +74,7 @@ export function EditClientForm({ client, employment, preferences }: { client: R;
         const draft = JSON.parse(raw) as Draft;
         if (!draft?.profile || typeof draft.nextStep !== "string" || typeof draft.assigned !== "string") return;
         setProfile((current) => ({ ...current, ...draft.profile }));
+        if (draft.reviewFields) setReviewFields(draft.reviewFields);
         setNextStep(draft.nextStep);
         setAssigned(draft.assigned);
         setDraftState("restored");
@@ -76,7 +88,7 @@ export function EditClientForm({ client, employment, preferences }: { client: R;
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        const draft: Draft = { profile, nextStep, assigned, savedAt: new Date().toISOString() };
+        const draft: Draft = { profile, reviewFields, nextStep, assigned, savedAt: new Date().toISOString() };
         sessionStorage.setItem(draftKey, JSON.stringify(draft));
         setDraftState("saved");
       } catch {
@@ -84,15 +96,18 @@ export function EditClientForm({ client, employment, preferences }: { client: R;
       }
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [profile, nextStep, assigned, draftKey]);
+  }, [profile, reviewFields, nextStep, assigned, draftKey]);
 
   async function save() {
-    const base = { client_id: client.id };
-    if (!(await run({ ...base, action: "update_client", profile: profilePayload(profile) }))) return;
-    if (nextStep.trim() !== client.next_step && !(await run({ ...base, action: "set_next_step", next_step: nextStep }))) return;
-    if (isManager && assigned !== (client.assigned_staff ?? "") && !(await run({ ...base, action: "assign_staff", staff_id: assigned || null }))) return;
+    if (!(await run({
+      action: "update_client", client_id: client.id, profile: profilePayload(profile),
+      expected_updated_at: client.updated_at,
+      review_fields: { ...reviewFields, shift_days: reviewFields.shift_days.length ? reviewFields.shift_days : null },
+      ...(nextStep.trim() !== client.next_step ? { next_step: nextStep } : {}),
+      ...(isManager && assigned !== (client.assigned_staff ?? "") ? { assigned_staff: assigned || null } : {}),
+    }))) return;
     sessionStorage.removeItem(draftKey);
-    // Each `run` above already published its resources on the targeted path,
+    // The committed action already published its resources on the targeted path,
     // and the staff app renders dynamically, so the push is enough.
     router.push(`/staff/client/${client.id}`);
   }
@@ -106,6 +121,22 @@ export function EditClientForm({ client, employment, preferences }: { client: R;
       <div className="space-y-6">
         <Section title="Employment history"><ProfileFields section="employment" value={profile} onChange={setProfile} /></Section>
         <Section title="Appointment availability"><ProfileFields section="availability" value={profile} onChange={setProfile} /></Section>
+        <Section title="Location & shift details">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {(["preferred_location", "location_option_1", "location_option_2"] as const).map((field, index) => (
+              <div key={field}><label className="label" htmlFor={field}>{index === 0 ? "Preferred location" : `Location option ${index}`}</label>
+                <input id={field} className="input" maxLength={200} value={reviewFields[field]} onChange={(e) => setReviewFields({ ...reviewFields, [field]: e.target.value })} />
+              </div>
+            ))}
+            <fieldset className="sm:col-span-2"><legend className="label">Shift days</legend><div className="flex flex-wrap gap-3">
+              {SHIFT_DAY_CODES.map((day) => <label key={day} className="flex items-center gap-1 text-sm"><input type="checkbox" checked={reviewFields.shift_days.includes(day)} onChange={(e) => setReviewFields({ ...reviewFields, shift_days: e.target.checked ? [...reviewFields.shift_days, day] : reviewFields.shift_days.filter((d) => d !== day) })} />{day}</label>)}
+            </div></fieldset>
+            {(["shift_start_time", "shift_end_time"] as const).map((field) => <div key={field}>
+              <label className="label" htmlFor={field}>{field === "shift_start_time" ? "Shift start" : "Shift end"}</label>
+              <input id={field} type="time" className="input" value={reviewFields[field]} onChange={(e) => setReviewFields({ ...reviewFields, [field]: e.target.value })} />
+            </div>)}
+          </div>
+        </Section>
         <Preferences clientId={client.id} prefs={preferences} />
         <Section title="Next step & assignment">
           <div className="grid gap-4 sm:grid-cols-2">

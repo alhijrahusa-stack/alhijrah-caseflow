@@ -4,6 +4,7 @@ import { sha256Hex } from "@/lib/crypto";
 import { sql } from "@/lib/db";
 import { assessQuality, extensionMatches, thumbnail } from "@/lib/doc-quality";
 import { DOC_TYPES } from "@/lib/domain";
+import { claimKey, completeKey } from "@/lib/idempotency";
 import { readUpload } from "@/lib/files";
 import { enqueue } from "@/lib/jobs";
 import { hit } from "@/lib/ratelimit";
@@ -18,7 +19,7 @@ export type SaveResult = { ok: true; id: string; status: string } | { ok: false;
  * and quality, then queues extraction. The object is removed if the database
  * write fails.
  */
-export async function saveDocument(args: { clientId: string; docType: string; file: File; actor: Actor }): Promise<SaveResult> {
+export async function saveDocument(args: { clientId: string; docType: string; file: File; actor: Actor; deduplicate?: boolean }): Promise<SaveResult> {
   if (!(DOC_TYPES as readonly string[]).includes(args.docType)) return { ok: false, code: "invalid_input", error: "Unknown document type", status: 400 };
   if (!(await hit("document_upload_hour", `client:${args.clientId}`))) {
     return { ok: false, code: "rate_limited", error: "Upload limit reached for this client (10 per hour)", status: 429 };
@@ -48,7 +49,14 @@ export async function saveDocument(args: { clientId: string; docType: string; fi
   }
 
   try {
-    await sql().begin(async (tx) => {
+    const result = await sql().begin(async (tx) => {
+      const operation = "public_intake_document";
+      const key = sha256Hex(JSON.stringify([args.clientId, args.docType, args.file.name, hash]));
+      if (args.deduplicate) {
+        const claim = await claimKey(tx, operation, key, hash);
+        if (claim.kind === "replay") return claim.body as { id: string; status: string };
+        if (claim.kind === "conflict") throw new Error("Document retry could not be reconciled");
+      }
       await tx`
         insert into documents (id, client_id, doc_type, storage_path, thumbnail_path, file_name, mime_type, size_bytes,
                                sha256, quality, page_count, width, height, uploaded_by, status)
@@ -60,8 +68,17 @@ export async function saveDocument(args: { clientId: string; docType: string; fi
         newValue: { doc_type: args.docType, file_name: args.file.name, size_bytes: read.bytes.byteLength, sha256: hash, advisories: quality.advisories },
       });
       await enqueue(tx, { type: "document_extraction", entityId: id, dedupeKey: `extract:${id}:1`, traceId: args.actor.traceId, maxAttempts: 3 });
+      const saved = { id, status: "pending" };
+      if (args.deduplicate) await completeKey(tx, operation, key, 201, saved);
+      return saved;
     });
-    return { ok: true, id, status: "pending" };
+    // A concurrent retry may already own the canonical document. Remove only
+    // this attempt's temporary objects; its original and job remain untouched.
+    if (result.id !== id) {
+      await removeObject(path).catch((err) => console.error("retry object cleanup failed", path, err));
+      if (thumbPath) await removeObject(thumbPath).catch((err) => console.error("retry thumbnail cleanup failed", thumbPath, err));
+    }
+    return { ok: true, ...result };
   } catch (e) {
     console.error(e);
     await removeObject(path).catch((err) => console.error("orphan cleanup failed", path, err));
