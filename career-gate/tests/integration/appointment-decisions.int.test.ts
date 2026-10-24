@@ -109,6 +109,43 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     expect(rows).toHaveLength(0);
   });
 
+  it("moves Job Ready to Appointment Scheduled only on a marked employment interview", async () => {
+    const client = await db.begin((tx) => insertClient(tx, {
+      source: "staff_manual",
+      profile: ProfileSchema.parse({ full_name: "TEST Interview Auto Stage", phone: "3135559020", employment_history: [] }),
+      primary: [], backup: [], status: "new_intake", nextStep: null,
+      assignedStaff: staff.staff.id, createdBy: admin.staff.id, communicationConsent: false,
+    }, { staffId: admin.staff.id, traceId: "appointment-integration" }));
+    await act(admin, {
+      action: "override_status", client_id: client.id, status: "appointment_required",
+      reason: "Integration precondition", next_step: "Book employment interview",
+    });
+    const booked = await act(manager, {
+      action: "schedule_appointment", client_id: client.id, appointment_type: "Employment Interview",
+      lifecycle_interview: true,
+      scheduled_at: new Date(Date.now() + 28 * 86400000).toISOString(),
+      duration_minutes: 30, resource_key: `staff:${manager.staff.id}`,
+      location: null, notes: null,
+    });
+    const appointmentId = String(booked.appointment_id);
+    const [canonical] = await db`select current_status,pipeline_stage from clients where id=${client.id}`;
+    const [appointment] = await db`select appointment_kind from appointments where id=${appointmentId}`;
+    expect(canonical).toMatchObject({ current_status: "appointment_scheduled", pipeline_stage: "interview_scheduled" });
+    expect(appointment.appointment_kind).toBe("employment_interview");
+    await expect(act(manager, {
+      action: "update_appointment", appointment_id: appointmentId, status: "attended",
+    })).rejects.toMatchObject({ code: "use_interview_decision" });
+  });
+
+  it("rejects tampering with an already persisted interview outcome", async () => {
+    const { appointmentId } = await makeAppointment(12);
+    await act(manager, { action: "appointment_decision", appointment_id: appointmentId, decision: "pass", note: null });
+    await expect(db`update appointment_outcomes set note='overwritten' where appointment_id=${appointmentId}`)
+      .rejects.toMatchObject({ code: "P0001" });
+    await expect(db`delete from appointment_outcomes where appointment_id=${appointmentId}`)
+      .rejects.toMatchObject({ code: "P0001" });
+  });
+
   it("denies anonymous access and staff writes through RLS", async () => {
     await expect(db.begin(async (tx) => {
       await tx.unsafe("set local role anon");
