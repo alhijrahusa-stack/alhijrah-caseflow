@@ -10,7 +10,7 @@ export type OperationalClientRow = {
   job_id:string|null; job_title:string|null; shift_code:string|null; shift_name:string|null;
   payment_status:string|null; fee_amount:number|null;
 };
-export type OperationalClientExtraFilters={q?:string;status?:string;assigned?:string};
+export type OperationalClientExtraFilters={q?:string;status?:string;assigned?:string;attention?:"documents"};
 
 export async function operationalClientList(session:StaffSession, view:ClientView, page:number, pageSize:number, extra:OperationalClientExtraFilters={}){
   return withStaff(session, async(tx)=>{
@@ -23,6 +23,15 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
     const like=`%${term.replace(/[\\%_]/g,(m)=>`\\${m}`)}%`;
     const where=tx`c.deleted_at is null and ${lifecycle}
       ${extra.status?tx`and c.current_status=${extra.status}`:tx``}
+      ${extra.attention==="documents"?tx`and exists (
+        select 1 from documents d
+        where d.client_id=c.id and d.status in ('needs_review','needs_reupload','rejected')
+          and not exists (
+            select 1 from documents n
+            where n.client_id=d.client_id and n.doc_type=d.doc_type
+              and (n.uploaded_at,n.id)>(d.uploaded_at,d.id)
+          )
+      )`:tx``}
       ${extra.assigned==="none"?tx`and c.assigned_staff is null`:extra.assigned?tx`and c.assigned_staff=${extra.assigned}`:tx``}
       ${term?tx`and (c.ref ilike ${like} or c.full_name ilike ${like} or c.email ilike ${like} or c.phone like ${like})`:tx``}`;
     const [{total}] = await tx`select count(*)::int as total from clients c where ${where}`;

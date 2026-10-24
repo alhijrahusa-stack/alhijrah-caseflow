@@ -100,6 +100,17 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await expect(page.getByRole("heading", { name: "Follow-Ups", exact: true })).toBeVisible();
   });
 
+  test("document attention KPI opens the matching client register filter", async () => {
+    await page.goto("/staff");
+    const tile = page.getByRole("link", { name: /Documents Needing Action/ });
+    const metric = (await tile.innerText()).match(/\d+/);
+    expect(metric).not.toBeNull();
+    await tile.click();
+    await expect(page).toHaveURL(/attention=documents/);
+    await expect(page.getByText("Documents needing action", { exact: false })).toBeVisible();
+    await expect(page.getByTestId("client-total")).toContainText(new RegExp(`^${metric![0]} client`));
+  });
+
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();
