@@ -103,6 +103,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     action: z.literal("schedule_appointment"),
     client_id: id,
     appointment_type: text(100),
+    lifecycle_interview: z.boolean().default(false),
     scheduled_at: instant,
     duration_minutes: z.number().int().min(5).max(480).default(30),
     resource_key: resource.default("office"),
@@ -115,6 +116,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     start: instant,
     end: instant,
     resource_key: resource,
+    lifecycle_interview: z.boolean().default(false),
     appointment_type: text(100),
     location: optText(300),
     notes: optText(2000),
@@ -380,7 +382,10 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
 
     case "schedule_appointment":
     case "book_slot": {
-      await requireClient(tx, a.client_id);
+      const scheduledClient = await requireClient(tx, a.client_id);
+      if (a.lifecycle_interview && scheduledClient.current_status !== "appointment_scheduled" && !canTransition(scheduledClient.current_status as Status, "appointment_scheduled")) {
+        throw new ActionError("lifecycle_conflict", "Advance the client to Job Ready before scheduling an employment interview", 409);
+      }
       const start = new Date(a.action === "book_slot" ? a.start : a.scheduled_at);
       const end = a.action === "book_slot" ? new Date(a.end) : new Date(start.getTime() + a.duration_minutes * 60_000);
       if (end <= start) throw new ActionError("invalid_input", "End must be after start");
@@ -389,9 +394,19 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       }
       const staffResource = a.resource_key.startsWith("staff:") ? a.resource_key.slice(6) : null;
       const [appt] = await tx`
-        insert into appointments (client_id, appointment_type, scheduled_at, ends_at, resource_key, assigned_staff, location, notes, created_by_staff)
-        values (${a.client_id}, ${a.appointment_type}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${a.location}, ${a.notes}, ${by})
+        insert into appointments (client_id, appointment_type, appointment_kind, scheduled_at, ends_at, resource_key, assigned_staff, location, notes, created_by_staff)
+        values (${a.client_id}, ${a.appointment_type}, ${a.lifecycle_interview ? 'employment_interview' : 'general'}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${a.location}, ${a.notes}, ${by})
         returning id`;
+      if (a.lifecycle_interview && scheduledClient.current_status !== "appointment_scheduled") {
+        await tx`update clients
+          set current_status = 'appointment_scheduled', pipeline_stage = 'interview_scheduled',
+              next_step = 'Attend the confirmed employment interview.'
+          where id = ${a.client_id}`;
+        await logActivity(tx, {
+          clientId: a.client_id, action: "status_changed", actor, entityType: "client", entityId: a.client_id,
+          oldValue: { status: scheduledClient.current_status }, newValue: { status: "appointment_scheduled" },
+        });
+      }
       await touchClient(tx, a.client_id);
       await logActivity(tx, { clientId: a.client_id, action: "appointment_created", actor, entityType: "appointment", entityId: appt.id, newValue: { type: a.appointment_type, scheduled_at: start.toISOString(), ends_at: end.toISOString(), resource: a.resource_key, location: a.location } });
       return { appointment_id: appt.id };
@@ -399,7 +414,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
 
     case "appointment_decision": {
       const [appt] = await tx`
-        select a.id, a.client_id, a.status, c.current_status, c.pipeline_stage
+        select a.id, a.client_id, a.status, a.appointment_kind, c.current_status, c.pipeline_stage
         from appointments a join clients c on c.id=a.client_id
         where a.id=${a.appointment_id} and c.deleted_at is null
         for update of a,c`;
@@ -412,6 +427,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       if (!["scheduled", "confirmed", "rescheduled"].includes(String(appt.status))) {
         throw new ActionError("appointment_closed", "Appointment is no longer open", 409);
       }
+      if (appt.appointment_kind !== "employment_interview") throw new ActionError("invalid_appointment_kind", "This appointment is not an employment interview", 409);
       if (appt.current_status !== "appointment_scheduled") {
         throw new ActionError("lifecycle_conflict", "Client must be in Appointment Scheduled", 409);
       }
@@ -450,6 +466,10 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
     case "update_appointment": {
       const [cur] = await tx`select * from appointments where id = ${a.appointment_id} for update`;
       if (!cur) throw new ActionError("not_found", "Appointment not found", 404);
+      if (["attended", "missed", "cancelled"].includes(cur.status)) throw new ActionError("appointment_closed", "Concluded appointments cannot be edited", 409);
+      if (cur.appointment_kind === "employment_interview" && a.status && ["attended", "missed", "cancelled"].includes(a.status)) {
+        throw new ActionError("use_interview_decision", "Record Pass, Fail, Missed or Cancellation through the interview decision workflow", 409);
+      }
       const start = a.scheduled_at ? new Date(a.scheduled_at) : new Date(cur.scheduled_at);
       const duration = a.duration_minutes ?? Math.round((new Date(cur.ends_at).getTime() - new Date(cur.scheduled_at).getTime()) / 60_000);
       const moved = start.getTime() !== new Date(cur.scheduled_at).getTime() || a.duration_minutes !== undefined;
