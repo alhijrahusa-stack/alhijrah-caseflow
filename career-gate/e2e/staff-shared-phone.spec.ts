@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { db, signIn, staffAction } from "./helpers";
 
-test("staff shared phone persists distinct files, shows review alert and protects corroborated identity", async ({ page, baseURL }) => {
+test("staff shared phone persists distinct files, shows review alert and protects corroborated identity", async ({ page, browser, baseURL }) => {
   await signIn(page.context(), baseURL!, "admin");
   const token = randomUUID().slice(0, 8);
   const phone = `313${Date.now().toString().slice(-7)}`;
@@ -23,11 +23,17 @@ test("staff shared phone persists distinct files, shows review alert and protect
   await expect(page.getByText("Another active file uses the same phone. Phone alone does not identify an applicant and does not block staff creation.")).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
-  await signIn(page.context(), baseURL!, "admin");
-  // Re-enter through a fresh server navigation after changing the session cookie.
-  // Reloading an already-rendered App Router tree can retain a stale auth result.
-  await page.goto(`/staff/client/${id}`);
-  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+  // Verify persistence with an independent authenticated session, leaving the
+  // original page's already-established browser session untouched.
+  const returningContext = await browser.newContext({ baseURL });
+  try {
+    await signIn(returningContext, baseURL!, "admin");
+    const returningPage = await returningContext.newPage();
+    await returningPage.goto(`/staff/client/${id}`);
+    await expect(returningPage.getByRole("heading", { name, exact: true })).toBeVisible();
+  } finally {
+    await returningContext.close();
+  }
   const repeat = await create(name, "1995-02-02");
   expect(repeat.status).toBe(409);
   const [count] = await db()`select count(*)::int n from clients where phone=${phone}`;
