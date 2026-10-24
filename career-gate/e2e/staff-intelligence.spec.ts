@@ -103,7 +103,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
   test("document attention KPI opens the matching client register filter", async () => {
     await page.goto("/staff");
     const tile = page.getByRole("link", { name: /Documents Needing Action/ });
-    const metric = (await tile.innerText()).match(/\\d+/);
+    const metric = (await tile.innerText()).match(/\d+/);
     expect(metric).not.toBeNull();
     await tile.click();
     await expect(page).toHaveURL(/attention=documents/);
