@@ -431,8 +431,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       await tx`update appointments set status=${appointmentStatus},updated_at=now() where id=${a.appointment_id}`;
       await tx`insert into appointment_outcomes (appointment_id,client_id,decision,note,recorded_by)
         values (${a.appointment_id},${appt.client_id},${a.decision},${a.note},${by})
-        on conflict (appointment_id) do update set
-        decision=excluded.decision,note=excluded.note,recorded_by=excluded.recorded_by,recorded_at=now()`;
+        on conflict (appointment_id) do nothing`;
       await tx`update clients set current_status=${status},pipeline_stage=${stage},next_step=${nextStep} where id=${appt.client_id}`;
       await logActivity(tx, {
         clientId: appt.client_id, action: "appointment_completed", actor,
