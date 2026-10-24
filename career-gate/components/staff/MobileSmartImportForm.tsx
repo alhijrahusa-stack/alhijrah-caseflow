@@ -528,7 +528,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     sessionStart.current = Date.now();
     setDocuments([]); setRejected([]); setNotes(""); setDebouncedNotes("");
     setError(null); setResult(null); setServerDraft(null); setServerEvidence([]); setVerification(null);
-    setStage("DRAFT"); setElapsed(0); setWarningNonce(0); setActiveFieldKey(null); setLocalOcrComplete(false);
+    setStage("DRAFT"); setElapsed(0); setWarningNonce(0); setActiveFieldKey(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
