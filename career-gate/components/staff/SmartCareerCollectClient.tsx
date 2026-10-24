@@ -174,6 +174,36 @@ export function SmartCareerCollectClient() {
       setDocumentConfirmed(Boolean(next.case.document_match_confirmed));
       setInformationConfirmed(Boolean(next.case.information_match_confirmed));
       setActiveDocumentId(next.documents[0]?.id ?? null);
+      if (next.case.status === "PENDING" && !next.case.reviewer_id) {
+        setActionBusy("claim_review");
+        void (async () => {
+          try {
+            const res = await fetch("/api/staff/smart-client-import", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "start_review", id, reviewer_id: me.id }),
+            });
+            const claimed = await res.json().catch(() => null);
+            if (!res.ok || !claimed?.ok) throw new Error(errMessage(claimed, "Reviewer assignment failed"));
+            if (request !== caseRequest.current) return;
+            setDetail((current) => current?.case.id === id ? {
+              ...current,
+              case: {
+                ...current.case,
+                status: "UNDER_REVIEW",
+                reviewer_id: me.id,
+                reviewer_name: me.display_name,
+                review_started_at: claimed.review_started_at,
+              },
+            } : current);
+            setReviewerId(me.id);
+            void loadQueue();
+          } catch (cause) {
+            if (request === caseRequest.current) setError(cause instanceof Error ? cause.message : "Reviewer assignment failed");
+          } finally {
+            if (request === caseRequest.current) setActionBusy(null);
+          }
+        })();
+      }
       window.setTimeout(() => document.getElementById("smart-review")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to open import"); }
     finally { setActionBusy(null); }
