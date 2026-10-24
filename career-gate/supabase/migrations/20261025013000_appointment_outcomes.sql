@@ -1,4 +1,8 @@
 begin;
+alter table public.appointments
+  add column if not exists appointment_kind text not null default 'general'
+  check (appointment_kind in ('general', 'employment_interview'));
+
 
 insert into public.pipeline_stages (key,position,label_en,label_ar,color,terminal) values
 ('need_new_appointment',8,'Needs New Appointment','يحتاج إلى موعد جديد','#F59E0B',false),
