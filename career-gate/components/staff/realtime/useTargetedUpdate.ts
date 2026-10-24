@@ -51,6 +51,8 @@ export function useTargetedPayloads<T>(opts: {
     const rendered = key.split(",").filter(Boolean) as Resource[];
     if (rendered.length === 0) return;
     let cancelled = false;
+    let requestSequence = 0;
+    const latestRequest = new Map<string, number>();
 
     const off = subscribeResources({
       resources: rendered,
@@ -63,16 +65,30 @@ export function useTargetedPayloads<T>(opts: {
           requestRecovery("unowned_resource");
           return;
         }
+        const requestId = ++requestSequence;
+        for (const payload of payloads) {
+          latestRequest.set(payload, requestId);
+          // The requirements endpoint also returns its derived readiness row.
+          if (payload === "requirements") latestRequest.set("readiness", requestId);
+        }
+        const requestSeed = seedRef.current;
         void (async () => {
           const url = `/api/staff/client-resource?client_id=${encodeURIComponent(clientId)}&payloads=${payloads.join(",")}`;
           const res = await fetch(url).catch(() => null);
           const body = (await res?.json().catch(() => null)) as { ok?: boolean; payloads?: Record<string, unknown> } | null;
-          if (cancelled) return;
+          if (cancelled || requestSeed !== seedRef.current) return;
+          if (!payloads.some(payload => latestRequest.get(payload) === requestId)) return;
           if (!body?.ok || !body.payloads) {
             requestRecovery("targeted_fetch_failed");
             return;
           }
-          const next = body.payloads;
+          // Different changes can finish their reads in a different order.
+          // An older snapshot may update unrelated slices, but must never
+          // replace a slice for which a newer read has already started.
+          const next = Object.fromEntries(Object.entries(body.payloads).filter(
+            ([payload]) => latestRequest.get(payload) === requestId,
+          ));
+          if (Object.keys(next).length === 0) return;
           setPatched((current) => applyRef.current(current ?? seedRef.current, next));
         })();
       },

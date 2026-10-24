@@ -102,6 +102,46 @@ test.describe.serial("realtime targeted updates", () => {
     await expect(page.getByTestId("realtime-state")).toHaveAttribute("data-recovery", "");
   });
 
+  test("a delayed older read cannot erase a later successful mutation", async ({ context, page, baseURL }) => {
+    await signIn(context, baseURL!, "admin");
+    let releaseFirst!: () => void;
+    const firstHeld = new Promise<void>(resolve => { releaseFirst = resolve; });
+    let markFirstRead!: () => void;
+    const firstRead = new Promise<void>(resolve => { markFirstRead = resolve; });
+    let reads = 0;
+    await page.route("**/api/staff/client-resource?**", async route => {
+      const response = await route.fetch();
+      const body = await response.json();
+      if (++reads === 1) {
+        markFirstRead();
+        await firstHeld;
+      }
+      await route.fulfill({ response, json: body });
+    });
+    const first = `TEST delayed first ${Date.now()}`;
+    const second = `TEST newer second ${Date.now()}`;
+    try {
+      await page.goto(`/staff/client/${clientId}?tab=work&action=note`);
+      await page.locator("#note_text").fill(first);
+      await page.getByTestId("form-note").getByRole("button", { name: "Add note", exact: true }).click();
+      await firstRead;
+      await page.getByRole("button", { name: "Add Note", exact: true }).click();
+      await page.locator("#note_text").fill(second);
+      await page.getByTestId("form-note").getByRole("button", { name: "Add note", exact: true }).click();
+      await expect(page.getByTestId("note-row").filter({ hasText: second })).toBeVisible();
+      const delayedResponse = page.waitForResponse(response => response.url().includes(CLIENT_RESOURCE));
+      releaseFirst();
+      await delayedResponse;
+      // Allow the delayed fetch's JSON parsing and React commit to settle.
+      await page.waitForTimeout(250);
+      await expect(page.getByTestId("note-row").filter({ hasText: second })).toBeVisible();
+      await expect(page.getByTestId("note-row").filter({ hasText: first })).toBeVisible();
+    } finally {
+      releaseFirst();
+      await page.unroute("**/api/staff/client-resource?**");
+    }
+  });
+
   test("a mutation on one client does not refetch another client", async ({ context, page, baseURL, request }) => {
     const other = await submitIntake(request, intakeBody(`TEST Untouched Client ${Date.now()}`));
     expect(other.res.status(), JSON.stringify(other.json)).toBe(201);
