@@ -150,6 +150,19 @@ test.describe.serial("Staff intelligence surfaces", () => {
     }
   });
 
+  test("team member dashboard drilldown focuses one matching staff workload", async () => {
+    await page.goto("/staff");
+    const teamMember = page.getByRole("link", { name: /files.*tasks.*overdue/ }).first();
+    await expect(teamMember).toBeVisible();
+    const href = await teamMember.getAttribute("href");
+    expect(href).toMatch(/tab=team&member=/);
+    await teamMember.click();
+    await expect(page).toHaveURL(/tab=team&member=/);
+    await expect(page.getByTestId("team-member-grid").locator("article")).toHaveCount(1);
+    await page.getByRole("link", { name: "Show all team members" }).click();
+    await expect(page).not.toHaveURL(/member=/);
+  });
+
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();
