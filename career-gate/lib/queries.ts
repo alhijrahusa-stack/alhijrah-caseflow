@@ -269,8 +269,11 @@ export async function appointmentPage(s: StaffSession, view: string, requestedPa
     const pages = Math.max(1, Math.ceil(total / size));
     const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pages) : 1;
     const rows = await tx`
-      select a.*, c.full_name, c.ref, s.display_name as created_by_name
-      from appointments a join clients c on c.id = a.client_id left join staff s on s.id = a.created_by_staff
+      select a.*, c.full_name, c.ref, s.display_name as created_by_name,
+             o.decision as outcome, o.recorded_at as decision_at
+      from appointments a join clients c on c.id = a.client_id
+      left join staff s on s.id = a.created_by_staff
+      left join appointment_outcomes o on o.appointment_id = a.id
       where ${filter}
       order by a.scheduled_at ${view === "past" ? tx`desc` : tx`asc`}, a.id
       limit ${size} offset ${(page-1)*size}`;
