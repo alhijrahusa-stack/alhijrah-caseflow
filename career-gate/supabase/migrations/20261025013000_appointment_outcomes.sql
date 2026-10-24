@@ -2,7 +2,8 @@ begin;
 
 insert into public.pipeline_stages (key,position,label_en,label_ar,color,terminal) values
 ('need_new_appointment',8,'Needs New Appointment','يحتاج إلى موعد جديد','#F59E0B',false),
-('archive_not_interested',9,'Not Interested — Closed','غير مهتم — ملف مغلق','#64748B',true)
+('archive_not_interested',9,'Not Interested — Closed','غير مهتم — ملف مغلق','#64748B',true),
+('payment_required',10,'Payment Required','بانتظار التحقق من الدفع','#D4AF37',false)
 on conflict (key) do nothing;
 
 create table if not exists public.appointment_outcomes (
