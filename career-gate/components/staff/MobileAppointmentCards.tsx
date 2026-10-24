@@ -16,21 +16,19 @@ function displayDate(value: string) {
 
 export function MobileAppointmentCards({ appointments }: Props) {
   const [selected, setSelected] = useState<Appointment | null>(null);
+  const selectedVisible = selected && appointments.some((a) => a.id === selected.id) ? selected : null;
   const [tab, setTab] = useState<"notification" | "actions">("notification");
   const [offset, setOffset] = useState(0);
   const startY = useRef<number | null>(null);
   const dismiss = () => { setSelected(null); setOffset(0); };
   useEffect(() => {
-    if (!selected) return;
+    if (!selectedVisible) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") dismiss(); };
     window.addEventListener("keydown", onKey);
     return () => { document.body.style.overflow = previous; window.removeEventListener("keydown", onKey); };
-  }, [selected]);
-  useEffect(() => {
-    if (selected && !appointments.some((a) => a.id === selected.id)) dismiss();
-  }, [appointments, selected]);
+  }, [selectedVisible]);
   const open = (appointment: Appointment) => { setTab(appointment.status === "confirmed" ? "notification" : "actions"); setOffset(0); setSelected(appointment); };
   return <>
     <div className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-3" data-testid="mobile-appointment-cards">
@@ -53,13 +51,13 @@ export function MobileAppointmentCards({ appointments }: Props) {
         <button type="button" onClick={() => open(a)} className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-400/15 px-4 py-3 text-sm font-bold text-amber-200 active:scale-[.99]" aria-label={`Open actions for ${a.full_name}`}>Executive Smart Gate <span aria-hidden="true">↑</span></button>
       </article>)}
     </div>
-    {selected && <div className="fixed inset-0 z-[1000]" data-testid="executive-bottom-drawer">
+    {selectedVisible && <div className="fixed inset-0 z-[1000]" data-testid="executive-bottom-drawer">
       <button type="button" className="absolute inset-0 h-full w-full bg-[#020a15]/75 backdrop-blur-[3px]" onClick={dismiss} aria-label="Close appointment actions" />
       <section role="dialog" aria-modal="true" aria-labelledby="smart-gate-heading" className="absolute inset-x-0 bottom-0 flex max-h-[min(88dvh,850px)] min-h-0 flex-col overflow-hidden rounded-t-[28px] border border-amber-300/25 bg-[#0b1d30] text-white shadow-[0_-25px_65px_rgba(0,0,0,.55)]" style={{ transform: `translateY(${offset}px)`, transition: "transform 220ms cubic-bezier(.2,.8,.2,1)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <div className="shrink-0 touch-pan-x px-4 pt-3" onTouchStart={e => {startY.current=e.touches[0].clientY;}} onTouchMove={e => {if(startY.current !== null)setOffset(Math.max(0,e.touches[0].clientY-startY.current));}} onTouchEnd={() => {if(offset > 110)dismiss();else setOffset(0);startY.current=null;}}>
           <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-400/70" />
           <div className="flex min-w-0 items-start justify-between gap-3 pb-3">
-            <div className="min-w-0"><p className="text-[10px] font-bold tracking-[.15em] text-amber-300">CAREER GATE · SMART OPERATIONS</p><h2 id="smart-gate-heading" className="mt-1 text-lg font-bold">Executive Smart Gate</h2><p className="mt-1 break-words text-xs text-slate-300">{selected.full_name} · {displayDate(selected.scheduled_at)}</p></div>
+            <div className="min-w-0"><p className="text-[10px] font-bold tracking-[.15em] text-amber-300">CAREER GATE · SMART OPERATIONS</p><h2 id="smart-gate-heading" className="mt-1 text-lg font-bold">Executive Smart Gate</h2><p className="mt-1 break-words text-xs text-slate-300">{selectedVisible.full_name} · {displayDate(selectedVisible.scheduled_at)}</p></div>
             <button type="button" onClick={dismiss} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 text-xl" aria-label="Close drawer">×</button>
           </div>
           <div className="grid grid-cols-2 gap-2 pb-3">
@@ -68,7 +66,7 @@ export function MobileAppointmentCards({ appointments }: Props) {
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-5" style={{WebkitOverflowScrolling:"touch"}}>
-          {tab === "notification" ? selected.status === "confirmed" ? <AppointmentNotificationPanel key={selected.id} appointmentId={selected.id}/> : <p className="rounded-xl border border-white/15 p-4 text-sm text-slate-300">Confirm this appointment before sending a confirmation.</p> : <div className="rounded-xl border border-white/15 bg-white/5 p-3"><AppointmentRowActions appt={selected}/></div>}
+          {tab === "notification" ? selectedVisible.status === "confirmed" ? <AppointmentNotificationPanel key={selectedVisible.id} appointmentId={selectedVisible.id}/> : <p className="rounded-xl border border-white/15 p-4 text-sm text-slate-300">Confirm this appointment before sending a confirmation.</p> : <div className="rounded-xl border border-white/15 bg-white/5 p-3"><AppointmentRowActions appt={selectedVisible}/></div>}
         </div>
       </section>
     </div>}
