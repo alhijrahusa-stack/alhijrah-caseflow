@@ -36,6 +36,9 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
       ${extra.assigned==="none"?tx`and c.assigned_staff is null`:extra.assigned?tx`and c.assigned_staff=${extra.assigned}`:tx``}
       ${term?tx`and (c.ref ilike ${like} or c.full_name ilike ${like} or c.email ilike ${like} or c.phone like ${like})`:tx``}`;
     const [{total}] = await tx`select count(*)::int as total from clients c where ${where}`;
+    // Keep the view on a real page if filters or records changed since navigation.
+    const maxPage = Math.max(1, Math.ceil(Number(total ?? 0) / pageSize));
+    const safePage = Number.isSafeInteger(page) && page > 0 ? Math.min(page, maxPage) : 1;
     const rows = await tx`
       select c.id,c.ref,c.full_name,c.phone,c.email,c.city,c.current_status,c.next_step,c.start_date,c.updated_at,c.assigned_staff,
              s.display_name as assigned_name,p.site_code,p.site_name,p.job_id,p.job_title,p.shift_code,p.shift_name,a.payment_status,${tx.unsafe(ACCOUNT_NET_FEE("a"))} fee_amount
@@ -49,7 +52,7 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
       left join client_accounts a on a.client_id=c.id
       where ${where}
       order by c.updated_at desc,c.id
-      limit ${pageSize} offset ${(page-1)*pageSize}`;
-    return { rows:(rows as unknown as OperationalClientRow[]).map((r)=>({...r,fee_amount:r.fee_amount==null?null:Number(r.fee_amount)})), total:Number(total??0) };
+      limit ${pageSize} offset ${(safePage-1)*pageSize}`;
+    return { rows:(rows as unknown as OperationalClientRow[]).map((r)=>({...r,fee_amount:r.fee_amount==null?null:Number(r.fee_amount)})), total:Number(total??0), page:safePage };
   });
 }
