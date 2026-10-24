@@ -582,9 +582,12 @@ export async function startImportReview(session: StaffSession, id: string, revie
   assertManager(session);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, reviewerId);
-    const [row] = await tx`select id,status,review_started_at from client_import_cases where id=${id} for update`;
+    const [row] = await tx`select id,status,reviewer_id,review_started_at from client_import_cases where id=${id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot be reopened", 409);
+    if (row.reviewer_id && row.reviewer_id !== reviewerId) {
+      throw new ActionError("review_assigned", "This import is already assigned to a different reviewer", 409);
+    }
     const [updated] = await tx`
       update client_import_cases
       set reviewer_id=${reviewerId},review_started_at=coalesce(review_started_at,now()),status='UNDER_REVIEW'
