@@ -231,8 +231,10 @@ export async function appointmentList(s: StaffSession, view: string, limit = 300
     select a.*, c.full_name, c.ref, s.display_name as created_by_name
     from appointments a join clients c on c.id = a.client_id left join staff s on s.id = a.created_by_staff
     where c.deleted_at is null and ${
-      view === "today"
-        ? tx`(a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date`
+      view === "next_2h"
+        ? tx`a.status = any(${OPEN_APPT}) and a.scheduled_at >= now() and a.scheduled_at <= now() + interval '2 hours' and c.current_status not in ('completed','cancelled')`
+        : view === "today"
+          ? tx`(a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date`
         : view === "past"
           ? tx`a.scheduled_at < now()`
           : view === "all"
@@ -254,6 +256,8 @@ export async function taskList(s: StaffSession, view: string, assignee?: string,
     left join staff a on a.id = t.assigned_to left join staff d on d.id = t.completed_by
     where (c.id is null or c.deleted_at is null)
       and ${view === "closed" ? tx`t.status in ('completed','cancelled')` : tx`t.status in ('pending','in_progress')`}
+      ${view === "overdue" ? tx`and t.due_at < now()` : view === "due_today" ? tx`and (t.due_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date` : tx``}
+      ${view === "overdue" || view === "due_today" ? tx`and c.id is not null and c.current_status not in ('completed','cancelled')` : tx``}
       ${assignee ? tx`and t.assigned_to = ${assignee}` : tx``}
     order by ${view === "closed" ? tx`t.updated_at desc, t.id` : tx`t.due_at asc nulls last, t.created_at, t.id`}
     limit ${pageLimit} offset ${pageOffset}`);

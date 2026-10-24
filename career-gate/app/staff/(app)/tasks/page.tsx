@@ -11,7 +11,7 @@ const PAGE_SIZE = 50;
 
 function tasksHref(view: string, assignee: string | undefined, page: number) {
   const params = new URLSearchParams();
-  if (view === "closed") params.set("view", "closed");
+  if (view !== "open") params.set("view", view);
   if (assignee) params.set("assignee", assignee);
   if (page > 1) params.set("page", String(page));
   const query = params.toString();
@@ -22,7 +22,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
   const sp = await searchParams;
-  const view = sp.view === "closed" ? "closed" : "open";
+  const view = sp.view === "closed" || sp.view === "overdue" || sp.view === "due_today" ? sp.view : "open";
   const staff = await staffDirectory(session);
   const assignee = staff.some((s) => s.id === sp.assignee) ? sp.assignee : undefined;
   const requestedPage = Number(sp.page ?? "1");
@@ -37,14 +37,16 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         <div>
           <p className="ops-kicker">CAREER GATE · TASK CONTROL</p>
           <h1>Tasks</h1>
-          <p>{total} {view === "open" ? "open" : "completed / cancelled"} task{total === 1 ? "" : "s"}{pageCount > 1 ? ` · page ${page} of ${pageCount}` : ""}</p>
+          <p>{total} {view === "closed" ? "completed / cancelled" : view === "overdue" ? "overdue" : view === "due_today" ? "due today" : "open"} task{total === 1 ? "" : "s"}{pageCount > 1 ? ` · page ${page} of ${pageCount}` : ""}</p>
         </div>
         <div><NewTaskButton /></div>
       </header>
 
       <section className="ops-glass-card flex flex-wrap items-center gap-3">
-        <nav className="flex gap-3 text-sm" aria-label="Views">
+        <nav className="flex flex-wrap gap-3 text-sm" aria-label="Views">
           <Link href="/staff/tasks" className={view === "open" ? "font-semibold text-brand-700" : "text-slate-500"}>Open</Link>
+          <Link href="/staff/tasks?view=overdue" className={view === "overdue" ? "font-semibold text-brand-700" : "text-slate-500"}>Overdue</Link>
+          <Link href="/staff/tasks?view=due_today" className={view === "due_today" ? "font-semibold text-brand-700" : "text-slate-500"}>Due Today</Link>
           <Link href="/staff/tasks?view=closed" className={view === "closed" ? "font-semibold text-brand-700" : "text-slate-500"}>Completed / cancelled</Link>
         </nav>
         <form className="ml-auto flex gap-2">
@@ -65,7 +67,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
             <thead><tr><th>Task</th><th>Client</th><th>Assigned</th><th>Due</th><th>Status</th><th /></tr></thead>
             <tbody>
               {rows.map((t: Record<string, string> & { overdue?: boolean }) => {
-                const overdue = view === "open" && Boolean(t.overdue);
+                const overdue = view !== "closed" && Boolean(t.overdue);
                 return (
                   <tr key={t.id}>
                     <td>{t.title}{t.description && <span className="block text-xs text-slate-500">{t.description}</span>}</td>
