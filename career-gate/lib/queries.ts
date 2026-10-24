@@ -374,6 +374,25 @@ export async function auditAlerts(s: StaffSession, status: string) {
     limit 300`);
 }
 
+/** Complete, paginated audit queue scoped to existing staff permissions. */
+export async function auditAlertsPage(s: StaffSession, status: string, requestedPage = 1, pageSize = 50) {
+  const size = Number.isSafeInteger(pageSize) ? Math.min(Math.max(pageSize, 1), 100) : 50;
+  return withStaff(s, async (tx) => {
+    const [count] = await tx`select count(*)::int total from audit_alerts a join clients c on c.id=a.client_id where a.status=${status}`;
+    const total = Number(count?.total ?? 0);
+    const pages = Math.max(1, Math.ceil(total / size));
+    const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pages) : 1;
+    const rows = await tx`
+      select a.*, c.ref, c.full_name, r.display_name as resolved_by_name
+      from audit_alerts a join clients c on c.id=a.client_id left join staff r on r.id=a.resolved_by
+      where a.status=${status}
+      order by case a.severity when 'critical' then 0 when 'high' then 1 when 'medium' then 2 else 3 end,
+        a.created_at desc, a.id desc
+      limit ${size} offset ${(page - 1) * size}`;
+    return { rows, total, page, pages };
+  });
+}
+
 export async function availability(s: StaffSession) {
   return withStaff(s, async (tx) => ({
     windows: await tx`select * from office_availability order by resource_key, weekday,start_time`,
