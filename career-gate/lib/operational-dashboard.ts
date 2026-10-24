@@ -151,7 +151,7 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
           (select count(*)::int from followups f join active c on c.id=f.client_id where f.status='open' and f.due_date<(now() at time zone ${TZ})::date) as overdue_followups,
           (select count(distinct d.client_id)::int from attention_docs d) as document_attention,
           (select count(*)::int from active where assigned_staff is null) as unassigned_clients,
-          (select count(distinct l.client_id)::int from activity_log l where l.action in ('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now())) as completed_this_month,
+          (select count(*)::int from clients c where c.deleted_at is null and c.current_status='completed' and exists (select 1 from activity_log l where l.client_id=c.id and l.action in ('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now()))) as completed_this_month,
           (select count(*)::int from health) as active_count,
           (select count(*) filter (where healthy)::int from health) as healthy_count,
           rr.ready_count,

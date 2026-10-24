@@ -10,7 +10,7 @@ export type OperationalClientRow = {
   job_id:string|null; job_title:string|null; shift_code:string|null; shift_name:string|null;
   payment_status:string|null; fee_amount:number|null;
 };
-export type OperationalClientExtraFilters={q?:string;status?:string;assigned?:string;attention?:"documents"};
+export type OperationalClientExtraFilters={q?:string;status?:string;assigned?:string;attention?:"documents";completedThisMonth?:boolean};
 
 export async function operationalClientList(session:StaffSession, view:ClientView, page:number, pageSize:number, extra:OperationalClientExtraFilters={}){
   return withStaff(session, async(tx)=>{
@@ -23,6 +23,7 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
     const like=`%${term.replace(/[\\%_]/g,(m)=>`\\${m}`)}%`;
     const where=tx`c.deleted_at is null and ${lifecycle}
       ${extra.status?tx`and c.current_status=${extra.status}`:tx``}
+      ${extra.completedThisMonth?tx`and c.current_status='completed' and exists (select 1 from activity_log l where l.client_id=c.id and l.action in ('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now()))`:tx``}
       ${extra.attention==="documents"?tx`and exists (
         select 1 from documents d
         where d.client_id=c.id and d.status in ('needs_review','needs_reupload','rejected')

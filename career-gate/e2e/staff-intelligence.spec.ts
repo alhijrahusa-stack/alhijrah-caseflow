@@ -111,6 +111,17 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await expect(page.getByTestId("client-total")).toContainText(new RegExp(`^${metric![0]} client`));
   });
 
+  test("completed-this-month KPI opens the matching filtered client records", async () => {
+    await page.goto("/staff");
+    const kpi = page.getByRole("link", { name: /Completed This Month/ });
+    const count = (await kpi.innerText()).match(/[0-9]+/);
+    expect(count).not.toBeNull();
+    await kpi.click();
+    await expect(page).toHaveURL(/completed_this_month=1/);
+    await expect(page.getByTestId("client-total")).toContainText(`${count![0]} client`);
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page).toHaveURL(/completed_this_month=1/);
+  });
   test("tasks are paged with a total", async () => {
     await page.goto("/staff/tasks");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();
