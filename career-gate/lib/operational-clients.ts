@@ -22,11 +22,9 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
         : tx`true`;
     const stageFilter = !extra.stage ? tx`true`
       : extra.stage === "new_intake" ? tx`c.current_status in ('new_intake','needs_review')`
-      : extra.stage === "account_setup" ? tx`c.current_status=any(${ACCOUNT_SETUP_STATUSES as unknown as string[]}) and not exists (
-          select 1 from gate_job_accounts ga where ga.assigned_to_client_id=c.id and ga.status='READY'
-        )`
+      : extra.stage === "account_setup" ? tx`c.current_status=any(${ACCOUNT_SETUP_STATUSES as unknown as string[]}) and not public.cg_has_ready_gate_job_account(c.id)`
       : extra.stage === "job_ready" ? tx`c.current_status=any(${JOB_READY_STATUSES as unknown as string[]})
-          and exists (select 1 from gate_job_accounts ga where ga.assigned_to_client_id=c.id and ga.status='READY')
+          and public.cg_has_ready_gate_job_account(c.id)
           and exists (select 1 from client_readiness r where r.client_id=c.id and r.total_requirements>0 and r.readiness_percent=100)
         `
       : extra.stage === "appointments" ? tx`c.current_status='appointment_scheduled'`
@@ -57,9 +55,7 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
     const safePage = Number.isSafeInteger(page) && page > 0 ? Math.min(page, maxPage) : 1;
     const rows = await tx`
       select c.id,c.ref,c.full_name,c.phone,c.email,c.city,c.current_status,c.next_step,c.start_date,c.created_at,c.updated_at,c.assigned_staff,
-             s.display_name as assigned_name,p.site_code,p.site_name,p.job_id,p.job_title,p.shift_code,p.shift_name,a.payment_status,${tx.unsafe(ACCOUNT_NET_FEE("a"))} fee_amount, exists (
-               select 1 from gate_job_accounts ga where ga.assigned_to_client_id=c.id and ga.status='READY'
-             ) as amazon_account_ready
+             s.display_name as assigned_name,p.site_code,p.site_name,p.job_id,p.job_title,p.shift_code,p.shift_name,a.payment_status,${tx.unsafe(ACCOUNT_NET_FEE("a"))} fee_amount, public.cg_has_ready_gate_job_account(c.id) as amazon_account_ready
       from clients c
       left join staff s on s.id=c.assigned_staff
       left join lateral (
