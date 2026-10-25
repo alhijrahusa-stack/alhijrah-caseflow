@@ -93,14 +93,14 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex justify-end bg-[#020814]/75 backdrop-blur-sm" role="presentation" onMouseDown={(event) => {
+    <div className="fixed inset-0 z-[200] flex justify-end bg-[#020814]/85" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
       <aside role="dialog" aria-modal="true" aria-label={`Client 360: ${client.full_name}`}
-        className="flex h-full w-full max-w-[900px] flex-col overflow-hidden border-l border-amber-200/20 bg-gradient-to-b from-[#13233e]/95 to-[#070f22]/98 shadow-[-35px_0_85px_rgba(0,0,0,.48)] backdrop-blur-3xl">
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-5 sm:px-7">
+        className="flex h-full w-full max-w-[min(100vw,720px)] flex-col overflow-hidden border-l border-amber-200/25 bg-gradient-to-b from-[#13233e] to-[#070f22] shadow-[-20px_0_50px_rgba(0,0,0,.42)]">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
           <div className="min-w-0"><p className="text-[11px] font-bold tracking-[.2em] text-amber-200">CAREER GATE · CLIENT 360</p>
-            <h2 className="mt-1 truncate text-2xl font-semibold tracking-tight text-white">{client.full_name}</h2>
+            <h2 className="mt-1 break-words text-xl font-semibold tracking-tight leading-6 text-white">{client.full_name}</h2>
             <p className="mt-1 font-mono text-xs text-cyan-200">{client.ref}</p>
           </div>
           <div className="flex gap-2">
@@ -108,11 +108,11 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
             <button autoFocus onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-xl text-white transition hover:bg-white/20" aria-label="Close Client 360">×</button>
           </div>
         </header>
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-7">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 sm:p-5">
           {error && <p role="alert" className="rounded-xl border border-red-300/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
           {!data && !error && <p role="status" className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200">Loading authorized client record…</p>}
           {data && <>
-            <section className="grid gap-3 sm:grid-cols-3" aria-label="Client summary">
+            <section className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Client summary">
               {[
                 ["Canonical status",data.client?.current_status],
                 ["Pipeline stage",data.client?.pipeline_stage],
@@ -122,12 +122,12 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                 ["Preferred site",data.client?.preferred_location],
                 ["Shift",data.client?.shift_days],
                 ["Next step",data.client?.next_step],
-              ].map(([label,value]) => <div key={String(label)} className="min-w-0 rounded-[20px] border border-white/10 bg-white/[.045] p-4 shadow-[inset_0_1px_rgba(255,255,255,.07)]">
+              ].map(([label,value]) => <div key={String(label)} className="min-w-0 rounded-xl border border-white/10 bg-white/[.045] px-3 py-2.5">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{String(label)}</p>
-                <p className="mt-2 break-words text-sm font-semibold text-slate-100">{short(value).replaceAll("_"," ")}</p>
+                <p className="mt-1 break-words text-sm font-semibold text-slate-100">{short(value).replaceAll("_"," ")}</p>
               </div>)}
             </section>
-            <section aria-labelledby="client360-appointments" className="rounded-[24px] border border-white/10 bg-white/[.03] p-4 sm:p-5">
+            <section aria-labelledby="client360-appointments" className="rounded-2xl border border-white/10 bg-white/[.03] p-3 sm:p-4">
               <h3 id="client360-appointments" className="text-base font-semibold text-amber-100">Appointments & recorded interview outcomes</h3>
               {!data.appointments?.length ? <p className="mt-3 text-sm text-slate-300">No appointments recorded.</p> :
                 <ol className="mt-4 space-y-2">{data.appointments.map((appointment) => (
@@ -144,7 +144,7 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                   </li>
                 ))}</ol>}
             </section>
-            <section aria-labelledby="client360-finance" className="rounded-[24px] border border-white/10 bg-white/[.03] p-4 sm:p-5">
+            <section aria-labelledby="client360-finance" className="rounded-2xl border border-white/10 bg-white/[.03] p-3 sm:p-4">
               <h3 id="client360-finance" className="text-base font-semibold text-amber-100">Payment & paperwork · verified ledger</h3>
               {!data.account ? <p className="mt-3 text-sm text-slate-300">No canonical account summary available.</p> :
                 <dl className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -160,7 +160,7 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                   </div>)}
                 </dl>}
             </section>
-            <section aria-labelledby="client360-documents" className="rounded-[24px] border border-white/10 bg-white/[.03] p-4 sm:p-5">
+            <section aria-labelledby="client360-documents" className="rounded-2xl border border-white/10 bg-white/[.03] p-3 sm:p-4">
               <h3 id="client360-documents" className="text-base font-semibold text-amber-100">Documents & G2 OCR evidence</h3>
               <p className="mt-1 text-xs text-slate-400">Private originals open through the authenticated, audited document endpoint. Extraction results are shown only when recorded.</p>
               {data.documents.length === 0 && <p className="mt-4 text-sm text-slate-300">No documents on file.</p>}
@@ -185,7 +185,7 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                 </article>;
               })}</div>
             </section>
-            <section aria-labelledby="client360-audit" className="rounded-[24px] border border-white/10 bg-white/[.03] p-4 sm:p-5">
+            <section aria-labelledby="client360-audit" className="rounded-2xl border border-white/10 bg-white/[.03] p-3 sm:p-4">
               <h3 id="client360-audit" className="text-base font-semibold text-amber-100">Audit trail / سجل الإجراءات</h3>
               {data.activity.length === 0 ? <p className="mt-3 text-sm text-slate-300">No activity recorded.</p> :
                 <ol className="mt-4 space-y-2">{data.activity.slice(0,40).map((entry) =>
