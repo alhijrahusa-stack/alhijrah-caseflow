@@ -26,17 +26,25 @@ export function AppointmentRowActions({ appt }: { appt: Row }) {
   if (!isManager) return null;
   const closed = ["cancelled", "attended", "missed"].includes(appt.status);
   const interview = appt.appointment_kind === "employment_interview";
+  const pendingInterviewDecision = interview && appt.status === "attended" && !appt.outcome;
   const decide = (decision: "pass" | "fail" | "missed" | "cancelled_interested" | "cancelled_not_interested") =>
     a.go({ action: "appointment_decision", appointment_id: appt.id, decision, note: decisionNote || null });
   return (
     <div className="space-y-3 whitespace-normal">
       {appt.outcome && <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">Decision recorded: {String(appt.outcome).replaceAll("_", " ")}</p>}
+      {pendingInterviewDecision && <>
+        <p role="status" className="text-xs font-semibold text-amber-200">Attendance recorded · Interview decision pending</p>
+        <div className="flex flex-wrap gap-2">
+          <SmallBtn disabled={a.pending} onClick={() => decide("pass")}>Pass / نجح</SmallBtn>
+          <SmallBtn disabled={a.pending} onClick={() => decide("fail")}>Fail / رسب</SmallBtn>
+        </div>
+        <input className="input w-full" aria-label="Interview decision note" placeholder="Decision evidence or note" value={decisionNote} maxLength={1000} onChange={(e) => setDecisionNote(e.target.value)} />
+      </>}
       {!closed && <>
         <div className="flex flex-wrap gap-2">
           {appt.status !== "confirmed" && <SmallBtn aria-label="Confirm" disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "confirmed" })}>Confirm booking</SmallBtn>}
           {interview ? <>
-            <SmallBtn disabled={a.pending} onClick={() => decide("pass")}>Pass / نجح</SmallBtn>
-            <SmallBtn disabled={a.pending} onClick={() => decide("fail")}>Fail / رسب</SmallBtn>
+            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "record_appointment_attendance", appointment_id: appt.id })}>Mark attended / تسجيل الحضور</SmallBtn>
             <SmallBtn disabled={a.pending} onClick={() => decide("missed")}>Missed / تخلف</SmallBtn>
           </> : <>
             <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "attended" })}>Attended / حضر</SmallBtn>
