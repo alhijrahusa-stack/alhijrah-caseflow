@@ -215,9 +215,14 @@ test.describe.serial("Staff intelligence surfaces", () => {
     const [count] = await db()`select count(*)::int as total from appointments a join clients c on c.id=a.client_id where c.deleted_at is null`;
     const total = Number(count.total);
     const pages = Math.max(1, Math.ceil(total / 25));
-    await expect(page.locator(".ops-hero p").last()).toContainText(`${total} appointment`);
+    await expect(page.locator(".ops-hero p").last()).toContainText(`${total} matching appointment`);
     await expect(page.locator(".ops-hero p").last()).toContainText(`Page ${pages} of ${pages}`);
-    await expect(page.locator("tbody tr")).toHaveCount(Math.min(25, total - (pages - 1) * 25));
+    if (total === 0) {
+      await expect(page.getByText("No appointments in this view")).toBeVisible();
+    } else {
+      await expect(page.getByTestId("mobile-appointment-cards").locator("article"))
+        .toHaveCount(Math.min(25, total - (pages - 1) * 25));
+    }
     if (pages > 1) {
       await page.getByRole("link", { name: "Previous" }).click();
       await expect(page).toHaveURL(new RegExp(`page=${pages - 1}`));
