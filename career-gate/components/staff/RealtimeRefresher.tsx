@@ -4,7 +4,7 @@ import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState } from "react";
 import { publishPayload, RECOVERY_EVENT, requestRecovery, type RecoveryReason } from "@/components/staff/realtime/update-bus";
-import type { ChangePayload } from "@/lib/realtime-resources";
+import { CLIENT_REALTIME_ENTITIES, DASHBOARD_REALTIME_ENTITIES, type ChangePayload } from "@/lib/realtime-resources";
 
 /**
  * Staff realtime listener.
@@ -18,15 +18,6 @@ import type { ChangePayload } from "@/lib/realtime-resources";
  * surface owns, a failed targeted refetch, or a resubscribe after the channel
  * dropped, where events may have been missed while offline.
  */
-
-const DASHBOARD_TABLES = [
-  "clients", "client_preferences", "appointments", "tasks", "followups", "documents",
-] as const;
-
-const CLIENT_TABLES = [
-  "clients", "client_preferences", "client_accounts", "appointments", "tasks",
-  "followups", "notes", "documents", "audit_alerts", "client_import_cases",
-] as const;
 
 /** Debounce for the recovery refresh only; the targeted path is not debounced here. */
 const RECOVERY_DEBOUNCE_MS = 1500;
@@ -104,7 +95,7 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
       const supabase = createClient(data.url, data.anon_key, { auth: { persistSession: false, autoRefreshToken: false } });
       await supabase.realtime.setAuth(data.token);
       channel = supabase.channel(`staff-${clientId ?? "operations"}`);
-      const tables = clientId ? CLIENT_TABLES : DASHBOARD_TABLES;
+      const tables = clientId ? CLIENT_REALTIME_ENTITIES : DASHBOARD_REALTIME_ENTITIES;
 
       for (const table of tables) {
         const filter = clientId ? (table === "clients" ? `id=eq.${clientId}` : `client_id=eq.${clientId}`) : undefined;
