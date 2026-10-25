@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function active(pathname: string, href: string) {
   return href === "/staff" ? pathname === "/staff" : pathname === href || pathname.startsWith(`${href}/`);
@@ -10,6 +10,16 @@ function active(pathname: string, href: string) {
 
 export function StaffNavigation({ management }: { management: boolean }) {
   const pathname = usePathname();
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); }, []);
+  const schedulePrefetch = (href: string) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => router.prefetch(href), 150);
+  };
+  const cancelPrefetch = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+  };
   const router = useRouter();
   const [pending, setPending] = useState<{ from: string; to: string } | null>(null);
   const opening = pending?.from === pathname ? pending.to : null;
@@ -20,9 +30,11 @@ export function StaffNavigation({ management }: { management: boolean }) {
       data-executive-tactile="true"
       aria-current={active(pathname, href) ? "page" : undefined}
       href={href}
-      onMouseEnter={() => router.prefetch(href)}
+      prefetch={false}
+      onMouseEnter={() => schedulePrefetch(href)}
+      onMouseLeave={cancelPrefetch}
       onFocus={() => router.prefetch(href)}
-      onClick={() => setPending({ from: pathname, to: href })}
+      onClick={() => { cancelPrefetch(); setPending({ from: pathname, to: href }); }}
     >
       {label}{opening === href && !active(pathname,href) && <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-amber-300" aria-hidden="true" />}
     </Link>
