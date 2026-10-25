@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 function active(pathname: string, href: string) {
   return href === "/staff" ? pathname === "/staff" : pathname === href || pathname.startsWith(`${href}/`);
@@ -10,18 +10,14 @@ function active(pathname: string, href: string) {
 
 export function StaffNavigation({ management }: { management: boolean }) {
   const pathname = usePathname();
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); }, []);
-  const schedulePrefetch = (href: string) => {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    hoverTimer.current = setTimeout(() => router.prefetch(href), 150);
-  };
-  const cancelPrefetch = () => {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    hoverTimer.current = null;
-  };
   const router = useRouter();
   const [pending, setPending] = useState<{ from: string; to: string } | null>(null);
+  const [hoverIntent, setHoverIntent] = useState<string | null>(null);
+  useEffect(() => {
+    if (!hoverIntent) return;
+    const timer = setTimeout(() => router.prefetch(hoverIntent), 150);
+    return () => clearTimeout(timer);
+  }, [hoverIntent, router]);
   const opening = pending?.from === pathname ? pending.to : null;
   const item = (label: string, href: string) => (
     <Link
@@ -31,10 +27,10 @@ export function StaffNavigation({ management }: { management: boolean }) {
       aria-current={active(pathname, href) ? "page" : undefined}
       href={href}
       prefetch={false}
-      onMouseEnter={() => schedulePrefetch(href)}
-      onMouseLeave={cancelPrefetch}
+      onMouseEnter={() => setHoverIntent(href)}
+      onMouseLeave={() => setHoverIntent(null)}
       onFocus={() => router.prefetch(href)}
-      onClick={() => { cancelPrefetch(); setPending({ from: pathname, to: href }); }}
+      onClick={() => { setHoverIntent(null); setPending({ from: pathname, to: href }); }}
     >
       {label}{opening === href && !active(pathname,href) && <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-amber-300" aria-hidden="true" />}
     </Link>
