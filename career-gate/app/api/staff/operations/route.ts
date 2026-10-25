@@ -172,21 +172,22 @@ export async function POST(req: Request) {
           }
           return {changed,stage:input.target_stage};
         }
+        const legacyStaffId = input.staff_id ?? null;
         const changed = await tx`
           with locked as (
             select id,assigned_staff from clients
             where id=any(${input.client_ids}) and deleted_at is null and current_status not in ('completed','cancelled')
             for update
           ), changed as (
-            select * from locked where assigned_staff is distinct from ${input.staff_id}
+            select * from locked where assigned_staff is distinct from ${legacyStaffId}
           ), updated as (
-            update clients c set assigned_staff=${input.staff_id}
+            update clients c set assigned_staff=${legacyStaffId}
             from changed x where c.id=x.id
             returning c.id,x.assigned_staff as previous_staff
           )
           insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
           select u.id,'bulk_staff_assigned',${session.staff.id},'client',u.id,
-                 jsonb_build_object('assigned_staff',u.previous_staff),jsonb_build_object('assigned_staff',${input.staff_id}),${traceId}
+                 jsonb_build_object('assigned_staff',u.previous_staff),jsonb_build_object('assigned_staff',${legacyStaffId}),${traceId}
           from updated u returning client_id`;
         return { changed: changed.length };
       }
