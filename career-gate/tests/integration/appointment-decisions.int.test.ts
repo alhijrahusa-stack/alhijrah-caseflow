@@ -122,8 +122,11 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     expect(ledger.payment_status).toBe("paid");
     expect(paid).toMatchObject({ current_status:"screening_pending",pipeline_stage:"post_interview_completion" });
 
-    const paperwork = await operationalClientList(admin,"active",1,25,{stage:"paperwork_pending",q:clientId});
-    expect(paperwork.total).toBeGreaterThanOrEqual(0);
+    const [original] = await db`select ref from clients where id=${clientId}`;
+    const paperwork = await operationalClientList(admin,"active",1,25,{stage:"paperwork_pending",q:String(original.ref)});
+    expect(paperwork.rows.map(row=>row.id)).toContain(clientId);
+    const unpaid = await operationalClientList(admin,"active",1,25,{stage:"payment_required",q:String(original.ref)});
+    expect(unpaid.rows.map(row=>row.id)).not.toContain(clientId);
     const audits = await db`select action from activity_log where client_id=${clientId}
       and action in ('status_changed','pipeline_stage_changed') order by created_at desc`;
     expect(audits.some(r=>r.action==="pipeline_stage_changed")).toBe(true);
