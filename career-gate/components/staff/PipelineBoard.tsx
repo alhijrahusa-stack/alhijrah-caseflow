@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Client360Drawer } from "@/components/staff/Client360Drawer";
-import { G3_STAGES, g3StageForStatus, g3Counts, type G3StageId } from "@/lib/g3-stages";
+import { g3StageForStatus, g3Counts, type G3StageId } from "@/lib/g3-stages";
 import { STATUS_LABELS, type Status } from "@/lib/domain";
 import { LocationShiftTelemetry } from "@/components/staff/LocationShiftTelemetry";
 import { useMemo, useState } from "react";
