@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
+import { REALTIME_ENTITIES } from "@/lib/realtime-resources";
 
 const db = postgres(process.env.DATABASE_URL!, { prepare: false, max: 1 });
 
@@ -34,6 +35,24 @@ describe("Career Gate least-privilege table grants", () => {
       }
     });
   }
+
+  it("enforces RLS on every operational table streaming staff data", async () => {
+    const rows = await db`
+      select c.relname as table_name, c.relrowsecurity as enabled
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relname in ${db(REALTIME_ENTITIES)}
+        and c.relkind in ('r', 'p')`;
+    expect(rows).toHaveLength(REALTIME_ENTITIES.length);
+    for (const row of rows) expect(row.enabled, row.table_name).toBe(true);
+  });
+
+  it("publishes every client/dashboard realtime entity without silently missing a table", async () => {
+    const published = await db`
+      select tablename from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public'`;
+    const names = new Set(published.map((row) => String(row.tablename)));
+    for (const table of REALTIME_ENTITIES) expect(names.has(table), table).toBe(true);
+  });
 
   it("requires an authorized client scope for BOTH account INSERT and UPDATE row checks", async () => {
     const policies = await db`
