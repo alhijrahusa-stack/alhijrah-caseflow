@@ -307,16 +307,19 @@ export async function stageSheetRows(args: {
   if (!candidates.length) throw new ActionError("nothing_to_stage", "Select at least one valid or duplicate row", 400);
 
   return sql().begin(async (tx) => {
-    const [existing] = await tx`
-      select id from client_import_batches where created_by=${args.session.staff.id} and idempotency_key=${key}`;
-    if (existing) {
-      const cases = await tx`select id,status,source_row,created_at from client_import_cases where batch_id=${existing.id} order by source_row nulls last`;
-      return { batch_id: String(existing.id), staged: cases.length, cases, idempotent: true };
-    }
     const [batch] = await tx`
       insert into client_import_batches(source_type,source_file_hash,idempotency_key,created_by,metadata)
       values(${source},${sourceHash(args.rows)},${key},${args.session.staff.id},${tx.json((args.metadata ?? {}) as never)})
-      returning id`;
+      on conflict (created_by,idempotency_key) do update
+        set idempotency_key=excluded.idempotency_key
+        where client_import_batches.source_file_hash=excluded.source_file_hash
+          and client_import_batches.source_type=excluded.source_type
+      returning id,(xmax=0) as inserted`;
+    if (!batch) throw new ActionError("idempotency_conflict", "This import key belongs to a different source file", 409);
+    if (!batch.inserted) {
+      const cases = await tx`select id,status,source_row,created_at from client_import_cases where batch_id=${batch.id} order by source_row nulls last`;
+      return { batch_id: String(batch.id), staged: cases.length, cases, idempotent: true };
+    }
     const cases = [] as { id: string; status: string; source_row: number; created_at: Date }[];
     for (const row of candidates) {
       const conflicts = row.existing_client_id
