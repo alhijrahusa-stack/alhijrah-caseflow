@@ -9,12 +9,16 @@ type Extraction = {
   document_id: string; provider?: string; model?: string; status?: string; created_at?: string;
   fields?: Record<string, unknown> | null; reconciliation?: Record<string, unknown> | null;
 };
-type ActivityRow = { id: string | number; action: string; created_at: string; staff_name?: string | null; new_value?: Record<string, unknown> | null };
+type ActivityRow = { id: string | number; action: string; created_at: string; staff_name?: string | null; old_value?: Record<string, unknown> | null; new_value?: Record<string, unknown> | null };
+type AppointmentRow = { id: string; appointment_type: string; scheduled_at: string; status: string; outcome?: string | null; decision_at?: string | null; location?: string | null };
+type AccountSummary = { payment_status: string; net_fee: number; amount_paid: number; amount_paid_visible: boolean; balance: number; application_status: string; application_completed_at: string | null };
 type Data = {
   client: Record<string, unknown> | null;
   documents: DocumentRow[];
   extractions: Extraction[];
   activity: ActivityRow[];
+  appointments: AppointmentRow[];
+  account?: AccountSummary | null;
   nextAction?: Record<string, unknown> | null;
 };
 
@@ -45,7 +49,7 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
     document.body.style.overflow = "hidden";
     const closeWithEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", closeWithEscape);
-    const params = new URLSearchParams({ client_id: client.id, payloads: "client,documents,extractions,activity,nextAction" });
+    const params = new URLSearchParams({ client_id: client.id, payloads: "client,appointments,account,documents,extractions,activity,nextAction" });
     void fetch(`/api/staff/client-resource?${params.toString()}`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         const result = await response.json();
@@ -115,11 +119,46 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                 ["Assigned employee",data.client?.assigned_name],
                 ["Received on",when(short(data.client?.created_at))],
                 ["Documents",String(data.documents.length)],
+                ["Preferred site",data.client?.preferred_location],
+                ["Shift",data.client?.shift_days],
                 ["Next step",data.client?.next_step],
               ].map(([label,value]) => <div key={String(label)} className="min-w-0 rounded-[20px] border border-white/10 bg-white/[.045] p-4 shadow-[inset_0_1px_rgba(255,255,255,.07)]">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{String(label)}</p>
                 <p className="mt-2 break-words text-sm font-semibold text-slate-100">{short(value).replaceAll("_"," ")}</p>
               </div>)}
+            </section>
+            <section aria-labelledby="client360-appointments" className="rounded-[24px] border border-white/10 bg-white/[.03] p-4 sm:p-5">
+              <h3 id="client360-appointments" className="text-base font-semibold text-amber-100">Appointments & recorded interview outcomes</h3>
+              {!data.appointments?.length ? <p className="mt-3 text-sm text-slate-300">No appointments recorded.</p> :
+                <ol className="mt-4 space-y-2">{data.appointments.map((appointment) => (
+                  <li key={appointment.id} className="rounded-2xl border border-white/10 bg-[#061125]/55 p-3 text-sm text-slate-100">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <strong className="font-semibold">{appointment.appointment_type}</strong>
+                      <time className="text-xs text-slate-400">{when(appointment.scheduled_at)}</time>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-300">
+                      {appointment.status.replaceAll("_", " ")} · {appointment.location || "Location not recorded"} ·
+                      {appointment.outcome ? ` Decision: ${appointment.outcome.replaceAll("_", " ")}` :
+                        appointment.status === "attended" ? " Interview outcome pending" : " No decision recorded"}
+                    </p>
+                  </li>
+                ))}</ol>}
+            </section>
+            <section aria-labelledby="client360-finance" className="rounded-[24px] border border-white/10 bg-white/[.03] p-4 sm:p-5">
+              <h3 id="client360-finance" className="text-base font-semibold text-amber-100">Payment & paperwork · verified ledger</h3>
+              {!data.account ? <p className="mt-3 text-sm text-slate-300">No canonical account summary available.</p> :
+                <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {[
+                    ["Payment status", data.account.payment_status],
+                    ["Balance due", data.account.amount_paid_visible ? data.account.balance.toFixed(2) : "Restricted"],
+                    ["Confirmed paid", data.account.amount_paid_visible ? data.account.amount_paid.toFixed(2) : "Restricted"],
+                    ["Application", data.account.application_status],
+                    ["Completion date", data.account.application_completed_at ? when(data.account.application_completed_at) : "Not completed"],
+                  ].map(([label, value]) => <div key={label} className="rounded-xl bg-white/[.04] p-3">
+                    <dt className="text-xs text-slate-400">{label}</dt>
+                    <dd className="mt-1 text-sm font-semibold text-slate-100">{value}</dd>
+                  </div>)}
+                </dl>}
             </section>
             <section aria-labelledby="client360-documents" className="rounded-[24px] border border-white/10 bg-white/[.03] p-4 sm:p-5">
               <h3 id="client360-documents" className="text-base font-semibold text-amber-100">Documents & G2 OCR evidence</h3>
@@ -151,7 +190,14 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
               {data.activity.length === 0 ? <p className="mt-3 text-sm text-slate-300">No activity recorded.</p> :
                 <ol className="mt-4 space-y-2">{data.activity.slice(0,40).map((entry) =>
                   <li key={entry.id} className="flex flex-wrap justify-between gap-2 rounded-xl border border-white/[.06] bg-white/[.03] px-3 py-2 text-xs text-slate-300">
-                    <span><strong className="font-semibold text-slate-100">{entry.action.replaceAll("_"," ")}</strong> · {entry.staff_name ?? "System"}</span>
+                    <div className="min-w-0 flex-1">
+                      <strong className="font-semibold text-slate-100">{entry.action.replaceAll("_"," ")}</strong> · {entry.staff_name ?? "System"}
+                      {(entry.old_value || entry.new_value) && <details className="mt-2">
+                        <summary className="cursor-pointer text-cyan-200">Recorded changes</summary>
+                        {entry.old_value && <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[11px] text-slate-400">{JSON.stringify(entry.old_value, null, 2)}</pre>}
+                        {entry.new_value && <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[11px] text-slate-200">{JSON.stringify(entry.new_value, null, 2)}</pre>}
+                      </details>}
+                    </div>
                     <time className="text-slate-400">{when(entry.created_at)}</time>
                   </li>)}</ol>}
             </section>
