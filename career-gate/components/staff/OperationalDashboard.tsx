@@ -33,13 +33,18 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
     <section aria-label="Six-stage lifecycle" className="ops-glass-card overflow-hidden rounded-[26px] border border-amber-300/15 bg-gradient-to-br from-[#111f37]/85 to-[#081325]/95 p-4 shadow-[0_18px_45px_rgba(0,0,0,.22)] backdrop-blur-2xl sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="ops-kicker">ONE CLIENT · ONE WORKFLOW</p><h2 className="mt-1 text-lg font-semibold tracking-tight text-white">Six-stage operational flow / المسار الموحد</h2></div><Link href="/staff/pipeline" className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/20">Open pipeline</Link></div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-        {g3Counts(data.pipeline).map((stage,index)=><Link key={stage.label} href={stage.href} className="group relative min-w-0 rounded-[20px] border border-white/10 bg-white/[.04] px-3 py-4 transition duration-200 hover:-translate-y-1 hover:border-amber-200/40 hover:bg-white/[.09] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
+        {g3Counts(data.pipeline).map((stage,index)=><Link key={stage.label} href={stage.href} className="group relative min-w-0 rounded-2xl border border-amber-200/25 bg-gradient-to-br from-[#183753] to-[#071727] px-3 py-3.5 shadow-[inset_0_1px_rgba(255,255,255,.07)] transition-colors duration-150 hover:border-amber-200/65 hover:from-[#244562] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
           <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/35 to-transparent"/>
           <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{String(index + 1).padStart(2,"0")} · {stage.label}</span><span aria-hidden="true" className="text-xs text-amber-200/70">{index<5?"›":"✓"}</span></div>
-          <strong className="mt-3 block text-3xl font-semibold tabular-nums tracking-tight text-white">{stage.total}</strong>
+          <strong className="mt-3 block text-3xl font-semibold tabular-nums tracking-tight text-white">{data.lifecycle[stage.id]}</strong>
           <span lang="ar" dir="rtl" className="mt-2 block text-xs text-amber-100/85">{stage.labelAr}</span>
         </Link>)}
       </div>
+      <nav aria-label="Payment and paperwork queues" className="mt-3 flex flex-wrap gap-2">
+        <Link href="/staff/clients?stage=payment_required" className="cg-command-button">Payment Required · {data.payment_pending}</Link>
+        <Link href="/staff/clients?stage=paperwork_pending" className="cg-command-button">Paperwork Pending · {data.paperwork_pending}</Link>
+        <Link href="/staff/clients?view=all" className="cg-command-button">Clients Master Registry ↗</Link>
+      </nav>
     </section>
 
     <section aria-labelledby="now-heading">
