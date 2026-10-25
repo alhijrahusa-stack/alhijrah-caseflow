@@ -170,7 +170,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
     const match = pagination.match(/page ([0-9]+) of ([0-9]+)/);
     expect(match).not.toBeNull();
     expect(match![1]).toBe(match![2]);
-    await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Clients \/ سجل العملاء$/ })).toBeVisible();
     await page.goto("/staff/clients?view=all&page=garbage");
     await expect(page.getByTestId("client-total")).toContainText("page 1 of");
   });
