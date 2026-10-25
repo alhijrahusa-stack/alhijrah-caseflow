@@ -121,6 +121,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     location: optText(300),
     notes: optText(2000),
   }),
+  z.object({ action: z.literal("record_appointment_attendance"), appointment_id: id }),
   z.object({ action: z.literal("appointment_decision"), appointment_id: id, decision: z.enum(["pass", "fail", "missed", "cancelled_interested", "cancelled_not_interested"]), note: optText(1000) }),
   z.object({
     action: z.literal("update_appointment"),
@@ -412,6 +413,29 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       return { appointment_id: appt.id };
     }
 
+    case "record_appointment_attendance": {
+      const [appt] = await tx`select a.id,a.client_id,a.status,a.appointment_kind,c.current_status
+        from appointments a join clients c on c.id=a.client_id
+        where a.id=${a.appointment_id} and c.deleted_at is null for update of a,c`;
+      if (!appt) throw new ActionError("not_found", "Appointment not found", 404);
+      if (appt.appointment_kind !== "employment_interview") throw new ActionError("invalid_appointment_kind", "Only employment interviews use this attendance action", 409);
+      const [outcome] = await tx`select 1 from appointment_outcomes where appointment_id=${a.appointment_id}`;
+      if (outcome) throw new ActionError("decision_locked", "Final interview decision already recorded", 409);
+      if (appt.status === "attended") return { changed: false, client_id: appt.client_id };
+      if (!["scheduled","confirmed","rescheduled"].includes(String(appt.status)))
+        throw new ActionError("appointment_closed", "Attendance cannot be recorded for a closed appointment", 409);
+      if (appt.current_status !== "appointment_scheduled")
+        throw new ActionError("lifecycle_conflict", "Client must be in Appointment Scheduled", 409);
+      await tx`update appointments set status='attended',updated_at=now() where id=${a.appointment_id}`;
+      await touchClient(tx, String(appt.client_id));
+      await logActivity(tx, {
+        clientId: appt.client_id, action: "appointment_attendance_recorded", actor,
+        entityType: "appointment", entityId: a.appointment_id,
+        oldValue: { status: appt.status }, newValue: { status: "attended", decision: null },
+      });
+      return { changed: true, client_id: appt.client_id };
+    }
+
     case "appointment_decision": {
       const [appt] = await tx`
         select a.id, a.client_id, a.status, a.appointment_kind, c.current_status, c.pipeline_stage
@@ -424,8 +448,14 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         if (existing.decision === a.decision) return { changed: false, decision: a.decision };
         throw new ActionError("decision_locked", "Final decision already recorded", 409);
       }
-      if (!["scheduled", "confirmed", "rescheduled"].includes(String(appt.status))) {
+      if (!["scheduled", "confirmed", "rescheduled", "attended"].includes(String(appt.status))) {
         throw new ActionError("appointment_closed", "Appointment is no longer open", 409);
+      }
+      if (["pass", "fail"].includes(a.decision) && appt.status !== "attended") {
+        throw new ActionError("attendance_required", "Record interview attendance before Pass or Fail", 409);
+      }
+      if (["missed", "cancelled_interested", "cancelled_not_interested"].includes(a.decision) && appt.status === "attended") {
+        throw new ActionError("already_attended", "An attended interview cannot be marked missed or cancelled", 409);
       }
       if (appt.appointment_kind !== "employment_interview") throw new ActionError("invalid_appointment_kind", "This appointment is not an employment interview", 409);
       if (appt.current_status !== "appointment_scheduled") {
