@@ -124,7 +124,9 @@ const CLIENT_FILE_SLICE_READERS = {
         select document_id, provider, model, status, escalated, document_class, fields, reconciliation, error, created_at
            from document_extractions where client_id = ${id} order by created_at desc`,
   appointments: (tx: Tx, id: string) => tx`
-        select a.*, s.display_name as created_by_name from appointments a left join staff s on s.id = a.created_by_staff
+        select a.*, s.display_name as created_by_name, o.decision as outcome, o.recorded_at as decision_at from appointments a
+        left join staff s on s.id = a.created_by_staff
+        left join appointment_outcomes o on o.appointment_id = a.id
            where a.client_id = ${id} order by a.scheduled_at desc`,
   notes: (tx: Tx, id: string) =>
     tx`select n.*, s.display_name as staff_name from notes n join staff s on s.id = n.staff_id where n.client_id = ${id} order by n.created_at desc`,
