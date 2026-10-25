@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { Client360Drawer } from "@/components/staff/Client360Drawer";
+import { G3_STAGES, g3StageForStatus, g3Counts, type G3StageId } from "@/lib/g3-stages";
+import { STATUS_LABELS, type Status } from "@/lib/domain";
 import { LocationShiftTelemetry } from "@/components/staff/LocationShiftTelemetry";
 import { useMemo, useState } from "react";
 import type { DispatchPeriod, PipelineClient, PipelineStage } from "@/lib/operations";
@@ -158,7 +161,7 @@ function DispatchLane({ title, subtitle, clients, tone, staff, canAssign, onAssi
   );
 }
 
-export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: PipelineStage[]; clients: PipelineClient[]; staff:StaffOption[]; canAssign:boolean }) {
+export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, staff, canAssign }: { stages: PipelineStage[]; clients: PipelineClient[]; exceptions?: PipelineClient[]; statusCounts: {status:string;total:number}[]; staff:StaffOption[]; canAssign:boolean }) {
   const onMutated = useTargetedMutation();
   const [rows, setRows] = useState(clients);
   const [seen, setSeen] = useState(clients);
@@ -170,7 +173,17 @@ export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: P
   }
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<"pipeline" | "location">("pipeline");
+  const [view, setView] = useState<"lifecycle" | "pipeline" | "location">("lifecycle");
+  const [activeStage, setActiveStage] = useState<G3StageId>("intake");
+  const [statusFilter, setStatusFilter] = useState<Status | null>(null);
+  const [activeClient, setActiveClient] = useState<PipelineClient | null>(null);
+  const [lifecycleLimit, setLifecycleLimit] = useState(COLUMN_BATCH);
+  const lifecycleStages = useMemo(() => g3Counts(statusCounts), [statusCounts]);
+  const stageDefinition = lifecycleStages.find(stage => stage.id === activeStage) ?? lifecycleStages[0];
+  const visibleLifecycle = [...rows, ...exceptions].filter(client =>
+    g3StageForStatus(client.current_status) === activeStage &&
+    (!statusFilter || client.current_status === statusFilter));
+
   const [voiceEnabled,setVoiceEnabled]=useState(false);
   const [lastAssignedId,setLastAssignedId]=useState<string|null>(null);
 
@@ -251,8 +264,9 @@ export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: P
           <h1>Candidate Pipeline</h1>
           <p>ملف واحد لكل عميل · نقل مرحلي بدون إنشاء نسخ مكررة</p>
         </div>
-        <div className="ops-segmented" role="tablist" aria-label="Pipeline views">
-          <button type="button" data-active={view === "pipeline"} onClick={() => setView("pipeline")}>Pipeline</button>
+        <div className="ops-segmented flex-wrap" role="tablist" aria-label="Pipeline views">
+          <button type="button" data-active={view === "lifecycle"} onClick={() => setView("lifecycle")}>Smart Lifecycle</button>
+          <button type="button" data-active={view === "pipeline"} onClick={() => setView("pipeline")}>Detailed Pipeline</button>
           <button type="button" data-active={view === "location"} onClick={() => setView("location")}>Location & Shift</button>
         </div>
       </header>
@@ -261,7 +275,51 @@ export function PipelineBoard({ stages, clients, staff, canAssign }: { stages: P
       <LocationShiftTelemetry clients={rows} periodOf={normalizedPeriod}/>
       <div className="flex items-center justify-end"><label className="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-300/20 bg-white/[.04] px-3 py-2 text-sm text-slate-200"><input type="checkbox" checked={voiceEnabled} onChange={e=>setVoiceEnabled(e.target.checked)}/> Arabic voice confirmations</label></div>
 
-      {view === "pipeline" ? (
+      {view === "lifecycle" ? (
+        <section className="space-y-4" data-testid="g3-smart-lifecycle">
+          <nav aria-label="Six-stage lifecycle" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+            {lifecycleStages.map((stage,index)=><button key={stage.id} type="button"
+              aria-pressed={activeStage === stage.id}
+              onClick={()=>{setActiveStage(stage.id);setStatusFilter(null);setLifecycleLimit(COLUMN_BATCH);}}
+              className={`min-w-0 rounded-2xl border p-3 text-left transition-colors ${activeStage === stage.id ? "border-amber-300/60 bg-amber-300/15 text-white" : "border-white/10 bg-white/[.04] text-slate-200 hover:border-amber-300/35 hover:bg-white/[.08]"}`}>
+              <span className="text-xs text-amber-200">{String(index+1).padStart(2,"0")} · {stage.label}</span>
+              <strong className="mt-2 block text-2xl font-semibold tabular-nums">{stage.total}</strong>
+              <span className="mt-1 block text-xs text-slate-300" lang="ar" dir="rtl">{stage.labelAr}</span>
+            </button>)}
+          </nav>
+          <div className="ops-glass-card flex min-w-0 flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="ops-kicker">SMART ACTION RIBBON</p>
+              <h2 className="text-lg font-semibold">{stageDefinition.label} <span dir="rtl" className="text-sm text-amber-200">{stageDefinition.labelAr}</span></h2>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" onClick={()=>setStatusFilter(null)} aria-pressed={!statusFilter} className={`cg-command-button ${!statusFilter?"border-amber-300 bg-amber-300/15":""}`}>All states</button>
+                {stageDefinition.statuses.map(status=><button key={status} type="button" onClick={()=>setStatusFilter(status)} aria-pressed={statusFilter===status} className={`cg-command-button ${statusFilter===status?"border-amber-300 bg-amber-300/15":""}`}>{STATUS_LABELS[status]}</button>)}
+              </div>
+            </div>
+            {(canAssign || !["intake","paperwork"].includes(stageDefinition.id)) &&
+              <Link href={stageDefinition.href} className="cg-appointment-action">{stageDefinition.action} ↗</Link>}
+          </div>
+          <div className="grid min-w-0 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {visibleLifecycle.slice(0,lifecycleLimit).map(client=><article key={client.id} className="cg-registry-card">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <button type="button" className="break-words text-left text-base font-semibold text-white hover:text-amber-200" onClick={()=>setActiveClient(client)}>{client.full_name}</button>
+                  <p className="mt-1 font-mono text-xs text-cyan-200">{client.ref}</p>
+                </div>
+                <span className="shrink-0 rounded-full border border-amber-200/25 px-2 py-1 text-[11px] text-amber-100">{STATUS_LABELS[client.current_status as Status] ?? client.current_status}</span>
+              </div>
+              <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-300">{client.next_step}</p>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
+                <span className="truncate text-xs text-slate-400">{client.assigned_name ?? "Unassigned"}</span>
+                <button type="button" className="cg-command-button" onClick={()=>setActiveClient(client)}>Client 360 ↗</button>
+              </div>
+            </article>)}
+          </div>
+          {visibleLifecycle.length > lifecycleLimit && <ShowMore hidden={visibleLifecycle.length-lifecycleLimit} step={COLUMN_BATCH} onMore={()=>setLifecycleLimit(x=>x+COLUMN_BATCH)} testId="lifecycle-show-more"/>}
+          {!visibleLifecycle.length && <div className="ops-glass-card text-sm text-slate-300">{activeStage === "registry" ? "Completed and closed files are available in the Master Registry." : "No matching active files in this lifecycle station."} <Link className="ml-2 text-amber-200 underline" href={stageDefinition.href}>Open station</Link></div>}
+          {activeClient && <Client360Drawer client={{id:activeClient.id,ref:activeClient.ref,full_name:activeClient.full_name}} onClose={()=>setActiveClient(null)}/>}
+        </section>
+      ) : view === "pipeline" ? (
         <div className="ops-kanban" data-testid="pipeline-board">
           {stages.map((stage) => {
             const group = byStage.get(stage.key) ?? [];
