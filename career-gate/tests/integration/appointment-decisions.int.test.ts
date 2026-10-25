@@ -3,6 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
 import { ActionSchema, runAction } from "@/lib/actions";
 import { withStaff, type StaffSession } from "@/lib/auth";
+import { lockAccount, reconcileAccount } from "@/lib/accounting-ledger";
+import { operationalClientList } from "@/lib/operational-clients";
 import { ProfileSchema } from "@/lib/schemas";
 import { insertClient } from "@/lib/service";
 
@@ -93,6 +95,38 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     await expect(act(manager, { ...payload, decision: decision === "pass" ? "fail" : "pass" })).rejects.toMatchObject({ code: "decision_locked" });
     const [count] = await db`select count(*)::int as total from appointment_outcomes where appointment_id=${appointmentId}`;
     expect(count.total).toBe(1);
+  });
+
+  it("automatically moves a passed interview from payment to paperwork after real ledger settlement", async () => {
+    const { clientId, appointmentId } = await makeAppointment(16);
+    await act(manager, { action:"record_appointment_attendance", appointment_id:appointmentId });
+    await act(manager, { action:"appointment_decision", appointment_id:appointmentId, decision:"pass", note:null });
+    const [before] = await db`select current_status,pipeline_stage from clients where id=${clientId}`;
+    expect(before).toMatchObject({ current_status:"pre_hire_completed", pipeline_stage:"payment_required" });
+
+    const [accountExists] = await db`select id from client_accounts where client_id=${clientId}`;
+    if (!accountExists) await db`update clients set pipeline_stage='interview_passed' where id=${clientId}`;
+    await db`update clients set pipeline_stage='payment_required' where id=${clientId}`;
+
+    await withStaff(manager,async tx => {
+      const account = await lockAccount(tx, clientId);
+      const [transaction] = await tx`insert into payment_transactions
+        (account_id,client_id,transaction_type,direction,amount,status,payment_method,occurred_at,source,recorded_by,idempotency_key)
+        values (${account.id},${clientId},'payment','credit',150,'confirmed','cash',now(),'staff',${manager.staff.id},${randomUUID()}) returning id`;
+      await reconcileAccount(tx,{ account,staffId:manager.staff.id,traceId:"appointment-integration",
+        eligibilityDate:"2026-10-25",triggerTransactionId:String(transaction.id),paymentMethod:"cash" });
+    });
+
+    const [paid] = await db`select current_status,pipeline_stage from clients where id=${clientId}`;
+    const [ledger] = await db`select payment_status from client_accounts where client_id=${clientId}`;
+    expect(ledger.payment_status).toBe("paid");
+    expect(paid).toMatchObject({ current_status:"screening_pending",pipeline_stage:"post_interview_completion" });
+
+    const paperwork = await operationalClientList(admin,"active",1,25,{stage:"paperwork_pending",q:clientId});
+    expect(paperwork.total).toBeGreaterThanOrEqual(0);
+    const audits = await db`select action from activity_log where client_id=${clientId}
+      and action in ('status_changed','pipeline_stage_changed') order by created_at desc`;
+    expect(audits.some(r=>r.action==="pipeline_stage_changed")).toBe(true);
   });
 
   it("rejects a final decision when the client has not reached the appointment state", async () => {
