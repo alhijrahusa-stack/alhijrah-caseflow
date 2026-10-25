@@ -176,9 +176,9 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
         select
           count(*) filter (where c.current_status in ('new_intake','needs_review'))::int intake,
           count(*) filter (where c.current_status in ('ready_to_apply','application_in_progress','assessment_required','shift_selected','appointment_required')
-             and not public.cg_has_ready_gate_job_account(c.id))::int account,
+             and not career_gate_private.has_ready_gate_job_account(c.id))::int account,
           count(*) filter (where c.current_status in ('shift_selected','appointment_required')
-             and public.cg_has_ready_gate_job_account(c.id)
+             and career_gate_private.has_ready_gate_job_account(c.id)
              and exists(select 1 from client_readiness r where r.client_id=c.id and r.total_requirements>0 and r.readiness_percent=100))::int job,
           count(*) filter (where c.current_status='appointment_scheduled')::int appointments,
           count(*) filter (where c.current_status='pre_hire_completed'
