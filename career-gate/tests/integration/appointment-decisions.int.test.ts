@@ -147,6 +147,22 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     })).rejects.toMatchObject({ code: "use_interview_decision" });
   });
 
+  it("rejects cross-client outcome attachment even for a privileged database writer", async () => {
+    const first = await makeAppointment(14);
+    const second = await makeAppointment(15);
+    // Separate foreign keys to appointments and clients alone do not establish
+    // that the selected appointment and client refer to the SAME person.
+    await expect(db`insert into appointment_outcomes (appointment_id,client_id,decision,recorded_by)
+      values (${first.appointmentId},${second.clientId},'missed',${manager.staff.id})`)
+      .rejects.toMatchObject({ code: "23503" });
+    expect(await db`select 1 from appointment_outcomes where appointment_id=${first.appointmentId}`)
+      .toHaveLength(0);
+    const [constraint] = await db`select pg_get_constraintdef(oid) definition
+      from pg_constraint where conrelid='appointment_outcomes'::regclass
+      and conname='appointment_outcomes_appointment_client_fkey'`;
+    expect(constraint.definition).toContain("FOREIGN KEY (appointment_id, client_id)");
+  });
+
   it("rejects tampering with an already persisted interview outcome", async () => {
     const { appointmentId } = await makeAppointment(12);
     await act(manager, { action: "record_appointment_attendance", appointment_id: appointmentId });
