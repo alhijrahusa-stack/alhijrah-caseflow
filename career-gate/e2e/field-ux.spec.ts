@@ -40,11 +40,11 @@ test("field appointment and client workspaces remain usable at laptop and phone 
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/staff/clients");
-  const compactAssignment = page.getByRole("group", { name: "Smart location and shift assignment" });
+  const compactAssignment = page.locator("details.cg-compact-assignment");
   await expect(compactAssignment).toHaveCount(1);
   await expect(page.getByText("Location & Shift · Assign existing client")).toBeVisible();
   await page.getByText("Location & Shift · Assign existing client").click();
-  await expect(page.getByText("Select existing client")).toBeVisible();
+  await expect(compactAssignment.getByRole("combobox", { name: "Client", exact: true })).toBeVisible();
   if (await page.getByTestId("client-registry-responsive-cards").locator("article").count()) {
     await page.getByTestId("client-registry-responsive-cards").getByRole("button", { name: "Open Client 360" }).first().click();
     await expect(page.getByRole("dialog", { name: /Client 360/ })).toBeVisible();
