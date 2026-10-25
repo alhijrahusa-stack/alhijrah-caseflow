@@ -181,7 +181,7 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
              and career_gate_private.has_ready_gate_job_account(c.id)
              and exists(select 1 from client_readiness r where r.client_id=c.id and r.total_requirements>0 and r.readiness_percent=100))::int job,
           count(*) filter (where c.current_status='appointment_scheduled')::int appointments,
-          count(*) filter (where c.current_status='pre_hire_completed'
+          count(*) filter (where c.current_status in ('pre_hire_completed','screening_pending','i9_available','post_hire_tasks','ready_for_first_day')
              and exists(select 1 from appointment_outcomes o where o.client_id=c.id and o.decision='pass')
              and coalesce(a.payment_status,'pending')<>'paid')::int payment_pending,
           count(*) filter (where c.current_status in ('pre_hire_completed','screening_pending','i9_available','post_hire_tasks','ready_for_first_day')
