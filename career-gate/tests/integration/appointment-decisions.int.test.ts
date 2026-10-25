@@ -67,6 +67,16 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     const n = ["pass", "fail", "missed", "cancelled_interested", "cancelled_not_interested"].indexOf(decision) + 1;
     const { clientId, appointmentId } = await makeAppointment(n);
     const payload = { action: "appointment_decision", appointment_id: appointmentId, decision, note: "Outcome confirmed by field staff" };
+    if (decision === "pass" || decision === "fail") {
+      await expect(act(manager, payload)).rejects.toMatchObject({ code: "attendance_required" });
+      const attendance = await act(manager, { action: "record_appointment_attendance", appointment_id: appointmentId });
+      expect(attendance).toMatchObject({ changed: true, client_id: clientId });
+      expect(await act(manager, { action: "record_appointment_attendance", appointment_id: appointmentId }))
+        .toMatchObject({ changed: false });
+      const [pending] = await db`select current_status from clients where id=${clientId}`;
+      expect(pending.current_status).toBe("appointment_scheduled");
+      expect(await db`select * from appointment_outcomes where appointment_id=${appointmentId}`).toHaveLength(0);
+    }
     const result = await act(manager, payload);
     expect(result).toMatchObject({ changed: true, decision, client_id: clientId });
     const [appointment] = await db`select status from appointments where id=${appointmentId}`;
@@ -139,11 +149,31 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
 
   it("rejects tampering with an already persisted interview outcome", async () => {
     const { appointmentId } = await makeAppointment(12);
+    await act(manager, { action: "record_appointment_attendance", appointment_id: appointmentId });
     await act(manager, { action: "appointment_decision", appointment_id: appointmentId, decision: "pass", note: null });
     await expect(db`update appointment_outcomes set note='overwritten' where appointment_id=${appointmentId}`)
       .rejects.toMatchObject({ code: "P0001" });
     await expect(db`delete from appointment_outcomes where appointment_id=${appointmentId}`)
       .rejects.toMatchObject({ code: "P0001" });
+  });
+
+  it("keeps attended interviews in Past with an unresolved outcome and an immutable attendance audit", async () => {
+    const { clientId, appointmentId } = await makeAppointment(13);
+    await act(manager, { action: "record_appointment_attendance", appointment_id: appointmentId });
+    const [row] = await db`select status from appointments where id=${appointmentId}`;
+    const [client] = await db`select current_status from clients where id=${clientId}`;
+    const history = await db`select action from activity_log where client_id=${clientId}
+      and entity_id=${appointmentId} and action='appointment_attendance_recorded'`;
+    expect(row.status).toBe("attended");
+    expect(client.current_status).toBe("appointment_scheduled");
+    expect(history).toHaveLength(1);
+    expect(await db`select decision from appointment_outcomes where appointment_id=${appointmentId}`).toHaveLength(0);
+    await expect(act(manager, {
+      action: "appointment_decision", appointment_id: appointmentId, decision: "missed", note: null,
+    })).rejects.toMatchObject({ code: "already_attended" });
+    await expect(act(manager, {
+      action: "update_appointment", appointment_id: appointmentId, status: "rescheduled",
+    })).rejects.toMatchObject({ code: "appointment_closed" });
   });
 
   it("denies anonymous access and staff writes through RLS", async () => {
