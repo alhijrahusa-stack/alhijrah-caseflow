@@ -163,7 +163,8 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     const [row] = await db`select status from appointments where id=${appointmentId}`;
     const [client] = await db`select current_status from clients where id=${clientId}`;
     const history = await db`select action from activity_log where client_id=${clientId}
-      and entity_id=${appointmentId} and action='appointment_attendance_recorded'`;
+      and entity_id=${appointmentId} and action='appointment_updated'
+      and new_value @> '{"attendance_recorded":true}'::jsonb`;
     expect(row.status).toBe("attended");
     expect(client.current_status).toBe("appointment_scheduled");
     expect(history).toHaveLength(1);
