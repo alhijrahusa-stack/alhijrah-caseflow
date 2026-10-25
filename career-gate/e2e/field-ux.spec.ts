@@ -39,7 +39,7 @@ test("field appointment and client workspaces remain usable at laptop and phone 
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/staff/clients");
+  await page.goto("/staff/clients?view=active");
   const compactAssignment = page.locator("details.cg-compact-assignment");
   await expect(compactAssignment).toHaveCount(1);
   await expect(page.getByText("Location & Shift · Assign existing client")).toBeVisible();
