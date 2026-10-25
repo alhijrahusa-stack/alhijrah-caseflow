@@ -146,7 +146,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
     if (await pipeline.count()) {
       await pipeline.click();
       await expect(page).toHaveURL(/view=completed&status=completed/);
-      await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: /^Clients \/ سجل العملاء$/ })).toBeVisible();
     }
   });
 
