@@ -28,6 +28,8 @@ test("dashboard stations route into one canonical clients registry with safe act
     await expect(page.getByRole("heading", { name: /Clients/i })).toBeVisible();
   }
 
+  await page.goto("/staff/clients");
+  await expect(page.getByRole("link", { name: "All Records" })).toHaveAttribute("data-active", "true");
   await page.goto("/staff/clients?view=active");
   await expect(page.getByRole("combobox", { name: "Move selected clients to lifecycle stage" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Assign selected cases to" })).toBeVisible();
