@@ -39,6 +39,19 @@ test("field appointment and client workspaces remain usable at laptop and phone 
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/staff/clients");
+  const compactAssignment = page.getByRole("group", { name: "Smart location and shift assignment" });
+  await expect(compactAssignment).toHaveCount(1);
+  await expect(page.getByText("Location & Shift · Assign existing client")).toBeVisible();
+  await page.getByText("Location & Shift · Assign existing client").click();
+  await expect(page.getByText("Select existing client")).toBeVisible();
+  if (await page.getByTestId("client-registry-responsive-cards").locator("article").count()) {
+    await page.getByTestId("client-registry-responsive-cards").getByRole("button", { name: "Open Client 360" }).first().click();
+    await expect(page.getByRole("dialog", { name: /Client 360/ })).toBeVisible();
+    await page.getByRole("button", { name: "Close Client 360" }).click();
+  }
+  await page.goto("/staff/smart-client-import/new");
+  await expect(page).toHaveURL(/\/staff\/import$/);
   await page.goto("/staff/appointments?view=all");
   const actions = page.getByRole("button", { name: /Open actions for/ });
   if (await actions.count()) {
