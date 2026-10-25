@@ -49,6 +49,9 @@ export type DashboardCommandData = {
     commissions_attention: number;
   };
   pipeline: PipelineMetric[];
+  lifecycle: Record<"intake" | "account" | "job" | "appointments" | "paperwork" | "registry", number>;
+  payment_pending: number;
+  paperwork_pending: number;
   exceptions: number;
   team: TeamWorkloadData;
   system: DashboardSystemHealth | null;
@@ -169,6 +172,24 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
         where deleted_at is null and current_status not in ('cancelled')
         group by current_status
         order by current_status`;
+      const [lifecycleCounts] = await tx`
+        select
+          count(*) filter (where c.current_status in ('new_intake','needs_review'))::int intake,
+          count(*) filter (where c.current_status in ('ready_to_apply','application_in_progress','assessment_required','shift_selected','appointment_required')
+             and not exists(select 1 from gate_job_accounts g where g.assigned_to_client_id=c.id and g.status='READY'))::int account,
+          count(*) filter (where c.current_status in ('shift_selected','appointment_required')
+             and exists(select 1 from gate_job_accounts g where g.assigned_to_client_id=c.id and g.status='READY')
+             and exists(select 1 from client_readiness r where r.client_id=c.id and r.total_requirements>0 and r.readiness_percent=100))::int job,
+          count(*) filter (where c.current_status='appointment_scheduled')::int appointments,
+          count(*) filter (where c.current_status='pre_hire_completed'
+             and exists(select 1 from appointment_outcomes o where o.client_id=c.id and o.decision='pass')
+             and coalesce(a.payment_status,'pending')<>'paid')::int payment_pending,
+          count(*) filter (where c.current_status in ('pre_hire_completed','screening_pending','i9_available','post_hire_tasks','ready_for_first_day')
+             and a.payment_status='paid')::int paperwork_pending,
+          count(*) filter (where c.current_status in ('completed','cancelled'))::int registry
+        from clients c
+        left join client_accounts a on a.client_id=c.id
+        where c.deleted_at is null`;
       const active = Number(row?.active_count ?? 0);
       const healthy = Number(row?.healthy_count ?? 0);
       const metrics = {
@@ -194,6 +215,16 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
           commissions_attention: Number(row?.commissions_attention ?? 0),
         },
         pipeline: pipelineRows.map((p) => ({ status: String(p.status), total: Number(p.total) })),
+        lifecycle: {
+          intake: Number(lifecycleCounts?.intake ?? 0),
+          account: Number(lifecycleCounts?.account ?? 0),
+          job: Number(lifecycleCounts?.job ?? 0),
+          appointments: Number(lifecycleCounts?.appointments ?? 0),
+          paperwork: Number(lifecycleCounts?.payment_pending ?? 0) + Number(lifecycleCounts?.paperwork_pending ?? 0),
+          registry: Number(lifecycleCounts?.registry ?? 0),
+        },
+        payment_pending: Number(lifecycleCounts?.payment_pending ?? 0),
+        paperwork_pending: Number(lifecycleCounts?.paperwork_pending ?? 0),
       };
       return metrics;
     }),
