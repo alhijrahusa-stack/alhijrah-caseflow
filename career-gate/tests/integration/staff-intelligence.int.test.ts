@@ -4,6 +4,7 @@ import postgres from "postgres";
 import { withStaff, type StaffSession } from "@/lib/auth";
 import { runAudit } from "@/lib/audit";
 import { dashboardCommandData } from "@/lib/operational-dashboard";
+import { operationalClientList } from "@/lib/operational-clients";
 import { accountingData, ACCOUNTING_PAGE_SIZE, parseAccountingFilters, type AccountingFilters } from "@/lib/operations";
 import { REPORT_PERIODS, reportIntelligence } from "@/lib/reports";
 import { ProfileSchema } from "@/lib/schemas";
@@ -133,6 +134,35 @@ describe("accounting pages", () => {
     const far = await accountingData(admin, parseAccountingFilters({ page: "9999" }));
     expect(far.rows).toEqual([]);
     expect(far.totals.count).toBeGreaterThan(0);
+  });
+});
+
+describe("canonical client lifecycle station filters", () => {
+  it("shows only new intake candidates and missing Amazon-ready accounts in the correct queues", async () => {
+    const intake = await makeClient(`TEST Lifecycle Intake ${tag}`, { assigned: owner.staff.id });
+    const account = await makeClient(`TEST Lifecycle Account ${tag}`, { assigned: owner.staff.id });
+    await db`update clients set current_status='ready_to_apply' where id=${account}`;
+
+    const intakeRows = await operationalClientList(admin, "active", 1, 25, { q: tag, stage: "new_intake" });
+    expect(intakeRows.rows.some(row => row.id === intake)).toBe(true);
+    expect(intakeRows.rows.some(row => row.id === account)).toBe(false);
+    expect(intakeRows.rows.every(row => ["new_intake","needs_review"].includes(row.current_status))).toBe(true);
+
+    const missingAccount = await operationalClientList(admin, "active", 1, 25, { q: tag, stage: "account_setup" });
+    expect(missingAccount.rows.some(row => row.id === account)).toBe(true);
+    expect(missingAccount.rows.some(row => row.id === intake)).toBe(false);
+    expect(missingAccount.rows.every(row => !row.amazon_account_ready)).toBe(true);
+
+    const [privileges] = await db`select
+      has_function_privilege('anon','public.cg_has_ready_gate_job_account(uuid)','EXECUTE') as anon,
+      has_function_privilege('authenticated','public.cg_has_ready_gate_job_account(uuid)','EXECUTE') as staff`;
+    expect(privileges).toEqual({ anon: false, staff: true });
+  });
+
+  it("never exposes job-ready applicants without verified Amazon and documentary requirements", async () => {
+    const list = await operationalClientList(admin, "active", 1, 25, { stage: "job_ready" });
+    expect(list.rows.every(row => row.amazon_account_ready)).toBe(true);
+    expect(list.rows.every(row => ["shift_selected","appointment_required"].includes(row.current_status))).toBe(true);
   });
 });
 
