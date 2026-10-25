@@ -54,7 +54,7 @@ export function ClientCommandTable({clients,staff,management}:{clients:CommandCl
          <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-amber-200/30 bg-amber-200/10 text-sm font-bold text-amber-100">{c.full_name.trim().split(/\s+/).slice(0,2).map(x=>x.charAt(0)).join("").toUpperCase()}</span>
          <div className="min-w-0">
            <button type="button" onClick={()=>setDrawer(c)} className="block max-w-full break-words text-left text-base font-semibold leading-6 text-white hover:text-amber-200">{c.full_name}</button>
-           <p className="mt-0.5 font-mono text-xs text-cyan-200">{c.ref}</p>
+           <Link href={`/staff/client/${c.id}`} className="mt-0.5 block font-mono text-xs text-cyan-200 hover:underline">{c.ref}</Link>
            <p className="mt-1 truncate text-xs text-slate-400">{c.phone}{c.city?` · ${c.city}`:""}</p>
          </div>
        </div>
