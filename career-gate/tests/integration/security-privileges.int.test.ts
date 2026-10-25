@@ -35,6 +35,26 @@ describe("Career Gate least-privilege table grants", () => {
     });
   }
 
+  it("requires an authorized client scope for BOTH account INSERT and UPDATE row checks", async () => {
+    const policies = await db`
+      select policyname, cmd, qual, with_check
+      from pg_policies
+      where schemaname = 'public' and tablename = 'client_accounts'
+        and policyname in ('accounts_insert', 'accounts_update')
+      order by policyname`;
+    expect(policies).toHaveLength(2);
+    for (const policy of policies) {
+      expect(policy.with_check).toContain("cg_staff_role()");
+      expect(policy.with_check).toContain("cg_can_access_client(client_id)");
+      if (policy.cmd === "UPDATE") {
+        expect(policy.qual).toContain("cg_staff_role()");
+        expect(policy.qual).toContain("cg_can_access_client(client_id)");
+      } else {
+        expect(policy.cmd).toBe("INSERT");
+      }
+    }
+  });
+
   it("keeps the email outbox server-only", async () => {
     for (const role of ["anon", "authenticated"] as const) {
       for (const privilege of privileges) {
