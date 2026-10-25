@@ -8,9 +8,9 @@ import type { PipelineClient, PipelineStage } from "@/lib/operations";
  * Only the rendered fields leave the database; terminal stages are split out
  * as exceptions so the board never carries them.
  */
-export async function activePipelineData(session:StaffSession):Promise<{stages:PipelineStage[];clients:PipelineClient[];exceptions:PipelineClient[]}>{
+export async function activePipelineData(session:StaffSession):Promise<{stages:PipelineStage[];clients:PipelineClient[];exceptions:PipelineClient[];statusCounts:{status:string;total:number}[]}>{
   return withStaff(session,async(tx)=>{
-    const [stagesRaw,clientsRaw]=await Promise.all([
+    const [stagesRaw,clientsRaw,countsRaw]=await Promise.all([
       tx`select key,position,label_en,label_ar,color,terminal from pipeline_stages order by position`,
       tx`
       select c.id,c.ref,c.full_name,c.pipeline_stage,c.current_status,c.next_step,c.assigned_staff,
@@ -27,10 +27,11 @@ export async function activePipelineData(session:StaffSession):Promise<{stages:P
       left join client_accounts a on a.client_id=c.id
       where c.deleted_at is null and c.current_status not in ('completed','cancelled')
       order by c.updated_at desc limit 1000`,
+      tx`select current_status as status,count(*)::int as total from clients where deleted_at is null group by current_status`,
     ]);
     const stages=stagesRaw as unknown as PipelineStage[];
     const terminal=new Set(stages.filter((s)=>s.terminal).map((s)=>s.key));
     const all=(clientsRaw as unknown as PipelineClient[]).map((c)=>({...c,fee_amount:c.fee_amount==null?null:Number(c.fee_amount)}));
-    return { stages:stages.filter((s)=>!s.terminal), clients:all.filter((c)=>!terminal.has(c.pipeline_stage)), exceptions:all.filter((c)=>terminal.has(c.pipeline_stage)) };
+    return { stages:stages.filter((s)=>!s.terminal), clients:all.filter((c)=>!terminal.has(c.pipeline_stage)), exceptions:all.filter((c)=>terminal.has(c.pipeline_stage)), statusCounts: countsRaw as unknown as {status:string;total:number}[] };
   });
 }
