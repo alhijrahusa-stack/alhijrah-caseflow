@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Client360Drawer } from "@/components/staff/Client360Drawer";
 import { useEffect, useRef, useState } from "react";
 import { AppointmentNotificationPanel } from "@/components/staff/AppointmentNotificationPanel";
 import { AppointmentRowActions } from "@/components/staff/sections/Work";
@@ -16,6 +16,7 @@ function displayDate(value: string) {
 
 export function MobileAppointmentCards({ appointments }: Props) {
   const [selected, setSelected] = useState<Appointment | null>(null);
+  const [selectedClient, setSelectedClient] = useState<{ id: string; ref: string; full_name: string } | null>(null);
   const selectedVisible = selected && appointments.some((a) => a.id === selected.id) ? selected : null;
   const [tab, setTab] = useState<"notification" | "actions">("notification");
   const [offset, setOffset] = useState(0);
@@ -36,7 +37,8 @@ export function MobileAppointmentCards({ appointments }: Props) {
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-semibold tracking-[.13em] text-amber-300">CAREER GATE · APPOINTMENT</p>
-            <Link href={`/staff/client/${a.client_id}`} className="mt-2 block break-words text-base font-bold leading-6 text-white underline-offset-4 hover:underline">{a.full_name}</Link>
+            <button type="button" onClick={() => setSelectedClient({ id: a.client_id, ref: a.ref, full_name: a.full_name })}
+              className="mt-2 block break-words text-left text-base font-bold leading-6 text-white underline-offset-4 hover:underline">{a.full_name}</button>
             <p className="mt-1 break-all text-[11px] text-slate-400">{a.ref}</p>
           </div>
           <span className={a.status === "confirmed" ? "shrink-0 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200" : "shrink-0 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] text-amber-200"}>{a.status}</span>
@@ -51,6 +53,7 @@ export function MobileAppointmentCards({ appointments }: Props) {
         <button type="button" onClick={() => open(a)} className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-400/15 px-4 py-3 text-sm font-bold text-amber-200 active:scale-[.99]" aria-label={`Open actions for ${a.full_name}`}>Executive Smart Gate <span aria-hidden="true">↑</span></button>
       </article>)}
     </div>
+    {selectedClient && <Client360Drawer client={selectedClient} onClose={() => setSelectedClient(null)} />}
     {selectedVisible && <div className="fixed inset-0 z-[1000]" data-testid="executive-bottom-drawer">
       <button type="button" className="absolute inset-0 h-full w-full bg-[#020a15]/75 backdrop-blur-[3px]" onClick={dismiss} aria-label="Close appointment actions" />
       <section role="dialog" aria-modal="true" aria-labelledby="smart-gate-heading" className="absolute inset-x-0 bottom-0 flex max-h-[min(88dvh,850px)] min-h-0 flex-col overflow-hidden rounded-t-[28px] border border-amber-300/25 bg-[#0b1d30] text-white shadow-[0_-25px_65px_rgba(0,0,0,.55)]" style={{ transform: `translateY(${offset}px)`, transition: "transform 220ms cubic-bezier(.2,.8,.2,1)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
