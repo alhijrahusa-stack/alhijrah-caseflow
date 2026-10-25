@@ -97,22 +97,22 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
       if (event.target === event.currentTarget) onClose();
     }}>
       <aside role="dialog" aria-modal="true" aria-label={`Client 360: ${client.full_name}`}
-        className="flex h-full w-full max-w-[min(100vw,720px)] flex-col overflow-hidden border-l border-amber-200/25 bg-gradient-to-b from-[#13233e] to-[#070f22] shadow-[-20px_0_50px_rgba(0,0,0,.42)]">
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
+        className="flex h-full w-full max-w-[min(100vw,504px)] flex-col overflow-hidden border-l border-amber-200/25 bg-gradient-to-b from-[#13233e] to-[#070f22] shadow-[-20px_0_50px_rgba(0,0,0,.42)]">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-200/15 px-3 py-2.5 sm:px-4">
           <div className="min-w-0"><p className="text-[11px] font-bold tracking-[.2em] text-amber-200">CAREER GATE · CLIENT 360</p>
-            <h2 className="mt-1 break-words text-xl font-semibold tracking-tight leading-6 text-white">{client.full_name}</h2>
+            <h2 className="mt-1 break-words text-base font-semibold tracking-tight leading-5 text-white">{client.full_name}</h2>
             <p className="mt-1 font-mono text-xs text-cyan-200">{client.ref}</p>
           </div>
           <div className="flex gap-2">
-            <Link href={`/staff/client/${client.id}`} className="inline-flex min-h-11 items-center rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 text-xs font-semibold text-amber-100 transition hover:bg-amber-300/20">Full record</Link>
-            <button autoFocus onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-xl text-white transition hover:bg-white/20" aria-label="Close Client 360">×</button>
+            <Link href={`/staff/client/${client.id}`} className="inline-flex min-h-10 items-center rounded-xl border border-amber-300/30 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:bg-amber-300/20">Full record</Link>
+            <button autoFocus onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-xl text-white transition hover:bg-white/20" aria-label="Close Client 360">×</button>
           </div>
         </header>
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 sm:p-5">
+        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-3 sm:p-4">
           {error && <p role="alert" className="rounded-xl border border-red-300/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
           {!data && !error && <p role="status" className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200">Loading authorized client record…</p>}
           {data && <>
-            <section className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Client summary">
+            <section className="grid min-w-0 grid-cols-2 gap-2" aria-label="Client summary">
               {[
                 ["Canonical status",data.client?.current_status],
                 ["Pipeline stage",data.client?.pipeline_stage],
