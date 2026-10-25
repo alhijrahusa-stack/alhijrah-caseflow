@@ -28,7 +28,7 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
           and exists (select 1 from client_readiness r where r.client_id=c.id and r.total_requirements>0 and r.readiness_percent=100)
         `
       : extra.stage === "appointments" ? tx`c.current_status='appointment_scheduled'`
-      : extra.stage === "payment_required" ? tx`c.current_status='pre_hire_completed' and
+      : extra.stage === "payment_required" ? tx`c.current_status=any(${PAPERWORK_STATUSES as unknown as string[]}) and
           exists (select 1 from appointment_outcomes o where o.client_id=c.id and o.decision='pass')
           and not exists (select 1 from client_accounts a where a.client_id=c.id and a.payment_status='paid')`
       : tx`c.current_status=any(${PAPERWORK_STATUSES as unknown as string[]})
