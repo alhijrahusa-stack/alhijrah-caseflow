@@ -8,7 +8,8 @@ test("dashboard stations route into one canonical clients registry with safe act
   await page.goto("/staff");
 
   const lifecycle = page.locator('section[aria-label="Six-stage lifecycle"]');
-  await expect(lifecycle.getByRole("link")).toHaveCount(6);
+  const stageLinks = lifecycle.locator("div.grid > a");
+  await expect(stageLinks).toHaveCount(6);
   for (const [label, href] of [
     ["New Intake", "/staff/clients?stage=new_intake"],
     ["Account Setup", "/staff/clients?stage=account_setup"],
@@ -17,7 +18,7 @@ test("dashboard stations route into one canonical clients registry with safe act
     ["Payment & Paperwork", "/staff/clients?stage=payment_required"],
     ["Master Registry", "/staff/clients?view=all"],
   ]) {
-    await expect(lifecycle.getByRole("link", { name: new RegExp(label, "i") })).toHaveAttribute("href", href);
+    await expect(stageLinks.filter({ hasText: label })).toHaveAttribute("href", href);
   }
 
   for (const stage of ["new_intake", "account_setup", "job_ready", "payment_required", "paperwork_pending"]) {
