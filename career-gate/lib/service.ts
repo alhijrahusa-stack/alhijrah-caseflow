@@ -22,7 +22,7 @@ export type ActivityAction =
   | "status_changed" | "status_overridden" | "next_step_changed" | "staff_assigned"
   | "document_uploaded" | "document_processing_started" | "document_processed" | "document_verified"
   | "document_rejected" | "document_reupload_requested" | "document_opened"
-  | "appointment_created" | "appointment_updated" | "appointment_rescheduled" | "appointment_completed" | "appointment_attendance_recorded"
+  | "appointment_created" | "appointment_updated" | "appointment_rescheduled" | "appointment_completed"
   | "note_added" | "task_added" | "task_updated" | "task_completed"
   | "contact_logged" | "followup_created" | "followup_completed"
   | "assessment_updated" | "post_hire_updated" | "agent_alert_created" | "agent_run"
