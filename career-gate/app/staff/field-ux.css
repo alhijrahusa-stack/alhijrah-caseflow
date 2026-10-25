@@ -19,7 +19,7 @@
   scroll-padding-inline: 12px;
   overscroll-behavior-x: contain;
 }
-.staff-shell .staff-nav-link { min-height: 40px; padding-inline: 11px; font-size: .83rem; white-space: nowrap; }
+.staff-shell .staff-nav-link { min-height: 44px; padding-inline: 11px; font-size: .875rem; white-space: nowrap; }
 .staff-shell main { width: min(100%, 1640px); margin-inline: auto; min-width: 0; }
 .staff-shell .ops-page { min-width: 0; }
 .staff-shell :is(.ops-hero,.ops-glass-card,.staff-kpi,.report-glass-card,.cg-appointment-card) {
