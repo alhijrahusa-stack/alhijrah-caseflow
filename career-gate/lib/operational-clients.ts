@@ -1,5 +1,6 @@
 import "server-only";
 import { ACCOUNT_NET_FEE } from "@/lib/accounting-schema";
+import { ACCOUNT_SETUP_STATUSES, JOB_READY_STATUSES, PAPERWORK_STATUSES, type ClientStageFilter } from "@/lib/client-lifecycle-filters";
 import { withStaff, type StaffSession } from "@/lib/auth";
 
 export type ClientView = "active" | "completed" | "all";
@@ -8,9 +9,9 @@ export type OperationalClientRow = {
   current_status:string; next_step:string; start_date:string|null; created_at:string; updated_at:string;
   assigned_staff:string|null; assigned_name:string|null; site_code:string|null; site_name:string|null;
   job_id:string|null; job_title:string|null; shift_code:string|null; shift_name:string|null;
-  payment_status:string|null; fee_amount:number|null;
+  payment_status:string|null; fee_amount:number|null; amazon_account_ready:boolean;
 };
-export type OperationalClientExtraFilters={q?:string;status?:string;assigned?:string;attention?:"documents";completedThisMonth?:boolean};
+export type OperationalClientExtraFilters={q?:string;status?:string;stage?:ClientStageFilter;assigned?:string;attention?:"documents";completedThisMonth?:boolean};
 
 export async function operationalClientList(session:StaffSession, view:ClientView, page:number, pageSize:number, extra:OperationalClientExtraFilters={}){
   return withStaff(session, async(tx)=>{
@@ -19,9 +20,24 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
       : view === "completed"
         ? tx`c.current_status = 'completed'`
         : tx`true`;
-    const term=extra.q?.trim()??"";
+    const stageFilter = !extra.stage ? tx`true`
+      : extra.stage === "new_intake" ? tx`c.current_status in ('new_intake','needs_review')`
+      : extra.stage === "account_setup" ? tx`c.current_status=any(${ACCOUNT_SETUP_STATUSES as unknown as string[]}) and not exists (
+          select 1 from gate_job_accounts ga where ga.assigned_to_client_id=c.id and ga.status='READY'
+        )`
+      : extra.stage === "job_ready" ? tx`c.current_status=any(${JOB_READY_STATUSES as unknown as string[]})
+          and exists (select 1 from gate_job_accounts ga where ga.assigned_to_client_id=c.id and ga.status='READY')
+          and exists (select 1 from client_readiness r where r.client_id=c.id and r.total_requirements>0 and r.readiness_percent=100)
+        `
+      : extra.stage === "appointments" ? tx`c.current_status='appointment_scheduled'`
+      : extra.stage === "payment_required" ? tx`c.current_status='pre_hire_completed' and
+          exists (select 1 from appointment_outcomes o where o.client_id=c.id and o.decision='pass')
+          and not exists (select 1 from client_accounts a where a.client_id=c.id and a.payment_status='paid')`
+      : tx`c.current_status=any(${PAPERWORK_STATUSES as unknown as string[]})
+          and exists (select 1 from client_accounts a where a.client_id=c.id and a.payment_status='paid')`;
+        const term=extra.q?.trim()??"";
     const like=`%${term.replace(/[\\%_]/g,(m)=>`\\${m}`)}%`;
-    const where=tx`c.deleted_at is null and ${lifecycle}
+    const where=tx`c.deleted_at is null and ${lifecycle} and ${stageFilter}
       ${extra.status?tx`and c.current_status=${extra.status}`:tx``}
       ${extra.completedThisMonth?tx`and c.current_status='completed' and exists (select 1 from activity_log l where l.client_id=c.id and l.action in ('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now()))`:tx``}
       ${extra.attention==="documents"?tx`and exists (
@@ -41,7 +57,9 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
     const safePage = Number.isSafeInteger(page) && page > 0 ? Math.min(page, maxPage) : 1;
     const rows = await tx`
       select c.id,c.ref,c.full_name,c.phone,c.email,c.city,c.current_status,c.next_step,c.start_date,c.created_at,c.updated_at,c.assigned_staff,
-             s.display_name as assigned_name,p.site_code,p.site_name,p.job_id,p.job_title,p.shift_code,p.shift_name,a.payment_status,${tx.unsafe(ACCOUNT_NET_FEE("a"))} fee_amount
+             s.display_name as assigned_name,p.site_code,p.site_name,p.job_id,p.job_title,p.shift_code,p.shift_name,a.payment_status,${tx.unsafe(ACCOUNT_NET_FEE("a"))} fee_amount, exists (
+               select 1 from gate_job_accounts ga where ga.assigned_to_client_id=c.id and ga.status='READY'
+             ) as amazon_account_ready
       from clients c
       left join staff s on s.id=c.assigned_staff
       left join lateral (
