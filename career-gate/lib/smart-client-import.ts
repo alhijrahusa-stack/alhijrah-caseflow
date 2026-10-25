@@ -572,6 +572,12 @@ export async function getImportCase(session: StaffSession, id: string) {
   return { case: row, documents: docs };
 }
 
+function assertReviewOwnership(assignedReviewer: unknown, requestedReviewer: string) {
+  if (assignedReviewer && String(assignedReviewer) !== requestedReviewer) {
+    throw new ActionError("review_assigned", "This import is already assigned to a different reviewer", 409);
+  }
+}
+
 async function requireActiveReviewer(tx: Tx, id: string) {
   const [reviewer] = await tx`select id from staff where id=${id} and active`;
   if (!reviewer) throw new ActionError("invalid_reviewer", "Reviewer is not an active staff member", 400);
@@ -585,9 +591,7 @@ export async function startImportReview(session: StaffSession, id: string, revie
     const [row] = await tx`select id,status,reviewer_id,review_started_at from client_import_cases where id=${id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot be reopened", 409);
-    if (row.reviewer_id && row.reviewer_id !== reviewerId) {
-      throw new ActionError("review_assigned", "This import is already assigned to a different reviewer", 409);
-    }
+    assertReviewOwnership(row.reviewer_id, reviewerId);
     const [updated] = await tx`
       update client_import_cases
       set reviewer_id=${reviewerId},review_started_at=coalesce(review_started_at,now()),status='UNDER_REVIEW'
@@ -608,9 +612,10 @@ export async function saveImportReview(session: StaffSession, args: {
   if (!JsonObject.safeParse(args.draft).success) throw new ActionError("invalid_draft", "Mapped draft must be an object", 400);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, args.reviewerId);
-    const [row] = await tx`select id,status,review_started_at,mapped_draft,field_evidence from client_import_cases where id=${args.id} for update`;
+    const [row] = await tx`select id,status,reviewer_id,review_started_at,mapped_draft,field_evidence from client_import_cases where id=${args.id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot be changed", 409);
+    assertReviewOwnership(row.reviewer_id, args.reviewerId);
     const sanitizedDraft = sanitizeReviewDraft(args.draft);
     let storedDraft: unknown = sanitizedDraft;
     try { storedDraft = normalizePreparedDraft(sanitizedDraft); } catch { /* preserve reviewable invalid state; verify/approve remains authoritative */ }
@@ -730,6 +735,7 @@ export async function approveImportCase(session: StaffSession, args: {
       if (row.created_client_id) return { client_id: String(row.created_client_id), idempotent: true };
       throw new ActionError("invalid_approved_state", "Approved import is missing its client reference", 500);
     }
+    assertReviewOwnership(row.reviewer_id, args.reviewerId);
     // The case guard only permits PENDING -> UNDER_REVIEW, so approval performs that
     // legal transition itself instead of requiring a separate START REVIEW step. The
     // reviewer and the review start time are still recorded for the audit trail.
