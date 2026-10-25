@@ -37,6 +37,7 @@ afterAll(async () => { await db.end(); });
 describe("Smart Career Collect Client staging security", () => {
   it("keeps an assigned import reviewer immutable across save and approval", async () => {
     const reviewerAuthId = randomUUID();
+    await db`insert into auth.users(id,email) values (${reviewerAuthId},${`reviewer-${reviewerAuthId}@test.invalid`})`;
     const [alternate] = await db`insert into staff(display_name,email,role,auth_user_id,active)
       values ('TEST Alternate Import Reviewer',${`alternate-${reviewerAuthId}@test.invalid`},'manager',${reviewerAuthId},true)
       returning id`;
@@ -76,6 +77,7 @@ describe("Smart Career Collect Client staging security", () => {
 
   it("serializes concurrent review claims and retains exactly one reviewer", async () => {
     const reviewerAuthId = randomUUID();
+    await db`insert into auth.users(id,email) values (${reviewerAuthId},${`reviewer-${reviewerAuthId}@test.invalid`})`;
     const [alternate] = await db`insert into staff(display_name,email,role,auth_user_id,active)
       values ('TEST Concurrent Import Reviewer',${`concurrent-${reviewerAuthId}@test.invalid`},'manager',${reviewerAuthId},true)
       returning id`;
