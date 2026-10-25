@@ -121,7 +121,7 @@ export async function POST(req: Request) {
         if (input.target_stage && isClientStageFilter(input.target_stage)) {
           const locked = await tx`
             select c.id,c.current_status,c.pipeline_stage,c.next_step,c.assigned_staff,
-              public.cg_has_ready_gate_job_account(c.id) account_ready,
+              career_gate_private.has_ready_gate_job_account(c.id) account_ready,
               exists(select 1 from client_readiness r where r.client_id=c.id and r.total_requirements>0 and r.readiness_percent=100) documents_ready,
               exists(select 1 from appointments ap where ap.client_id=c.id and ap.appointment_kind='employment_interview' and ap.status in ('scheduled','confirmed','rescheduled')) interview_scheduled,
               exists(select 1 from appointment_outcomes o where o.client_id=c.id and o.decision='pass') interview_passed,
