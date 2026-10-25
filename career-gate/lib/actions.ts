@@ -429,9 +429,9 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       await tx`update appointments set status='attended',updated_at=now() where id=${a.appointment_id}`;
       await touchClient(tx, String(appt.client_id));
       await logActivity(tx, {
-        clientId: appt.client_id, action: "appointment_attendance_recorded", actor,
+        clientId: appt.client_id, action: "appointment_updated", actor,
         entityType: "appointment", entityId: a.appointment_id,
-        oldValue: { status: appt.status }, newValue: { status: "attended", decision: null },
+        oldValue: { status: appt.status }, newValue: { status: "attended", attendance_recorded: true, decision: null },
       });
       return { changed: true, client_id: appt.client_id };
     }
