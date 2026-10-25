@@ -495,10 +495,9 @@ test.describe("Smart Review experience", () => {
     await expect(matrix.getByText("csv").first()).toBeVisible();
 
     // Approval is blocked, and the matrix says exactly why.
-    await expect(page.getByRole("button", { name: "START REVIEW" })).toBeVisible();
-    await page.getByLabel("REVIEWED BY").selectOption(String(admin.id));
-    await page.getByRole("button", { name: "START REVIEW", exact: true }).click();
-    await expect(page.getByText("Review started.", { exact: true })).toBeVisible();
+    // Opening the import claims the authenticated reviewer atomically.
+    await expect(page.getByLabel("REVIEWED BY")).toHaveValue(String(admin.id));
+    await expect(page.getByRole("button", { name: "START REVIEW", exact: true })).toHaveCount(0);
     // Approval is withheld only by the database-backed confirmation requirement, not by
     // the optional fields this file is missing.
     await expect(page.getByText("APPROVAL IS BLOCKED")).toBeVisible();
