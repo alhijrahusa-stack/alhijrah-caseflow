@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
-import type { StaffSession } from "@/lib/auth";
+import { withStaff, type StaffSession } from "@/lib/auth";
 import {
   addGateJobEmail,
   confirmGateJobAssignment,
@@ -74,6 +74,15 @@ describe("Gate Job Account Workspace domain", () => {
     expect(ready.status).toBe("READY");
     const card = await getGateJobAccountForClient(admin, clientA.id);
     expect(card?.id).toBe(account.id);
+    const [access] = await withStaff(admin,tx=>tx`
+      select public.cg_has_ready_gate_job_account(${clientA.id}) as ready,
+             public.cg_has_ready_gate_job_account(${clientB.id}) as missing`);
+    expect(access).toEqual({ ready:true, missing:false });
+    await expect(db.begin(async tx=>{
+      await tx.unsafe("set local role anon");
+      return tx`select public.cg_has_ready_gate_job_account(${clientA.id})`;
+    })).rejects.toMatchObject({code:"42501"});
+    await expect(withStaff(admin,tx=>tx`select * from gate_job_accounts limit 1`)).rejects.toMatchObject({code:"42501"});
   });
 
   it("blocks duplicate active accounts and concurrent use of one source email", async () => {
