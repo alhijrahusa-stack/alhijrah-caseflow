@@ -6,6 +6,8 @@ import {
   MUTATION_RESOURCES,
   payloadsForResources,
   REALTIME_ENTITIES,
+  DASHBOARD_REALTIME_ENTITIES,
+  CLIENT_REALTIME_ENTITIES,
   RESOURCE_PAYLOADS,
   RESOURCES,
   resourcesForEntity,
@@ -16,6 +18,19 @@ const CLIENT = "cfdb70b7-7000-4cf1-b8f5-c028c5789be2";
 const OTHER = "0ae38bd4-fd62-4e11-973f-1137b2d589c0";
 
 describe("entity coverage", () => {
+  it("includes financial, alert and import events in dashboard subscriptions", () => {
+    for (const table of ["clients", "client_accounts", "appointments", "documents", "audit_alerts", "client_import_cases"]) {
+      expect(DASHBOARD_REALTIME_ENTITIES, table).toContain(table);
+    }
+    expect(DASHBOARD_REALTIME_ENTITIES).not.toContain("notes");
+    expect(CLIENT_REALTIME_ENTITIES).toEqual(REALTIME_ENTITIES);
+    for (const table of DASHBOARD_REALTIME_ENTITIES) {
+      expect(REALTIME_ENTITIES).toContain(table);
+      expect(resourcesForEntity(table).length, table).toBeGreaterThan(0);
+    }
+  });
+
+
   it("maps every subscribed table to at least one resource", () => {
     for (const table of REALTIME_ENTITIES) {
       expect(resourcesForEntity(table).length, table).toBeGreaterThan(0);
