@@ -51,7 +51,9 @@ test("field appointment and client workspaces remain usable at laptop and phone 
     await page.getByRole("button", { name: "Close Client 360" }).click();
   }
   await page.goto("/staff/smart-client-import/new");
-  await expect(page).toHaveURL(/\/staff\/import$/);
+  await expect(page).toHaveURL(/\/staff\/smart-client-import\/new$/);
+  await expect(page.getByRole("heading", { name: "SMART CLIENT IMPORT" })).toBeVisible();
+  await expect(page.getByTestId("client-intake-link-panel")).toBeVisible();
   await page.goto("/staff/appointments?view=all");
   const actions = page.getByRole("button", { name: /Open actions for/ });
   if (await actions.count()) {
