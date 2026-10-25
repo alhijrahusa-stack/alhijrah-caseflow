@@ -69,7 +69,7 @@ type CaseDetail = {
   documents: { id: string; original_filename: string; mime_type: string; size_bytes: number; detected_document_type: string | null; extraction_metadata: Record<string, unknown>; created_at: string }[];
 };
 
-const STATUSES: Status[] = ["PENDING", "UNDER_REVIEW", "MISSING_DOCUMENT", "APPROVED_FILE"];
+const STATUSES: Status[] = ["PENDING", "UNDER_REVIEW", "MISSING_DOCUMENT"];
 const STATUS_LABEL: Record<Status, string> = { PENDING: "PENDING", UNDER_REVIEW: "UNDER REVIEW", MISSING_DOCUMENT: "MISSING DOCUMENT", APPROVED_FILE: "APPROVED" };
 const ACCEPT = ".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const REATTACH_ACCEPT = "application/pdf,image/jpeg,image/png,image/webp";
