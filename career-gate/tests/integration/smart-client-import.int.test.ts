@@ -35,6 +35,67 @@ beforeAll(async () => {
 afterAll(async () => { await db.end(); });
 
 describe("Smart Career Collect Client staging security", () => {
+  it("keeps an assigned import reviewer immutable across save and approval", async () => {
+    const reviewerAuthId = randomUUID();
+    const [alternate] = await db`insert into staff(display_name,email,role,auth_user_id,active)
+      values ('TEST Alternate Import Reviewer',${`alternate-${reviewerAuthId}@test.invalid`},'manager',${reviewerAuthId},true)
+      returning id`;
+    const staged = await stageSheetRows({
+      session: manager, source: "csv", idempotencyKey: randomUUID(),
+      rows: [{ full_name: "TEST Immutable Import Reviewer", phone: "3135558838", date_of_birth: "1994-03-02" }],
+    });
+    const id = String(staged.cases[0].id);
+    const [initial] = await db`select mapped_draft from client_import_cases where id=${id}`;
+    await startImportReview(manager, id, manager.staff.id);
+
+    await expect(saveImportReview(manager, {
+      id, reviewerId: String(alternate.id), draft: initial.mapped_draft,
+      documentConfirmed: true, informationConfirmed: true,
+    })).rejects.toMatchObject({ code: "review_assigned", status: 409 });
+
+    await expect(approveImportCase(manager, {
+      id, reviewerId: String(alternate.id), draft: initial.mapped_draft,
+      documentConfirmed: true, informationConfirmed: true, traceId: "review-ownership-test",
+    })).rejects.toMatchObject({ code: "review_assigned", status: 409 });
+
+    const [unchanged] = await db`select status,reviewer_id,created_client_id,document_match_confirmed
+      from client_import_cases where id=${id}`;
+    expect(unchanged).toMatchObject({
+      status: "UNDER_REVIEW", reviewer_id: manager.staff.id,
+      created_client_id: null, document_match_confirmed: false,
+    });
+    expect(await db`select id from clients where ref=(select public_ref from client_import_cases where id=${id})`)
+      .toHaveLength(0);
+
+    const updated = await saveImportReview(manager, {
+      id, reviewerId: manager.staff.id, draft: initial.mapped_draft,
+      documentConfirmed: true, informationConfirmed: true,
+    });
+    expect(updated.status).toBe("UNDER_REVIEW");
+  });
+
+  it("serializes concurrent review claims and retains exactly one reviewer", async () => {
+    const reviewerAuthId = randomUUID();
+    const [alternate] = await db`insert into staff(display_name,email,role,auth_user_id,active)
+      values ('TEST Concurrent Import Reviewer',${`concurrent-${reviewerAuthId}@test.invalid`},'manager',${reviewerAuthId},true)
+      returning id`;
+    const staged = await stageSheetRows({
+      session: manager, source: "csv", idempotencyKey: randomUUID(),
+      rows: [{ full_name: "TEST Concurrent Import Claim", phone: "3135558839" }],
+    });
+    const id = String(staged.cases[0].id);
+    const results = await Promise.allSettled([
+      startImportReview(manager, id, manager.staff.id),
+      startImportReview(manager, id, String(alternate.id)),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const denied = results.find((result) => result.status === "rejected");
+    expect(denied).toMatchObject({ status: "rejected", reason: { code: "review_assigned", status: 409 } });
+    const [caseRow] = await db`select status,reviewer_id from client_import_cases where id=${id}`;
+    expect(caseRow.status).toBe("UNDER_REVIEW");
+    expect([manager.staff.id, alternate.id]).toContain(caseRow.reviewer_id);
+  });
+
   it("creates all three staging tables with RLS enabled", async () => {
     for (const table of tables) {
       const [row] = await db`
