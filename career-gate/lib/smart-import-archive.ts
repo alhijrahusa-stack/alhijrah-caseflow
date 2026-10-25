@@ -42,7 +42,7 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
            (coalesce(jsonb_array_length(c.missing_fields),0)+coalesce(jsonb_array_length(c.conflicts),0))::int as issue_count
     from client_import_cases c
     left join staff s on s.id=c.reviewer_id
-    where c.archived_at is null
+    where c.archived_at is null and c.status <> 'APPROVED_FILE'
       and (${status === "ALL"} or c.status=${status === "ALL" ? "PENDING" : status})
       and (${q === ""} or c.id::text ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
@@ -53,7 +53,7 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
     limit ${limit + 1}`;
   const visible = rows.slice(0, limit) as unknown as QueueRow[];
   const next = rows.length > limit ? visible[visible.length - 1] : null;
-  const counterRows = await sql()`select status,count(*)::int as count from client_import_cases where archived_at is null group by status`;
+  const counterRows = await sql()`select status,count(*)::int as count from client_import_cases where archived_at is null and status <> 'APPROVED_FILE' group by status`;
   const counters = Object.fromEntries(IMPORT_STATUSES.map((key) => [key, 0])) as Record<ImportStatus, number>;
   for (const row of counterRows) if ((IMPORT_STATUSES as readonly string[]).includes(String(row.status))) counters[row.status as ImportStatus] = Number(row.count);
   return { rows: visible, counters, next_cursor: next ? encodeCursor(String(next.created_at), String(next.id)) : null };
@@ -75,17 +75,17 @@ export async function listArchivedImportQueue(session: StaffSession, args: { q?:
            (coalesce(jsonb_array_length(c.missing_fields),0)+coalesce(jsonb_array_length(c.conflicts),0))::int as issue_count
     from client_import_cases c
     left join staff s on s.id=c.reviewer_id
-    where c.archived_at is not null
+    where (c.archived_at is not null or c.status='APPROVED_FILE')
       and (${q === ""} or c.id::text ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,phone}','') ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,email}','') ilike ${`%${q}%`})
       and (${cursor == null} or (c.created_at,c.id) < (${cursor?.createdAt ?? "9999-12-31T23:59:59.999Z"}::timestamptz,${cursor?.id ?? "ffffffff-ffff-ffff-ffff-ffffffffffff"}::uuid))
-    order by c.archived_at desc,c.created_at desc,c.id desc
+    order by c.created_at desc,c.id desc
     limit ${limit + 1}`;
   const visible = rows.slice(0, limit) as unknown as QueueRow[];
   const next = rows.length > limit ? visible[visible.length - 1] : null;
-  const [{ count }] = await sql()`select count(*)::int as count from client_import_cases where archived_at is not null`;
+  const [{ count }] = await sql()`select count(*)::int as count from client_import_cases where archived_at is not null or status='APPROVED_FILE'`;
   return { rows: visible, archived_count: Number(count ?? 0), next_cursor: next ? encodeCursor(String(next.created_at), String(next.id)) : null };
 }
 
