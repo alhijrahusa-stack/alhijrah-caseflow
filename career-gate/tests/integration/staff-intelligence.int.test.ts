@@ -154,8 +154,8 @@ describe("canonical client lifecycle station filters", () => {
     expect(missingAccount.rows.every(row => !row.amazon_account_ready)).toBe(true);
 
     const [privileges] = await db`select
-      has_function_privilege('anon','public.cg_has_ready_gate_job_account(uuid)','EXECUTE') as anon,
-      has_function_privilege('authenticated','public.cg_has_ready_gate_job_account(uuid)','EXECUTE') as staff`;
+      has_function_privilege('anon','career_gate_private.has_ready_gate_job_account(uuid)','EXECUTE') as anon,
+      has_function_privilege('authenticated','career_gate_private.has_ready_gate_job_account(uuid)','EXECUTE') as staff`;
     expect(privileges).toEqual({ anon: false, staff: true });
   });
 
