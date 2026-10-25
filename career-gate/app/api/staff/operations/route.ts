@@ -24,7 +24,7 @@ const stage = z.enum([
 const Input = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("move_stage"), client_id: id, stage }),
   z.object({ operation: z.literal("request_transfer"), client_id: id, requested_owner: id.nullable().optional(), reason: z.string().trim().max(500).nullable().optional() }),
-  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable(), target_stage: z.string().refine(isClientStageFilter).optional() }),
+  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable().optional(), target_stage: z.string().refine(isClientStageFilter).optional() }),
   z.object({ operation: z.literal("reassign_client"), client_id: id, staff_id: id.nullable(), task_ids: z.array(id).max(100).default([]), reason: z.string().trim().max(500).nullable().optional() }),
   z.object({ operation: z.literal("confirm_started"), client_id: id, start_date: date }),
   z.object({ operation: z.literal("set_round_robin"), enabled: z.boolean() }),
@@ -113,6 +113,7 @@ export async function POST(req: Request) {
 
       if (input.operation === "bulk_assign") {
         if (!management(session.staff.role)) throw new Error("FORBIDDEN");
+        if (input.staff_id === undefined && !input.target_stage) throw new Error("TARGET_REQUIRED");
         if (input.staff_id) {
           const [staff] = await tx`select id from staff where id=${input.staff_id} and active`;
           if (!staff) throw new Error("STAFF_NOT_FOUND");
@@ -142,19 +143,20 @@ export async function POST(req: Request) {
           }));
           let changed = 0;
           for (const {client,route} of validated) {
-            const staffChanged = client.assigned_staff !== input.staff_id;
+            const targetStaff = input.staff_id === undefined ? client.assigned_staff : input.staff_id;
+            const staffChanged = client.assigned_staff !== targetStaff;
             const stageChanged = client.pipeline_stage !== route.pipelineStage;
             const statusChanged = client.current_status !== route.status;
             if (!staffChanged && !stageChanged && !statusChanged) continue;
             const nextStep = statusChanged ? route.nextStep : String(client.next_step);
             await tx`update clients set
-              assigned_staff=${input.staff_id},pipeline_stage=${route.pipelineStage},
+              assigned_staff=${targetStaff},pipeline_stage=${route.pipelineStage},
               current_status=${route.status},next_step=${nextStep}
               where id=${client.id}`;
             if (staffChanged) {
               await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
                 values(${client.id},'bulk_staff_assigned',${session.staff.id},'client',${client.id},
-                  ${tx.json({assigned_staff:client.assigned_staff})},${tx.json({assigned_staff:input.staff_id})},${traceId})`;
+                  ${tx.json({assigned_staff:client.assigned_staff})},${tx.json({assigned_staff:targetStaff})},${traceId})`;
             }
             if (stageChanged) {
               await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
@@ -271,6 +273,7 @@ export async function POST(req: Request) {
     if (message === "FORBIDDEN") return err("forbidden", "This action requires management access", 403, traceId);
     if (message === "CLIENT_NOT_ACCESSIBLE") return err("not_found", "Client not found or not accessible", 404, traceId);
     if (message === "STAFF_NOT_FOUND") return err("staff_not_found", "Active staff member not found", 404, traceId);
+    if (message === "TARGET_REQUIRED") return err("target_required", "Select a staff member or lifecycle stage", 400, traceId);
     if (message === "INVALID_START_STATE") return err("invalid_start_state", "Client must be Ready for First Day before confirming start", 409, traceId);
     if (message === "ALREADY_COMPLETED") return err("already_completed", "Client is already completed with a different start date", 409, traceId);
     return err("operation_failed", message, 409, traceId);
