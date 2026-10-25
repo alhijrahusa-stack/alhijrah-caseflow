@@ -23,7 +23,7 @@ export default async function ClientsPage({searchParams}:{searchParams:Promise<R
   const sp=await searchParams;
   const requested=sp.view as ClientView|undefined;
   const stage=isClientStageFilter(sp.stage)?sp.stage:undefined;
-  const view:ClientView=stage?"active":requested&&VIEWS.has(requested)?requested:"all";
+  const view:ClientView=(stage||sp.attention==="documents"||sp.assigned==="none")?"active":requested&&VIEWS.has(requested)?requested:"all";
   const rawPage=Number(sp.page??"1");
   const requestedPage=Number.isSafeInteger(rawPage) && rawPage>0 ? rawPage : 1;
   const status=(STATUSES as readonly string[]).includes(sp.status??"")?sp.status:undefined;
