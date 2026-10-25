@@ -26,14 +26,14 @@ export function ClientLocationShiftCard({clients}:{clients:{id:string;full_name:
    onMutated("add_preference",client);
   }catch(e){setMessage(e instanceof Error?e.message:"Save failed");}finally{setBusy(false);}
  }
- return <section className="cg-ambient-card relative overflow-hidden rounded-3xl border border-orange-300/30 bg-gradient-to-br from-[#080c13]/95 via-[#13161d]/95 to-[#27190b]/90 p-6 text-white shadow-[0_20px_70px_rgba(0,0,0,.32)] backdrop-blur-2xl transition-shadow duration-300 hover:shadow-[0_25px_72px_rgba(245,158,11,.15)]" aria-label="Smart location and shift assignment" onPointerMove={e=>{if(e.pointerType==="mouse"){const rect=e.currentTarget.getBoundingClientRect();e.currentTarget.style.setProperty("--cg-pointer-x",`${e.clientX-rect.left}px`);e.currentTarget.style.setProperty("--cg-pointer-y",`${e.clientY-rect.top}px`);}}}>
-  <div className="pointer-events-none absolute -right-12 -top-24 h-52 w-52 rounded-full bg-orange-500/15 blur-3xl"/>
-  <div className="relative mb-5 flex flex-wrap items-center justify-between gap-2">
-   <div><p className="text-xs font-bold uppercase tracking-[.2em] text-orange-300">CAREER GATE · SMART ASSIGNMENT</p>
-    <h2 className="mt-1 text-xl font-bold text-white">Location & Shift Command Card</h2>
-    <p className="mt-1 text-sm text-white/65">Assign preferences to the existing client record · No duplicate file</p></div>
-   <span className="rounded-full border border-orange-300/30 bg-orange-400/10 px-3 py-1 text-xs font-bold text-orange-200">STAFF OPERATIONS</span>
-  </div>
+ return <details className="cg-compact-assignment group rounded-2xl border border-amber-200/20 bg-[#0c1c2e] text-white" aria-label="Smart location and shift assignment">
+  <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 sm:px-5">
+   <span className="min-w-0"><span className="block text-xs font-semibold tracking-[.08em] text-amber-200">CAREER GATE · SMART ASSIGNMENT</span><span className="mt-1 block text-sm font-semibold text-slate-100">Location & Shift · Assign existing client</span></span>
+   <span aria-hidden="true" className="shrink-0 rounded-lg border border-amber-200/25 px-3 py-2 text-xs font-semibold text-amber-100 group-open:hidden">Open ↘</span>
+   <span aria-hidden="true" className="hidden shrink-0 rounded-lg border border-amber-200/25 px-3 py-2 text-xs font-semibold text-amber-100 group-open:inline">Close ↗</span>
+  </summary>
+  <div className="border-t border-white/10 px-4 pb-4 pt-4 sm:px-5">
+   <p className="mb-4 text-xs text-slate-400">Preferences update the existing canonical client file; they do not create a duplicate case.</p>
   <div className="relative grid gap-4 lg:grid-cols-4">
    <label className="grid gap-1.5 text-sm font-semibold text-white/85">Client
     <select className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={client} onChange={e=>{setClient(e.target.value);setMessage("");}}>
@@ -61,5 +61,6 @@ export function ClientLocationShiftCard({clients}:{clients:{id:string;full_name:
    </button></div>}
   <p className="relative mt-3 text-xs text-white/55">Selections are preferences, not confirmed Amazon openings or guaranteed schedules.</p>
   {message&&<p role="status" className="relative mt-3 rounded-xl border border-orange-300/20 bg-black/35 p-3 text-sm text-orange-100">{message}</p>}
- </section>;
+  </div>
+ </details>;
 }

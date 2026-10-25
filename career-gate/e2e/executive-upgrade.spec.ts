@@ -48,6 +48,9 @@ test.describe("executive staff upgrade acceptance", () => {
     const pipelineResponse = await page.goto("/staff/pipeline");
     expect(pipelineResponse?.status()).toBeLessThan(400);
     await expect(page.getByRole("heading", { name: "Candidate Pipeline" })).toBeVisible();
+    await expect(page.getByTestId("g3-smart-lifecycle")).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Six-stage lifecycle" }).getByRole("button")).toHaveCount(6);
+    await page.getByRole("button", { name: "Detailed Pipeline" }).click();
     await expect(page.getByTestId("pipeline-board")).toBeVisible();
     await page.getByRole("button", { name: "Location & Shift" }).click();
     await expect(page.getByTestId("location-dispatcher")).toBeVisible();

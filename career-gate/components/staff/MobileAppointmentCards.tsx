@@ -32,25 +32,34 @@ export function MobileAppointmentCards({ appointments }: Props) {
   }, [selectedVisible]);
   const open = (appointment: Appointment) => { setTab(appointment.status === "confirmed" ? "notification" : "actions"); setOffset(0); setSelected(appointment); };
   return <>
-    <div className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-3" data-testid="mobile-appointment-cards">
-      {appointments.map(a => <article key={a.id} className="min-w-0 overflow-hidden rounded-[24px] border border-amber-300/15 bg-gradient-to-br from-[#14233b]/95 via-[#0d1a30]/95 to-[#091527]/95 p-5 shadow-[0_18px_45px_rgba(0,0,0,.22)] backdrop-blur-2xl transition duration-200 hover:-translate-y-0.5 hover:border-amber-300/35 hover:shadow-[0_22px_50px_rgba(0,0,0,.32)]">
+    <div className="cg-appointment-grid" data-testid="mobile-appointment-cards">
+      {appointments.map(a => <article key={a.id} className="cg-appointment-card">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold tracking-[.13em] text-amber-300">CAREER GATE · APPOINTMENT</p>
+            <p className="cg-card-eyebrow">{a.appointment_kind === "employment_interview" ? "EMPLOYMENT INTERVIEW" : "FIELD APPOINTMENT"}</p>
             <button type="button" onClick={() => setSelectedClient({ id: a.client_id, ref: a.ref, full_name: a.full_name })}
-              className="mt-2 block break-words text-left text-base font-bold leading-6 text-white underline-offset-4 hover:underline">{a.full_name}</button>
-            <p className="mt-1 break-all text-[11px] text-slate-400">{a.ref}</p>
+              className="cg-card-name" aria-label={`Open ${a.full_name} in Client 360`}>{a.full_name}</button>
+            <p className="mt-1 font-mono text-xs text-cyan-200/75">{a.ref}</p>
           </div>
-          <span className={a.status === "confirmed" ? "shrink-0 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200" : "shrink-0 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] text-amber-200"}>{a.status}</span>
+          <span className={`cg-appointment-status ${a.status === "confirmed" ? "cg-appt-confirmed" : a.status === "attended" ? "cg-appt-attended" : a.status === "missed" || a.status === "cancelled" ? "cg-appt-alert" : ""}`}>{a.status.replaceAll("_"," ")}</span>
         </div>
-{a.outcome && <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-emerald-300">Recorded: {a.outcome.replaceAll("_", " ")}</p>}
-        <dl className="mt-3 grid min-w-0 gap-2 rounded-xl border border-white/10 bg-white/[.035] p-3 text-xs">
-          <div><dt className="text-[10px] text-slate-400">Date & Time / الموعد</dt><dd className="mt-1 font-semibold text-white">{displayDate(a.scheduled_at)} · Detroit</dd></div>
-          <div><dt className="text-[10px] text-slate-400">Type / النوع</dt><dd className="mt-1 break-words text-slate-100">{a.appointment_type}</dd></div>
-          <div><dt className="text-[10px] text-slate-400">Location / الموقع</dt><dd className="mt-1 whitespace-pre-wrap break-words leading-5 text-slate-100">{a.location || "—"}</dd></div>
-          <div><dt className="text-[10px] text-slate-400">Booked by / الموظف</dt><dd className="mt-1 break-words text-slate-100">{a.created_by_name || "—"}</dd></div>
-        </dl>
-        <button type="button" onClick={() => open(a)} className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-400/15 px-4 py-3 text-sm font-bold text-amber-200 active:scale-[.99]" aria-label={`Open actions for ${a.full_name}`}>Executive Smart Gate <span aria-hidden="true">↑</span></button>
+        <div className="cg-appointment-meta">
+          <div className="cg-appointment-meta-primary">
+            <span className="cg-meta-label">TIME · الموعد</span>
+            <time className="cg-meta-value" dateTime={a.scheduled_at}>{displayDate(a.scheduled_at)}</time>
+            <span className="text-xs text-slate-400">Detroit</span>
+          </div>
+          <div className="min-w-0"><span className="cg-meta-label">TYPE · النوع</span><p className="cg-meta-value break-words">{a.appointment_type}</p></div>
+          <div className="min-w-0"><span className="cg-meta-label">LOCATION · الموقع</span><p className="cg-meta-value line-clamp-2 break-words" title={a.location || undefined}>{a.location || "—"}</p></div>
+          <div className="min-w-0"><span className="cg-meta-label">BOOKED BY · الموظف</span><p className="cg-meta-value truncate" title={a.created_by_name || undefined}>{a.created_by_name || "—"}</p></div>
+        </div>
+        {a.outcome ? <p className="mt-3 text-xs font-semibold text-emerald-300">Decision recorded · {a.outcome.replaceAll("_"," ")}</p> :
+          a.status === "attended" && a.appointment_kind === "employment_interview" ?
+          <p className="mt-3 text-xs font-semibold text-amber-200">Attended · interview decision pending</p> : null}
+        <div className="mt-auto flex flex-wrap gap-2 pt-4">
+          <button type="button" onClick={() => open(a)} className="cg-appointment-action flex-1" aria-label={`Open actions for ${a.full_name}`}>Manage appointment <span aria-hidden="true">↗</span></button>
+          <button type="button" onClick={() => setSelectedClient({ id: a.client_id, ref: a.ref, full_name: a.full_name })} className="cg-appointment-secondary">Client 360</button>
+        </div>
       </article>)}
     </div>
     {selectedClient && <Client360Drawer client={selectedClient} onClose={() => setSelectedClient(null)} />}

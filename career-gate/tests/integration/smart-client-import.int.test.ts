@@ -35,6 +35,36 @@ beforeAll(async () => {
 afterAll(async () => { await db.end(); });
 
 describe("Smart Career Collect Client staging security", () => {
+  it("UPSERT stages a concurrent retry once and returns the same canonical staging batch", async () => {
+    const idempotencyKey = randomUUID();
+    const rows = [{ full_name: "TEST Atomic Import Claim", phone: "3135558891", date_of_birth: "1995-01-05" }];
+    const [first, second] = await Promise.all([
+      stageSheetRows({ session: manager, source: "csv", idempotencyKey, rows }),
+      stageSheetRows({ session: manager, source: "csv", idempotencyKey, rows }),
+    ]);
+    expect(first.batch_id).toBe(second.batch_id);
+    expect([first.idempotent, second.idempotent].sort()).toEqual([false, true]);
+    const [batch] = await db`select count(*)::int as n from client_import_batches where created_by=${manager.staff.id} and idempotency_key=${idempotencyKey}`;
+    const [cases] = await db`select count(*)::int as n from client_import_cases where batch_id=${first.batch_id}`;
+    expect(batch.n).toBe(1);
+    expect(cases.n).toBe(1);
+    expect(first.cases[0].id).toBe(second.cases[0].id);
+  });
+
+  it("rejects reusing an import idempotency key for different applicant data", async () => {
+    const idempotencyKey = randomUUID();
+    const first = await stageSheetRows({
+      session: manager, source: "csv", idempotencyKey,
+      rows: [{ full_name: "TEST Import Request A", phone: "3135558892" }],
+    });
+    await expect(stageSheetRows({
+      session: manager, source: "csv", idempotencyKey,
+      rows: [{ full_name: "TEST Import Request B", phone: "3135558893" }],
+    })).rejects.toMatchObject({ code: "idempotency_conflict", status: 409 });
+    const [count] = await db`select count(*)::int as n from client_import_cases where batch_id=${first.batch_id}`;
+    expect(count.n).toBe(1);
+  });
+
   it("keeps an assigned import reviewer immutable across save and approval", async () => {
     const reviewerAuthId = randomUUID();
     await db`insert into auth.users(id,email) values (${reviewerAuthId},${`reviewer-${reviewerAuthId}@test.invalid`})`;
