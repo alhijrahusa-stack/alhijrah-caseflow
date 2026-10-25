@@ -124,7 +124,9 @@ const CLIENT_FILE_SLICE_READERS = {
         select document_id, provider, model, status, escalated, document_class, fields, reconciliation, error, created_at
            from document_extractions where client_id = ${id} order by created_at desc`,
   appointments: (tx: Tx, id: string) => tx`
-        select a.*, s.display_name as created_by_name from appointments a left join staff s on s.id = a.created_by_staff
+        select a.*, s.display_name as created_by_name, o.decision as outcome, o.recorded_at as decision_at from appointments a
+        left join staff s on s.id = a.created_by_staff
+        left join appointment_outcomes o on o.appointment_id = a.id
            where a.client_id = ${id} order by a.scheduled_at desc`,
   notes: (tx: Tx, id: string) =>
     tx`select n.*, s.display_name as staff_name from notes n join staff s on s.id = n.staff_id where n.client_id = ${id} order by n.created_at desc`,
@@ -245,16 +247,20 @@ export async function appointmentList(s: StaffSession, view: string, limit = 300
     limit ${pageLimit} offset ${pageOffset}`);
 }
 
-export async function appointmentPage(s: StaffSession, view: string, requestedPage = 1, pageSize = 25) {
+export async function appointmentPage(s: StaffSession, view: string, requestedPage = 1, pageSize = 25, search = "") {
   const size = Number.isSafeInteger(pageSize) ? Math.min(Math.max(pageSize, 1), 100) : 25;
   return withStaff(s, async (tx) => {
-    const filter = tx`c.deleted_at is null and ${
+    const q = search.trim().slice(0,100);
+    const like = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+    const filter = tx`c.deleted_at is null
+      ${q ? tx`and (c.full_name ilike ${like} or c.ref ilike ${like} or c.phone like ${like})` : tx``}
+      and ${
       view === "next_2h"
         ? tx`a.status = any(${OPEN_APPT}) and a.scheduled_at >= now() and a.scheduled_at <= now() + interval '2 hours' and c.current_status not in ('completed','cancelled')`
         : view === "today"
-          ? tx`(a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date`
+          ? tx`a.status = any(${OPEN_APPT}) and (a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date`
           : view === "past"
-            ? tx`a.scheduled_at < now()`
+            ? tx`(a.status in ('attended','missed','cancelled') or a.ends_at < now())`
             : view === "all"
               ? tx`true`
               : tx`a.ends_at >= now() and a.status = any(${OPEN_APPT})`
@@ -264,8 +270,11 @@ export async function appointmentPage(s: StaffSession, view: string, requestedPa
     const pages = Math.max(1, Math.ceil(total / size));
     const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pages) : 1;
     const rows = await tx`
-      select a.*, c.full_name, c.ref, s.display_name as created_by_name
-      from appointments a join clients c on c.id = a.client_id left join staff s on s.id = a.created_by_staff
+      select a.*, c.full_name, c.ref, s.display_name as created_by_name,
+             o.decision as outcome, o.recorded_at as decision_at
+      from appointments a join clients c on c.id = a.client_id
+      left join staff s on s.id = a.created_by_staff
+      left join appointment_outcomes o on o.appointment_id = a.id
       where ${filter}
       order by a.scheduled_at ${view === "past" ? tx`desc` : tx`asc`}, a.id
       limit ${size} offset ${(page-1)*size}`;

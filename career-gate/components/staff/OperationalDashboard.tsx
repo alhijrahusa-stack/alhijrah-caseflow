@@ -29,6 +29,25 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
       <div className="flex items-center gap-3"><span className={`rounded-full border px-3 py-1 text-xs font-semibold ${data.exceptions>0?"border-amber-300/30 bg-amber-300/10 text-amber-200":"border-emerald-300/30 bg-emerald-300/10 text-emerald-200"}`}>{data.exceptions} exceptions</span><RealtimeRefresher /></div>
     </header>
 
+    <section aria-label="Six-stage lifecycle" className="ops-glass-card overflow-hidden rounded-[26px] border border-amber-300/15 bg-gradient-to-br from-[#111f37]/85 to-[#081325]/95 p-4 shadow-[0_18px_45px_rgba(0,0,0,.22)] backdrop-blur-2xl sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="ops-kicker">ONE CLIENT · ONE WORKFLOW</p><h2 className="mt-1 text-lg font-semibold tracking-tight text-white">Six-stage operational flow / المسار الموحد</h2></div><Link href="/staff/pipeline" className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/20">Open pipeline</Link></div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        {[
+          {label:"01 · Intake", ar:"الاستقبال", statuses:["new_intake","needs_review"],href:"/staff/clients?status=new_intake"},
+          {label:"02 · Account", ar:"تجهيز الحساب", statuses:["ready_to_apply","application_in_progress","assessment_required"],href:"/staff/gate-job-account"},
+          {label:"03 · Job Ready", ar:"جاهز للوظيفة", statuses:["shift_selected","appointment_required"],href:"/staff/clients?status=appointment_required"},
+          {label:"04 · Appointments", ar:"المواعيد", statuses:["appointment_scheduled"],href:"/staff/appointments?view=upcoming"},
+          {label:"05 · Paperwork", ar:"الدفع والإجراءات", statuses:["pre_hire_completed","screening_pending","i9_available","post_hire_tasks","ready_for_first_day"],href:"/staff/clients?status=pre_hire_completed"},
+          {label:"06 · Registry", ar:"السجل والأرشيف", statuses:["completed","cancelled"],href:"/staff/clients?view=all"},
+        ].map((stage,index)=><Link key={stage.label} href={stage.href} className="group relative min-w-0 rounded-[20px] border border-white/10 bg-white/[.04] px-3 py-4 transition duration-200 hover:-translate-y-1 hover:border-amber-200/40 hover:bg-white/[.09] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
+          <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/35 to-transparent"/>
+          <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{stage.label}</span><span aria-hidden="true" className="text-xs text-amber-200/70">{index<5?"›":"✓"}</span></div>
+          <strong className="mt-3 block text-3xl font-semibold tabular-nums tracking-tight text-white">{data.pipeline.filter(p=>stage.statuses.includes(p.status)).reduce((sum,p)=>sum+p.total,0)}</strong>
+          <span lang="ar" dir="rtl" className="mt-2 block text-xs text-amber-100/85">{stage.ar}</span>
+        </Link>)}
+      </div>
+    </section>
+
     <section aria-labelledby="now-heading">
       <SectionTitle title="Now" subtitle="Items requiring operational attention."/>
       <h2 id="now-heading" className="sr-only">Current exceptions</h2>

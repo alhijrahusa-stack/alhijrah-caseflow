@@ -431,7 +431,7 @@ describe("integrity", () => {
 
   it("the last active admin cannot be demoted or disabled", async () => {
     const admins = await db`select id from staff where role = 'admin' and active`;
-    for (const a of admins.slice(1)) await db`update staff set role = 'manager' where id = ${a.id}`;
+    for (const a of admins.filter((entry) => entry.id !== sessions.admin.staff.id)) await db`update staff set role = 'manager' where id = ${a.id}`;
     await expect(act("admin", { action: "disable_staff", staff_id: sessions.admin.staff.id })).rejects.toMatchObject({ code: "last_admin" });
   });
 

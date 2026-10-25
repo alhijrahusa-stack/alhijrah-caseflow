@@ -16,34 +16,65 @@ import { Card, SmallBtn, useRowAction, type Row } from "./common";
 
 export function AppointmentRowActions({ appt }: { appt: Row }) {
   const { isManager } = useStaff();
-  const a = useRowAction("Appointment updated");
+  const a = useRowAction("Appointment decision saved");
   const [editing, setEditing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [when, setWhen] = useState(toLocalInput(appt.scheduled_at));
   const [location, setLocation] = useState(appt.location ?? "");
   const [notes, setNotes] = useState(appt.notes ?? "");
+  const [decisionNote, setDecisionNote] = useState("");
   if (!isManager) return null;
-  const set = (status: string) => a.go({ action: "update_appointment", appointment_id: appt.id, status });
   const closed = ["cancelled", "attended", "missed"].includes(appt.status);
+  const interview = appt.appointment_kind === "employment_interview";
+  const pendingInterviewDecision = interview && appt.status === "attended" && !appt.outcome;
+  const decide = (decision: "pass" | "fail" | "missed" | "cancelled_interested" | "cancelled_not_interested") =>
+    a.go({ action: "appointment_decision", appointment_id: appt.id, decision, note: decisionNote || null });
   return (
-    <div className="space-x-1 whitespace-nowrap">
-      {!closed && appt.status !== "confirmed" && <SmallBtn disabled={a.pending} onClick={() => set("confirmed")}>Confirm</SmallBtn>}
-      {!closed && <SmallBtn disabled={a.pending} onClick={() => set("attended")}>Attended</SmallBtn>}
-      {!closed && <SmallBtn disabled={a.pending} onClick={() => set("missed")}>Missed</SmallBtn>}
-      {!closed && <SmallBtn disabled={a.pending} onClick={() => set("cancelled")}>Cancel</SmallBtn>}
-      <SmallBtn onClick={() => setEditing(!editing)}>{closed ? "Edit" : "Edit / Reschedule"}</SmallBtn>
-      {editing && (
-        <form className="mt-2 grid max-w-md gap-2 whitespace-normal rounded-md bg-slate-50 p-2" onSubmit={async (e) => {
-          e.preventDefault();
-          const ok = await a.go({ action: "update_appointment", appointment_id: appt.id, scheduled_at: fromLocalInput(when).toISOString(), location: location || null, notes: notes || null });
-          if (ok) setEditing(false);
-        }}>
-          <QuickDateTime ariaLabel="New date and time" value={when} onChange={setWhen} required />
-          <input aria-label="Location" className="input py-1" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
-          <input aria-label="Notes" className="input py-1" placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          <SmallBtn type="submit" disabled={a.pending}>Save changes</SmallBtn>
-        </form>
-      )}
-      {a.error && <p role="alert" className="whitespace-normal text-xs text-red-600">{a.error}</p>}
+    <div className="space-y-3 whitespace-normal">
+      {appt.outcome && <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">Decision recorded: {String(appt.outcome).replaceAll("_", " ")}</p>}
+      {pendingInterviewDecision && <>
+        <p role="status" className="text-xs font-semibold text-amber-200">Attendance recorded · Interview decision pending</p>
+        <div className="flex flex-wrap gap-2">
+          <SmallBtn disabled={a.pending} onClick={() => decide("pass")}>Pass / نجح</SmallBtn>
+          <SmallBtn disabled={a.pending} onClick={() => decide("fail")}>Fail / رسب</SmallBtn>
+        </div>
+        <input className="input w-full" aria-label="Interview decision note" placeholder="Decision evidence or note" value={decisionNote} maxLength={1000} onChange={(e) => setDecisionNote(e.target.value)} />
+      </>}
+      {!closed && <>
+        <div className="flex flex-wrap gap-2">
+          {appt.status !== "confirmed" && <SmallBtn aria-label="Confirm" disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "confirmed" })}>Confirm booking</SmallBtn>}
+          {interview ? <>
+            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "record_appointment_attendance", appointment_id: appt.id })}>Mark attended / تسجيل الحضور</SmallBtn>
+            <SmallBtn disabled={a.pending} onClick={() => decide("missed")}>Missed / تخلف</SmallBtn>
+          </> : <>
+            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "attended" })}>Attended / حضر</SmallBtn>
+            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "missed" })}>Missed / تخلف</SmallBtn>
+          </>}
+          <SmallBtn aria-label="Edit / Reschedule" disabled={a.pending} onClick={() => setEditing((v) => !v)}>Reschedule / إعادة جدولة</SmallBtn>
+          {interview
+            ? <SmallBtn disabled={a.pending} onClick={() => setCancelling((v) => !v)}>Canceled / إلغاء</SmallBtn>
+            : <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "cancelled" })}>Cancel / إلغاء</SmallBtn>}
+        </div>
+        {interview && <input className="input w-full" aria-label="Interview decision note" placeholder="Decision evidence or note" value={decisionNote} maxLength={1000} onChange={(e) => setDecisionNote(e.target.value)} />}
+        {cancelling && <div className="flex flex-wrap gap-2 rounded-xl border border-amber-300/20 bg-white/5 p-3">
+          <SmallBtn disabled={a.pending} onClick={() => decide("cancelled_interested")}>Interested — return to Job Ready</SmallBtn>
+          <SmallBtn disabled={a.pending} onClick={() => decide("cancelled_not_interested")}>Not interested — close file</SmallBtn>
+        </div>}
+      </>}
+      {editing && !closed && <form className="grid gap-2 rounded-xl border border-white/15 bg-white/5 p-3" onSubmit={async (e) => {
+        e.preventDefault();
+        const instant = fromLocalInput(when);
+        if (!Number.isFinite(instant.getTime())) { a.setError("Invalid appointment date"); return; }
+        const ok = await a.go({ action: "update_appointment", appointment_id: appt.id, scheduled_at: instant.toISOString(), location: location || null, notes: notes || null });
+        if (ok) setEditing(false);
+      }}>
+        <QuickDateTime ariaLabel="New date and time" value={when} onChange={setWhen} required />
+        <input aria-label="Location" className="input" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
+        <input aria-label="Notes" className="input" placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <SmallBtn type="submit" aria-label="Save changes" disabled={a.pending}>{a.pending ? "Saving..." : "Save changes"}</SmallBtn>
+      </form>}
+      {a.pending && <p role="status" className="text-xs text-amber-200">Saving to Career Gate...</p>}
+      {a.error && <p role="alert" className="text-xs text-red-300">{a.error}</p>}
     </div>
   );
 }

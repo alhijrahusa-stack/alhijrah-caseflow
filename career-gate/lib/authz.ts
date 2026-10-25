@@ -20,6 +20,8 @@ export const ACTION_ROLES = {
   schedule_appointment: MGMT,
   book_slot: MGMT,
   update_appointment: MGMT,
+  appointment_decision: MGMT,
+  record_appointment_attendance: MGMT,
   add_note: ALL,
   add_task: ALL,
   update_task: ALL,

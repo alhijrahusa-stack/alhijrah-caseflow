@@ -26,7 +26,14 @@ as_pg "$PGBIN/initdb -D $PGDIR/data -A trust -E UTF8 >/dev/null && $PGBIN/pg_ctl
 sleep 2
 P="psql -h 127.0.0.1 -p $PGPORT -U postgres -v ON_ERROR_STOP=1 -q"
 $P -c "create database careergate"
-$P -d careergate -f e2e/supabase-stub.sql $(for m in supabase/migrations/*.sql; do printf -- "-f %s " "$m"; done) -f e2e/seed.sql 2>&1 | grep -v "wal_level\|HINT" || true
+MIGRATION_LOG=$(mktemp)
+if ! $P -d careergate -f e2e/supabase-stub.sql $(for m in supabase/migrations/*.sql; do printf -- "-f %s " "$m"; done) -f e2e/seed.sql >"$MIGRATION_LOG" 2>&1; then
+  cat "$MIGRATION_LOG"
+  rm -f "$MIGRATION_LOG"
+  exit 1
+fi
+grep -v "wal_level\\|HINT" "$MIGRATION_LOG" || true
+rm -f "$MIGRATION_LOG"
 if [[ -z "${SKIP_BUILD:-}" ]]; then cp data/job-catalog.json data/job-catalog.json.orig; [[ "${CATALOG:-fixture}" == "real" ]] || cp e2e/fixtures/job-catalog.test.json data/job-catalog.json; rm -rf .next && npx next build >/tmp/cg-build.log 2>&1 || { tail -40 /tmp/cg-build.log; exit 1; }; mv data/job-catalog.json.orig data/job-catalog.json; fi
 node e2e/storage-double.mjs & STORE_PID=$!
 NODE_ENV=production setsid npx next start -p "$PORT" >/tmp/cg-server.log 2>&1 & NEXT_PID=$!

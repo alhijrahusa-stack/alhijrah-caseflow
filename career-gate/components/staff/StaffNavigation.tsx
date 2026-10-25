@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 
 function active(pathname: string, href: string) {
   return href === "/staff" ? pathname === "/staff" : pathname === href || pathname.startsWith(`${href}/`);
@@ -9,6 +10,9 @@ function active(pathname: string, href: string) {
 
 export function StaffNavigation({ management }: { management: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [pending, setPending] = useState<{ from: string; to: string } | null>(null);
+  const opening = pending?.from === pathname ? pending.to : null;
   const item = (label: string, href: string) => (
     <Link
       key={href}
@@ -16,8 +20,11 @@ export function StaffNavigation({ management }: { management: boolean }) {
       data-executive-tactile="true"
       aria-current={active(pathname, href) ? "page" : undefined}
       href={href}
+      onMouseEnter={() => router.prefetch(href)}
+      onFocus={() => router.prefetch(href)}
+      onClick={() => setPending({ from: pathname, to: href })}
     >
-      {label}
+      {label}{opening === href && !active(pathname,href) && <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-amber-300" aria-hidden="true" />}
     </Link>
   );
 

@@ -77,10 +77,10 @@ test.describe("Smart Career Collect Client", () => {
       await expect(matrix.getByRole("rowheader", { name: new RegExp(`^${field}`) })).toBeVisible();
     }
 
-    await page.getByLabel("REVIEWED BY").selectOption(String(admin.id));
+    // Opening a pending import now atomically claims the authenticated reviewer.
+    // There is no separate START REVIEW action or chance to steal another review.
     await expect(page.getByLabel("REVIEWED BY")).toHaveValue(String(admin.id));
-    await page.getByRole("button", { name: "START REVIEW", exact: true }).click();
-    await expect(page.getByText("Review started.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "START REVIEW", exact: true })).toHaveCount(0);
 
     const languageRow = page.locator('tr[data-field="preferred_language"]');
     await expect(languageRow.locator('[data-label="Current value"]')).toHaveText("en");

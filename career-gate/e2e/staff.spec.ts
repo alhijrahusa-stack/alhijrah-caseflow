@@ -40,8 +40,14 @@ test.describe.serial("office workflow", () => {
 
   test("command palette finds and opens the client", async () => {
     await page.goto("/staff");
-    await page.keyboard.press("Control+k");
+    // Open by click first to wait for the React toolbar to hydrate. Then
+    // validate the actual Ctrl+K binding after the listener is mounted.
+    await page.getByRole("button", { name: "Open command palette" }).click();
     const palette = page.getByTestId("command-palette");
+    await expect(palette).toBeVisible();
+    await page.keyboard.press("Control+k");
+    await expect(palette).toHaveCount(0);
+    await page.keyboard.press("Control+k");
     await expect(palette).toBeVisible();
     await palette.getByRole("combobox").fill(ref);
     await expect(palette.getByRole("option", { name: new RegExp(ref) })).toBeVisible();

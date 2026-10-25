@@ -146,7 +146,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
     if (await pipeline.count()) {
       await pipeline.click();
       await expect(page).toHaveURL(/view=completed&status=completed/);
-      await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: /^Clients \/ سجل العملاء$/ })).toBeVisible();
     }
   });
 
@@ -170,7 +170,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
     const match = pagination.match(/page ([0-9]+) of ([0-9]+)/);
     expect(match).not.toBeNull();
     expect(match![1]).toBe(match![2]);
-    await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Clients \/ سجل العملاء$/ })).toBeVisible();
     await page.goto("/staff/clients?view=all&page=garbage");
     await expect(page.getByTestId("client-total")).toContainText("page 1 of");
   });
@@ -215,9 +215,14 @@ test.describe.serial("Staff intelligence surfaces", () => {
     const [count] = await db()`select count(*)::int as total from appointments a join clients c on c.id=a.client_id where c.deleted_at is null`;
     const total = Number(count.total);
     const pages = Math.max(1, Math.ceil(total / 25));
-    await expect(page.locator(".ops-hero p").last()).toContainText(`${total} appointment`);
+    await expect(page.locator(".ops-hero p").last()).toContainText(`${total} matching appointment`);
     await expect(page.locator(".ops-hero p").last()).toContainText(`Page ${pages} of ${pages}`);
-    await expect(page.locator("tbody tr")).toHaveCount(Math.min(25, total - (pages - 1) * 25));
+    if (total === 0) {
+      await expect(page.getByText("No appointments in this view")).toBeVisible();
+    } else {
+      await expect(page.getByTestId("mobile-appointment-cards").locator("article"))
+        .toHaveCount(Math.min(25, total - (pages - 1) * 25));
+    }
     if (pages > 1) {
       await page.getByRole("link", { name: "Previous" }).click();
       await expect(page).toHaveURL(new RegExp(`page=${pages - 1}`));

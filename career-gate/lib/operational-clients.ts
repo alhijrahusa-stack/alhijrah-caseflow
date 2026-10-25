@@ -5,7 +5,7 @@ import { withStaff, type StaffSession } from "@/lib/auth";
 export type ClientView = "active" | "completed" | "all";
 export type OperationalClientRow = {
   id:string; ref:string; full_name:string; phone:string; email:string|null; city:string|null;
-  current_status:string; next_step:string; start_date:string|null; updated_at:string;
+  current_status:string; next_step:string; start_date:string|null; created_at:string; updated_at:string;
   assigned_staff:string|null; assigned_name:string|null; site_code:string|null; site_name:string|null;
   job_id:string|null; job_title:string|null; shift_code:string|null; shift_name:string|null;
   payment_status:string|null; fee_amount:number|null;
@@ -40,7 +40,7 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
     const maxPage = Math.max(1, Math.ceil(Number(total ?? 0) / pageSize));
     const safePage = Number.isSafeInteger(page) && page > 0 ? Math.min(page, maxPage) : 1;
     const rows = await tx`
-      select c.id,c.ref,c.full_name,c.phone,c.email,c.city,c.current_status,c.next_step,c.start_date,c.updated_at,c.assigned_staff,
+      select c.id,c.ref,c.full_name,c.phone,c.email,c.city,c.current_status,c.next_step,c.start_date,c.created_at,c.updated_at,c.assigned_staff,
              s.display_name as assigned_name,p.site_code,p.site_name,p.job_id,p.job_title,p.shift_code,p.shift_name,a.payment_status,${tx.unsafe(ACCOUNT_NET_FEE("a"))} fee_amount
       from clients c
       left join staff s on s.id=c.assigned_staff

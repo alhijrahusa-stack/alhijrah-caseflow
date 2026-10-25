@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
+import { REALTIME_ENTITIES } from "@/lib/realtime-resources";
 
 const db = postgres(process.env.DATABASE_URL!, { prepare: false, max: 1 });
 
@@ -34,6 +35,44 @@ describe("Career Gate least-privilege table grants", () => {
       }
     });
   }
+
+  it("enforces RLS on every operational table streaming staff data", async () => {
+    const rows = await db`
+      select c.relname as table_name, c.relrowsecurity as enabled
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relname in ${db(REALTIME_ENTITIES)}
+        and c.relkind in ('r', 'p')`;
+    expect(rows).toHaveLength(REALTIME_ENTITIES.length);
+    for (const row of rows) expect(row.enabled, row.table_name).toBe(true);
+  });
+
+  it("publishes every client/dashboard realtime entity without silently missing a table", async () => {
+    const published = await db`
+      select tablename from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public'`;
+    const names = new Set(published.map((row) => String(row.tablename)));
+    for (const table of REALTIME_ENTITIES) expect(names.has(table), table).toBe(true);
+  });
+
+  it("requires an authorized client scope for BOTH account INSERT and UPDATE row checks", async () => {
+    const policies = await db`
+      select policyname, cmd, qual, with_check
+      from pg_policies
+      where schemaname = 'public' and tablename = 'client_accounts'
+        and policyname in ('accounts_insert', 'accounts_update')
+      order by policyname`;
+    expect(policies).toHaveLength(2);
+    for (const policy of policies) {
+      expect(policy.with_check).toContain("cg_staff_role()");
+      expect(policy.with_check).toContain("cg_can_access_client(client_id)");
+      if (policy.cmd === "UPDATE") {
+        expect(policy.qual).toContain("cg_staff_role()");
+        expect(policy.qual).toContain("cg_can_access_client(client_id)");
+      } else {
+        expect(policy.cmd).toBe("INSERT");
+      }
+    }
+  });
 
   it("keeps the email outbox server-only", async () => {
     for (const role of ["anon", "authenticated"] as const) {

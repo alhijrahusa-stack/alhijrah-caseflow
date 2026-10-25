@@ -27,6 +27,16 @@ export const REALTIME_ENTITIES = [
 export type RealtimeEntity = (typeof REALTIME_ENTITIES)[number];
 
 /**
+ * Cross-client operational counters must hear financial, alert and import
+ * changes too. The dashboard deliberately excludes notes: these do not feed
+ * any dashboard totals and would generate unnecessary route refreshes.
+ * Derive both subscriptions from the same entity graph to prevent drift.
+ */
+export const DASHBOARD_REALTIME_ENTITIES = REALTIME_ENTITIES.filter((table) => table !== "notes");
+export const CLIENT_REALTIME_ENTITIES = REALTIME_ENTITIES;
+
+
+/**
  * UI-facing resources. A resource is a slice a surface renders, not a table:
  * `next_action` and `readiness` are derived, and several tables feed them.
  */
@@ -110,6 +120,8 @@ export const MUTATION_RESOURCES: Record<string, readonly Resource[]> = {
   schedule_appointment: ["appointments", "next_action", "attention", "activity"],
   book_slot: ["appointments", "next_action", "attention", "activity"],
   update_appointment: ["appointments", "next_action", "attention", "activity"],
+  appointment_decision: ["appointments", "pipeline", "client_identity", "next_action", "finance", "attention", "activity"],
+  record_appointment_attendance: ["appointments", "attention", "next_action", "activity"],
 
   // Notes
   add_note: ["notes", "activity"],
