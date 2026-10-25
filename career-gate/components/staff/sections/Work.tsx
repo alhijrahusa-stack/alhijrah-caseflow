@@ -12,7 +12,7 @@ import {
   POST_HIRE_STATUSES,
 } from "@/lib/domain";
 import { dateOnly, dateTime, fromLocalInput, toLocalInput } from "@/lib/format";
-import { Card, SmallBtn, useRowAction, type Row } from "./common";
+import { Card, SmallBtn, useProgressiveList, useRowAction, type Row } from "./common";
 
 export function AppointmentRowActions({ appt }: { appt: Row }) {
   const { isManager } = useStaff();
@@ -78,13 +78,14 @@ export function Appointments({ appts, onAdd }: { appts: Row[]; onAdd: (() => voi
 }
 
 export function Notes({ notes, onAdd }: { notes: Row[]; onAdd: () => void }) {
+  const visible = useProgressiveList(notes);
   return (
     <Card title="Notes" id="notes" actions={<SmallBtn onClick={onAdd}>+ Add note</SmallBtn>}>
       {notes.length === 0 ? (
         <EmptyState title="No notes yet" text="Add the first note for this client." action={<SmallBtn onClick={onAdd}>+ Add note</SmallBtn>} />
       ) : (
         <ul className="space-y-3">
-          {notes.map((n) => (
+          {visible.map((n) => (
             <li key={n.id} data-testid="note-row">
               <p className="whitespace-pre-wrap">{n.note}</p>
               <p className="text-xs text-slate-500">{n.staff_name} · {dateTime(n.created_at)}</p>

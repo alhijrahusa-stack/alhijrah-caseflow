@@ -5,6 +5,7 @@ import { CommandPalette } from "@/components/staff/CommandPalette";
 import { StaffAppointmentAlerts } from "@/components/staff/StaffAppointmentAlerts";
 import { ExecutiveTactileFX } from "@/components/staff/ExecutiveTactileFX";
 import { ExecutiveTelemetry } from "@/components/staff/ExecutiveTelemetry";
+import { FieldVitals } from "@/components/staff/FieldVitals";
 import { QuickClientSearch } from "@/components/staff/QuickClientSearch";
 import { SignOutButton } from "@/components/staff/SignOutButton";
 import { StaffNavigation } from "@/components/staff/StaffNavigation";
@@ -30,6 +31,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   return (
     <StaffProvider me={{ id: session.staff.id, display_name: session.staff.display_name, role: session.staff.role }} staff={staff}>
       <SectionBoundary name="tactile-fx" fallback={null}><ExecutiveTactileFX /></SectionBoundary>
+      <SectionBoundary name="field-vitals" fallback={null}><FieldVitals /></SectionBoundary>
       <div className="staff-shell">
         <header className="staff-topbar sticky top-0 z-30">
           <div className="staff-executive-header mx-auto max-w-[1800px] px-4 py-3 lg:px-6">

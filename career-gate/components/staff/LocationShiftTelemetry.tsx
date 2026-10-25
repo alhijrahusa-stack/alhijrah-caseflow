@@ -1,26 +1,22 @@
 "use client";
 import { useMemo, useState } from "react";
-import type { PipelineClient } from "@/lib/operations";
+import type { LocationAggregate } from "@/lib/operational-pipeline";
 import { AMAZON_LOCATIONS } from "@/lib/location-shift-options";
 
-/** Totals are derived from the same active client records as the Pipeline, never from fixture counters. */
-export function LocationShiftTelemetry({clients, periodOf}:{clients:PipelineClient[];periodOf:(client:PipelineClient)=>"morning"|"evening"|"night"|"needs_manual_review"}){
+/** Totals are aggregated on the server over every active client record, never from fixture counters or a capped list. */
+export function LocationShiftTelemetry({locations, total, assigned}:{locations:LocationAggregate[];total:number;assigned:number}){
  const [expanded,setExpanded]=useState(false);
- const {entries,total,assigned}=useMemo(()=>{
+ const entries=useMemo(()=>{
    const counts=new Map<string,{name:string;morning:number;evening:number;night:number;needs_manual_review:number}>();
    AMAZON_LOCATIONS.forEach(([name],index)=>counts.set(`MI_LOC_${String(index+1).padStart(2,"0")}`,{name,morning:0,evening:0,night:0,needs_manual_review:0}));
-   let assigned=0;
-   for(const client of clients){
-     if(client.assigned_staff)assigned++;
-     const key=client.site_code||"unselected";
-     const row=counts.get(key)??{name:client.site_name||"Location not selected",morning:0,evening:0,night:0,needs_manual_review:0};
-     row[periodOf(client)]++;
-     counts.set(key,row);
+   for(const location of locations){
+     const row=counts.get(location.code)??{name:location.name||"Location not selected",morning:0,evening:0,night:0,needs_manual_review:0};
+     row.morning+=location.morning;row.evening+=location.evening;row.night+=location.night;row.needs_manual_review+=location.needs_manual_review;
+     counts.set(location.code,row);
    }
-   const entries=[...counts.entries()].map(([code,row])=>({...row,code,total:row.morning+row.evening+row.night+row.needs_manual_review}))
+   return [...counts.entries()].map(([code,row])=>({...row,code,total:row.morning+row.evening+row.night+row.needs_manual_review}))
      .sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name));
-   return {entries,total:clients.length,assigned};
- },[clients,periodOf]);
+ },[locations]);
  const visible=expanded?entries:entries.slice(0,6);
  return <section aria-label="Live location and shift totals" className="relative isolate overflow-hidden rounded-3xl border border-amber-300/25 bg-gradient-to-br from-[#0d182b]/95 via-[#111e30]/90 to-[#221b18]/90 p-5 shadow-[0_20px_55px_rgba(1,8,24,.32)] backdrop-blur-xl">
    <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-orange-400/10 blur-3xl"/>

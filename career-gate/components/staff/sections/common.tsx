@@ -1,8 +1,25 @@
 "use client";
 
+import { startTransition, useEffect, useState } from "react";
 import { useAction } from "@/components/forms/useAction";
+import { afterNextPaint } from "@/lib/after-paint";
 
 export type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/**
+ * Renders the first `first` items on the commit that shows the list, then the
+ * rest `step` at a time, each step a low-priority transition that starts only
+ * after the previous frame has painted. Every item still renders; neither the
+ * interaction that opened the list nor the next one waits on the long tail.
+ */
+export function useProgressiveList<T>(items: T[], first = 40, step = 120): T[] {
+  const [limit, setLimit] = useState(first);
+  useEffect(() => {
+    if (items.length <= limit) return;
+    return afterNextPaint(() => startTransition(() => setLimit((current) => Math.min(items.length, current + step))));
+  }, [items.length, limit, step]);
+  return items.length <= limit ? items : items.slice(0, limit);
+}
 
 export function Card({ title, id, actions, children }: { title: string; id: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
