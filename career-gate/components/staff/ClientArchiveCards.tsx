@@ -28,7 +28,7 @@ export function ClientArchiveCards({ clients }: { clients: OperationalClientRow[
               <button type="button" onClick={() => setClient(record)} className="block max-w-full break-words text-left text-base font-semibold leading-snug text-white hover:text-amber-200">
                 {record.full_name}
               </button>
-              <p className="mt-1 font-mono text-xs text-cyan-200">{record.ref}</p>
+              <Link href={`/staff/client/${record.id}`} className="mt-1 block font-mono text-xs text-cyan-200 hover:underline">{record.ref}</Link>
               <p className="mt-1 truncate text-xs text-slate-400">{record.phone}{record.city ? ` · ${record.city}` : ""}</p>
             </div>
             <span className="max-w-28 shrink-0 break-words rounded-lg border border-amber-200/20 bg-amber-200/[.07] px-2 py-1 text-center text-[11px] font-medium capitalize text-amber-100">
