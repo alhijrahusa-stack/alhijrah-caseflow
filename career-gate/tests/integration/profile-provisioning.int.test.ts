@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 const db = postgres(process.env.DATABASE_URL!, { prepare: false, max: 1 });
 const migration = readFileSync(
-  join(process.cwd(), "supabase/migrations/20261025022000_trusted_profile_role_claims.sql"),
+  join(process.cwd(), "supabase/migrations/20261025021641_trusted_profile_role_claims.sql"),
   "utf8",
 );
 
