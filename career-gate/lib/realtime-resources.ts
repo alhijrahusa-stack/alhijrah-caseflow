@@ -111,6 +111,7 @@ export const MUTATION_RESOURCES: Record<string, readonly Resource[]> = {
   book_slot: ["appointments", "next_action", "attention", "activity"],
   update_appointment: ["appointments", "next_action", "attention", "activity"],
   appointment_decision: ["appointments", "pipeline", "client_identity", "next_action", "finance", "attention", "activity"],
+  record_appointment_attendance: ["appointments", "attention", "next_action", "activity"],
 
   // Notes
   add_note: ["notes", "activity"],
