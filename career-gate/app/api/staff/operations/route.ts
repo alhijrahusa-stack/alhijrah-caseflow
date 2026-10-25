@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { isClientStageFilter } from "@/lib/client-lifecycle-filters";
+import { LifecycleRoutingError, resolveLifecycleRoute } from "@/lib/client-lifecycle-routing";
 import { withStaff } from "@/lib/auth";
 import { STAFF_ELIGIBLE_PERMISSIONS } from "@/lib/authz";
 import { err, ok } from "@/lib/http";
@@ -22,7 +24,7 @@ const stage = z.enum([
 const Input = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("move_stage"), client_id: id, stage }),
   z.object({ operation: z.literal("request_transfer"), client_id: id, requested_owner: id.nullable().optional(), reason: z.string().trim().max(500).nullable().optional() }),
-  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250), staff_id: id.nullable() }),
+  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable(), target_stage: z.string().refine(isClientStageFilter).optional() }),
   z.object({ operation: z.literal("reassign_client"), client_id: id, staff_id: id.nullable(), task_ids: z.array(id).max(100).default([]), reason: z.string().trim().max(500).nullable().optional() }),
   z.object({ operation: z.literal("confirm_started"), client_id: id, start_date: date }),
   z.object({ operation: z.literal("set_round_robin"), enabled: z.boolean() }),
@@ -114,6 +116,59 @@ export async function POST(req: Request) {
         if (input.staff_id) {
           const [staff] = await tx`select id from staff where id=${input.staff_id} and active`;
           if (!staff) throw new Error("STAFF_NOT_FOUND");
+        }
+        if (input.target_stage && isClientStageFilter(input.target_stage)) {
+          const locked = await tx`
+            select c.id,c.current_status,c.pipeline_stage,c.next_step,c.assigned_staff,
+              exists(select 1 from gate_job_accounts ga where ga.assigned_to_client_id=c.id and ga.status='READY') account_ready,
+              exists(select 1 from client_readiness r where r.client_id=c.id and r.total_requirements>0 and r.readiness_percent=100) documents_ready,
+              exists(select 1 from appointments ap where ap.client_id=c.id and ap.appointment_kind='employment_interview' and ap.status in ('scheduled','confirmed','rescheduled')) interview_scheduled,
+              exists(select 1 from appointment_outcomes o where o.client_id=c.id and o.decision='pass') interview_passed,
+              exists(select 1 from client_accounts a where a.client_id=c.id and a.payment_status='paid') payment_verified
+            from clients c
+            where c.id=any(${input.client_ids}) and c.deleted_at is null
+            order by c.id for update of c`;
+          if (locked.length !== input.client_ids.length) throw new Error("CLIENT_NOT_ACCESSIBLE");
+          const validated = locked.map(client => ({
+            client,
+            route: resolveLifecycleRoute(input.target_stage!, {
+              current_status: String(client.current_status),
+              account_ready: Boolean(client.account_ready),
+              documents_ready: Boolean(client.documents_ready),
+              interview_scheduled: Boolean(client.interview_scheduled),
+              interview_passed: Boolean(client.interview_passed),
+              payment_verified: Boolean(client.payment_verified),
+            }),
+          }));
+          let changed = 0;
+          for (const {client,route} of validated) {
+            const staffChanged = client.assigned_staff !== input.staff_id;
+            const stageChanged = client.pipeline_stage !== route.pipelineStage;
+            const statusChanged = client.current_status !== route.status;
+            if (!staffChanged && !stageChanged && !statusChanged) continue;
+            const nextStep = statusChanged ? route.nextStep : String(client.next_step);
+            await tx`update clients set
+              assigned_staff=${input.staff_id},pipeline_stage=${route.pipelineStage},
+              current_status=${route.status},next_step=${nextStep}
+              where id=${client.id}`;
+            if (staffChanged) {
+              await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
+                values(${client.id},'bulk_staff_assigned',${session.staff.id},'client',${client.id},
+                  ${tx.json({assigned_staff:client.assigned_staff})},${tx.json({assigned_staff:input.staff_id})},${traceId})`;
+            }
+            if (stageChanged) {
+              await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
+                values(${client.id},'pipeline_stage_changed',${session.staff.id},'client',${client.id},
+                  ${tx.json({pipeline_stage:client.pipeline_stage})},${tx.json({pipeline_stage:route.pipelineStage})},${traceId})`;
+            }
+            if (statusChanged) {
+              await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
+                values(${client.id},'status_changed',${session.staff.id},'client',${client.id},
+                  ${tx.json({status:client.current_status})},${tx.json({status:route.status})},${traceId})`;
+            }
+            changed++;
+          }
+          return {changed,stage:input.target_stage};
         }
         const changed = await tx`
           with locked as (
@@ -212,6 +267,7 @@ export async function POST(req: Request) {
     return ok(result, 200, traceId);
   } catch (error) {
     const message = error instanceof Error ? error.message : "operation_failed";
+    if (error instanceof LifecycleRoutingError) return err(error.code, error.message, 409, traceId);
     if (message === "FORBIDDEN") return err("forbidden", "This action requires management access", 403, traceId);
     if (message === "CLIENT_NOT_ACCESSIBLE") return err("not_found", "Client not found or not accessible", 404, traceId);
     if (message === "STAFF_NOT_FOUND") return err("staff_not_found", "Active staff member not found", 404, traceId);
