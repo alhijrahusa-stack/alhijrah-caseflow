@@ -102,3 +102,34 @@
 @media (prefers-reduced-motion: reduce) {
   .cg-appointment-card,.cg-appointment-action,.cg-appointment-secondary,.staff-shell .cg-command-button { transition: none !important; }
 }
+
+.staff-shell .cg-stage-tab {
+  min-height: 67px;
+  background-image: linear-gradient(155deg, rgba(19,49,77,.98), rgba(6,20,36,.98));
+  border-color: rgba(212,175,55,.24);
+  box-shadow: inset 0 1px rgba(255,255,255,.055);
+  text-wrap: pretty;
+}
+.staff-shell .cg-stage-tab[aria-current="page"] {
+  border-color: rgba(240,201,102,.75);
+  background-image: linear-gradient(155deg, rgba(38,66,93,.98), rgba(15,36,59,.98));
+  box-shadow: inset 0 1px rgba(255,255,255,.13), 0 0 0 1px rgba(212,175,55,.08);
+}
+.staff-shell .cg-registry-card {
+  background: linear-gradient(165deg, #15324e, #091a2e 94%);
+  border-color: rgba(212,175,55,.31);
+  border-radius: 15px;
+  padding: 12px;
+  box-shadow: inset 0 1px rgba(255,255,255,.065);
+}
+.staff-shell .cg-registry-card:hover { border-color: rgba(241,204,103,.66); }
+.staff-shell .cg-command-button:disabled { opacity: .46; cursor: not-allowed; }
+.staff-shell .cg-command-button:focus-visible,.staff-shell .cg-stage-tab:focus-visible {
+  outline: 2px solid rgba(248,210,108,.9);
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .staff-shell .cg-stage-tab { min-height: 62px; padding: 10px; }
+  .staff-shell .cg-registry-card { padding: 12px; }
+  .staff-shell .cg-command-button { font-size: .79rem; }
+}
