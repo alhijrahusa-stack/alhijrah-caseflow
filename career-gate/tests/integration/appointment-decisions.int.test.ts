@@ -108,11 +108,13 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     if (!accountExists) await db`update clients set pipeline_stage='interview_passed' where id=${clientId}`;
     await db`update clients set pipeline_stage='payment_required' where id=${clientId}`;
 
+    let originalPayment = "";
     await withStaff(manager,async tx => {
       const account = await lockAccount(tx, clientId);
       const [transaction] = await tx`insert into payment_transactions
         (account_id,client_id,transaction_type,direction,amount,status,payment_method,occurred_at,source,recorded_by,idempotency_key)
         values (${account.id},${clientId},'payment','credit',150,'confirmed','cash',now(),'staff',${manager.staff.id},${randomUUID()}) returning id`;
+      originalPayment=String(transaction.id);
       await reconcileAccount(tx,{ account,staffId:manager.staff.id,traceId:"appointment-integration",
         eligibilityDate:"2026-10-25",triggerTransactionId:String(transaction.id),paymentMethod:"cash" });
     });
@@ -127,6 +129,21 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     expect(paperwork.rows.map(row=>row.id)).toContain(clientId);
     const unpaid = await operationalClientList(admin,"active",1,25,{stage:"payment_required",q:String(original.ref)});
     expect(unpaid.rows.map(row=>row.id)).not.toContain(clientId);
+
+    await withStaff(manager,async tx=>{
+      const account=await lockAccount(tx,clientId);
+      const [refund]=await tx`insert into payment_transactions
+        (account_id,client_id,transaction_type,direction,amount,status,payment_method,occurred_at,related_transaction_id,source,recorded_by,idempotency_key)
+        values (${account.id},${clientId},'refund','debit',150,'confirmed','cash',now(),${originalPayment},'staff',${manager.staff.id},${randomUUID()}) returning id`;
+      await reconcileAccount(tx,{account,staffId:manager.staff.id,traceId:"appointment-integration",
+        eligibilityDate:"2026-10-25",triggerTransactionId:String(refund.id),refundRecorded:true});
+    });
+    const [returned] = await db`select current_status,pipeline_stage from clients where id=${clientId}`;
+    expect(returned).toMatchObject({current_status:"screening_pending",pipeline_stage:"payment_required"});
+    const paymentAgain = await operationalClientList(admin,"active",1,25,{stage:"payment_required",q:String(original.ref)});
+    expect(paymentAgain.rows.map(row=>row.id)).toContain(clientId);
+    const paperworkAfterRefund=await operationalClientList(admin,"active",1,25,{stage:"paperwork_pending",q:String(original.ref)});
+    expect(paperworkAfterRefund.rows.map(row=>row.id)).not.toContain(clientId);
     const audits = await db`select action from activity_log where client_id=${clientId}
       and action in ('status_changed','pipeline_stage_changed') order by created_at desc`;
     expect(audits.some(r=>r.action==="pipeline_stage_changed")).toBe(true);
