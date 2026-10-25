@@ -2,6 +2,7 @@ import "server-only";
 import { withStaff } from "@/lib/auth";
 import { commissionAmount, resolveCommissionOwner, type CommissionBlockReason } from "@/lib/accounting-commission";
 import { CLIENT_FIELD, DISCOUNT_AMOUNT } from "@/lib/accounting-schema";
+import { syncPostPaymentLifecycle } from "@/lib/post-payment-lifecycle";
 
 /**
  * The authoritative financial write path.
@@ -65,6 +66,7 @@ export async function reconcileAccount(tx: Tx, args: {
     where id=${account.id}`;
 
   [balance] = await tx`select * from client_account_balances where account_id=${account.id}`;
+  await syncPostPaymentLifecycle(tx, account.client_id, args.staffId, args.traceId);
 
   let commission: CommissionRow | null = null;
   let commissionBlocked: CommissionBlockReason | null = null;

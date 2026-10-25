@@ -21,6 +21,7 @@ import {
   type Status,
 } from "@/lib/domain";
 import { enqueue } from "@/lib/jobs";
+import { syncPostPaymentLifecycle } from "@/lib/post-payment-lifecycle";
 import { channelConfigured } from "@/lib/notify";
 import { inviteUser } from "@/lib/providers/supabase-auth";
 import { sendEmail, sendSms } from "@/lib/providers/messaging";
@@ -490,6 +491,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         entityType: "client", entityId: appt.client_id,
         oldValue: { status: appt.current_status }, newValue: { status },
       });
+      if (a.decision === "pass") await syncPostPaymentLifecycle(tx, String(appt.client_id), String(actor.staffId), actor.traceId);
       return { changed: true, decision: a.decision, client_id: appt.client_id };
     }
 
