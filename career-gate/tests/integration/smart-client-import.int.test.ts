@@ -5,6 +5,7 @@ import type { StaffSession } from "@/lib/auth";
 import { runAudit } from "@/lib/audit";
 import { publicImportStatus } from "@/lib/public-status";
 import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
+import { listActiveImportQueue, listArchivedImportQueue } from "@/lib/smart-import-archive";
 import {
   approveImportCase,
   previewImportRows,
@@ -221,6 +222,8 @@ describe("Smart Career Collect Client staging security", () => {
       traceId: trace,
     });
     expect(again).toEqual({ client_id: approved.client_id, idempotent: true });
+    expect((await listActiveImportQueue(manager, { q: caseId })).rows).toHaveLength(0);
+    expect((await listArchivedImportQueue(manager, { q: caseId })).rows.map((row) => row.id)).toContain(caseId);
     const [{ count }] = await db`select count(*)::int as count from clients where phone='3135557781'`;
     expect(count).toBe(1);
     await expect(saveImportReview(manager, {
