@@ -451,13 +451,13 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       if (!["scheduled", "confirmed", "rescheduled", "attended"].includes(String(appt.status))) {
         throw new ActionError("appointment_closed", "Appointment is no longer open", 409);
       }
+      if (appt.appointment_kind !== "employment_interview") throw new ActionError("invalid_appointment_kind", "This appointment is not an employment interview", 409);
       if (["pass", "fail"].includes(a.decision) && appt.status !== "attended") {
         throw new ActionError("attendance_required", "Record interview attendance before Pass or Fail", 409);
       }
       if (["missed", "cancelled_interested", "cancelled_not_interested"].includes(a.decision) && appt.status === "attended") {
         throw new ActionError("already_attended", "An attended interview cannot be marked missed or cancelled", 409);
       }
-      if (appt.appointment_kind !== "employment_interview") throw new ActionError("invalid_appointment_kind", "This appointment is not an employment interview", 409);
       if (appt.current_status !== "appointment_scheduled") {
         throw new ActionError("lifecycle_conflict", "Client must be in Appointment Scheduled", 409);
       }
