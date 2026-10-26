@@ -1,11 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { dateTime } from "../lib/format";
-import { db, intakeBody, RUN, signIn, submitIntake } from "./helpers";
+import { dateOnly, dateTime } from "../lib/format";
+import { db, intakeBody, RUN, signIn, staffAction, submitIntake } from "./helpers";
 
 for (const layout of [
-  { name: "phone grid", width: 390, table: false },
-  { name: "desktop grid", width: 1366, table: false },
-  { name: "desktop table", width: 1366, table: true },
+  { name: "phone grid", width: 390, table: false, completed: false },
+  { name: "desktop grid", width: 1366, table: false, completed: false },
+  { name: "desktop table", width: 1366, table: true, completed: false },
+  { name: "completed phone", width: 390, table: false, completed: true },
+  { name: "completed desktop", width: 1366, table: false, completed: true },
 ]) {
   test(`${layout.name}: client name opens the full file without a drawer or hydration error`, async ({ browser, baseURL, request }) => {
     const name = `TEST Registry Navigation ${layout.name} ${RUN}`;
@@ -14,6 +16,10 @@ for (const layout of [
     const [client] = await db()`select id from clients where ref=${intake.json.ref}`;
     const createdAt = "2026-10-26T02:30:00.000Z";
     await db()`update clients set created_at=${createdAt} where id=${client.id}`;
+    if (layout.completed) {
+      const completed = await staffAction(request, "admin", { action: "override_status", client_id: client.id, status: "completed", reason: "e2e completed registry navigation" });
+      expect(completed.status, JSON.stringify(completed.json)).toBe(200);
+    }
 
     const context = await browser.newContext({ baseURL, viewport: { width: layout.width, height: 900 }, timezoneId: "Pacific/Honolulu" });
     await signIn(context, baseURL!, "admin");
@@ -28,14 +34,14 @@ for (const layout of [
       if (url.pathname === "/api/staff/client-resource") drawerRequests.push(url.pathname);
     });
 
-    const registry = `/staff/clients?q=${encodeURIComponent(intake.json.ref)}`;
+    const registry = `/staff/clients?q=${encodeURIComponent(intake.json.ref)}${layout.completed ? "&view=completed" : ""}`;
     await page.goto(registry);
-    await page.getByRole("button", { name: layout.table ? "Table" : "Grid", exact: true }).click();
+    if (!layout.completed) await page.getByRole("button", { name: layout.table ? "Table" : "Grid", exact: true }).click();
     const clientLink = page.getByRole("link", { name: layout.table ? `Open client ${name}` : name, exact: true });
     await expect(clientLink).toBeVisible();
     await expect(clientLink).toHaveAttribute("href", `/staff/client/${client.id}`);
     if (layout.table) await expect(page.locator("table")).toContainText(dateTime(createdAt));
-    else await expect(page.locator("article time")).toHaveText(dateTime(createdAt));
+    else await expect(page.locator("article time")).toHaveText(layout.completed ? dateOnly("2026-10-25") : dateTime(createdAt));
     expect(errors).toEqual([]);
     expect(prefetches).toEqual([]);
     expect(drawerRequests).toEqual([]);
