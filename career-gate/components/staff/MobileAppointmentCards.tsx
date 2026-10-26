@@ -3,7 +3,9 @@
 import { Client360Drawer } from "@/components/staff/Client360Drawer";
 import { useEffect, useRef, useState } from "react";
 import { AppointmentNotificationPanel } from "@/components/staff/AppointmentNotificationPanel";
-import { AppointmentRowActions } from "@/components/staff/sections/Work";
+import { AppointmentRowActions, RescheduleModal } from "@/components/staff/sections/Work";
+import { useRowAction } from "@/components/staff/sections/common";
+import { fromLocalInput } from "@/lib/format";
 
 type Appointment = Record<string, string>;
 type Props = { appointments: Appointment[] };
@@ -17,6 +19,9 @@ function displayDate(value: string) {
 export function MobileAppointmentCards({ appointments }: Props) {
   const [selected, setSelected] = useState<Appointment | null>(null);
   const [selectedClient, setSelectedClient] = useState<{ id: string; ref: string; full_name: string } | null>(null);
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const rescheduleAction = useRowAction("Appointment decision saved");
+  const rescheduleAppt = appointments.find((item) => item.id === reschedulingId) ?? null;
   const selectedVisible = selected && appointments.some((a) => a.id === selected.id) ? selected : null;
   const [tab, setTab] = useState<"notification" | "actions">("notification");
   const [offset, setOffset] = useState(0);
@@ -63,6 +68,25 @@ export function MobileAppointmentCards({ appointments }: Props) {
       </article>)}
     </div>
     {selectedClient && <Client360Drawer client={selectedClient} onClose={() => setSelectedClient(null)} />}
+    {rescheduleAppt && <RescheduleModal
+      key={rescheduleAppt.id}
+      appt={rescheduleAppt}
+      pending={rescheduleAction.pending}
+      error={rescheduleAction.error}
+      onClose={() => setReschedulingId(null)}
+      onSave={async ({ when, location, notes }) => {
+        const instant = fromLocalInput(when);
+        if (!Number.isFinite(instant.getTime())) { rescheduleAction.setError("Invalid appointment date"); return; }
+        const ok = await rescheduleAction.go({
+          action: "update_appointment",
+          appointment_id: rescheduleAppt.id,
+          scheduled_at: instant.toISOString(),
+          location: location || null,
+          notes: notes || null,
+        });
+        if (ok) setReschedulingId(null);
+      }}
+    />}
     {selectedVisible && <div className="fixed inset-0 z-[1000]" data-testid="executive-bottom-drawer">
       <button type="button" className="absolute inset-0 h-full w-full bg-[#020a15]/75 backdrop-blur-[3px]" onClick={dismiss} aria-label="Close appointment actions" />
       <section role="dialog" aria-modal="true" aria-labelledby="smart-gate-heading" className="absolute inset-x-0 bottom-0 flex max-h-[min(88dvh,850px)] min-h-0 flex-col overflow-hidden rounded-t-[28px] border border-amber-300/25 bg-[#0b1d30] text-white shadow-[0_-25px_65px_rgba(0,0,0,.55)]" style={{ transform: `translateY(${offset}px)`, transition: "transform 220ms cubic-bezier(.2,.8,.2,1)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
@@ -78,7 +102,7 @@ export function MobileAppointmentCards({ appointments }: Props) {
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-5" style={{WebkitOverflowScrolling:"touch"}}>
-          {tab === "notification" ? selectedVisible.status === "confirmed" ? <AppointmentNotificationPanel key={selectedVisible.id} appointmentId={selectedVisible.id}/> : <p className="rounded-xl border border-white/15 p-4 text-sm text-slate-300">Confirm this appointment before sending a confirmation.</p> : <div className="rounded-xl border border-white/15 bg-white/5 p-3"><AppointmentRowActions appt={selectedVisible}/></div>}
+          {tab === "notification" ? selectedVisible.status === "confirmed" ? <AppointmentNotificationPanel key={selectedVisible.id} appointmentId={selectedVisible.id}/> : <p className="rounded-xl border border-white/15 p-4 text-sm text-slate-300">Confirm this appointment before sending a confirmation.</p> : <div className="rounded-xl border border-white/15 bg-white/5 p-3"><AppointmentRowActions appt={selectedVisible} rescheduling={reschedulingId === selectedVisible.id} onReschedule={(id) => { dismiss(); rescheduleAction.setError(null); setReschedulingId(id); }} /></div>}
         </div>
       </section>
     </div>}
