@@ -199,8 +199,11 @@ test.describe.serial("office workflow", () => {
     await expect(page.getByTestId("appointment-status")).toHaveText("confirmed");
     await expect(page.getByTestId("appointment-row")).toContainText(`Office Room ${RUN}`);
     await page.getByTestId("appointment-row").getByRole("button", { name: "Edit / Reschedule" }).click();
-    await page.getByTestId("appointment-row").getByLabel("New date and time").fill(`${tomorrowLocal()}T19:00`);
-    await page.getByTestId("appointment-row").getByRole("button", { name: "Save changes" }).click();
+    const modal = page.getByTestId("reschedule-modal");
+    await expect(modal).toBeVisible({ timeout: 10_000 });
+    await modal.getByTestId("input-new-date-time").fill(`${tomorrowLocal()}T19:00`);
+    await modal.getByTestId("button-confirm-reschedule").click();
+    await expect(modal).toHaveCount(0);
     await expect(page.getByTestId("appointment-status")).toHaveText("rescheduled");
   });
 
