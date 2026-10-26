@@ -11,14 +11,16 @@ import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { CLIENT_FILE_SURFACE } from "@/components/staff/realtime/surfaces";
 import { useTargetedPayloads } from "@/components/staff/realtime/useTargetedUpdate";
 import { useStaff } from "@/components/staff/StaffContext";
+import { useHydrated } from "@/components/staff/useHydrated";
 import { StatusBadge } from "@/components/staff/StatusBadge";
 import { SoftDelete } from "@/components/staff/SoftDelete";
 import { StatusTimeline } from "@/components/staff/StatusTimeline";
-import type { Row } from "@/components/staff/sections/common";
+import { useRowAction, type Row } from "@/components/staff/sections/common";
 import { Documents } from "@/components/staff/sections/Documents";
 import { Activity, Alerts, Assessments, IntakeAgent, Messages } from "@/components/staff/sections/Insight";
 import { AmazonHistory, ClientInfo, EmploymentHistory, Preferences } from "@/components/staff/sections/Profile";
-import { Appointments, Contacts, Followups, Notes, Tasks } from "@/components/staff/sections/Work";
+import { Appointments, Contacts, Followups, Notes, RescheduleModal, Tasks } from "@/components/staff/sections/Work";
+import { fromLocalInput } from "@/lib/format";
 import type { ClientAccountSummary } from "@/lib/client-account";
 import type { Status } from "@/lib/domain";
 
@@ -110,6 +112,10 @@ export function ClientFile({
   const account = live.account;
   const { client: c } = data;
   const { isManager, isAdmin } = useStaff();
+  const isMounted = useHydrated();
+  const rescheduleAction = useRowAction("Appointment decision saved");
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const rescheduleAppt = data.appointments.find((appt) => String(appt.id) === reschedulingId) ?? null;
   const [panel, setPanel] = useState<Panel | null>(initialPanel);
 
   // The server resolves the requested tab from the URL. After that the tab is
@@ -246,7 +252,7 @@ export function ClientFile({
           <span className="cg-command-context" aria-hidden="true">COMMAND</span>
           <Link href={`/staff/client/${c.id}/edit`} aria-label="Edit Client" className="cg-command-button cg-command-primary">Correct Data</Link>
           {orderedQuick.filter(([, , allowed]) => allowed).map(([p, label], index) => (
-            <button key={p} type="button" onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
+            <button key={p} type="button" disabled={!isMounted} onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
               data-promoted={index < promoted.length}
               className={`cg-command-button ${panel === p ? "cg-command-active" : ""}`}>
               <span className="cg-command-signal" aria-hidden="true" />
@@ -257,17 +263,37 @@ export function ClientFile({
         </div>
       </div>
 
-      <div id="action-panel" className="relative z-40 scroll-mt-40">
-        {panel === "document" && <DocumentForm clientId={c.id} onDone={close} />}
-        {panel === "appointment" && <AppointmentForm clientId={c.id} onDone={close} />}
-        {panel === "note" && <AddNoteForm clientId={c.id} onDone={close} />}
-        {panel === "task" && <TaskForm clientId={c.id} onDone={close} />}
-        {panel === "contacted" && <ContactedForm clientId={c.id} onDone={close} />}
-        {panel === "status" && <StatusForm clientId={c.id} current={c.current_status} nextStep={c.next_step} onDone={close} />}
-        {panel === "next_step" && <NextStepForm clientId={c.id} nextStep={c.next_step} onDone={close} />}
-        {panel === "followup" && <FollowupForm clientId={c.id} onDone={close} />}
-        {panel === "assign" && <AssignForm clientId={c.id} current={c.assigned_staff} onDone={close} />}
+      <div id="action-panel" data-testid="client-action-panel" aria-busy={!isMounted} className="relative z-40 scroll-mt-40">
+        {isMounted && panel === "document" && <DocumentForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "appointment" && <AppointmentForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "note" && <AddNoteForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "task" && <TaskForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "contacted" && <ContactedForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "status" && <StatusForm clientId={c.id} current={c.current_status} nextStep={c.next_step} onDone={close} />}
+        {isMounted && panel === "next_step" && <NextStepForm clientId={c.id} nextStep={c.next_step} onDone={close} />}
+        {isMounted && panel === "followup" && <FollowupForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "assign" && <AssignForm clientId={c.id} current={c.assigned_staff} onDone={close} />}
       </div>
+
+      {isMounted && rescheduleAppt && <RescheduleModal
+        key={String(rescheduleAppt.id)}
+        appt={rescheduleAppt}
+        pending={rescheduleAction.pending}
+        error={rescheduleAction.error}
+        onClose={() => setReschedulingId(null)}
+        onSave={async ({ when, location, notes }) => {
+          const instant = fromLocalInput(when);
+          if (!Number.isFinite(instant.getTime())) { rescheduleAction.setError("Invalid appointment date"); return; }
+          const ok = await rescheduleAction.go({
+            action: "update_appointment",
+            appointment_id: rescheduleAppt.id,
+            scheduled_at: instant.toISOString(),
+            location: location || null,
+            notes: notes || null,
+          });
+          if (ok) setReschedulingId(null);
+        }}
+      />}
 
       {isManager && data.alerts.length > 0 && <Alerts alerts={data.alerts} />}
 
@@ -312,7 +338,12 @@ export function ClientFile({
         </div>
       )}
 
-      {tab === "appointments" && <Appointments appts={data.appointments} onAdd={isManager ? openPanel("appointment") : null} />}
+      {tab === "appointments" && <Appointments
+        appts={data.appointments}
+        onAdd={isManager ? openPanel("appointment") : null}
+        reschedulingId={reschedulingId}
+        onReschedule={(id) => { rescheduleAction.setError(null); setReschedulingId(id); }}
+      />}
 
       {tab === "work" && (
         <div className="grid gap-4 xl:grid-cols-2">

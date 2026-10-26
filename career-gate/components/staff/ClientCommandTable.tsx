@@ -1,9 +1,15 @@
 "use client";
 import Link from "next/link";
-import { Client360Drawer } from "@/components/staff/Client360Drawer";
+import dynamic from "next/dynamic";
 import { CLIENT_STAGES, type ClientStageFilter } from "@/lib/client-lifecycle-filters";
+import { dateTime } from "@/lib/format";
 import { useCallback, useMemo, useState } from "react";
 import { useTargetedMutationBatch } from "@/components/staff/realtime/useTargetedMutation";
+
+const Client360Drawer = dynamic(() => import("@/components/staff/Client360Drawer").then(module => module.Client360Drawer), {
+ ssr: false,
+ loading: () => <p role="status" className="text-sm text-slate-300">Loading Client 360…</p>,
+});
 
 export type CommandClient={
  id:string;ref:string;full_name:string;phone:string;email:string|null;city:string|null;
@@ -58,8 +64,8 @@ export function ClientCommandTable({clients,staff,management}:{clients:CommandCl
        <div className="flex min-w-0 items-start gap-3">
          <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-amber-200/30 bg-amber-200/10 text-sm font-bold text-amber-100">{c.full_name.trim().split(/\s+/).slice(0,2).map(x=>x.charAt(0)).join("").toUpperCase()}</span>
          <div className="min-w-0">
-           <button type="button" onClick={()=>setDrawer(c)} className="block max-w-full break-words text-left text-base font-semibold leading-6 text-white hover:text-amber-200">{c.full_name}</button>
-           <Link href={`/staff/client/${c.id}`} className="mt-0.5 block font-mono text-xs text-cyan-200 hover:underline">{c.ref}</Link>
+           <Link href={`/staff/client/${c.id}`} prefetch={false} className="block max-w-full break-words text-left text-base font-semibold leading-6 text-white hover:text-amber-200">{c.full_name}</Link>
+           <Link href={`/staff/client/${c.id}`} prefetch={false} className="mt-0.5 block font-mono text-xs text-cyan-200 hover:underline">{c.ref}</Link>
            <p className="mt-1 truncate text-xs text-slate-400">{c.phone}{c.city?` · ${c.city}`:""}</p>
          </div>
        </div>
@@ -67,11 +73,14 @@ export function ClientCommandTable({clients,staff,management}:{clients:CommandCl
      </div>
      <div className="mt-2.5 flex flex-wrap items-center gap-2">{badge(c.current_status)}{c.amazon_account_ready&&<span className="text-xs text-emerald-300">Amazon READY</span>}{c.payment_status==="paid"&&<span className="text-xs text-emerald-300">Paid</span>}<span className="text-xs text-slate-400">{c.assigned_name??"Unassigned"}</span></div>
      <div className="mt-2.5 grid grid-cols-2 gap-2 border-t border-white/10 pt-2.5 text-xs">
-       <div className="min-w-0"><span className="text-slate-400">Received / الاستلام</span><time dateTime={c.created_at} className="mt-1 block font-medium text-slate-200">{new Date(c.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</time></div>
+       <div className="min-w-0"><span className="text-slate-400">Received / الاستلام</span><time dateTime={new Date(c.created_at).toISOString()} className="mt-1 block font-medium text-slate-200">{dateTime(c.created_at)}</time></div>
        <div className="min-w-0"><span className="text-slate-400">Location · Shift</span><p className="mt-1 truncate text-slate-200">{c.site_name??"—"} · {c.shift_name??"—"}</p></div>
      </div>
      <p className="mt-2.5 line-clamp-1 text-xs text-slate-300">{c.next_step}</p>
-     <button type="button" className="cg-command-button mt-2.5 w-full" onClick={()=>setDrawer(c)}>Open Client 360 ↗</button>
+     <div className="mt-2.5 flex flex-wrap gap-2">
+       <Link href={`/staff/client/${c.id}`} prefetch={false} className="cg-command-button flex-1 text-center">Open Client ↗</Link>
+       <button type="button" className="cg-command-button text-xs" onClick={()=>setDrawer(c)}>Quick view · Client 360</button>
+     </div>
    </article>)}
  </div>;
  return <section className="ops-glass-card space-y-4">
@@ -93,9 +102,9 @@ export function ClientCommandTable({clients,staff,management}:{clients:CommandCl
     {targetStage&&<p className="w-full text-xs text-amber-200/90" role="status">Moves require verified prerequisites. Invalid moves are rejected atomically; Pass and payment are never inferred.</p>}
    </div>}
   {error&&<p role="alert" className="text-red-300">{error}</p>}
-  {view==="table"?<><div className="hidden min-w-0 overflow-x-auto xl:block"><table className="table min-w-[980px]"><thead><tr>{management&&<th><input type="checkbox" aria-label="Select visible" checked={!!eligible.length&&eligible.every(x=>selected.includes(x.id))} onChange={e=>setSelected(cur=>e.target.checked?[...new Set([...cur,...eligible.map(x=>x.id)])]:cur.filter(x=>!eligible.some(y=>y.id===x)))} /></th>}<th>Case ID</th><th>Candidate</th><th>Pipeline Stage</th><th>Assigned To</th><th>Received</th><th>Last Activity</th><th>Next Milestone</th><th>Quick View</th></tr></thead><tbody>{matching.map(c=><tr key={c.id} className="cg-registry-row border-b border-white/[.07]">{management&&<td><input type="checkbox" aria-label={`Select ${c.full_name}`} checked={selected.includes(c.id)} onChange={()=>toggle(c.id)} disabled={["completed","cancelled"].includes(c.current_status)}/></td>}<td className="font-mono font-extrabold tracking-wide text-lime-300 drop-shadow-[0_0_8px_rgba(163,230,53,.2)]"><Link href={`/staff/client/${c.id}`} className="hover:underline">{c.ref}</Link></td><td><button type="button" onClick={() => setDrawer(c)} className="group flex min-w-0 items-center gap-3 text-left" aria-label={`Open ${c.full_name} in Client 360`}><span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-amber-200/25 bg-gradient-to-br from-amber-200/20 to-sky-300/10 text-sm font-bold text-amber-100 shadow-[inset_0_1px_rgba(255,255,255,.18)]">{c.full_name.trim().split(/\s+/).slice(0,2).map(x=>x.charAt(0)).join("").toUpperCase()}</span><span className="min-w-0"><strong className="block truncate text-[15px] font-semibold tracking-tight text-slate-100 transition group-hover:text-amber-200">{c.full_name}</strong><small className="block truncate text-xs font-normal text-slate-400">{c.phone} · {c.city??"—"}</small></span></button></td><td>{badge(c.current_status)}</td><td>{c.assigned_name??"Unassigned"}</td><td className="whitespace-nowrap text-sm text-slate-300">{new Date(c.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</td><td className="whitespace-nowrap text-amber-200">{new Date(c.updated_at).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"})}</td><td>{c.next_step}</td><td><button type="button" className="rounded-2xl border border-amber-300/30 bg-amber-200/[.06] px-4 py-2 text-sm text-amber-100 shadow-[inset_0_1px_rgba(255,255,255,.14)] transition hover:-translate-y-px hover:border-amber-300/60 hover:bg-amber-200/15" onClick={()=>setDrawer(c)}>View</button></td></tr>)}</tbody></table></div><div className="xl:hidden">{cards}</div></>:cards}
+  {view==="table"?<><div className="hidden min-w-0 overflow-x-auto xl:block"><table className="table min-w-[980px]"><thead><tr>{management&&<th><input type="checkbox" aria-label="Select visible" checked={!!eligible.length&&eligible.every(x=>selected.includes(x.id))} onChange={e=>setSelected(cur=>e.target.checked?[...new Set([...cur,...eligible.map(x=>x.id)])]:cur.filter(x=>!eligible.some(y=>y.id===x)))} /></th>}<th>Case ID</th><th>Candidate</th><th>Pipeline Stage</th><th>Assigned To</th><th>Received</th><th>Last Activity</th><th>Next Milestone</th><th>Quick View</th></tr></thead><tbody>{matching.map(c=><tr key={c.id} className="cg-registry-row border-b border-white/[.07]">{management&&<td><input type="checkbox" aria-label={`Select ${c.full_name}`} checked={selected.includes(c.id)} onChange={()=>toggle(c.id)} disabled={["completed","cancelled"].includes(c.current_status)}/></td>}<td className="font-mono font-extrabold tracking-wide text-lime-300 drop-shadow-[0_0_8px_rgba(163,230,53,.2)]"><Link href={`/staff/client/${c.id}`} prefetch={false} className="hover:underline">{c.ref}</Link></td><td><Link href={`/staff/client/${c.id}`} prefetch={false} className="group flex min-w-0 items-center gap-3 text-left" aria-label={`Open client ${c.full_name}`}><span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-amber-200/25 bg-gradient-to-br from-amber-200/20 to-sky-300/10 text-sm font-bold text-amber-100 shadow-[inset_0_1px_rgba(255,255,255,.18)]">{c.full_name.trim().split(/\s+/).slice(0,2).map(x=>x.charAt(0)).join("").toUpperCase()}</span><span className="min-w-0"><strong className="block truncate text-[15px] font-semibold tracking-tight text-slate-100 transition group-hover:text-amber-200">{c.full_name}</strong><small className="block truncate text-xs font-normal text-slate-400">{c.phone} · {c.city??"—"}</small></span></Link></td><td>{badge(c.current_status)}</td><td>{c.assigned_name??"Unassigned"}</td><td className="whitespace-nowrap text-sm text-slate-300">{dateTime(c.created_at)}</td><td className="whitespace-nowrap text-amber-200">{dateTime(c.updated_at)}</td><td>{c.next_step}</td><td><button type="button" className="rounded-2xl border border-amber-300/30 bg-amber-200/[.06] px-4 py-2 text-sm text-amber-100 shadow-[inset_0_1px_rgba(255,255,255,.14)] transition hover:-translate-y-px hover:border-amber-300/60 hover:bg-amber-200/15" onClick={()=>setDrawer(c)}>Quick view · Client 360</button></td></tr>)}</tbody></table></div><div className="xl:hidden">{cards}</div></>:cards}
   {!matching.length&&<p className="p-4 text-center text-slate-400">No matching cases</p>}
-  {drawer && <Client360Drawer client={drawer} onClose={closeDrawer} />}
+  {drawer && <Client360Drawer key={drawer.id} client={drawer} onClose={closeDrawer} />}
 
  </section>;
 }

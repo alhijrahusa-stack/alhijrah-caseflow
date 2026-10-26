@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useHydrated } from "@/components/staff/useHydrated";
 import { QuickDate, QuickDateTime } from "@/components/staff/QuickDate";
 import { useStaff } from "@/components/staff/StaffContext";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -11,17 +13,69 @@ import {
   POST_HIRE_STATUS_LABELS,
   POST_HIRE_STATUSES,
 } from "@/lib/domain";
-import { dateOnly, dateTime, fromLocalInput, toLocalInput } from "@/lib/format";
+import { dateOnly, dateTime, toLocalInput } from "@/lib/format";
 import { Card, SmallBtn, useRowAction, type Row } from "./common";
 
-export function AppointmentRowActions({ appt }: { appt: Row }) {
+
+export type RescheduleValues = { when: string; location: string; notes: string };
+
+export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
+  appt: Row;
+  pending: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSave: (values: RescheduleValues) => Promise<void>;
+}) {
+  const mounted = useHydrated();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [when, setWhen] = useState(() => toLocalInput(appt.scheduled_at));
+  const [location, setLocation] = useState<string>(appt.location ?? "");
+  const [notes, setNotes] = useState<string>(appt.notes ?? "");
+
+  useEffect(() => {
+    if (!mounted) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    dialog.showModal();
+    return () => { if (dialog.open) dialog.close(); };
+  }, [mounted]);
+
+  if (!mounted) return null;
+  return createPortal(
+    <dialog
+      ref={dialogRef}
+      data-testid="reschedule-modal"
+      aria-label="Reschedule appointment"
+      onCancel={(event) => { event.preventDefault(); if (!pending) onClose(); }}
+      className="fixed inset-0 m-auto max-h-[90vh] w-[min(90vw,36rem)] overflow-y-auto rounded-2xl border border-white/20 bg-slate-900 p-5 text-slate-100 shadow-2xl backdrop:bg-slate-950/80"
+    >
+      <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); void onSave({ when, location, notes }); }}>
+        <h2 className="text-lg font-semibold">Reschedule appointment</h2>
+        <QuickDateTime ariaLabel="New date and time" testId="input-new-date-time" autoFocus value={when} onChange={setWhen} required />
+        <input aria-label="Location" className="input" placeholder="Location" value={location} onChange={(event) => setLocation(event.target.value)} />
+        <input aria-label="Notes" className="input" placeholder="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} />
+        {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
+        <div className="flex flex-wrap justify-end gap-2">
+          <SmallBtn aria-label="Cancel reschedule" disabled={pending} onClick={onClose}>Cancel</SmallBtn>
+          <SmallBtn type="submit" aria-label="Save changes" data-testid="button-confirm-reschedule" disabled={pending}>
+            {pending ? "Saving..." : "Save changes"}
+          </SmallBtn>
+        </div>
+      </form>
+    </dialog>,
+    document.body,
+  );
+}
+
+export function AppointmentRowActions({ appt, onReschedule, rescheduling }: {
+  appt: Row;
+  onReschedule: (appointmentId: string) => void;
+  rescheduling: boolean;
+}) {
   const { isManager } = useStaff();
   const a = useRowAction("Appointment decision saved");
-  const [editing, setEditing] = useState(false);
+  const isMounted = useHydrated();
   const [cancelling, setCancelling] = useState(false);
-  const [when, setWhen] = useState(toLocalInput(appt.scheduled_at));
-  const [location, setLocation] = useState(appt.location ?? "");
-  const [notes, setNotes] = useState(appt.notes ?? "");
   const [decisionNote, setDecisionNote] = useState("");
   if (!isManager) return null;
   const closed = ["cancelled", "attended", "missed"].includes(appt.status);
@@ -50,7 +104,7 @@ export function AppointmentRowActions({ appt }: { appt: Row }) {
             <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "attended" })}>Attended / حضر</SmallBtn>
             <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "missed" })}>Missed / تخلف</SmallBtn>
           </>}
-          <SmallBtn aria-label="Edit / Reschedule" disabled={a.pending} onClick={() => setEditing((v) => !v)}>Reschedule / إعادة جدولة</SmallBtn>
+          <SmallBtn aria-label="Edit / Reschedule" aria-expanded={rescheduling} disabled={!isMounted || a.pending} onClick={() => onReschedule(String(appt.id))}>Reschedule / إعادة جدولة</SmallBtn>
           {interview
             ? <SmallBtn disabled={a.pending} onClick={() => setCancelling((v) => !v)}>Canceled / إلغاء</SmallBtn>
             : <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "cancelled" })}>Cancel / إلغاء</SmallBtn>}
@@ -61,25 +115,18 @@ export function AppointmentRowActions({ appt }: { appt: Row }) {
           <SmallBtn disabled={a.pending} onClick={() => decide("cancelled_not_interested")}>Not interested — close file</SmallBtn>
         </div>}
       </>}
-      {editing && !closed && <form className="grid gap-2 rounded-xl border border-white/15 bg-white/5 p-3" onSubmit={async (e) => {
-        e.preventDefault();
-        const instant = fromLocalInput(when);
-        if (!Number.isFinite(instant.getTime())) { a.setError("Invalid appointment date"); return; }
-        const ok = await a.go({ action: "update_appointment", appointment_id: appt.id, scheduled_at: instant.toISOString(), location: location || null, notes: notes || null });
-        if (ok) setEditing(false);
-      }}>
-        <QuickDateTime ariaLabel="New date and time" value={when} onChange={setWhen} required />
-        <input aria-label="Location" className="input" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
-        <input aria-label="Notes" className="input" placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        <SmallBtn type="submit" aria-label="Save changes" disabled={a.pending}>{a.pending ? "Saving..." : "Save changes"}</SmallBtn>
-      </form>}
       {a.pending && <p role="status" className="text-xs text-amber-200">Saving to Career Gate...</p>}
       {a.error && <p role="alert" className="text-xs text-red-300">{a.error}</p>}
     </div>
   );
 }
 
-export function Appointments({ appts, onAdd }: { appts: Row[]; onAdd: (() => void) | null }) {
+export function Appointments({ appts, onAdd, onReschedule, reschedulingId }: {
+  appts: Row[];
+  onAdd: (() => void) | null;
+  onReschedule: (appointmentId: string) => void;
+  reschedulingId: string | null;
+}) {
   return (
     <Card title="Appointments" id="appointments" actions={onAdd && <SmallBtn onClick={onAdd}>+ Add appointment</SmallBtn>}>
       {appts.length === 0 ? (
@@ -96,7 +143,7 @@ export function Appointments({ appts, onAdd }: { appts: Row[]; onAdd: (() => voi
                   <td>{x.resource_key === "office" ? "Office" : "Staff member"}</td>
                   <td>{x.location ?? "—"}</td>
                   <td data-testid="appointment-status">{x.status}</td>
-                  <td><AppointmentRowActions appt={x} /></td>
+                  <td><AppointmentRowActions appt={x} onReschedule={onReschedule} rescheduling={reschedulingId === String(x.id)} /></td>
                 </tr>
               ))}
             </tbody>

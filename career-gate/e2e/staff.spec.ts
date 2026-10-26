@@ -1,8 +1,8 @@
 import { expect, type Page, test } from "@playwright/test";
 import { accessToken, db, FIXTURE_CATALOG, intakeBody, PNG, RUN, signIn, STAFF, staffAction, submitIntake } from "./helpers";
 
-const tomorrowLocal = () => {
-  const d = new Date(Date.now() + 36 * 3600 * 1000);
+const tomorrowLocal = (additionalDays = 0) => {
+  const d = new Date(Date.now() + (36 + 24 * additionalDays) * 3600 * 1000);
   return d.toISOString().slice(0, 10);
 };
 
@@ -169,7 +169,7 @@ test.describe.serial("office workflow", () => {
     expect(doc.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  test("scheduling: book a suggested slot, collisions refused, reschedule", async ({ request }) => {
+  test("scheduling: book a suggested slot, collisions refused, reschedule", async ({ request }, testInfo) => {
     for (let d = 0; d < 7; d++) {
       const r = await staffAction(request, "manager", { action: "upsert_availability", resource_key: "office", weekday: d, start_time: "08:00", end_time: "20:00", slot_minutes: 30 });
       expect(r.status).toBe(200);
@@ -198,9 +198,29 @@ test.describe.serial("office workflow", () => {
     await page.getByTestId("appointment-row").getByRole("button", { name: "Confirm" }).click();
     await expect(page.getByTestId("appointment-status")).toHaveText("confirmed");
     await expect(page.getByTestId("appointment-row")).toContainText(`Office Room ${RUN}`);
-    await page.getByTestId("appointment-row").getByRole("button", { name: "Edit / Reschedule" }).click();
-    await page.getByTestId("appointment-row").getByLabel("New date and time").fill(`${tomorrowLocal()}T19:00`);
-    await page.getByTestId("appointment-row").getByRole("button", { name: "Save changes" }).click();
+    const trigger = page.getByTestId("appointment-row").getByRole("button", { name: "Edit / Reschedule" });
+    await trigger.click();
+    const modal = page.getByTestId("reschedule-modal");
+    try {
+      await expect(modal).toBeVisible({ timeout: 10_000 });
+    } catch (error) {
+      const diagnostics = await page.evaluate(() => {
+        const button = document.querySelector<HTMLButtonElement>('button[aria-label="Edit / Reschedule"]');
+        return {
+          tab: new URLSearchParams(location.search).get("tab"),
+          appointmentRows: document.querySelectorAll('[data-testid="appointment-row"]').length,
+          triggerPresent: Boolean(button),
+          triggerExpanded: button?.getAttribute("aria-expanded") ?? null,
+          triggerDisabled: button?.disabled ?? null,
+          dialogCount: document.querySelectorAll('[data-testid="reschedule-modal"]').length,
+        };
+      });
+      console.error("RESCHEDULE_LIFECYCLE_DIAGNOSTICS", JSON.stringify(diagnostics));
+      throw error;
+    }
+    await modal.getByTestId("input-new-date-time").fill(`${tomorrowLocal(testInfo.repeatEachIndex)}T19:00`);
+    await modal.getByTestId("button-confirm-reschedule").click();
+    await expect(modal).toHaveCount(0);
     await expect(page.getByTestId("appointment-status")).toHaveText("rescheduled");
   });
 

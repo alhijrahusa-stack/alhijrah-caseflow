@@ -46,7 +46,7 @@ test("field appointment and client workspaces remain usable at laptop and phone 
   await page.getByText("Location & Shift · Assign existing client").click();
   await expect(compactAssignment.getByRole("combobox", { name: "Client", exact: true })).toBeVisible();
   if (await page.getByTestId("client-registry-responsive-cards").locator("article").count()) {
-    await page.getByTestId("client-registry-responsive-cards").getByRole("button", { name: "Open Client 360" }).first().click();
+    await page.getByTestId("client-registry-responsive-cards").getByRole("button", { name: "Quick view · Client 360" }).first().click();
     await expect(page.getByRole("dialog", { name: /Client 360/ })).toBeVisible();
     await page.getByRole("button", { name: "Close Client 360" }).click();
   }

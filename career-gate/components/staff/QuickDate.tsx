@@ -82,12 +82,16 @@ export function QuickDateTime({
   disabled = false,
   required = false,
   ariaLabel = "Date and time",
+  testId,
+  autoFocus = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
   required?: boolean;
   ariaLabel?: string;
+  testId?: string;
+  autoFocus?: boolean;
 }) {
   const today = todayInOffice();
   const tomorrow = addDays(today, 1);
@@ -113,7 +117,7 @@ export function QuickDateTime({
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <input aria-label={ariaLabel} type="datetime-local" className="ops-input" value={value}
+        <input data-testid={testId} autoFocus={autoFocus} aria-label={ariaLabel} type="datetime-local" className="ops-input" value={value}
           required={required} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
         {preview && <span className="text-xs text-slate-500">Selected: <strong className="font-medium text-slate-300">{preview}</strong></span>}
       </div>

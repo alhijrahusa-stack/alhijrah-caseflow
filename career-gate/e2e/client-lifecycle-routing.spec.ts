@@ -38,7 +38,7 @@ test("dashboard stations route into one canonical clients registry with safe act
   for (const text of ["New Intake", "Account Setup", "Job Ready", "Appointments", "Payment Required", "Paperwork Pending"])
     expect(optionLabels).toContain(text);
 
-  const open = page.getByRole("button", { name: "Open Client 360" }).first();
+  const open = page.getByRole("button", { name: "Quick view · Client 360" }).first();
   if (await open.count()) {
     await open.click();
     const drawer = page.getByRole("dialog", { name: /Client 360:/ });
