@@ -198,9 +198,26 @@ test.describe.serial("office workflow", () => {
     await page.getByTestId("appointment-row").getByRole("button", { name: "Confirm" }).click();
     await expect(page.getByTestId("appointment-status")).toHaveText("confirmed");
     await expect(page.getByTestId("appointment-row")).toContainText(`Office Room ${RUN}`);
-    await page.getByTestId("appointment-row").getByRole("button", { name: "Edit / Reschedule" }).click();
+    const trigger = page.getByTestId("appointment-row").getByRole("button", { name: "Edit / Reschedule" });
+    await trigger.click();
     const modal = page.getByTestId("reschedule-modal");
-    await expect(modal).toBeVisible({ timeout: 10_000 });
+    try {
+      await expect(modal).toBeVisible({ timeout: 10_000 });
+    } catch (error) {
+      const diagnostics = await page.evaluate(() => {
+        const button = document.querySelector<HTMLButtonElement>('button[aria-label="Edit / Reschedule"]');
+        return {
+          tab: new URLSearchParams(location.search).get("tab"),
+          appointmentRows: document.querySelectorAll('[data-testid="appointment-row"]').length,
+          triggerPresent: Boolean(button),
+          triggerExpanded: button?.getAttribute("aria-expanded") ?? null,
+          triggerDisabled: button?.disabled ?? null,
+          dialogCount: document.querySelectorAll('[data-testid="reschedule-modal"]').length,
+        };
+      });
+      console.error("RESCHEDULE_LIFECYCLE_DIAGNOSTICS", JSON.stringify(diagnostics));
+      throw error;
+    }
     await modal.getByTestId("input-new-date-time").fill(`${tomorrowLocal()}T19:00`);
     await modal.getByTestId("button-confirm-reschedule").click();
     await expect(modal).toHaveCount(0);
