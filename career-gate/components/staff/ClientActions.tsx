@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAction } from "@/components/forms/useAction";
 import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 import { QuickDate, QuickDateTime } from "@/components/staff/QuickDate";
@@ -48,9 +48,14 @@ function Shell({ title, children, error, pending, onCancel, submitLabel, testId 
 
 function useSubmit(onDone: () => void, success: string) {
   const a = useAction({ successMessage: success });
+  const isMounted = useRef(false);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
   const submit = async (payload: Record<string, unknown>) => {
     const r = await a.run(payload);
-    if (r) onDone();
+    if (r && isMounted.current) onDone();
     return r;
   };
   return { ...a, submit };
