@@ -73,7 +73,7 @@ export function ClientCommandTable({clients,staff,management}:{clients:CommandCl
      </div>
      <div className="mt-2.5 flex flex-wrap items-center gap-2">{badge(c.current_status)}{c.amazon_account_ready&&<span className="text-xs text-emerald-300">Amazon READY</span>}{c.payment_status==="paid"&&<span className="text-xs text-emerald-300">Paid</span>}<span className="text-xs text-slate-400">{c.assigned_name??"Unassigned"}</span></div>
      <div className="mt-2.5 grid grid-cols-2 gap-2 border-t border-white/10 pt-2.5 text-xs">
-       <div className="min-w-0"><span className="text-slate-400">Received / الاستلام</span><time dateTime={c.created_at} className="mt-1 block font-medium text-slate-200">{dateTime(c.created_at)}</time></div>
+       <div className="min-w-0"><span className="text-slate-400">Received / الاستلام</span><time dateTime={new Date(c.created_at).toISOString()} className="mt-1 block font-medium text-slate-200">{dateTime(c.created_at)}</time></div>
        <div className="min-w-0"><span className="text-slate-400">Location · Shift</span><p className="mt-1 truncate text-slate-200">{c.site_name??"—"} · {c.shift_name??"—"}</p></div>
      </div>
      <p className="mt-2.5 line-clamp-1 text-xs text-slate-300">{c.next_step}</p>

@@ -28,6 +28,9 @@ for (const layout of [
     const prefetches: string[] = [];
     const drawerRequests: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
+    page.on("console", message => {
+      if (message.type() === "error" && /hydrat|#418/i.test(message.text())) errors.push(message.text());
+    });
     page.on("request", incoming => {
       const url = new URL(incoming.url());
       if (url.pathname.startsWith("/staff/client/") && incoming.headers()["next-router-prefetch"]) prefetches.push(url.pathname);
@@ -41,7 +44,10 @@ for (const layout of [
     await expect(clientLink).toBeVisible();
     await expect(clientLink).toHaveAttribute("href", `/staff/client/${client.id}`);
     if (layout.table) await expect(page.locator("table")).toContainText(dateTime(createdAt));
-    else await expect(page.locator("article time")).toHaveText(layout.completed ? dateOnly("2026-10-25") : dateTime(createdAt));
+    else {
+      await expect(page.locator("article time")).toHaveText(layout.completed ? dateOnly("2026-10-25") : dateTime(createdAt));
+      await expect(page.locator("article time")).toHaveAttribute("datetime", createdAt);
+    }
     expect(errors).toEqual([]);
     expect(prefetches).toEqual([]);
     expect(drawerRequests).toEqual([]);
