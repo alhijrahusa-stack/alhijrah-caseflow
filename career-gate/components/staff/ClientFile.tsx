@@ -15,11 +15,12 @@ import { useHydrated } from "@/components/staff/useHydrated";
 import { StatusBadge } from "@/components/staff/StatusBadge";
 import { SoftDelete } from "@/components/staff/SoftDelete";
 import { StatusTimeline } from "@/components/staff/StatusTimeline";
-import type { Row } from "@/components/staff/sections/common";
+import { useRowAction, type Row } from "@/components/staff/sections/common";
 import { Documents } from "@/components/staff/sections/Documents";
 import { Activity, Alerts, Assessments, IntakeAgent, Messages } from "@/components/staff/sections/Insight";
 import { AmazonHistory, ClientInfo, EmploymentHistory, Preferences } from "@/components/staff/sections/Profile";
-import { Appointments, Contacts, Followups, Notes, Tasks } from "@/components/staff/sections/Work";
+import { Appointments, Contacts, Followups, Notes, RescheduleModal, Tasks } from "@/components/staff/sections/Work";
+import { fromLocalInput } from "@/lib/format";
 import type { ClientAccountSummary } from "@/lib/client-account";
 import type { Status } from "@/lib/domain";
 
@@ -112,6 +113,9 @@ export function ClientFile({
   const { client: c } = data;
   const { isManager, isAdmin } = useStaff();
   const isMounted = useHydrated();
+  const rescheduleAction = useRowAction("Appointment decision saved");
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const rescheduleAppt = data.appointments.find((appt) => String(appt.id) === reschedulingId) ?? null;
   const [panel, setPanel] = useState<Panel | null>(initialPanel);
 
   // The server resolves the requested tab from the URL. After that the tab is
@@ -271,6 +275,26 @@ export function ClientFile({
         {isMounted && panel === "assign" && <AssignForm clientId={c.id} current={c.assigned_staff} onDone={close} />}
       </div>
 
+      {isMounted && rescheduleAppt && <RescheduleModal
+        key={String(rescheduleAppt.id)}
+        appt={rescheduleAppt}
+        pending={rescheduleAction.pending}
+        error={rescheduleAction.error}
+        onClose={() => setReschedulingId(null)}
+        onSave={async ({ when, location, notes }) => {
+          const instant = fromLocalInput(when);
+          if (!Number.isFinite(instant.getTime())) { rescheduleAction.setError("Invalid appointment date"); return; }
+          const ok = await rescheduleAction.go({
+            action: "update_appointment",
+            appointment_id: rescheduleAppt.id,
+            scheduled_at: instant.toISOString(),
+            location: location || null,
+            notes: notes || null,
+          });
+          if (ok) setReschedulingId(null);
+        }}
+      />}
+
       {isManager && data.alerts.length > 0 && <Alerts alerts={data.alerts} />}
 
       {tab === "profile" && (
@@ -314,7 +338,12 @@ export function ClientFile({
         </div>
       )}
 
-      {tab === "appointments" && <Appointments appts={data.appointments} onAdd={isManager ? openPanel("appointment") : null} />}
+      {tab === "appointments" && <Appointments
+        appts={data.appointments}
+        onAdd={isManager ? openPanel("appointment") : null}
+        reschedulingId={reschedulingId}
+        onReschedule={(id) => { rescheduleAction.setError(null); setReschedulingId(id); }}
+      />}
 
       {tab === "work" && (
         <div className="grid gap-4 xl:grid-cols-2">
