@@ -17,9 +17,9 @@ import { dateOnly, dateTime, fromLocalInput, toLocalInput } from "@/lib/format";
 import { Card, SmallBtn, useRowAction, type Row } from "./common";
 
 
-type RescheduleValues = { when: string; location: string; notes: string };
+export type RescheduleValues = { when: string; location: string; notes: string };
 
-function RescheduleModal({ appt, pending, error, onClose, onSave }: {
+export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
   appt: Row;
   pending: boolean;
   error: string | null;
@@ -67,11 +67,14 @@ function RescheduleModal({ appt, pending, error, onClose, onSave }: {
   );
 }
 
-export function AppointmentRowActions({ appt }: { appt: Row }) {
+export function AppointmentRowActions({ appt, onReschedule, rescheduling }: {
+  appt: Row;
+  onReschedule: (appointmentId: string) => void;
+  rescheduling: boolean;
+}) {
   const { isManager } = useStaff();
   const a = useRowAction("Appointment decision saved");
   const isMounted = useHydrated();
-  const [editing, setEditing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [decisionNote, setDecisionNote] = useState("");
   if (!isManager) return null;
@@ -101,7 +104,7 @@ export function AppointmentRowActions({ appt }: { appt: Row }) {
             <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "attended" })}>Attended / حضر</SmallBtn>
             <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "missed" })}>Missed / تخلف</SmallBtn>
           </>}
-          <SmallBtn aria-label="Edit / Reschedule" aria-expanded={editing} disabled={!isMounted || a.pending} onClick={() => setEditing(true)}>Reschedule / إعادة جدولة</SmallBtn>
+          <SmallBtn aria-label="Edit / Reschedule" aria-expanded={rescheduling} disabled={!isMounted || a.pending} onClick={() => onReschedule(String(appt.id))}>Reschedule / إعادة جدولة</SmallBtn>
           {interview
             ? <SmallBtn disabled={a.pending} onClick={() => setCancelling((v) => !v)}>Canceled / إلغاء</SmallBtn>
             : <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "cancelled" })}>Cancel / إلغاء</SmallBtn>}
@@ -112,26 +115,18 @@ export function AppointmentRowActions({ appt }: { appt: Row }) {
           <SmallBtn disabled={a.pending} onClick={() => decide("cancelled_not_interested")}>Not interested — close file</SmallBtn>
         </div>}
       </>}
-      {editing && !closed && <RescheduleModal
-        key={String(appt.id)}
-        appt={appt}
-        pending={a.pending}
-        error={a.error}
-        onClose={() => setEditing(false)}
-        onSave={async ({ when, location, notes }) => {
-          const instant = fromLocalInput(when);
-          if (!Number.isFinite(instant.getTime())) { a.setError("Invalid appointment date"); return; }
-          const ok = await a.go({ action: "update_appointment", appointment_id: appt.id, scheduled_at: instant.toISOString(), location: location || null, notes: notes || null });
-          if (ok) setEditing(false);
-        }}
-      />}
       {a.pending && <p role="status" className="text-xs text-amber-200">Saving to Career Gate...</p>}
       {a.error && <p role="alert" className="text-xs text-red-300">{a.error}</p>}
     </div>
   );
 }
 
-export function Appointments({ appts, onAdd }: { appts: Row[]; onAdd: (() => void) | null }) {
+export function Appointments({ appts, onAdd, onReschedule, reschedulingId }: {
+  appts: Row[];
+  onAdd: (() => void) | null;
+  onReschedule: (appointmentId: string) => void;
+  reschedulingId: string | null;
+}) {
   return (
     <Card title="Appointments" id="appointments" actions={onAdd && <SmallBtn onClick={onAdd}>+ Add appointment</SmallBtn>}>
       {appts.length === 0 ? (
@@ -148,7 +143,7 @@ export function Appointments({ appts, onAdd }: { appts: Row[]; onAdd: (() => voi
                   <td>{x.resource_key === "office" ? "Office" : "Staff member"}</td>
                   <td>{x.location ?? "—"}</td>
                   <td data-testid="appointment-status">{x.status}</td>
-                  <td><AppointmentRowActions appt={x} /></td>
+                  <td><AppointmentRowActions appt={x} onReschedule={onReschedule} rescheduling={reschedulingId === String(x.id)} /></td>
                 </tr>
               ))}
             </tbody>
