@@ -16,6 +16,7 @@ export const LIMITS = {
   login_failed_15min: { window: 900, limit: 5 },
   login_send_15min: { window: 900, limit: 5 },
   document_upload_hour: { window: 3600, limit: 10 },
+  audit_verify_hour: { window: 3600, limit: 6 },
 } as const;
 
 export type LimitName = keyof typeof LIMITS;

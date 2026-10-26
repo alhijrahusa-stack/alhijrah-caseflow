@@ -5,7 +5,7 @@ import { runAudit } from "@/lib/audit";
 import { withStaff } from "@/lib/auth";
 import { dbErrorResponse, err, ok } from "@/lib/http";
 import { processJobs } from "@/lib/jobs";
-import { observe, traceIdFrom } from "@/lib/obs";
+import { observe, traceContextFrom } from "@/lib/obs";
 import { issuesMessage } from "@/lib/schemas";
 import { queueEmbedding } from "@/lib/semantic";
 import { ActionError } from "@/lib/service";
@@ -15,8 +15,9 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  const traceId = traceIdFrom(req);
-  return observe({ trace_id: traceId, route: "/api/staff/action", operation: "staff_action" }, async () => {
+  const trace = traceContextFrom(req);
+  const traceId = trace.traceId;
+  return observe({ trace_id: traceId, span_id: trace.spanId, parent_span_id: trace.parentSpanId, route: "/api/staff/action", operation: "staff_action" }, async () => {
     const guard = await staffGuard(req, traceId, { mutation: true });
     if (guard.response) return guard.response;
     const session = guard.session;

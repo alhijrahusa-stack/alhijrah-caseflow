@@ -8,7 +8,7 @@ import { dbErrorResponse, err, ipHash, clientIp } from "@/lib/http";
 import { claimKey, completeKey } from "@/lib/idempotency";
 import { enqueue, processJobs } from "@/lib/jobs";
 import { queueSubmissionNotifications } from "@/lib/notify";
-import { observe, traceIdFrom } from "@/lib/obs";
+import { observe, traceContextFrom } from "@/lib/obs";
 import { ACCURACY_DISCLAIMER, AUTHORIZATION_TEXT, AUTHORIZATION_VERSION } from "@/lib/office";
 import { hit, remaining, securityEvent } from "@/lib/ratelimit";
 import { issuesMessage, ProfileSchema, SelectionSchema } from "@/lib/schemas";
@@ -53,8 +53,9 @@ function respond(status: number, body: Record<string, unknown>, traceId: string)
 }
 
 export async function POST(req: Request) {
-  const traceId = traceIdFrom(req);
-  return observe({ trace_id: traceId, route: "/api/intake", operation: "intake_submit" }, async () => {
+  const trace = traceContextFrom(req);
+  const traceId = trace.traceId;
+  return observe({ trace_id: traceId, span_id: trace.spanId, parent_span_id: trace.parentSpanId, route: "/api/intake", operation: "intake_submit" }, async () => {
     const key = req.headers.get("idempotency-key") ?? "";
     if (!/^[\w-]{16,200}$/.test(key)) return err("idempotency_key_required", "Idempotency-Key header is required", 400, traceId);
 
