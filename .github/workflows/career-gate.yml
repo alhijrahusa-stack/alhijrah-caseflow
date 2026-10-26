@@ -40,3 +40,6 @@ jobs:
       - name: End-to-end (committed catalog)
         run: ./e2e/run.sh
         env: { PW_CHROMIUM: "", CATALOG: real }
+      - name: Five-pass staff browser stability gate (committed catalog)
+        run: ./e2e/run.sh e2e/staff.spec.ts --repeat-each=5
+        env: { PW_CHROMIUM: "", CATALOG: real }
