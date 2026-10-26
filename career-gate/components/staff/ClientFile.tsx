@@ -11,6 +11,7 @@ import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { CLIENT_FILE_SURFACE } from "@/components/staff/realtime/surfaces";
 import { useTargetedPayloads } from "@/components/staff/realtime/useTargetedUpdate";
 import { useStaff } from "@/components/staff/StaffContext";
+import { useHydrated } from "@/components/staff/useHydrated";
 import { StatusBadge } from "@/components/staff/StatusBadge";
 import { SoftDelete } from "@/components/staff/SoftDelete";
 import { StatusTimeline } from "@/components/staff/StatusTimeline";
@@ -110,6 +111,7 @@ export function ClientFile({
   const account = live.account;
   const { client: c } = data;
   const { isManager, isAdmin } = useStaff();
+  const isMounted = useHydrated();
   const [panel, setPanel] = useState<Panel | null>(initialPanel);
 
   // The server resolves the requested tab from the URL. After that the tab is
@@ -246,7 +248,7 @@ export function ClientFile({
           <span className="cg-command-context" aria-hidden="true">COMMAND</span>
           <Link href={`/staff/client/${c.id}/edit`} aria-label="Edit Client" className="cg-command-button cg-command-primary">Correct Data</Link>
           {orderedQuick.filter(([, , allowed]) => allowed).map(([p, label], index) => (
-            <button key={p} type="button" onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
+            <button key={p} type="button" disabled={!isMounted} onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
               data-promoted={index < promoted.length}
               className={`cg-command-button ${panel === p ? "cg-command-active" : ""}`}>
               <span className="cg-command-signal" aria-hidden="true" />
@@ -257,16 +259,16 @@ export function ClientFile({
         </div>
       </div>
 
-      <div id="action-panel" className="relative z-40 scroll-mt-40">
-        {panel === "document" && <DocumentForm clientId={c.id} onDone={close} />}
-        {panel === "appointment" && <AppointmentForm clientId={c.id} onDone={close} />}
-        {panel === "note" && <AddNoteForm clientId={c.id} onDone={close} />}
-        {panel === "task" && <TaskForm clientId={c.id} onDone={close} />}
-        {panel === "contacted" && <ContactedForm clientId={c.id} onDone={close} />}
-        {panel === "status" && <StatusForm clientId={c.id} current={c.current_status} nextStep={c.next_step} onDone={close} />}
-        {panel === "next_step" && <NextStepForm clientId={c.id} nextStep={c.next_step} onDone={close} />}
-        {panel === "followup" && <FollowupForm clientId={c.id} onDone={close} />}
-        {panel === "assign" && <AssignForm clientId={c.id} current={c.assigned_staff} onDone={close} />}
+      <div id="action-panel" data-testid="client-action-panel" aria-busy={!isMounted} className="relative z-40 scroll-mt-40">
+        {isMounted && panel === "document" && <DocumentForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "appointment" && <AppointmentForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "note" && <AddNoteForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "task" && <TaskForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "contacted" && <ContactedForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "status" && <StatusForm clientId={c.id} current={c.current_status} nextStep={c.next_step} onDone={close} />}
+        {isMounted && panel === "next_step" && <NextStepForm clientId={c.id} nextStep={c.next_step} onDone={close} />}
+        {isMounted && panel === "followup" && <FollowupForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "assign" && <AssignForm clientId={c.id} current={c.assigned_staff} onDone={close} />}
       </div>
 
       {isManager && data.alerts.length > 0 && <Alerts alerts={data.alerts} />}
