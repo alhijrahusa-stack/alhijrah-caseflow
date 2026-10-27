@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Client = { id: string; ref: string; full_name: string };
 type DocumentRow = { id: string; file_name?: string; doc_type?: string; status?: string; uploaded_at?: string };
@@ -42,6 +43,8 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
   const [loadingDocument, setLoadingDocument] = useState(false);
+  const [showAllActivity, setShowAllActivity] = useState(false);
+  const [expandedDocuments, setExpandedDocuments] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -92,12 +95,12 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
     } finally { setLoadingDocument(false); }
   }
 
-  return (
-    <div className="fixed inset-0 z-[200] flex justify-end bg-[#020814]/85" role="presentation" onMouseDown={(event) => {
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex justify-end bg-[#020814]/85 sm:p-3 lg:p-5" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
       <aside role="dialog" aria-modal="true" aria-label={`Client 360: ${client.full_name}`}
-        className="flex h-full w-full max-w-[min(100vw,504px)] flex-col overflow-hidden border-l border-amber-200/25 bg-gradient-to-b from-[#13233e] to-[#070f22] shadow-[-20px_0_50px_rgba(0,0,0,.42)]">
+        data-testid="client360-panel" className="flex h-[100dvh] min-w-0 w-full max-w-full flex-col overflow-hidden border-l border-amber-200/25 bg-gradient-to-b from-[#13233e] to-[#070f22] shadow-[-20px_0_50px_rgba(0,0,0,.42)] sm:h-full sm:max-w-[min(96vw,960px)] sm:rounded-2xl sm:border">
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-200/15 px-3 py-2.5 sm:px-4">
           <div className="min-w-0"><p className="text-[11px] font-bold tracking-[.2em] text-amber-200">CAREER GATE · CLIENT 360</p>
             <h2 className="mt-1 break-words text-base font-semibold tracking-tight leading-5 text-white">{client.full_name}</h2>
@@ -108,7 +111,12 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
             <button autoFocus onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-xl text-white transition hover:bg-white/20" aria-label="Close Client 360">×</button>
           </div>
         </header>
-        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-3 sm:p-4">
+        <nav aria-label="Client 360 sections" className="flex shrink-0 gap-2 overflow-x-auto border-b border-white/10 px-3 py-2 sm:px-4">
+          {([["client360-appointments", "Appointments"], ["client360-finance", "Payments"], ["client360-documents", "Documents"], ["client360-audit", "Activity"]] as const).map(([id, label]) =>
+            <button key={id} type="button" className="shrink-0 rounded-lg border border-white/15 bg-white/[.045] px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-300/40 hover:text-cyan-100" onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })}>{label}</button>
+          )}
+        </nav>
+        <div data-testid="client360-scroll-area" className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-3 pb-8 sm:p-4 sm:pb-8 [scrollbar-gutter:stable]">
           {error && <p role="alert" className="rounded-xl border border-red-300/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
           {!data && !error && <p role="status" className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200">Loading authorized client record…</p>}
           {data && <>
@@ -166,7 +174,9 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
               {data.documents.length === 0 && <p className="mt-4 text-sm text-slate-300">No documents on file.</p>}
               <div className="mt-4 space-y-3">{data.documents.map((doc) => {
                 const extraction = latestExtractions.get(doc.id);
-                const entries = Object.entries(extraction?.fields ?? {}).slice(0,35);
+                const entries = Object.entries(extraction?.fields ?? {});
+                const showingAll = expandedDocuments.has(doc.id);
+                const visibleEntries = showingAll ? entries : entries.slice(0, 35);
                 return <article key={doc.id} className="min-w-0 rounded-2xl border border-white/10 bg-[#061125]/60 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
@@ -180,7 +190,8 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                   {selectedDocument === doc.id && documentUrl && <iframe src={documentUrl} title={doc.file_name ?? "Private document"} className="mt-4 h-[350px] w-full rounded-xl border border-white/10 bg-white" referrerPolicy="no-referrer" />}
                   {extraction && <div className="mt-4 border-t border-white/10 pt-3">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-200">OCR extraction · {short(extraction.provider)} · {short(extraction.model)}</p>
-                    {entries.length ? <dl className="mt-3 grid gap-2 sm:grid-cols-2">{entries.map(([key,value])=><div key={key} className="rounded-xl bg-white/[.04] px-3 py-2"><dt className="break-all text-[11px] text-slate-400">{key.replaceAll("_"," ")}</dt><dd className="mt-1 break-words text-xs text-slate-200">{short(value)}</dd></div>)}</dl> : <p className="mt-2 text-xs text-slate-400">No extracted fields recorded.</p>}
+                    {entries.length ? <dl className="mt-3 grid gap-2 sm:grid-cols-2">{visibleEntries.map(([key,value])=><div key={key} className="rounded-xl bg-white/[.04] px-3 py-2"><dt className="break-all text-[11px] text-slate-400">{key.replaceAll("_"," ")}</dt><dd className="mt-1 break-words text-xs text-slate-200">{short(value)}</dd></div>)}</dl> : <p className="mt-2 text-xs text-slate-400">No extracted fields recorded.</p>}
+                    {entries.length > 35 && <button type="button" aria-expanded={showingAll} className="mt-3 rounded-lg border border-cyan-300/30 px-3 py-2 text-xs font-semibold text-cyan-200" onClick={() => setExpandedDocuments((current) => { const next = new Set(current); if (next.has(doc.id)) next.delete(doc.id); else next.add(doc.id); return next; })}>{showingAll ? "Show fewer extracted fields" : `Show all ${entries.length} extracted fields`}</button>}
                   </div>}
                 </article>;
               })}</div>
@@ -188,7 +199,7 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
             <section aria-labelledby="client360-audit" className="rounded-2xl border border-white/10 bg-white/[.03] p-3 sm:p-4">
               <h3 id="client360-audit" className="text-base font-semibold text-amber-100">Audit trail / سجل الإجراءات</h3>
               {data.activity.length === 0 ? <p className="mt-3 text-sm text-slate-300">No activity recorded.</p> :
-                <ol className="mt-4 space-y-2">{data.activity.slice(0,40).map((entry) =>
+                <ol className="mt-4 space-y-2">{data.activity.slice(0, showAllActivity ? undefined : 40).map((entry) =>
                   <li key={entry.id} className="flex flex-wrap justify-between gap-2 rounded-xl border border-white/[.06] bg-white/[.03] px-3 py-2 text-xs text-slate-300">
                     <div className="min-w-0 flex-1">
                       <strong className="font-semibold text-slate-100">{entry.action.replaceAll("_"," ")}</strong> · {entry.staff_name ?? "System"}
@@ -200,10 +211,12 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                     </div>
                     <time className="text-slate-400">{when(entry.created_at)}</time>
                   </li>)}</ol>}
+              {data.activity.length > 40 && <button type="button" aria-expanded={showAllActivity} className="mt-3 rounded-lg border border-cyan-300/30 px-3 py-2 text-xs font-semibold text-cyan-200" onClick={() => setShowAllActivity((value) => !value)}>{showAllActivity ? "Show recent activity" : `Show all ${data.activity.length} activities`}</button>}
             </section>
           </>}
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
