@@ -64,6 +64,15 @@ test.describe("Smart Career Collect Client", () => {
     expect(queuePayload.rows.some((row: { id: string }) => row.id === staged.id)).toBe(true);
 
     const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("xpath=ancestor::section[1]");
+    await page.setViewportSize({ width: 390, height: 844 });
+    const mobileQueueCard = importQueue.getByTestId("import-queue-card").filter({ hasText: name }).first();
+    await expect(mobileQueueCard).toBeVisible();
+    await expect(mobileQueueCard.getByRole("button", { name: "OPEN / EDIT" })).toBeVisible();
+    const mobileQueueBounds = await mobileQueueCard.boundingBox();
+    expect(mobileQueueBounds).not.toBeNull();
+    expect(mobileQueueBounds!.x).toBeGreaterThanOrEqual(-1);
+    expect(mobileQueueBounds!.x + mobileQueueBounds!.width).toBeLessThanOrEqual(391);
+    await page.setViewportSize({ width: 1280, height: 900 });
     const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
     await expect(queueRow).toBeVisible();
     await queueRow.getByRole("button", { name: "OPEN / EDIT" }).click();
