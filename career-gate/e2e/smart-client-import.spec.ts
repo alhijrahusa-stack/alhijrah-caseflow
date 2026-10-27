@@ -79,6 +79,10 @@ test.describe("Smart Career Collect Client", () => {
     await expect(queueRow).toBeVisible();
     await queueRow.getByRole("button", { name: "OPEN / EDIT" }).click();
     await expect(page.getByText("SMART CLIENT REVIEW", { exact: true })).toBeVisible();
+    const reviewPanel = page.getByRole("dialog", { name: "Smart client review" });
+    await expect(reviewPanel).toBeVisible();
+    await expect.poll(() => reviewPanel.evaluate(el => el.getBoundingClientRect().bottom <= window.innerHeight + 1)).toBe(true);
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("hidden");
     await expect(page.getByText("CLIENT DATA · VALIDATION MATRIX", { exact: true })).toBeVisible();
     const matrix = page.getByRole("table", { name: /validation matrix/i });
     for (const group of ["IDENTITY", "ADDRESS", "LANGUAGE & ENGLISH", "JOB PREFERENCES"]) {
