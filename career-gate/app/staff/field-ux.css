@@ -147,7 +147,7 @@
 }
 .staff-shell .staff-nav-strip::-webkit-scrollbar { display: none; }
 .staff-shell .staff-nav-link {
-  min-height: 42px;
+  min-height: 44px;
   border-radius: 11px;
   border-color: transparent;
   background: transparent;
