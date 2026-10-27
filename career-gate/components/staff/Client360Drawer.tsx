@@ -49,6 +49,9 @@ function when(value: string | undefined) {
 export function Client360Drawer({ client, onClose }: { client: Client; onClose: () => void }) {
   const [data, setData] = useState<Data | null>(null);
   const [section, setSection] = useState<Section>("summary");
+  const [loadedSections, setLoadedSections] = useState<Set<Section>>(() => new Set(["summary", "appointments", "payments"]));
+  const [sectionError, setSectionError] = useState("");
+  const [retrySection, setRetrySection] = useState(0);
   const [error, setError] = useState("");
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
@@ -62,13 +65,13 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
     document.body.style.overflow = "hidden";
     const closeWithEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", closeWithEscape);
-    const params = new URLSearchParams({ client_id: client.id, payloads: "client,appointments,account,documents,extractions,activity,nextAction" });
+    const params = new URLSearchParams({ client_id: client.id, payloads: "client,appointments,account,documents" });
     void fetch(`/api/staff/client-resource?${params.toString()}`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok || !result?.ok) throw new Error(result?.error?.message ?? "Client data is unavailable");
         if (controller.signal.aborted) return;
-        setData(result.payloads as Data);
+        setData({ documents: [], extractions: [], activity: [], appointments: [], ...result.payloads } as Data);
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Failed to open client record");
@@ -79,6 +82,26 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
       window.removeEventListener("keydown", closeWithEscape);
     };
   }, [client.id, onClose]);
+
+  useEffect(() => {
+    if (!data?.client || loadedSections.has(section)) return;
+    const payloads = section === "documents" ? "extractions" : section === "activity" ? "activity" : null;
+    if (!payloads) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({ client_id: client.id, payloads });
+    void fetch(`/api/staff/client-resource?${params.toString()}`, { cache: "no-store", signal: controller.signal })
+      .then(async response => {
+        const result = await response.json();
+        if (!response.ok || !result?.ok) throw new Error(result?.error?.message ?? "Unable to load section");
+        if (controller.signal.aborted) return;
+        setData(current => current ? { ...current, ...result.payloads } : current);
+        setLoadedSections(current => new Set([...current, section]));
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setSectionError(cause instanceof Error ? cause.message : "Section unavailable");
+      });
+    return () => controller.abort();
+  }, [client.id, data?.client, section, loadedSections, retrySection]);
 
   const latestExtractions = useMemo(() => {
     const result = new Map<string, Extraction>();
@@ -122,11 +145,13 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
           </div>
         </header>
         <nav aria-label="Client 360 sections" className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-white/10 bg-[#07162a]/70 px-3 py-3 sm:px-5" role="tablist">
-          {TABS.map(item => <button key={item.id} type="button" role="tab" aria-selected={section === item.id} aria-controls="client360-active-panel" className={`shrink-0 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-[color,background-color,border-color,box-shadow] duration-150 focus-visible:outline-2 focus-visible:outline-cyan-300 sm:px-4 ${section === item.id ? "border-sky-400/65 bg-sky-500/20 text-white shadow-[0_0_18px_rgba(14,165,233,.12)]" : "border-transparent bg-white/[.035] text-slate-300 hover:border-white/15 hover:bg-white/[.075] hover:text-white"}`} onClick={() => setSection(item.id)}>{item.label}</button>)}
+          {TABS.map(item => <button key={item.id} type="button" role="tab" aria-selected={section === item.id} aria-controls="client360-active-panel" className={`shrink-0 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-[color,background-color,border-color,box-shadow] duration-150 focus-visible:outline-2 focus-visible:outline-cyan-300 sm:px-4 ${section === item.id ? "border-sky-400/65 bg-sky-500/20 text-white shadow-[0_0_18px_rgba(14,165,233,.12)]" : "border-transparent bg-white/[.035] text-slate-300 hover:border-white/15 hover:bg-white/[.075] hover:text-white"}`} onClick={() => { setSection(item.id); setSectionError(""); }}>{item.label}</button>)}
         </nav>
         <div id="client360-active-panel" role="tabpanel" data-testid="client360-scroll-area" className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5 [scrollbar-gutter:stable]">
           {error && <p role="alert" className="rounded-xl border border-red-300/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
           {!data && !error && <p role="status" className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200">Loading authorized client record…</p>}
+          {data && !loadedSections.has(section) && !sectionError && <p role="status" className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[.04] px-4 py-4 text-sm text-cyan-100">Loading secure {section} data…</p>}
+          {sectionError && <div role="alert" className="rounded-2xl border border-rose-300/20 bg-rose-300/[.05] p-4 text-sm text-rose-200">{sectionError}<button type="button" className="ml-3 rounded-lg border border-rose-300/30 px-3 py-1.5 font-semibold" onClick={() => { setSectionError(""); setRetrySection(current => current + 1); }}>Retry</button></div>}
           {data && <>
             {section === "summary" && <section className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Client summary">
               {[
