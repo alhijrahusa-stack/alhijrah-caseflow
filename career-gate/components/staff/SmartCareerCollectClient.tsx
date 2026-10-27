@@ -120,6 +120,7 @@ export function SmartCareerCollectClient() {
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [counters, setCounters] = useState<Record<Status, number>>({ PENDING: 0, UNDER_REVIEW: 0, MISSING_DOCUMENT: 0, APPROVED_FILE: 0 });
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [archivedCount, setArchivedCount] = useState<number | null>(null);
   const [detail, setDetail] = useState<CaseDetail | null>(null);
   const [draft, setDraft] = useState<Record<string, any> | null>(null);
   const [draftDirty, setDraftDirty] = useState(false);
@@ -158,6 +159,7 @@ export function SmartCareerCollectClient() {
       setRows((current) => append ? [...current, ...data.rows.filter((row: QueueRow) => !current.some((existing) => existing.id === row.id))] : data.rows);
       if (append) loadedMore.current = true;
       if (data.counters) setCounters(data.counters);
+      if (typeof data.archived_count === "number") setArchivedCount(data.archived_count);
       setNextCursor(data.next_cursor ?? null);
     } catch (e) { if (request === queueRequest.current && !controller.signal.aborted) setError(e instanceof Error ? e.message : "Queue failed"); }
     finally { if (request === queueRequest.current) setQueueBusy(false); }
@@ -459,13 +461,13 @@ export function SmartCareerCollectClient() {
           <input className="ops-input min-w-56" aria-label="Search imports" placeholder="Name, phone, email, Import ID" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div></div>
       {!archiveView && <div className="flex flex-wrap gap-2" aria-label="Import queue status filters">{STATUSES.map((status) => <button key={status} type="button" aria-pressed={filter === status} onClick={() => setFilter(status)} className={`rounded-full border px-3 py-2 text-[10px] font-semibold ${filter === status ? "border-amber-300/35 bg-amber-300/[.08] text-amber-200" : "border-white/10 text-slate-500"}`}>{STATUS_LABEL[status]} · {counters[status]}</button>)}</div>}
-      <div aria-label="Import queue overview" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {!archiveView ? <div aria-label="Import queue overview" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {([["ACTIVE FILES", counters.PENDING + counters.UNDER_REVIEW + counters.MISSING_DOCUMENT, "text-slate-100"], ["PENDING", counters.PENDING, "text-amber-200"], ["IN REVIEW", counters.UNDER_REVIEW, "text-cyan-200"], ["NEEDS DOCUMENT", counters.MISSING_DOCUMENT, "text-rose-200"]] as const).map(([label, value, tone]) =>
           <div key={label} className="min-w-0 rounded-2xl border border-white/10 bg-[#081a2e] px-3 py-3 sm:px-4">
             <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
             <strong className={`mt-1 block text-2xl font-semibold tabular-nums ${tone}`}>{value}</strong>
           </div>)}
-      </div>
+      </div> : <div aria-label="Archived import overview" className="rounded-2xl border border-sky-300/15 bg-[#081a2e] px-4 py-3 text-sm text-slate-200"><strong className="mr-2 font-semibold text-cyan-200">{archivedCount ?? "—"}</strong> approved or archived imports · Read-only history</div>}
       <div data-testid="import-queue-mobile" className="grid gap-3 lg:hidden" aria-label="Import queue mobile cards">
         {queueBusy && rows.length === 0 && <p role="status" className="rounded-xl border border-white/10 bg-white/[.03] p-4 text-sm text-slate-300">Loading import queue…</p>}
         {rows.map((row) => <article key={row.id} data-testid="import-queue-card" className="min-w-0 rounded-2xl border border-white/10 bg-gradient-to-br from-[#102842] to-[#071829] p-4 shadow-[0_12px_28px_rgba(0,0,0,.16)]">
