@@ -43,8 +43,13 @@ test("dashboard stations route into one canonical clients registry with safe act
     await open.click();
     const drawer = page.getByRole("dialog", { name: /Client 360:/ });
     await expect(drawer).toBeVisible();
-    const width = await drawer.evaluate(element => element.getBoundingClientRect().width);
-    expect(width).toBeLessThanOrEqual(505);
+    const box = await drawer.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThan(500);
+    expect(box!.width).toBeLessThanOrEqual(900);
+    expect(box!.x).toBeGreaterThanOrEqual(-1);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(1367);
+    await expect(drawer.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
     await page.getByRole("button", { name: "Close Client 360" }).click();
   }
   await context.close();

@@ -220,7 +220,9 @@ test.describe("Career Gate public intake presentation system", () => {
 
     await page.goto("/career-gate.html");
     await reachReview(page);
-    await page.locator("#consent").check({ force: true });
+    await expect(page.locator("#consentChoice")).toBeVisible();
+    await page.locator("#consentChoice").click();
+    await expect(page.locator("#consent")).toBeChecked();
 
     const started = Date.now();
     await page.locator("#form").evaluate((form: HTMLFormElement) => { form.requestSubmit(); form.requestSubmit(); });

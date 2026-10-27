@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStaff } from "@/components/staff/StaffContext";
 import { DigitalHandshake, useDigitalHandshake } from "@/components/staff/smart/DigitalHandshake";
@@ -83,6 +84,13 @@ function operationalState(row: QueueRow) {
   if (row.status === "UNDER_REVIEW") return "UNDER REVIEW";
   return "PENDING";
 }
+function queueTone(status: Status) {
+  if (status === "APPROVED_FILE") return "border-emerald-300/30 bg-emerald-300/10 text-emerald-200";
+  if (status === "MISSING_DOCUMENT") return "border-rose-300/30 bg-rose-300/10 text-rose-200";
+  if (status === "UNDER_REVIEW") return "border-cyan-300/30 bg-cyan-300/10 text-cyan-200";
+  return "border-amber-300/30 bg-amber-300/10 text-amber-200";
+}
+
 function detailState(detail: CaseDetail, dirty: boolean) {
   if (detail.case.status === "APPROVED_FILE") return "APPROVED";
   if (!detail.case.review_started_at) return "START REVIEW";
@@ -97,6 +105,7 @@ export function SmartCareerCollectClient() {
   const fileRef = useRef<HTMLInputElement>(null);
   const reattachRef = useRef<HTMLInputElement>(null);
   const [workspace, setWorkspace] = useState<Workspace>("sheet");
+  const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [sheetUrl, setSheetUrl] = useState("");
   const [legacy, setLegacy] = useState(false);
@@ -111,6 +120,7 @@ export function SmartCareerCollectClient() {
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [counters, setCounters] = useState<Record<Status, number>>({ PENDING: 0, UNDER_REVIEW: 0, MISSING_DOCUMENT: 0, APPROVED_FILE: 0 });
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [archivedCount, setArchivedCount] = useState<number | null>(null);
   const [detail, setDetail] = useState<CaseDetail | null>(null);
   const [draft, setDraft] = useState<Record<string, any> | null>(null);
   const [draftDirty, setDraftDirty] = useState(false);
@@ -123,12 +133,18 @@ export function SmartCareerCollectClient() {
   const [showQr, setShowQr] = useState(false);
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const queueRequest = useRef(0);
+  const queueAbort = useRef<AbortController | null>(null);
+  const loadedMore = useRef(false);
   const caseRequest = useRef(0);
   const { sweep, trigger: handshake } = useDigitalHandshake();
 
   const mobilePath = "/staff/smart-client-import/new";
   const loadQueue = useCallback(async (cursor?: string | null, append = false) => {
     const request = (queueRequest.current += 1);
+    queueAbort.current?.abort();
+    const controller = new AbortController();
+    queueAbort.current = controller;
+    if (!append) loadedMore.current = false;
     setQueueBusy(true);
     try {
       const params = new URLSearchParams();
@@ -136,14 +152,16 @@ export function SmartCareerCollectClient() {
       else if (filter !== "ALL") params.set("status", filter);
       if (search.trim()) params.set("q", search.trim());
       if (cursor) params.set("cursor", cursor);
-      const res = await fetch(`/api/staff/smart-client-import?${params}`, { cache: "no-store" });
+      const res = await fetch(`/api/staff/smart-client-import?${params}`, { cache: "no-store", signal: controller.signal });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, `Queue failed (${res.status})`));
       if (request !== queueRequest.current) return;
-      setRows((current) => append ? [...current, ...data.rows] : data.rows);
+      setRows((current) => append ? [...current, ...data.rows.filter((row: QueueRow) => !current.some((existing) => existing.id === row.id))] : data.rows);
+      if (append) loadedMore.current = true;
       if (data.counters) setCounters(data.counters);
+      if (typeof data.archived_count === "number") setArchivedCount(data.archived_count);
       setNextCursor(data.next_cursor ?? null);
-    } catch (e) { if (request === queueRequest.current) setError(e instanceof Error ? e.message : "Queue failed"); }
+    } catch (e) { if (request === queueRequest.current && !controller.signal.aborted) setError(e instanceof Error ? e.message : "Queue failed"); }
     finally { if (request === queueRequest.current) setQueueBusy(false); }
   }, [archiveView, filter, search]);
 
@@ -153,12 +171,22 @@ export function SmartCareerCollectClient() {
   }, [loadQueue]);
 
   useEffect(() => {
-    const refresh = () => { if (document.visibilityState === "visible") void loadQueue(); };
-    const timer = window.setInterval(refresh, 8000);
+    const refresh = () => { if (document.visibilityState === "visible" && !loadedMore.current) void loadQueue(); };
+    const timer = window.setInterval(refresh, 30000);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
   }, [loadQueue]);
+
+  useEffect(() => () => { queueAbort.current?.abort(); queueRequest.current += 1; caseRequest.current += 1; }, []);
+
+  const openedReviewId = detail?.case.id ?? null;
+  useEffect(() => {
+    if (!openedReviewId) return;
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = oldOverflow; };
+  }, [openedReviewId]);
 
   async function openCase(id: string) {
     const request = (caseRequest.current += 1);
@@ -204,7 +232,7 @@ export function SmartCareerCollectClient() {
           }
         })();
       }
-      window.setTimeout(() => document.getElementById("smart-review")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to open import"); }
     finally { setActionBusy(null); }
   }
@@ -393,21 +421,22 @@ export function SmartCareerCollectClient() {
       <div className="text-right text-[10px] tracking-[.16em] text-slate-500">{me.role.toUpperCase()} · LIVE SYNC</div>
     </header>
 
-    <section className="grid gap-3 lg:grid-cols-2" aria-label="Smart Career Collect Client workspaces">
-      <button type="button" onClick={() => setWorkspace("sheet")} className={`rounded-3xl border p-5 text-left transition motion-reduce:transition-none ${workspace === "sheet" ? "border-amber-300/35 bg-amber-300/[.08]" : "border-white/10 bg-white/[.035] hover:bg-white/[.055]"}`}><span className="text-[10px] font-bold tracking-[.18em] text-amber-300">01</span><strong className="mt-2 block text-lg text-slate-100">NEW IMPORT BY SHEET</strong><span className="mt-1 block text-xs text-slate-500">Structured Import · XLSX / CSV / Google Sheets</span></button>
-      <button type="button" onClick={() => setWorkspace("mobile")} className={`rounded-3xl border p-5 text-left transition motion-reduce:transition-none ${workspace === "mobile" ? "border-amber-300/35 bg-amber-300/[.08]" : "border-white/10 bg-white/[.035] hover:bg-white/[.055]"}`}><span className="text-[10px] font-bold tracking-[.18em] text-amber-300">02</span><strong className="mt-2 block text-lg text-slate-100">SMART CLIENT IMPORT BY LINK</strong><span className="mt-1 block text-xs text-slate-500">Document Intake · Mobile / QR / Photo / PDF / Text</span></button>
+    <section className="grid gap-3 lg:grid-cols-[1fr_1fr_auto] items-stretch" aria-label="Smart Career Collect Client workspaces">
+      <button type="button" onClick={() => { setWorkspace("sheet"); setWorkspaceExpanded(true); }} className={`rounded-3xl border p-5 text-left transition motion-reduce:transition-none ${workspace === "sheet" ? "border-amber-300/35 bg-amber-300/[.08]" : "border-white/10 bg-white/[.035] hover:bg-white/[.055]"}`}><span className="text-[10px] font-bold tracking-[.18em] text-amber-300">01</span><strong className="mt-2 block text-lg text-slate-100">NEW IMPORT BY SHEET</strong><span className="mt-1 block text-xs text-slate-500">Structured Import · XLSX / CSV / Google Sheets</span></button>
+      <button type="button" onClick={() => { setWorkspace("mobile"); setWorkspaceExpanded(true); }} className={`rounded-3xl border p-5 text-left transition motion-reduce:transition-none ${workspace === "mobile" ? "border-amber-300/35 bg-amber-300/[.08]" : "border-white/10 bg-white/[.035] hover:bg-white/[.055]"}`}><span className="text-[10px] font-bold tracking-[.18em] text-amber-300">02</span><strong className="mt-2 block text-lg text-slate-100">SMART CLIENT IMPORT BY LINK</strong><span className="mt-1 block text-xs text-slate-500">Document Intake · Mobile / QR / Photo / PDF / Text</span></button>
+      <button type="button" data-testid="toggle-import-workspace" aria-expanded={workspaceExpanded} aria-controls="smart-intake-workspace" onClick={() => setWorkspaceExpanded(value => !value)} className="min-h-16 rounded-2xl border border-sky-300/25 bg-sky-500/[.075] px-5 text-xs font-bold tracking-wide text-sky-100 transition-colors hover:bg-sky-500/15">{workspaceExpanded ? "CLOSE WORKSPACE ↑" : "OPEN WORKSPACE ↓"}</button>
     </section>
 
     {notice && <div role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/[.06] p-3 text-sm text-emerald-200">{notice}</div>}
     {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-red-300/20 bg-red-300/[.06] p-3 text-sm text-red-200"><span>{error}</span><button type="button" className="ops-secondary-button" onClick={() => { setError(null); void loadQueue(); }}>RETRY QUEUE</button></div>}
 
-    {workspace === "sheet" ? <section className="ops-glass-card space-y-4">
+    {workspaceExpanded && (workspace === "sheet" ? <section id="smart-intake-workspace" className="ops-glass-card space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-bold tracking-[.18em] text-cyan-300">STRUCTURED IMPORT</p><h2 className="text-lg font-semibold text-slate-100">NEW IMPORT BY SHEET</h2><p className="text-xs text-slate-500">Ingest → Preview → Normalize → Validate → Stage → Review → Approve</p></div><div className="flex flex-wrap gap-2"><a className="ops-secondary-button" href="/api/staff/smart-client-import/template">DOWNLOAD TEMPLATE</a><button className={`ops-secondary-button ${legacy ? "ring-1 ring-amber-300/40" : ""}`} type="button" onClick={() => setLegacy((value) => !value)}>CONVERT LEGACY SHEET</button></div></div>
       <input ref={fileRef} className="hidden" type="file" accept={ACCEPT} onChange={(e) => { setFile(e.target.files?.[0] ?? null); if (e.target.files?.[0]) setSheetUrl(""); setPreview(null); }} />
       <div className="grid gap-3 lg:grid-cols-[1fr_auto]"><button type="button" className="min-h-24 rounded-2xl border border-dashed border-white/15 bg-white/[.025] px-4 text-left hover:border-cyan-300/30" onClick={() => fileRef.current?.click()}><strong className="block text-sm text-slate-200">{file ? file.name : "Choose XLSX / CSV"}</strong><span className="mt-1 block text-xs text-slate-500">{file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : "Maximum 10 MB · 1,000 rows"}</span></button><button className="ops-primary-button min-w-36" type="button" disabled={previewBusy || (!file && !sheetUrl.trim())} onClick={previewSheet}>{previewBusy ? "VALIDATING…" : "PREVIEW"}</button></div>
       <label className="block text-xs text-slate-400" htmlFor="google-sheet">GOOGLE SHEETS URL<input id="google-sheet" className="ops-input mt-1 w-full" value={sheetUrl} placeholder="https://docs.google.com/spreadsheets/d/..." onChange={(e) => { setSheetUrl(e.target.value); if (e.target.value.trim()) setFile(null); setPreview(null); }} /></label>
       {preview && <div className="space-y-3"><div className="grid grid-cols-2 gap-2 md:grid-cols-4">{[["TOTAL",preview.total],["VALID",preview.valid],["DUPLICATE",preview.duplicate],["INVALID",preview.invalid]].map(([label,value]) => <div key={label} className="rounded-xl border border-white/10 bg-black/10 p-3"><span className="text-[10px] text-slate-500">{label}</span><strong className="mt-1 block text-xl text-slate-100">{value}</strong></div>)}</div><div className="overflow-x-auto rounded-2xl border border-white/10"><table className="w-full min-w-[900px] text-left text-xs"><thead className="bg-black/15 text-slate-500"><tr><th className="p-3">STAGE</th><th className="p-3">ROW</th><th className="p-3">STATUS</th><th className="p-3">FULL NAME</th><th className="p-3">PHONE</th><th className="p-3">EMAIL</th><th className="p-3">SITE</th><th className="p-3">JOB</th><th className="p-3">SHIFT</th><th className="p-3">ISSUE</th></tr></thead><tbody>{preview.rows.map((row) => <tr key={row.row} className="border-t border-white/[.06]"><td className="p-3"><input aria-label={`Stage row ${row.row}`} type="checkbox" disabled={row.result === "INVALID"} checked={selectedRows.has(row.row)} onChange={(e) => setSelectedRows((current) => { const next = new Set(current); if (e.target.checked) next.add(row.row); else next.delete(row.row); return next; })} /></td><td className="p-3 font-mono text-slate-500">{row.row}</td><td className="p-3">{row.result}</td><td className="p-3">{row.full_name ?? "—"}</td><td className="p-3">{row.phone ?? "—"}</td><td className="p-3">{row.email ?? "—"}</td><td className="p-3">{row.site ?? "—"}</td><td className="p-3">{row.job ?? "—"}</td><td className="p-3">{row.shift ?? "—"}</td><td className="p-3 text-slate-500">{row.message ?? row.identity}</td></tr>)}</tbody></table></div><button className="ops-primary-button" type="button" disabled={stageBusy || selectedRows.size === 0} onClick={stagePreview}>{stageBusy ? "STAGING…" : `STAGE SELECTED (${selectedRows.size})`}</button></div>}
-    </section> : <section className="ops-glass-card space-y-4">
+    </section> : <section id="smart-intake-workspace" className="ops-glass-card space-y-4">
       <div><p className="text-[10px] font-bold tracking-[.18em] text-cyan-300">DOCUMENT INTAKE</p><h2 className="text-xl font-semibold text-slate-100">SMART CLIENT IMPORT BY LINK</h2><p className="mt-1 text-[13px] text-slate-400">Photo / PDF / Text → deterministic extraction → provider enrichment → evidence → staged review.</p></div>
 
       {/* Staff capture, unchanged. */}
@@ -423,21 +452,47 @@ export function SmartCareerCollectClient() {
           <Link className="ops-secondary-button min-h-11" href="/staff/smart-client-import/new#client-self-intake">MANAGE CLIENT LINK</Link>
         </div>
       </div>
-    </section>}
+    </section>)}
 
-    <section className="ops-glass-card space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold text-slate-100">IMPORT QUEUE</h2><p className="text-xs text-slate-500">Live staged files · canonical Client created only after approval.</p></div><div className="flex flex-wrap gap-2">
+    <section data-testid="import-queue" className="relative isolate space-y-4 overflow-hidden rounded-[24px] border border-sky-300/20 bg-[radial-gradient(ellipse_at_top_left,rgba(16,108,207,.12),transparent_62%),linear-gradient(155deg,#0b2542,#07182c)] p-4 shadow-[0_20px_65px_rgba(0,0,0,.2)] sm:p-5">
+      <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold text-slate-100">IMPORT QUEUE</h2><p className="text-xs text-slate-500">Live staged files · canonical Client created only after approval.</p></div><div className="flex flex-wrap items-center gap-2"><button className="ops-secondary-button min-h-11" type="button" disabled={queueBusy} onClick={() => { loadedMore.current = false; void loadQueue(); }}>{queueBusy ? "UPDATING…" : "REFRESH QUEUE"}</button>
           <button className={`ops-secondary-button ${!archiveView ? "ring-1 ring-cyan-300/30" : ""}`} type="button" onClick={() => { setArchiveView(false); setFilter("ALL"); }}>ACTIVE QUEUE</button>
           <button className={`ops-secondary-button ${archiveView ? "ring-1 ring-amber-300/40" : ""}`} type="button" onClick={() => setArchiveView(true)}>APPROVED / ARCHIVE</button>
           <input className="ops-input min-w-56" aria-label="Search imports" placeholder="Name, phone, email, Import ID" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div></div>
-      {!archiveView && <div className="flex flex-wrap gap-2">{STATUSES.map((status) => <button key={status} type="button" onClick={() => setFilter(status)} className={`rounded-full border px-3 py-2 text-[10px] font-semibold ${filter === status ? "border-amber-300/35 bg-amber-300/[.08] text-amber-200" : "border-white/10 text-slate-500"}`}>{STATUS_LABEL[status]} · {counters[status]}</button>)}</div>}
-      <div className="overflow-x-auto rounded-2xl border border-white/10"><table className="w-full min-w-[1040px] text-left text-xs"><thead className="bg-black/15 text-slate-500"><tr><th className="p-3">CLIENT</th><th className="p-3">SUBMITTED</th><th className="p-3">SOURCE</th><th className="p-3">STATUS</th><th className="p-3">ISSUES</th><th className="p-3">REVIEWER</th><th className="p-3">ACTION</th></tr></thead><tbody>{queueBusy && rows.length === 0 ? Array.from({length:3}).map((_,i) => <tr key={i} className="border-t border-white/[.06]"><td colSpan={7} className="p-3"><div className="h-8 animate-pulse rounded-lg bg-white/[.05] motion-reduce:animate-none" /></td></tr>) : rows.map((row) => <tr key={row.id} className="border-t border-white/[.06]"><td className="p-3"><strong className="block text-slate-200">{row.full_name || "Unidentified client"}</strong><span className="font-mono text-[10px] text-slate-600">{row.id}</span></td><td className="p-3 whitespace-nowrap text-slate-400">{new Date(row.created_at).toLocaleString("en-US", { timeZone: "America/Detroit" })}</td><td className="p-3 uppercase text-slate-400">{row.source_type}</td><td className="p-3 text-slate-300">{operationalState(row)}</td><td className="p-3">{row.issue_count}</td><td className="p-3">{row.reviewer_name ?? "—"}</td><td className="p-3"><div className="flex flex-wrap gap-2">{row.created_client_id ? <Link className="font-semibold text-amber-200" href={`/staff/client/${row.created_client_id}`}>OPEN CLIENT</Link> : <button className="ops-secondary-button" type="button" disabled={Boolean(actionBusy)} onClick={() => openCase(row.id)}>OPEN / EDIT</button>}<button className="ops-secondary-button" type="button" disabled={Boolean(actionBusy)} onClick={() => void archiveRow(row.id)}>{actionBusy === `archive:${row.id}` ? "ARCHIVING…" : "ARCHIVE"}</button></div></td></tr>)}</tbody></table></div>
+      {!archiveView && <div className="flex flex-wrap gap-2" aria-label="Import queue status filters">{STATUSES.map((status) => <button key={status} type="button" aria-pressed={filter === status} onClick={() => setFilter(status)} className={`rounded-full border px-3 py-2 text-[10px] font-semibold ${filter === status ? "border-amber-300/35 bg-amber-300/[.08] text-amber-200" : "border-white/10 text-slate-500"}`}>{STATUS_LABEL[status]} · {counters[status]}</button>)}</div>}
+      {!archiveView ? <div aria-label="Import queue overview" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {([["ACTIVE FILES", counters.PENDING + counters.UNDER_REVIEW + counters.MISSING_DOCUMENT, "text-slate-100"], ["PENDING", counters.PENDING, "text-amber-200"], ["IN REVIEW", counters.UNDER_REVIEW, "text-cyan-200"], ["NEEDS DOCUMENT", counters.MISSING_DOCUMENT, "text-rose-200"]] as const).map(([label, value, tone]) =>
+          <div key={label} className="min-w-0 rounded-2xl border border-white/10 bg-[#081a2e] px-3 py-3 sm:px-4">
+            <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
+            <strong className={`mt-1 block text-2xl font-semibold tabular-nums ${tone}`}>{value}</strong>
+          </div>)}
+      </div> : <div aria-label="Archived import overview" className="rounded-2xl border border-sky-300/15 bg-[#081a2e] px-4 py-3 text-sm text-slate-200"><strong className="mr-2 font-semibold text-cyan-200">{archivedCount ?? "—"}</strong> approved or archived imports · Read-only history</div>}
+      <div data-testid="import-queue-mobile" className="grid gap-3 lg:hidden" aria-label="Import queue mobile cards">
+        {queueBusy && rows.length === 0 && <p role="status" className="rounded-xl border border-white/10 bg-white/[.03] p-4 text-sm text-slate-300">Loading import queue…</p>}
+        {rows.map((row) => <article key={row.id} data-testid="import-queue-card" className="min-w-0 rounded-2xl border border-white/10 bg-gradient-to-br from-[#102842] to-[#071829] p-4 shadow-[0_12px_28px_rgba(0,0,0,.16)]">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0 flex-1"><h3 className="break-words text-base font-semibold text-white">{row.full_name || "Unidentified client"}</h3><p className="mt-1 break-all font-mono text-[11px] text-slate-400">{row.id}</p></div>
+            <span className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${queueTone(row.status)}`}>{operationalState(row)}</span>
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-white/10 pt-3 text-xs">
+            <div><dt className="text-slate-400">Submitted</dt><dd className="mt-1 text-slate-200">{new Date(row.created_at).toLocaleString("en-US", { timeZone: "America/Detroit" })}</dd></div>
+            <div><dt className="text-slate-400">Source</dt><dd className="mt-1 break-words uppercase text-slate-200">{row.source_type}</dd></div>
+            <div><dt className="text-slate-400">Review issues</dt><dd className="mt-1 font-semibold text-slate-200">{row.issue_count}</dd></div>
+            <div><dt className="text-slate-400">Reviewer</dt><dd className="mt-1 break-words text-slate-200">{row.reviewer_name ?? "Unassigned"}</dd></div>
+          </dl>
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-3">
+            {row.created_client_id ? <Link prefetch={false} className="ops-primary-button min-h-10" href={`/staff/client/${row.created_client_id}`}>OPEN CLIENT</Link> : <button className="ops-primary-button min-h-10" type="button" disabled={Boolean(actionBusy)} onClick={() => openCase(row.id)}>OPEN / EDIT</button>}
+            <button className="ops-secondary-button min-h-10" type="button" disabled={Boolean(actionBusy)} onClick={() => void archiveRow(row.id)}>{actionBusy === `archive:${row.id}` ? "ARCHIVING…" : "ARCHIVE"}</button>
+          </div>
+        </article>)}
+      </div>
+      <div className="hidden max-h-[min(57dvh,630px)] overflow-auto overscroll-contain rounded-2xl border border-sky-300/15 bg-[#061a30]/65 lg:block"><table className="w-full min-w-[1040px] border-separate border-spacing-0 text-left text-xs"><thead className="sticky top-0 z-10 bg-[#102c4b] text-slate-300"><tr><th className="p-3">CLIENT</th><th className="p-3">SUBMITTED</th><th className="p-3">SOURCE</th><th className="p-3">STATUS</th><th className="p-3">ISSUES</th><th className="p-3">REVIEWER</th><th className="p-3">ACTION</th></tr></thead><tbody>{queueBusy && rows.length === 0 ? Array.from({length:3}).map((_,i) => <tr key={i} className="border-t border-white/[.06]"><td colSpan={7} className="p-3"><div className="h-8 animate-pulse rounded-lg bg-white/[.05] motion-reduce:animate-none" /></td></tr>) : rows.map((row) => <tr key={row.id} data-testid="import-queue-row" className="border-t border-sky-300/[.08] transition-colors hover:bg-sky-400/[.06]"><td className="p-3"><strong className="block text-slate-200">{row.full_name || "Unidentified client"}</strong><span className="font-mono text-[10px] text-slate-600">{row.id}</span></td><td className="p-3 whitespace-nowrap text-slate-400">{new Date(row.created_at).toLocaleString("en-US", { timeZone: "America/Detroit" })}</td><td className="p-3 uppercase text-slate-400">{row.source_type}</td><td className="p-3"><span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${queueTone(row.status)}`}>{operationalState(row)}</span></td><td className="p-3">{row.issue_count}</td><td className="p-3">{row.reviewer_name ?? "—"}</td><td className="p-3"><div className="flex flex-wrap gap-2">{row.created_client_id ? <Link className="font-semibold text-amber-200" href={`/staff/client/${row.created_client_id}`}>OPEN CLIENT</Link> : <button className="ops-secondary-button" type="button" disabled={Boolean(actionBusy)} onClick={() => openCase(row.id)}>OPEN / EDIT</button>}<button className="ops-secondary-button" type="button" disabled={Boolean(actionBusy)} onClick={() => void archiveRow(row.id)}>{actionBusy === `archive:${row.id}` ? "ARCHIVING…" : "ARCHIVE"}</button></div></td></tr>)}</tbody></table></div>
       {!queueBusy && rows.length === 0 && <div className="rounded-xl border border-white/10 p-6 text-center"><p className="text-sm text-slate-400">No imports match this view.</p><button type="button" className="ops-secondary-button mt-3" onClick={() => { setArchiveView(false); setFilter("ALL"); setSearch(""); }}>SHOW ACTIVE IMPORTS</button></div>}
       {nextCursor && <button className="ops-secondary-button" type="button" disabled={queueBusy} onClick={() => loadQueue(nextCursor, true)}>LOAD MORE</button>}
     </section>
 
-    {detail && draft && <section id="smart-review" className="ops-glass-card relative space-y-5">
+    {detail && draft && createPortal(<section id="smart-review" role="dialog" aria-modal="true" aria-label="Smart client review" className="fixed inset-2 z-[210] mx-auto max-h-[calc(100dvh-1rem)] max-w-[1480px] space-y-5 overflow-y-auto overscroll-contain rounded-[24px] border border-sky-300/25 bg-[radial-gradient(ellipse_at_top,rgba(14,82,161,.15),transparent_56%),linear-gradient(165deg,#0b2542,#061326)] p-4 shadow-[0_30px_100px_rgba(0,0,0,.72)] sm:inset-4 sm:max-h-[calc(100dvh-2rem)] sm:p-6">
       <DigitalHandshake sweep={sweep} />
 
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -561,7 +616,7 @@ export function SmartCareerCollectClient() {
           </div>
         </div>
       </div>
-    </section>}
+    </section>, document.body)}
   </div>;
 }
 

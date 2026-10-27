@@ -12,9 +12,11 @@ test.describe("Smart Career Collect Client", () => {
 
     await signIn(page.context(), baseURL!, "admin");
     await page.goto("/staff/import");
+    await page.getByRole("button", { name: /NEW IMPORT BY SHEET/ }).first().click();
     await expect(page.getByRole("heading", { name: "SMART CAREER COLLECT CLIENT" })).toBeVisible();
     await expect(page.getByRole("button", { name: /NEW IMPORT BY SHEET/ }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /SMART CLIENT IMPORT BY LINK/ }).first()).toBeVisible();
+    await expect(page.getByTestId("toggle-import-workspace")).toHaveAttribute("aria-expanded", "true");
 
     const csv = [
       "full_name,phone,email,preferred_language,english_proficiency,address,preferred_location,location_option_2,shift_days,shift_start_time,shift_end_time",
@@ -64,10 +66,23 @@ test.describe("Smart Career Collect Client", () => {
     expect(queuePayload.rows.some((row: { id: string }) => row.id === staged.id)).toBe(true);
 
     const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("xpath=ancestor::section[1]");
+    await page.setViewportSize({ width: 390, height: 844 });
+    const mobileQueueCard = importQueue.getByTestId("import-queue-card").filter({ hasText: name }).first();
+    await expect(mobileQueueCard).toBeVisible();
+    await expect(mobileQueueCard.getByRole("button", { name: "OPEN / EDIT" })).toBeVisible();
+    const mobileQueueBounds = await mobileQueueCard.boundingBox();
+    expect(mobileQueueBounds).not.toBeNull();
+    expect(mobileQueueBounds!.x).toBeGreaterThanOrEqual(-1);
+    expect(mobileQueueBounds!.x + mobileQueueBounds!.width).toBeLessThanOrEqual(391);
+    await page.setViewportSize({ width: 1280, height: 900 });
     const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
     await expect(queueRow).toBeVisible();
     await queueRow.getByRole("button", { name: "OPEN / EDIT" }).click();
     await expect(page.getByText("SMART CLIENT REVIEW", { exact: true })).toBeVisible();
+    const reviewPanel = page.getByRole("dialog", { name: "Smart client review" });
+    await expect(reviewPanel).toBeVisible();
+    await expect.poll(() => reviewPanel.evaluate(el => el.getBoundingClientRect().bottom <= window.innerHeight + 1)).toBe(true);
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("hidden");
     await expect(page.getByText("CLIENT DATA · VALIDATION MATRIX", { exact: true })).toBeVisible();
     const matrix = page.getByRole("table", { name: /validation matrix/i });
     for (const group of ["IDENTITY", "ADDRESS", "LANGUAGE & ENGLISH", "JOB PREFERENCES"]) {
@@ -170,6 +185,7 @@ test.describe("Smart Career Collect Client", () => {
     const phone = `734${token}`.slice(0, 10).padEnd(10, "8");
     await signIn(page.context(), baseURL!, "admin");
     await page.goto("/staff/import");
+    await page.getByRole("button", { name: /NEW IMPORT BY SHEET/ }).first().click();
 
     const csv = `full_name,phone\n${name},${phone}\n`;
     await page.locator('input[type="file"]').first().setInputFiles({ name: "archive-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
