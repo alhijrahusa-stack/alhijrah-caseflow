@@ -220,8 +220,8 @@ test.describe("Career Gate public intake presentation system", () => {
 
     await page.goto("/career-gate.html");
     await reachReview(page);
-    await expect(page.locator("#consent")).toBeVisible();
-    await page.locator("#consent").check();
+    await expect(page.locator("#consentChoice")).toBeVisible();
+    await page.locator("#consentChoice").click();
     await expect(page.locator("#consent")).toBeChecked();
 
     const started = Date.now();
