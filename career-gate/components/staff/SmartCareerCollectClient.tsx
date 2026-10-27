@@ -178,12 +178,13 @@ export function SmartCareerCollectClient() {
 
   useEffect(() => () => { queueAbort.current?.abort(); queueRequest.current += 1; caseRequest.current += 1; }, []);
 
+  const openedReviewId = detail?.case.id ?? null;
   useEffect(() => {
-    if (!detail) return;
+    if (!openedReviewId) return;
     const oldOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = oldOverflow; };
-  }, [detail?.case.id]);
+  }, [openedReviewId]);
 
   async function openCase(id: string) {
     const request = (caseRequest.current += 1);
