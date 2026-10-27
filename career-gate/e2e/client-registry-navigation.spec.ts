@@ -67,6 +67,16 @@ for (const layout of [
     await page.goto(registry);
     await page.getByRole("button", { name: "Quick view · Client 360", exact: true }).click();
     await expect(page.getByRole("dialog", { name: `Client 360: ${name}`, exact: true })).toBeVisible();
+    const panel = page.getByTestId("client360-panel");
+    await expect(panel).toBeVisible();
+    expect(await panel.evaluate((node) => node.parentElement?.parentElement === document.body)).toBe(true);
+    const bounds = await panel.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(-1);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(layout.width + 1);
+    await expect(panel.getByRole("heading", { name: /Documents & G2 OCR evidence/ })).toBeVisible();
+    await panel.getByRole("button", { name: "Activity", exact: true }).click();
+    await expect(panel.getByTestId("client360-scroll-area")).toBeVisible();
     await expect(page).toHaveURL(new RegExp("/staff/clients\\?"));
     await page.getByRole("button", { name: "Close Client 360", exact: true }).click();
     await expect(page.getByRole("dialog", { name: /Client 360:/ })).toHaveCount(0);
