@@ -128,7 +128,7 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
           {error && <p role="alert" className="rounded-xl border border-red-300/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
           {!data && !error && <p role="status" className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200">Loading authorized client record…</p>}
           {data && <>
-            <section className="grid min-w-0 grid-cols-2 gap-2" aria-label="Client summary">
+            {section === "summary" && <section className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Client summary">
               {[
                 ["Canonical status",data.client?.current_status],
                 ["Pipeline stage",data.client?.pipeline_stage],
@@ -138,12 +138,12 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                 ["Preferred site",data.client?.preferred_location],
                 ["Shift",data.client?.shift_days],
                 ["Next step",data.client?.next_step],
-              ].map(([label,value]) => <div key={String(label)} className="min-w-0 rounded-xl border border-white/10 bg-white/[.045] px-3 py-2.5">
+              ].map(([label,value]) => <div key={String(label)} className="min-w-0 rounded-2xl border border-sky-300/15 bg-[linear-gradient(150deg,rgba(40,104,168,.19),rgba(5,19,41,.76))] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,.045)]">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{String(label)}</p>
                 <p className="mt-1 break-words text-sm font-semibold text-slate-100">{short(value).replaceAll("_"," ")}</p>
               </div>)}
-            </section>
-            <section aria-labelledby="client360-appointments" className="rounded-2xl border border-white/10 bg-white/[.03] p-3 sm:p-4">
+            </section>}
+            {section === "appointments" && <section aria-labelledby="client360-appointments" className="min-h-0 rounded-2xl border border-cyan-300/15 bg-[linear-gradient(155deg,rgba(21,65,112,.18),rgba(5,16,34,.75))] p-4 sm:p-5">
               <h3 id="client360-appointments" className="text-base font-semibold text-amber-100">Appointments & recorded interview outcomes</h3>
               {!data.appointments?.length ? <p className="mt-3 text-sm text-slate-300">No appointments recorded.</p> :
                 <ol className="mt-4 space-y-2">{data.appointments.map((appointment) => (
@@ -159,8 +159,8 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                     </p>
                   </li>
                 ))}</ol>}
-            </section>
-            <section aria-labelledby="client360-finance" className="rounded-2xl border border-white/10 bg-white/[.03] p-3 sm:p-4">
+            </section>}
+            {section === "payments" && <section aria-labelledby="client360-finance" className="min-h-0 rounded-2xl border border-cyan-300/15 bg-[linear-gradient(155deg,rgba(21,65,112,.18),rgba(5,16,34,.75))] p-4 sm:p-5">
               <h3 id="client360-finance" className="text-base font-semibold text-amber-100">Payment & paperwork · verified ledger</h3>
               {!data.account ? <p className="mt-3 text-sm text-slate-300">No canonical account summary available.</p> :
                 <dl className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -175,8 +175,8 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                     <dd className="mt-1 text-sm font-semibold text-slate-100">{value}</dd>
                   </div>)}
                 </dl>}
-            </section>
-            <section aria-labelledby="client360-documents" className="rounded-2xl border border-white/10 bg-white/[.03] p-3 sm:p-4">
+            </section>}
+            {section === "documents" && <section aria-labelledby="client360-documents" className="min-h-0 rounded-2xl border border-cyan-300/15 bg-[linear-gradient(155deg,rgba(21,65,112,.18),rgba(5,16,34,.75))] p-4 sm:p-5">
               <h3 id="client360-documents" className="text-base font-semibold text-amber-100">Documents & G2 OCR evidence</h3>
               <p className="mt-1 text-xs text-slate-400">Private originals open through the authenticated, audited document endpoint. Extraction results are shown only when recorded.</p>
               {data.documents.length === 0 && <p className="mt-4 text-sm text-slate-300">No documents on file.</p>}
@@ -203,8 +203,8 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                   </div>}
                 </article>;
               })}</div>
-            </section>
-            <section aria-labelledby="client360-audit" className="rounded-2xl border border-white/10 bg-white/[.03] p-3 sm:p-4">
+            </section>}
+            {section === "activity" && <section aria-labelledby="client360-audit" className="min-h-0 rounded-2xl border border-cyan-300/15 bg-[linear-gradient(155deg,rgba(21,65,112,.18),rgba(5,16,34,.75))] p-4 sm:p-5">
               <h3 id="client360-audit" className="text-base font-semibold text-amber-100">Audit trail / سجل الإجراءات</h3>
               {data.activity.length === 0 ? <p className="mt-3 text-sm text-slate-300">No activity recorded.</p> :
                 <ol className="mt-4 space-y-2">{data.activity.slice(0, showAllActivity ? undefined : 40).map((entry) =>
@@ -220,7 +220,7 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
                     <time className="text-slate-400">{when(entry.created_at)}</time>
                   </li>)}</ol>}
               {data.activity.length > 40 && <button type="button" aria-expanded={showAllActivity} className="mt-3 rounded-lg border border-cyan-300/30 px-3 py-2 text-xs font-semibold text-cyan-200" onClick={() => setShowAllActivity((value) => !value)}>{showAllActivity ? "Show recent activity" : `Show all ${data.activity.length} activities`}</button>}
-            </section>
+            </section>}
           </>}
         </div>
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-white/10 bg-[#061429] px-4 py-3 sm:px-6">
