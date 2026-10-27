@@ -74,8 +74,11 @@ for (const layout of [
     expect(bounds).not.toBeNull();
     expect(bounds!.x).toBeGreaterThanOrEqual(-1);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(layout.width + 1);
+    await expect(panel.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+    await panel.getByRole("tab", { name: "Documents" }).click();
     await expect(panel.getByRole("heading", { name: /Documents & G2 OCR evidence/ })).toBeVisible();
-    await panel.getByRole("button", { name: "Activity", exact: true }).click();
+    await panel.getByRole("tab", { name: "Activity" }).click();
+    await expect(panel.getByRole("heading", { name: /Audit trail/ })).toBeVisible();
     await expect(panel.getByTestId("client360-scroll-area")).toBeVisible();
     await expect(page).toHaveURL(new RegExp("/staff/clients\\?"));
     await page.getByRole("button", { name: "Close Client 360", exact: true }).click();
