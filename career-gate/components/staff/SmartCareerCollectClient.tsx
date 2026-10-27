@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStaff } from "@/components/staff/StaffContext";
 import { DigitalHandshake, useDigitalHandshake } from "@/components/staff/smart/DigitalHandshake";
@@ -177,6 +178,13 @@ export function SmartCareerCollectClient() {
 
   useEffect(() => () => { queueAbort.current?.abort(); queueRequest.current += 1; caseRequest.current += 1; }, []);
 
+  useEffect(() => {
+    if (!detail) return;
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = oldOverflow; };
+  }, [detail?.case.id]);
+
   async function openCase(id: string) {
     const request = (caseRequest.current += 1);
     setError(null); setActionBusy("open");
@@ -221,7 +229,7 @@ export function SmartCareerCollectClient() {
           }
         })();
       }
-      window.setTimeout(() => document.getElementById("smart-review")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to open import"); }
     finally { setActionBusy(null); }
   }
@@ -481,7 +489,7 @@ export function SmartCareerCollectClient() {
       {nextCursor && <button className="ops-secondary-button" type="button" disabled={queueBusy} onClick={() => loadQueue(nextCursor, true)}>LOAD MORE</button>}
     </section>
 
-    {detail && draft && <section id="smart-review" className="ops-glass-card relative space-y-5">
+    {detail && draft && createPortal(<section id="smart-review" role="dialog" aria-modal="true" aria-label="Smart client review" className="fixed inset-2 z-[210] mx-auto max-h-[calc(100dvh-1rem)] max-w-[1480px] space-y-5 overflow-y-auto overscroll-contain rounded-[24px] border border-sky-300/25 bg-[radial-gradient(ellipse_at_top,rgba(14,82,161,.15),transparent_56%),linear-gradient(165deg,#0b2542,#061326)] p-4 shadow-[0_30px_100px_rgba(0,0,0,.72)] sm:inset-4 sm:max-h-[calc(100dvh-2rem)] sm:p-6">
       <DigitalHandshake sweep={sweep} />
 
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -605,7 +613,7 @@ export function SmartCareerCollectClient() {
           </div>
         </div>
       </div>
-    </section>}
+    </section>, document.body)}
   </div>;
 }
 
