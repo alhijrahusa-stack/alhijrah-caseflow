@@ -13,6 +13,15 @@ type Extraction = {
 type ActivityRow = { id: string | number; action: string; created_at: string; staff_name?: string | null; old_value?: Record<string, unknown> | null; new_value?: Record<string, unknown> | null };
 type AppointmentRow = { id: string; appointment_type: string; scheduled_at: string; status: string; outcome?: string | null; decision_at?: string | null; location?: string | null };
 type AccountSummary = { payment_status: string; net_fee: number; amount_paid: number; amount_paid_visible: boolean; balance: number; application_status: string; application_completed_at: string | null };
+type Section = "summary" | "appointments" | "payments" | "documents" | "activity";
+const TABS: ReadonlyArray<{ id: Section; label: string }> = [
+  { id: "summary", label: "Overview" },
+  { id: "appointments", label: "Appointments" },
+  { id: "payments", label: "Payments" },
+  { id: "documents", label: "Documents" },
+  { id: "activity", label: "Activity" },
+];
+
 type Data = {
   client: Record<string, unknown> | null;
   documents: DocumentRow[];
@@ -39,6 +48,7 @@ function when(value: string | undefined) {
 
 export function Client360Drawer({ client, onClose }: { client: Client; onClose: () => void }) {
   const [data, setData] = useState<Data | null>(null);
+  const [section, setSection] = useState<Section>("summary");
   const [error, setError] = useState("");
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
@@ -96,14 +106,14 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex justify-end bg-[#020814]/85 sm:p-3 lg:p-5" role="presentation" onMouseDown={(event) => {
+    <div className="fixed inset-0 z-[200] flex justify-end bg-[#020814]/80 backdrop-blur-[3px] sm:p-3 lg:p-5" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
       <aside role="dialog" aria-modal="true" aria-label={`Client 360: ${client.full_name}`}
-        data-testid="client360-panel" className="flex h-[100dvh] min-w-0 w-full max-w-full flex-col overflow-hidden border-l border-amber-200/25 bg-gradient-to-b from-[#13233e] to-[#070f22] shadow-[-20px_0_50px_rgba(0,0,0,.42)] sm:h-full sm:max-w-[min(96vw,960px)] sm:rounded-2xl sm:border">
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-200/15 px-3 py-2.5 sm:px-4">
+        data-testid="client360-panel" className="flex h-[100dvh] min-w-0 w-full max-w-full flex-col overflow-hidden border-l border-cyan-300/25 bg-[radial-gradient(ellipse_at_top_right,rgba(20,115,214,.2),transparent_60%),linear-gradient(160deg,#081d37,#061225_60%,#050d1c)] shadow-[-28px_0_80px_rgba(0,0,0,.64)] sm:h-full sm:max-w-[min(96vw,900px)] sm:rounded-[28px] sm:border sm:ring-1 sm:ring-white/5">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[.025] px-4 py-3 sm:px-6 sm:py-4">
           <div className="min-w-0"><p className="text-[11px] font-bold tracking-[.2em] text-amber-200">CAREER GATE · CLIENT 360</p>
-            <h2 className="mt-1 break-words text-base font-semibold tracking-tight leading-5 text-white">{client.full_name}</h2>
+            <h2 className="mt-1 break-words text-lg font-semibold tracking-tight leading-6 text-white sm:text-xl">{client.full_name}</h2>
             <p className="mt-1 font-mono text-xs text-cyan-200">{client.ref}</p>
           </div>
           <div className="flex gap-2">
@@ -111,12 +121,10 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
             <button autoFocus onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-xl text-white transition hover:bg-white/20" aria-label="Close Client 360">×</button>
           </div>
         </header>
-        <nav aria-label="Client 360 sections" className="flex shrink-0 gap-2 overflow-x-auto border-b border-white/10 px-3 py-2 sm:px-4">
-          {([["client360-appointments", "Appointments"], ["client360-finance", "Payments"], ["client360-documents", "Documents"], ["client360-audit", "Activity"]] as const).map(([id, label]) =>
-            <button key={id} type="button" className="shrink-0 rounded-lg border border-white/15 bg-white/[.045] px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-300/40 hover:text-cyan-100" onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })}>{label}</button>
-          )}
+        <nav aria-label="Client 360 sections" className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-white/10 bg-[#07162a]/70 px-3 py-3 sm:px-5" role="tablist">
+          {TABS.map(item => <button key={item.id} type="button" role="tab" aria-selected={section === item.id} aria-controls="client360-active-panel" className={`shrink-0 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-[color,background-color,border-color,box-shadow] duration-150 focus-visible:outline-2 focus-visible:outline-cyan-300 sm:px-4 ${section === item.id ? "border-sky-400/65 bg-sky-500/20 text-white shadow-[0_0_18px_rgba(14,165,233,.12)]" : "border-transparent bg-white/[.035] text-slate-300 hover:border-white/15 hover:bg-white/[.075] hover:text-white"}`} onClick={() => setSection(item.id)}>{item.label}</button>)}
         </nav>
-        <div data-testid="client360-scroll-area" className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-3 pb-8 sm:p-4 sm:pb-8 [scrollbar-gutter:stable]">
+        <div id="client360-active-panel" role="tabpanel" data-testid="client360-scroll-area" className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5 [scrollbar-gutter:stable]">
           {error && <p role="alert" className="rounded-xl border border-red-300/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
           {!data && !error && <p role="status" className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200">Loading authorized client record…</p>}
           {data && <>
@@ -215,6 +223,10 @@ export function Client360Drawer({ client, onClose }: { client: Client; onClose: 
             </section>
           </>}
         </div>
+        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-white/10 bg-[#061429] px-4 py-3 sm:px-6">
+          <Link prefetch={false} href={`/staff/client/${client.id}`} className="inline-flex min-h-11 items-center rounded-xl border border-sky-400/35 bg-sky-400/10 px-4 text-xs font-semibold text-sky-100 transition-colors hover:bg-sky-400/20">Full Record ↗</Link>
+          <button type="button" onClick={onClose} className="inline-flex min-h-11 items-center rounded-xl border border-sky-400/50 bg-sky-500 px-5 text-xs font-bold text-white transition-colors hover:bg-sky-400">Close</button>
+        </footer>
       </aside>
     </div>,
     document.body,
