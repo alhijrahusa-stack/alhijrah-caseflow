@@ -473,6 +473,8 @@ test.describe("Smart Review experience", () => {
     await signIn(page.context(), baseURL!, "admin");
     await page.setViewportSize(DESKTOP);
     await page.goto("/staff/import");
+    await page.getByRole("button", { name: /NEW IMPORT BY SHEET/ }).first().click();
+    await expect(page.getByTestId("toggle-import-workspace")).toHaveAttribute("aria-expanded", "true");
 
     const csv = `full_name,phone,english_proficiency,shift_days\n${name},${phone},Englis is goog,Weekdays\n`;
     await page.locator('input[type="file"]').first().setInputFiles({ name: "review-ui.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
@@ -580,6 +582,8 @@ test.describe("Smart Review experience", () => {
     await signIn(page.context(), baseURL!, "admin");
     await page.setViewportSize(DESKTOP);
     await page.goto("/staff/import");
+    await page.getByRole("button", { name: /NEW IMPORT BY SHEET/ }).first().click();
+    await expect(page.getByTestId("toggle-import-workspace")).toHaveAttribute("aria-expanded", "true");
     await page.locator('input[type="file"]').first().setInputFiles({ name: "review-mobile.csv", mimeType: "text/csv", buffer: Buffer.from(`full_name,phone\n${name},${phone}\n`) });
     await page.getByRole("button", { name: "PREVIEW" }).click();
     await page.getByRole("button", { name: /STAGE SELECTED/ }).click();
