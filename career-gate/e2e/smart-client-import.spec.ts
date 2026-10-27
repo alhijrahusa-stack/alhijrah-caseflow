@@ -12,9 +12,11 @@ test.describe("Smart Career Collect Client", () => {
 
     await signIn(page.context(), baseURL!, "admin");
     await page.goto("/staff/import");
+    await page.getByRole("button", { name: /NEW IMPORT BY SHEET/ }).first().click();
     await expect(page.getByRole("heading", { name: "SMART CAREER COLLECT CLIENT" })).toBeVisible();
     await expect(page.getByRole("button", { name: /NEW IMPORT BY SHEET/ }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /SMART CLIENT IMPORT BY LINK/ }).first()).toBeVisible();
+    await expect(page.getByTestId("toggle-import-workspace")).toHaveAttribute("aria-expanded", "true");
 
     const csv = [
       "full_name,phone,email,preferred_language,english_proficiency,address,preferred_location,location_option_2,shift_days,shift_start_time,shift_end_time",
@@ -179,6 +181,7 @@ test.describe("Smart Career Collect Client", () => {
     const phone = `734${token}`.slice(0, 10).padEnd(10, "8");
     await signIn(page.context(), baseURL!, "admin");
     await page.goto("/staff/import");
+    await page.getByRole("button", { name: /NEW IMPORT BY SHEET/ }).first().click();
 
     const csv = `full_name,phone\n${name},${phone}\n`;
     await page.locator('input[type="file"]').first().setInputFiles({ name: "archive-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
