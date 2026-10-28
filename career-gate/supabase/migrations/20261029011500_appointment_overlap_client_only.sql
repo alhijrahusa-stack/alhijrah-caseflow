@@ -9,6 +9,12 @@ ALTER TABLE public.appointments
   )
   WHERE (status IN ('scheduled','confirmed','rescheduled'));
 
-CREATE UNIQUE INDEX IF NOT EXISTS notifications_appointment_auto_confirmation_once
-  ON public.notifications ((payload->>'appointmentId'), (payload->>'scheduledAt'))
-  WHERE template='appointment_auto_confirmation' AND channel='email';
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_appointment_confirmation_once
+  ON public.notifications (
+    template,
+    (payload->>'appointmentId'),
+    (payload->>'scheduledAt'),
+    (payload->>'location'),
+    (payload->>'recipientKind')
+  )
+  WHERE template IN ('appointment_scheduled','appointment_updated') AND channel='email';
