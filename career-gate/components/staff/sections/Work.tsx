@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useHydrated } from "@/components/staff/useHydrated";
 import { QuickDate, QuickDateTime } from "@/components/staff/QuickDate";
+import { AmazonWarehousePicker } from "@/components/staff/AmazonWarehousePicker";
+import { siteForLocation, warehouseMapUrl } from "@/lib/amazon-interview-sites";
 import { useStaff } from "@/components/staff/StaffContext";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
@@ -17,7 +19,7 @@ import { dateOnly, dateTime, toLocalInput } from "@/lib/format";
 import { Card, SmallBtn, useRowAction, type Row } from "./common";
 
 
-export type RescheduleValues = { when: string; location: string; notes: string };
+export type RescheduleValues = { when: string; location: string; notes: string; appointmentType: string; durationMinutes: number };
 
 export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
   appt: Row;
@@ -31,6 +33,8 @@ export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
   const [when, setWhen] = useState(() => toLocalInput(appt.scheduled_at));
   const [location, setLocation] = useState<string>(appt.location ?? "");
   const [notes, setNotes] = useState<string>(appt.notes ?? "");
+  const [appointmentType,setAppointmentType] = useState<string>(String(appt.appointment_type ?? "Appointment"));
+  const [durationMinutes,setDurationMinutes] = useState<number>(Math.max(5,Math.round((new Date(appt.ends_at).getTime()-new Date(appt.scheduled_at).getTime())/60000)||30));
 
   useEffect(() => {
     if (!mounted) return;
@@ -47,13 +51,23 @@ export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
       data-testid="reschedule-modal"
       aria-label="Reschedule appointment"
       onCancel={(event) => { event.preventDefault(); if (!pending) onClose(); }}
-      className="fixed inset-0 m-auto max-h-[90vh] w-[min(90vw,36rem)] overflow-y-auto rounded-2xl border border-white/20 bg-slate-900 p-5 text-slate-100 shadow-2xl backdrop:bg-slate-950/80"
+      className="fixed inset-0 m-auto max-h-[90dvh] w-[min(96vw,38rem)] overflow-y-auto rounded-2xl border border-amber-300/35 bg-[#0b2238] p-4 text-slate-100 shadow-2xl backdrop:bg-slate-950/85 sm:p-5"
     >
-      <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); void onSave({ when, location, notes }); }}>
-        <h2 className="text-lg font-semibold">Reschedule appointment</h2>
+      <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); void onSave({ when, location, notes, appointmentType, durationMinutes }); }}>
+        <h2 className="text-lg font-semibold text-amber-100">Manage appointment · إدارة الموعد</h2>
+        <p className="text-xs text-slate-300">Edit the real appointment in one save. Customer and resource notifications update automatically.</p>
+        <label className="text-xs text-slate-300">Appointment type
+          <input aria-label="Edit appointment type" required maxLength={100} className="input mt-1 w-full" value={appointmentType} onChange={e=>setAppointmentType(e.target.value)} />
+        </label>
+        <label className="text-xs text-slate-300">Minutes
+          <input aria-label="Edit appointment duration" required type="number" min={5} max={480} className="input mt-1 w-full" value={durationMinutes} onChange={e=>setDurationMinutes(Number(e.target.value)||30)} />
+        </label>
         <QuickDateTime ariaLabel="New date and time" testId="input-new-date-time" autoFocus value={when} onChange={setWhen} required />
-        <input aria-label="Location" className="input" placeholder="Location" value={location} onChange={(event) => setLocation(event.target.value)} />
-        <input aria-label="Notes" className="input" placeholder="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} />
+        <AmazonWarehousePicker value={location} onChange={setLocation} disabled={pending}/>
+        <input aria-label="Location" maxLength={300} className="input" placeholder="Office or Amazon interview location" value={location} onChange={(event) => setLocation(event.target.value)} />
+        {siteForLocation(location) && <a href={warehouseMapUrl(siteForLocation(location)!.address)} rel="noopener noreferrer" target="_blank" className="text-xs text-amber-200 underline">Open Google Maps</a>}
+        <textarea aria-label="Notes" maxLength={2000} rows={2} className="input" placeholder="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} />
+        <p className="rounded-lg border border-amber-200/20 bg-[#112c45] p-3 text-xs text-slate-200" dir="rtl">يرجى الوصول قبل الموعد بنصف ساعة وإحضار الوثائق الأصلية للمقابلة. نتمنى لكم التوفيق.</p>
         {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
         <div className="flex flex-wrap justify-end gap-2">
           <SmallBtn aria-label="Cancel reschedule" disabled={pending} onClick={onClose}>Cancel</SmallBtn>
