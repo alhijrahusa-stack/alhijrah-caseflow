@@ -269,9 +269,9 @@ describe("transactional appointment notification and reminder outbox", () => {
     expect(mail.filter(row=>row.template==="appointment_updated")).toHaveLength(2);
   });
 
-  it("queues one advance reminder per appointment revision despite repeated daily cron calls", async () => {
+  it("queues exactly one reminder in the 23–24 hour window despite repeated hourly cron calls", async () => {
     const client = await makeClient("TEST Reminder Profile");
-    const when = new Date(Date.now()+36*3_600_000);
+    const when = new Date(Date.now()+23.5*3_600_000);
     const [appt] = await db`insert into appointments (client_id,appointment_type,scheduled_at,ends_at,resource_key,location,created_by_staff,status)
       values(${client.id},'Office intake',${when},${new Date(when.getTime()+30*60_000)},'office','Office',${sessions.manager.staff.id},'confirmed') returning id`;
     const priorKey=process.env.RESEND_API_KEY;
