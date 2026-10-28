@@ -265,7 +265,7 @@ export function ClientFile({
 
       <div id="action-panel" data-testid="client-action-panel" aria-busy={!isMounted} className="relative z-40 scroll-mt-40">
         {isMounted && panel === "document" && <DocumentForm clientId={c.id} onDone={close} />}
-        {isMounted && panel === "appointment" && <AppointmentForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "appointment" && <AppointmentForm clientId={c.id} clientName={String(c.full_name)} onDone={close} />}
         {isMounted && panel === "note" && <AddNoteForm clientId={c.id} onDone={close} />}
         {isMounted && panel === "task" && <TaskForm clientId={c.id} onDone={close} />}
         {isMounted && panel === "contacted" && <ContactedForm clientId={c.id} onDone={close} />}
