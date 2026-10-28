@@ -6,6 +6,7 @@ import { AppointmentNotificationPanel } from "@/components/staff/AppointmentNoti
 import { AppointmentRowActions, RescheduleModal } from "@/components/staff/sections/Work";
 import { useRowAction } from "@/components/staff/sections/common";
 import { fromLocalInput } from "@/lib/format";
+import { warehouseMapUrl } from "@/lib/amazon-interview-sites";
 
 type Appointment = Record<string, string>;
 type Props = { appointments: Appointment[] };
@@ -55,7 +56,7 @@ export function MobileAppointmentCards({ appointments }: Props) {
             <span className="text-xs text-slate-400">Detroit</span>
           </div>
           <div className="min-w-0"><span className="cg-meta-label">TYPE · النوع</span><p className="cg-meta-value break-words">{a.appointment_type}</p></div>
-          <div className="min-w-0"><span className="cg-meta-label">LOCATION · الموقع</span><p className="cg-meta-value line-clamp-2 break-words" title={a.location || undefined}>{a.location || "—"}</p></div>
+          <div className="min-w-0"><span className="cg-meta-label">LOCATION · الموقع</span><p className="cg-meta-value line-clamp-2 break-words" title={a.location || undefined}>{a.location || "—"}</p>{a.location&&<a href={warehouseMapUrl(a.location)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex text-xs text-amber-200 hover:underline">Google Maps ↗</a>}</div>
           <div className="min-w-0"><span className="cg-meta-label">BOOKED BY · الموظف</span><p className="cg-meta-value truncate" title={a.created_by_name || undefined}>{a.created_by_name || "—"}</p></div>
         </div>
         {a.outcome ? <p className="mt-3 text-xs font-semibold text-emerald-300">Decision recorded · {a.outcome.replaceAll("_"," ")}</p> :
