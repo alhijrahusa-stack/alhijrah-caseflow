@@ -169,7 +169,7 @@ test.describe.serial("office workflow", () => {
     expect(doc.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  test("scheduling: book a suggested slot, collisions refused, reschedule", async ({ request }, testInfo) => {
+  test("scheduling: approve a slot, allow different clients, protect same client, reschedule", async ({ request }, testInfo) => {
     for (let d = 0; d < 7; d++) {
       const r = await staffAction(request, "manager", { action: "upsert_availability", resource_key: "office", weekday: d, start_time: "08:00", end_time: "20:00", slot_minutes: 30 });
       expect(r.status).toBe(200);
@@ -181,6 +181,8 @@ test.describe.serial("office workflow", () => {
     await expect(slot).toBeVisible();
     const label = await slot.innerText();
     await slot.click();
+    await expect(page.getByRole("region", { name: "Review appointment before approval" })).toBeVisible();
+    await page.getByTestId("form-appointment").getByRole("button", { name: "Approve & Save appointment" }).click();
     await expect(page.getByTestId("appointment-row")).toHaveCount(1);
     await expect(page.getByTestId("appointment-row")).toContainText(`Office Room ${RUN}`);
 
@@ -192,10 +194,14 @@ test.describe.serial("office workflow", () => {
       action: "book_slot", client_id: oc.id, start: new Date(appt.scheduled_at).toISOString(), end: new Date(appt.ends_at).toISOString(),
       resource_key: "office", appointment_type: "Test",
     });
-    expect(clash.status).toBe(409);
-    expect(label).toMatch(/^Book /);
+    expect(clash.status).toBe(200);
+    expect(label).toMatch(/^Select /);
+    const sameClientClash = await staffAction(request, "manager", {
+      action: "book_slot", client_id: clientId, start: new Date(appt.scheduled_at).toISOString(), end: new Date(appt.ends_at).toISOString(),
+      resource_key: "office", appointment_type: "Test",
+    });
+    expect(sameClientClash.status).toBe(409);
 
-    await page.getByTestId("appointment-row").getByRole("button", { name: "Confirm" }).click();
     await expect(page.getByTestId("appointment-status")).toHaveText("confirmed");
     await expect(page.getByTestId("appointment-row")).toContainText(`Office Room ${RUN}`);
     const trigger = page.getByTestId("appointment-row").getByRole("button", { name: "Edit / Reschedule" });
