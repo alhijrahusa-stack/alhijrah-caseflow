@@ -142,7 +142,7 @@ export async function queueAdvanceAppointmentReminders() {
     select a.id,a.client_id,a.scheduled_at,a.location,a.appointment_type,
            c.full_name,c.email
     from appointments a join clients c on c.id=a.client_id
-    where a.status in ('scheduled','confirmed','rescheduled')
+    where a.status in ('confirmed','rescheduled')
       and c.deleted_at is null and c.communication_consent and c.email is not null
       and a.scheduled_at >= now()+interval '24 hours'
       and a.scheduled_at < now()+interval '48 hours'
