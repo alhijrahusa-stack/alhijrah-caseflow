@@ -176,7 +176,16 @@ test.describe.serial("office workflow", () => {
     }
     await page.reload();
     await page.getByTestId("quick-actions").getByRole("button", { name: "Add Appointment" }).click();
-    await page.getByTestId("form-appointment").getByLabel("Location").fill(`Office Room ${RUN}`);
+    const locationPicker = page.getByRole("button", { name: /اختيار موقع مستودع أمازون/ });
+    await locationPicker.click();
+    const picker = page.getByRole("dialog", { name: "Amazon warehouse location picker" });
+    await expect(picker).toBeVisible();
+    await picker.getByRole("searchbox", { name: "Search Amazon warehouse by code, city or address" }).fill("DTW1");
+    await expect(picker.getByRole("button", { name: /Romulus DTW1/ })).toBeVisible();
+    await picker.getByRole("button", { name: /Romulus DTW1/ }).click();
+    await picker.getByRole("button", { name: "تأكيد واختيار الموقع" }).click();
+    await expect(page.getByTestId("form-appointment").getByLabel("Appointment location (editable)")).toHaveValue(/DTW1.*32801 Ecorse Rd/);
+    await page.getByTestId("form-appointment").getByLabel("Appointment location (editable)").fill(`Office Room ${RUN}`);
     const slot = page.getByTestId("slot").first();
     await expect(slot).toBeVisible();
     const label = await slot.innerText();
@@ -225,9 +234,15 @@ test.describe.serial("office workflow", () => {
       throw error;
     }
     await modal.getByTestId("input-new-date-time").fill(`${tomorrowLocal(testInfo.repeatEachIndex)}T19:00`);
+    await modal.getByRole("button", { name: /اختيار موقع مستودع أمازون/ }).click();
+    const editPicker = page.getByRole("dialog", { name: "Amazon warehouse location picker" });
+    await editPicker.getByRole("searchbox", { name: "Search Amazon warehouse by code, city or address" }).fill("DTW1");
+    await editPicker.getByRole("button", { name: /Romulus DTW1/ }).click();
+    await editPicker.getByRole("button", { name: "تأكيد واختيار الموقع" }).click();
     await modal.getByTestId("button-confirm-reschedule").click();
     await expect(modal).toHaveCount(0);
     await expect(page.getByTestId("appointment-status")).toHaveText("rescheduled");
+    await expect(page.getByTestId("appointment-row")).toContainText("DTW1");
   });
 
   test("notes, tasks, contact, follow-ups", async () => {
