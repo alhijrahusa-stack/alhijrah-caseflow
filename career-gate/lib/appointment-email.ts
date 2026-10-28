@@ -8,7 +8,6 @@ import { registry, providerStates } from "@/lib/providers/config";
 import { sendEmail, type SendResult } from "@/lib/providers/messaging";
 import { warehouseMapUrl } from "@/lib/amazon-interview-sites";
 
-type Db = postgres.Sql | postgres.TransactionSql;
 type Event = "scheduled" | "updated" | "reminder";
 type RecipientKind = "client" | "resource";
 type Payload = {
