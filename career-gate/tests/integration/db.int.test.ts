@@ -10,7 +10,7 @@ import { saveDocument } from "@/lib/documents";
 import { claimKey, completeKey } from "@/lib/idempotency";
 import { enqueue, processJobs, registerHandler } from "@/lib/jobs";
 import { queueSubmissionNotifications } from "@/lib/notify";
-import { queue24HourAppointmentReminders } from "@/lib/appointment-email";
+import { queueAdvanceAppointmentReminders } from "@/lib/appointment-email";
 import { publicStatus } from "@/lib/public-status";
 import { ProfileSchema } from "@/lib/schemas";
 import { suggestSlots } from "@/lib/scheduling";
@@ -237,9 +237,9 @@ describe("transactional appointment notification and reminder outbox", () => {
     expect(notifications.every(n=>n.payload.scheduledAt===instant)).toBe(true);
   });
 
-  it("queues one 24-hour reminder per appointment revision despite repeated cron calls", async () => {
+  it("queues one advance reminder per appointment revision despite repeated daily cron calls", async () => {
     const client = await makeClient("TEST Reminder Profile");
-    const when = new Date(Date.now()+23.5*3_600_000);
+    const when = new Date(Date.now()+36*3_600_000);
     const [appt] = await db`insert into appointments (client_id,appointment_type,scheduled_at,ends_at,resource_key,location,created_by_staff,status)
       values(${client.id},'Office intake',${when},${new Date(when.getTime()+30*60_000)},'office','Office',${sessions.manager.staff.id},'confirmed') returning id`;
     const priorKey=process.env.RESEND_API_KEY;
@@ -247,8 +247,8 @@ describe("transactional appointment notification and reminder outbox", () => {
     process.env.RESEND_API_KEY="integration-provider-not-contacted";
     process.env.RESEND_FROM_EMAIL="test@example.invalid";
     try {
-      expect(await queue24HourAppointmentReminders()).toBe(1);
-      expect(await queue24HourAppointmentReminders()).toBe(0);
+      expect(await queueAdvanceAppointmentReminders()).toBe(1);
+      expect(await queueAdvanceAppointmentReminders()).toBe(0);
       const [count]=await db`select count(*)::int n from notifications
         where template='appointment_reminder' and payload->>'appointmentId'=${appt.id}`;
       expect(count.n).toBe(1);
