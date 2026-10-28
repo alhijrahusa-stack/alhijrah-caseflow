@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { expireGateJobReservations } from "@/lib/gate-job-account/service";
-import { queue24HourAppointmentReminders } from "@/lib/appointment-email";
+import { queueAdvanceAppointmentReminders } from "@/lib/appointment-email";
 import { runAudit } from "@/lib/audit";
 import { sql } from "@/lib/db";
 import { err, ok } from "@/lib/http";
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   const expected = `Bearer ${secret}`;
   if (given.length !== expected.length || !timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return err("unauthorized", "Unauthorized", 401, traceId);
   const db = sql();
-  const appointmentReminders = await queue24HourAppointmentReminders();
+  const appointmentReminders = await queueAdvanceAppointmentReminders();
   const jobs = await processJobs(50);
   const audit = new Date().getUTCHours() === 7 ? await runAudit(null, traceId) : null;
   const gateJobReservations = await expireGateJobReservations(traceId);
