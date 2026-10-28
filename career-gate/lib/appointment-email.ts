@@ -3,8 +3,8 @@ import "server-only";
 import type postgres from "postgres";
 import { sql } from "@/lib/db";
 import { enqueue } from "@/lib/jobs";
-import { channelConfigured } from "@/lib/notify";
-import { registry } from "@/lib/providers/config";
+
+import { registry, providerStates } from "@/lib/providers/config";
 import { sendEmail, type SendResult } from "@/lib/providers/messaging";
 import { warehouseMapUrl } from "@/lib/amazon-interview-sites";
 
@@ -72,7 +72,7 @@ export function renderAppointmentEmail(p: Payload) {
 }
 
 async function queueOne(tx: postgres.TransactionSql, clientId: string, payload: Payload, traceId: string) {
-  const configured = channelConfigured("email");
+  const configured = providerStates().email_resend === "CONFIGURED";
   const [row] = await tx`insert into notifications(client_id,channel,template,payload,status)
     values(${clientId},'email',${`appointment_${payload.event}`},${tx.json(payload)},${configured?"queued":"not_configured"})
     returning id`;
@@ -138,7 +138,7 @@ export async function deliverAppointmentEmail(notificationId: string, payload: u
 
 export async function queue24HourAppointmentReminders() {
   const db = sql();
-  if (!channelConfigured("email")) return 0;
+  if (providerStates().email_resend !== "CONFIGURED") return 0;
   const eligible = await db`
     select a.id,a.client_id,a.scheduled_at,a.location,a.appointment_type,
            c.full_name,c.email
