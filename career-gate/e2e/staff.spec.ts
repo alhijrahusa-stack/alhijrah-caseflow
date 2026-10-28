@@ -342,7 +342,7 @@ test.describe.serial("office workflow", () => {
     await page.getByTestId("open-status-page").click();
     await expect(page.getByTestId("status-current-status")).toHaveText("Ready to Apply");
     await expect(page.getByTestId("status-next-step")).toHaveText(`Bring two IDs ${RUN}`);
-    await expect(page.getByTestId("status-appointment-location")).toHaveText(`Office Room ${RUN}`);
+    await expect(page.getByTestId("status-appointment-location")).toHaveText("Romulus (DTW1): Amazon Fulfillment Center - 32801 Ecorse Rd, Romulus, MI 48174");
     await expect(page.getByTestId("status-start-date")).toHaveText("Jan 15, 2030");
     const text = await page.getByTestId("status-page").innerText();
     for (const secret of [`INTERNAL-NOTE-${RUN}`, `INTERNAL-TASK-${RUN}`, "work-auth.png", "Reached client", "TEST Admin", "High school"]) expect(text, secret).not.toContain(secret);
