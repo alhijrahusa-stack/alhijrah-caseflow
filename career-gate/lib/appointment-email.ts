@@ -156,8 +156,8 @@ export async function queueAdvanceAppointmentReminders() {
     from appointments a join clients c on c.id=a.client_id
     where a.status in ('confirmed','rescheduled')
       and c.deleted_at is null and c.communication_consent and c.email is not null
-      and a.scheduled_at >= now()+interval '23 hours'
-      and a.scheduled_at < now()+interval '24 hours'
+      and a.scheduled_at >= now()+interval '24 hours'
+      and a.scheduled_at < now()+interval '48 hours'
     order by a.scheduled_at limit 250`;
   let queued=0;
   for(const appointment of eligible) {
