@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { revalidatePath } from "next/cache";
 import { ActionSchema, directClientId, entityRef, runAction } from "@/lib/actions";
 import { intakeAgentFor } from "@/lib/agent-runs";
 import { runAudit } from "@/lib/audit";
@@ -45,6 +46,10 @@ export async function POST(req: Request) {
         return r;
       });
       const clientId = authz.clientId ?? (typeof result.client_id === "string" ? result.client_id : null);
+      if (["schedule_appointment","book_slot","update_appointment"].includes(a.action)) {
+        revalidatePath("/staff/appointments");
+        if (clientId) revalidatePath(`/staff/client/${clientId}`);
+      }
       after(async () => {
         if (clientId && result.identity_review_pending !== true) await runAudit(clientId, traceId).catch((e) => console.error(e));
         await processJobs(10).catch((e) => console.error(e));
