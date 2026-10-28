@@ -228,9 +228,10 @@ describe("transactional appointment notification and reminder outbox", () => {
       resource_key:"office",location:"Romulus (DTW1): Amazon Fulfillment Center - 32801 Ecorse Rd, Romulus, MI 48174",notes:null,
     });
     expect(created.status).toBe("confirmed");
-    const [appt] = await db`select status,location from appointments where id=${created.appointment_id}`;
+    const createdId = String(created.appointment_id);
+    const [appt] = await db`select status,location from appointments where id=${createdId}`;
     expect(appt.status).toBe("confirmed");
-    const notifications=await db`select template,payload,status from notifications where client_id=${client.id} and payload->>'appointmentId'=${created.appointment_id}`;
+    const notifications=await db`select template,payload,status from notifications where client_id=${client.id} and payload->>'appointmentId'=${createdId}`;
     expect(notifications.some(n=>n.template==="appointment_scheduled" && n.payload.recipientKind==="client")).toBe(true);
     expect(notifications.every(n=>["queued","not_configured"].includes(String(n.status)))).toBe(true);
     expect(notifications.every(n=>n.payload.scheduledAt===instant)).toBe(true);
