@@ -15,6 +15,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS notifications_appointment_confirmation_once
     (payload->>'appointmentId'),
     (payload->>'scheduledAt'),
     (payload->>'location'),
+    (payload->>'appointmentType'),
     (payload->>'recipientKind')
   )
   WHERE template IN ('appointment_scheduled','appointment_updated') AND channel='email';
