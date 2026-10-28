@@ -46,8 +46,9 @@ export async function POST(req: Request) {
         return r;
       });
       const clientId = authz.clientId ?? (typeof result.client_id === "string" ? result.client_id : null);
-      if (["schedule_appointment","book_slot","update_appointment"].includes(a.action)) {
+      if (["schedule_appointment","book_slot","update_appointment","record_appointment_attendance","appointment_decision"].includes(a.action)) {
         revalidatePath("/staff/appointments");
+        revalidatePath("/staff/clients");
         if (clientId) revalidatePath(`/staff/client/${clientId}`);
       }
       after(async () => {
