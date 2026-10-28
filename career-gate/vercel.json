@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/maintenance",
       "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/cron/appointment-reminders",
-      "schedule": "0 * * * *"
     }
   ],
   "regions": [
