@@ -185,6 +185,7 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
           </dl>
           {selectedSite && <a href={warehouseMapUrl(selectedSite.address)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex rounded-xl border border-amber-300/40 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-300/10">Google Maps · عرض الموقع</a>}
           <p className="mt-3 text-xs leading-6 text-amber-100" dir="rtl">يرجى الوصول قبل موعد المقابلة بنصف ساعة، وإحضار الوثائق الأصلية للمقابلة. نتمنى لكم التوفيق — بوابة التوظيف Career Gate.</p>
+          <p className="mt-2 text-xs text-slate-300">Approval confirms the booking in the database. Email notifications are queued for clients who have consented and provided a valid email; staff resource notices use the configured office email.</p>
         </section>
       </Shell>
     </form>
