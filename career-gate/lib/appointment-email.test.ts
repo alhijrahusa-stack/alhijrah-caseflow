@@ -31,6 +31,6 @@ describe("automatic field appointment confirmation",()=>{
       location:"Office",appointmentType:"Office intake",
     };
     expect(renderAppointmentEmail({...payload,event:"updated"}).subject).toContain("Updated");
-    expect(renderAppointmentEmail({...payload,event:"reminder"}).subject).toContain("24 hours");
+    expect(renderAppointmentEmail({...payload,event:"reminder"}).subject).toContain("Upcoming Appointment Reminder");
   });
 });
