@@ -74,8 +74,8 @@ async function queueOne(tx: postgres.TransactionSql, clientId: string, payload: 
   const configured = providerStates().email_resend === "CONFIGURED";
   const [row] = await tx`insert into notifications(client_id,channel,template,payload,status)
     values(${clientId},'email',${`appointment_${payload.event}`},${tx.json(payload)},${configured?"queued":"not_configured"})
-    returning id`;
-  if (configured) await enqueue(tx,{type:"notification_send",entityId:String(row.id),dedupeKey:`notify:${row.id}`,traceId});
+    on conflict do nothing returning id`;
+  if (configured && row) await enqueue(tx,{type:"notification_send",entityId:String(row.id),dedupeKey:`notify:${row.id}`,traceId});
 }
 
 export async function queueAppointmentEmails(
@@ -110,14 +110,26 @@ export async function deliverAppointmentEmail(notificationId: string, payload: u
   if (!isPayload(payload)) throw new Error("Invalid appointment email payload");
   const [notification] = await db`update notifications
     set status='sending',attempts=attempts+1
-    where id=${notificationId} and status in ('queued','sending')
+    where id=${notificationId} and status='queued'
     returning id,client_id`;
   if (!notification) return {status:"skipped"};
-  const [current] = await db`select id,scheduled_at,location,status from appointments
-    where id=${payload.appointmentId} and client_id=${notification.client_id}`;
+  const [current] = await db`select a.id,a.scheduled_at,a.location,a.appointment_type,a.status,a.resource_key,
+        c.email,c.communication_consent,c.deleted_at
+    from appointments a join clients c on c.id=a.client_id
+    where a.id=${payload.appointmentId} and a.client_id=${notification.client_id}`;
   const currentTime = current ? new Date(current.scheduled_at).toISOString() : null;
-  const stale = !current || !["scheduled","confirmed","rescheduled"].includes(String(current.status))
-    || currentTime !== payload.scheduledAt || (current.location ?? "Office (contact Career Gate for location)") !== payload.location;
+  const staffRecipient = current?.resource_key && String(current.resource_key).startsWith("staff:")
+    ? await db`select email from staff where id=${String(current.resource_key).slice(6)} and active` : [];
+  const authorizedRecipient = payload.recipientKind === "client"
+    ? Boolean(current?.communication_consent && current?.email === payload.recipient)
+    : Boolean(
+        staffRecipient?.[0]?.email === payload.recipient ||
+        (!String(current?.resource_key ?? "").startsWith("staff:") && registry.app().adminEmail === payload.recipient)
+      );
+  const stale = !current || current.deleted_at || !["scheduled","confirmed","rescheduled"].includes(String(current.status))
+    || currentTime !== payload.scheduledAt || String(current.appointment_type) !== payload.appointmentType
+    || (current.location ?? "Office (contact Career Gate for location)") !== payload.location
+    || !authorizedRecipient;
   if (stale) {
     await db`update notifications set status='not_configured',error='Appointment changed or cancelled before delivery' where id=${notificationId}`;
     return {status:"skipped"};
@@ -144,8 +156,8 @@ export async function queueAdvanceAppointmentReminders() {
     from appointments a join clients c on c.id=a.client_id
     where a.status in ('confirmed','rescheduled')
       and c.deleted_at is null and c.communication_consent and c.email is not null
-      and a.scheduled_at >= now()+interval '24 hours'
-      and a.scheduled_at < now()+interval '48 hours'
+      and a.scheduled_at >= now()+interval '23 hours'
+      and a.scheduled_at < now()+interval '24 hours'
     order by a.scheduled_at limit 250`;
   let queued=0;
   for(const appointment of eligible) {
