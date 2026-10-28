@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   const db = sql();
   const appointmentReminders = await queue24HourAppointmentReminders();
   const jobs = await processJobs(50);
-  const audit = await runAudit(null, traceId);
+  const audit = new Date().getUTCHours() === 7 ? await runAudit(null, traceId) : null;
   const gateJobReservations = await expireGateJobReservations(traceId);
   const cleanup = {
     idempotency_keys: (await db`delete from idempotency_keys where expires_at < now()`).count,
