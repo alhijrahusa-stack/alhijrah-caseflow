@@ -2,7 +2,7 @@ import "server-only";
 import type postgres from "postgres";
 import { enqueue } from "@/lib/jobs";
 import { warehouseMapUrl } from "@/lib/amazon-interview-sites";
-import { channelConfigured } from "@/lib/notify";
+import { providerStates } from "@/lib/providers/config";
 
 export type AppointmentNoticeType = "appointment_auto_confirmation" | "appointment_reminder" | "appointment_staff_notice";
 export type AppointmentNoticePayload = { appointmentId: string; scheduledAt: string; kind: AppointmentNoticeType };
@@ -34,7 +34,7 @@ export async function queueAppointmentNotice(
   if (hasClientEmail) {
     const payload: AppointmentNoticePayload = { appointmentId, scheduledAt, kind };
     const [n] = await tx`insert into notifications(client_id,channel,template,payload,status)
-      values (${appointment.client_id},'email',${kind},${tx.json(payload)},${channelConfigured("email") ? "queued" : "not_configured"})
+      values (${appointment.client_id},'email',${kind},${tx.json(payload)},${providerStates().email_resend === "CONFIGURED" ? "queued" : "not_configured"})
       on conflict do nothing returning id,status`;
     if (n?.status === "queued") {
       await enqueue(tx,{type:"notification_send",entityId:String(n.id),dedupeKey:`appointment-notice:${n.id}`,traceId});
@@ -46,7 +46,7 @@ export async function queueAppointmentNotice(
     if (staff?.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(staff.email))) {
       const payload: AppointmentNoticePayload = { appointmentId, scheduledAt, kind:"appointment_staff_notice" };
       const [n] = await tx`insert into notifications(client_id,channel,template,payload,status)
-        values (${appointment.client_id},'email','appointment_staff_notice',${tx.json(payload)},${channelConfigured("email") ? "queued" : "not_configured"})
+        values (${appointment.client_id},'email','appointment_staff_notice',${tx.json(payload)},${providerStates().email_resend === "CONFIGURED" ? "queued" : "not_configured"})
         on conflict do nothing returning id,status`;
       if (n?.status === "queued") {
         await enqueue(tx,{type:"notification_send",entityId:String(n.id),dedupeKey:`appointment-notice:${n.id}`,traceId});
