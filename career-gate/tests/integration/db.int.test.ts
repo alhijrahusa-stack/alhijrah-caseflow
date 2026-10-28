@@ -269,7 +269,7 @@ describe("transactional appointment notification and reminder outbox", () => {
     expect(mail.filter(row=>row.template==="appointment_updated")).toHaveLength(2);
   });
 
-  it("queues exactly one reminder in the 23–24 hour window despite repeated hourly cron calls", async () => {
+  it("queues one reminder in the next-day window despite repeated daily cron calls", async () => {
     const client = await makeClient("TEST Reminder Profile");
     const when = new Date(Date.now()+36*3_600_000);
     const [appt] = await db`insert into appointments (client_id,appointment_type,scheduled_at,ends_at,resource_key,location,created_by_staff,status)
