@@ -39,7 +39,7 @@ export function renderAppointmentEmail(p: Payload) {
   const resource = p.recipientKind === "resource";
   const subject = resource
     ? `Career Gate · ${p.event === "updated" ? "Updated" : "New"} appointment · ${p.clientName}`
-    : p.event === "reminder" ? "Career Gate · Appointment Reminder (24 hours)"
+    : p.event === "reminder" ? "Career Gate · Upcoming Appointment Reminder"
       : p.event === "updated" ? "Career Gate · Updated Appointment Confirmation"
       : "Career Gate · Appointment Confirmation";
   const text = [
@@ -135,7 +135,7 @@ export async function deliverAppointmentEmail(notificationId: string, payload: u
   return result;
 }
 
-export async function queue24HourAppointmentReminders() {
+export async function queueAdvanceAppointmentReminders() {
   const db = sql();
   if (providerStates().email_resend !== "CONFIGURED") return 0;
   const eligible = await db`
@@ -144,8 +144,8 @@ export async function queue24HourAppointmentReminders() {
     from appointments a join clients c on c.id=a.client_id
     where a.status in ('scheduled','confirmed','rescheduled')
       and c.deleted_at is null and c.communication_consent and c.email is not null
-      and a.scheduled_at >= now()+interval '23 hours'
-      and a.scheduled_at < now()+interval '24 hours'
+      and a.scheduled_at >= now()+interval '24 hours'
+      and a.scheduled_at < now()+interval '48 hours'
     order by a.scheduled_at limit 250`;
   let queued=0;
   for(const appointment of eligible) {
