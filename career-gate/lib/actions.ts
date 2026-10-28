@@ -414,7 +414,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       }
       await touchClient(tx, a.client_id);
       await logActivity(tx, { clientId: a.client_id, action: "appointment_created", actor, entityType: "appointment", entityId: appt.id, newValue: { type: a.appointment_type, scheduled_at: start.toISOString(), ends_at: end.toISOString(), resource: a.resource_key, location: a.location } });
-      await queueAppointmentEmails(tx, { id:String(appt.id), client_id:a.client_id, scheduled_at:start, location:a.location, appointment_type:a.appointment_type, resource_key:a.resource_key }, "scheduled", actor.traceId);
+      if (a.approve_booking) await queueAppointmentEmails(tx, { id:String(appt.id), client_id:a.client_id, scheduled_at:start, location:a.location, appointment_type:a.appointment_type, resource_key:a.resource_key }, "scheduled", actor.traceId);
       return { appointment_id: appt.id, status: a.approve_booking ? "confirmed" : "scheduled" };
     }
 
