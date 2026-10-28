@@ -10,6 +10,7 @@ import { saveDocument } from "@/lib/documents";
 import { claimKey, completeKey } from "@/lib/idempotency";
 import { enqueue, processJobs, registerHandler } from "@/lib/jobs";
 import { queueSubmissionNotifications } from "@/lib/notify";
+import { queue24HourAppointmentReminders } from "@/lib/appointment-email";
 import { publicStatus } from "@/lib/public-status";
 import { ProfileSchema } from "@/lib/schemas";
 import { suggestSlots } from "@/lib/scheduling";
@@ -214,6 +215,46 @@ describe("scheduling and collision prevention", () => {
     expect(results.filter(r=>r.status==="fulfilled")).toHaveLength(1);
     expect(results.filter(r=>r.status==="rejected")).toHaveLength(1);
     expect((results.find(r=>r.status==="rejected") as PromiseRejectedResult).reason).toMatchObject({code:"23P01"});
+  });
+});
+
+describe("transactional appointment notification and reminder outbox", () => {
+  it("records an approved appointment and queues recipient-aware emails without claiming a send", async () => {
+    const client = await makeClient("TEST Notification Profile");
+    const instant = new Date(Date.now() + 56 * 86_400_000).toISOString();
+    const created = await act("manager", {
+      action:"schedule_appointment",client_id:client.id,appointment_type:"Employment interview",
+      lifecycle_interview:false,approve_booking:true,scheduled_at:instant,duration_minutes:30,
+      resource_key:"office",location:"Romulus (DTW1): Amazon Fulfillment Center - 32801 Ecorse Rd, Romulus, MI 48174",notes:null,
+    });
+    expect(created.status).toBe("confirmed");
+    const [appt] = await db`select status,location from appointments where id=${created.appointment_id}`;
+    expect(appt.status).toBe("confirmed");
+    const notifications=await db`select template,payload,status from notifications where client_id=${client.id} and payload->>'appointmentId'=${created.appointment_id}`;
+    expect(notifications.some(n=>n.template==="appointment_scheduled" && n.payload.recipientKind==="client")).toBe(true);
+    expect(notifications.every(n=>["queued","not_configured"].includes(String(n.status)))).toBe(true);
+    expect(notifications.every(n=>n.payload.scheduledAt===instant)).toBe(true);
+  });
+
+  it("queues one 24-hour reminder per appointment revision despite repeated cron calls", async () => {
+    const client = await makeClient("TEST Reminder Profile");
+    const when = new Date(Date.now()+23.5*3_600_000);
+    const [appt] = await db`insert into appointments (client_id,appointment_type,scheduled_at,ends_at,resource_key,location,created_by_staff,status)
+      values(${client.id},'Office intake',${when},${new Date(when.getTime()+30*60_000)},'office','Office',${sessions.manager.staff.id},'confirmed') returning id`;
+    const priorKey=process.env.RESEND_API_KEY;
+    const priorFrom=process.env.RESEND_FROM_EMAIL;
+    process.env.RESEND_API_KEY="integration-provider-not-contacted";
+    process.env.RESEND_FROM_EMAIL="test@example.invalid";
+    try {
+      expect(await queue24HourAppointmentReminders()).toBe(1);
+      expect(await queue24HourAppointmentReminders()).toBe(0);
+      const [count]=await db`select count(*)::int n from notifications
+        where template='appointment_reminder' and payload->>'appointmentId'=${appt.id}`;
+      expect(count.n).toBe(1);
+    } finally {
+      if(priorKey===undefined)delete process.env.RESEND_API_KEY;else process.env.RESEND_API_KEY=priorKey;
+      if(priorFrom===undefined)delete process.env.RESEND_FROM_EMAIL;else process.env.RESEND_FROM_EMAIL=priorFrom;
+    }
   });
 });
 
