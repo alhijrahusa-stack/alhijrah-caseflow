@@ -507,8 +507,9 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         throw new ActionError("use_interview_decision", "Record Pass, Fail, Missed or Cancellation through the interview decision workflow", 409);
       }
       const start = a.scheduled_at ? new Date(a.scheduled_at) : new Date(cur.scheduled_at);
-      const duration = a.duration_minutes ?? Math.round((new Date(cur.ends_at).getTime() - new Date(cur.scheduled_at).getTime()) / 60_000);
-      const moved = start.getTime() !== new Date(cur.scheduled_at).getTime() || a.duration_minutes !== undefined;
+      const previousDuration = Math.round((new Date(cur.ends_at).getTime() - new Date(cur.scheduled_at).getTime()) / 60_000);
+      const duration = a.duration_minutes ?? previousDuration;
+      const moved = start.getTime() !== new Date(cur.scheduled_at).getTime() || duration !== previousDuration;
       const next = {
         appointment_type: a.appointment_type ?? cur.appointment_type,
         scheduled_at: start,
