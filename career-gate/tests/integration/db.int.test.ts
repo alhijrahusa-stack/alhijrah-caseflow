@@ -237,6 +237,38 @@ describe("transactional appointment notification and reminder outbox", () => {
     expect(notifications.every(n=>n.payload.scheduledAt===instant)).toBe(true);
   });
 
+  it("notifies both applicant and assigned resource, and only calls a real reschedule when the time changes", async () => {
+    const client = await makeClient("TEST Appointment Resource");
+    const start = new Date(Date.now()+63*86_400_000).toISOString();
+    const created = await act("manager", {
+      action:"schedule_appointment",client_id:client.id,appointment_type:"Employment interview",
+      approve_booking:true,scheduled_at:start,duration_minutes:30,
+      resource_key:`staff:${sessions.manager.staff.id}`,location:"DTW1 test address",notes:null,
+    });
+    const appointmentId=String(created.appointment_id);
+    let mail=await db`select template,payload from notifications where client_id=${client.id}
+      and payload->>'appointmentId'=${appointmentId}`;
+    expect(mail.filter(row=>row.template==="appointment_scheduled")).toHaveLength(2);
+    expect(mail.map(row=>row.payload.recipientKind).sort()).toEqual(["client","resource"]);
+    await act("manager",{
+      action:"update_appointment",appointment_id:appointmentId,
+      scheduled_at:start,duration_minutes:30,notes:"Changed instructions",
+    });
+    let [appt]=await db`select status,notes from appointments where id=${appointmentId}`;
+    expect(appt).toMatchObject({status:"confirmed",notes:"Changed instructions"});
+    mail=await db`select template,payload from notifications where client_id=${client.id}
+      and payload->>'appointmentId'=${appointmentId}`;
+    expect(mail.some(row=>row.template==="appointment_updated")).toBe(false);
+
+    await act("manager",{action:"update_appointment",appointment_id:appointmentId,location:"DET1 updated address"});
+    [appt]=await db`select status,location from appointments where id=${appointmentId}`;
+    expect(appt.status).toBe("confirmed");
+    expect(appt.location).toBe("DET1 updated address");
+    mail=await db`select template,payload from notifications where client_id=${client.id}
+      and payload->>'appointmentId'=${appointmentId}`;
+    expect(mail.filter(row=>row.template==="appointment_updated")).toHaveLength(2);
+  });
+
   it("queues one advance reminder per appointment revision despite repeated daily cron calls", async () => {
     const client = await makeClient("TEST Reminder Profile");
     const when = new Date(Date.now()+36*3_600_000);
