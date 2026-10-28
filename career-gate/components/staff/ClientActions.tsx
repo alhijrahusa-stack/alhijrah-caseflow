@@ -20,7 +20,9 @@ import {
   TRANSITIONS,
   type Status,
 } from "@/lib/domain";
-import { dateTime, fromLocalInput, todayInOffice } from "@/lib/format";
+import { dateTime, fromLocalInput, todayInOffice, toLocalInput } from "@/lib/format";
+import { AmazonWarehousePicker } from "@/components/staff/AmazonWarehousePicker";
+import { siteForLocation, warehouseMapUrl } from "@/lib/amazon-interview-sites";
 
 export type Panel = "document" | "appointment" | "note" | "task" | "contacted" | "status" | "next_step" | "followup" | "assign";
 
@@ -31,7 +33,7 @@ function Shell({ title, children, error, pending, onCancel, submitLabel, testId 
 }) {
   return (
     <div
-      className="rounded-2xl border border-white/[.09] bg-[linear-gradient(150deg,rgba(15,28,48,.94),rgba(7,14,26,.96))] p-4 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_22px_70px_rgba(0,0,0,.26)] backdrop-blur-2xl"
+      className="rounded-2xl border border-amber-300/25 bg-gradient-to-br from-[#163754] to-[#071525] p-4 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_22px_70px_rgba(0,0,0,.26)] "
       data-testid={testId}
       onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
     >
@@ -77,7 +79,7 @@ export function AddNoteForm({ clientId, onDone }: FormProps) {
 
 type Slot = { start: string; end: string; resource_key: string };
 
-export function AppointmentForm({ clientId, onDone }: FormProps) {
+export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { clientName: string }) {
   const f = useSubmit(onDone, "Appointment saved");
   const { activeStaff } = useStaff();
   const [type, setType] = useState("Pre-hire appointment");
@@ -89,6 +91,9 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
   const [notes, setNotes] = useState("");
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotError, setSlotError] = useState<string | null>(null);
+  const selectedSite = siteForLocation(location);
+  const formattedWhen = when ? fromLocalInput(when) : null;
+  const validWhen = formattedWhen !== null && Number.isFinite(formattedWhen.getTime());
 
   useEffect(() => {
     let off = false;
@@ -106,10 +111,10 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
-      if (!when) return f.setError("Choose a suggested slot or enter a date and time");
-      f.submit({ action: "schedule_appointment", ...base, resource_key: resource, duration_minutes: duration, scheduled_at: fromLocalInput(when).toISOString() });
+      if (!validWhen || !formattedWhen) return f.setError("Choose a valid date and time");
+      f.submit({ action: "schedule_appointment", ...base, approve_booking: true, resource_key: resource, duration_minutes: duration, scheduled_at: formattedWhen.toISOString() });
     }}>
-      <Shell title="Add appointment" testId="form-appointment" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Save appointment">
+      <Shell title="Add appointment" testId="form-appointment" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Approve & Save appointment">
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <label className="label" htmlFor="appt_type">Appointment type</label>
@@ -143,13 +148,13 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
         <div data-testid="slot-suggestions">
           <p className="label">Next available (office calendar)</p>
           {slotError && <p className="text-sm text-red-400">{slotError}</p>}
-          {slots && slots.length === 0 && <p className="text-sm text-slate-500">No open slots in the next 3 weeks. Set office hours under Availability, or enter a time below.</p>}
+          {slots && slots.length === 0 && <p className="text-sm text-slate-300">No office-calendar suggestions. Staff can choose an exact time below; other clients may share that time and resource.</p>}
           <div className="flex flex-wrap gap-2">
             {slots?.map((s) => (
               <button key={s.start} type="button" disabled={f.pending} data-testid="slot"
-                className="rounded-md border border-cyan-400/25 bg-cyan-400/[.04] px-3 py-1.5 text-sm text-cyan-200 hover:bg-cyan-400/[.08]"
-                onClick={() => f.submit({ action: "book_slot", ...base, resource_key: s.resource_key, start: s.start, end: s.end })}>
-                Book {dateTime(s.start)}
+                className="rounded-xl border border-amber-300/30 bg-[#163750] px-3 py-2 text-xs text-amber-100 hover:border-amber-300/70"
+                onClick={() => { setWhen(toLocalInput(s.start)); setResource(s.resource_key); }}>
+                Select {dateTime(s.start)}
               </button>
             ))}
           </div>
@@ -161,13 +166,26 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
           </div>
           <div>
             <label className="label" htmlFor="appt_location">Location</label>
-            <input id="appt_location" className="input" value={location} onChange={(e) => setLocation(e.target.value)} />
+            <AmazonWarehousePicker value={location} onChange={setLocation} disabled={f.pending} />
+            <input id="appt_location" aria-label="Appointment location (editable)" maxLength={300} className="input mt-2 w-full" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Office or verified interview address" />
           </div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor="appt_notes">Notes</label>
             <textarea id="appt_notes" rows={2} className="input" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
         </div>
+        <section aria-label="Review appointment before approval" className="rounded-2xl border border-amber-300/35 bg-gradient-to-br from-[#15344e] to-[#07182b] p-3.5 text-slate-100 shadow-[inset_0_1px_rgba(255,255,255,.1)]">
+          <p className="text-xs font-semibold tracking-wide text-amber-200">CAREER GATE · APPOINTMENT REVIEW</p>
+          <h4 className="mt-1 text-base font-semibold">مراجعة الموعد قبل الاعتماد</h4>
+          <dl className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+            <div><dt className="text-slate-400">Client / العميل</dt><dd className="mt-1 break-words font-semibold">{clientName}</dd></div>
+            <div><dt className="text-slate-400">Type / نوع الموعد</dt><dd className="mt-1 break-words font-semibold">{type}</dd></div>
+            <div><dt className="text-slate-400">Michigan time</dt><dd className="mt-1 font-semibold">{validWhen&&formattedWhen ? dateTime(formattedWhen.toISOString()) : "Choose date & time"}</dd></div>
+            <div><dt className="text-slate-400">Location</dt><dd className="mt-1 break-words font-semibold">{selectedSite ? `${selectedSite.name} · ${selectedSite.code}` : location || "Office / Not specified"}</dd></div>
+          </dl>
+          {selectedSite && <a href={warehouseMapUrl(selectedSite.address)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex rounded-xl border border-amber-300/40 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-300/10">Google Maps · عرض الموقع</a>}
+          <p className="mt-3 text-xs leading-6 text-amber-100" dir="rtl">يرجى الوصول قبل موعد المقابلة بنصف ساعة، وإحضار الوثائق الأصلية للمقابلة. نتمنى لكم التوفيق — بوابة التوظيف Career Gate.</p>
+        </section>
       </Shell>
     </form>
   );
