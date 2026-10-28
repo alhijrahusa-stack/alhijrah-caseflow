@@ -252,7 +252,7 @@ describe("transactional appointment notification and reminder outbox", () => {
     expect(mail.map(row=>row.payload.recipientKind).sort()).toEqual(["client","resource"]);
     await act("manager",{
       action:"update_appointment",appointment_id:appointmentId,
-      scheduled_at:start,duration_minutes:30,notes:"Changed instructions",
+      scheduled_at:start,duration_minutes:30,location:undefined,notes:"Changed instructions",
     });
     let [appt]=await db`select status,notes from appointments where id=${appointmentId}`;
     expect(appt).toMatchObject({status:"confirmed",notes:"Changed instructions"});
@@ -260,7 +260,7 @@ describe("transactional appointment notification and reminder outbox", () => {
       and payload->>'appointmentId'=${appointmentId}`;
     expect(mail.some(row=>row.template==="appointment_updated")).toBe(false);
 
-    await act("manager",{action:"update_appointment",appointment_id:appointmentId,location:"DET1 updated address"});
+    await act("manager",{action:"update_appointment",appointment_id:appointmentId,location:"DET1 updated address",notes:undefined});
     [appt]=await db`select status,location from appointments where id=${appointmentId}`;
     expect(appt.status).toBe("confirmed");
     expect(appt.location).toBe("DET1 updated address");
