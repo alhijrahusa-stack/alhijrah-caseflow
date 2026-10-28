@@ -38,3 +38,7 @@ GRANT EXECUTE ON FUNCTION public.cg_busy_intervals(text,timestamptz,timestamptz)
 CREATE INDEX IF NOT EXISTS appointments_active_client_time_idx
  ON public.appointments (client_id, scheduled_at, ends_at)
  WHERE status IN ('scheduled','confirmed','rescheduled');
+
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_one_client_appointment_reminder
+ ON public.notifications ((payload->>'appointmentId'),(payload->>'scheduledAt'))
+ WHERE template='appointment_reminder' AND channel='email';
