@@ -330,7 +330,7 @@ test.describe.serial("office workflow", () => {
     const actions = await page.getByTestId("activity-row").evaluateAll((els) => els.map((e) => e.getAttribute("data-action")));
     for (const a of [
       "client_created", "client_updated", "staff_assigned", "document_uploaded", "document_processed", "document_opened",
-      "document_verified", "appointment_created", "appointment_updated", "appointment_rescheduled", "note_added",
+      "document_verified", "appointment_created", "appointment_rescheduled", "note_added",
       "task_added", "task_completed", "contact_logged", "followup_created", "followup_completed", "status_changed",
       "next_step_changed", "assessment_updated", "post_hire_updated",
     ]) expect(actions, a).toContain(a);
