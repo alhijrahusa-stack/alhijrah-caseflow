@@ -185,23 +185,35 @@ describe("scheduling and collision prevention", () => {
     }
   });
 
-  it("offers three real free slots and prevents double booking", async () => {
+  it("keeps office slots open for different clients while blocking same-client conflicts", async () => {
     const slots = await suggestSlots(db, { resourceKey: "office", count: 3 });
     expect(slots).toHaveLength(3);
     const s = slots[0];
     await act("manager", { action: "book_slot", client_id: A.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null });
-    await expect(act("manager", { action: "book_slot", client_id: B.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null }))
-      .rejects.toMatchObject({ code: "slot_taken" });
+    await act("manager", { action: "book_slot", client_id: B.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null });
+    await expect(act("manager", { action: "book_slot", client_id: A.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null }))
+      .rejects.toMatchObject({ code: "23P01" });
     const after = await suggestSlots(db, { resourceKey: "office", count: 3 });
-    expect(after.map((x) => x.start)).not.toContain(s.start);
+    expect(after.map((x) => x.start)).toContain(s.start);
   });
 
-  it("the exclusion constraint rejects overlaps even for manual scheduling", async () => {
-    const t = new Date(Date.now() + 40 * 86_400_000).toISOString();
-    await act("manager", { action: "schedule_appointment", client_id: A.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null });
-    await expect(act("manager", { action: "schedule_appointment", client_id: B.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null }))
+  it("prevents one applicant's overlapping appointments across different staff and resources", async () => {
+    const t = new Date(Date.now() + 41 * 86_400_000).toISOString();
+    await act("manager", { action: "schedule_appointment", client_id: A.id, appointment_type: "Interview", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null });
+    await act("manager", { action: "schedule_appointment", client_id: B.id, appointment_type: "Interview", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null });
+    await expect(act("manager", { action: "schedule_appointment", client_id: A.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: `staff:${sessions.staff2.staff.id}`, location: null, notes: null }))
       .rejects.toMatchObject({ code: "23P01" });
-    await act("manager", { action: "schedule_appointment", client_id: B.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: `staff:${sessions.staff2.staff.id}`, location: null, notes: null });
+  });
+
+  it("protects the same client under concurrent overlapping writes", async () => {
+    const t = new Date(Date.now() + 44 * 86_400_000).toISOString();
+    const results = await Promise.allSettled([
+      act("manager", { action: "schedule_appointment", client_id: A.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null }),
+      act("manager", { action: "schedule_appointment", client_id: A.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: `staff:${sessions.staff2.staff.id}`, location: null, notes: null }),
+    ]);
+    expect(results.filter(r=>r.status==="fulfilled")).toHaveLength(1);
+    expect(results.filter(r=>r.status==="rejected")).toHaveLength(1);
+    expect((results.find(r=>r.status==="rejected") as PromiseRejectedResult).reason).toMatchObject({code:"23P01"});
   });
 });
 
