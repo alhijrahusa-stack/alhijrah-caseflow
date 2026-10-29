@@ -169,7 +169,7 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label" htmlFor="appt_when">Or a specific date &amp; time (Michigan time)</label>
-            <QuickDateTime ariaLabel="Or a specific date & time (Michigan time)" value={when} onChange={setWhen} />
+            <QuickDateTime ariaLabel="Or a specific date & time (Michigan time)" value={when} onChange={(next) => { setWhen(next); setReview(false); bookingKey.current = null; }} />
           </div>
           <div>
             <AmazonAppointmentLocationPicker value={siteCode} onChange={(code) => { setSiteCode(code); setReview(false); }} disabled={f.pending}/>
