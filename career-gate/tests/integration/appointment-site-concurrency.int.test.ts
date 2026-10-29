@@ -11,13 +11,13 @@ const db = postgres(process.env.DATABASE_URL!, {prepare:false,max:5});
 let manager:StaffSession;
 let n=0;
 const when=new Date(Date.now()+19*86400000).toISOString();
-async function createClient() {
+async function createClient(consent=false) {
   const serial=++n;
   return db.begin(tx=>insertClient(tx,{
     source:"staff_manual",
-    profile:ProfileSchema.parse({full_name:`TEST Appointment ${serial}`,phone:`313555${String(7100+serial)}`,employment_history:[]}),
+    profile:ProfileSchema.parse({full_name:`TEST Appointment ${serial}`,phone:`313555${String(7100+serial)}`,email:consent?`site-${serial}@example.invalid`:null,employment_history:[]}),
     primary:[],backup:[],status:"new_intake",nextStep:null,
-    assignedStaff:manager.staff.id,createdBy:manager.staff.id,communicationConsent:false
+    assignedStaff:manager.staff.id,createdBy:manager.staff.id,communicationConsent:consent
   },{staffId:manager.staff.id,traceId:"site-test"}));
 }
 const act=(payload:Record<string,unknown>)=>withStaff(manager,tx=>runAction({
