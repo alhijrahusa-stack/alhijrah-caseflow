@@ -191,7 +191,7 @@ test.describe.serial("office workflow", () => {
     await slot.click();
     await form.getByRole("button", { name: "Review Appointment" }).click();
     await expect(form.getByTestId("appointment-review")).toContainText("Romulus (DTW1)");
-    await expect(form.getByTestId("appointment-review")).toContainText("Please arrive 30 minutes");
+    await expect(form.getByTestId("appointment-review")).toContainText("يرجى الوصول قبل موعد المقابلة بنصف ساعة");
     await form.getByRole("button", { name: "Approve & Save Appointment" }).click();
     await expect(page.getByTestId("appointment-row")).toHaveCount(1);
     await expect(page.getByTestId("appointment-row")).toContainText("DTW1");
