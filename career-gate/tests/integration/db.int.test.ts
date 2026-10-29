@@ -185,15 +185,16 @@ describe("scheduling and collision prevention", () => {
     }
   });
 
-  it("offers three real free slots and prevents double booking", async () => {
+  it("offers three calendar suggestions, allows separate clients and prevents duplicate booking per client", async () => {
     const slots = await suggestSlots(db, { resourceKey: "office", count: 3 });
     expect(slots).toHaveLength(3);
     const s = slots[0];
     await act("manager", { action: "book_slot", client_id: A.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null });
-    await expect(act("manager", { action: "book_slot", client_id: B.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null }))
-      .rejects.toMatchObject({ code: "slot_taken" });
+    await act("manager", { action: "book_slot", client_id: B.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null });
+    await expect(act("manager", { action: "book_slot", client_id: A.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null }))
+      .rejects.toMatchObject({ code: "23P01" });
     const after = await suggestSlots(db, { resourceKey: "office", count: 3 });
-    expect(after.map((x) => x.start)).not.toContain(s.start);
+    expect(after.map((x) => x.start)).toContain(s.start);
   });
 
   it("the exclusion constraint rejects overlaps even for manual scheduling", async () => {
