@@ -4,6 +4,8 @@ import { sql } from "@/lib/db";
 import type { Channel } from "@/lib/domain";
 import { dateTime } from "@/lib/format";
 import { enqueue } from "@/lib/jobs";
+import { renderAppointmentCard } from "@/lib/appointment-notification-card";
+import { amazonAppointmentMapsUrl } from "@/lib/amazon-appointment-sites";
 import { OFFICE } from "@/lib/office";
 import { providerStates, registry } from "@/lib/providers/config";
 import { sendEmail, sendSms, sendWhatsAppTemplate, type SendResult } from "@/lib/providers/messaging";
@@ -70,14 +72,41 @@ export async function deliverNotification(id: string): Promise<SendResult | { st
     returning *`;
   if (!n) return { status: "skipped" };
   const [contact] = await db`select phone, email from clients where id = ${n.client_id}`;
+  const isAppointment = n.template === "appointment_confirmed" || n.template === "appointment_reminder_24h";
+  let appointmentCard: ReturnType<typeof renderAppointmentCard> | null = null;
+  let mapLink = "";
+  if (isAppointment) {
+    const payload = n.payload as {appointment_id?:string;scheduled_at?:string};
+    const [appointment] = await db`
+      select a.scheduled_at,a.location,a.status,c.full_name,c.email,c.phone,c.communication_consent
+      from appointments a join clients c on c.id=a.client_id
+      where a.id=${payload.appointment_id ?? null} and a.client_id=${n.client_id}`;
+    if (!appointment || appointment.status !== "confirmed" ||
+        new Date(appointment.scheduled_at).toISOString() !== payload.scheduled_at ||
+        !appointment.communication_consent || !appointment.email) {
+      await db`update notifications set status='failed',error='appointment_changed_or_closed' where id=${id}`;
+      return {status:"skipped"};
+    }
+    appointmentCard = renderAppointmentCard({
+      clientName:String(appointment.full_name),date:dateTime(appointment.scheduled_at),
+      location:String(appointment.location ?? "Office"),status:"confirmed",email:String(appointment.email),
+      phone:String(appointment.phone),documents:[],language:"both",
+    });
+    mapLink = amazonAppointmentMapsUrl(String(appointment.location ?? ""));
+  }
   const payload = n.payload as SubmissionPayload;
-  const msg = renderSubmission(payload);
-  const result: SendResult =
-    n.channel === "sms"
-      ? await sendSms(contact.phone, msg.text)
+  const msg = isAppointment ? null : renderSubmission(payload);
+  const result: SendResult = appointmentCard
+    ? await sendEmail(String(contact.email),
+        n.template === "appointment_reminder_24h" ? "CAREER GATE · Interview Reminder / تذكير المقابلة" : appointmentCard.subject,
+        appointmentCard.text + "\\nArrive 30 minutes early and bring original documents. / يرجى الوصول قبل الموعد بنصف ساعة وإحضار الوثائق الأصلية.\\n" + mapLink,
+        appointmentCard.html.replace("</body>", '<p style="text-align:center;color:#d4af37">Arrive 30 minutes early · Bring originals<br/>يرجى الوصول مبكراً وإحضار الأصول<br/><a href="' + mapLink + '">Google Maps / الخرائط</a></p></body>'),
+        String(n.idempotency_key ?? n.id))
+    : n.channel === "sms"
+      ? await sendSms(contact.phone,msg!.text)
       : n.channel === "whatsapp"
-        ? await sendWhatsAppTemplate(contact.phone, registry.whatsapp().templateSubmission, msg.whatsappParams)
-        : await sendEmail(contact.email, msg.subject, msg.text);
+        ? await sendWhatsAppTemplate(contact.phone,registry.whatsapp().templateSubmission,msg!.whatsappParams)
+        : await sendEmail(contact.email,msg!.subject,msg!.text);
 
   const actor: Actor = { staffId: null, traceId: `notify:${id}` };
   if (result.status === "sent") {

@@ -44,7 +44,7 @@ export function dbErrorResponse(e: unknown, traceId?: string) {
   if (pg?.code === "P0001" && pg.message?.startsWith("invalid_initial_status")) {
     return err("invalid_transition", "A new client must start as New Intake, Needs Review or Ready to Apply", 400, traceId);
   }
-  if (pg?.code === "23P01") return err("slot_taken", "That time overlaps another appointment for the same resource", 409, traceId);
+  if (pg?.code === "23P01") return err("slot_taken", "This client already has an overlapping active appointment. Other clients can book the same time.", 409, traceId);
   if (pg?.code === "23505") return err("conflict", "That record already exists", 409, traceId);
   if (pg?.code === "42501") return err("forbidden", "Not permitted", 403, traceId);
   if (pg?.code === "23514" || pg?.code === "22P02" || pg?.code === "22007" || pg?.code === "22008") {
