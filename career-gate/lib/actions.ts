@@ -21,12 +21,14 @@ import {
   type Status,
 } from "@/lib/domain";
 import { enqueue } from "@/lib/jobs";
+import { queueAppointmentConfirmations } from "@/lib/appointment-message-queue";
 import { syncPostPaymentLifecycle } from "@/lib/post-payment-lifecycle";
 import { channelConfigured } from "@/lib/notify";
 import { inviteUser } from "@/lib/providers/supabase-auth";
 import { sendEmail, sendSms } from "@/lib/providers/messaging";
 import { Phone, ProfileSchema, SelectionSchema } from "@/lib/schemas";
 import { slotIsBookable } from "@/lib/scheduling";
+import { findAmazonAppointmentSite } from "@/lib/amazon-appointment-sites";
 import {
   ActionError,
   type Actor,
@@ -109,6 +111,9 @@ export const ActionSchema = z.discriminatedUnion("action", [
     duration_minutes: z.number().int().min(5).max(480).default(30),
     resource_key: resource.default("office"),
     location: optText(300),
+    location_id: z.string().max(10).refine(value=>Boolean(findAmazonAppointmentSite(value))).nullable().optional(),
+    booking_key: z.uuid().optional(),
+    approved: z.boolean().default(false),
     notes: optText(2000),
   }),
   z.object({
@@ -120,6 +125,9 @@ export const ActionSchema = z.discriminatedUnion("action", [
     lifecycle_interview: z.boolean().optional(),
     appointment_type: text(100),
     location: optText(300),
+    location_id: z.string().max(10).refine(value=>Boolean(findAmazonAppointmentSite(value))).nullable().optional(),
+    booking_key: z.uuid().optional(),
+    approved: z.boolean().default(false),
     notes: optText(2000),
   }),
   z.object({ action: z.literal("record_appointment_attendance"), appointment_id: id }),
@@ -131,6 +139,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     scheduled_at: instant.optional(),
     duration_minutes: z.number().int().min(5).max(480).optional(),
     location: keepText(300),
+    location_id: z.string().max(10).refine(value=>Boolean(findAmazonAppointmentSite(value))).nullable().optional(),
     notes: keepText(2000),
     status: z.enum(APPOINTMENT_STATUSES).optional(),
   }),
@@ -385,6 +394,14 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
     case "schedule_appointment":
     case "book_slot": {
       const scheduledClient = await requireClient(tx, a.client_id);
+      await tx`select id from clients where id=${a.client_id} for update`;
+      if (a.booking_key) {
+        const [previous] = await tx`select id,client_id from appointments where booking_key=${a.booking_key}`;
+        if (previous) {
+          if (String(previous.client_id) !== a.client_id) throw new ActionError("booking_key_conflict", "Booking key belongs to another client", 409);
+          return {appointment_id:previous.id,idempotent:true};
+        }
+      }
       if (a.lifecycle_interview && scheduledClient.current_status !== "appointment_scheduled" && !canTransition(scheduledClient.current_status as Status, "appointment_scheduled")) {
         throw new ActionError("lifecycle_conflict", "Advance the client to Job Ready before scheduling an employment interview", 409);
       }
@@ -395,9 +412,12 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         throw new ActionError("slot_taken", "That slot is no longer available", 409);
       }
       const staffResource = a.resource_key.startsWith("staff:") ? a.resource_key.slice(6) : null;
+      const site = findAmazonAppointmentSite(a.location_id);
+      const location = site ? site.address : a.location;
       const [appt] = await tx`
-        insert into appointments (client_id, appointment_type, appointment_kind, scheduled_at, ends_at, resource_key, assigned_staff, location, notes, created_by_staff)
-        values (${a.client_id}, ${a.appointment_type}, ${a.lifecycle_interview ? 'employment_interview' : 'general'}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${a.location}, ${a.notes}, ${by})
+        insert into appointments (client_id, appointment_type, appointment_kind, scheduled_at, ends_at, resource_key, assigned_staff, location, location_id, notes, created_by_staff,status,booking_key)
+        values (${a.client_id}, ${a.appointment_type}, ${a.lifecycle_interview ? 'employment_interview' : 'general'}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${location}, ${site?.code ?? null}, ${a.notes}, ${by},
+          ${a.approved ? 'confirmed' : 'scheduled'}, ${a.booking_key ?? null})
         returning id`;
       if (a.lifecycle_interview && scheduledClient.current_status !== "appointment_scheduled") {
         await tx`update clients
@@ -410,8 +430,9 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         });
       }
       await touchClient(tx, a.client_id);
-      await logActivity(tx, { clientId: a.client_id, action: "appointment_created", actor, entityType: "appointment", entityId: appt.id, newValue: { type: a.appointment_type, scheduled_at: start.toISOString(), ends_at: end.toISOString(), resource: a.resource_key, location: a.location } });
-      return { appointment_id: appt.id };
+      await logActivity(tx, { clientId: a.client_id, action: "appointment_created", actor, entityType: "appointment", entityId: appt.id, newValue: { type: a.appointment_type, scheduled_at: start.toISOString(), ends_at: end.toISOString(), resource: a.resource_key, location, location_id:site?.code ?? null, confirmed:a.approved } });
+      const notifications = a.approved ? await queueAppointmentConfirmations(tx,String(appt.id),actor) : [];
+      return { appointment_id: appt.id, notifications };
     }
 
     case "record_appointment_attendance": {
@@ -509,9 +530,10 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         appointment_type: a.appointment_type ?? cur.appointment_type,
         scheduled_at: start,
         ends_at: new Date(start.getTime() + duration * 60_000),
-        location: a.location !== undefined ? a.location : cur.location,
+        location: a.location_id ? findAmazonAppointmentSite(a.location_id)!.address : a.location !== undefined ? a.location : cur.location,
+        location_id: a.location_id !== undefined ? a.location_id : cur.location_id,
         notes: a.notes !== undefined ? a.notes : cur.notes,
-        status: a.status ?? (moved ? "rescheduled" : cur.status),
+        status: a.status ?? (moved && cur.status === "confirmed" ? "confirmed" : moved ? "rescheduled" : cur.status),
       };
       const changes = diff(cur, next);
       if (!changes) return { changed: false };
@@ -519,7 +541,10 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       await touchClient(tx, cur.client_id);
       const action = moved ? "appointment_rescheduled" : next.status !== cur.status && (next.status === "attended" || next.status === "missed") ? "appointment_completed" : "appointment_updated";
       await logActivity(tx, { clientId: cur.client_id, action, actor, entityType: "appointment", entityId: cur.id, oldValue: changes.oldV, newValue: changes.newV });
-      return { changed: true };
+      const needConfirm = next.status === "confirmed" &&
+        (cur.status !== "confirmed" || moved || next.location_id !== cur.location_id);
+      const notifications = needConfirm ? await queueAppointmentConfirmations(tx,String(cur.id),actor) : [];
+      return { changed: true, notifications };
     }
 
     case "add_note": {
