@@ -68,12 +68,12 @@ export async function sendWhatsAppTemplate(toTenDigits: string, template: string
   return { status: "sent", provider: "meta_whatsapp", provider_id: id };
 }
 
-export async function sendEmail(to: string, subject: string, text: string, html?: string): Promise<SendResult> {
+export async function sendEmail(to: string, subject: string, text: string, html?: string, idempotencyKey?: string): Promise<SendResult> {
   const { apiKey, from } = registry.resend();
   if (!apiKey || !from) return { status: "not_configured", provider: "resend" };
   const r = await post("resend", "https://api.resend.com/emails", {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}) },
     body: JSON.stringify({ from, to: [to], subject, text, ...(html ? { html } : {}) }),
   });
   if ("status" in r) return r;
