@@ -81,9 +81,19 @@ export function appointmentEmailIdempotencyKey(payload: Payload) {
 
 async function queueOne(tx: postgres.TransactionSql, clientId: string, payload: Payload, traceId: string, runAfter?: Date) {
   const configured = providerStates().email_resend === "CONFIGURED";
-  const [row] = await tx`insert into notifications(client_id,channel,template,payload,status,idempotency_key)
-    values(${clientId},'email',${`appointment_${payload.event}`},${tx.json(payload)},${configured?"queued":"not_configured"},${appointmentEmailIdempotencyKey(payload)})
-    on conflict do nothing returning id`;
+  const key=appointmentEmailIdempotencyKey(payload);
+  const [row] = payload.event === "reminder"
+    ? await tx`insert into notifications(client_id,channel,template,payload,status,idempotency_key)
+        values(${clientId},'email','appointment_reminder',${tx.json(payload)},${configured?"queued":"not_configured"},${key})
+        on conflict ((payload->>'appointmentId'),(payload->>'scheduledAt'))
+          where template='appointment_reminder' and channel='email'
+        do update set payload=excluded.payload,idempotency_key=excluded.idempotency_key,status=excluded.status
+          where notifications.attempts=0 and notifications.status in ('queued','not_configured')
+            and (notifications.payload,notifications.status) is distinct from (excluded.payload,excluded.status)
+        returning id`
+    : await tx`insert into notifications(client_id,channel,template,payload,status,idempotency_key)
+        values(${clientId},'email',${`appointment_${payload.event}`},${tx.json(payload)},${configured?"queued":"not_configured"},${key})
+        on conflict do nothing returning id`;
   if (configured && row) await enqueue(tx,{type:"notification_send",entityId:String(row.id),dedupeKey:`notify:${row.id}`,traceId,runAfter});
   return Boolean(configured && row);
 }
@@ -191,7 +201,7 @@ export async function queueAdvanceAppointmentReminders() {
       and not exists (
         select 1 from notifications n where n.template='appointment_reminder' and n.channel='email'
           and n.payload->>'appointmentId'=a.id::text
-          and (n.payload->>'scheduledAt')::timestamptz=a.scheduled_at
+          and n.payload->>'scheduledAt'=to_char(a.scheduled_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
       )
     order by a.scheduled_at limit 250`;
   let queued=0;

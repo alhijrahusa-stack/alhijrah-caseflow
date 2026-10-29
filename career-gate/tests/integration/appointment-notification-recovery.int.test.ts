@@ -153,4 +153,21 @@ describe("appointment notification recovery on isolated PostgreSQL", () => {
     expect(transport).toHaveBeenCalledTimes(1);
     expect(await queueAdvanceAppointmentReminders()).toBe(0);
   });
+
+  it("updates an unsent reminder in place when the location changes without changing the appointment time", async () => {
+    const {appt} = await queueConfirmation(36);
+    const [before]=await db`select id,idempotency_key from notifications
+      where payload->>'appointmentId'=${appt.id} and template='appointment_reminder'`;
+    await db.begin(async tx=>{
+      await tx`update appointments set location='Updated test warehouse' where id=${appt.id}`;
+      await queueAppointmentEmails(tx,{...appt,location:"Updated test warehouse"},"updated","notification-recovery-test");
+    });
+    const reminders=await db`select id,payload,idempotency_key,status,attempts from notifications
+      where payload->>'appointmentId'=${appt.id} and template='appointment_reminder'`;
+    expect(reminders).toHaveLength(1);
+    expect(reminders[0]).toMatchObject({id:before.id,status:"queued",attempts:0});
+    expect(reminders[0].payload.location).toBe("Updated test warehouse");
+    expect(reminders[0].idempotency_key).not.toBe(before.idempotency_key);
+    expect((await db`select count(*)::int n from jobs where entity_id=${String(before.id)}`)[0].n).toBe(1);
+  });
 });
