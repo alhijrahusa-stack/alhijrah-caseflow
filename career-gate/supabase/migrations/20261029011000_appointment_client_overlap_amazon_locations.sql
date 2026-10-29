@@ -1,4 +1,18 @@
 DO $$
+DECLARE old_definition text;
+BEGIN
+  SELECT pg_get_constraintdef(oid) INTO old_definition
+  FROM pg_constraint WHERE conrelid='public.appointments'::regclass
+    AND conname='appointments_no_overlap' AND contype='x';
+  IF old_definition IS NOT NULL THEN
+    IF position('resource_key WITH =' IN old_definition) = 0 THEN
+      RAISE EXCEPTION 'Refusing to drop unknown legacy appointment constraint: %',old_definition;
+    END IF;
+    ALTER TABLE public.appointments DROP CONSTRAINT appointments_no_overlap;
+  END IF;
+END $$;
+
+DO $$
 DECLARE v_definition text;
 BEGIN
   SELECT pg_get_constraintdef(oid) INTO v_definition
