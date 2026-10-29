@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import postgres from "postgres";
 import { ActionSchema, runAction } from "@/lib/actions";
 import { withStaff, type StaffSession } from "@/lib/auth";
 import { queueAppointmentNotifications } from "@/lib/appointment-notifications";
+import { deliverNotification } from "@/lib/notify";
 import { ProfileSchema } from "@/lib/schemas";
 import { insertClient } from "@/lib/service";
 
@@ -147,6 +148,46 @@ describe("Career Gate appointment booking concurrency and site referential integ
     await act({action:"update_appointment",appointment_id:id,status:"confirmed"});
     const [count]=await db`select count(*)::int n from notifications where appointment_id=${id}`;
     expect(count.n).toBe(4);
+  });
+
+  it("delivers each approved confirmation once across concurrent workers, recording sent with provider ID",async()=>{
+    const client=await makeClient(9,true);
+    const appointment=await act({action:"schedule_appointment",client_id:client,appointment_type:"Employment interview",
+      scheduled_at:at(45),duration_minutes:30,resource_key:"office",location:"Career Gate office",notes:null,
+      confirm_booking:true});
+    const [notice]=await db`select id from notifications where appointment_id=${appointment.appointment_id} and template='appointment_confirmation'`;
+    let sends=0;
+    vi.stubGlobal("fetch",async(url: string,init: RequestInit)=>{
+      expect(url).toBe("https://api.resend.com/emails");
+      expect(new Headers(init.headers).get("Idempotency-Key")).toContain("appointment:");
+      sends++;
+      return new Response(JSON.stringify({id:"test-provider-message-id"}),{status:200,headers:{"content-type":"application/json"}});
+    });
+    try {
+      const outcomes=await Promise.all([deliverNotification(String(notice.id)),deliverNotification(String(notice.id))]);
+      expect(outcomes.filter(outcome=>outcome.status==="sent")).toHaveLength(1);
+      expect(outcomes.filter(outcome=>outcome.status==="skipped")).toHaveLength(1);
+      expect(sends).toBe(1);
+      const [record]=await db`select status,provider_id,attempts from notifications where id=${notice.id}`;
+      expect(record).toMatchObject({status:"sent",provider_id:"test-provider-message-id",attempts:1});
+    }finally{vi.unstubAllGlobals();}
+  });
+
+  it("records failed delivery without inventing a sent status",async()=>{
+    const client=await makeClient(10,true);
+    const appointment=await act({action:"schedule_appointment",client_id:client,appointment_type:"Office intake",
+      scheduled_at:at(46),duration_minutes:30,resource_key:"office",location:"Career Gate office",notes:null,
+      confirm_booking:true});
+    const [notice]=await db`select id from notifications where appointment_id=${appointment.appointment_id} and template='appointment_confirmation'`;
+    vi.stubGlobal("fetch",async()=>new Response(JSON.stringify({message:"Provider unavailable"}),{status:503,headers:{"content-type":"application/json"}}));
+    try {
+      const outcome=await deliverNotification(String(notice.id));
+      expect(outcome.status).toBe("failed");
+      const [record]=await db`select status,provider_id,attempts from notifications where id=${notice.id}`;
+      expect(record.status).toBe("failed");
+      expect(record.provider_id).toBeNull();
+      expect(record.attempts).toBe(1);
+    }finally{vi.unstubAllGlobals();}
   });
 
   it("does not create an email notification when the applicant has not opted into messaging",async()=>{
