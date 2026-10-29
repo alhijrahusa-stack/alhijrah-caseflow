@@ -10,6 +10,8 @@ import { saveDocument } from "@/lib/documents";
 import { claimKey, completeKey } from "@/lib/idempotency";
 import { enqueue, processJobs, registerHandler } from "@/lib/jobs";
 import { queueSubmissionNotifications } from "@/lib/notify";
+import { queueAdvanceAppointmentReminders, queueAppointmentEmails, appointmentEmailIdempotencyKey } from "@/lib/appointment-email";
+import { AMAZON_INTERVIEW_SITES, warehouseLocation } from "@/lib/amazon-interview-sites";
 import { publicStatus } from "@/lib/public-status";
 import { ProfileSchema } from "@/lib/schemas";
 import { suggestSlots } from "@/lib/scheduling";
@@ -179,29 +181,189 @@ describe("status state machine", () => {
 });
 
 describe("scheduling and collision prevention", () => {
+  it("stores all eleven Amazon interview locations with canonical FK codes, and retains them after edits", async () => {
+    const sites = await db`select code,location_text from amazon_interview_locations where active order by code`;
+    expect(sites).toHaveLength(11);
+    for (const site of AMAZON_INTERVIEW_SITES) {
+      expect(sites.some(record=>record.code===site.code && record.location_text===warehouseLocation(site))).toBe(true);
+      const when=new Date(Date.now()+(110+AMAZON_INTERVIEW_SITES.indexOf(site))*86_400_000).toISOString();
+      const booked = await act("manager",{
+        action:"schedule_appointment",client_id:B.id,appointment_type:"Amazon interview location check",
+        scheduled_at:when,duration_minutes:30,resource_key:"office",
+        location:warehouseLocation(site),notes:null,approve_booking:true
+      });
+      const [saved] = await db`select location,location_id from appointments where id=${String(booked.appointment_id)}`;
+      expect(saved).toEqual({location:warehouseLocation(site),location_id:site.code});
+    }
+    const first=AMAZON_INTERVIEW_SITES[0];
+    const second=AMAZON_INTERVIEW_SITES[1];
+    const [appointment]=await db`select id from appointments where client_id=${B.id} and location_id=${first.code} order by created_at desc limit 1`;
+    await act("manager",{action:"update_appointment",appointment_id:String(appointment.id),location:warehouseLocation(second),notes:undefined});
+    const [edited]=await db`select location,location_id from appointments where id=${appointment.id}`;
+    expect(edited).toEqual({location:warehouseLocation(second),location_id:second.code});
+    await act("manager",{action:"update_appointment",appointment_id:String(appointment.id),location:"Career Gate Office",notes:undefined});
+    const [cleared]=await db`select location_id from appointments where id=${appointment.id}`;
+    expect(cleared.location_id).toBeNull();
+  });
+
   beforeAll(async () => {
     for (let d = 0; d < 7; d++) {
       await act("manager", { action: "upsert_availability", resource_key: "office", weekday: d, start_time: "00:00", end_time: "23:30", slot_minutes: 30, appointment_type: null, active: true });
     }
   });
 
-  it("offers three real free slots and prevents double booking", async () => {
+  it("keeps office slots open for different clients while blocking same-client conflicts", async () => {
     const slots = await suggestSlots(db, { resourceKey: "office", count: 3 });
     expect(slots).toHaveLength(3);
     const s = slots[0];
     await act("manager", { action: "book_slot", client_id: A.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null });
-    await expect(act("manager", { action: "book_slot", client_id: B.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null }))
-      .rejects.toMatchObject({ code: "slot_taken" });
+    await act("manager", { action: "book_slot", client_id: B.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null });
+    await expect(act("manager", { action: "book_slot", client_id: A.id, start: s.start, end: s.end, resource_key: "office", appointment_type: "Test", location: null, notes: null }))
+      .rejects.toMatchObject({ code: "23P01" });
     const after = await suggestSlots(db, { resourceKey: "office", count: 3 });
-    expect(after.map((x) => x.start)).not.toContain(s.start);
+    expect(after.map((x) => x.start)).toContain(s.start);
   });
 
-  it("the exclusion constraint rejects overlaps even for manual scheduling", async () => {
-    const t = new Date(Date.now() + 40 * 86_400_000).toISOString();
-    await act("manager", { action: "schedule_appointment", client_id: A.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null });
-    await expect(act("manager", { action: "schedule_appointment", client_id: B.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null }))
+  it("prevents one applicant's overlapping appointments across different staff and resources", async () => {
+    const t = new Date(Date.now() + 41 * 86_400_000).toISOString();
+    await act("manager", { action: "schedule_appointment", client_id: A.id, appointment_type: "Interview", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null });
+    await act("manager", { action: "schedule_appointment", client_id: B.id, appointment_type: "Interview", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null });
+    await expect(act("manager", { action: "schedule_appointment", client_id: A.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: `staff:${sessions.staff2.staff.id}`, location: null, notes: null }))
       .rejects.toMatchObject({ code: "23P01" });
-    await act("manager", { action: "schedule_appointment", client_id: B.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: `staff:${sessions.staff2.staff.id}`, location: null, notes: null });
+  });
+
+  it("permits two different clients at the same Amazon site and exact time", async () => {
+    const site = warehouseLocation(AMAZON_INTERVIEW_SITES[0]);
+    const start = new Date(Date.now()+181*86_400_000).toISOString();
+    const make = (clientId: string) => act("manager",{
+      action:"schedule_appointment",client_id:clientId,appointment_type:"Interview",
+      scheduled_at:start,duration_minutes:30,resource_key:"office",location:site,notes:null
+    });
+    const [a,b]=await Promise.all([make(A.id),make(B.id)]);
+    const appointments=await db`select client_id,location_id from appointments where id in (${String(a.appointment_id)},${String(b.appointment_id)})`;
+    expect(appointments).toHaveLength(2);
+    expect(appointments.map(row=>row.client_id).sort()).toEqual([A.id,B.id].sort());
+    expect(appointments.every(row=>row.location_id==="DTW1")).toBe(true);
+  });
+
+  it("rejects rescheduling the same client into an overlapping interval without overwriting the appointment", async () => {
+    const firstTime = new Date(Date.now()+184*86_400_000).toISOString();
+    const nextTime = new Date(Date.now()+185*86_400_000).toISOString();
+    const first = await act("manager",{
+      action:"schedule_appointment",client_id:A.id,appointment_type:"First",
+      scheduled_at:firstTime,duration_minutes:40,resource_key:"office",location:null,notes:null
+    });
+    const second = await act("manager",{
+      action:"schedule_appointment",client_id:A.id,appointment_type:"Second",
+      scheduled_at:nextTime,duration_minutes:30,resource_key:"office",location:null,notes:null
+    });
+    await expect(act("manager",{
+      action:"update_appointment",appointment_id:String(second.appointment_id),
+      scheduled_at:new Date(new Date(firstTime).getTime()+5*60_000).toISOString(),
+      duration_minutes:30,location:undefined,notes:undefined,
+    })).rejects.toMatchObject({code:"23P01"});
+    const [saved]=await db`select scheduled_at,status from appointments where id=${String(second.appointment_id)}`;
+    expect(new Date(saved.scheduled_at).toISOString()).toBe(nextTime);
+    expect(saved.status).toBe("scheduled");
+    const [original]=await db`select scheduled_at from appointments where id=${String(first.appointment_id)}`;
+    expect(new Date(original.scheduled_at).toISOString()).toBe(firstTime);
+  });
+
+  it("protects the same client under concurrent overlapping writes", async () => {
+    const t = new Date(Date.now() + 44 * 86_400_000).toISOString();
+    const results = await Promise.allSettled([
+      act("manager", { action: "schedule_appointment", client_id: A.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: "office", location: null, notes: null }),
+      act("manager", { action: "schedule_appointment", client_id: A.id, appointment_type: "Test", scheduled_at: t, duration_minutes: 30, resource_key: `staff:${sessions.staff2.staff.id}`, location: null, notes: null }),
+    ]);
+    expect(results.filter(r=>r.status==="fulfilled")).toHaveLength(1);
+    expect(results.filter(r=>r.status==="rejected")).toHaveLength(1);
+    expect((results.find(r=>r.status==="rejected") as PromiseRejectedResult).reason).toMatchObject({code:"23P01"});
+  });
+});
+
+describe("transactional appointment notification and reminder outbox", () => {
+  it("records an approved appointment and queues recipient-aware emails without claiming a send", async () => {
+    const client = await makeClient("TEST Notification Profile");
+    const instant = new Date(Date.now() + 56 * 86_400_000).toISOString();
+    const created = await act("manager", {
+      action:"schedule_appointment",client_id:client.id,appointment_type:"Employment interview",
+      lifecycle_interview:false,approve_booking:true,scheduled_at:instant,duration_minutes:30,
+      resource_key:"office",location:"Romulus (DTW1): Amazon Fulfillment Center - 32801 Ecorse Rd, Romulus, MI 48174",notes:null,
+    });
+    expect(created.status).toBe("confirmed");
+    const createdId = String(created.appointment_id);
+    const [appt] = await db`select status,location from appointments where id=${createdId}`;
+    expect(appt.status).toBe("confirmed");
+    const notifications=await db`select template,payload,status,idempotency_key from notifications where client_id=${client.id} and payload->>'appointmentId'=${createdId}`;
+    expect(notifications.some(n=>n.template==="appointment_scheduled" && n.payload.recipientKind==="client")).toBe(true);
+    expect(notifications.every(n=>["queued","not_configured"].includes(String(n.status)))).toBe(true);
+    expect(notifications.every(n=>n.payload.scheduledAt===instant)).toBe(true);
+    expect(notifications.every(n=>typeof n.idempotency_key==="string" && n.idempotency_key.startsWith("appointment:"))).toBe(true);
+    const [row]=await db`select id,client_id,scheduled_at,location,appointment_type,resource_key from appointments where id=${createdId}`;
+    await withStaff(sessions.manager, tx=>queueAppointmentEmails(tx,{
+      id:String(row.id),client_id:String(row.client_id),scheduled_at:new Date(row.scheduled_at),
+      location:row.location,appointment_type:String(row.appointment_type),resource_key:String(row.resource_key)
+    },"scheduled",trace));
+    const [count]=await db`select count(*)::int n from notifications
+      where payload->>'appointmentId'=${createdId} and template='appointment_scheduled'`;
+    expect(count.n).toBe(notifications.filter(n=>n.template==="appointment_scheduled").length);
+    expect(appointmentEmailIdempotencyKey(notifications[0].payload)).toBe(notifications[0].idempotency_key);
+    await expect(db`insert into notifications(client_id,channel,template,payload,status,idempotency_key)
+      values(${client.id},'email','appointment_scheduled',${db.json(notifications[0].payload)},'queued',${notifications[0].idempotency_key})`)
+      .rejects.toMatchObject({code:"23505"});
+  });
+
+  it("notifies both applicant and assigned resource, and only calls a real reschedule when the time changes", async () => {
+    const client = await makeClient("TEST Appointment Resource");
+    const start = new Date(Date.now()+63*86_400_000).toISOString();
+    const created = await act("manager", {
+      action:"schedule_appointment",client_id:client.id,appointment_type:"Employment interview",
+      approve_booking:true,scheduled_at:start,duration_minutes:30,
+      resource_key:`staff:${sessions.manager.staff.id}`,location:"DTW1 test address",notes:null,
+    });
+    const appointmentId=String(created.appointment_id);
+    let mail=await db`select template,payload from notifications where client_id=${client.id}
+      and payload->>'appointmentId'=${appointmentId}`;
+    expect(mail.filter(row=>row.template==="appointment_scheduled")).toHaveLength(2);
+    expect(mail.map(row=>row.payload.recipientKind).sort()).toEqual(["client","resource"]);
+    await act("manager",{
+      action:"update_appointment",appointment_id:appointmentId,
+      scheduled_at:start,duration_minutes:30,location:undefined,notes:"Changed instructions",
+    });
+    let [appt]=await db`select status,notes from appointments where id=${appointmentId}`;
+    expect(appt).toMatchObject({status:"confirmed",notes:"Changed instructions"});
+    mail=await db`select template,payload from notifications where client_id=${client.id}
+      and payload->>'appointmentId'=${appointmentId}`;
+    expect(mail.some(row=>row.template==="appointment_updated")).toBe(false);
+
+    await act("manager",{action:"update_appointment",appointment_id:appointmentId,location:"DET1 updated address",notes:undefined});
+    [appt]=await db`select status,location from appointments where id=${appointmentId}`;
+    expect(appt.status).toBe("confirmed");
+    expect(appt.location).toBe("DET1 updated address");
+    mail=await db`select template,payload from notifications where client_id=${client.id}
+      and payload->>'appointmentId'=${appointmentId}`;
+    expect(mail.filter(row=>row.template==="appointment_updated")).toHaveLength(2);
+  });
+
+  it("queues one reminder in the next-day window despite repeated daily cron calls", async () => {
+    const client = await makeClient("TEST Reminder Profile");
+    const when = new Date(Date.now()+36*3_600_000);
+    const [appt] = await db`insert into appointments (client_id,appointment_type,scheduled_at,ends_at,resource_key,location,created_by_staff,status)
+      values(${client.id},'Office intake',${when},${new Date(when.getTime()+30*60_000)},'office','Office',${sessions.manager.staff.id},'confirmed') returning id`;
+    const priorKey=process.env.RESEND_API_KEY;
+    const priorFrom=process.env.RESEND_FROM_EMAIL;
+    process.env.RESEND_API_KEY="integration-provider-not-contacted";
+    process.env.RESEND_FROM_EMAIL="test@example.invalid";
+    try {
+      expect(await queueAdvanceAppointmentReminders()).toBe(1);
+      expect(await queueAdvanceAppointmentReminders()).toBe(0);
+      const [count]=await db`select count(*)::int n from notifications
+        where template='appointment_reminder' and payload->>'appointmentId'=${appt.id}`;
+      expect(count.n).toBe(1);
+    } finally {
+      if(priorKey===undefined)delete process.env.RESEND_API_KEY;else process.env.RESEND_API_KEY=priorKey;
+      if(priorFrom===undefined)delete process.env.RESEND_FROM_EMAIL;else process.env.RESEND_FROM_EMAIL=priorFrom;
+    }
   });
 });
 

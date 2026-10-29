@@ -149,6 +149,28 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     expect(audits.some(r=>r.action==="pipeline_stage_changed")).toBe(true);
   });
 
+  it("allows clients to share the same resource and exact second, but prevents overlapping bookings for one client", async () => {
+    const one = await makeAppointment(33);
+    const two = await makeAppointment(34);
+    const [a] = await db`select scheduled_at,ends_at,resource_key from appointments where id=${one.appointmentId}`;
+    const second = await act(manager,{
+      action:"update_appointment",appointment_id:two.appointmentId,
+      scheduled_at:new Date(a.scheduled_at).toISOString(),duration_minutes:30
+    });
+    expect(second).toMatchObject({changed:true});
+    const overlapping = await db`
+      select count(*)::int n from appointments where scheduled_at=${a.scheduled_at}
+      and resource_key=${a.resource_key} and id in (${one.appointmentId},${two.appointmentId})`;
+    expect(overlapping[0].n).toBe(2);
+
+    const [original] = await db`select client_id from appointments where id=${one.appointmentId}`;
+    await expect(act(manager,{
+      action:"schedule_appointment",client_id:original.client_id,appointment_type:"Office intake",
+      scheduled_at:new Date(a.scheduled_at).toISOString(),duration_minutes:30,
+      resource_key:String(a.resource_key),location:"Office",notes:null
+    })).rejects.toMatchObject({code:"23P01"});
+  });
+
   it("rejects a final decision when the client has not reached the appointment state", async () => {
     const phone = "3135559010";
     const client = await db.begin((tx) => insertClient(tx, {

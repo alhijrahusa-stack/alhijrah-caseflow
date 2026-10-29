@@ -8,6 +8,7 @@ import { OFFICE } from "@/lib/office";
 import { providerStates, registry } from "@/lib/providers/config";
 import { sendEmail, sendSms, sendWhatsAppTemplate, type SendResult } from "@/lib/providers/messaging";
 import { logActivity, type Actor } from "@/lib/service";
+import { deliverAppointmentEmail } from "@/lib/appointment-email";
 
 export function channelConfigured(channel: Channel) {
   const s = providerStates();
@@ -64,6 +65,10 @@ export async function queueSubmissionNotifications(
 /** Sends one queued notification. Returns the provider result. */
 export async function deliverNotification(id: string): Promise<SendResult | { status: "skipped" }> {
   const db = sql();
+  const [meta] = await db`select template,payload from notifications where id=${id} and status in ('queued','sending')`;
+  if (meta && ["appointment_scheduled","appointment_updated","appointment_reminder"].includes(String(meta.template))) {
+    return deliverAppointmentEmail(id,meta.payload);
+  }
   const [n] = await db`
     update notifications set status = 'sending', attempts = attempts + 1
     where id = ${id} and status in ('queued', 'sending')

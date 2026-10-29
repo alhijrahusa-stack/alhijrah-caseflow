@@ -265,7 +265,7 @@ export function ClientFile({
 
       <div id="action-panel" data-testid="client-action-panel" aria-busy={!isMounted} className="relative z-40 scroll-mt-40">
         {isMounted && panel === "document" && <DocumentForm clientId={c.id} onDone={close} />}
-        {isMounted && panel === "appointment" && <AppointmentForm clientId={c.id} onDone={close} />}
+        {isMounted && panel === "appointment" && <AppointmentForm clientId={c.id} clientName={String(c.full_name)} onDone={close} />}
         {isMounted && panel === "note" && <AddNoteForm clientId={c.id} onDone={close} />}
         {isMounted && panel === "task" && <TaskForm clientId={c.id} onDone={close} />}
         {isMounted && panel === "contacted" && <ContactedForm clientId={c.id} onDone={close} />}
@@ -281,13 +281,15 @@ export function ClientFile({
         pending={rescheduleAction.pending}
         error={rescheduleAction.error}
         onClose={() => setReschedulingId(null)}
-        onSave={async ({ when, location, notes }) => {
+        onSave={async ({ when, location, notes, appointmentType, durationMinutes }) => {
           const instant = fromLocalInput(when);
           if (!Number.isFinite(instant.getTime())) { rescheduleAction.setError("Invalid appointment date"); return; }
           const ok = await rescheduleAction.go({
             action: "update_appointment",
             appointment_id: rescheduleAppt.id,
             scheduled_at: instant.toISOString(),
+          appointment_type: appointmentType,
+          duration_minutes: durationMinutes,
             location: location || null,
             notes: notes || null,
           });

@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { expireGateJobReservations } from "@/lib/gate-job-account/service";
+import { queueAdvanceAppointmentReminders } from "@/lib/appointment-email";
 import { runAudit } from "@/lib/audit";
 import { sql } from "@/lib/db";
 import { err, ok } from "@/lib/http";
@@ -19,8 +20,9 @@ export async function GET(req: Request) {
   const expected = `Bearer ${secret}`;
   if (given.length !== expected.length || !timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return err("unauthorized", "Unauthorized", 401, traceId);
   const db = sql();
+  const appointmentReminders = await queueAdvanceAppointmentReminders();
   const jobs = await processJobs(50);
-  const audit = await runAudit(null, traceId);
+  const audit = new Date().getUTCHours() === 7 ? await runAudit(null, traceId) : null;
   const gateJobReservations = await expireGateJobReservations(traceId);
   const cleanup = {
     idempotency_keys: (await db`delete from idempotency_keys where expires_at < now()`).count,
@@ -30,5 +32,5 @@ export async function GET(req: Request) {
     upload_grants: (await db`delete from upload_grants where expires_at < now()`).count,
     gate_job_reservations: gateJobReservations,
   };
-  return ok({ jobs: jobs.length, audit, cleanup }, 200, traceId);
+  return ok({ jobs: jobs.length, appointmentReminders, audit, cleanup }, 200, traceId);
 }

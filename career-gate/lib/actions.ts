@@ -27,6 +27,7 @@ import { inviteUser } from "@/lib/providers/supabase-auth";
 import { sendEmail, sendSms } from "@/lib/providers/messaging";
 import { Phone, ProfileSchema, SelectionSchema } from "@/lib/schemas";
 import { slotIsBookable } from "@/lib/scheduling";
+import { queueAppointmentEmails } from "@/lib/appointment-email";
 import {
   ActionError,
   type Actor,
@@ -105,6 +106,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     client_id: id,
     appointment_type: text(100),
     lifecycle_interview: z.boolean().optional(),
+    approve_booking: z.boolean().optional(),
     scheduled_at: instant,
     duration_minutes: z.number().int().min(5).max(480).default(30),
     resource_key: resource.default("office"),
@@ -118,6 +120,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     end: instant,
     resource_key: resource,
     lifecycle_interview: z.boolean().optional(),
+    approve_booking: z.boolean().optional(),
     appointment_type: text(100),
     location: optText(300),
     notes: optText(2000),
@@ -396,8 +399,8 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       }
       const staffResource = a.resource_key.startsWith("staff:") ? a.resource_key.slice(6) : null;
       const [appt] = await tx`
-        insert into appointments (client_id, appointment_type, appointment_kind, scheduled_at, ends_at, resource_key, assigned_staff, location, notes, created_by_staff)
-        values (${a.client_id}, ${a.appointment_type}, ${a.lifecycle_interview ? 'employment_interview' : 'general'}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${a.location}, ${a.notes}, ${by})
+        insert into appointments (client_id, appointment_type, appointment_kind, scheduled_at, ends_at, resource_key, assigned_staff, location, notes, created_by_staff, status)
+        values (${a.client_id}, ${a.appointment_type}, ${a.lifecycle_interview ? 'employment_interview' : 'general'}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${a.location}, ${a.notes}, ${by}, ${a.approve_booking ? "confirmed" : "scheduled"})
         returning id`;
       if (a.lifecycle_interview && scheduledClient.current_status !== "appointment_scheduled") {
         await tx`update clients
@@ -411,7 +414,8 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       }
       await touchClient(tx, a.client_id);
       await logActivity(tx, { clientId: a.client_id, action: "appointment_created", actor, entityType: "appointment", entityId: appt.id, newValue: { type: a.appointment_type, scheduled_at: start.toISOString(), ends_at: end.toISOString(), resource: a.resource_key, location: a.location } });
-      return { appointment_id: appt.id };
+      if (a.approve_booking) await queueAppointmentEmails(tx, { id:String(appt.id), client_id:a.client_id, scheduled_at:start, location:a.location, appointment_type:a.appointment_type, resource_key:a.resource_key }, "scheduled", actor.traceId);
+      return { appointment_id: appt.id, status: a.approve_booking ? "confirmed" : "scheduled" };
     }
 
     case "record_appointment_attendance": {
@@ -503,8 +507,9 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         throw new ActionError("use_interview_decision", "Record Pass, Fail, Missed or Cancellation through the interview decision workflow", 409);
       }
       const start = a.scheduled_at ? new Date(a.scheduled_at) : new Date(cur.scheduled_at);
-      const duration = a.duration_minutes ?? Math.round((new Date(cur.ends_at).getTime() - new Date(cur.scheduled_at).getTime()) / 60_000);
-      const moved = start.getTime() !== new Date(cur.scheduled_at).getTime() || a.duration_minutes !== undefined;
+      const previousDuration = Math.round((new Date(cur.ends_at).getTime() - new Date(cur.scheduled_at).getTime()) / 60_000);
+      const duration = a.duration_minutes ?? previousDuration;
+      const moved = start.getTime() !== new Date(cur.scheduled_at).getTime() || duration !== previousDuration;
       const next = {
         appointment_type: a.appointment_type ?? cur.appointment_type,
         scheduled_at: start,
@@ -519,6 +524,10 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       await touchClient(tx, cur.client_id);
       const action = moved ? "appointment_rescheduled" : next.status !== cur.status && (next.status === "attended" || next.status === "missed") ? "appointment_completed" : "appointment_updated";
       await logActivity(tx, { clientId: cur.client_id, action, actor, entityType: "appointment", entityId: cur.id, oldValue: changes.oldV, newValue: changes.newV });
+      if ((moved || next.location !== cur.location || next.status !== cur.status || next.appointment_type !== cur.appointment_type)
+        && ["scheduled","confirmed","rescheduled"].includes(String(next.status))) {
+        await queueAppointmentEmails(tx, { id:String(cur.id), client_id:String(cur.client_id), scheduled_at:start, location:next.location, appointment_type:String(next.appointment_type), resource_key:String(cur.resource_key) }, "updated", actor.traceId);
+      }
       return { changed: true };
     }
 
