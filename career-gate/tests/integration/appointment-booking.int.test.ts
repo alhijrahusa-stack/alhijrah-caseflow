@@ -47,7 +47,12 @@ beforeAll(async()=>{
 });
 
 afterAll(async()=>{
-  for(const id of clients) await db`delete from clients where id=${id}`;
+  if (clients.length) {
+    await db`delete from activity_log where client_id=any(${clients})`;
+    await db`delete from notifications where client_id=any(${clients})`;
+    await db`delete from appointments where client_id=any(${clients})`;
+    await db`delete from clients where id=any(${clients})`;
+  }
   const [count]=await db`select count(*)::int total from appointments where client_id=any(${clients})`;
   expect(count.total).toBe(0);
   if(originalKey === undefined)delete process.env.RESEND_API_KEY;else process.env.RESEND_API_KEY=originalKey;
@@ -108,14 +113,15 @@ describe("Career Gate appointment booking concurrency and site referential integ
 
   it("rejects a conflicting reschedule and retains the original appointment",async()=>{
     const client=await makeClient(6);
+    const early=at(38),late=at(39);
     const first=await act({action:"schedule_appointment",client_id:client,appointment_type:"Office intake",
-      scheduled_at:at(38),duration_minutes:30,resource_key:"office",location:"Office",notes:null});
+      scheduled_at:early,duration_minutes:30,resource_key:"office",location:"Office",notes:null});
     await act({action:"schedule_appointment",client_id:client,appointment_type:"Document check",
-      scheduled_at:at(39),duration_minutes:30,resource_key:"office",location:"Office",notes:null});
+      scheduled_at:late,duration_minutes:30,resource_key:"office",location:"Office",notes:null});
     await expect(act({action:"update_appointment",appointment_id:first.appointment_id,
-      scheduled_at:at(39),location:"Office"})).rejects.toMatchObject({code:"23P01"});
+      scheduled_at:late,location:"Office"})).rejects.toMatchObject({code:"23P01"});
     const [saved]=await db`select scheduled_at from appointments where id=${first.appointment_id}`;
-    expect(new Date(saved.scheduled_at).toISOString()).toBe(at(38));
+    expect(new Date(saved.scheduled_at).toISOString()).toBe(early);
   });
 
   it("queues confirmation and 24h reminder only once after approval; invalidates stale messages when rescheduled",async()=>{
