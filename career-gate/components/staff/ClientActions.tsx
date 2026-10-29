@@ -20,7 +20,8 @@ import {
   TRANSITIONS,
   type Status,
 } from "@/lib/domain";
-import { dateTime, fromLocalInput, todayInOffice } from "@/lib/format";
+import { dateTime, fromLocalInput, toLocalInput, todayInOffice } from "@/lib/format";
+import { AppointmentLocationPicker, locationDisplay, type AppointmentLocation } from "@/components/staff/AppointmentLocationPicker";
 
 export type Panel = "document" | "appointment" | "note" | "task" | "contacted" | "status" | "next_step" | "followup" | "assign";
 
@@ -77,7 +78,7 @@ export function AddNoteForm({ clientId, onDone }: FormProps) {
 
 type Slot = { start: string; end: string; resource_key: string };
 
-export function AppointmentForm({ clientId, onDone }: FormProps) {
+export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { clientName?: string }) {
   const f = useSubmit(onDone, "Appointment saved");
   const { activeStaff } = useStaff();
   const [type, setType] = useState("Pre-hire appointment");
@@ -86,7 +87,9 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
   const [duration, setDuration] = useState(30);
   const [when, setWhen] = useState("");
   const [location, setLocation] = useState("");
+  const [selectedSite, setSelectedSite] = useState<AppointmentLocation | null>(null);
   const [notes, setNotes] = useState("");
+  const [review, setReview] = useState(false);
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotError, setSlotError] = useState<string | null>(null);
 
@@ -96,81 +99,112 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
       .then((r) => r.json())
       .then((d) => {
         if (off) return;
-        if (d?.ok) { setSlots(d.slots); setSlotError(null); } else setSlotError(d?.error?.message ?? "Could not load availability");
+        if (d?.ok) { setSlots(d.slots); setSlotError(null); }
+        else setSlotError(d?.error?.message ?? "Could not load suggested times");
       })
-      .catch(() => !off && setSlotError("Could not load availability"));
+      .catch(() => { if (!off) setSlotError("Could not load suggested times"); });
     return () => { off = true; };
   }, [resource, duration]);
 
-  const base = { client_id: clientId, appointment_type: type, lifecycle_interview: lifecycleInterview, location: location || null, notes: notes || null };
-  return (
-    <form onSubmit={(e) => {
-      e.preventDefault();
-      if (!when) return f.setError("Choose a suggested slot or enter a date and time");
-      f.submit({ action: "schedule_appointment", ...base, resource_key: resource, duration_minutes: duration, scheduled_at: fromLocalInput(when).toISOString() });
-    }}>
-      <Shell title="Add appointment" testId="form-appointment" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Save appointment">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div>
-            <label className="label" htmlFor="appt_type">Appointment type</label>
-            <input id="appt_type" list="appt-types" required className="input" value={type} onChange={(e) => setType(e.target.value)} />
-            <datalist id="appt-types">
-              <option value="Office intake" /><option value="Document check" /><option value="Employment interview" /><option value="Pre-hire appointment" />
-              <option value="I-9 appointment" /><option value="Follow-up meeting" />
-            </datalist>
-          </div>
-          <div>
-            <label className="label" htmlFor="appt_resource">With</label>
-            <select id="appt_resource" className="input" value={resource} onChange={(e) => setResource(e.target.value)}>
-              <option value="office">Office</option>
-              {activeStaff.map((s) => <option key={s.id} value={`staff:${s.id}`}>{s.display_name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="appt_duration">Minutes</label>
-            <input id="appt_duration" type="number" min={5} max={480} className="input" value={duration} onChange={(e) => setDuration(Number(e.target.value) || 30)} />
-          </div>
+  const currentLocation = selectedSite ? locationDisplay(selectedSite) : location;
+  const resetReview = () => setReview(false);
+  const confirmBooking = () => {
+    if (!when) return f.setError("Choose a date and time");
+    const start = fromLocalInput(when);
+    if (!Number.isFinite(start.getTime()) || start.getTime() <= Date.now()) return f.setError("Choose a future date and time");
+    if (!type.trim()) return f.setError("Appointment type is required");
+    if (!currentLocation.trim()) return f.setError("Choose an interview site or enter an office location");
+    if (!review) { f.setError(null); setReview(true); return; }
+    f.submit({
+      action: "schedule_appointment", client_id: clientId,
+      appointment_type: type, lifecycle_interview: lifecycleInterview, resource_key: resource,
+      duration_minutes: duration, scheduled_at: start.toISOString(),
+      location_id: selectedSite?.id ?? null, location: currentLocation,
+      notes: notes || null, confirm_booking: true,
+    });
+  };
+
+  return <form onSubmit={(event) => { event.preventDefault(); confirmBooking(); }}>
+    <Shell title="Add appointment · حجز موعد" testId="form-appointment" error={f.error} pending={f.pending}
+      onCancel={onDone} submitLabel={review ? "Approve & Save Appointment" : "Review Appointment"}>
+      <div className="rounded-2xl border border-amber-300/25 bg-gradient-to-br from-[#1b3853] to-[#091a2d] p-3 shadow-[inset_0_1px_rgba(255,255,255,.08)]">
+        <p className="text-xs font-semibold tracking-wider text-amber-200">CAREER GATE · APPOINTMENT WORKSPACE</p>
+        <p className="mt-1 text-sm text-slate-300">Select an appointment time and interview destination, then approve the summary.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div>
+          <label className="label" htmlFor="appt_type">Appointment type</label>
+          <input id="appt_type" list="appt-types" required className="input" value={type} onChange={e=>{setType(e.target.value);resetReview();}} />
+          <datalist id="appt-types">
+            <option value="Office intake"/><option value="Document check"/><option value="Employment interview"/><option value="Pre-hire appointment"/>
+            <option value="I-9 appointment"/><option value="Follow-up meeting"/>
+          </datalist>
         </div>
-        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200/20 bg-amber-200/[.06] p-3 text-sm text-slate-100">
-          <input type="checkbox" className="mt-1 h-4 w-4 accent-amber-300" checked={lifecycleInterview} onChange={(e) => {
-            setLifecycleInterview(e.target.checked);
-            if (e.target.checked && type === "Pre-hire appointment") setType("Employment interview");
-          }} />
-          <span><strong className="block text-amber-200">Employment interview · G3 Pipeline</strong>
-            <span className="mt-1 block text-xs text-slate-400">Moves an eligible Job Ready client to Appointment Scheduled in the same database transaction. Office and document appointments remain independent.</span>
-          </span>
-        </label>
-        <div data-testid="slot-suggestions">
-          <p className="label">Next available (office calendar)</p>
-          {slotError && <p className="text-sm text-red-400">{slotError}</p>}
-          {slots && slots.length === 0 && <p className="text-sm text-slate-500">No open slots in the next 3 weeks. Set office hours under Availability, or enter a time below.</p>}
-          <div className="flex flex-wrap gap-2">
-            {slots?.map((s) => (
-              <button key={s.start} type="button" disabled={f.pending} data-testid="slot"
-                className="rounded-md border border-cyan-400/25 bg-cyan-400/[.04] px-3 py-1.5 text-sm text-cyan-200 hover:bg-cyan-400/[.08]"
-                onClick={() => f.submit({ action: "book_slot", ...base, resource_key: s.resource_key, start: s.start, end: s.end })}>
-                Book {dateTime(s.start)}
-              </button>
-            ))}
-          </div>
+        <div>
+          <label className="label" htmlFor="appt_resource">Handled by</label>
+          <select id="appt_resource" className="input" value={resource} onChange={e=>{setResource(e.target.value);resetReview();}}>
+            <option value="office">Office</option>
+            {activeStaff.map(staff=><option key={staff.id} value={`staff:${staff.id}`}>{staff.display_name}</option>)}
+          </select>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="label" htmlFor="appt_when">Or a specific date &amp; time (Michigan time)</label>
-            <QuickDateTime ariaLabel="Or a specific date & time (Michigan time)" value={when} onChange={setWhen} />
-          </div>
-          <div>
-            <label className="label" htmlFor="appt_location">Location</label>
-            <input id="appt_location" className="input" value={location} onChange={(e) => setLocation(e.target.value)} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label" htmlFor="appt_notes">Notes</label>
-            <textarea id="appt_notes" rows={2} className="input" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
+        <div>
+          <label className="label" htmlFor="appt_duration">Duration (minutes)</label>
+          <input id="appt_duration" type="number" min={5} max={480} className="input" value={duration}
+            onChange={e=>{setDuration(Number(e.target.value)||30);resetReview();}} />
         </div>
-      </Shell>
-    </form>
-  );
+      </div>
+      <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200/20 bg-amber-200/[.06] p-3 text-sm text-slate-100">
+        <input type="checkbox" className="mt-1 h-4 w-4 accent-amber-300" checked={lifecycleInterview} onChange={e=>{
+          setLifecycleInterview(e.target.checked);resetReview();
+          if(e.target.checked && type==="Pre-hire appointment")setType("Employment interview");
+        }} />
+        <span><strong className="block text-amber-200">Employment interview · G3 Pipeline</strong>
+          <span className="mt-1 block text-xs text-slate-400">Moves an eligible Job Ready client into the appointment stage. Other types stay independent.</span>
+        </span>
+      </label>
+      <div data-testid="slot-suggestions">
+        <p className="label">Suggested times (optional)</p>
+        {slotError && <p className="text-xs text-amber-200">{slotError}</p>}
+        <div className="flex flex-wrap gap-2">
+          {slots?.map(slot=><button key={slot.start} type="button" disabled={f.pending} data-testid="slot"
+            className="rounded-xl border border-cyan-400/25 bg-cyan-400/[.06] px-3 py-2 text-sm text-cyan-200 hover:bg-cyan-400/[.12]"
+            onClick={()=>{setWhen(toLocalInput(slot.start));setResource(slot.resource_key);resetReview();}}>
+            Select {dateTime(slot.start)}
+          </button>)}
+        </div>
+      </div>
+      <div>
+        <label className="label" htmlFor="appt_when">Date & time · Michigan local time</label>
+        <QuickDateTime ariaLabel="Or a specific date & time (Michigan time)" value={when}
+          onChange={value=>{setWhen(value);resetReview();}} />
+      </div>
+      <div className="space-y-2">
+        <label className="label">Location · موقع المقابلة</label>
+        <AppointmentLocationPicker selectedId={selectedSite?.id??null}
+          onSelect={site=>{setSelectedSite(site);setLocation(locationDisplay(site));resetReview();}}
+          onClear={()=>{setSelectedSite(null);setLocation("");resetReview();}} />
+        <input id="appt_location" aria-label="Manual appointment location" className="input"
+          placeholder="Office address or another location" value={currentLocation}
+          onChange={event=>{setSelectedSite(null);setLocation(event.target.value);resetReview();}} />
+      </div>
+      <div>
+        <label className="label" htmlFor="appt_notes">Notes</label>
+        <textarea id="appt_notes" rows={2} className="input" value={notes}
+          onChange={event=>{setNotes(event.target.value);resetReview();}} />
+      </div>
+      {review && <section data-testid="appointment-review" aria-label="Confirm appointment"
+        className="space-y-2 rounded-2xl border border-amber-300/50 bg-gradient-to-br from-[#1c3855] to-[#091c30] p-4 text-sm text-slate-100">
+        <h4 className="font-semibold text-amber-200">Review & confirm · مراجعة واعتماد الموعد</h4>
+        <p><strong>Client:</strong> {clientName || "Selected client"}</p>
+        <p><strong>Type:</strong> {type}</p>
+        <p><strong>Location:</strong> {currentLocation}</p>
+        <p><strong>When:</strong> {dateTime(fromLocalInput(when))}</p>
+        <p className="text-amber-100">يرجى الوصول قبل موعد المقابلة بنصف ساعة، وإحضار الوثائق الأصلية للمقابلة.</p>
+        <p className="text-slate-200">نتمنى لكم التوفيق · بوابة التوظيف — Career Gate</p>
+        <button type="button" onClick={resetReview} className="min-h-9 rounded-lg border border-white/20 px-3 text-xs text-slate-200">Edit details</button>
+      </section>}
+    </Shell>
+  </form>;
 }
 
 export function TaskForm({ clientId, onDone }: { clientId: string | null; onDone: () => void }) {
