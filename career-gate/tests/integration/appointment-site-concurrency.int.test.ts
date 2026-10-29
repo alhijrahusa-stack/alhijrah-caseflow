@@ -66,4 +66,20 @@ describe("client-only overlap and warehouse location staging",()=>{
     await expect(act({action:"update_appointment",appointment_id:first.appointment_id,scheduled_at:next,location_id:"DET3"}))
       .rejects.toMatchObject({code:"23P01"});
   });
+  it("queues confirmation and reminder once, only following approval",async()=>{
+    const client=await createClient(true);
+    const created=await act({action:"schedule_appointment",client_id:client.id,
+      scheduled_at:new Date(Date.now()+18*86400000).toISOString(),appointment_type:"Interview",
+      location_id:"DGR3",booking_key:randomUUID()});
+    const notifications=()=>db`select template,status,idempotency_key from notifications
+      where client_id=${client.id} and template like 'appointment_%'`;
+    expect(await notifications()).toHaveLength(0);
+    await act({action:"update_appointment",appointment_id:created.appointment_id,status:"confirmed"});
+    await act({action:"update_appointment",appointment_id:created.appointment_id,status:"confirmed"});
+    const rows=await notifications();
+    expect(rows.map(row=>row.template).sort()).toEqual(["appointment_confirmed","appointment_reminder_24h"]);
+    expect(new Set(rows.map(row=>row.idempotency_key)).size).toBe(2);
+    expect(rows.every(row=>["queued","not_configured"].includes(row.status))).toBe(true);
+  });
+
 });
