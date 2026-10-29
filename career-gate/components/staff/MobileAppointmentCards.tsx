@@ -55,7 +55,11 @@ export function MobileAppointmentCards({ appointments }: Props) {
             <span className="text-xs text-slate-400">Detroit</span>
           </div>
           <div className="min-w-0"><span className="cg-meta-label">TYPE · النوع</span><p className="cg-meta-value break-words">{a.appointment_type}</p></div>
-          <div className="min-w-0"><span className="cg-meta-label">LOCATION · الموقع</span><p className="cg-meta-value line-clamp-2 break-words" title={a.location || undefined}>{a.location || "—"}</p></div>
+          <div className="min-w-0"><span className="cg-meta-label">LOCATION · الموقع</span><p className="cg-meta-value line-clamp-2 break-words" title={a.location || undefined}>{a.location || "—"}</p>
+            {(a.map_address || a.location) && <a className="mt-1 inline-block text-xs text-cyan-200 underline underline-offset-2"
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.map_address || a.location)}`}
+              target="_blank" rel="noopener noreferrer" aria-label={`Open map for ${a.full_name}`}>Google Maps ↗</a>}
+          </div>
           <div className="min-w-0"><span className="cg-meta-label">BOOKED BY · الموظف</span><p className="cg-meta-value truncate" title={a.created_by_name || undefined}>{a.created_by_name || "—"}</p></div>
         </div>
         {a.outcome ? <p className="mt-3 text-xs font-semibold text-emerald-300">Decision recorded · {a.outcome.replaceAll("_"," ")}</p> :
@@ -74,7 +78,7 @@ export function MobileAppointmentCards({ appointments }: Props) {
       pending={rescheduleAction.pending}
       error={rescheduleAction.error}
       onClose={() => setReschedulingId(null)}
-      onSave={async ({ when, location, notes }) => {
+      onSave={async ({ when, location, locationId, notes }) => {
         const instant = fromLocalInput(when);
         if (!Number.isFinite(instant.getTime())) { rescheduleAction.setError("Invalid appointment date"); return; }
         const ok = await rescheduleAction.go({
@@ -82,6 +86,8 @@ export function MobileAppointmentCards({ appointments }: Props) {
           appointment_id: rescheduleAppt.id,
           scheduled_at: instant.toISOString(),
           location: location || null,
+          location_id: locationId,
+          confirm_booking: true,
           notes: notes || null,
         });
         if (ok) setReschedulingId(null);

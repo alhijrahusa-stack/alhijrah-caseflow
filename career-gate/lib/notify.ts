@@ -3,6 +3,7 @@ import type postgres from "postgres";
 import { sql } from "@/lib/db";
 import type { Channel } from "@/lib/domain";
 import { dateTime } from "@/lib/format";
+import { AppointmentNotificationSchema, renderAppointmentNotification } from "@/lib/appointment-notifications";
 import { enqueue } from "@/lib/jobs";
 import { OFFICE } from "@/lib/office";
 import { providerStates, registry } from "@/lib/providers/config";
@@ -66,10 +67,28 @@ export async function deliverNotification(id: string): Promise<SendResult | { st
   const db = sql();
   const [n] = await db`
     update notifications set status = 'sending', attempts = attempts + 1
-    where id = ${id} and status in ('queued', 'sending')
+    where id = ${id} and status = 'queued'
     returning *`;
   if (!n) return { status: "skipped" };
-  const [contact] = await db`select phone, email from clients where id = ${n.client_id}`;
+  const [contact] = await db`select phone,email,communication_consent from clients where id=${n.client_id}`;
+  const isAppointment = n.template === "appointment_confirmation" || n.template === "appointment_reminder_24h";
+  if (isAppointment) {
+    const data = AppointmentNotificationSchema.safeParse(n.payload);
+    const [current] = await db`select scheduled_at,location,status from appointments where id=${n.appointment_id}`;
+    const valid = data.success && current
+      && ["confirmed","rescheduled"].includes(String(current.status))
+      && new Date(current.scheduled_at).toISOString() === data.data.scheduled_at
+      && String(current.location) === data.data.location
+      && new Date(current.scheduled_at).getTime() > Date.now()
+      && contact?.communication_consent && Boolean(contact.email);
+    if (!valid) {
+      await db`update notifications set status='failed',error='Appointment changed, expired, or communication consent unavailable' where id=${id}`;
+      return { status:"skipped" };
+    }
+    const rendered = renderAppointmentNotification(n.template, data.data);
+    const result = await sendEmail(String(contact.email),rendered.subject,rendered.text,undefined,String(n.idempotency_key ?? n.id));
+    return finishDelivery(db,n,id,result);
+  }
   const payload = n.payload as SubmissionPayload;
   const msg = renderSubmission(payload);
   const result: SendResult =
@@ -78,18 +97,22 @@ export async function deliverNotification(id: string): Promise<SendResult | { st
       : n.channel === "whatsapp"
         ? await sendWhatsAppTemplate(contact.phone, registry.whatsapp().templateSubmission, msg.whatsappParams)
         : await sendEmail(contact.email, msg.subject, msg.text);
+  return finishDelivery(db,n,id,result);
+}
+
+async function finishDelivery(db: ReturnType<typeof sql>, n: Record<string, unknown>,id:string,result: SendResult):Promise<SendResult> {
 
   const actor: Actor = { staffId: null, traceId: `notify:${id}` };
   if (result.status === "sent") {
     await db`update notifications set status = 'sent', provider = ${result.provider}, provider_id = ${result.provider_id},
                sent_at = now(), error = null where id = ${id}`;
-    await logActivity(db, { clientId: n.client_id, action: "notification_sent", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel, provider: result.provider } });
+    await logActivity(db, { clientId: String(n.client_id), action: "notification_sent", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel, provider: result.provider } });
   } else if (result.status === "not_configured") {
     await db`update notifications set status = 'not_configured', provider = ${result.provider} where id = ${id}`;
-    await logActivity(db, { clientId: n.client_id, action: "notification_not_configured", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel } });
+    await logActivity(db, { clientId: String(n.client_id), action: "notification_not_configured", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel } });
   } else {
     await db`update notifications set status = 'failed', provider = ${result.provider}, error = ${result.error.slice(0, 500)} where id = ${id}`;
-    await logActivity(db, { clientId: n.client_id, action: "notification_failed", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel, error: result.error.slice(0, 200) } });
+    await logActivity(db, { clientId: String(n.client_id), action: "notification_failed", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel, error: result.error.slice(0, 200) } });
   }
   return result;
 }

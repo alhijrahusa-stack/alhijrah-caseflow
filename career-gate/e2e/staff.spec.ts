@@ -176,15 +176,30 @@ test.describe.serial("office workflow", () => {
     }
     await page.reload();
     await page.getByTestId("quick-actions").getByRole("button", { name: "Add Appointment" }).click();
-    await page.getByTestId("form-appointment").getByLabel("Location").fill(`Office Room ${RUN}`);
+    const form = page.getByTestId("form-appointment");
+    const picker = form.getByTestId("appointment-location-picker");
+    await picker.getByRole("button", { name: /Choose Amazon interview location/ }).click();
+    await expect(picker.getByRole("group", { name: "Amazon interview locations" }).getByRole("button", { name: /^DTW1/ })).toBeVisible();
+    await expect(picker.getByRole("button", { name: /^DET6/ })).toBeVisible();
+    await expect(picker.getByRole("button", { name: /^DTW8/ })).toBeVisible();
+    await picker.getByRole("searchbox", { name: "Search Amazon locations" }).fill("DTW1");
+    await picker.getByRole("button", { name: /^DTW1/ }).click();
+    await picker.getByRole("button", { name: "Confirm location" }).click();
     const slot = page.getByTestId("slot").first();
     await expect(slot).toBeVisible();
     const label = await slot.innerText();
     await slot.click();
+    await form.getByRole("button", { name: "Review Appointment" }).click();
+    await expect(form.getByTestId("appointment-review")).toContainText("Romulus (DTW1)");
+    await expect(form.getByTestId("appointment-review")).toContainText("يرجى الوصول قبل موعد المقابلة بنصف ساعة");
+    await form.getByRole("button", { name: "Approve & Save Appointment" }).click();
     await expect(page.getByTestId("appointment-row")).toHaveCount(1);
-    await expect(page.getByTestId("appointment-row")).toContainText(`Office Room ${RUN}`);
+    await expect(page.getByTestId("appointment-row")).toContainText("DTW1");
 
-    const [appt] = await db()`select scheduled_at, ends_at from appointments where client_id = ${clientId}`;
+    const [appt] = await db()`select a.scheduled_at, a.ends_at, a.location_id, l.code
+      from appointments a left join appointment_locations l on l.id=a.location_id where a.client_id = ${clientId}`;
+    expect(appt.code).toBe("DTW1");
+    expect(appt.location_id).toBeTruthy();
     const other = await submitIntake(request, intakeBody(`TEST Collide ${RUN}`));
     expect(other.res.status(), JSON.stringify(other.json)).toBe(201);
     const [oc] = await db()`select id from clients where ref = ${other.json.ref}`;
@@ -192,12 +207,15 @@ test.describe.serial("office workflow", () => {
       action: "book_slot", client_id: oc.id, start: new Date(appt.scheduled_at).toISOString(), end: new Date(appt.ends_at).toISOString(),
       resource_key: "office", appointment_type: "Test",
     });
-    expect(clash.status).toBe(409);
-    expect(label).toMatch(/^Book /);
-
-    await page.getByTestId("appointment-row").getByRole("button", { name: "Confirm" }).click();
+    expect(clash.status).toBe(200);
+    const sameClientConflict = await staffAction(request, "manager", {
+      action: "book_slot", client_id: clientId, start: new Date(appt.scheduled_at).toISOString(),
+      end: new Date(appt.ends_at).toISOString(), resource_key: "office", appointment_type: "Test",
+    });
+    expect(sameClientConflict.status).toBe(409);
+    expect(label).toMatch(/^Select /);
     await expect(page.getByTestId("appointment-status")).toHaveText("confirmed");
-    await expect(page.getByTestId("appointment-row")).toContainText(`Office Room ${RUN}`);
+    await expect(page.getByTestId("appointment-row")).toContainText("DTW1");
     const trigger = page.getByTestId("appointment-row").getByRole("button", { name: "Edit / Reschedule" });
     await trigger.click();
     const modal = page.getByTestId("reschedule-modal");
@@ -221,7 +239,7 @@ test.describe.serial("office workflow", () => {
     await modal.getByTestId("input-new-date-time").fill(`${tomorrowLocal(testInfo.repeatEachIndex)}T19:00`);
     await modal.getByTestId("button-confirm-reschedule").click();
     await expect(modal).toHaveCount(0);
-    await expect(page.getByTestId("appointment-status")).toHaveText("rescheduled");
+    await expect(page.getByTestId("appointment-status")).toHaveText("confirmed");
   });
 
   test("notes, tasks, contact, follow-ups", async () => {
