@@ -100,19 +100,19 @@ export async function deliverNotification(id: string): Promise<SendResult | { st
   return finishDelivery(db,n,id,result);
 }
 
-async function finishDelivery(db: ReturnType<typeof sql>, n: {id:string;client_id:string;channel:string},id:string,result: SendResult):Promise<SendResult> {
+async function finishDelivery(db: ReturnType<typeof sql>, n: Record<string, unknown>,id:string,result: SendResult):Promise<SendResult> {
 
   const actor: Actor = { staffId: null, traceId: `notify:${id}` };
   if (result.status === "sent") {
     await db`update notifications set status = 'sent', provider = ${result.provider}, provider_id = ${result.provider_id},
                sent_at = now(), error = null where id = ${id}`;
-    await logActivity(db, { clientId: n.client_id, action: "notification_sent", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel, provider: result.provider } });
+    await logActivity(db, { clientId: String(n.client_id), action: "notification_sent", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel, provider: result.provider } });
   } else if (result.status === "not_configured") {
     await db`update notifications set status = 'not_configured', provider = ${result.provider} where id = ${id}`;
-    await logActivity(db, { clientId: n.client_id, action: "notification_not_configured", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel } });
+    await logActivity(db, { clientId: String(n.client_id), action: "notification_not_configured", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel } });
   } else {
     await db`update notifications set status = 'failed', provider = ${result.provider}, error = ${result.error.slice(0, 500)} where id = ${id}`;
-    await logActivity(db, { clientId: n.client_id, action: "notification_failed", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel, error: result.error.slice(0, 200) } });
+    await logActivity(db, { clientId: String(n.client_id), action: "notification_failed", actor, entityType: "notification", entityId: id, newValue: { channel: n.channel, error: result.error.slice(0, 200) } });
   }
   return result;
 }
