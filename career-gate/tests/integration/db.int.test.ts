@@ -10,7 +10,7 @@ import { saveDocument } from "@/lib/documents";
 import { claimKey, completeKey } from "@/lib/idempotency";
 import { enqueue, processJobs, registerHandler } from "@/lib/jobs";
 import { queueSubmissionNotifications } from "@/lib/notify";
-import { queueAdvanceAppointmentReminders } from "@/lib/appointment-email";
+import { queueAdvanceAppointmentReminders, queueAppointmentEmails, appointmentEmailIdempotencyKey } from "@/lib/appointment-email";
 import { AMAZON_INTERVIEW_SITES, warehouseLocation } from "@/lib/amazon-interview-sites";
 import { publicStatus } from "@/lib/public-status";
 import { ProfileSchema } from "@/lib/schemas";
@@ -257,10 +257,23 @@ describe("transactional appointment notification and reminder outbox", () => {
     const createdId = String(created.appointment_id);
     const [appt] = await db`select status,location from appointments where id=${createdId}`;
     expect(appt.status).toBe("confirmed");
-    const notifications=await db`select template,payload,status from notifications where client_id=${client.id} and payload->>'appointmentId'=${createdId}`;
+    const notifications=await db`select template,payload,status,idempotency_key from notifications where client_id=${client.id} and payload->>'appointmentId'=${createdId}`;
     expect(notifications.some(n=>n.template==="appointment_scheduled" && n.payload.recipientKind==="client")).toBe(true);
     expect(notifications.every(n=>["queued","not_configured"].includes(String(n.status)))).toBe(true);
     expect(notifications.every(n=>n.payload.scheduledAt===instant)).toBe(true);
+    expect(notifications.every(n=>typeof n.idempotency_key==="string" && n.idempotency_key.startsWith("appointment:"))).toBe(true);
+    const [row]=await db`select id,client_id,scheduled_at,location,appointment_type,resource_key from appointments where id=${createdId}`;
+    await withStaff(sessions.manager, tx=>queueAppointmentEmails(tx,{
+      id:String(row.id),client_id:String(row.client_id),scheduled_at:new Date(row.scheduled_at),
+      location:row.location,appointment_type:String(row.appointment_type),resource_key:String(row.resource_key)
+    },"scheduled",trace));
+    const [count]=await db`select count(*)::int n from notifications
+      where payload->>'appointmentId'=${createdId} and template='appointment_scheduled'`;
+    expect(count.n).toBe(notifications.filter(n=>n.template==="appointment_scheduled").length);
+    expect(appointmentEmailIdempotencyKey(notifications[0].payload)).toBe(notifications[0].idempotency_key);
+    await expect(db`insert into notifications(client_id,channel,template,payload,status,idempotency_key)
+      values(${client.id},'email','appointment_scheduled',${db.json(notifications[0].payload)},'queued',${notifications[0].idempotency_key})`)
+      .rejects.toMatchObject({code:"23505"});
   });
 
   it("notifies both applicant and assigned resource, and only calls a real reschedule when the time changes", async () => {
