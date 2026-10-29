@@ -125,7 +125,7 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <label className="label" htmlFor="appt_type">Appointment type</label>
-            <input id="appt_type" list="appt-types" required className="input" value={type} onChange={(e) => setType(e.target.value)} />
+            <input id="appt_type" list="appt-types" required className="input" value={type} onChange={(e) => { setType(e.target.value); setReview(false); bookingKey.current = null; }} />
             <datalist id="appt-types">
               <option value="Office intake" /><option value="Document check" /><option value="Employment interview" /><option value="Pre-hire appointment" />
               <option value="I-9 appointment" /><option value="Follow-up meeting" />
@@ -133,19 +133,19 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
           </div>
           <div>
             <label className="label" htmlFor="appt_resource">With</label>
-            <select id="appt_resource" className="input" value={resource} onChange={(e) => setResource(e.target.value)}>
+            <select id="appt_resource" className="input" value={resource} onChange={(e) => { setResource(e.target.value); setReview(false); bookingKey.current = null; }}>
               <option value="office">Office</option>
               {activeStaff.map((s) => <option key={s.id} value={`staff:${s.id}`}>{s.display_name}</option>)}
             </select>
           </div>
           <div>
             <label className="label" htmlFor="appt_duration">Minutes</label>
-            <input id="appt_duration" type="number" min={5} max={480} className="input" value={duration} onChange={(e) => setDuration(Number(e.target.value) || 30)} />
+            <input id="appt_duration" type="number" min={5} max={480} className="input" value={duration} onChange={(e) => { setDuration(Number(e.target.value) || 30); setReview(false); bookingKey.current = null; }} />
           </div>
         </div>
         <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200/20 bg-amber-200/[.06] p-3 text-sm text-slate-100">
           <input type="checkbox" className="mt-1 h-4 w-4 accent-amber-300" checked={lifecycleInterview} onChange={(e) => {
-            setLifecycleInterview(e.target.checked);
+            setLifecycleInterview(e.target.checked); setReview(false); bookingKey.current = null;
             if (e.target.checked && type === "Pre-hire appointment") setType("Employment interview");
           }} />
           <span><strong className="block text-amber-200">Employment interview · G3 Pipeline</strong>
@@ -160,7 +160,7 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
             {slots?.map((s) => (
               <button key={s.start} type="button" disabled={f.pending} data-testid="slot"
                 className="rounded-md border border-cyan-400/25 bg-cyan-400/[.04] px-3 py-1.5 text-sm text-cyan-200 hover:bg-cyan-400/[.08]"
-                onClick={() => { setWhen(toLocalInput(s.start)); setReview(false); }}>
+                onClick={() => { setWhen(toLocalInput(s.start)); setReview(false); bookingKey.current = null; }}>
                 Select {dateTime(s.start)}
               </button>
             ))}
@@ -172,13 +172,13 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
             <QuickDateTime ariaLabel="Or a specific date & time (Michigan time)" value={when} onChange={(next) => { setWhen(next); setReview(false); bookingKey.current = null; }} />
           </div>
           <div>
-            <AmazonAppointmentLocationPicker value={siteCode} onChange={(code) => { setSiteCode(code); setReview(false); }} disabled={f.pending}/>
+            <AmazonAppointmentLocationPicker value={siteCode} onChange={(code) => { setSiteCode(code); setReview(false); bookingKey.current = null; }} disabled={f.pending}/>
             {!lifecycleInterview && <div className="mt-2"><label className="label" htmlFor="appt_location">Other appointment location</label>
-              <input id="appt_location" className="input" value={location} onChange={(e) => { setLocation(e.target.value); setReview(false); }} /></div>}
+              <input id="appt_location" className="input" value={location} onChange={(e) => { setLocation(e.target.value); setReview(false); bookingKey.current = null; }} /></div>}
           </div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor="appt_notes">Notes</label>
-            <textarea id="appt_notes" rows={2} className="input" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <textarea id="appt_notes" rows={2} className="input" value={notes} onChange={(e) => { setNotes(e.target.value); setReview(false); bookingKey.current = null; }} />
           </div>
         </div>
         {review && <section aria-label="Appointment confirmation preview" data-testid="appointment-review"
