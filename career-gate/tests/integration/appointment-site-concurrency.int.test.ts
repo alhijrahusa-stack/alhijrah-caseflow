@@ -45,7 +45,7 @@ describe("client-only overlap and warehouse location staging",()=>{
       duration_minutes:30,location_id:"DTW1"};
     const [first,second]=await Promise.all([act({...base,client_id:a.id}),act({...base,client_id:b.id})]);
     expect(first.appointment_id).not.toBe(second.appointment_id);
-    const rows=await db`select location_id,location from appointments where id in (${first.appointment_id},${second.appointment_id})`;
+    const rows=await db`select location_id,location from appointments where id in (${String(first.appointment_id)},${String(second.appointment_id)})`;
     expect(rows.length).toBe(2);
     expect(rows.every(row=>row.location_id==="DTW1")).toBe(true);
   });
