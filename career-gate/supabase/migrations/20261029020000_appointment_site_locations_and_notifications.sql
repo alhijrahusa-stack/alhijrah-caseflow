@@ -1,14 +1,19 @@
+-- Only one active appointment may overlap for the SAME client.
+-- Different clients may book identical times, resources, and Amazon destinations.
+ALTER TABLE public.appointments DROP CONSTRAINT IF EXISTS appointments_no_overlap;
 DO $$
-DECLARE constraint_definition text;
 BEGIN
-  SELECT pg_get_constraintdef(c.oid) INTO constraint_definition
-  FROM pg_constraint c WHERE c.conrelid='public.appointments'::regclass
-    AND c.conname='appointments_client_no_overlap' AND c.contype='x';
-  IF constraint_definition IS NULL
-    OR constraint_definition NOT LIKE '%client_id WITH =%'
-    OR constraint_definition NOT LIKE '%tstzrange(scheduled_at, ends_at%'
-  THEN
-    RAISE EXCEPTION 'Client-only exclusion constraint missing or changed; abort appointment migration';
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid='public.appointments'::regclass
+      AND conname='appointments_client_no_overlap' AND contype='x'
+  ) THEN
+    ALTER TABLE public.appointments
+      ADD CONSTRAINT appointments_client_no_overlap
+      EXCLUDE USING gist (
+        client_id WITH =,
+        tstzrange(scheduled_at, ends_at, '[)') WITH &&
+      ) WHERE (status IN ('scheduled','confirmed','rescheduled'));
   END IF;
 END $$;
 
@@ -47,6 +52,10 @@ DO $$ BEGIN
       REFERENCES public.appointment_amazon_sites(code);
   END IF;
 END $$;
+
+ALTER TABLE public.appointments ADD COLUMN IF NOT EXISTS booking_key text;
+CREATE UNIQUE INDEX IF NOT EXISTS appointments_booking_key_uniq
+  ON public.appointments(booking_key) WHERE booking_key IS NOT NULL;
 
 ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS idempotency_key text;
 CREATE UNIQUE INDEX IF NOT EXISTS notifications_idempotency_key_uniq
