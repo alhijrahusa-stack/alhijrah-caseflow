@@ -78,7 +78,7 @@ export async function sendEmail(to: string, subject: string, text: string, html?
   });
   if ("status" in r) return r;
   if (!r.res.ok || typeof r.body.id !== "string") {
-    return { status: "failed", provider: "resend", error: String(r.body.message ?? `HTTP ${r.res.status}`), retryable: r.res.status >= 500 || r.res.status === 429 };
+    return { status: "failed", provider: "resend", error: String(r.body.message ?? `HTTP ${r.res.status}`), retryable: r.res.status >= 500 || r.res.status === 429 || (r.res.status === 409 && r.body.name === "concurrent_idempotent_requests") };
   }
   return { status: "sent", provider: "resend", provider_id: r.body.id };
 }

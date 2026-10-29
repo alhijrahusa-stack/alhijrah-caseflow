@@ -63,9 +63,9 @@ export async function queueSubmissionNotifications(
 }
 
 /** Sends one queued notification. Returns the provider result. */
-export async function deliverNotification(id: string): Promise<SendResult | { status: "skipped" }> {
+export async function deliverNotification(id: string): Promise<SendResult | { status: "skipped" | "busy" }> {
   const db = sql();
-  const [meta] = await db`select template,payload from notifications where id=${id} and status in ('queued','sending')`;
+  const [meta] = await db`select template,payload from notifications where id=${id} and status in ('queued','sending','failed')`;
   if (meta && ["appointment_scheduled","appointment_updated","appointment_reminder"].includes(String(meta.template))) {
     return deliverAppointmentEmail(id,meta.payload);
   }

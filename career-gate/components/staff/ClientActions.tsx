@@ -20,7 +20,7 @@ import {
   TRANSITIONS,
   type Status,
 } from "@/lib/domain";
-import { dateTime, fromLocalInput, todayInOffice, toLocalInput } from "@/lib/format";
+import { appointmentInstant, dateTime, fromLocalInput, todayInOffice, toLocalInput } from "@/lib/format";
 import { AmazonWarehousePicker } from "@/components/staff/AmazonWarehousePicker";
 import { siteForLocation, warehouseMapUrl } from "@/lib/amazon-interview-sites";
 
@@ -92,7 +92,7 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotError, setSlotError] = useState<string | null>(null);
   const selectedSite = siteForLocation(location);
-  const formattedWhen = when ? fromLocalInput(when) : null;
+  const formattedWhen = appointmentInstant(when);
   const validWhen = formattedWhen !== null && Number.isFinite(formattedWhen.getTime());
 
   useEffect(() => {
@@ -111,7 +111,7 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
-      if (!validWhen || !formattedWhen) return f.setError("Choose a valid date and time");
+      if (!validWhen || !formattedWhen) return f.setError("Choose a valid, unambiguous Detroit date and time. Daylight-saving transition times cannot be used.");
       f.submit({ action: "schedule_appointment", ...base, approve_booking: true, resource_key: resource, duration_minutes: duration, scheduled_at: formattedWhen.toISOString() });
     }}>
       <Shell title="Add appointment" testId="form-appointment" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Approve & Save appointment">

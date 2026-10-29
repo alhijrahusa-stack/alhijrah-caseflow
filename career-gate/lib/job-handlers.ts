@@ -20,9 +20,10 @@ registerHandler("semantic_embedding", async (job) => {
 
 registerHandler("notification_send", async (job) => {
   const r = await deliverNotification(job.entity_id!);
+  if (r.status === "busy") throw new Error("Notification delivery is already in progress");
   if (r.status === "failed") {
     if (r.retryable && job.attempts < job.max_attempts) {
-      await sql()`update notifications set status = 'queued' where id = ${job.entity_id}`;
+      await sql()`update notifications set status = 'queued' where id = ${job.entity_id} and status = 'failed'`;
       throw new Error(r.error);
     }
     return { status: "failed_permanent", error: r.error };

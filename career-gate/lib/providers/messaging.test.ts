@@ -42,4 +42,17 @@ describe("Resend confirmation idempotency", () => {
     expect(await sendEmail("applicant@test.invalid","Appointment","Details",undefined,"appointment:failed"))
       .toMatchObject({status:"failed",provider:"resend",retryable:true});
   });
+
+  it.each([
+    ["concurrent_idempotent_requests", true],
+    ["invalid_idempotent_request", false],
+  ])("classifies provider idempotency conflict %s correctly", async (name, retryable) => {
+    vi.stubEnv("RESEND_API_KEY", "local-test-key");
+    vi.stubEnv("RESEND_FROM_EMAIL", "notifications@test.invalid");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok:false,status:409,json:async()=>({name,message:name}),
+    }));
+    expect(await sendEmail("applicant@test.invalid","Appointment","Details",undefined,"appointment:conflict"))
+      .toMatchObject({status:"failed",provider:"resend",retryable});
+  });
 });

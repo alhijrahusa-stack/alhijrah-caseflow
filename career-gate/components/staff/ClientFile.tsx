@@ -277,7 +277,7 @@ export function ClientFile({
 
       {isMounted && rescheduleAppt && <RescheduleModal
         key={String(rescheduleAppt.id)}
-        appt={rescheduleAppt}
+        appt={{...rescheduleAppt,full_name:c.full_name}}
         pending={rescheduleAction.pending}
         error={rescheduleAction.error}
         onClose={() => setReschedulingId(null)}
