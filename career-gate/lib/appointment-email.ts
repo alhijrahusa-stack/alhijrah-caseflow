@@ -120,7 +120,7 @@ export async function deliverAppointmentEmail(notificationId: string, payload: u
   const [notification] = await db`update notifications
     set status='sending',attempts=attempts+1
     where id=${notificationId} and status='queued'
-    returning id,client_id`;
+    returning id,client_id,idempotency_key`;
   if (!notification) return {status:"skipped"};
   const [current] = await db`select a.id,a.scheduled_at,a.location,a.appointment_type,a.status,a.resource_key,
         c.email,c.communication_consent,c.deleted_at
@@ -144,7 +144,7 @@ export async function deliverAppointmentEmail(notificationId: string, payload: u
     return {status:"skipped"};
   }
   const message = renderAppointmentEmail(payload);
-  const result = await sendEmail(payload.recipient,message.subject,message.text,message.html);
+  const result = await sendEmail(payload.recipient,message.subject,message.text,message.html,String(notification.idempotency_key ?? notification.id));
   if (result.status==="sent") {
     await db`update notifications set status='sent',provider=${result.provider},provider_id=${result.provider_id},
       sent_at=now(),error=null where id=${notificationId}`;
