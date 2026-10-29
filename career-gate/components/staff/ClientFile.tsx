@@ -281,7 +281,7 @@ export function ClientFile({
         pending={rescheduleAction.pending}
         error={rescheduleAction.error}
         onClose={() => setReschedulingId(null)}
-        onSave={async ({ when, location, notes }) => {
+        onSave={async ({ when, location, locationId, notes }) => {
           const instant = fromLocalInput(when);
           if (!Number.isFinite(instant.getTime())) { rescheduleAction.setError("Invalid appointment date"); return; }
           const ok = await rescheduleAction.go({
@@ -289,6 +289,8 @@ export function ClientFile({
             appointment_id: rescheduleAppt.id,
             scheduled_at: instant.toISOString(),
             location: location || null,
+            location_id: locationId,
+            confirm_booking: true,
             notes: notes || null,
           });
           if (ok) setReschedulingId(null);
