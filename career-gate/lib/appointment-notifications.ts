@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 import type postgres from "postgres";
 import { enqueue } from "@/lib/jobs";
-import { channelConfigured } from "@/lib/notify";
+import { providerStates } from "@/lib/providers/config";
 import { logActivity, type Actor } from "@/lib/service";
 import { dateTime } from "@/lib/format";
 
@@ -83,7 +83,7 @@ export async function queueAppointmentNotifications(
   ];
   const result: { id: string; kind: AppointmentNotificationKind; status: string }[] = [];
   for (const {kind, runAfter} of scheduled) {
-    const ready = channelConfigured("email");
+    const ready = providerStates().email_resend === "CONFIGURED";
     const key = `appointment:${appointment.id}:${kind}:${data.scheduled_at}`;
     const status = ready ? "queued" : "failed";
     const [row] = await tx`insert into notifications
