@@ -11,6 +11,7 @@ import { claimKey, completeKey } from "@/lib/idempotency";
 import { enqueue, processJobs, registerHandler } from "@/lib/jobs";
 import { queueSubmissionNotifications } from "@/lib/notify";
 import { queueAdvanceAppointmentReminders } from "@/lib/appointment-email";
+import { AMAZON_INTERVIEW_SITES, warehouseLocation } from "@/lib/amazon-interview-sites";
 import { publicStatus } from "@/lib/public-status";
 import { ProfileSchema } from "@/lib/schemas";
 import { suggestSlots } from "@/lib/scheduling";
@@ -180,6 +181,31 @@ describe("status state machine", () => {
 });
 
 describe("scheduling and collision prevention", () => {
+  it("stores all eleven Amazon interview locations with canonical FK codes, and retains them after edits", async () => {
+    const sites = await db`select code,location_text from amazon_interview_locations where active order by code`;
+    expect(sites).toHaveLength(11);
+    for (const site of AMAZON_INTERVIEW_SITES) {
+      expect(sites.some(record=>record.code===site.code && record.location_text===warehouseLocation(site))).toBe(true);
+      const when=new Date(Date.now()+(110+AMAZON_INTERVIEW_SITES.indexOf(site))*86_400_000).toISOString();
+      const booked = await act("manager",{
+        action:"schedule_appointment",client_id:B.id,appointment_type:"Amazon interview location check",
+        scheduled_at:when,duration_minutes:30,resource_key:"office",
+        location:warehouseLocation(site),notes:null,approve_booking:true
+      });
+      const [saved] = await db`select location,location_id from appointments where id=${booked.appointment_id}`;
+      expect(saved).toEqual({location:warehouseLocation(site),location_id:site.code});
+    }
+    const first=AMAZON_INTERVIEW_SITES[0];
+    const second=AMAZON_INTERVIEW_SITES[1];
+    const [appointment]=await db`select id from appointments where client_id=${B.id} and location_id=${first.code} order by created_at desc limit 1`;
+    await act("manager",{action:"update_appointment",appointment_id:appointment.id,location:warehouseLocation(second)});
+    const [edited]=await db`select location,location_id from appointments where id=${appointment.id}`;
+    expect(edited).toEqual({location:warehouseLocation(second),location_id:second.code});
+    await act("manager",{action:"update_appointment",appointment_id:appointment.id,location:"Career Gate Office"});
+    const [cleared]=await db`select location_id from appointments where id=${appointment.id}`;
+    expect(cleared.location_id).toBeNull();
+  });
+
   beforeAll(async () => {
     for (let d = 0; d < 7; d++) {
       await act("manager", { action: "upsert_availability", resource_key: "office", weekday: d, start_time: "00:00", end_time: "23:30", slot_minutes: 30, appointment_type: null, active: true });
