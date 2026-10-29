@@ -80,7 +80,7 @@ describe("Career Gate appointment booking concurrency and site referential integ
       appointment_type:"Employment interview",resource_key:`staff:${manager.staff.id}`,location_id:site.id,
       location:null,notes:null,confirm_booking:true};
     const [a,b]=await Promise.all([act({...base,client_id:first}),act({...base,client_id:second})]);
-    const saved=await db`select id,client_id,location_id,location,status,resource_key,scheduled_at from appointments where id in(${a.appointment_id},${b.appointment_id})`;
+    const saved=await db`select id,client_id,location_id,location,status,resource_key,scheduled_at from appointments where id in(${String(a.appointment_id)},${String(b.appointment_id)})`;
     expect(saved).toHaveLength(2);
     expect(saved.every(row=>row.location_id===site.id&&row.location.includes("DTW1")&&row.status==="confirmed")).toBe(true);
     expect(new Set(saved.map(row=>new Date(row.scheduled_at).toISOString())).size).toBe(1);
@@ -119,7 +119,7 @@ describe("Career Gate appointment booking concurrency and site referential integ
       scheduled_at:late,duration_minutes:30,resource_key:"office",location:"Office",notes:null});
     await expect(act({action:"update_appointment",appointment_id:first.appointment_id,
       scheduled_at:late,location:"Office"})).rejects.toMatchObject({code:"23P01"});
-    const [saved]=await db`select scheduled_at from appointments where id=${first.appointment_id}`;
+    const [saved]=await db`select scheduled_at from appointments where id=${String(first.appointment_id)}`;
     expect(new Date(saved.scheduled_at).toISOString()).toBe(early);
   });
 
@@ -155,7 +155,7 @@ describe("Career Gate appointment booking concurrency and site referential integ
     const appointment=await act({action:"schedule_appointment",client_id:client,appointment_type:"Employment interview",
       scheduled_at:at(45),duration_minutes:30,resource_key:"office",location:"Career Gate office",notes:null,
       confirm_booking:true});
-    const [notice]=await db`select id from notifications where appointment_id=${appointment.appointment_id} and template='appointment_confirmation'`;
+    const [notice]=await db`select id from notifications where appointment_id=${String(appointment.appointment_id)} and template='appointment_confirmation'`;
     let sends=0;
     vi.stubGlobal("fetch",async(url: string,init: RequestInit)=>{
       expect(url).toBe("https://api.resend.com/emails");
@@ -178,7 +178,7 @@ describe("Career Gate appointment booking concurrency and site referential integ
     const appointment=await act({action:"schedule_appointment",client_id:client,appointment_type:"Office intake",
       scheduled_at:at(46),duration_minutes:30,resource_key:"office",location:"Career Gate office",notes:null,
       confirm_booking:true});
-    const [notice]=await db`select id from notifications where appointment_id=${appointment.appointment_id} and template='appointment_confirmation'`;
+    const [notice]=await db`select id from notifications where appointment_id=${String(appointment.appointment_id)} and template='appointment_confirmation'`;
     vi.stubGlobal("fetch",async()=>new Response(JSON.stringify({message:"Provider unavailable"}),{status:503,headers:{"content-type":"application/json"}}));
     try {
       const outcome=await deliverNotification(String(notice.id));
@@ -195,7 +195,7 @@ describe("Career Gate appointment booking concurrency and site referential integ
     const saved=await act({action:"schedule_appointment",client_id:client,appointment_type:"Office intake",
       scheduled_at:at(42),duration_minutes:30,resource_key:"office",location:"Office",notes:null,
       confirm_booking:true});
-    const [count]=await db`select count(*)::int n from notifications where appointment_id=${saved.appointment_id}`;
+    const [count]=await db`select count(*)::int n from notifications where appointment_id=${String(saved.appointment_id)}`;
     expect(count.n).toBe(0);
   });
 });
