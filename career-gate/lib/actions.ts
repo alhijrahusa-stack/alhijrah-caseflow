@@ -113,7 +113,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     location: optText(300),
     location_id: z.string().max(10).refine(value=>Boolean(findAmazonAppointmentSite(value))).nullable().optional(),
     booking_key: z.uuid().optional(),
-    approved: z.boolean().default(false),
+    approved: z.boolean().optional(),
     notes: optText(2000),
   }),
   z.object({
@@ -127,7 +127,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     location: optText(300),
     location_id: z.string().max(10).refine(value=>Boolean(findAmazonAppointmentSite(value))).nullable().optional(),
     booking_key: z.uuid().optional(),
-    approved: z.boolean().default(false),
+    approved: z.boolean().optional(),
     notes: optText(2000),
   }),
   z.object({ action: z.literal("record_appointment_attendance"), appointment_id: id }),
