@@ -192,16 +192,16 @@ describe("scheduling and collision prevention", () => {
         scheduled_at:when,duration_minutes:30,resource_key:"office",
         location:warehouseLocation(site),notes:null,approve_booking:true
       });
-      const [saved] = await db`select location,location_id from appointments where id=${booked.appointment_id}`;
+      const [saved] = await db`select location,location_id from appointments where id=${String(booked.appointment_id)}`;
       expect(saved).toEqual({location:warehouseLocation(site),location_id:site.code});
     }
     const first=AMAZON_INTERVIEW_SITES[0];
     const second=AMAZON_INTERVIEW_SITES[1];
     const [appointment]=await db`select id from appointments where client_id=${B.id} and location_id=${first.code} order by created_at desc limit 1`;
-    await act("manager",{action:"update_appointment",appointment_id:appointment.id,location:warehouseLocation(second)});
+    await act("manager",{action:"update_appointment",appointment_id:String(appointment.id),location:warehouseLocation(second),notes:undefined});
     const [edited]=await db`select location,location_id from appointments where id=${appointment.id}`;
     expect(edited).toEqual({location:warehouseLocation(second),location_id:second.code});
-    await act("manager",{action:"update_appointment",appointment_id:appointment.id,location:"Career Gate Office"});
+    await act("manager",{action:"update_appointment",appointment_id:String(appointment.id),location:"Career Gate Office",notes:undefined});
     const [cleared]=await db`select location_id from appointments where id=${appointment.id}`;
     expect(cleared.location_id).toBeNull();
   });
