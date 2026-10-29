@@ -26,7 +26,7 @@ import { channelConfigured } from "@/lib/notify";
 import { inviteUser } from "@/lib/providers/supabase-auth";
 import { sendEmail, sendSms } from "@/lib/providers/messaging";
 import { Phone, ProfileSchema, SelectionSchema } from "@/lib/schemas";
-import { slotIsBookable } from "@/lib/scheduling";
+
 import {
   ActionError,
   type Actor,
@@ -108,6 +108,8 @@ export const ActionSchema = z.discriminatedUnion("action", [
     scheduled_at: instant,
     duration_minutes: z.number().int().min(5).max(480).default(30),
     resource_key: resource.default("office"),
+    location_id: id.nullable().optional(),
+    confirm_booking: z.boolean().optional(),
     location: optText(300),
     notes: optText(2000),
   }),
@@ -119,6 +121,8 @@ export const ActionSchema = z.discriminatedUnion("action", [
     resource_key: resource,
     lifecycle_interview: z.boolean().optional(),
     appointment_type: text(100),
+    location_id: id.nullable().optional(),
+    confirm_booking: z.boolean().optional(),
     location: optText(300),
     notes: optText(2000),
   }),
@@ -130,6 +134,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     appointment_type: text(100).optional(),
     scheduled_at: instant.optional(),
     duration_minutes: z.number().int().min(5).max(480).optional(),
+    location_id: id.nullable().optional(),
     location: keepText(300),
     notes: keepText(2000),
     status: z.enum(APPOINTMENT_STATUSES).optional(),
@@ -391,13 +396,19 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       const start = new Date(a.action === "book_slot" ? a.start : a.scheduled_at);
       const end = a.action === "book_slot" ? new Date(a.end) : new Date(start.getTime() + a.duration_minutes * 60_000);
       if (end <= start) throw new ActionError("invalid_input", "End must be after start");
-      if (a.action === "book_slot" && !(await slotIsBookable(tx, { start, end, resourceKey: a.resource_key, appointmentType: a.appointment_type }))) {
-        throw new ActionError("slot_taken", "That slot is no longer available", 409);
-      }
+      const selectedLocationId = a.location_id ?? null;
+      const [selectedSite] = selectedLocationId
+        ? await tx`select code,display_city,facility_type,street_address,city,state,zip_code
+           from appointment_locations where id=${selectedLocationId} and active`
+        : [null];
+      if (selectedLocationId && !selectedSite) throw new ActionError("invalid_location", "Select an active interview location", 400);
+      const siteLocation = selectedSite
+        ? `${selectedSite.display_city} (${selectedSite.code}): ${selectedSite.facility_type} - ${selectedSite.street_address}, ${selectedSite.city}, ${selectedSite.state} ${selectedSite.zip_code}`
+        : a.location;
       const staffResource = a.resource_key.startsWith("staff:") ? a.resource_key.slice(6) : null;
       const [appt] = await tx`
-        insert into appointments (client_id, appointment_type, appointment_kind, scheduled_at, ends_at, resource_key, assigned_staff, location, notes, created_by_staff)
-        values (${a.client_id}, ${a.appointment_type}, ${a.lifecycle_interview ? 'employment_interview' : 'general'}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${a.location}, ${a.notes}, ${by})
+        insert into appointments (client_id, appointment_type, appointment_kind, scheduled_at, ends_at, resource_key, assigned_staff, location, location_id, notes, created_by_staff, status)
+        values (${a.client_id}, ${a.appointment_type}, ${a.lifecycle_interview ? 'employment_interview' : 'general'}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${siteLocation}, ${selectedLocationId}, ${a.notes}, ${by}, ${a.confirm_booking ? 'confirmed' : 'scheduled'})
         returning id`;
       if (a.lifecycle_interview && scheduledClient.current_status !== "appointment_scheduled") {
         await tx`update clients
@@ -410,7 +421,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         });
       }
       await touchClient(tx, a.client_id);
-      await logActivity(tx, { clientId: a.client_id, action: "appointment_created", actor, entityType: "appointment", entityId: appt.id, newValue: { type: a.appointment_type, scheduled_at: start.toISOString(), ends_at: end.toISOString(), resource: a.resource_key, location: a.location } });
+      await logActivity(tx, { clientId: a.client_id, action: "appointment_created", actor, entityType: "appointment", entityId: appt.id, newValue: { type: a.appointment_type, scheduled_at: start.toISOString(), ends_at: end.toISOString(), resource: a.resource_key, location: siteLocation, location_id: selectedLocationId } });
       return { appointment_id: appt.id };
     }
 
@@ -505,11 +516,20 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       const start = a.scheduled_at ? new Date(a.scheduled_at) : new Date(cur.scheduled_at);
       const duration = a.duration_minutes ?? Math.round((new Date(cur.ends_at).getTime() - new Date(cur.scheduled_at).getTime()) / 60_000);
       const moved = start.getTime() !== new Date(cur.scheduled_at).getTime() || a.duration_minutes !== undefined;
+      const [selectedSite] = a.location_id
+        ? await tx`select code,display_city,facility_type,street_address,city,state,zip_code
+           from appointment_locations where id=${a.location_id} and active`
+        : [null];
+      if (a.location_id && !selectedSite) throw new ActionError("invalid_location", "Select an active interview location", 400);
+      const selectedLocation = selectedSite
+        ? `${selectedSite.display_city} (${selectedSite.code}): ${selectedSite.facility_type} - ${selectedSite.street_address}, ${selectedSite.city}, ${selectedSite.state} ${selectedSite.zip_code}`
+        : null;
       const next = {
         appointment_type: a.appointment_type ?? cur.appointment_type,
         scheduled_at: start,
         ends_at: new Date(start.getTime() + duration * 60_000),
-        location: a.location !== undefined ? a.location : cur.location,
+        location: selectedLocation ?? (a.location !== undefined ? a.location : cur.location),
+        location_id: a.location_id !== undefined ? a.location_id : a.location !== undefined ? null : cur.location_id,
         notes: a.notes !== undefined ? a.notes : cur.notes,
         status: a.status ?? (moved ? "rescheduled" : cur.status),
       };
