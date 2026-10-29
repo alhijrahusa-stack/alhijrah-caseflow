@@ -22,6 +22,7 @@ import {
 } from "@/lib/domain";
 import { enqueue } from "@/lib/jobs";
 import { syncPostPaymentLifecycle } from "@/lib/post-payment-lifecycle";
+import { invalidateAppointmentNotifications, queueAppointmentNotifications } from "@/lib/appointment-notifications";
 import { channelConfigured } from "@/lib/notify";
 import { inviteUser } from "@/lib/providers/supabase-auth";
 import { sendEmail, sendSms } from "@/lib/providers/messaging";
@@ -135,6 +136,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     scheduled_at: instant.optional(),
     duration_minutes: z.number().int().min(5).max(480).optional(),
     location_id: id.nullable().optional(),
+    confirm_booking: z.boolean().optional(),
     location: keepText(300),
     notes: keepText(2000),
     status: z.enum(APPOINTMENT_STATUSES).optional(),
@@ -421,6 +423,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         });
       }
       await touchClient(tx, a.client_id);
+      if (a.confirm_booking) await queueAppointmentNotifications(tx, String(appt.id), actor);
       await logActivity(tx, { clientId: a.client_id, action: "appointment_created", actor, entityType: "appointment", entityId: appt.id, newValue: { type: a.appointment_type, scheduled_at: start.toISOString(), ends_at: end.toISOString(), resource: a.resource_key, location: siteLocation, location_id: selectedLocationId } });
       return { appointment_id: appt.id };
     }
@@ -531,11 +534,17 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         location: selectedLocation ?? (a.location !== undefined ? a.location : cur.location),
         location_id: a.location_id !== undefined ? a.location_id : a.location !== undefined ? null : cur.location_id,
         notes: a.notes !== undefined ? a.notes : cur.notes,
-        status: a.status ?? (moved ? "rescheduled" : cur.status),
+        status: a.status ?? (moved ? (a.confirm_booking ? "confirmed" : "rescheduled") : cur.status),
       };
       const changes = diff(cur, next);
       if (!changes) return { changed: false };
+      if (moved || next.location !== cur.location || next.status !== cur.status) {
+        await invalidateAppointmentNotifications(tx, a.appointment_id);
+      }
       await tx`update appointments set ${tx(next)} where id = ${a.appointment_id}`;
+      if (next.status === "confirmed" && (moved || next.location !== cur.location || cur.status !== "confirmed")) {
+        await queueAppointmentNotifications(tx, a.appointment_id, actor);
+      }
       await touchClient(tx, cur.client_id);
       const action = moved ? "appointment_rescheduled" : next.status !== cur.status && (next.status === "attended" || next.status === "missed") ? "appointment_completed" : "appointment_updated";
       await logActivity(tx, { clientId: cur.client_id, action, actor, entityType: "appointment", entityId: cur.id, oldValue: changes.oldV, newValue: changes.newV });
