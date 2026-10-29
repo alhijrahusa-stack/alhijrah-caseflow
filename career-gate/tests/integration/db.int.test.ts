@@ -232,6 +232,43 @@ describe("scheduling and collision prevention", () => {
       .rejects.toMatchObject({ code: "23P01" });
   });
 
+  it("permits two different clients at the same Amazon site and exact time", async () => {
+    const site = warehouseLocation(AMAZON_INTERVIEW_SITES[0]);
+    const start = new Date(Date.now()+181*86_400_000).toISOString();
+    const make = (clientId: string) => act("manager",{
+      action:"schedule_appointment",client_id:clientId,appointment_type:"Interview",
+      scheduled_at:start,duration_minutes:30,resource_key:"office",location:site,notes:null
+    });
+    const [a,b]=await Promise.all([make(A.id),make(B.id)]);
+    const appointments=await db`select client_id,location_id from appointments where id in (${String(a.appointment_id)},${String(b.appointment_id)})`;
+    expect(appointments).toHaveLength(2);
+    expect(appointments.map(row=>row.client_id).sort()).toEqual([A.id,B.id].sort());
+    expect(appointments.every(row=>row.location_id==="DTW1")).toBe(true);
+  });
+
+  it("rejects rescheduling the same client into an overlapping interval without overwriting the appointment", async () => {
+    const firstTime = new Date(Date.now()+184*86_400_000).toISOString();
+    const nextTime = new Date(Date.now()+185*86_400_000).toISOString();
+    const first = await act("manager",{
+      action:"schedule_appointment",client_id:A.id,appointment_type:"First",
+      scheduled_at:firstTime,duration_minutes:40,resource_key:"office",location:null,notes:null
+    });
+    const second = await act("manager",{
+      action:"schedule_appointment",client_id:A.id,appointment_type:"Second",
+      scheduled_at:nextTime,duration_minutes:30,resource_key:"office",location:null,notes:null
+    });
+    await expect(act("manager",{
+      action:"update_appointment",appointment_id:String(second.appointment_id),
+      scheduled_at:new Date(new Date(firstTime).getTime()+5*60_000).toISOString(),
+      duration_minutes:30,location:undefined,notes:undefined,
+    })).rejects.toMatchObject({code:"23P01"});
+    const [saved]=await db`select scheduled_at,status from appointments where id=${String(second.appointment_id)}`;
+    expect(new Date(saved.scheduled_at).toISOString()).toBe(nextTime);
+    expect(saved.status).toBe("scheduled");
+    const [original]=await db`select scheduled_at from appointments where id=${String(first.appointment_id)}`;
+    expect(new Date(original.scheduled_at).toISOString()).toBe(firstTime);
+  });
+
   it("protects the same client under concurrent overlapping writes", async () => {
     const t = new Date(Date.now() + 44 * 86_400_000).toISOString();
     const results = await Promise.allSettled([
