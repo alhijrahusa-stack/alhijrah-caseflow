@@ -5,6 +5,7 @@ import { useAction } from "@/components/forms/useAction";
 import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 import { QuickDate, QuickDateTime } from "@/components/staff/QuickDate";
 import { StaffPicker } from "@/components/staff/StaffPicker";
+import { AmazonAppointmentLocationPicker } from "@/components/staff/AmazonAppointmentLocationPicker";
 import { useStaff } from "@/components/staff/StaffContext";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -20,7 +21,8 @@ import {
   TRANSITIONS,
   type Status,
 } from "@/lib/domain";
-import { dateTime, fromLocalInput, todayInOffice } from "@/lib/format";
+import { dateTime, fromLocalInput, toLocalInput, todayInOffice } from "@/lib/format";
+import { amazonAppointmentMapsUrl, findAmazonAppointmentSite, type AmazonAppointmentSiteCode } from "@/lib/amazon-appointment-sites";
 
 export type Panel = "document" | "appointment" | "note" | "task" | "contacted" | "status" | "next_step" | "followup" | "assign";
 
@@ -77,7 +79,7 @@ export function AddNoteForm({ clientId, onDone }: FormProps) {
 
 type Slot = { start: string; end: string; resource_key: string };
 
-export function AppointmentForm({ clientId, onDone }: FormProps) {
+export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { clientName?: string }) {
   const f = useSubmit(onDone, "Appointment saved");
   const { activeStaff } = useStaff();
   const [type, setType] = useState("Pre-hire appointment");
@@ -86,6 +88,9 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
   const [duration, setDuration] = useState(30);
   const [when, setWhen] = useState("");
   const [location, setLocation] = useState("");
+  const [siteCode, setSiteCode] = useState<AmazonAppointmentSiteCode | null>(null);
+  const [review, setReview] = useState(false);
+  const bookingKey = useRef<string | null>(null);
   const [notes, setNotes] = useState("");
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotError, setSlotError] = useState<string | null>(null);
@@ -102,14 +107,21 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
     return () => { off = true; };
   }, [resource, duration]);
 
-  const base = { client_id: clientId, appointment_type: type, lifecycle_interview: lifecycleInterview, location: location || null, notes: notes || null };
+  const site = findAmazonAppointmentSite(siteCode);
+  const targetLocation = site?.address ?? location;
+  const base = { client_id: clientId, appointment_type: type, lifecycle_interview: lifecycleInterview, location: targetLocation || null, location_id: site?.code ?? null, notes: notes || null };
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
-      if (!when) return f.setError("Choose a suggested slot or enter a date and time");
-      f.submit({ action: "schedule_appointment", ...base, resource_key: resource, duration_minutes: duration, scheduled_at: fromLocalInput(when).toISOString() });
+      if (!when) return f.setError("Choose a date and time");
+      const instant = fromLocalInput(when);
+      if (!Number.isFinite(instant.getTime())) return f.setError("Invalid date and time");
+      if (lifecycleInterview && !site) return f.setError("Select an Amazon interview location");
+      if (!review) { setReview(true); return; }
+      if (!bookingKey.current) bookingKey.current = crypto.randomUUID();
+      void f.submit({ action: "schedule_appointment", ...base, resource_key: resource, duration_minutes: duration, scheduled_at: instant.toISOString(), approved: true, booking_key: bookingKey.current });
     }}>
-      <Shell title="Add appointment" testId="form-appointment" error={f.error} pending={f.pending} onCancel={onDone} submitLabel="Save appointment">
+      <Shell title="Add appointment · Executive Confirmation" testId="form-appointment" error={f.error} pending={f.pending} onCancel={onDone} submitLabel={review ? "Approve & Save Appointment" : "Review appointment"}>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <label className="label" htmlFor="appt_type">Appointment type</label>
@@ -148,8 +160,8 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
             {slots?.map((s) => (
               <button key={s.start} type="button" disabled={f.pending} data-testid="slot"
                 className="rounded-md border border-cyan-400/25 bg-cyan-400/[.04] px-3 py-1.5 text-sm text-cyan-200 hover:bg-cyan-400/[.08]"
-                onClick={() => f.submit({ action: "book_slot", ...base, resource_key: s.resource_key, start: s.start, end: s.end })}>
-                Book {dateTime(s.start)}
+                onClick={() => { setWhen(toLocalInput(s.start)); setReview(false); }}>
+                Select {dateTime(s.start)}
               </button>
             ))}
           </div>
@@ -160,14 +172,26 @@ export function AppointmentForm({ clientId, onDone }: FormProps) {
             <QuickDateTime ariaLabel="Or a specific date & time (Michigan time)" value={when} onChange={setWhen} />
           </div>
           <div>
-            <label className="label" htmlFor="appt_location">Location</label>
-            <input id="appt_location" className="input" value={location} onChange={(e) => setLocation(e.target.value)} />
+            <AmazonAppointmentLocationPicker value={siteCode} onChange={(code) => { setSiteCode(code); setReview(false); }} disabled={f.pending}/>
+            {!lifecycleInterview && <div className="mt-2"><label className="label" htmlFor="appt_location">Other appointment location</label>
+              <input id="appt_location" className="input" value={location} onChange={(e) => { setLocation(e.target.value); setReview(false); }} /></div>}
           </div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor="appt_notes">Notes</label>
             <textarea id="appt_notes" rows={2} className="input" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
         </div>
+        {review && <section aria-label="Appointment confirmation preview" data-testid="appointment-review"
+          className="space-y-2 rounded-2xl border border-amber-200/45 bg-gradient-to-br from-[#183552] to-[#08192b] p-4 text-sm text-white shadow-[inset_0_1px_rgba(255,255,255,.1)]">
+          <h4 className="font-semibold text-amber-200">Review · مراجعة الموعد قبل الاعتماد</h4>
+          <p><strong>Client:</strong> {clientName ?? clientId}</p>
+          <p><strong>Location:</strong> {site ? `${site.code} · ${site.city} — ${site.address}` : targetLocation || "—"}</p>
+          <p><strong>Date & Time:</strong> {dateTime(fromLocalInput(when).toISOString())} (Michigan)</p>
+          <p className="text-xs text-slate-300">Please arrive 30 minutes early and bring original documents.<br/>يرجى الوصول قبل الموعد بنصف ساعة وإحضار الوثائق الأصلية.</p>
+          {site && <a className="text-xs font-semibold text-cyan-200 underline" href={amazonAppointmentMapsUrl(site.address)} target="_blank" rel="noopener noreferrer">Google Maps / خرائط جوجل</a>}
+          <p className="text-xs text-amber-200">Career Gate · بوابة التوظيف</p>
+          <button type="button" onClick={() => setReview(false)} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs">Edit details</button>
+        </section>}
       </Shell>
     </form>
   );
