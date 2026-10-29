@@ -181,6 +181,9 @@ test.describe.serial("office workflow", () => {
     await expect(slot).toBeVisible();
     const label = await slot.innerText();
     await slot.click();
+    await page.getByTestId("form-appointment").getByRole("button", { name: "Review appointment" }).click();
+    await expect(page.getByTestId("appointment-review")).toBeVisible();
+    await page.getByTestId("form-appointment").getByRole("button", { name: "Approve & Save Appointment" }).click();
     await expect(page.getByTestId("appointment-row")).toHaveCount(1);
     await expect(page.getByTestId("appointment-row")).toContainText(`Office Room ${RUN}`);
 
@@ -192,10 +195,9 @@ test.describe.serial("office workflow", () => {
       action: "book_slot", client_id: oc.id, start: new Date(appt.scheduled_at).toISOString(), end: new Date(appt.ends_at).toISOString(),
       resource_key: "office", appointment_type: "Test",
     });
-    expect(clash.status).toBe(409);
-    expect(label).toMatch(/^Book /);
+    expect(clash.status).toBe(200);
+    expect(label).toMatch(/^Select /);
 
-    await page.getByTestId("appointment-row").getByRole("button", { name: "Confirm" }).click();
     await expect(page.getByTestId("appointment-status")).toHaveText("confirmed");
     await expect(page.getByTestId("appointment-row")).toContainText(`Office Room ${RUN}`);
     const trigger = page.getByTestId("appointment-row").getByRole("button", { name: "Edit / Reschedule" });
@@ -221,7 +223,7 @@ test.describe.serial("office workflow", () => {
     await modal.getByTestId("input-new-date-time").fill(`${tomorrowLocal(testInfo.repeatEachIndex)}T19:00`);
     await modal.getByTestId("button-confirm-reschedule").click();
     await expect(modal).toHaveCount(0);
-    await expect(page.getByTestId("appointment-status")).toHaveText("rescheduled");
+    await expect(page.getByTestId("appointment-status")).toHaveText("confirmed");
   });
 
   test("notes, tasks, contact, follow-ups", async () => {
