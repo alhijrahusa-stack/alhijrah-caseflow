@@ -188,6 +188,11 @@ export async function queueAdvanceAppointmentReminders() {
       and c.deleted_at is null and c.communication_consent and c.email is not null
       and a.scheduled_at > now()
       and a.scheduled_at < now()+interval '48 hours'
+      and not exists (
+        select 1 from notifications n where n.template='appointment_reminder' and n.channel='email'
+          and n.payload->>'appointmentId'=a.id::text
+          and (n.payload->>'scheduledAt')::timestamptz=a.scheduled_at
+      )
     order by a.scheduled_at limit 250`;
   let queued=0;
   for(const appointment of eligible) {

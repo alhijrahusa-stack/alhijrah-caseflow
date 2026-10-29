@@ -23,9 +23,11 @@ afterEach(() => {
 afterAll(async () => { await db.end(); });
 
 async function appointment(hours = 336) {
+  phone++;
+  const clientName=`Notification Recovery Test ${phone}`;
   const client = await db.begin(tx => insertClient(tx, {
     source:"staff_manual",
-    profile:ProfileSchema.parse({full_name:"Notification Recovery Test",phone:`313555${++phone}`,email:"client@test.invalid",date_of_birth:"1990-04-05",employment_history:[]}),
+    profile:ProfileSchema.parse({full_name:clientName,phone:`313555${phone}`,email:"client@test.invalid",date_of_birth:"1990-04-05",employment_history:[]}),
     primary:[],backup:[],status:"new_intake",nextStep:null,assignedStaff:null,createdBy:null,communicationConsent:true,
   }, {staffId:null,traceId:"notification-recovery-test"}));
   const start = new Date(Date.now()+hours*3_600_000);
@@ -33,7 +35,7 @@ async function appointment(hours = 336) {
     values(${client.id},'Employment interview',${start},${new Date(start.getTime()+1_800_000)},'office','Test warehouse','confirmed')
     returning id,client_id,scheduled_at,location,appointment_type,resource_key`;
   return {
-    id:String(row.id),client_id:String(row.client_id),scheduled_at:new Date(row.scheduled_at),
+    id:String(row.id),client_id:String(row.client_id),clientName,scheduled_at:new Date(row.scheduled_at),
     location:String(row.location),appointment_type:String(row.appointment_type),resource_key:String(row.resource_key),
   };
 }
@@ -103,7 +105,7 @@ describe("appointment notification recovery on isolated PostgreSQL", () => {
     const appt = await appointment();
     const payload = {
       appointmentId:appt.id,scheduledAt:appt.scheduled_at.toISOString(),location:appt.location,
-      recipient:"client@test.invalid",clientName:"Notification Recovery Test",appointmentType:appt.appointment_type,
+      recipient:"client@test.invalid",clientName:appt.clientName,appointmentType:appt.appointment_type,
       event:"scheduled" as const,recipientKind:"client" as const,
     };
     const key = appointmentEmailIdempotencyKey(payload);
@@ -121,7 +123,7 @@ describe("appointment notification recovery on isolated PostgreSQL", () => {
     const appt = await appointment();
     const payload = {
       appointmentId:appt.id,scheduledAt:appt.scheduled_at.toISOString(),location:appt.location,
-      recipient:"client@test.invalid",clientName:"Notification Recovery Test",appointmentType:appt.appointment_type,
+      recipient:"client@test.invalid",clientName:appt.clientName,appointmentType:appt.appointment_type,
       event:"scheduled" as const,recipientKind:"client" as const,
       ...(firstAttempt ? {_firstDeliveryAttemptAt:firstAttempt} : {}),
     };

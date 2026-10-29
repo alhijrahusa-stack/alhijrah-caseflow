@@ -50,6 +50,11 @@ for (const width of [1366,390]) {
     const picker=page.getByRole("dialog",{name:"Amazon warehouse location picker"});
     await expect(picker).toBeVisible();
     await expect(picker.locator("button[aria-pressed]")).toHaveCount(11);
+    await page.keyboard.press("Escape");
+    await expect(picker).toHaveCount(0);
+    await expect(form).toBeVisible();
+    await form.getByRole("button",{name:/اختيار موقع مستودع أمازون/}).click();
+    await expect(picker).toBeVisible();
     const search=picker.getByRole("searchbox");
     for(const query of ["DTW1","Romulus","Fulfillment Center","32801 Ecorse"]) {
       await search.fill(query);

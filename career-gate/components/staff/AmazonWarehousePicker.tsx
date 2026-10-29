@@ -50,6 +50,7 @@ export function AmazonWarehousePicker({ value, onChange, disabled = false }: {
       <span aria-hidden="true">⌖</span> {current ? `${current.name} · ${current.code}` : "اختيار موقع مستودع أمازون / Select Amazon Location"}
     </button>
     {open && hydrated && createPortal(<dialog ref={dialogRef} aria-label="Amazon warehouse location picker"
+      onKeyDown={event=>{if(event.key==="Escape")event.stopPropagation();}}
       onCancel={event=>{event.preventDefault();event.stopPropagation();setOpen(false);}}
       className="fixed inset-0 m-auto max-h-[90dvh] w-[min(96vw,660px)] overflow-hidden rounded-2xl border border-amber-300/45 bg-[#091a2f] p-0 text-white shadow-[0_22px_80px_rgba(0,0,0,.65)] backdrop:bg-[#020a15]/85">
       <section className="flex max-h-[90dvh] min-w-0 flex-col">
