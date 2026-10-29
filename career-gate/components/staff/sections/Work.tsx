@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useHydrated } from "@/components/staff/useHydrated";
 import { QuickDate, QuickDateTime } from "@/components/staff/QuickDate";
+import { AmazonAppointmentLocationPicker } from "@/components/staff/AmazonAppointmentLocationPicker";
+import { findAmazonAppointmentSite, type AmazonAppointmentSiteCode } from "@/lib/amazon-appointment-sites";
 import { useStaff } from "@/components/staff/StaffContext";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
@@ -17,7 +19,7 @@ import { dateOnly, dateTime, toLocalInput } from "@/lib/format";
 import { Card, SmallBtn, useRowAction, type Row } from "./common";
 
 
-export type RescheduleValues = { when: string; location: string; notes: string };
+export type RescheduleValues = { when: string; location: string; locationId: AmazonAppointmentSiteCode | null; notes: string };
 
 export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
   appt: Row;
@@ -30,6 +32,7 @@ export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [when, setWhen] = useState(() => toLocalInput(appt.scheduled_at));
   const [location, setLocation] = useState<string>(appt.location ?? "");
+  const [locationId, setLocationId] = useState<AmazonAppointmentSiteCode | null>(findAmazonAppointmentSite(appt.location_id)?.code ?? null);
   const [notes, setNotes] = useState<string>(appt.notes ?? "");
 
   useEffect(() => {
@@ -47,12 +50,13 @@ export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
       data-testid="reschedule-modal"
       aria-label="Reschedule appointment"
       onCancel={(event) => { event.preventDefault(); if (!pending) onClose(); }}
-      className="fixed inset-0 m-auto max-h-[90vh] w-[min(90vw,36rem)] overflow-y-auto rounded-2xl border border-white/20 bg-slate-900 p-5 text-slate-100 shadow-2xl backdrop:bg-slate-950/80"
+      className="fixed inset-0 m-auto max-h-[90vh] w-[min(94vw,42rem)] overflow-y-auto rounded-2xl border border-amber-200/35 bg-gradient-to-br from-[#14324d] to-[#061425] p-4 text-slate-100 shadow-2xl backdrop:bg-slate-950/80 sm:p-5"
     >
-      <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); void onSave({ when, location, notes }); }}>
+      <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); void onSave({ when, location, locationId, notes }); }}>
         <h2 className="text-lg font-semibold">Reschedule appointment</h2>
         <QuickDateTime ariaLabel="New date and time" testId="input-new-date-time" autoFocus value={when} onChange={setWhen} required />
-        <input aria-label="Location" className="input" placeholder="Location" value={location} onChange={(event) => setLocation(event.target.value)} />
+        <AmazonAppointmentLocationPicker value={locationId} onChange={setLocationId} disabled={pending} />
+        {!locationId && <input aria-label="Location" className="input" placeholder="Office or custom location" value={location} onChange={(event) => setLocation(event.target.value)} />}
         <input aria-label="Notes" className="input" placeholder="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} />
         {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
         <div className="flex flex-wrap justify-end gap-2">
