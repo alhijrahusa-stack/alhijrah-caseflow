@@ -271,8 +271,11 @@ export async function appointmentPage(s: StaffSession, view: string, requestedPa
     const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pages) : 1;
     const rows = await tx`
       select a.*, c.full_name, c.ref, s.display_name as created_by_name,
-             o.decision as outcome, o.recorded_at as decision_at
+             o.decision as outcome, o.recorded_at as decision_at,
+             case when l.id is not null then concat(l.street_address, ', ', l.city, ', ', l.state, ' ', l.zip_code)
+               else a.location end as map_address
       from appointments a join clients c on c.id = a.client_id
+      left join appointment_locations l on l.id=a.location_id
       left join staff s on s.id = a.created_by_staff
       left join appointment_outcomes o on o.appointment_id = a.id
       where ${filter}
