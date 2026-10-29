@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 
 import type postgres from "postgres";
 import { sql } from "@/lib/db";
@@ -70,10 +71,18 @@ export function renderAppointmentEmail(p: Payload) {
   return {subject,text,html};
 }
 
+export function appointmentEmailIdempotencyKey(payload: Payload) {
+  const identity = [
+    payload.appointmentId, payload.event, payload.scheduledAt,
+    payload.location, payload.appointmentType, payload.recipientKind,
+  ];
+  return "appointment:" + createHash("sha256").update(JSON.stringify(identity)).digest("hex");
+}
+
 async function queueOne(tx: postgres.TransactionSql, clientId: string, payload: Payload, traceId: string) {
   const configured = providerStates().email_resend === "CONFIGURED";
-  const [row] = await tx`insert into notifications(client_id,channel,template,payload,status)
-    values(${clientId},'email',${`appointment_${payload.event}`},${tx.json(payload)},${configured?"queued":"not_configured"})
+  const [row] = await tx`insert into notifications(client_id,channel,template,payload,status,idempotency_key)
+    values(${clientId},'email',${`appointment_${payload.event}`},${tx.json(payload)},${configured?"queued":"not_configured"},${appointmentEmailIdempotencyKey(payload)})
     on conflict do nothing returning id`;
   if (configured && row) await enqueue(tx,{type:"notification_send",entityId:String(row.id),dedupeKey:`notify:${row.id}`,traceId});
 }
@@ -168,8 +177,8 @@ export async function queueAdvanceAppointmentReminders() {
         clientName:String(appointment.full_name),appointmentType:String(appointment.appointment_type),
         recipient:String(appointment.email),recipientKind:"client",event:"reminder",
       };
-      const [row] = await tx`insert into notifications(client_id,channel,template,payload,status)
-        values(${appointment.client_id},'email','appointment_reminder',${tx.json(payload)},'queued')
+      const [row] = await tx`insert into notifications(client_id,channel,template,payload,status,idempotency_key)
+        values(${appointment.client_id},'email','appointment_reminder',${tx.json(payload)},'queued',${appointmentEmailIdempotencyKey(payload)})
         on conflict do nothing returning id`;
       if(row){await enqueue(tx,{type:"notification_send",entityId:String(row.id),dedupeKey:`notify:${row.id}`});queued++;}
     });
