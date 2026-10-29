@@ -48,10 +48,8 @@ beforeAll(async()=>{
 
 afterAll(async()=>{
   if (clients.length) {
-    await db`delete from activity_log where client_id=any(${clients})`;
     await db`delete from notifications where client_id=any(${clients})`;
     await db`delete from appointments where client_id=any(${clients})`;
-    await db`delete from clients where id=any(${clients})`;
   }
   const [count]=await db`select count(*)::int total from appointments where client_id=any(${clients})`;
   expect(count.total).toBe(0);
@@ -137,7 +135,7 @@ describe("Career Gate appointment booking concurrency and site referential integ
     expect(queued).toHaveLength(2);
     expect(queued.map(row=>row.template).sort()).toEqual(["appointment_confirmation","appointment_reminder_24h"].sort());
     expect(queued.every(row=>row.status==="queued" && row.idempotency_key)).toBe(true);
-    const [jobs]=await db`select count(*)::int n from jobs where entity_id=any(${queued.map(row=>row.id)}::uuid[])`;
+    const [jobs]=await db`select count(*)::int n from jobs where entity_id=any(${queued.map(row=>row.id)})`;
     expect(jobs.n).toBe(2);
     const second=at(41);
     await act({action:"update_appointment",appointment_id:id,scheduled_at:second,confirm_booking:true});
