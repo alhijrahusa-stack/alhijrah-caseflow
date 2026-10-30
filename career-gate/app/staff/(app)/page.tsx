@@ -15,6 +15,14 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   if (params.tab === "today") redirect("/staff/today");
   if (params.tab === "week") redirect("/staff/week");
 
-  const data = await dashboardCommandData(session);
-  return <OperationalDashboard data={data} />;
+  const started = performance.now();
+  try {
+    const data = await dashboardCommandData(session);
+    const duration = Math.round(performance.now() - started);
+    if (duration > 2000) console.warn(JSON.stringify({ event: "slow_dashboard_load", duration_ms: duration }));
+    return <OperationalDashboard data={data} />;
+  } catch (cause) {
+    console.error(JSON.stringify({ event: "dashboard_load_failed", duration_ms: Math.round(performance.now() - started), error_type: cause instanceof Error ? cause.name : "Unknown" }));
+    throw cause;
+  }
 }
