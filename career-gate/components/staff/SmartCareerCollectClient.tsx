@@ -6,6 +6,7 @@ import { useStaff } from "@/components/staff/StaffContext";
 import { DigitalHandshake, useDigitalHandshake } from "@/components/staff/smart/DigitalHandshake";
 import {
   SMART_FIELDS,
+  canonicalSmartFieldKey,
   smartApprovalGate,
   smartFieldText,
   smartRequiredReadiness,
@@ -64,6 +65,7 @@ type CaseDetail = {
     document_match_confirmed: boolean;
     information_match_confirmed: boolean;
     created_at: string;
+    updated_at: string;
     created_client_id: string | null;
   };
   documents: { id: string; original_filename: string; mime_type: string; size_bytes: number; detected_document_type: string | null; extraction_metadata: Record<string, unknown>; created_at: string }[];
@@ -114,6 +116,12 @@ export function SmartCareerCollectClient() {
   const [detail, setDetail] = useState<CaseDetail | null>(null);
   const [draft, setDraft] = useState<Record<string, any> | null>(null);
   const [draftDirty, setDraftDirty] = useState(false);
+  const [pendingFields, setPendingFields] = useState<string[]>([]);
+  const [editingField, setEditingField] = useState(false);
+  const [reviewChanged, setReviewChanged] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const [sourcePage, setSourcePage] = useState<number | null>(null);
+  const actionLock = useRef(false);
   const [reviewerId, setReviewerId] = useState("");
   const [documentConfirmed, setDocumentConfirmed] = useState(false);
   const [informationConfirmed, setInformationConfirmed] = useState(false);
@@ -160,7 +168,15 @@ export function SmartCareerCollectClient() {
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
   }, [loadQueue]);
 
-  async function openCase(id: string) {
+  useEffect(() => {
+    if (!draftDirty && !editingField) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [draftDirty, editingField]);
+
+  async function openCase(id: string, refresh = false) {
+    if (!refresh && (draftDirty || editingField) && !window.confirm("Discard unsaved review changes and open this file?")) return;
     const request = (caseRequest.current += 1);
     setError(null); setActionBusy("open");
     try {
@@ -169,44 +185,36 @@ export function SmartCareerCollectClient() {
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, "Unable to open import"));
       if (request !== caseRequest.current) return;
       const next = { case: data.case, documents: data.documents } as CaseDetail;
-      setDetail(next); setDraft(structuredClone(next.case.mapped_draft)); setDraftDirty(false);
+      if (next.case.status === "PENDING" && !next.case.reviewer_id) {
+        const claimResponse = await fetch("/api/staff/smart-client-import", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "start_review", id, reviewer_id: me.id }),
+        });
+        const claimed = await claimResponse.json().catch(() => null);
+        if (!claimResponse.ok || !claimed?.ok) throw new Error(errMessage(claimed, "Reviewer assignment failed"));
+        if (request !== caseRequest.current) return;
+        const refreshed = await fetch(`/api/staff/smart-client-import?id=${encodeURIComponent(id)}`, { cache: "no-store" });
+        const freshData = await refreshed.json().catch(() => null);
+        if (!refreshed.ok || !freshData?.ok) throw new Error(errMessage(freshData, "Review started, but the latest file could not be loaded. Open the file again."));
+        if (request !== caseRequest.current) return;
+        next.case = freshData.case;
+        next.documents = freshData.documents;
+        void loadQueue();
+      }
+      setDetail(next); setDraft(structuredClone(next.case.mapped_draft)); setDraftDirty(false); setPendingFields([]); setEditingField(false); setReviewChanged(false);
       setReviewerId(next.case.reviewer_id ?? "");
       setDocumentConfirmed(Boolean(next.case.document_match_confirmed));
       setInformationConfirmed(Boolean(next.case.information_match_confirmed));
-      setActiveDocumentId(next.documents[0]?.id ?? null);
-      if (next.case.status === "PENDING" && !next.case.reviewer_id) {
-        setActionBusy("claim_review");
-        void (async () => {
-          try {
-            const res = await fetch("/api/staff/smart-client-import", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "start_review", id, reviewer_id: me.id }),
-            });
-            const claimed = await res.json().catch(() => null);
-            if (!res.ok || !claimed?.ok) throw new Error(errMessage(claimed, "Reviewer assignment failed"));
-            if (request !== caseRequest.current) return;
-            setDetail((current) => current?.case.id === id ? {
-              ...current,
-              case: {
-                ...current.case,
-                status: "UNDER_REVIEW",
-                reviewer_id: me.id,
-                reviewer_name: me.display_name,
-                review_started_at: claimed.review_started_at,
-              },
-            } : current);
-            setReviewerId(me.id);
-            void loadQueue();
-          } catch (cause) {
-            if (request === caseRequest.current) setError(cause instanceof Error ? cause.message : "Reviewer assignment failed");
-          } finally {
-            if (request === caseRequest.current) setActionBusy(null);
-          }
-        })();
-      }
-      window.setTimeout(() => document.getElementById("smart-review")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to open import"); }
-    finally { setActionBusy(null); }
+      setActiveDocumentId((current) => refresh && next.documents.some((doc) => doc.id === current) ? current : next.documents[0]?.id ?? null);
+      if (!refresh) window.setTimeout(() => document.getElementById("smart-review")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    } catch (e) { if (request === caseRequest.current) setError(e instanceof Error ? e.message : "Unable to open import"); }
+    finally { if (request === caseRequest.current) setActionBusy(null); }
+  }
+
+  function closeReview() {
+    if ((draftDirty || editingField) && !window.confirm("Discard unsaved review changes and close this file?")) return;
+    caseRequest.current += 1;
+    setDetail(null); setDraft(null); setDraftDirty(false); setPendingFields([]); setEditingField(false); setReviewChanged(false);
   }
 
   async function previewSheet() {
@@ -246,15 +254,22 @@ export function SmartCareerCollectClient() {
     if (!detail) return null;
     const res = await fetch("/api/staff/smart-client-import", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, id: detail.case.id, ...extra }),
+      body: JSON.stringify({ action, id: detail.case.id,
+        ...(["save", "approve", "verify"].includes(action) ? { expected_updated_at: detail.case.updated_at } : {}),
+        ...(["save", "approve"].includes(action) ? { resolved_fields: pendingFields } : {}),
+        ...extra }),
     });
     const data = await res.json().catch(() => null);
-    if (!res.ok || !data?.ok) throw new Error(errMessage(data, `${action} failed (${res.status})`));
+    if (!res.ok || !data?.ok) {
+      if (data?.error?.code === "review_changed") setReviewChanged(true);
+      throw new Error(errMessage(data, `${action} failed (${res.status})`));
+    }
     return data;
   }
 
   async function mutate(action: string, extra: Record<string, unknown> = {}) {
-    if (!detail || actionBusy) return null;
+    if (!detail || actionBusy || editingField || reviewChanged || actionLock.current) return null;
+    actionLock.current = true;
     setActionBusy(action); setError(null); setNotice(null);
     try {
       const data = await postAction(action, extra);
@@ -263,44 +278,48 @@ export function SmartCareerCollectClient() {
         window.location.assign(`/staff/client/${data.client_id}`);
         return data;
       }
-      if (action === "save") { setDraftDirty(false); handshake("gold"); }
-      await Promise.all([openCase(detail.case.id), loadQueue()]);
+      if (data?.updated_at) setDetail((current) => current ? { ...current, case: { ...current.case, updated_at: data.updated_at } } : current);
+      if (action === "save") { setDraftDirty(false); setPendingFields([]); handshake("gold"); }
+      await Promise.all([openCase(detail.case.id, true), loadQueue()]);
       setNotice(action === "save" ? "Review saved." : action === "start_review" ? "Review started." : "Action completed.");
       return data;
     } catch (e) { setError(e instanceof Error ? e.message : `${action} failed`); return null; }
-    finally { setActionBusy(null); }
+    finally { actionLock.current = false; setActionBusy(null); }
   }
 
   async function saveAndVerify() {
-    if (!detail || !draft || !reviewerId || actionBusy) return;
+    if (!detail || !draft || !reviewerId || actionBusy || editingField || reviewChanged || actionLock.current) return;
+    actionLock.current = true;
     setActionBusy("verify"); setError(null); setNotice(null);
     try {
-      await postAction("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed });
-      await postAction("verify");
-      setDraftDirty(false);
+      const saved = await postAction("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed });
+      setDetail((current) => current ? { ...current, case: { ...current.case, updated_at: saved.updated_at, verification_result: {} } } : current);
+      setDraftDirty(false); setPendingFields([]);
+      const verified = await postAction("verify", { expected_updated_at: saved.updated_at });
+      if (verified?.updated_at) setDetail((current) => current ? { ...current, case: { ...current.case, updated_at: verified.updated_at } } : current);
       handshake("emerald");
-      await Promise.all([openCase(detail.case.id), loadQueue()]);
+      await Promise.all([openCase(detail.case.id, true), loadQueue()]);
       setNotice("Review saved and verification completed.");
     } catch (e) { setError(e instanceof Error ? e.message : "Verification failed"); }
-    finally { setActionBusy(null); }
+    finally { actionLock.current = false; setActionBusy(null); }
   }
 
   async function reExtract() {
-    if (!detail || actionBusy) return;
+    if (!detail || actionBusy || draftDirty || editingField || reviewChanged) return;
     setActionBusy("re_extract"); setError(null); setNotice(null);
     try {
       const res = await fetch(`/api/staff/smart-client-import/${detail.case.id}/retry`, { method: "POST" });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, `Re-extraction failed (${res.status})`));
       handshake("cyan");
-      await Promise.all([openCase(detail.case.id), loadQueue()]);
+      await Promise.all([openCase(detail.case.id, true), loadQueue()]);
       setNotice("Re-extraction completed. Reviewed values and their original evidence were preserved.");
     } catch (e) { setError(e instanceof Error ? e.message : "Re-extraction failed"); }
     finally { setActionBusy(null); }
   }
 
   async function reattach(files: FileList | null) {
-    if (!detail || !files?.length || actionBusy) return;
+    if (!detail || !files?.length || actionBusy || draftDirty || editingField || reviewChanged) return;
     setActionBusy("reattach"); setError(null); setNotice(null);
     try {
       const form = new FormData(); Array.from(files).forEach((entry) => form.append("files", entry));
@@ -312,7 +331,7 @@ export function SmartCareerCollectClient() {
         const retryData = await retry.json().catch(() => null);
         if (!retry.ok || !retryData?.ok) throw new Error(errMessage(retryData, `Re-extraction failed (${retry.status})`));
       }
-      await Promise.all([openCase(detail.case.id), loadQueue()]);
+      await Promise.all([openCase(detail.case.id, true), loadQueue()]);
       setNotice("Source document re-attached and staged evidence refreshed. Reviewed values were preserved.");
     } catch (e) { setError(e instanceof Error ? e.message : "Re-attach failed"); }
     finally { if (reattachRef.current) reattachRef.current.value = ""; setActionBusy(null); }
@@ -349,28 +368,37 @@ export function SmartCareerCollectClient() {
    */
   function commitField({ field, value }: MatrixCommit) {
     setDraftDirty(true);
+    setPendingFields((current) => current.includes(field.key) ? current : [...current, field.key]);
+    setInformationConfirmed(false);
     setDraft((current) => {
       if (!current) return current;
       if (field.scope === "profile") return { ...current, profile: { ...(current.profile ?? {}), [field.key]: value } };
       return { ...current, review_fields: { ...(current.review_fields ?? {}), [field.key]: value } };
     });
   }
+  const unresolvedConflicts = useMemo(() => {
+    return (detail?.case.conflicts ?? []).filter((item) => {
+      if (item.type === "IDENTITY") return true;
+      const key = String(item.field_key ?? item.field ?? "");
+      return !pendingFields.includes(canonicalSmartFieldKey(key));
+    });
+  }, [detail, pendingFields]);
   const readiness = useMemo(() => smartRequiredReadiness(getField), [getField]);
   const assessment = useMemo(() => {
     if (!detail || !draft) return null;
     const verification = detail.case.verification_result ?? {};
     return smartApprovalGate({
       read: getField,
-      conflicts: detail.case.conflicts.length,
+      conflicts: unresolvedConflicts.length,
       reviewerAssigned: Boolean(reviewerId),
       confirmationsRecorded: documentConfirmed && informationConfirmed,
-      serverBlockers: Array.isArray(verification.blockers) ? verification.blockers : [],
+      serverBlockers: draftDirty || !Array.isArray(verification.blockers) ? [] : verification.blockers,
       serverWarnings: draftDirty || !Array.isArray(verification.warnings) ? [] : verification.warnings,
     });
-  }, [detail, draft, draftDirty, documentConfirmed, getField, informationConfirmed, reviewerId]);
+  }, [detail, draft, draftDirty, documentConfirmed, getField, informationConfirmed, reviewerId, unresolvedConflicts]);
   // Smart Review is an administrative stage: optional gaps warn, only a real system
   // blocker withholds approval. The server re-checks at the approval mutation.
-  const canApprove = Boolean(detail && draft && assessment && !assessment.blocked && detail.case.status !== "APPROVED_FILE");
+  const canApprove = Boolean(detail && draft && assessment && !assessment.blocked && !reviewChanged && !editingField && detail.case.status !== "APPROVED_FILE");
   const approvalBlockers = useMemo(() => assessment?.blockers ?? [], [assessment]);
   const approvalWarnings = useMemo(() => assessment?.warnings ?? [], [assessment]);
   const activeDocument = detail?.documents.find((doc) => doc.id === activeDocumentId) ?? detail?.documents[0] ?? null;
@@ -383,8 +411,11 @@ export function SmartCareerCollectClient() {
   }
   function jumpToEvidence(evidence?: Evidence) {
     if (!evidence?.source_document_id) return;
+    if (!detail?.documents.some((doc) => doc.id === evidence.source_document_id)) { setError("The document referenced by this evidence is no longer attached to this file."); return; }
+    setSourcePage(evidence.source_page ?? null);
+    setSourceOpen(true);
     setActiveDocumentId(evidence.source_document_id);
-    document.getElementById("smart-document-viewer")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => document.getElementById("smart-document-viewer")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
   }
 
   return <div className="ops-page space-y-5">
@@ -398,8 +429,8 @@ export function SmartCareerCollectClient() {
       <button type="button" onClick={() => setWorkspace("mobile")} className={`rounded-3xl border p-5 text-left transition motion-reduce:transition-none ${workspace === "mobile" ? "border-amber-300/35 bg-amber-300/[.08]" : "border-white/10 bg-white/[.035] hover:bg-white/[.055]"}`}><span className="text-[10px] font-bold tracking-[.18em] text-amber-300">02</span><strong className="mt-2 block text-lg text-slate-100">SMART CLIENT IMPORT BY LINK</strong><span className="mt-1 block text-xs text-slate-500">Document Intake · Mobile / QR / Photo / PDF / Text</span></button>
     </section>
 
-    {notice && <div role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/[.06] p-3 text-sm text-emerald-200">{notice}</div>}
-    {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-red-300/20 bg-red-300/[.06] p-3 text-sm text-red-200"><span>{error}</span><button type="button" className="ops-secondary-button" onClick={() => { setError(null); void loadQueue(); }}>RETRY QUEUE</button></div>}
+    {notice && !detail && <div role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/[.06] p-3 text-sm text-emerald-200">{notice}</div>}
+    {error && !detail && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-red-300/20 bg-red-300/[.06] p-3 text-sm text-red-200"><span>{error}</span><button type="button" className="ops-secondary-button" onClick={() => { setError(null); void loadQueue(); }}>RETRY QUEUE</button></div>}
 
     {workspace === "sheet" ? <section className="ops-glass-card space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-bold tracking-[.18em] text-cyan-300">STRUCTURED IMPORT</p><h2 className="text-lg font-semibold text-slate-100">NEW IMPORT BY SHEET</h2><p className="text-xs text-slate-500">Ingest → Preview → Normalize → Validate → Stage → Review → Approve</p></div><div className="flex flex-wrap gap-2"><a className="ops-secondary-button" href="/api/staff/smart-client-import/template">DOWNLOAD TEMPLATE</a><button className={`ops-secondary-button ${legacy ? "ring-1 ring-amber-300/40" : ""}`} type="button" onClick={() => setLegacy((value) => !value)}>CONVERT LEGACY SHEET</button></div></div>
@@ -437,7 +468,7 @@ export function SmartCareerCollectClient() {
       {nextCursor && <button className="ops-secondary-button" type="button" disabled={queueBusy} onClick={() => loadQueue(nextCursor, true)}>LOAD MORE</button>}
     </section>
 
-    {detail && draft && <section id="smart-review" className="ops-glass-card relative space-y-5">
+    {detail && draft && <section id="smart-review" onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); void mutate("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed }); } }} className="ops-glass-card cg-smart-review relative space-y-5">
       <DigitalHandshake sweep={sweep} />
 
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -453,47 +484,56 @@ export function SmartCareerCollectClient() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span role="status" className={`inline-flex min-h-11 items-center rounded-xl border px-3 font-mono text-[13px] font-semibold ${detail.case.status === "APPROVED_FILE" ? "border-emerald-300/35 bg-emerald-300/[.10] text-emerald-200" : draftDirty ? "border-amber-300/35 bg-amber-300/[.10] text-amber-200" : "border-cyan-300/30 bg-cyan-300/[.08] text-cyan-200"}`}>{workflowState}</span>
-          <button className="ops-secondary-button min-h-11" type="button" onClick={() => { setDetail(null); setDraft(null); setDraftDirty(false); }}>CLOSE</button>
+          <button className="ops-secondary-button min-h-11" type="button" disabled={Boolean(actionBusy)} onClick={closeReview}>CLOSE</button>
         </div>
       </header>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="REQUIRED FIELDS" value={`${readiness.complete} / ${readiness.total}`} tone={readiness.complete === readiness.total ? "emerald" : "amber"} />
-        <Stat label="BLOCKING CONFLICTS" value={String(detail.case.conflicts.length)} tone={detail.case.conflicts.length ? "red" : "emerald"} />
+        <Stat label="BLOCKING CONFLICTS" value={String(unresolvedConflicts.length)} tone={unresolvedConflicts.length ? "red" : "emerald"} />
         <Stat label="MISSING REPORTED" value={String(detail.case.missing_fields.length)} tone={detail.case.missing_fields.length ? "amber" : "emerald"} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,.78fr)_minmax(0,1.22fr)]">
-        <div id="smart-document-viewer" className="rounded-2xl border border-white/10 bg-black/10 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+      {reviewChanged && <div role="alert" className="rounded-xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm text-amber-100"><p>Another staff member updated this review. Your changes remain on this screen. Reload the saved review before making further changes.</p><button type="button" className="cg-review-button mt-3" disabled={Boolean(actionBusy)} onClick={() => { if (window.confirm("Discard your local edits and load the latest saved review?")) void openCase(detail.case.id, true); }}>Reload latest review</button></div>}
+      <div className="cg-review-workspace">
+        <details id="smart-document-viewer" className="cg-review-source" open={sourceOpen} onToggle={(event) => setSourceOpen(event.currentTarget.open)}>
+          <summary className="cursor-pointer p-4 text-sm font-semibold text-slate-100">Source documents <span className="ml-2 text-xs font-normal text-slate-400">{detail.documents.length} attached · Expand to compare evidence</span></summary>
+          <div className="px-4 pb-4"><div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-[14px] font-semibold tracking-[.1em] text-slate-100">DOCUMENT VIEWER</h3>
             {detail.case.status !== "APPROVED_FILE" && <>
               <input ref={reattachRef} className="sr-only" type="file" accept={REATTACH_ACCEPT} multiple onChange={(e) => void reattach(e.target.files)} />
-              <button className="ops-secondary-button min-h-11" type="button" disabled={Boolean(actionBusy)} onClick={() => reattachRef.current?.click()}>{actionBusy === "reattach" ? "PROCESSING…" : "RE-ATTACH"}</button>
+              <button className="ops-secondary-button min-h-11" type="button" disabled={Boolean(actionBusy) || draftDirty || editingField || reviewChanged} onClick={() => reattachRef.current?.click()}>{actionBusy === "reattach" ? "PROCESSING…" : "RE-ATTACH"}</button>
             </>}
           </div>
           {activeDocument ? <>
             <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-[#02070d]">
               {activeDocument.mime_type.startsWith("image/")
                 ? <img className="max-h-[560px] w-full object-contain" src={`/api/staff/smart-client-import/document/${activeDocument.id}`} alt={activeDocument.original_filename} />
-                : <iframe title={activeDocument.original_filename} className="h-[560px] w-full" src={`/api/staff/smart-client-import/document/${activeDocument.id}`} />}
+                : <iframe title={activeDocument.original_filename} className="h-[560px] w-full" src={`/api/staff/smart-client-import/document/${activeDocument.id}${sourcePage ? `#page=${sourcePage}` : ""}`} />}
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">{detail.documents.map((doc) => <button key={doc.id} className={`min-h-11 rounded-lg border px-2.5 text-[13px] ${activeDocument.id === doc.id ? "border-cyan-300/35 text-cyan-200" : "border-white/12 text-slate-300"}`} type="button" aria-pressed={activeDocument.id === doc.id} onClick={() => setActiveDocumentId(doc.id)}>{doc.original_filename}</button>)}</div>
+            <a className="mt-3 inline-flex min-h-10 items-center text-xs font-medium text-cyan-200 underline underline-offset-4" href={`/api/staff/smart-client-import/document/${activeDocument.id}`} target="_blank" rel="noopener noreferrer">Open source document in a new tab</a>
+            <div className="mt-3 flex flex-wrap gap-2">{detail.documents.map((doc) => <button key={doc.id} className={`min-h-11 rounded-lg border px-2.5 text-[13px] ${activeDocument.id === doc.id ? "border-cyan-300/35 text-cyan-200" : "border-white/12 text-slate-300"}`} type="button" aria-pressed={activeDocument.id === doc.id} onClick={() => { setActiveDocumentId(doc.id); setSourcePage(null); }}>{doc.original_filename}</button>)}</div>
           </> : <p className="mt-3 rounded-xl border border-amber-300/15 bg-amber-300/[.04] p-4 text-[13px] leading-6 text-amber-100">No source document attached. Missing documents remain follow-up items and are not fabricated.</p>}
-        </div>
+          </div>
+        </details>
 
-        <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+        <div className="cg-review-data min-w-0 p-4 sm:p-5">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <h3 className="text-[14px] font-semibold tracking-[.1em] text-slate-100">CLIENT DATA · VALIDATION MATRIX</h3>
-              <p className="mt-1 text-[12px] text-slate-400">Current value with its validation state, provenance and authority. A manual edit takes precedence over later automatic extraction.</p>
+              <p className="mt-1 text-[12px] text-slate-400">Review each value, compare its evidence, then apply your correction. Saved staff edits take precedence over extraction.</p>
             </div>
             <span className="rounded-full border border-white/12 px-2.5 py-1 text-[12px] text-slate-300">{SMART_FIELDS.length} REVIEWED FIELDS</span>
           </div>
           <div className="mt-3">
             <ValidationMatrix
+              key={detail.case.id}
               read={getField}
               onCommit={commitField}
+              onEditingChange={setEditingField}
+              pendingFields={pendingFields}
+              staffNames={Object.fromEntries(activeStaff.map((member) => [member.id, member.display_name]))}
+              disabled={Boolean(actionBusy) || reviewChanged}
               evidence={detail.case.field_evidence}
               missingFields={detail.case.missing_fields}
               conflicts={detail.case.conflicts}
@@ -506,15 +546,16 @@ export function SmartCareerCollectClient() {
 
       <div className="rounded-2xl border border-white/10 bg-black/10 p-4 space-y-3">
         <label className="block text-[13px] font-semibold text-slate-200" htmlFor="smart-reviewer">REVIEWED BY</label>
-        <select id="smart-reviewer" className="ops-input min-h-11 w-full text-[14px]" value={reviewerId} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setReviewerId(e.target.value)}>
+        <select id="smart-reviewer" className="ops-input min-h-11 w-full text-[14px]" value={reviewerId} disabled={Boolean(detail.case.reviewer_id) || detail.case.status === "APPROVED_FILE" || Boolean(actionBusy) || reviewChanged} onChange={(e) => { setReviewerId(e.target.value); setDraftDirty(true); }}>
           <option value="">Unassigned</option>
           {activeStaff.map((member) => <option key={member.id} value={member.id}>{member.display_name} · {member.staff_code ?? member.role}</option>)}
         </select>
+        {detail.case.reviewer_id && <p className="text-xs text-slate-400">This file is assigned to {detail.case.reviewer_name ?? activeStaff.find((member) => member.id === reviewerId)?.display_name ?? "the recorded reviewer"}. Each edit also records the staff member who made it.</p>}
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-[13px] leading-6 text-slate-200"><input type="checkbox" className="mt-1 h-4 w-4" checked={documentConfirmed} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setDocumentConfirmed(e.target.checked)} /><span><strong className="block">CURRENT DOCUMENT STATUS REVIEWED</strong><span className="text-slate-400">Missing documents may remain outstanding after approval.</span></span></label>
-        <label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-[13px] leading-6 text-slate-200"><input type="checkbox" className="mt-1 h-4 w-4" checked={informationConfirmed} disabled={detail.case.status === "APPROVED_FILE"} onChange={(e) => setInformationConfirmed(e.target.checked)} /><span><strong className="block">INFORMATION MATCH CONFIRMED</strong><span className="text-slate-400">Approved values match reviewed source evidence.</span></span></label>
+        <label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-[13px] leading-6 text-slate-200"><input type="checkbox" className="mt-1 h-4 w-4" checked={documentConfirmed} disabled={detail.case.status === "APPROVED_FILE" || Boolean(actionBusy) || reviewChanged} onChange={(e) => { setDocumentConfirmed(e.target.checked); setDraftDirty(true); }} /><span><strong className="block">CURRENT DOCUMENT STATUS REVIEWED</strong><span className="text-slate-400">Missing documents may remain outstanding after approval.</span></span></label>
+        <label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-[13px] leading-6 text-slate-200"><input type="checkbox" className="mt-1 h-4 w-4" checked={informationConfirmed} disabled={detail.case.status === "APPROVED_FILE" || Boolean(actionBusy) || reviewChanged} onChange={(e) => { setInformationConfirmed(e.target.checked); setDraftDirty(true); }} /><span><strong className="block">INFORMATION MATCH CONFIRMED</strong><span className="text-slate-400">Approved values match reviewed source evidence.</span></span></label>
       </div>
 
       {detail.case.status !== "APPROVED_FILE" && approvalBlockers.length > 0 && (
@@ -540,22 +581,25 @@ export function SmartCareerCollectClient() {
       )}
 
       <div className="sticky bottom-3 z-10 rounded-2xl border border-[#b8934a]/25 bg-[linear-gradient(145deg,rgba(12,35,68,.9),rgba(4,11,25,.9))] p-3.5 shadow-[0_22px_60px_-28px_rgba(0,0,0,.85)] backdrop-blur-xl">
+        {error && <p role="alert" className="mb-3 rounded-lg border border-red-300/25 bg-red-300/[.06] p-3 text-sm text-red-200">{error}</p>}
+        {notice && <p role="status" className="mb-3 text-sm text-emerald-200">{notice}</p>}
+        {editingField && <p className="mb-3 text-sm font-medium text-amber-200" role="status">Apply or cancel the active field edit before saving, verifying or approving.</p>}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-slate-400">
             <span className="font-mono text-[12px]">{readiness.complete} / {readiness.total} REQUIRED</span>
             <span aria-hidden="true" className="text-slate-600">|</span>
             <span className={draftDirty ? "text-amber-200" : "text-emerald-300"}>{draftDirty ? "Unsaved manual edits" : "No unsaved edits"}</span>
             {assessment && detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span role="status" className={assessment.readiness === "BLOCKED" ? "text-red-200" : assessment.readiness === "READY_TO_APPROVE" ? "text-emerald-300" : "text-amber-200"}>{assessment.readiness.replace(/_/g, " ")}{assessment.blocked ? ` · ${assessment.blockers[0]}` : assessment.warnings.length ? ` · ${assessment.warnings.length} field${assessment.warnings.length === 1 ? "" : "s"} can be completed later` : " · Ready to approve"}</span></>}
-            {detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span className="rounded-md border border-white/[.08] bg-black/25 px-2 py-1 font-mono text-[11px]">⌘/Ctrl + Enter</span><span>Approve when ready</span></>}
+            {detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span className="rounded-md border border-white/[.08] bg-black/25 px-2 py-1 font-mono text-[11px]">⌘/Ctrl + S</span><span>Save draft</span></>}
           </div>
           <div className="flex flex-wrap gap-2">
             {detail.case.status === "APPROVED_FILE" && detail.case.created_client_id
               ? <Link className="ops-primary-button inline-flex min-h-12 items-center justify-center px-5 text-[14px]" href={`/staff/client/${detail.case.created_client_id}`}>OPEN CLIENT</Link>
               : <>
-                    {!detail.case.review_started_at && <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => mutate("start_review", { reviewer_id: reviewerId })}>{actionBusy === "start_review" ? "STARTING…" : "START REVIEW"}</button>}
-                    <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => mutate("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "save" ? "SAVING…" : "SAVE DRAFT"}</button>
-                    <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={Boolean(actionBusy) || !detail.documents.length} onClick={() => void reExtract()}>{actionBusy === "re_extract" ? "RE-EXTRACTING…" : "RE-EXTRACT"}</button>
-                    <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={!reviewerId || Boolean(actionBusy)} onClick={() => void saveAndVerify()}>{actionBusy === "verify" ? "VERIFYING…" : "CHECK & VERIFY"}</button>
+                    {!detail.case.review_started_at && <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={!reviewerId || Boolean(actionBusy) || editingField || reviewChanged} onClick={() => mutate("start_review", { reviewer_id: reviewerId })}>{actionBusy === "start_review" ? "STARTING…" : "START REVIEW"}</button>}
+                    <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={!reviewerId || Boolean(actionBusy) || editingField || reviewChanged} onClick={() => mutate("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "save" ? "SAVING…" : "SAVE DRAFT"}</button>
+                    <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={Boolean(actionBusy) || !detail.documents.length || draftDirty || editingField || reviewChanged} onClick={() => void reExtract()}>{actionBusy === "re_extract" ? "RE-EXTRACTING…" : "RE-EXTRACT"}</button>
+                    <button className="ops-secondary-button min-h-12 px-4 text-[13px]" type="button" disabled={!reviewerId || Boolean(actionBusy) || editingField || reviewChanged} onClick={() => void saveAndVerify()}>{actionBusy === "verify" ? "VERIFYING…" : "CHECK & VERIFY"}</button>
                     <button className="ops-primary-button min-h-12 px-5 text-[14px]" type="button" disabled={!canApprove || Boolean(actionBusy)} onClick={() => mutate("approve", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed })}>{actionBusy === "approve" ? "CREATING CANONICAL CLIENT…" : "APPROVE FILE"}</button>
                   </>}
           </div>

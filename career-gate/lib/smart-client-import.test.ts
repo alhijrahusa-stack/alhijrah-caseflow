@@ -19,7 +19,7 @@ import {
   parseShiftRange,
 } from "@/lib/smart-client-fields";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
-import { REVIEW_FIELD_SOURCE_KEYS, mergeManualEvidence, sheetEvidence } from "@/lib/smart-client-import";
+import { REVIEW_FIELD_SOURCE_KEYS, assertReviewVersion, mergeManualEvidence, resolveReviewConflicts, sheetEvidence } from "@/lib/smart-client-import";
 import { appendExtractionEvidence } from "@/lib/smart-client-mobile";
 import { buildCareerGateImportTemplate } from "@/lib/smart-client-template";
 
@@ -335,6 +335,62 @@ describe("Smart Career Collect Client canonical import contract", () => {
     expect(current("zip")).toMatchObject({ value: "48212-3768", authority: "SOURCE" });
 
     expect(appendExtractionEvidence(null, reExtracted)).toEqual(reExtracted);
+  });
+
+  it("records explicit same-value conflict resolution with source variants and the actual actor", () => {
+    const draft = prepareImportDraft({ full_name: "Test Client", phone: "3135550199", date_of_birth: "1976-01-01" });
+    const conflict = { field_key: "date_of_birth", type: "SOURCE_CONFLICT", values: [{ value: "1976-01-01" }, { value: "1977-01-01" }] };
+    const source = [{ field_key: "date_of_birth", value: "1976-01-01", verification_state: "CONFLICT" }];
+    const evidence = mergeManualEvidence(source, draft, draft, "reviewer-1", {
+      resolvedFields: ["date_of_birth"], conflicts: [conflict], actorId: "actor-2",
+    });
+    expect(evidence[0]).toEqual(source[0]);
+    expect(evidence[1]).toMatchObject({
+      field_key: "date_of_birth", value: "1976-01-01", previous_value: "1976-01-01",
+      reviewer_id: "reviewer-1", actor_id: "actor-2", authority: "MANUAL",
+      resolution: "CONFIRMED_BY_REVIEWER", resolved_conflicts: [conflict],
+    });
+    expect(source).toHaveLength(1);
+  });
+
+  it("keeps source aliases from displacing manually reviewed location and shift authority", () => {
+    const manual = [
+      { field_key: "preferred_location", value: "Romulus", authority: "MANUAL", source_type: "manual_review" },
+      { field_key: "preferred_shift", value: "NIGHT", source_type: "manual_review" },
+    ];
+    const incoming = [
+      { field_key: "site_code", value: "Detroit", source_type: "document", authority: "SOURCE" },
+      { field_key: "shift_code", value: "MORNING", source_type: "document", authority: "SOURCE" },
+      { field_key: "city", value: "Dearborn", source_type: "document", authority: "SOURCE" },
+    ];
+    expect(appendExtractionEvidence(manual, incoming)).toEqual([...manual, incoming[2]]);
+  });
+
+  it("resolves only explicitly reviewed field conflicts and preserves duplicate identity blockers", () => {
+    const birth = { field_key: "date_of_birth", type: "SOURCE_CONFLICT" };
+    const site = { field_key: "site_code", type: "SOURCE_CONFLICT" };
+    const identity = { field_key: "date_of_birth", type: "IDENTITY", client_id: "client-1" };
+    const global = { type: "CONCURRENCY", message: "Another client was created" };
+    expect(resolveReviewConflicts([birth, site, identity, global], ["date_of_birth", "preferred_location"]))
+      .toEqual([identity, global]);
+    expect(resolveReviewConflicts([birth, site], ["date_of_birth"])).toEqual([site]);
+    expect(resolveReviewConflicts([birth])).toEqual([birth]);
+    expect(() => resolveReviewConflicts([birth], ["created_client_id"]))
+      .toThrow("outside the Smart Review field contract");
+  });
+
+  it("rejects a stale review revision without inventing a last-write-wins save", () => {
+    const current = new Date("2026-10-30T12:34:56.789Z");
+    expect(() => assertReviewVersion(current, current.toISOString())).not.toThrow();
+    expect(() => assertReviewVersion(current.toISOString(), current.toISOString())).not.toThrow();
+    expect(() => assertReviewVersion(current, "2026-10-30T12:34:55.789Z"))
+      .toThrow("This file changed after you opened it");
+    expect(() => assertReviewVersion(current, "invalid")).toThrow();
+    expect(() => assertReviewVersion(current)).not.toThrow();
+    expect(() => assertReviewVersion("2026-10-30T12:34:56.789123Z", "2026-10-30T12:34:56.789124Z"))
+      .toThrow("This file changed after you opened it");
+    expect(() => assertReviewVersion("2026-10-30T12:34:56.789123Z", "2026-10-30T08:34:56.789123-04:00"))
+      .not.toThrow();
   });
 
   it("rejects missing canonical minimum Client identity data", () => {

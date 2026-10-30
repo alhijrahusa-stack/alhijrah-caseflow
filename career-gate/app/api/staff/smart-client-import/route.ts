@@ -12,6 +12,7 @@ import {
   saveImportReview,
   startImportReview,
   verifyImportCase,
+  REVIEW_FIELD_SOURCE_KEYS,
 } from "@/lib/smart-client-import";
 import { archiveImportCase, assertImportNotArchived, listActiveImportQueue, listArchivedImportQueue } from "@/lib/smart-import-archive";
 
@@ -19,6 +20,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const Id = z.uuid();
+const ReviewVersion = z.iso.datetime({ offset: true }).optional();
+const ResolvedFields = z.array(z.string()).max(Object.keys(REVIEW_FIELD_SOURCE_KEYS).length)
+  .refine((fields) => fields.every((field) => Object.prototype.hasOwnProperty.call(REVIEW_FIELD_SOURCE_KEYS, field)), "Invalid resolved review field")
+  .optional();
 
 async function withUploaderMetadata<T extends { rows: Array<{ id: string }> }>(queue: T) {
   const ids = queue.rows.map((row) => row.id);
@@ -72,11 +77,13 @@ const ActionBody = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("save"), id: z.uuid(), reviewer_id: z.uuid(), draft: z.record(z.string(), z.unknown()),
     document_match_confirmed: z.boolean(), information_match_confirmed: z.boolean(),
+    resolved_fields: ResolvedFields, expected_updated_at: ReviewVersion,
   }),
-  z.object({ action: z.literal("verify"), id: z.uuid() }),
+  z.object({ action: z.literal("verify"), id: z.uuid(), expected_updated_at: ReviewVersion }),
   z.object({
     action: z.literal("approve"), id: z.uuid(), reviewer_id: z.uuid(), draft: z.record(z.string(), z.unknown()),
     document_match_confirmed: z.boolean(), information_match_confirmed: z.boolean(),
+    resolved_fields: ResolvedFields, expected_updated_at: ReviewVersion,
   }),
   z.object({ action: z.literal("archive"), id: z.uuid() }),
 ]);
@@ -97,8 +104,10 @@ export async function POST(req: Request) {
       draft: body.draft,
       documentConfirmed: body.document_match_confirmed,
       informationConfirmed: body.information_match_confirmed,
+      resolvedFields: body.resolved_fields,
+      expectedUpdatedAt: body.expected_updated_at,
     }), 200, traceId);
-    if (body.action === "verify") return ok(await verifyImportCase(guard.session, body.id), 200, traceId);
+    if (body.action === "verify") return ok(await verifyImportCase(guard.session, body.id, body.expected_updated_at), 200, traceId);
     const result = await approveImportCase(guard.session, {
       id: body.id,
       reviewerId: body.reviewer_id,
@@ -106,6 +115,8 @@ export async function POST(req: Request) {
       documentConfirmed: body.document_match_confirmed,
       informationConfirmed: body.information_match_confirmed,
       traceId,
+      resolvedFields: body.resolved_fields,
+      expectedUpdatedAt: body.expected_updated_at,
     });
     after(() => processJobs(10).catch((error) => console.error(error)));
     return ok(result, 200, traceId);

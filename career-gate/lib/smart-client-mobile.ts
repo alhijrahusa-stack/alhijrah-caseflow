@@ -8,6 +8,7 @@ import { findPublicDuplicate } from "@/lib/public-intake-duplicate";
 import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
+import { canonicalSmartFieldKey } from "@/lib/smart-client-fields";
 import {
   SMART_IMPORT_LIMITS,
   evidenceMatchScore,
@@ -172,11 +173,11 @@ export function appendExtractionEvidence(existingValue: unknown, incoming: reado
     (entry): entry is EvidenceEntry => Boolean(entry) && typeof entry === "object",
   );
   const manualFields = new Set(
-    existing.filter((entry) => entry.authority === "MANUAL").map((entry) => String(entry.field_key)),
+    existing.filter((entry) => entry.authority === "MANUAL" || entry.source_type === "manual_review").map((entry) => canonicalSmartFieldKey(entry.field_key)),
   );
   const seen = new Set(existing.map(evidenceIdentity));
   const appended = incoming.filter((entry) => {
-    if (manualFields.has(String(entry.field_key))) return false;
+    if (manualFields.has(canonicalSmartFieldKey(entry.field_key))) return false;
     const identity = evidenceIdentity(entry);
     if (seen.has(identity)) return false;
     seen.add(identity);
@@ -227,11 +228,11 @@ function applyLinkedClientCorrections(
   }
   const result = { ...old, profile } as Record<string, unknown>;
   if (["site_code", "job_id", "shift_code", "shift_days", "shift_start_time", "shift_end_time"]
-    .some((field) => provided.has(field) && !manual.has(field)) && incoming.primary.length) {
+    .some((field) => provided.has(field) && !manual.has(canonicalSmartFieldKey(field))) && incoming.primary.length) {
     result.primary = incoming.primary;
   }
   if (["backup_site_code", "backup_job_id", "backup_shift_code"]
-    .some((field) => provided.has(field) && !manual.has(field)) && incoming.backup.length) {
+    .some((field) => provided.has(field) && !manual.has(canonicalSmartFieldKey(field))) && incoming.backup.length) {
     result.backup = incoming.backup;
   }
   const beforeReview = old.review_fields && typeof old.review_fields === "object"
@@ -305,8 +306,8 @@ async function appendLinkedClientIntake(args: {
       const evidence = appendExtractionEvidence(current.field_evidence, args.preMerge.evidence);
       const manuallyReviewed = new Set(
         (Array.isArray(current.field_evidence) ? current.field_evidence : [])
-          .filter((e: unknown) => e && typeof e === "object" && (e as Record<string, unknown>).authority === "MANUAL")
-          .map((e: unknown) => String((e as Record<string, unknown>).field_key)),
+          .filter((e: unknown) => e && typeof e === "object" && ((e as Record<string, unknown>).authority === "MANUAL" || (e as Record<string, unknown>).source_type === "manual_review"))
+          .map((e: unknown) => canonicalSmartFieldKey((e as Record<string, unknown>).field_key)),
       );
       const providedFields = new Set(args.preMerge.evidence.map((item) => String(item.field_key)));
       const nextDraft = applyLinkedClientCorrections(current.mapped_draft, args.preDraft, providedFields, manuallyReviewed);
@@ -610,13 +611,13 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
 
     const manualFields = new Set<string>(
       (Array.isArray(latest.field_evidence) ? latest.field_evidence : [])
-        .filter((entry: EvidenceEntry) => entry && entry.authority === "MANUAL")
-        .map((entry: EvidenceEntry) => String(entry.field_key)),
+        .filter((entry: EvidenceEntry) => entry && (entry.authority === "MANUAL" || entry.source_type === "manual_review"))
+        .map((entry: EvidenceEntry) => canonicalSmartFieldKey(entry.field_key)),
     );
     const reviewed = Boolean(latest.review_started_at);
     const draft = preserveReviewedDraft(latest.mapped_draft, partialDraft(merged.merged, notes), reviewed, manualFields);
     const evidence = appendExtractionEvidence(latest.field_evidence, merged.evidence as EvidenceEntry[]);
-    const unresolvedConflicts = merged.conflicts.filter((conflict) => !manualFields.has(String(conflict.field_key)));
+    const unresolvedConflicts = merged.conflicts.filter((conflict) => !manualFields.has(canonicalSmartFieldKey(conflict.field_key)));
     const missing = requiredMissingFromDraft(draft);
     const verificationResult = {
       processing_state: processingState,
@@ -628,7 +629,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
       provider: "gemini",
       manual_precedence_applied: reviewed,
       resolved_source_conflict_fields: merged.conflicts
-        .filter((conflict) => manualFields.has(String(conflict.field_key))).map((conflict) => conflict.field_key),
+        .filter((conflict) => manualFields.has(canonicalSmartFieldKey(conflict.field_key))).map((conflict) => conflict.field_key),
       checked_at: new Date().toISOString(),
     };
     await tx`

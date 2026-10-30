@@ -517,6 +517,23 @@ test.describe("Smart Review experience", () => {
     await expect(proficiencyRow.getByText("GOOD", { exact: true })).toBeVisible();
     await expect(page.getByLabel("English Proficiency", { exact: true })).toHaveCount(0);
 
+    // Unapplied edits keep the persistence actions locked, and Cancel must discard
+    // the focused value without a blur handler applying it first.
+    const cityRow = page.locator('tr[data-field="city"]');
+    await cityRow.getByRole("button", { name: /^Edit City/ }).click();
+    const cityInput = page.getByLabel("City", { exact: true });
+    await cityInput.fill("Unsaved city");
+    await expect(page.getByRole("button", { name: "SAVE DRAFT", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "CHECK & VERIFY", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "APPROVE FILE", exact: true })).toBeDisabled();
+    await expect(page.locator('tr[data-field="phone"]').getByRole("button", { name: /^Edit Phone/ })).toBeDisabled();
+    await cityInput.blur();
+    await expect(cityInput).toHaveValue("Unsaved city");
+    await cityRow.getByRole("button", { name: /^Cancel/ }).click();
+    await expect(cityInput).toHaveCount(0);
+    await expect(cityRow.locator('[data-label="Current value"]')).toHaveText("—");
+    await expect(page.getByRole("button", { name: "SAVE DRAFT", exact: true })).toBeEnabled();
+
     // Escape abandons an unsaved edit.
     const dobRow = page.locator('tr[data-field="date_of_birth"]');
     await dobRow.getByRole("button", { name: /^Edit Date of Birth/ }).click();
@@ -533,16 +550,24 @@ test.describe("Smart Review experience", () => {
     await expect(startInput).toHaveAttribute("type", "time");
     await startInput.fill("18:00");
     await startInput.blur();
+    await expect(startInput).toHaveValue("18:00");
+    await startRow.getByRole("button", { name: /^Apply/ }).click();
     await expect(startRow.locator('[data-label="Current value"]')).toHaveText("18:00");
     // Authority is server-recorded, so it still reads SOURCE until the review is saved.
     await expect(startRow.locator('[data-label="Authority"]')).toHaveText("SOURCE");
+
+    // Cancelling the close confirmation keeps the applied draft in the review.
+    page.once("dialog", async (dialog) => dialog.dismiss());
+    await page.locator("#smart-review").getByRole("button", { name: "CLOSE", exact: true }).click();
+    await expect(page.locator("#smart-review")).toBeVisible();
+    await expect(startRow.locator('[data-label="Current value"]')).toHaveText("18:00");
 
     // Shift days edit through canonical day chips.
     const daysRow = page.locator('tr[data-field="shift_days"]');
     await expect(daysRow.getByText("MON, TUE, WED, THU, FRI", { exact: true })).toBeVisible();
     await daysRow.getByRole("button", { name: /^Edit Shift Days/ }).click();
     await page.getByRole("button", { name: "SAT", exact: true }).click();
-    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    await daysRow.getByRole("button", { name: /^Apply/ }).click();
     await expect(daysRow.getByText("MON, TUE, WED, THU, FRI, SAT", { exact: true })).toBeVisible();
 
     // A committed manual edit persists through the existing review-save flow with MANUAL
@@ -570,6 +595,88 @@ test.describe("Smart Review experience", () => {
 
     // The original source reading for shift days is still first in the history.
     expect(dayEvidence[0]?.value).toBe("Weekdays");
+  });
+
+  test("audits conflicting source readings and explicitly confirms the current value without losing evidence", async ({ page, baseURL }) => {
+    const token = Date.now().toString().slice(-7);
+    const name = `TEST Review Conflict ${token}`;
+    const phone = `734${token}`.slice(0, 10).padEnd(10, "7");
+    await signIn(page.context(), baseURL!, "admin");
+    await page.setViewportSize(DESKTOP);
+    await page.goto("/staff/import");
+    const csv = `full_name,phone,date_of_birth\n${name},${phone},1976-01-01\n`;
+    await page.locator('input[type="file"]').first().setInputFiles({ name: "review-conflict.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await page.getByRole("button", { name: "PREVIEW" }).click();
+    await page.getByRole("button", { name: /STAGE SELECTED/ }).click();
+    await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
+
+    const [staged] = await db()`select id,field_evidence from client_import_cases where mapped_draft #>> '{profile,full_name}'=${name} order by created_at desc limit 1`;
+    const evidence = staged.field_evidence.map((entry: Record<string, unknown>) => entry.field_key === "date_of_birth" ? { ...entry, verification_state: "CONFLICT", source_text_reference: "Birth date supplied in the intake sheet: 1976-01-01" } : entry);
+    evidence.push({ field_key: "date_of_birth", value: "1977-01-01", normalized_value: "1977-01-01", source_type: "local_text", authority: "SOURCE", verification_state: "CONFLICT", source_text_reference: "Alternate source reading: 1977-01-01" });
+    const conflicts = [{ field_key: "date_of_birth", values: ["1976-01-01", "1977-01-01"], type: "SOURCE_CONFLICT" }];
+    await db()`update client_import_cases set field_evidence=${db().json(evidence)},conflicts=${db().json(conflicts)} where id=${staged.id}`;
+
+    const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("xpath=ancestor::section[1]");
+    await importQueue.getByRole("row").filter({ hasText: name }).first().getByRole("button", { name: "OPEN / EDIT" }).click();
+    const review = page.locator("#smart-review");
+    const dob = review.locator('tr[data-field="date_of_birth"]');
+    await expect(dob.locator('[data-label="State"]')).toHaveText("CONFLICT");
+    await dob.getByRole("button", { name: "Audit Date of Birth", exact: true }).click();
+    await expect(dob.getByRole("button", { name: "Audit Date of Birth", exact: true })).toHaveAttribute("aria-expanded", "true");
+    const history = review.getByRole("region", { name: "Date of Birth evidence history", exact: true });
+    await expect(history.getByRole("listitem")).toHaveCount(2);
+    await expect(history.getByText("1976-01-01", { exact: true })).toBeVisible();
+    await expect(history.getByText("1977-01-01", { exact: true })).toBeVisible();
+    await expect(history.getByText("Alternate source reading: 1977-01-01", { exact: true })).toBeVisible();
+
+    // Search and attention filters narrow the same authoritative field list.
+    const search = review.getByRole("searchbox", { name: "Filter client fields", exact: true });
+    await search.fill("Date of Birth");
+    await expect(review.locator("tr[data-field]")).toHaveCount(1);
+    await review.getByRole("button", { name: "Needs attention", exact: true }).click();
+    await expect(dob).toBeVisible();
+    await search.fill("");
+    await review.getByRole("button", { name: "All fields", exact: true }).click();
+    await expect(review.locator("tr[data-field]")).toHaveCount(22);
+
+    // The reviewer may confirm the current source reading; a changed value is not
+    // required to record a manual conflict resolution.
+    await dob.getByRole("button", { name: "Edit Date of Birth", exact: true }).click();
+    await expect(page.getByLabel("Date of Birth", { exact: true })).toHaveValue("1976-01-01");
+    await dob.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(dob.getByText("Unsaved change", { exact: true })).toBeVisible();
+    await review.getByRole("button", { name: "Edited fields", exact: true }).click();
+    await expect(review.locator("tr[data-field]")).toHaveCount(1);
+    // A rejected save must leave the applied value and resolution available for retry.
+    await page.route("**/api/staff/smart-client-import", async (route) => {
+      const request = route.request();
+      if (request.method() === "POST" && request.postDataJSON()?.action === "save") {
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, error: { message: "QA simulated save failure" } }) });
+      } else await route.continue();
+    });
+    await page.getByRole("button", { name: "SAVE DRAFT", exact: true }).click();
+    await expect(page.getByText("QA simulated save failure", { exact: true })).toBeVisible();
+    await expect(dob.locator('[data-label="Current value"]')).toHaveText("1976-01-01");
+    await expect(dob.getByText("Unsaved change", { exact: true })).toBeVisible();
+    await page.unroute("**/api/staff/smart-client-import");
+
+    const saveResponse = page.waitForResponse((response) => {
+      if (response.request().method() !== "POST" || new URL(response.url()).pathname !== "/api/staff/smart-client-import") return false;
+      return response.request().postDataJSON()?.action === "save";
+    });
+    await page.getByRole("button", { name: "SAVE DRAFT", exact: true }).click();
+    expect((await saveResponse).status()).toBe(200);
+    await expect(page.getByText("Review saved.", { exact: true })).toBeVisible();
+
+    const [saved] = await db()`select mapped_draft,field_evidence,conflicts from client_import_cases where id=${staged.id}`;
+    expect(saved.mapped_draft.profile.date_of_birth).toBe("1976-01-01");
+    expect(saved.conflicts).toEqual([]);
+    const entries = saved.field_evidence.filter((entry: { field_key?: string }) => entry.field_key === "date_of_birth");
+    expect(entries).toHaveLength(3);
+    expect(entries.slice(0, 2).map((entry: { value?: string }) => entry.value)).toEqual(["1976-01-01", "1977-01-01"]);
+    expect(entries.at(-1)).toMatchObject({ value: "1976-01-01", authority: "MANUAL", source_type: "manual_review" });
+    expect(entries.at(-1).reviewer_id).toBeTruthy();
+    expect(entries.at(-1).reviewed_at).toBeTruthy();
   });
 
   test("stacks the validation matrix into labelled blocks on a phone", async ({ page, baseURL }) => {

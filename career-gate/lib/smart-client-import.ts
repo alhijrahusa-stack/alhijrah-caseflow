@@ -33,6 +33,7 @@ import {
   type PreparedImportDraft,
 } from "@/lib/smart-client-import-core";
 import {
+  canonicalSmartFieldKey,
   normalizeEnglishProficiency,
   normalizeImportLanguage,
   normalizeShiftDays,
@@ -142,13 +143,18 @@ export function sheetEvidence(row: IntakeRow, draft: PreparedImportDraft, source
   });
 }
 
-export function mergeManualEvidence(existingValue: unknown, previousDraft: unknown, nextDraft: unknown, reviewerId: string) {
+export function mergeManualEvidence(existingValue: unknown, previousDraft: unknown, nextDraft: unknown, reviewerId: string, options: {
+  resolvedFields?: readonly string[];
+  conflicts?: readonly unknown[];
+  actorId?: string;
+} = {}) {
   const existing = Array.isArray(existingValue) ? [...existingValue] : [];
   const reviewedAt = new Date().toISOString();
+  const resolvedFields = new Set(options.resolvedFields ?? []);
   for (const fieldKey of Object.keys(REVIEW_FIELD_SOURCE_KEYS) as ReviewFieldKey[]) {
     const previous = draftFieldValue(previousDraft, fieldKey);
     const next = draftFieldValue(nextDraft, fieldKey);
-    if (comparable(previous) === comparable(next)) continue;
+    if (comparable(previous) === comparable(next) && !resolvedFields.has(fieldKey)) continue;
     existing.push({
       field_key: fieldKey,
       value: next,
@@ -156,11 +162,55 @@ export function mergeManualEvidence(existingValue: unknown, previousDraft: unkno
       verification_state: "VERIFIED",
       authority: "MANUAL",
       reviewer_id: reviewerId,
+      actor_id: options.actorId ?? reviewerId,
       reviewed_at: reviewedAt,
       previous_value: previous,
+      ...(resolvedFields.has(fieldKey) ? {
+        resolution: "CONFIRMED_BY_REVIEWER",
+        resolved_conflicts: (options.conflicts ?? []).filter((conflict) => conflictField(conflict) === fieldKey && !isIdentityConflict(conflict)),
+      } : {}),
     });
   }
   return existing;
+}
+
+function isIdentityConflict(value: unknown) {
+  return Boolean(value && typeof value === "object" && "type" in value && value.type === "IDENTITY");
+}
+
+function conflictField(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const conflict = value as Record<string, unknown>;
+  const key = canonicalSmartFieldKey(conflict.field_key ?? conflict.field);
+  return Object.prototype.hasOwnProperty.call(REVIEW_FIELD_SOURCE_KEYS, key) ? key as ReviewFieldKey : null;
+}
+
+export function resolveReviewConflicts(conflictsValue: unknown, resolvedFields: readonly string[] = []) {
+  for (const field of resolvedFields) {
+    if (!Object.prototype.hasOwnProperty.call(REVIEW_FIELD_SOURCE_KEYS, field)) {
+      throw new ActionError("invalid_resolution", "A resolved field is outside the Smart Review field contract", 400);
+    }
+  }
+  const resolved = new Set(resolvedFields);
+  const conflicts = Array.isArray(conflictsValue) ? conflictsValue : [];
+  return conflicts.filter((conflict) => isIdentityConflict(conflict) || !resolved.has(conflictField(conflict) ?? ""));
+}
+
+export function assertReviewVersion(updatedAt: unknown, expectedUpdatedAt?: string) {
+  if (!expectedUpdatedAt) return;
+  const micros = (value: unknown): bigint | null => {
+    if (value instanceof Date && !Number.isFinite(value.getTime())) return null;
+    const stamp = value instanceof Date ? value.toISOString() : String(value);
+    const milliseconds = Date.parse(stamp);
+    if (!Number.isFinite(milliseconds)) return null;
+    const fraction = stamp.match(/\.(\d+)(?:Z|[+-]\d{2}:?\d{2})$/i)?.[1] ?? "";
+    return BigInt(milliseconds) * 1000n + BigInt(fraction.padEnd(6, "0").slice(3, 6) || "0");
+  };
+  const current = micros(updatedAt);
+  const expected = micros(expectedUpdatedAt);
+  if (expected === null || current === null || current !== expected) {
+    throw new ActionError("review_changed", "This file changed after you opened it. Reload the latest review before saving; your unsaved edits have been kept.", 409);
+  }
 }
 
 function sanitizeReviewDraft(value: unknown) {
@@ -563,7 +613,8 @@ export async function listImportQueue(session: StaffSession, args: { status?: st
 export async function getImportCase(session: StaffSession, id: string) {
   assertManager(session);
   const [row] = await sql()`
-    select c.*,s.display_name as reviewer_name,a.display_name as approved_by_name
+    select c.*,to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,
+      s.display_name as reviewer_name,a.display_name as approved_by_name
     from client_import_cases c
     left join staff s on s.id=c.reviewer_id
     left join staff a on a.id=c.approved_by
@@ -591,15 +642,17 @@ export async function startImportReview(session: StaffSession, id: string, revie
   assertManager(session);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, reviewerId);
-    const [row] = await tx`select id,status,reviewer_id,review_started_at from client_import_cases where id=${id} for update`;
+    const [row] = await tx`select id,status,reviewer_id,review_started_at,archived_at from client_import_cases where id=${id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot be reopened", 409);
+    if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
     assertReviewOwnership(row.reviewer_id, reviewerId);
     const [updated] = await tx`
       update client_import_cases
       set reviewer_id=${reviewerId},review_started_at=coalesce(review_started_at,now()),status='UNDER_REVIEW'
       where id=${id}
-      returning id,status,reviewer_id,review_started_at`;
+      returning id,status,reviewer_id,review_started_at,
+        to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at`;
     return updated;
   });
 }
@@ -610,28 +663,40 @@ export async function saveImportReview(session: StaffSession, args: {
   draft: unknown;
   documentConfirmed: boolean;
   informationConfirmed: boolean;
+  resolvedFields?: string[];
+  expectedUpdatedAt?: string;
 }) {
   assertManager(session);
   if (!JsonObject.safeParse(args.draft).success) throw new ActionError("invalid_draft", "Mapped draft must be an object", 400);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, args.reviewerId);
-    const [row] = await tx`select id,status,reviewer_id,review_started_at,mapped_draft,field_evidence from client_import_cases where id=${args.id} for update`;
+    const [row] = await tx`select id,status,reviewer_id,review_started_at,mapped_draft,field_evidence,conflicts,
+      to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,archived_at
+      from client_import_cases where id=${args.id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot be changed", 409);
+    if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
+    assertReviewVersion(row.updated_at, args.expectedUpdatedAt);
     assertReviewOwnership(row.reviewer_id, args.reviewerId);
     const sanitizedDraft = sanitizeReviewDraft(args.draft);
     let storedDraft: unknown = sanitizedDraft;
     try { storedDraft = normalizePreparedDraft(sanitizedDraft); } catch { /* preserve reviewable invalid state; verify/approve remains authoritative */ }
     const missing = requiredMissingFromDraft(storedDraft);
-    const evidence = mergeManualEvidence(row.field_evidence, row.mapped_draft, storedDraft, args.reviewerId);
+    const conflicts = resolveReviewConflicts(row.conflicts, args.resolvedFields);
+    const evidence = mergeManualEvidence(row.field_evidence, row.mapped_draft, storedDraft, args.reviewerId, {
+      resolvedFields: args.resolvedFields,
+      conflicts: Array.isArray(row.conflicts) ? row.conflicts : [],
+      actorId: session.staff.id,
+    });
     const [updated] = await tx`
       update client_import_cases set
         reviewer_id=${args.reviewerId},review_started_at=coalesce(review_started_at,now()),reviewed_at=now(),
         mapped_draft=${tx.json(storedDraft as never)},missing_fields=${tx.json(missing as never)},field_evidence=${tx.json(evidence as never)},
+        conflicts=${tx.json(conflicts as never)},verification_result='{}'::jsonb,
         document_match_confirmed=${args.documentConfirmed},information_match_confirmed=${args.informationConfirmed},
         status=case when status='PENDING' then 'UNDER_REVIEW' else status end
       where id=${args.id}
-      returning id,status,updated_at`;
+      returning id,status,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at`;
     return updated;
   });
 }
@@ -701,23 +766,26 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
   };
 }
 
-export async function verifyImportCase(session: StaffSession, id: string) {
+export async function verifyImportCase(session: StaffSession, id: string, expectedUpdatedAt?: string) {
   assertManager(session);
   return sql().begin(async (tx) => {
-    const [row] = await tx`select * from client_import_cases where id=${id} for update`;
+    const [row] = await tx`select *,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at from client_import_cases where id=${id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Import is already approved", 409);
+    if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
+    assertReviewVersion(row.updated_at, expectedUpdatedAt);
     const verification = await verifyLockedCase(tx, row as Record<string, unknown>);
     // The case guard only allows PENDING -> UNDER_REVIEW, so a pending case verifies
     // into UNDER_REVIEW regardless of its document count.
     const nextStatus = row.status !== "PENDING" && verification.result.approval_ready && verification.documentCount === 0
       ? "MISSING_DOCUMENT"
       : "UNDER_REVIEW";
-    await tx`
+    const [updated] = await tx`
       update client_import_cases set missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json(verification.blockingConflicts as never)},
         verification_result=${tx.json(verification.result as never)},reviewed_at=now(),status=${nextStatus}
-      where id=${id}`;
-    return verification.result;
+      where id=${id}
+      returning to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at`;
+    return { ...verification.result, updated_at: updated.updated_at };
   });
 }
 
@@ -728,16 +796,20 @@ export async function approveImportCase(session: StaffSession, args: {
   documentConfirmed: boolean;
   informationConfirmed: boolean;
   traceId: string;
+  resolvedFields?: string[];
+  expectedUpdatedAt?: string;
 }) {
   assertManager(session);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, args.reviewerId);
-    const [row] = await tx`select * from client_import_cases where id=${args.id} for update`;
+    const [row] = await tx`select *,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at from client_import_cases where id=${args.id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.status === "APPROVED_FILE") {
       if (row.created_client_id) return { client_id: String(row.created_client_id), idempotent: true };
       throw new ActionError("invalid_approved_state", "Approved import is missing its client reference", 500);
     }
+    if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
+    assertReviewVersion(row.updated_at, args.expectedUpdatedAt);
     assertReviewOwnership(row.reviewer_id, args.reviewerId);
     // The case guard only permits PENDING -> UNDER_REVIEW, so approval performs that
     // legal transition itself instead of requiring a separate START REVIEW step. The
@@ -754,7 +826,8 @@ export async function approveImportCase(session: StaffSession, args: {
       throw new ActionError("confirmation_required", "Record both the document-status and information-match confirmations; an approved file cannot be stored without them.", 409);
     }
 
-    const verificationRow = { ...row, mapped_draft: args.draft, reviewer_id: args.reviewerId } as Record<string, unknown>;
+    const conflicts = resolveReviewConflicts(row.conflicts, args.resolvedFields);
+    const verificationRow = { ...row, mapped_draft: args.draft, reviewer_id: args.reviewerId, conflicts } as Record<string, unknown>;
     const verification = await verifyLockedCase(tx, verificationRow);
     if (!verification.draft) {
       throw new ActionError("approval_blocked", verification.result.validation_error || "This file cannot be saved as a Client yet", 409);
@@ -762,6 +835,11 @@ export async function approveImportCase(session: StaffSession, args: {
     // Approve the persistable draft: optional values that cannot satisfy their canonical
     // type were cleared and are reported as warnings, with their source evidence intact.
     const draft = verification.draft;
+    const evidence = mergeManualEvidence(row.field_evidence, row.mapped_draft, draft, args.reviewerId, {
+      resolvedFields: args.resolvedFields,
+      conflicts: Array.isArray(row.conflicts) ? row.conflicts : [],
+      actorId: session.staff.id,
+    });
 
     const assignedStaff = await resolveImportedStaff(tx, draft.staff_code);
     const [sourceBatch] = await tx`select idempotency_key from client_import_batches where id=${String(row.batch_id)}`;
@@ -814,7 +892,7 @@ export async function approveImportCase(session: StaffSession, args: {
 
     await tx`
       update client_import_cases set
-        reviewer_id=${args.reviewerId},reviewed_at=now(),mapped_draft=${tx.json(draft as never)},
+        reviewer_id=${args.reviewerId},reviewed_at=now(),mapped_draft=${tx.json(draft as never)},field_evidence=${tx.json(evidence as never)},
         missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json([] as never)},verification_result=${tx.json(verification.result as never)},
         document_match_confirmed=${args.documentConfirmed},information_match_confirmed=${args.informationConfirmed},
         review_started_at=coalesce(review_started_at,now()),
