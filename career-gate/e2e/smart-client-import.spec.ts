@@ -89,6 +89,7 @@ test.describe("Smart Career Collect Client", () => {
     const languageSelect = page.getByLabel("Preferred Language", { exact: true });
     await expect(languageSelect).toHaveValue("en");
     await languageSelect.selectOption("es");
+    await languageRow.getByRole("button", { name: /^Apply/ }).click();
     await expect(languageRow.locator('[data-label="Current value"]')).toHaveText("es");
 
     const verifyResponsePromise = page.waitForResponse((response) => {
@@ -115,8 +116,14 @@ test.describe("Smart Career Collect Client", () => {
     await page.getByText("CURRENT DOCUMENT STATUS REVIEWED", { exact: true }).click();
     await page.getByText("INFORMATION MATCH CONFIRMED", { exact: true }).click();
     await expect(page.getByRole("button", { name: "APPROVE FILE" })).toBeVisible();
+    const approvalDialogs: string[] = [];
+    page.on("dialog", async (dialog) => {
+      approvalDialogs.push(dialog.type());
+      await dialog.accept();
+    });
     await page.getByRole("button", { name: "APPROVE FILE" }).click();
     await expect(page).toHaveURL(/\/staff\/client\/[0-9a-f-]+$/);
+    expect(approvalDialogs, "A saved approval must navigate without an unsaved-changes prompt").toEqual([]);
 
     await page.reload();
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();

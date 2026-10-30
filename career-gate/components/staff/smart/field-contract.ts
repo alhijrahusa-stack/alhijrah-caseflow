@@ -1,5 +1,7 @@
 import { ENGLISH_PROFICIENCY_VALUES, LANGUAGES } from "@/lib/domain";
-import { SHIFT_DAY_CODES } from "@/lib/smart-client-fields";
+import { canonicalSmartFieldKey, SHIFT_DAY_CODES } from "@/lib/smart-client-fields";
+
+export { canonicalSmartFieldKey } from "@/lib/smart-client-fields";
 
 /**
  * Presentation contract for the sixteen reviewed Smart fields. Both the Smart Import
@@ -104,7 +106,11 @@ export type SmartEvidence = {
   verification_state?: string;
   authority?: string;
   reviewer_id?: string | null;
+  actor_id?: string | null;
   reviewed_at?: string | null;
+  previous_value?: unknown;
+  resolution?: string;
+  resolved_conflicts?: readonly unknown[];
 };
 
 /** Workflow states that must never be shown as a value's provenance. */
@@ -119,7 +125,7 @@ export function smartFieldText(value: unknown): string {
 /** The most recent evidence entry for a field is its current authority. */
 export function latestSmartEvidence(evidence: readonly SmartEvidence[], key: string): SmartEvidence | undefined {
   for (let i = evidence.length - 1; i >= 0; i -= 1) {
-    if (evidence[i]?.field_key === key) return evidence[i];
+    if (canonicalSmartFieldKey(evidence[i]?.field_key) === canonicalSmartFieldKey(key)) return evidence[i];
   }
   return undefined;
 }
@@ -165,9 +171,9 @@ export function smartFieldStatus(args: {
   const hasValue = smartFieldText(args.value).trim().length > 0;
   const verification = String(entry?.verification_state ?? "").trim().toUpperCase();
   const conflicted = (args.conflicts ?? []).some(
-    (item) => String(item?.field_key ?? "") === args.key || String(item?.field ?? "") === args.key,
+    (item) => canonicalSmartFieldKey(item?.field_key ?? item?.field) === canonicalSmartFieldKey(args.key),
   );
-  const reportedMissing = (args.missingFields ?? []).some((item) => String(item) === args.key);
+  const reportedMissing = (args.missingFields ?? []).some((item) => canonicalSmartFieldKey(item) === canonicalSmartFieldKey(args.key));
 
   let state: SmartFieldState;
   if (conflicted || verification === "CONFLICT") state = "CONFLICT";

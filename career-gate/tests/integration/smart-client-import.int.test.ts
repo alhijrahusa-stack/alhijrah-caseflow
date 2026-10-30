@@ -138,6 +138,66 @@ describe("Smart Career Collect Client staging security", () => {
     }
   });
 
+  it("resolves a confirmed source conflict atomically, preserves its audit evidence and rejects stale saves", async () => {
+    const staged = await stageSheetRows({
+      session: manager, source: "csv", idempotencyKey: randomUUID(),
+      rows: [{ full_name: "TEST Conflict Review", phone: "3135558840", date_of_birth: "1976-01-01" }],
+    });
+    const id = String(staged.cases[0].id);
+    await startImportReview(manager, id, manager.staff.id);
+    const conflict = { field_key: "date_of_birth", type: "SOURCE_CONFLICT", values: [{ value: "1976-01-01" }, { value: "1977-01-01" }] };
+    await db`update client_import_cases set conflicts=${db.json([conflict])},verification_result=${db.json({ approval_ready: true })} where id=${id}`;
+    const [before] = await db`select mapped_draft,field_evidence,
+      to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as revision from client_import_cases where id=${id}`;
+    const revision = String(before.revision);
+    const saved = await saveImportReview(manager, {
+      id, reviewerId: manager.staff.id, draft: before.mapped_draft,
+      documentConfirmed: true, informationConfirmed: true,
+      resolvedFields: ["date_of_birth"], expectedUpdatedAt: revision,
+    });
+    expect(saved.updated_at).toBeTruthy();
+    const [after] = await db`select conflicts,field_evidence,verification_result from client_import_cases where id=${id}`;
+    expect(after.conflicts).toEqual([]);
+    expect(after.verification_result).toEqual({});
+    expect(after.field_evidence.slice(0, before.field_evidence.length)).toEqual(before.field_evidence);
+    expect(after.field_evidence.at(-1)).toMatchObject({
+      field_key: "date_of_birth", value: "1976-01-01", previous_value: "1976-01-01",
+      reviewer_id: manager.staff.id, actor_id: manager.staff.id,
+      resolution: "CONFIRMED_BY_REVIEWER", resolved_conflicts: [conflict],
+    });
+    await expect(saveImportReview(manager, {
+      id, reviewerId: manager.staff.id, draft: before.mapped_draft,
+      documentConfirmed: false, informationConfirmed: false, expectedUpdatedAt: revision,
+    })).rejects.toMatchObject({ code: "review_changed", status: 409 });
+    const [unchanged] = await db`select field_evidence,document_match_confirmed from client_import_cases where id=${id}`;
+    expect(unchanged.field_evidence).toEqual(after.field_evidence);
+    expect(unchanged.document_match_confirmed).toBe(true);
+  });
+
+  it("retains direct approval edits in the import evidence and canonical Client", async () => {
+    const staged = await stageSheetRows({
+      session: manager, source: "csv", idempotencyKey: randomUUID(),
+      rows: [{ full_name: "TEST Direct Approval Audit", phone: "3135558841", city: "Detroit" }],
+    });
+    const id = String(staged.cases[0].id);
+    const [before] = await db`select mapped_draft,field_evidence,
+      to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as revision from client_import_cases where id=${id}`;
+    const draft = { ...before.mapped_draft, profile: { ...before.mapped_draft.profile, city: "Dearborn" } };
+    const approved = await approveImportCase(manager, {
+      id, reviewerId: manager.staff.id, draft,
+      documentConfirmed: true, informationConfirmed: true,
+      expectedUpdatedAt: String(before.revision), traceId: "direct-review-audit",
+    });
+    const [client] = await db`select city from clients where id=${approved.client_id}`;
+    expect(client.city).toBe("Dearborn");
+    const [after] = await db`select field_evidence from client_import_cases where id=${id}`;
+    expect(after.field_evidence.slice(0, before.field_evidence.length)).toEqual(before.field_evidence);
+    expect(after.field_evidence.at(-1)).toMatchObject({
+      field_key: "city", value: "Dearborn", previous_value: "Detroit", authority: "MANUAL",
+      reviewer_id: manager.staff.id, actor_id: manager.staff.id,
+    });
+  });
+
   it("denies direct anon/authenticated table privileges", async () => {
     for (const table of tables) {
       for (const role of ["anon", "authenticated"] as const) {

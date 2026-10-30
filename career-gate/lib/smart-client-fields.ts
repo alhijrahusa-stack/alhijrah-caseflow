@@ -5,6 +5,18 @@ export type EnglishProficiency = (typeof ENGLISH_PROFICIENCY_VALUES)[number];
 export const SHIFT_DAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
 export type ShiftDayCode = (typeof SHIFT_DAY_CODES)[number];
 
+const SMART_SOURCE_FIELD_KEYS: Readonly<Record<string, string>> = {
+  site_code: "preferred_location",
+  alt_site_code: "location_option_1",
+  backup_site_code: "location_option_2",
+  shift_code: "preferred_shift",
+};
+
+export function canonicalSmartFieldKey(value: unknown): string {
+  const key = String(value ?? "");
+  return Object.prototype.hasOwnProperty.call(SMART_SOURCE_FIELD_KEYS, key) ? SMART_SOURCE_FIELD_KEYS[key] : key;
+}
+
 const LANGUAGE_ALIASES: Record<string, SmartLanguageCode> = {
   en: "en", english: "en", "الانجليزية": "en", "الإنجليزية": "en",
   ar: "ar", arabic: "ar", "عربي": "ar", "العربية": "ar",

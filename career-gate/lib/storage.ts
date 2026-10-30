@@ -40,10 +40,19 @@ export async function uploadObject(path: string, bytes: Uint8Array, contentType:
 }
 
 export async function downloadObject(path: string): Promise<Uint8Array> {
-  const { base, key } = config();
-  const res = await fetch(`${base}/object/${BUCKET}/${encodePath(path)}`, { headers: headers(key), signal: AbortSignal.timeout(30_000) });
-  if (!res.ok) await fail(res, "Storage download");
+  const res = await downloadObjectStream(path);
   return new Uint8Array(await res.arrayBuffer());
+}
+
+export async function downloadObjectStream(path: string, range?: string): Promise<Response> {
+  const { base, key } = config();
+  const res = await fetch(`${base}/object/${BUCKET}/${encodePath(path)}`, {
+    headers: headers(key, range ? { Range: range } : {}),
+    cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok && !(range && res.status === 416)) await fail(res, "Storage download");
+  return res;
 }
 
 export async function removeObject(path: string) {

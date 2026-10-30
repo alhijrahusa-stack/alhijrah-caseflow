@@ -11,6 +11,7 @@ import {
 import {
   SMART_FIELDS,
   SMART_FIELD_GROUPS,
+  canonicalSmartFieldKey,
   latestSmartEvidence,
   smartAuthority,
   smartFieldStatus,
@@ -195,6 +196,19 @@ describe("Smart reviewed field contract", () => {
     expect(evidence[0]).toMatchObject({ value: "Englis is goog", authority: "SOURCE" });
   });
 
+  it("matches source column aliases to the same reviewed field for evidence and conflicts", () => {
+    const source: SmartEvidence = { field_key: "site_code", value: "Romulus", source_type: "document", verification_state: "CONFLICT" };
+    const manual: SmartEvidence = { field_key: "preferred_location", value: "Detroit", source_type: "manual_review", authority: "MANUAL", verification_state: "VERIFIED" };
+    expect(canonicalSmartFieldKey("site_code")).toBe("preferred_location");
+    expect(canonicalSmartFieldKey("shift_code")).toBe("preferred_shift");
+    expect(canonicalSmartFieldKey("toString")).toBe("toString");
+    expect(latestSmartEvidence([source], "preferred_location")).toBe(source);
+    expect(latestSmartEvidence([source, manual], "site_code")).toBe(manual);
+    expect(smartFieldStatus({ key: "preferred_location", value: "Romulus", evidence: [source], conflicts: [{ field_key: "site_code" }] }).state).toBe("CONFLICT");
+    expect(smartFieldStatus({ key: "preferred_location", value: "Detroit", evidence: [source, manual] }).state).toBe("MANUAL");
+    expect(smartFieldStatus({ key: "location_option_1", value: "Taylor", evidence: [], missingFields: ["alt_site_code"] }).state).toBe("MISSING");
+  });
+
   it("derives every reviewable state from authoritative data only", () => {
     const sourceEvidence: SmartEvidence[] = [{ field_key: "city", value: "DETROIT", source_type: "csv", authority: "SOURCE", verification_state: "MATCHED" }];
     expect(smartFieldStatus({ key: "city", value: "DETROIT", evidence: sourceEvidence }).state).toBe("VERIFIED");
@@ -308,6 +322,31 @@ describe("Validation Matrix field commit", () => {
       expect(outcome.value, `${key}=${raw}`).toBeNull();
       expect(outcome.error, `${key}=${raw}`).toMatch(pattern);
     }
+  });
+
+  it("rejects malformed contact and address data before it enters the saved review", () => {
+    for (const [key, raw] of [
+      ["full_name", "   "],
+      ["phone", ""],
+      ["phone", "313555"],
+      ["phone", "not a phone"],
+      ["email", "qa@"],
+      ["email", "qa example.test"],
+      ["state", "M".repeat(41)],
+      ["zip", "4822"],
+      ["zip", "ABCDE"],
+    ]) {
+      const outcome = validateField(field(key), raw);
+      expect(outcome.value, `${key}=${raw}`).toBeNull();
+      expect(outcome.error, `${key}=${raw}`).toBeTruthy();
+    }
+  });
+
+  it("accepts valid contact details and preserves supported state text", () => {
+    expect(validateField(field("phone"), "(313) 555-0199")).toEqual({ value: "3135550199", error: null });
+    expect(validateField(field("email"), "  qa.review@example.test  ")).toEqual({ value: "qa.review@example.test", error: null });
+    expect(validateField(field("state"), "Michigan")).toEqual({ value: "Michigan", error: null });
+    expect(validateField(field("zip"), "48212-3768")).toEqual({ value: "48212-3768", error: null });
   });
 
   it("clears a field to null and passes free text through to server validation", () => {
