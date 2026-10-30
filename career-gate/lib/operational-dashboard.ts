@@ -112,6 +112,7 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
   const [team, operational, system] = await Promise.all([
     teamWorkload(session),
     withStaff(session, async (tx) => {
+      await tx`select set_config('statement_timeout', '6500', true)`;
       const [row] = await tx`
         with active as (
           select id,assigned_staff from clients
