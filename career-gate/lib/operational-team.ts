@@ -49,6 +49,7 @@ export type TeamWorkloadData = {
 export async function teamWorkload(session: StaffSession): Promise<TeamWorkloadData> {
   const activeCatalogKeys = new Set(options.map((option) => option.key));
   return withStaff(session, async (tx) => {
+    await tx`select set_config('statement_timeout', '6500', true)`;
     const staffRows = await tx`select id,display_name,email,role,active,auth_user_id is not null as linked,staff_code from staff order by active desc,staff_code nulls last,display_name`;
     const clientGroups = await tx`
       with primary_pref as (
