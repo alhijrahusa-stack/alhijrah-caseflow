@@ -122,6 +122,7 @@ export function SmartCareerCollectClient() {
   const [sourceOpen, setSourceOpen] = useState(false);
   const [sourcePage, setSourcePage] = useState<number | null>(null);
   const actionLock = useRef(false);
+  const approvedNavigation = useRef(false);
   const [reviewerId, setReviewerId] = useState("");
   const [documentConfirmed, setDocumentConfirmed] = useState(false);
   const [informationConfirmed, setInformationConfirmed] = useState(false);
@@ -170,7 +171,7 @@ export function SmartCareerCollectClient() {
 
   useEffect(() => {
     if (!draftDirty && !editingField) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    const warn = (event: BeforeUnloadEvent) => { if (approvedNavigation.current) return; event.preventDefault(); event.returnValue = ""; };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [draftDirty, editingField]);
@@ -201,6 +202,7 @@ export function SmartCareerCollectClient() {
         next.documents = freshData.documents;
         void loadQueue();
       }
+      approvedNavigation.current = false;
       setDetail(next); setDraft(structuredClone(next.case.mapped_draft)); setDraftDirty(false); setPendingFields([]); setEditingField(false); setReviewChanged(false);
       setReviewerId(next.case.reviewer_id ?? "");
       setDocumentConfirmed(Boolean(next.case.document_match_confirmed));
@@ -274,6 +276,8 @@ export function SmartCareerCollectClient() {
     try {
       const data = await postAction(action, extra);
       if (action === "approve" && data?.client_id) {
+        approvedNavigation.current = true;
+        setDraftDirty(false); setPendingFields([]);
         handshake("emerald");
         window.location.assign(`/staff/client/${data.client_id}`);
         return data;
