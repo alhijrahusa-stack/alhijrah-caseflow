@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SMART_FIELDS } from "@/components/staff/smart/field-contract";
+import { canonicalSmartFieldKey, SMART_FIELDS } from "@/components/staff/smart/field-contract";
 import { normalizePreparedDraft, type PreparedImportDraft } from "@/lib/smart-client-import-core";
 
 /**
@@ -170,6 +170,10 @@ function isEmpty(value: unknown) {
   return String(value).trim().length === 0;
 }
 
+export function isSourceReviewConflict(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && "type" in value && value.type === "SOURCE_CONFLICT");
+}
+
 /**
  * Assesses one reviewed case. `conflicts` and `authorization` come from the server;
  * everything else is derived from data the review surface already has, so the UI needs
@@ -177,7 +181,7 @@ function isEmpty(value: unknown) {
  */
 export function assessApproval(args: {
   mappedDraft: unknown;
-  /** Blocking conflicts the server already determined (duplicate identity, concurrency). */
+  /** Source differences remain follow-up warnings; destructive conflicts still block. */
   conflicts?: readonly unknown[];
   /** False when the server will refuse this approval for the current session. */
   authorized?: boolean;
@@ -185,12 +189,9 @@ export function assessApproval(args: {
   persistenceError?: string | null;
   /** The reviewer the approval will be recorded against; required by the case constraint. */
   reviewerAssigned?: boolean;
-  /**
-   * Whether the reviewer has recorded both the document-status and information-match
-   * confirmations. `client_import_cases_approved_ck` requires both on an approved row,
-   * so this is a database-constraint blocker, not a completeness check.
-   */
+  /** Actual match confirmations are retained without making them approval prerequisites. */
   confirmationsRecorded?: boolean;
+  documentCount?: number;
 }): ApprovalAssessment {
   const blockers: ApprovalBlocker[] = [];
   const warnings: ApprovalWarning[] = [];
@@ -205,7 +206,16 @@ export function assessApproval(args: {
   const { draft, cleared, blocked } = buildPersistableDraft(args.mappedDraft);
   blockers.push(...blocked);
 
-  const conflictCount = (args.conflicts ?? []).length;
+  const sourceConflicts = (args.conflicts ?? []).filter(isSourceReviewConflict);
+  for (const conflict of sourceConflicts) {
+    const field = canonicalSmartFieldKey(String(conflict.field_key ?? conflict.field ?? "source_readings"));
+    if (!warnings.some((warning) => warning.field === field)) warnings.push({
+      field,
+      state: "REVIEW",
+      message: `${labelFor(field)} has differing source readings and can be verified later.`,
+    });
+  }
+  const conflictCount = (args.conflicts ?? []).filter((conflict) => !isSourceReviewConflict(conflict)).length;
   if (conflictCount > 0) {
     blockers.push({
       code: "SYSTEM_CONFLICT",
@@ -219,16 +229,15 @@ export function assessApproval(args: {
     blockers.push({ code: "CANONICAL_TYPE", field: null, message: "Select the reviewer this approval is recorded against." });
   }
   if (args.confirmationsRecorded === false) {
-    blockers.push({
-      code: "CANONICAL_TYPE",
-      field: null,
-      message: "Record both the document-status and information-match confirmations; an approved file cannot be stored without them.",
-    });
+    warnings.push({ field: "review_confirmations", state: "REVIEW", message: "Document or information matching remains unconfirmed and can be completed later." });
+  }
+  if (args.documentCount === 0) {
+    warnings.push({ field: "source_documents", state: "MISSING", message: "Source documents are outstanding and can be added later." });
   }
 
   if (draft) {
     for (const field of cleared) {
-      warnings.push({
+      if (!warnings.some((warning) => warning.field === field)) warnings.push({
         field,
         state: "REVIEW",
         message: `${labelFor(field)} could not be read as a valid value and was left unset. The original source is preserved for review.`,
@@ -236,7 +245,7 @@ export function assessApproval(args: {
     }
     const clearedSet = new Set(cleared);
     for (const field of SMART_FIELDS) {
-      if (clearedSet.has(field.key)) continue;
+      if (clearedSet.has(field.key) || warnings.some((warning) => warning.field === field.key)) continue;
       if ((REQUIRED_IDENTITY_FIELDS as readonly string[]).includes(field.key)) continue;
       if (isEmpty(readField(draft, field.key))) {
         warnings.push({ field: field.key, state: "MISSING", message: `${field.label} is not set and can be completed later.` });

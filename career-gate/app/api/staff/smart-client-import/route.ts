@@ -47,7 +47,6 @@ export async function GET(req: Request) {
     const id = url.searchParams.get("id");
     if (id) {
       const caseId = Id.parse(id);
-      await assertImportNotArchived(caseId);
       const detail = await getImportCase(guard.session, caseId);
       const [creator] = await sql()`select display_name from staff where id=${String(detail.case.created_by)} limit 1`;
       return ok({ ...detail, case: { ...detail.case, uploaded_by_name: creator?.display_name ? String(creator.display_name) : null } }, 200, traceId);

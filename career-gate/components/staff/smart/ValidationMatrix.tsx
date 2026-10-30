@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
   ENGLISH_PROFICIENCY_OPTIONS,
@@ -44,11 +46,12 @@ type Props = {
   missingFields: readonly unknown[];
   conflicts: readonly { field_key?: unknown; field?: unknown }[];
   readOnly: boolean;
-  onViewSource?: (evidence: SmartEvidence) => void;
+  onViewSource?: (evidence?: SmartEvidence) => void;
   onEditingChange?: (editing: boolean) => void;
   pendingFields?: readonly string[];
   disabled?: boolean;
   staffNames?: Readonly<Record<string, string>>;
+  editHref?: string;
 };
 
 /** Validates one field with the canonical normalizer, or passes free text through. */
@@ -96,7 +99,7 @@ export function validateField(field: SmartField, raw: string): { value: string |
   }
 }
 
-export function ValidationMatrix({ read, onCommit, evidence, missingFields, conflicts, readOnly, onViewSource, onEditingChange, pendingFields = [], disabled = false, staffNames = {} }: Props) {
+export function ValidationMatrix({ read, onCommit, evidence, missingFields, conflicts, readOnly, onViewSource, onEditingChange, pendingFields = [], disabled = false, staffNames = {}, editHref }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "attention" | "edited">("all");
@@ -133,7 +136,7 @@ export function ValidationMatrix({ read, onCommit, evidence, missingFields, conf
           const visible = group.fields.filter(matches);
           return visible.length > 0 && <tbody key={group.title}>
             <tr className="cg-matrix-group"><th scope="colgroup" colSpan={4}><span>{group.title}</span><span className="ml-2 font-normal text-slate-500">{visible.length}</span></th></tr>
-            {visible.map((field) => <MatrixRow key={field.key} field={field} value={read(field)} evidence={evidence} missingFields={missingFields} conflicts={conflicts} readOnly={readOnly} disabled={disabled || Boolean(editing && editing !== field.key)} pending={pendingFields.includes(field.key)} editing={editing === field.key} onEdit={() => { setEditing(field.key); onEditingChange?.(true); }} onClose={() => { setEditing(null); onEditingChange?.(false); }} onCommit={onCommit} onViewSource={onViewSource} staffNames={staffNames} />)}
+            {visible.map((field) => <MatrixRow key={field.key} field={field} value={read(field)} evidence={evidence} missingFields={missingFields} conflicts={conflicts} readOnly={readOnly} disabled={disabled || Boolean(editing && editing !== field.key)} pending={pendingFields.includes(field.key)} editing={editing === field.key} onEdit={() => { setEditing(field.key); onEditingChange?.(true); }} onClose={() => { setEditing(null); onEditingChange?.(false); }} onCommit={onCommit} onViewSource={onViewSource} staffNames={staffNames} editHref={editHref} />)}
           </tbody>;
         })}
       </table>
@@ -143,10 +146,11 @@ export function ValidationMatrix({ read, onCommit, evidence, missingFields, conf
   );
 }
 
-function MatrixRow({ field, value, evidence, missingFields, conflicts, readOnly, disabled, pending, editing, onEdit, onClose, onCommit, onViewSource, staffNames }: {
+function MatrixRow({ field, value, evidence, missingFields, conflicts, readOnly, disabled, pending, editing, onEdit, onClose, onCommit, onViewSource, staffNames, editHref }: {
   field: SmartField;
   value: unknown;
   staffNames: Readonly<Record<string, string>>;
+  editHref?: string;
   evidence: readonly SmartEvidence[];
   missingFields: readonly unknown[];
   conflicts: readonly { field_key?: unknown; field?: unknown }[];
@@ -157,7 +161,7 @@ function MatrixRow({ field, value, evidence, missingFields, conflicts, readOnly,
   onEdit: () => void;
   onClose: () => void;
   onCommit: (commit: MatrixCommit) => void;
-  onViewSource?: (evidence: SmartEvidence) => void;
+  onViewSource?: (evidence?: SmartEvidence) => void;
 }) {
   const savedStatus = smartFieldStatus({ key: field.key, value, evidence, missingFields, conflicts });
   const status = pending ? { ...savedStatus, state: "REVIEW" as const } : savedStatus;
@@ -213,7 +217,8 @@ function MatrixRow({ field, value, evidence, missingFields, conflicts, readOnly,
         <div className="flex flex-wrap justify-end gap-1.5">
           {!readOnly && !editing && <button ref={editRef} disabled={disabled} type="button" onClick={onEdit} className="cg-review-button">Edit <span className="sr-only">{field.label}</span></button>}
           <button type="button" className="cg-review-button cg-review-audit" aria-expanded={auditOpen} aria-controls={auditId} onClick={() => setAuditOpen((open) => !open)}>Audit <span className="sr-only">{field.label}</span></button>
-          {status.evidence?.source_document_id && onViewSource && <button type="button" onClick={() => onViewSource(status.evidence!)} className="cg-review-button cg-review-audit">Source <span className="sr-only">for {field.label}</span></button>}
+          {readOnly && editHref && <Link href={editHref} className="cg-review-button">Edit <span className="sr-only">{field.label}</span></Link>}
+          {onViewSource && <button type="button" onClick={() => onViewSource(status.evidence ?? { field_key: field.key })} className="cg-review-button cg-review-audit">Source <span className="sr-only">for {field.label}</span></button>}
         </div>
       </td>
     </tr>

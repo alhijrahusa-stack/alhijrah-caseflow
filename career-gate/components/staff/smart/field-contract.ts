@@ -216,8 +216,7 @@ export type SmartApprovalGate = {
  * This is a read of state the page already holds — no request, and deliberately no
  * dependency on the zod-backed normalizer, which would pull the whole schema layer into
  * the client bundle. It covers the conditions the client can see truthfully: the two
- * reviewer confirmations and the reviewer itself (both required by
- * `client_import_cases_approved_ck`), blocking conflicts, and whether canonical identity
+ * recorded reviewer, destructive identity conflicts, and whether canonical identity
  * is still present after an unsaved inline edit. Everything the server alone can
  * determine arrives in `serverBlockers` / `serverWarnings`. The server re-checks at the
  * approval mutation and remains authoritative.
@@ -225,6 +224,7 @@ export type SmartApprovalGate = {
 export function smartApprovalGate(args: {
   read: (field: SmartField) => unknown;
   conflicts: number;
+  identityConflicts?: number;
   reviewerAssigned: boolean;
   confirmationsRecorded: boolean;
   serverBlockers?: readonly { message?: unknown }[];
@@ -238,11 +238,8 @@ export function smartApprovalGate(args: {
     }
   }
   if (!args.reviewerAssigned) blockers.push("Select the reviewer this approval is recorded against.");
-  if (!args.confirmationsRecorded) {
-    blockers.push("Record both the document-status and information-match confirmations; an approved file cannot be stored without them.");
-  }
-  if (args.conflicts > 0) {
-    blockers.push(`${args.conflicts} blocking conflict${args.conflicts === 1 ? "" : "s"} must be resolved; approving now could create or overwrite the wrong Client.`);
+  if ((args.identityConflicts ?? 0) > 0) {
+    blockers.push(`${args.identityConflicts} identity or system conflict${args.identityConflicts === 1 ? "" : "s"} must be resolved to create the correct Client.`);
   }
   for (const blocker of args.serverBlockers ?? []) {
     const message = typeof blocker?.message === "string" ? blocker.message : "";
@@ -257,14 +254,19 @@ export function smartApprovalGate(args: {
     }))
     .filter((warning) => warning.field && warning.message);
 
+  if (!args.confirmationsRecorded && !warnings.some((item) => item.field === "review_confirmations")) {
+    warnings.push({ field: "review_confirmations", state: "REVIEW", message: "Match checks are incomplete. Staff can complete them after approval." });
+  }
+  if (args.conflicts > 0 && !warnings.some((item) => item.field === "source_conflicts")) {
+    warnings.push({ field: "source_conflicts", state: "REVIEW", message: `${args.conflicts} source mismatch${args.conflicts === 1 ? "" : "es"} can be reviewed after approval.` });
+  }
+
   // Optional fields the reviewer has not filled are reported even before the server has
   // re-verified, so the count the rail shows matches what the reviewer can see.
-  if (warnings.length === 0) {
-    for (const field of SMART_FIELDS) {
-      if (field.required) continue;
-      if (!smartFieldText(args.read(field)).trim()) {
-        warnings.push({ field: field.key, state: "MISSING", message: `${field.label} is not set and can be completed later.` });
-      }
+  for (const field of SMART_FIELDS) {
+    if (field.required || warnings.some((warning) => warning.field === field.key)) continue;
+    if (!smartFieldText(args.read(field)).trim()) {
+      warnings.push({ field: field.key, state: "MISSING", message: `${field.label} is not set and can be completed later.` });
     }
   }
 

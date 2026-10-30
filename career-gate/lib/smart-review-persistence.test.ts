@@ -135,6 +135,28 @@ describe("Smart Review persistence and audit regressions", () => {
     expect(evidence).toContainEqual(expect.objectContaining({ field_key: "date_of_birth", resolution: "CONFIRMED_BY_REVIEWER", resolved_conflicts: [sourceConflict] }));
   });
 
+  it("approves unmatched source readings without confirmations and carries outstanding review into tasks and audit", async () => {
+    const state = database();
+    const result = await approveImportCase(manager, { ...approvalArgs(), documentConfirmed: false, informationConfirmed: false });
+    expect(result.client_id).toBe("canonical-client");
+    const update = state.statements.find((statement) => statement.text.includes("status='APPROVED_FILE'"))!;
+    expect(update.values[2]).toEqual(sourceEvidence);
+    expect(update.values[4]).toEqual([sourceConflict]);
+    expect(update.values[5]).toMatchObject({ approval_ready: true, blockers: [], source_conflicts: 1, blocking_conflicts: 0, document_match_confirmed: false, information_match_confirmed: false });
+    expect(update.values[6]).toBe(false);
+    expect(update.values[7]).toBe(false);
+    const followup = state.statements.find((statement) => statement.text.includes("'Complete client intake review'"))!;
+    expect(String(followup.values[1])).toContain("Date of Birth has differing source readings");
+    expect(String(followup.values[1])).toContain("matching remains unconfirmed");
+    expect(state.statements.some((statement) => statement.text.includes("'Collect missing client documents'"))).toBe(true);
+    expect(logActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      entityType: "client_import_case", entityId: "case-1",
+      newValue: expect.objectContaining({ document_match_confirmed: false, information_match_confirmed: false, follow_up_required: true, source_conflict_count: 1 }),
+    }));
+    expect(state.row.field_evidence).toEqual(sourceEvidence);
+    expect(state.row.conflicts).toEqual([sourceConflict]);
+  });
+
   it("rejects stale direct approvals before creating a canonical client", async () => {
     const state = database({ updated_at: new Date(nextVersion) });
     await expect(approveImportCase(manager, approvalArgs())).rejects.toMatchObject({ code: "review_changed", status: 409 });

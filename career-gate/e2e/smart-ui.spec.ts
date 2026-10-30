@@ -494,22 +494,13 @@ test.describe("Smart Review experience", () => {
     await expect(matrix.getByText("staged", { exact: true })).toHaveCount(0);
     await expect(matrix.getByText("csv").first()).toBeVisible();
 
-    // Approval is blocked, and the matrix says exactly why.
-    // Opening the import claims the authenticated reviewer atomically.
+    // Missing source documents and unrecorded match confirmations remain follow-up
+    // work; approval may create the canonical client without fabricating a match.
     await expect(page.getByLabel("REVIEWED BY")).toHaveValue(String(admin.id));
     await expect(page.getByRole("button", { name: "START REVIEW", exact: true })).toHaveCount(0);
-    // Approval is withheld only by the database-backed confirmation requirement, not by
-    // the optional fields this file is missing.
-    await expect(page.getByText("APPROVAL IS BLOCKED")).toBeVisible();
-    await expect(page.getByText(/document-status and information-match confirmations/).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "APPROVE FILE" })).toBeDisabled();
-
-    // Recording the two confirmations is enough: missing optional fields only warn.
-    await page.getByText("CURRENT DOCUMENT STATUS REVIEWED", { exact: true }).click();
-    await page.getByText("INFORMATION MATCH CONFIRMED", { exact: true }).click();
     await expect(page.getByText("APPROVAL IS BLOCKED")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "APPROVE FILE" })).toBeEnabled();
-    await expect(page.getByText(/fields? can be completed later/).first()).toBeVisible();
+    await expect(page.getByText(/follow-up items? can be completed later/).first()).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: "APPROVE WITH WARNINGS" }).first()).toBeVisible();
 
     // A row is read-only until it is opened, then edits inline.
@@ -677,6 +668,98 @@ test.describe("Smart Review experience", () => {
     expect(entries.at(-1)).toMatchObject({ value: "1976-01-01", authority: "MANUAL", source_type: "manual_review" });
     expect(entries.at(-1).reviewer_id).toBeTruthy();
     expect(entries.at(-1).reviewed_at).toBeTruthy();
+  });
+
+  test("approves unmatched evidence without a source document and leaves truthful work for later completion", async ({ page, baseURL }) => {
+    const token = Date.now().toString().slice(-7);
+    const name = `TEST Review Followup ${token}`;
+    const phone = `947${token}`.slice(0, 10).padEnd(10, "8");
+    await signIn(page.context(), baseURL!, "admin");
+    await page.setViewportSize(DESKTOP);
+    await page.goto("/staff/import");
+    await page.locator('input[type="file"]').first().setInputFiles({
+      name: "review-followup.csv", mimeType: "text/csv",
+      buffer: Buffer.from(`full_name,phone,date_of_birth\n${name},${phone},1976-01-01\n`),
+    });
+    await page.getByRole("button", { name: "PREVIEW", exact: true }).click();
+    await page.getByRole("button", { name: /STAGE SELECTED/ }).click();
+    await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
+
+    const [staged] = await db()`select id,field_evidence from client_import_cases where mapped_draft #>> '{profile,full_name}'=${name} order by created_at desc limit 1`;
+    const originalEvidence = staged.field_evidence.map((entry: Record<string, unknown>) => entry.field_key === "date_of_birth" ? { ...entry, verification_state: "CONFLICT" } : entry);
+    originalEvidence.push({ field_key: "date_of_birth", value: "1977-01-01", normalized_value: "1977-01-01", source_type: "local_text", authority: "SOURCE", verification_state: "CONFLICT", source_text_reference: "A second birth date remains to be checked: 1977-01-01" });
+    const conflicts = [{ field_key: "date_of_birth", values: ["1976-01-01", "1977-01-01"], type: "SOURCE_CONFLICT" }];
+    const identityConflict = { field_key: "phone", type: "IDENTITY", message: "This identity needs staff resolution before a canonical Client can be created." };
+    await db()`update client_import_cases set field_evidence=${db().json(originalEvidence)},conflicts=${db().json([...conflicts, identityConflict])} where id=${staged.id}`;
+
+    const queue = page.getByRole("heading", { name: "IMPORT QUEUE", exact: true }).locator("xpath=ancestor::section[1]");
+    const queueRow = queue.getByRole("row").filter({ hasText: name }).first();
+    await expect(queueRow.getByRole("button", { name: "OPEN / EDIT", exact: true })).toBeVisible();
+    await expect(queueRow.getByRole("button", { name: `Audit client ${name}`, exact: true })).toBeVisible();
+    await queueRow.getByRole("button", { name: "OPEN / EDIT", exact: true }).click();
+    await expect(page.locator("#smart-review").getByRole("button", { name: "APPROVE FILE", exact: true })).toBeDisabled();
+    await expect(page.locator("#smart-review").getByRole("alert").filter({ hasText: /identity/i }).first()).toBeVisible();
+    await db()`update client_import_cases set conflicts=${db().json(conflicts)} where id=${staged.id}`;
+    await queueRow.getByRole("button", { name: `Source for client ${name}`, exact: true }).click();
+
+    const review = page.locator("#smart-review");
+    const source = review.locator("#smart-document-viewer");
+    await expect(source).toHaveAttribute("open", "");
+    await expect(source.getByText(/No source document attached/)).toBeVisible();
+    const city = review.locator('tr[data-field="city"]');
+    await expect(city.getByRole("button", { name: "Edit City", exact: true })).toBeEnabled();
+    await city.getByRole("button", { name: "Audit City", exact: true }).click();
+    await expect(review.getByRole("region", { name: "City evidence history", exact: true }).getByText("No evidence has been recorded for this field.", { exact: true })).toBeVisible();
+    await source.locator("summary").click();
+    await expect(source).not.toHaveAttribute("open", "");
+    await city.getByRole("button", { name: "Source for City", exact: true }).click();
+    await expect(source).toHaveAttribute("open", "");
+    await expect(source.getByText(/No source document attached/)).toBeVisible();
+
+    await expect(review.locator('tr[data-field="date_of_birth"] [data-label="State"]')).toHaveText("CONFLICT");
+    await expect(review.getByRole("checkbox", { name: /CURRENT DOCUMENT STATUS REVIEWED/i })).not.toBeChecked();
+    await expect(review.getByRole("checkbox", { name: /INFORMATION MATCH CONFIRMED/i })).not.toBeChecked();
+    const approve = review.getByRole("button", { name: "APPROVE FILE", exact: true });
+    await expect(approve).toBeEnabled();
+    await approve.click();
+    await expect(page).toHaveURL(/\/staff\/client\/[0-9a-f-]+$/);
+
+    const [approved] = await db()`select status,created_client_id,document_match_confirmed,information_match_confirmed,conflicts,field_evidence,verification_result from client_import_cases where id=${staged.id}`;
+    expect(approved.status).toBe("APPROVED_FILE");
+    expect(approved.document_match_confirmed).toBe(false);
+    expect(approved.information_match_confirmed).toBe(false);
+    expect(approved.conflicts).toEqual(conflicts);
+    expect(approved.field_evidence).toEqual(originalEvidence);
+    expect(approved.verification_result.blockers).toEqual([]);
+    expect(approved.verification_result.source_conflicts).toBe(1);
+    expect(approved.verification_result.warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "date_of_birth" }),
+      expect.objectContaining({ field: "review_confirmations" }),
+      expect.objectContaining({ field: "source_documents" }),
+    ]));
+    const [followup] = await db()`select title,description,assigned_to from tasks where client_id=${approved.created_client_id} and title='Complete client intake review'`;
+    expect(followup).toBeTruthy();
+    expect(followup.description).toMatch(/date.of.birth|source|confirm/i);
+    expect(followup.assigned_to).toBeTruthy();
+
+    await page.goto("/staff/import");
+    await page.getByRole("button", { name: "APPROVED / ARCHIVE", exact: true }).click();
+    const approvedQueue = page.getByRole("heading", { name: "IMPORT QUEUE", exact: true }).locator("xpath=ancestor::section[1]");
+    const approvedRow = approvedQueue.getByRole("row").filter({ hasText: name }).first();
+    await approvedRow.getByRole("button", { name: `Audit client ${name}`, exact: true }).click();
+    const approvedReview = page.locator("#smart-review");
+    await expect(approvedReview.locator(".cg-review-audit-overview > summary")).toContainText("Latest recorded evidence");
+    await approvedRow.getByRole("button", { name: `Source for client ${name}`, exact: true }).click();
+    await expect(approvedReview.locator("#smart-document-viewer")).toHaveAttribute("open", "");
+    await expect(approvedReview.getByText(/No source document attached/)).toBeVisible();
+    const continueEditing = approvedReview.getByRole("link", { name: "Edit Date of Birth", exact: true });
+    await expect(continueEditing).toHaveAttribute("href", `/staff/client/${approved.created_client_id}/edit`);
+    await continueEditing.click();
+    await page.getByLabel("English proficiency", { exact: true }).selectOption("GOOD");
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await page.waitForURL(`**/staff/client/${approved.created_client_id}`);
+    const [completed] = await db()`select english_proficiency from clients where id=${approved.created_client_id}`;
+    expect(completed.english_proficiency).toBe("GOOD");
   });
 
   test("stacks the validation matrix into labelled blocks on a phone", async ({ page, baseURL }) => {
