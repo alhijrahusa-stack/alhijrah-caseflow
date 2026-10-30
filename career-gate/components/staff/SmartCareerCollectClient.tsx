@@ -17,6 +17,7 @@ import { ValidationMatrix, type MatrixCommit } from "@/components/staff/smart/Va
 
 type Status = "PENDING" | "UNDER_REVIEW" | "MISSING_DOCUMENT" | "APPROVED_FILE";
 type Workspace = "sheet" | "mobile";
+type ReviewMode = "edit" | "audit" | "source";
 type PreviewRow = {
   row: number;
   result: "VALID" | "DUPLICATE" | "INVALID";
@@ -45,6 +46,7 @@ type QueueRow = {
   issue_count: number;
   created_at: string;
   created_client_id: string | null;
+  archived_at?: string | null;
 };
 type Evidence = SmartEvidence;
 type CaseDetail = {
@@ -78,19 +80,13 @@ const REATTACH_ACCEPT = "application/pdf,image/jpeg,image/png,image/webp";
 
 function errMessage(data: any, fallback: string) { return data?.error?.message ?? fallback; }
 function asText(value: unknown) { return Array.isArray(value) ? value.join(", ") : typeof value === "string" ? value : value == null ? "" : String(value); }
-function operationalState(row: QueueRow) {
-  if (row.status === "APPROVED_FILE") return "APPROVED";
-  if (row.status === "MISSING_DOCUMENT") return "REVIEW REQUIRED";
-  if (row.status === "UNDER_REVIEW" && row.issue_count === 0) return "READY FOR VERIFICATION";
-  if (row.status === "UNDER_REVIEW") return "UNDER REVIEW";
-  return "PENDING";
-}
 function detailState(detail: CaseDetail, dirty: boolean) {
   if (detail.case.status === "APPROVED_FILE") return "APPROVED";
   if (!detail.case.review_started_at) return "START REVIEW";
   if (dirty) return "CHANGES NEED VERIFICATION";
   if (detail.case.verification_result?.approval_ready) return "READY FOR APPROVAL";
-  if (detail.case.conflicts.length || detail.case.missing_fields.length) return "REVIEW REQUIRED";
+  if (detail.case.conflicts.some((item) => item.type !== "SOURCE_CONFLICT")) return "IDENTITY REVIEW";
+  if (detail.case.conflicts.length || detail.case.missing_fields.length) return "APPROVE · COMPLETE LATER";
   return "CHECK & VERIFY";
 }
 
@@ -120,7 +116,9 @@ export function SmartCareerCollectClient() {
   const [editingField, setEditingField] = useState(false);
   const [reviewChanged, setReviewChanged] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
+  const [reviewMode, setReviewMode] = useState<ReviewMode>("edit");
   const [sourcePage, setSourcePage] = useState<number | null>(null);
+  const [sourceField, setSourceField] = useState<string | null>(null);
   const actionLock = useRef(false);
   const approvedNavigation = useRef(false);
   const [reviewerId, setReviewerId] = useState("");
@@ -176,7 +174,7 @@ export function SmartCareerCollectClient() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [draftDirty, editingField]);
 
-  async function openCase(id: string, refresh = false) {
+  async function openCase(id: string, refresh = false, mode: ReviewMode = "edit") {
     if (!refresh && (draftDirty || editingField) && !window.confirm("Discard unsaved review changes and open this file?")) return;
     const request = (caseRequest.current += 1);
     setError(null); setActionBusy("open");
@@ -203,6 +201,7 @@ export function SmartCareerCollectClient() {
         void loadQueue();
       }
       approvedNavigation.current = false;
+      if (!refresh) { setReviewMode(mode); setSourceOpen(mode === "source"); setSourceField(null); }
       setDetail(next); setDraft(structuredClone(next.case.mapped_draft)); setDraftDirty(false); setPendingFields([]); setEditingField(false); setReviewChanged(false);
       setReviewerId(next.case.reviewer_id ?? "");
       setDocumentConfirmed(Boolean(next.case.document_match_confirmed));
@@ -387,19 +386,22 @@ export function SmartCareerCollectClient() {
       return !pendingFields.includes(canonicalSmartFieldKey(key));
     });
   }, [detail, pendingFields]);
+  const blockingConflicts = unresolvedConflicts.filter((item) => item.type !== "SOURCE_CONFLICT");
+  const sourceConflicts = unresolvedConflicts.filter((item) => item.type === "SOURCE_CONFLICT");
   const readiness = useMemo(() => smartRequiredReadiness(getField), [getField]);
   const assessment = useMemo(() => {
     if (!detail || !draft) return null;
     const verification = detail.case.verification_result ?? {};
     return smartApprovalGate({
       read: getField,
-      conflicts: unresolvedConflicts.length,
+      conflicts: sourceConflicts.length,
+      identityConflicts: blockingConflicts.length,
       reviewerAssigned: Boolean(reviewerId),
       confirmationsRecorded: documentConfirmed && informationConfirmed,
-      serverBlockers: draftDirty || !Array.isArray(verification.blockers) ? [] : verification.blockers,
+      serverBlockers: draftDirty || !Array.isArray(verification.blockers) ? [] : verification.blockers.filter((blocker: { code?: string; message?: string }) => !(blocker.code === "SYSTEM_CONFLICT" && blockingConflicts.length === 0) && !String(blocker.message ?? "").includes("document-status and information-match confirmations")),
       serverWarnings: draftDirty || !Array.isArray(verification.warnings) ? [] : verification.warnings,
     });
-  }, [detail, draft, draftDirty, documentConfirmed, getField, informationConfirmed, reviewerId, unresolvedConflicts]);
+  }, [detail, draft, draftDirty, documentConfirmed, getField, informationConfirmed, reviewerId, sourceConflicts.length, blockingConflicts.length]);
   // Smart Review is an administrative stage: optional gaps warn, only a real system
   // blocker withholds approval. The server re-checks at the approval mutation.
   const canApprove = Boolean(detail && draft && assessment && !assessment.blocked && !reviewChanged && !editingField && detail.case.status !== "APPROVED_FILE");
@@ -414,7 +416,12 @@ export function SmartCareerCollectClient() {
     catch { setError("Unable to copy the mobile link."); }
   }
   function jumpToEvidence(evidence?: Evidence) {
-    if (!evidence?.source_document_id) return;
+    setSourceField(SMART_FIELDS.find((field) => field.key === canonicalSmartFieldKey(evidence?.field_key))?.label ?? null);
+    if (!evidence?.source_document_id) {
+      setSourceOpen(true); setSourcePage(null);
+      window.setTimeout(() => document.getElementById("smart-document-viewer")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+      return;
+    }
     if (!detail?.documents.some((doc) => doc.id === evidence.source_document_id)) { setError("The document referenced by this evidence is no longer attached to this file."); return; }
     setSourcePage(evidence.source_page ?? null);
     setSourceOpen(true);
@@ -460,14 +467,25 @@ export function SmartCareerCollectClient() {
       </div>
     </section>}
 
-    <section className="ops-glass-card space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold text-slate-100">IMPORT QUEUE</h2><p className="text-xs text-slate-500">Live staged files · canonical Client created only after approval.</p></div><div className="flex flex-wrap gap-2">
+    <section className="ops-glass-card cg-import-queue space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold text-slate-100">IMPORT QUEUE</h2><p className="text-xs text-slate-500">Live staged files · Approve now and complete follow-up details later.</p></div><div className="flex flex-wrap gap-2">
           <button className={`ops-secondary-button ${!archiveView ? "ring-1 ring-cyan-300/30" : ""}`} type="button" onClick={() => { setArchiveView(false); setFilter("ALL"); }}>ACTIVE QUEUE</button>
           <button className={`ops-secondary-button ${archiveView ? "ring-1 ring-amber-300/40" : ""}`} type="button" onClick={() => setArchiveView(true)}>APPROVED / ARCHIVE</button>
-          <input className="ops-input min-w-56" aria-label="Search imports" placeholder="Name, phone, email, Import ID" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="ops-input min-w-0 w-full sm:w-72" aria-label="Search imports" placeholder="Name, phone, email, Import ID" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div></div>
       {!archiveView && <div className="flex flex-wrap gap-2">{STATUSES.map((status) => <button key={status} type="button" onClick={() => setFilter(status)} className={`rounded-full border px-3 py-2 text-[10px] font-semibold ${filter === status ? "border-amber-300/35 bg-amber-300/[.08] text-amber-200" : "border-white/10 text-slate-500"}`}>{STATUS_LABEL[status]} · {counters[status]}</button>)}</div>}
-      <div className="overflow-x-auto rounded-2xl border border-white/10"><table className="w-full min-w-[1040px] text-left text-xs"><thead className="bg-black/15 text-slate-500"><tr><th className="p-3">CLIENT</th><th className="p-3">SUBMITTED</th><th className="p-3">SOURCE</th><th className="p-3">STATUS</th><th className="p-3">ISSUES</th><th className="p-3">REVIEWER</th><th className="p-3">ACTION</th></tr></thead><tbody>{queueBusy && rows.length === 0 ? Array.from({length:3}).map((_,i) => <tr key={i} className="border-t border-white/[.06]"><td colSpan={7} className="p-3"><div className="h-8 animate-pulse rounded-lg bg-white/[.05] motion-reduce:animate-none" /></td></tr>) : rows.map((row) => <tr key={row.id} className="border-t border-white/[.06]"><td className="p-3"><strong className="block text-slate-200">{row.full_name || "Unidentified client"}</strong><span className="font-mono text-[10px] text-slate-600">{row.id}</span></td><td className="p-3 whitespace-nowrap text-slate-400">{new Date(row.created_at).toLocaleString("en-US", { timeZone: "America/Detroit" })}</td><td className="p-3 uppercase text-slate-400">{row.source_type}</td><td className="p-3 text-slate-300">{operationalState(row)}</td><td className="p-3">{row.issue_count}</td><td className="p-3">{row.reviewer_name ?? "—"}</td><td className="p-3"><div className="flex flex-wrap gap-2">{row.created_client_id ? <Link className="font-semibold text-amber-200" href={`/staff/client/${row.created_client_id}`}>OPEN CLIENT</Link> : <button className="ops-secondary-button" type="button" disabled={Boolean(actionBusy)} onClick={() => openCase(row.id)}>OPEN / EDIT</button>}<button className="ops-secondary-button" type="button" disabled={Boolean(actionBusy)} onClick={() => void archiveRow(row.id)}>{actionBusy === `archive:${row.id}` ? "ARCHIVING…" : "ARCHIVE"}</button></div></td></tr>)}</tbody></table></div>
+      <div className="cg-import-lines" role="table" aria-label="Import queue" aria-busy={queueBusy}>
+        <div role="rowgroup" className="cg-import-line-head"><div role="row"><span role="columnheader">Client</span><span role="columnheader">Progress</span><span role="columnheader">Received</span><span role="columnheader">Reviewer</span><span role="columnheader">Actions</span></div></div>
+        <div role="rowgroup">
+          {queueBusy && rows.length === 0 ? Array.from({ length: 3 }).map((_, index) => <div role="row" key={index} className="cg-import-line cg-import-loading"><div role="cell" className="h-12 animate-pulse rounded-xl bg-white/[.05] motion-reduce:animate-none" /></div>) : rows.map((row) => <div role="row" key={row.id} className={`cg-import-line ${detail?.case.id === row.id ? "is-selected" : ""}`}>
+            <div role="cell" className="cg-import-client"><span className="cg-import-avatar" aria-hidden="true">{row.full_name?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "—"}</span><div className="min-w-0"><strong>{row.full_name || "Unidentified client"}</strong><p className="cg-import-contact">{row.phone || "Phone pending"}{row.email && <span> · {row.email}</span>}</p><p className="cg-import-origin"><span>{row.source_type.replaceAll("_", " ")}</span><span>{row.document_count} source{row.document_count === 1 ? "" : "s"}</span><span title={row.id}>#{row.id.slice(0, 8)}</span></p></div></div>
+            <div role="cell" className="cg-import-progress"><span className={`cg-import-state ${row.status === "APPROVED_FILE" ? "is-approved" : ""}`}><i aria-hidden="true" />{row.status === "APPROVED_FILE" ? "Approved" : row.status === "PENDING" ? "New intake" : "In review"}</span><small>{row.issue_count ? `${row.issue_count} follow-up item${row.issue_count === 1 ? "" : "s"}` : "Ready to continue"}</small></div>
+            <div role="cell" className="cg-import-received"><span>{new Date(row.created_at).toLocaleDateString("en-US", { timeZone: "America/Detroit", month: "short", day: "numeric" })}</span><small>{new Date(row.created_at).toLocaleTimeString("en-US", { timeZone: "America/Detroit", hour: "numeric", minute: "2-digit" })}</small></div>
+            <div role="cell" className="cg-import-reviewer"><span>{row.reviewer_name ?? "Unassigned"}</span><small>{row.reviewer_id ? "Review owner" : "Assigned when opened"}</small></div>
+            <div role="cell" className="cg-import-actions">{row.created_client_id ? <Link className="cg-review-button" href={`/staff/client/${row.created_client_id}/edit`}>Edit</Link> : <button className="cg-review-button" type="button" aria-label="OPEN / EDIT" disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id)}>Edit</button>}<button className="cg-review-button cg-review-audit" type="button" aria-label={`Audit client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "audit")}>Audit</button><button className="cg-review-button cg-review-audit" type="button" aria-label={`Source for client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "source")}>Source</button><button className="cg-import-archive" type="button" disabled={Boolean(actionBusy)} onClick={() => void archiveRow(row.id)}>{actionBusy === `archive:${row.id}` ? "ARCHIVING…" : "ARCHIVE"}</button>{row.created_client_id && <Link className="cg-import-open-client" href={`/staff/client/${row.created_client_id}`}>OPEN CLIENT</Link>}</div>
+          </div>)}
+        </div>
+      </div>
       {!queueBusy && rows.length === 0 && <div className="rounded-xl border border-white/10 p-6 text-center"><p className="text-sm text-slate-400">No imports match this view.</p><button type="button" className="ops-secondary-button mt-3" onClick={() => { setArchiveView(false); setFilter("ALL"); setSearch(""); }}>SHOW ACTIVE IMPORTS</button></div>}
       {nextCursor && <button className="ops-secondary-button" type="button" disabled={queueBusy} onClick={() => loadQueue(nextCursor, true)}>LOAD MORE</button>}
     </section>
@@ -494,15 +512,16 @@ export function SmartCareerCollectClient() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="REQUIRED FIELDS" value={`${readiness.complete} / ${readiness.total}`} tone={readiness.complete === readiness.total ? "emerald" : "amber"} />
-        <Stat label="BLOCKING CONFLICTS" value={String(unresolvedConflicts.length)} tone={unresolvedConflicts.length ? "red" : "emerald"} />
+        <Stat label="FOLLOW-UP MISMATCHES" value={String(sourceConflicts.length)} tone={sourceConflicts.length ? "amber" : "emerald"} />
         <Stat label="MISSING REPORTED" value={String(detail.case.missing_fields.length)} tone={detail.case.missing_fields.length ? "amber" : "emerald"} />
       </div>
 
+      {reviewMode === "audit" && <details className="cg-review-audit-overview" open><summary>Latest recorded evidence <span>{detail.case.field_evidence.length} entries</span></summary><ol>{detail.case.field_evidence.slice(-8).reverse().map((entry, index) => <li key={index}><strong>{SMART_FIELDS.find((field) => field.key === canonicalSmartFieldKey(entry.field_key))?.label ?? entry.field_key}</strong><span>{smartFieldText(entry.normalized_value ?? entry.value) || "Value cleared"}</span><small>{entry.authority === "MANUAL" || entry.source_type === "manual_review" ? "Staff edit" : entry.source_type?.replaceAll("_", " ") || "Source"}</small></li>)}</ol>{detail.case.field_evidence.length === 0 && <p>No evidence has been recorded yet. Field audits remain available below.</p>}<p>Open a field’s Audit to inspect its full history and source readings.</p></details>}
       {reviewChanged && <div role="alert" className="rounded-xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm text-amber-100"><p>Another staff member updated this review. Your changes remain on this screen. Reload the saved review before making further changes.</p><button type="button" className="cg-review-button mt-3" disabled={Boolean(actionBusy)} onClick={() => { if (window.confirm("Discard your local edits and load the latest saved review?")) void openCase(detail.case.id, true); }}>Reload latest review</button></div>}
       <div className="cg-review-workspace">
         <details id="smart-document-viewer" className="cg-review-source" open={sourceOpen} onToggle={(event) => setSourceOpen(event.currentTarget.open)}>
           <summary className="cursor-pointer p-4 text-sm font-semibold text-slate-100">Source documents <span className="ml-2 text-xs font-normal text-slate-400">{detail.documents.length} attached · Expand to compare evidence</span></summary>
-          <div className="px-4 pb-4"><div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="px-4 pb-4">{sourceField && <p className="mb-3 rounded-lg border border-white/10 p-3 text-xs text-slate-300">Source review · {sourceField}. When available, recorded readings appear in the field audit. Compare attached documents below.</p>}<div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-[14px] font-semibold tracking-[.1em] text-slate-100">DOCUMENT VIEWER</h3>
             {detail.case.status !== "APPROVED_FILE" && <>
               <input ref={reattachRef} className="sr-only" type="file" accept={REATTACH_ACCEPT} multiple onChange={(e) => void reattach(e.target.files)} />
@@ -517,7 +536,8 @@ export function SmartCareerCollectClient() {
             </div>
             <a className="mt-3 inline-flex min-h-10 items-center text-xs font-medium text-cyan-200 underline underline-offset-4" href={`/api/staff/smart-client-import/document/${activeDocument.id}`} target="_blank" rel="noopener noreferrer">Open source document in a new tab</a>
             <div className="mt-3 flex flex-wrap gap-2">{detail.documents.map((doc) => <button key={doc.id} className={`min-h-11 rounded-lg border px-2.5 text-[13px] ${activeDocument.id === doc.id ? "border-cyan-300/35 text-cyan-200" : "border-white/12 text-slate-300"}`} type="button" aria-pressed={activeDocument.id === doc.id} onClick={() => { setActiveDocumentId(doc.id); setSourcePage(null); }}>{doc.original_filename}</button>)}</div>
-          </> : <p className="mt-3 rounded-xl border border-amber-300/15 bg-amber-300/[.04] p-4 text-[13px] leading-6 text-amber-100">No source document attached. Missing documents remain follow-up items and are not fabricated.</p>}
+          </> : <p className="mt-3 rounded-xl border border-amber-300/15 bg-amber-300/[.04] p-4 text-[13px] leading-6 text-amber-100">No source document attached. You can edit and approve this file, then attach documents to the Client later.</p>}
+          {detail.case.created_client_id && <Link className="cg-review-button mt-3" href={`/staff/client/${detail.case.created_client_id}?tab=documents`}>Manage Client documents</Link>}
           </div>
         </details>
 
@@ -542,6 +562,7 @@ export function SmartCareerCollectClient() {
               missingFields={detail.case.missing_fields}
               conflicts={detail.case.conflicts}
               readOnly={detail.case.status === "APPROVED_FILE"}
+              editHref={detail.case.created_client_id ? `/staff/client/${detail.case.created_client_id}/edit` : undefined}
               onViewSource={jumpToEvidence}
             />
           </div>
@@ -557,9 +578,10 @@ export function SmartCareerCollectClient() {
         {detail.case.reviewer_id && <p className="text-xs text-slate-400">This file is assigned to {detail.case.reviewer_name ?? activeStaff.find((member) => member.id === reviewerId)?.display_name ?? "the recorded reviewer"}. Each edit also records the staff member who made it.</p>}
       </div>
 
+      <p className="text-xs text-slate-400">Optional match checks · Complete them now or continue after approval.</p>
       <div className="grid gap-3 md:grid-cols-2">
         <label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-[13px] leading-6 text-slate-200"><input type="checkbox" className="mt-1 h-4 w-4" checked={documentConfirmed} disabled={detail.case.status === "APPROVED_FILE" || Boolean(actionBusy) || reviewChanged} onChange={(e) => { setDocumentConfirmed(e.target.checked); setDraftDirty(true); }} /><span><strong className="block">CURRENT DOCUMENT STATUS REVIEWED</strong><span className="text-slate-400">Missing documents may remain outstanding after approval.</span></span></label>
-        <label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-[13px] leading-6 text-slate-200"><input type="checkbox" className="mt-1 h-4 w-4" checked={informationConfirmed} disabled={detail.case.status === "APPROVED_FILE" || Boolean(actionBusy) || reviewChanged} onChange={(e) => { setInformationConfirmed(e.target.checked); setDraftDirty(true); }} /><span><strong className="block">INFORMATION MATCH CONFIRMED</strong><span className="text-slate-400">Approved values match reviewed source evidence.</span></span></label>
+        <label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-[13px] leading-6 text-slate-200"><input type="checkbox" className="mt-1 h-4 w-4" checked={informationConfirmed} disabled={detail.case.status === "APPROVED_FILE" || Boolean(actionBusy) || reviewChanged} onChange={(e) => { setInformationConfirmed(e.target.checked); setDraftDirty(true); }} /><span><strong className="block">INFORMATION MATCH CONFIRMED</strong><span className="text-slate-400">Leave unchecked when information is unmatched or still awaiting review.</span></span></label>
       </div>
 
       {detail.case.status !== "APPROVED_FILE" && approvalBlockers.length > 0 && (
@@ -571,7 +593,7 @@ export function SmartCareerCollectClient() {
       {detail.case.status !== "APPROVED_FILE" && approvalBlockers.length === 0 && approvalWarnings.length > 0 && (
         <details className="rounded-2xl border border-white/10 bg-black/10 p-4">
           <summary className="cursor-pointer text-[13px] font-semibold text-slate-200">
-            {approvalWarnings.length} field{approvalWarnings.length === 1 ? "" : "s"} can be completed later
+            {approvalWarnings.length} follow-up item{approvalWarnings.length === 1 ? "" : "s"} can be completed later
             <span className="ml-2 font-normal text-slate-400">— this file can be approved now</span>
           </summary>
           <ul aria-live="polite" className="mt-2 space-y-1 text-[13px] leading-6 text-slate-300">
@@ -593,7 +615,7 @@ export function SmartCareerCollectClient() {
             <span className="font-mono text-[12px]">{readiness.complete} / {readiness.total} REQUIRED</span>
             <span aria-hidden="true" className="text-slate-600">|</span>
             <span className={draftDirty ? "text-amber-200" : "text-emerald-300"}>{draftDirty ? "Unsaved manual edits" : "No unsaved edits"}</span>
-            {assessment && detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span role="status" className={assessment.readiness === "BLOCKED" ? "text-red-200" : assessment.readiness === "READY_TO_APPROVE" ? "text-emerald-300" : "text-amber-200"}>{assessment.readiness.replace(/_/g, " ")}{assessment.blocked ? ` · ${assessment.blockers[0]}` : assessment.warnings.length ? ` · ${assessment.warnings.length} field${assessment.warnings.length === 1 ? "" : "s"} can be completed later` : " · Ready to approve"}</span></>}
+            {assessment && detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span role="status" className={assessment.readiness === "BLOCKED" ? "text-red-200" : assessment.readiness === "READY_TO_APPROVE" ? "text-emerald-300" : "text-amber-200"}>{assessment.readiness.replace(/_/g, " ")}{assessment.blocked ? ` · ${assessment.blockers[0]}` : assessment.warnings.length ? ` · ${assessment.warnings.length} follow-up item${assessment.warnings.length === 1 ? "" : "s"} can be completed later` : " · Ready to approve"}</span></>}
             {detail.case.status !== "APPROVED_FILE" && <><span aria-hidden="true" className="text-slate-600">|</span><span className="rounded-md border border-white/[.08] bg-black/25 px-2 py-1 font-mono text-[11px]">⌘/Ctrl + S</span><span>Save draft</span></>}
           </div>
           <div className="flex flex-wrap gap-2">

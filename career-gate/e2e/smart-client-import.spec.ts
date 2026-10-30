@@ -190,7 +190,7 @@ test.describe("Smart Career Collect Client", () => {
     const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
     await expect(queueRow).toBeVisible();
     page.once("dialog", async (dialog) => dialog.accept());
-    await queueRow.getByRole("button", { name: "ARCHIVE" }).click();
+    await queueRow.getByRole("button", { name: "ARCHIVE", exact: true }).click();
     await expect(page.getByText("Import archived. Canonical client data was not deleted.", { exact: true })).toBeVisible();
     await expect(queueRow).toHaveCount(0);
 

@@ -170,10 +170,31 @@ describe("Smart Review approval readiness", () => {
     expect(assessment.blockers).toEqual([]);
   });
 
-  it("blocks when the reviewer confirmations are not recorded, because the approved row requires both", () => {
+  it("allows approval with unconfirmed matches and retains a follow-up warning", () => {
     const assessment = assessApproval({ mappedDraft: baseDraft(), reviewerAssigned: true, confirmationsRecorded: false });
+    expect(assessment.readiness).toBe("APPROVE_WITH_WARNINGS");
+    expect(assessment.blockers).toEqual([]);
+    expect(assessment.warnings).toContainEqual(expect.objectContaining({ field: "review_confirmations", state: "REVIEW" }));
+    expect(assessment.draft).not.toBeNull();
+  });
+
+  it("keeps differing source readings and missing documents as follow-up warnings", () => {
+    const assessment = assessApproval({
+      mappedDraft: baseDraft(), reviewerAssigned: true, confirmationsRecorded: false, documentCount: 0,
+      conflicts: [{ type: "SOURCE_CONFLICT", field_key: "date_of_birth", values: ["1976-01-01", "1977-01-01"] }],
+    });
+    expect(assessment.blockers).toEqual([]);
+    expect(assessment.draft).not.toBeNull();
+    expect(assessment.warnings.filter((warning) => warning.field === "date_of_birth")).toEqual([
+      { field: "date_of_birth", state: "REVIEW", message: "Date of Birth has differing source readings and can be verified later." },
+    ]);
+    expect(assessment.warnings.map((warning) => warning.field)).toEqual(expect.arrayContaining(["review_confirmations", "source_documents"]));
+  });
+
+  it("does not treat an unknown conflict as an ordinary source mismatch", () => {
+    const assessment = assessApproval({ mappedDraft: baseDraft(), reviewerAssigned: true, conflicts: [{ type: "OTHER_SYSTEM_CONFLICT" }] });
     expect(assessment.readiness).toBe("BLOCKED");
-    expect(assessment.blockers.some((blocker) => /confirmation/i.test(blocker.message))).toBe(true);
+    expect(assessment.blockers).toContainEqual(expect.objectContaining({ code: "SYSTEM_CONFLICT" }));
   });
 
   // TEST F — a destructive conflict blocks, protecting duplicate safety.

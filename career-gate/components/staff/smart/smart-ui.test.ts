@@ -360,7 +360,7 @@ describe("Validation Matrix field commit", () => {
 describe("Smart Review approval gate (client-side read)", () => {
   const identity = { full_name: "QA Synthetic Verification 20261006", phone: "3135550199" } as Record<string, unknown>;
   const reader = (values: Record<string, unknown>) => (field: SmartField) => values[field.key] ?? null;
-  const ok = { conflicts: 0, reviewerAssigned: true, confirmationsRecorded: true };
+  const ok = { conflicts: 0, identityConflicts: 0, reviewerAssigned: true, confirmationsRecorded: true };
 
   it("allows approval when only optional fields are unset, and reports them as warnings", () => {
     const gate = smartApprovalGate({ read: reader(identity), ...ok });
@@ -381,16 +381,23 @@ describe("Smart Review approval gate (client-side read)", () => {
     expect(gate.warnings).toEqual([]);
   });
 
-  it("blocks only on the real conditions: identity, reviewer, confirmations, conflicts", () => {
+  it("blocks only on canonical identity, reviewer assignment and identity conflicts", () => {
     expect(smartApprovalGate({ read: reader({ phone: "3135550199" }), ...ok }).blockers.join(" ")).toMatch(/Full Name is required/);
     expect(smartApprovalGate({ read: reader({ full_name: "A B" }), ...ok }).blockers.join(" ")).toMatch(/Phone is required/);
     expect(smartApprovalGate({ read: reader(identity), ...ok, reviewerAssigned: false }).blockers.join(" ")).toMatch(/reviewer/i);
-    expect(smartApprovalGate({ read: reader(identity), ...ok, confirmationsRecorded: false }).blockers.join(" ")).toMatch(/confirmations/i);
-    expect(smartApprovalGate({ read: reader(identity), ...ok, conflicts: 2 }).blockers.join(" ")).toMatch(/2 blocking conflicts/);
-    for (const gate of [
-      smartApprovalGate({ read: reader(identity), ...ok, reviewerAssigned: false }),
-      smartApprovalGate({ read: reader(identity), ...ok, confirmationsRecorded: false }),
-    ]) expect(gate.readiness).toBe("BLOCKED");
+    const identityConflict = smartApprovalGate({ read: reader(identity), ...ok, identityConflicts: 2 });
+    expect(identityConflict.blocked).toBe(true);
+    expect(identityConflict.readiness).toBe("BLOCKED");
+    expect(identityConflict.blockers.join(" ")).toMatch(/identity/i);
+  });
+
+  it("allows unmatched source readings and unchecked confirmations to remain follow-up warnings", () => {
+    const gate = smartApprovalGate({ read: reader(identity), ...ok, conflicts: 2, confirmationsRecorded: false });
+    expect(gate.blocked).toBe(false);
+    expect(gate.blockers).toEqual([]);
+    expect(gate.readiness).toBe("APPROVE_WITH_WARNINGS");
+    expect(gate.warnings.some((warning) => /conflict|mismatch|source/i.test(warning.message))).toBe(true);
+    expect(gate.warnings.some((warning) => /confirm|match|review/i.test(warning.message))).toBe(true);
   });
 
   it("surfaces a server blocker verbatim and does not duplicate it", () => {
@@ -400,13 +407,15 @@ describe("Smart Review approval gate (client-side read)", () => {
     expect(gate.blockers.filter((blocker) => blocker === message)).toHaveLength(1);
   });
 
-  it("prefers the server's warnings when it has verified the current values", () => {
+  it("preserves the server warning for a field and reports other incomplete fields", () => {
     const gate = smartApprovalGate({
       read: reader(identity),
       ...ok,
       serverWarnings: [{ field: "date_of_birth", state: "REVIEW", message: "Date of Birth could not be read as a valid value." }],
     });
-    expect(gate.warnings).toEqual([{ field: "date_of_birth", state: "REVIEW", message: "Date of Birth could not be read as a valid value." }]);
+    expect(gate.warnings).toContainEqual({ field: "date_of_birth", state: "REVIEW", message: "Date of Birth could not be read as a valid value." });
+    expect(gate.warnings.filter((warning) => warning.field === "date_of_birth")).toHaveLength(1);
+    expect(gate.warnings.some((warning) => warning.field === "preferred_language")).toBe(true);
     expect(gate.readiness).toBe("APPROVE_WITH_WARNINGS");
   });
 });

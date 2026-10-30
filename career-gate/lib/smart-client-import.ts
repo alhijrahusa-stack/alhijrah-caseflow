@@ -14,7 +14,7 @@ import {
   type Tx,
 } from "@/lib/service";
 import { applicantIdentity, sameApplicant } from "@/lib/applicant-identity";
-import { assessApproval } from "@/lib/smart-approval-readiness";
+import { assessApproval, isSourceReviewConflict } from "@/lib/smart-approval-readiness";
 import { uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdf, rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
 import {
@@ -620,6 +620,7 @@ export async function getImportCase(session: StaffSession, id: string) {
     left join staff a on a.id=c.approved_by
     where c.id=${id}`;
   if (!row) throw new ActionError("not_found", "Import case not found", 404);
+  if (row.archived_at && row.status !== "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
   const docs = await sql()`
     select id,original_filename,mime_type,size_bytes,detected_document_type,extraction_metadata,created_at
     from client_import_documents where import_case_id=${id} order by created_at,id`;
@@ -714,8 +715,10 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
   const conflicts = Array.isArray(row.conflicts) ? row.conflicts as unknown[] : [];
   // Identity findings are derived from the current draft and live files. Drop
   // stale findings before rechecking, while retaining every other conflict.
-  const blockingConflicts = conflicts.filter(conflict =>
+  const sourceConflicts = conflicts.filter(isSourceReviewConflict);
+  const remainingConflicts = conflicts.filter(conflict =>
     !(conflict && typeof conflict === "object" && "type" in conflict && conflict.type === "IDENTITY"));
+  const blockingConflicts = remainingConflicts.filter((conflict) => !isSourceReviewConflict(conflict));
 
   // Identity is resolved first: a duplicate is a destructive-conflict blocker.
   const persistable = assessApproval({ mappedDraft: row.mapped_draft });
@@ -737,8 +740,10 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
 
   const assessment = assessApproval({
     mappedDraft: row.mapped_draft,
-    conflicts: blockingConflicts,
+    conflicts: [...sourceConflicts, ...blockingConflicts],
     reviewerAssigned: Boolean(row.reviewer_id),
+    confirmationsRecorded: Boolean(row.document_match_confirmed) && Boolean(row.information_match_confirmed),
+    documentCount,
   });
   const approvalReady = assessment.readiness !== "BLOCKED";
   // Optional gaps are reported, never used to withhold approval.
@@ -749,6 +754,8 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
     missing,
     documentCount,
     blockingConflicts,
+    sourceConflicts,
+    conflicts: [...sourceConflicts, ...blockingConflicts],
     assessment,
     result: {
       state: approvalReady ? (documentCount > 0 ? "READY" : "MISSING_DOCUMENT") : "REVIEW_REQUIRED",
@@ -759,6 +766,10 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
       client_schema_valid: Boolean(assessment.draft),
       document_count: documentCount,
       blocking_conflicts: blockingConflicts.length,
+      source_conflicts: sourceConflicts.length,
+      follow_up_required: assessment.warnings.length > 0,
+      document_match_confirmed: Boolean(row.document_match_confirmed),
+      information_match_confirmed: Boolean(row.information_match_confirmed),
       identity: identityMatches.length ? "POSSIBLE_DUPLICATE" : "NEW",
       validation_error: assessment.blockers[0]?.message ?? null,
       checked_at: new Date().toISOString(),
@@ -781,7 +792,7 @@ export async function verifyImportCase(session: StaffSession, id: string, expect
       ? "MISSING_DOCUMENT"
       : "UNDER_REVIEW";
     const [updated] = await tx`
-      update client_import_cases set missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json(verification.blockingConflicts as never)},
+      update client_import_cases set missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json(verification.conflicts as never)},
         verification_result=${tx.json(verification.result as never)},reviewed_at=now(),status=${nextStatus}
       where id=${id}
       returning to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at`;
@@ -822,12 +833,8 @@ export async function approveImportCase(session: StaffSession, args: {
       row.status = "UNDER_REVIEW";
     }
 
-    if (!args.documentConfirmed || !args.informationConfirmed) {
-      throw new ActionError("confirmation_required", "Record both the document-status and information-match confirmations; an approved file cannot be stored without them.", 409);
-    }
-
     const conflicts = resolveReviewConflicts(row.conflicts, args.resolvedFields);
-    const verificationRow = { ...row, mapped_draft: args.draft, reviewer_id: args.reviewerId, conflicts } as Record<string, unknown>;
+    const verificationRow = { ...row, mapped_draft: args.draft, reviewer_id: args.reviewerId, document_match_confirmed: args.documentConfirmed, information_match_confirmed: args.informationConfirmed, conflicts } as Record<string, unknown>;
     const verification = await verifyLockedCase(tx, verificationRow);
     if (!verification.draft) {
       throw new ActionError("approval_blocked", verification.result.validation_error || "This file cannot be saved as a Client yet", 409);
@@ -881,19 +888,34 @@ export async function approveImportCase(session: StaffSession, args: {
       await logActivity(tx, { clientId: client.id, action: "task_added", actor: { staffId: session.staff.id, traceId: args.traceId }, entityType: "task", entityId: String(task.id), newValue: { source: "smart_client_import" } });
     }
 
+    const reviewWarnings = verification.assessment.warnings.filter((warning) => warning.field !== "source_documents");
+    if (reviewWarnings.length) {
+      const description = `Smart Career Collect Client approved this file with follow-up items.\n\n${reviewWarnings.map((warning) => `- ${warning.message}`).join("\n")}\n\nImport case: ${args.id}`;
+      const [task] = await tx`
+        insert into tasks(client_id,title,description,assigned_to,created_by)
+        values(${client.id},'Complete client intake review',${description},${args.reviewerId},${session.staff.id}) returning id`;
+      await logActivity(tx, { clientId: client.id, action: "task_added", actor: { staffId: session.staff.id, traceId: args.traceId }, entityType: "task", entityId: String(task.id), newValue: { source: "smart_client_import", outstanding_fields: reviewWarnings.map((warning) => warning.field) } });
+    }
+
     await logActivity(tx, {
       clientId: client.id,
       action: "client_updated",
       actor: { staffId: session.staff.id, traceId: args.traceId },
       entityType: "client_import_case",
       entityId: args.id,
-      newValue: { approved_from_import: true, source_type: row.source_type, document_count: verification.documentCount },
+      newValue: {
+        approved_from_import: true, source_type: row.source_type, document_count: verification.documentCount,
+        document_match_confirmed: args.documentConfirmed, information_match_confirmed: args.informationConfirmed,
+        follow_up_required: verification.assessment.warnings.length > 0,
+        outstanding_fields: verification.assessment.warnings.map((warning) => warning.field),
+        source_conflict_count: verification.sourceConflicts.length,
+      },
     });
 
     await tx`
       update client_import_cases set
         reviewer_id=${args.reviewerId},reviewed_at=now(),mapped_draft=${tx.json(draft as never)},field_evidence=${tx.json(evidence as never)},
-        missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json([] as never)},verification_result=${tx.json(verification.result as never)},
+        missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json(verification.conflicts as never)},verification_result=${tx.json(verification.result as never)},
         document_match_confirmed=${args.documentConfirmed},information_match_confirmed=${args.informationConfirmed},
         review_started_at=coalesce(review_started_at,now()),
         approved_by=${session.staff.id},approved_at=now(),created_client_id=${client.id},status='APPROVED_FILE',
@@ -906,9 +928,10 @@ export async function approveImportCase(session: StaffSession, args: {
 export async function getImportDocument(session: StaffSession, id: string) {
   assertManager(session);
   const [row] = await sql()`
-    select d.id,d.storage_reference,d.original_filename,d.mime_type,d.import_case_id
+    select d.id,d.storage_reference,d.original_filename,d.mime_type,d.import_case_id,c.status,c.archived_at
     from client_import_documents d join client_import_cases c on c.id=d.import_case_id
     where d.id=${id}`;
   if (!row) throw new ActionError("not_found", "Import document not found", 404);
+  if (row.archived_at && row.status !== "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
   return row as { id: string; storage_reference: string; original_filename: string; mime_type: string; import_case_id: string };
 }

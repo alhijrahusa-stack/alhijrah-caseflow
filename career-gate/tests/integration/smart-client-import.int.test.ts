@@ -474,8 +474,8 @@ describe("Smart Career Collect Client staging security", () => {
       id: caseId,
       reviewerId: manager.staff.id,
       draft: (await db`select mapped_draft from client_import_cases where id=${caseId}`)[0].mapped_draft,
-      documentConfirmed: true,
-      informationConfirmed: true,
+      documentConfirmed: false,
+      informationConfirmed: false,
       traceId: "smart-optional-integration",
     });
     expect(approved.idempotent).toBe(false);
@@ -495,13 +495,79 @@ describe("Smart Career Collect Client staging security", () => {
     expect(row.status).toBe("APPROVED_FILE");
     expect(row.reviewer_id).toBe(manager.staff.id);
     expect(row.review_started_at).toBeTruthy();
-    // Confirmations are recorded as given; client_import_cases_approved_ck requires both.
-    expect(row.document_match_confirmed).toBe(true);
-    expect(row.information_match_confirmed).toBe(true);
+    // Incomplete verification remains truthful after approval and can be completed later.
+    expect(row.document_match_confirmed).toBe(false);
+    expect(row.information_match_confirmed).toBe(false);
     expect(row.verification_result.readiness).toBe("APPROVE_WITH_WARNINGS");
     expect(row.verification_result.blockers).toEqual([]);
     expect(Array.isArray(row.verification_result.warnings)).toBe(true);
     expect(row.verification_result.warnings.length).toBeGreaterThan(0);
+  });
+
+  it("approves unmatched source readings without confirmations and preserves truthful follow-up work", async () => {
+    const staged = await stageSheetRows({
+      session: manager, source: "csv", idempotencyKey: randomUUID(),
+      rows: [{ full_name: "TEST Deferred Source Review", phone: "3135557851", date_of_birth: "1976-01-01" }],
+    });
+    const id = String(staged.cases[0].id);
+    const [before] = await db`select mapped_draft,field_evidence from client_import_cases where id=${id}`;
+    const conflict = {
+      field_key: "date_of_birth", type: "SOURCE_CONFLICT",
+      values: [{ value: "1976-01-01", source: "csv" }, { value: "1977-01-01", source: "local_text" }],
+    };
+    const evidence = [...before.field_evidence, {
+      field_key: "date_of_birth", value: "1977-01-01", normalized_value: "1977-01-01",
+      source_type: "local_text", authority: "SOURCE", verification_state: "CONFLICT",
+      source_text_reference: "Alternate birth date supplied: 1977-01-01",
+    }];
+    await db`update client_import_cases set conflicts=${db.json([conflict])},field_evidence=${db.json(evidence)} where id=${id}`;
+    const [version] = await db`select to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as revision
+      from client_import_cases where id=${id}`;
+    const args = {
+      id, reviewerId: manager.staff.id, draft: before.mapped_draft,
+      documentConfirmed: false, informationConfirmed: false,
+      expectedUpdatedAt: String(version.revision), traceId: "deferred-source-review",
+    };
+    const approved = await approveImportCase(manager, args);
+    const [client] = await db`select full_name,phone,date_of_birth::text from clients where id=${approved.client_id}`;
+    expect(client).toMatchObject({ full_name: "TEST Deferred Source Review", phone: "3135557851", date_of_birth: "1976-01-01" });
+    const [saved] = await db`select status,created_client_id,reviewer_id,review_started_at,reviewed_at,approved_by,approved_at,
+      document_match_confirmed,information_match_confirmed,conflicts,field_evidence,verification_result
+      from client_import_cases where id=${id}`;
+    expect(saved).toMatchObject({
+      status: "APPROVED_FILE", created_client_id: approved.client_id,
+      reviewer_id: manager.staff.id, approved_by: manager.staff.id,
+      document_match_confirmed: false, information_match_confirmed: false,
+      conflicts: [conflict], field_evidence: evidence,
+    });
+    expect(saved.review_started_at).toBeTruthy();
+    expect(saved.reviewed_at).toBeTruthy();
+    expect(saved.approved_at).toBeTruthy();
+    expect(saved.verification_result.blockers).toEqual([]);
+    expect(saved.verification_result.blocking_conflicts).toBe(0);
+    expect(saved.verification_result.source_conflicts).toBe(1);
+    for (const field of ["date_of_birth", "review_confirmations", "source_documents"]) {
+      expect(saved.verification_result.warnings.some((warning: { field?: string }) => warning.field === field), field).toBe(true);
+    }
+    const tasks = await db`select title,description,assigned_to,status from tasks where client_id=${approved.client_id}`;
+    expect(tasks.find((task) => task.title === "Collect missing client documents")).toMatchObject({ assigned_to: manager.staff.id, status: "pending" });
+    expect(tasks.find((task) => task.title === "Complete client intake review")).toMatchObject({
+      assigned_to: manager.staff.id, status: "pending",
+      description: expect.stringContaining("Date of Birth has differing source readings"),
+    });
+    const [audit] = await db`select staff_id,new_value from activity_log
+      where client_id=${approved.client_id} and action='client_updated' and entity_type='client_import_case' and entity_id=${id}
+      order by id desc limit 1`;
+    expect(audit.staff_id).toBe(manager.staff.id);
+    expect(audit.new_value).toMatchObject({
+      approved_from_import: true, document_match_confirmed: false, information_match_confirmed: false,
+      follow_up_required: true, source_conflict_count: 1,
+      outstanding_fields: expect.arrayContaining(["date_of_birth", "review_confirmations", "source_documents"]),
+    });
+    const repeated = await approveImportCase(manager, args);
+    expect(repeated).toMatchObject({ client_id: approved.client_id, idempotent: true });
+    const [afterRetry] = await db`select count(*)::int as n from tasks where client_id=${approved.client_id}`;
+    expect(afterRetry.n).toBe(tasks.length);
   });
 
   it("keeps the public Case Number stable before and after approval", async () => {
@@ -709,8 +775,8 @@ describe("Smart Career Collect Client staging security", () => {
       id: secondId,
       reviewerId: manager.staff.id,
       draft: secondCase.mapped_draft,
-      documentConfirmed: true,
-      informationConfirmed: true,
+      documentConfirmed: false,
+      informationConfirmed: false,
       traceId: "same-applicant-second",
     })).rejects.toMatchObject({ code: "approval_blocked" });
 
