@@ -234,3 +234,16 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
   const exceptions = operational.overdue_tasks + operational.overdue_followups + operational.document_attention + operational.unassigned_clients + operational.readiness.blocked + (system?.queue.dead ?? 0) + (system?.failed_notifications_24h ?? 0) + (system?.open_audit_alerts ?? 0);
   return { ...operational, exceptions, team, system };
 }
+
+export async function monitoredDashboardCommandData(session: StaffSession): Promise<DashboardCommandData> {
+  const started = performance.now();
+  try {
+    const data = await dashboardCommandData(session);
+    const durationMs = Math.round(performance.now() - started);
+    if (durationMs > 2000) console.warn(JSON.stringify({ event: "slow_dashboard_load", duration_ms: durationMs }));
+    return data;
+  } catch (cause) {
+    console.error(JSON.stringify({ event: "dashboard_load_failed", duration_ms: Math.round(performance.now() - started), error_type: cause instanceof Error ? cause.name : "Unknown" }));
+    throw cause;
+  }
+}
