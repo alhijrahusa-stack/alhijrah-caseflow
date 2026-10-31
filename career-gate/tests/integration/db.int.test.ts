@@ -520,7 +520,12 @@ describe("audit agent", () => {
     const open = (await db`select rule from audit_alerts where client_id=${client.id} and status='open'`).map(row => row.rule);
     expect(open).toContain("appointment_outcome_missing");
     expect(open).not.toContain("appointment_scheduled_without_appointment");
-    await db`update appointments set scheduled_at=now()+interval '2 days',ends_at=now()+interval '2 days 30 minutes' where id=${appointment.id}`;
+    await db`update appointments set status='attended' where id=${appointment.id}`;
+    await runAudit(client.id, trace);
+    const attended = (await db`select rule from audit_alerts where client_id=${client.id} and status='open'`).map(row => row.rule);
+    expect(attended).toContain("appointment_outcome_missing");
+    expect(attended).not.toContain("appointment_scheduled_without_appointment");
+    await db`update appointments set status='confirmed',scheduled_at=now()+interval '2 days',ends_at=now()+interval '2 days 30 minutes' where id=${appointment.id}`;
     await runAudit(client.id, trace);
     expect(await db`select 1 from audit_alerts where client_id=${client.id} and rule in ('appointment_outcome_missing','appointment_scheduled_without_appointment') and status='open'`).toHaveLength(0);
   });
