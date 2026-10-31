@@ -65,7 +65,7 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
     title={arabic} onClick={()=>setMobile(false)} className="royal-nav-item staff-nav-link"><span className="royal-nav-icon" aria-hidden="true">{icon}</span><span className="royal-nav-copy">{arabic}<small>{label}</small></span>{count!=null&&<b className="royal-nav-badge">{count}</b>}</Link>;
   const ranked=[...data.team].sort((a,b)=>b.overdue_tasks-a.overdue_tasks||(b.active_clients+b.open_tasks)-(a.active_clients+a.open_tasks)).slice(0,3);
   const status=data.health?.status??'LIVE';
-  return <Context value={data}><div className="royal-shell" data-collapsed={collapsed}>
+  return <Context value={data}><div className="staff-shell royal-shell" data-collapsed={collapsed}>
     <button type="button" className="royal-mobile-toggle" aria-label="فتح قائمة الأقسام" aria-expanded={mobile} onClick={()=>setMobile(value=>!value)}>☰</button>
     {mobile&&<button type="button" className="royal-mobile-backdrop" aria-label="إغلاق قائمة الأقسام" onClick={()=>setMobile(false)}/>}
     <aside className="royal-sidebar" data-open={mobile} dir="rtl" aria-label="القائمة التنفيذية">
