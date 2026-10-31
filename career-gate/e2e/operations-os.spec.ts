@@ -37,6 +37,8 @@ test.describe.serial("Career Gate Operations OS core", () => {
     expect(comp.status, JSON.stringify(comp.json)).toBe(200);
 
     await passedInterviewFixture(request,clientId);
+    const routed=await postStaff(request,"admin","/api/staff/operations",{operation:"move_stage",client_id:clientId,stage:"payment_required"});
+    expect(routed.status,JSON.stringify(routed.json)).toBe(200);
     const [account] = await db()`select id from client_accounts where client_id=${clientId}`;
     expect(account?.id).toBeTruthy();
   });

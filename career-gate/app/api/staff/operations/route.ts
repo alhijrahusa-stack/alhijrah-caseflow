@@ -19,6 +19,8 @@ const stage = z.enum([
   "interview_passed",
   "interview_rejected",
   "post_interview_completion",
+  "payment_required",
+  "need_new_appointment",
 ]);
 
 const Input = z.discriminatedUnion("operation", [
@@ -55,7 +57,7 @@ export async function POST(req: Request) {
   if (guard.response) return guard.response;
   const parsed = Input.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return err("invalid_input", parsed.error.issues[0]?.message ?? "Invalid operation", 400, traceId);
-  const moveTargets = {portal_intake:"new_intake",no_amazon_account:"account_setup",amazon_account_waiting_job:"job_ready",interview_scheduled:"appointments",interview_passed:"payment_required",interview_rejected:"job_ready",post_interview_completion:"paperwork_pending"} as const;
+  const moveTargets = {portal_intake:"new_intake",no_amazon_account:"account_setup",amazon_account_waiting_job:"job_ready",interview_scheduled:"appointments",interview_passed:"payment_required",interview_rejected:"job_ready",post_interview_completion:"paperwork_pending",payment_required:"payment_required",need_new_appointment:"job_ready"} as const;
   const input = parsed.data.operation==="move_stage"
     ? {operation:"bulk_assign" as const,client_ids:[parsed.data.client_id],target_stage:moveTargets[parsed.data.stage],staff_id:undefined,reason:"Manual pipeline move"}
     : parsed.data;
