@@ -18,6 +18,19 @@ export async function selectChoice(control: Locator, choice: string | { label: s
   await option.click();
 }
 
+/** Inspect the choices an employee can actually open, without changing the form value. */
+export async function dropdownChoiceTexts(control: Locator): Promise<string[]> {
+  const combobox = control.and(control.page().getByRole("combobox"));
+  await combobox.click();
+  const listId = await combobox.getAttribute("aria-controls");
+  if (!listId) throw new Error("Dropdown did not open an accessible listbox");
+  const options = control.page().locator(`[id=${JSON.stringify(listId)}]`).getByRole("option");
+  try {
+    await options.first().waitFor({ state: "visible" });
+    return (await options.allTextContents()).map(text => text.trim());
+  } finally { await combobox.press("Escape"); }
+}
+
 // Use the employee's file-picker flow. Injecting a hidden input before React
 // attaches its change handler can leave the native file and form state apart.
 export async function chooseImportSpreadsheet(page: Page, file: { name: string; mimeType: string; buffer: Buffer }) {

@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { selectChoice, accessToken, db, FIXTURE_CATALOG, intakeBody, PNG, RUN, signIn, STAFF, staffAction, submitIntake } from "./helpers";
+import { dropdownChoiceTexts, selectChoice, accessToken, db, FIXTURE_CATALOG, intakeBody, PNG, RUN, signIn, STAFF, staffAction, submitIntake } from "./helpers";
 
 const tomorrowLocal = (additionalDays = 0) => {
   const d = new Date(Date.now() + (36 + 24 * additionalDays) * 3600 * 1000);
@@ -289,7 +289,7 @@ test.describe.serial("office workflow", () => {
 
   test("status engine: admin choices include normal transitions and auditable overrides", async () => {
     await page.getByTestId("quick-actions").getByRole("button", { name: "Change Status" }).click();
-    const options = await page.getByTestId("form-status").getByLabel("New status").locator("option").allInnerTexts();
+    const options = await dropdownChoiceTexts(page.getByTestId("form-status").getByLabel("New status"));
     expect(options).toEqual([
       "Needs Review", "Ready to Apply", "Application in Progress", "Assessment Required", "Shift Selected",
       "Appointment Required", "Appointment Scheduled", "Pre-Hire Completed", "Screening Pending", "I-9 Available",

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
-import { selectChoice, accessToken, passedInterviewFixture, db, intakeBody, RUN, signIn, STAFF, submitIntake, uniqueIp } from "./helpers";
+import { dropdownChoiceTexts, selectChoice, accessToken, passedInterviewFixture, db, intakeBody, RUN, signIn, STAFF, submitIntake, uniqueIp } from "./helpers";
 
 /**
  * The Client financial surface and the Accounting board, as an operator meets
@@ -114,8 +114,9 @@ test.describe.serial("Accounting and Client financial surfaces", () => {
     // The original payment is chosen from its own details, never a pasted UUID.
     const original = surface.getByTestId("refund-original");
     await expect(original).toBeVisible();
-    await expect(original.locator("option").first()).toContainText("$60.00");
-    await expect(original.locator("option").first()).toContainText("refundable");
+    const [paymentChoice] = await dropdownChoiceTexts(original);
+    expect(paymentChoice).toContain("$60.00");
+    expect(paymentChoice).toContain("refundable");
 
     // More than remains refundable is refused before any request is sent.
     await surface.getByTestId("refund-amount").fill("500");

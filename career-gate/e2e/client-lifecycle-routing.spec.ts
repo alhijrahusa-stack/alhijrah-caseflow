@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signIn } from "./helpers";
+import { dropdownChoiceTexts, signIn } from "./helpers";
 
 test("dashboard stations route into one canonical clients registry with safe actions", async ({ browser, baseURL }) => {
   const context = await browser.newContext({ baseURL, viewport: { width: 1366, height: 900 } });
@@ -34,7 +34,7 @@ test("dashboard stations route into one canonical clients registry with safe act
   await page.goto("/staff/clients?view=active");
   await expect(page.getByRole("combobox", { name: "Move selected clients to lifecycle stage" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Assign selected cases to" })).toBeVisible();
-  const optionLabels = await page.getByRole("combobox", { name: "Move selected clients to lifecycle stage" }).locator("option").allTextContents();
+  const optionLabels = await dropdownChoiceTexts(page.getByRole("combobox", { name: "Move selected clients to lifecycle stage" }));
   for (const text of ["New Intake", "Account Setup", "Job Ready", "Appointments", "Payment Required", "Paperwork Pending"])
     expect(optionLabels).toContain(text);
 
