@@ -17,35 +17,39 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
   const [collapsed,setCollapsed]=useState(false);
   const [mobile,setMobile]=useState(false);
   const [stale,setStale]=useState(false);
+  const [notice,setNotice]=useState("");
   const pathname=usePathname();
   const params=useSearchParams();
   const currentStage=params.get("stage");
   const inFlight=useRef<AbortController|null>(null);
+  const toastTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  useEffect(()=>()=>{if(toastTimer.current)clearTimeout(toastTimer.current);},[]);
   const router=useRouter();
   useEffect(()=>{
-    let disposed=false;let timer:ReturnType<typeof setTimeout>|null=null;let again=false;
+    let disposed=false;let timer:ReturnType<typeof setTimeout>|null=null;let again=false;let financePending=false;
     const refresh=async()=>{
       if(document.visibilityState==='hidden'){again=true;return;}
       if(inFlight.current){again=true;return;}
-      const controller=new AbortController();inFlight.current=controller;
+      const controller=new AbortController();inFlight.current=controller;const financeChanged=financePending;financePending=false;
       try{
         const response=await fetch('/api/staff/dashboard-summary',{cache:'no-store',signal:controller.signal});
         const result=await response.json().catch(()=>null);
         if(!response.ok||!result?.ok||!result.summary)throw new Error('summary_unavailable');
-        if(!disposed){setData(result.summary);setStale(false);}
+        if(!disposed){setData(result.summary);setStale(false);if(financeChanged){setNotice("تمت مزامنة المالية ومؤشرات لوحة القيادة");if(toastTimer.current)clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setNotice(""),4500);}}
       }catch{if(!disposed)setStale(true);}
       finally{inFlight.current=null;if(again&&!disposed){again=false;queue();}}
     };
     const queue=()=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>{timer=null;void refresh();},250);};
+    const onExecutiveChange=(event:Event)=>{if((event as CustomEvent<{resources?:string[]}>).detail?.resources?.includes('finance'))financePending=true;queue();};
     const unsubscribe=pathname==='/staff'?subscribeResources({clientId:null,
-      resources:['client_identity','pipeline','placement','finance','account','readiness','documents','appointments','tasks','followups','alerts','attention'],onUpdate:queue}):()=>{};
+      resources:['client_identity','pipeline','placement','finance','account','readiness','documents','appointments','tasks','followups','alerts','attention'],onUpdate:({resources})=>{if(resources.includes('finance'))financePending=true;queue();}}):()=>{};
     const visible=()=>{if(document.visibilityState==='visible')queue();};
-    window.addEventListener('career-gate:executive-refresh',queue);
+    window.addEventListener('career-gate:executive-refresh',onExecutiveChange);
     window.addEventListener(RECOVERY_EVENT,queue);
     window.addEventListener('focus',visible);
     document.addEventListener('visibilitychange',visible);
     return()=>{disposed=true;unsubscribe();if(timer)clearTimeout(timer);inFlight.current?.abort();inFlight.current=null;
-      window.removeEventListener('career-gate:executive-refresh',queue);window.removeEventListener(RECOVERY_EVENT,queue);
+      window.removeEventListener('career-gate:executive-refresh',onExecutiveChange);window.removeEventListener(RECOVERY_EVENT,queue);
       window.removeEventListener('focus',visible);document.removeEventListener('visibilitychange',visible);};
   },[pathname]);
   const active=(href:string)=>{
@@ -88,6 +92,7 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
     </aside>
     <div className="royal-main"><header className="royal-topbar">{header}{!pathname.startsWith('/staff/client/')&&<RealtimeRefresher/>}</header><main className="royal-content">{children}</main></div>
     <button type="button" className="royal-orb" aria-label="فتح مساعد الأوامر" title="مساعد الأوامر · Ctrl+K" onClick={()=>{window.dispatchEvent(new Event('career-gate:open-command'));}}>✧</button>
+    {notice&&<p role="status" className="royal-sync-toast">◈ {notice}</p>}
     {stale&&<button className="royal-stale" type="button" onClick={()=>router.refresh()}>تعذر تحديث المؤشرات · إعادة المحاولة</button>}
   </div></Context>;
 }

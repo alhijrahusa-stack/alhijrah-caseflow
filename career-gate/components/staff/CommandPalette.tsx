@@ -9,7 +9,7 @@ type Item = { id: string; label: string; hint?: string; href: string };
 
 export function CommandPalette() {
   const router = useRouter();
-  const { isManager } = useStaff();
+  const { isManager, activeStaff } = useStaff();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [clients, setClients] = useState<Item[]>([]);
@@ -24,10 +24,13 @@ export function CommandPalette() {
     { id: "p-completed", label: "Completed clients", href: "/staff/clients?view=completed" },
     { id: "p-appt", label: "Appointments", href: "/staff/appointments" },
     { id: "p-tasks", label: "Tasks · المهام والمتأخرات", href: "/staff/tasks?view=overdue" },
-    { id: "p-fu", label: "Follow-ups", href: "/staff/follow-ups" },
+    { id: "p-fu", label: "Follow-ups · المتابعات", href: "/staff/follow-ups" },
+    { id: "p-docs", label: "Documents · الوثائق المعلقة", href: "/staff/clients?attention=documents" },
+    ...activeStaff.map(member=>({id:`s-${member.id}`,label:member.display_name,hint:"Team Load · حمل الفريق",href:`/staff/staff?tab=team&member=${member.id}`})),
     { id: "p-team", label: "Staff · Team", href: "/staff/staff?tab=team" },
     ...(isManager ? [
       { id: "p-assign", label: "Staff · Assignments", href: "/staff/staff?tab=assignments" },
+      { id: "p-finance", label: "Accounting · المالية والسداد", href: "/staff/accounting" },
       { id: "p-new", label: "New client", href: "/staff/new-client" },
       { id: "p-audit", label: "Audit alerts", href: "/staff/audit-alerts" },
       { id: "p-reports", label: "Reports", href: "/staff/reports" },
@@ -37,7 +40,7 @@ export function CommandPalette() {
     ...(["new_intake", "needs_review", "ready_to_apply", "application_in_progress", "screening_pending", "i9_available", "ready_for_first_day"] as Status[]).map((s) => ({
       id: `f-${s}`, label: `Filter: ${STATUS_LABELS[s]}`, hint: "Active clients", href: `/staff/clients?view=active&status=${s}`,
     })),
-  ], [isManager]);
+  ], [isManager, activeStaff]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
