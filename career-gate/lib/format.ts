@@ -51,6 +51,20 @@ export function fromLocalInput(local: string): Date {
   return new Date(t);
 }
 
+export function appointmentInstant(local: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local)) return null;
+  try {
+    const instant = fromLocalInput(local);
+    if (!Number.isFinite(instant.getTime()) || toLocalInput(instant) !== local) return null;
+    for (const delta of [-3_600_000, 3_600_000]) {
+      if (toLocalInput(new Date(instant.getTime() + delta)) === local) return null;
+    }
+    return instant;
+  } catch {
+    return null;
+  }
+}
+
 export function todayInOffice() {
   return toLocalInput(new Date()).slice(0, 10);
 }

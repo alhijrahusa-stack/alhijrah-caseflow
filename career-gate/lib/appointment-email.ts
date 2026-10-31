@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 
 import type postgres from "postgres";
 import { sql } from "@/lib/db";
-import { enqueue } from "@/lib/jobs";
+import { enqueue, VISIBILITY_SECONDS } from "@/lib/jobs";
 
 import { registry, providerStates } from "@/lib/providers/config";
 import { sendEmail, type SendResult } from "@/lib/providers/messaging";
@@ -79,12 +79,23 @@ export function appointmentEmailIdempotencyKey(payload: Payload) {
   return "appointment:" + createHash("sha256").update(JSON.stringify(identity)).digest("hex");
 }
 
-async function queueOne(tx: postgres.TransactionSql, clientId: string, payload: Payload, traceId: string) {
+async function queueOne(tx: postgres.TransactionSql, clientId: string, payload: Payload, traceId: string, runAfter?: Date) {
   const configured = providerStates().email_resend === "CONFIGURED";
-  const [row] = await tx`insert into notifications(client_id,channel,template,payload,status,idempotency_key)
-    values(${clientId},'email',${`appointment_${payload.event}`},${tx.json(payload)},${configured?"queued":"not_configured"},${appointmentEmailIdempotencyKey(payload)})
-    on conflict do nothing returning id`;
-  if (configured && row) await enqueue(tx,{type:"notification_send",entityId:String(row.id),dedupeKey:`notify:${row.id}`,traceId});
+  const key=appointmentEmailIdempotencyKey(payload);
+  const [row] = payload.event === "reminder"
+    ? await tx`insert into notifications(client_id,channel,template,payload,status,idempotency_key)
+        values(${clientId},'email','appointment_reminder',${tx.json(payload)},${configured?"queued":"not_configured"},${key})
+        on conflict ((payload->>'appointmentId'),(payload->>'scheduledAt'))
+          where template='appointment_reminder' and channel='email'
+        do update set payload=excluded.payload,idempotency_key=excluded.idempotency_key,status=excluded.status
+          where notifications.attempts=0 and notifications.status in ('queued','not_configured')
+            and (notifications.payload,notifications.status) is distinct from (excluded.payload,excluded.status)
+        returning id`
+    : await tx`insert into notifications(client_id,channel,template,payload,status,idempotency_key)
+        values(${clientId},'email',${`appointment_${payload.event}`},${tx.json(payload)},${configured?"queued":"not_configured"},${key})
+        on conflict do nothing returning id`;
+  if (configured && row) await enqueue(tx,{type:"notification_send",entityId:String(row.id),dedupeKey:`notify:${row.id}`,traceId,runAfter});
+  return Boolean(configured && row);
 }
 
 export async function queueAppointmentEmails(
@@ -105,6 +116,10 @@ export async function queueAppointmentEmails(
   } as const;
   if (client.communication_consent && typeof client.email==="string" && client.email.trim()) {
     await queueOne(tx,appointment.client_id,{...base,recipient:client.email,recipientKind:"client"},traceId);
+    const reminderAt = new Date(new Date(appointment.scheduled_at).getTime() - 24 * 3_600_000);
+    if (reminderAt.getTime() > Date.now() && providerStates().email_resend === "CONFIGURED") {
+      await queueOne(tx,appointment.client_id,{...base,event:"reminder",recipient:client.email,recipientKind:"client"},traceId,reminderAt);
+    }
   }
   const staffId = appointment.resource_key.startsWith("staff:") ? appointment.resource_key.slice(6) : null;
   const [staff] = staffId ? await tx`select email from staff where id=${staffId} and active` : [];
@@ -114,14 +129,27 @@ export async function queueAppointmentEmails(
   }
 }
 
-export async function deliverAppointmentEmail(notificationId: string, payload: unknown): Promise<SendResult | {status:"skipped"}> {
+export async function deliverAppointmentEmail(notificationId: string, payload: unknown): Promise<SendResult | {status:"skipped" | "busy"}> {
   const db = sql();
   if (!isPayload(payload)) throw new Error("Invalid appointment email payload");
   const [notification] = await db`update notifications
-    set status='sending',attempts=attempts+1
-    where id=${notificationId} and status='queued'
-    returning id,client_id,idempotency_key`;
-  if (!notification) return {status:"skipped"};
+    set status='sending',attempts=attempts+1,
+      payload=case when attempts=0 and not (payload ? '_firstDeliveryAttemptAt')
+        then jsonb_set(payload,'{_firstDeliveryAttemptAt}',to_jsonb(clock_timestamp()::text))
+        else payload end
+    where id=${notificationId} and (status in ('queued','failed')
+      or (status='sending' and updated_at < now()-make_interval(secs => ${VISIBILITY_SECONDS})))
+    returning id,client_id,idempotency_key,attempts,payload->>'_firstDeliveryAttemptAt' as first_attempt_at`;
+  if (!notification) {
+    const [current] = await db`select status from notifications where id=${notificationId}`;
+    return {status:current?.status === "sending" ? "busy" : "skipped"};
+  }
+  const firstAttempt = new Date(String(notification.first_attempt_at)).getTime();
+  if (!Number.isFinite(firstAttempt) || Date.now()-firstAttempt >= 23*3_600_000) {
+    const error = "Provider acceptance requires reconciliation before retrying outside the idempotency window";
+    await db`update notifications set status='failed',error=${error} where id=${notificationId} and attempts=${notification.attempts}`;
+    return {status:"failed",provider:"resend",error,retryable:false};
+  }
   const [current] = await db`select a.id,a.scheduled_at,a.location,a.appointment_type,a.status,a.resource_key,
         c.email,c.communication_consent,c.deleted_at
     from appointments a join clients c on c.id=a.client_id
@@ -140,18 +168,21 @@ export async function deliverAppointmentEmail(notificationId: string, payload: u
     || (current.location ?? "Office (contact Career Gate for location)") !== payload.location
     || !authorizedRecipient;
   if (stale) {
-    await db`update notifications set status='not_configured',error='Appointment changed or cancelled before delivery' where id=${notificationId}`;
+    await db`update notifications set status='not_configured',error='Appointment changed or cancelled before delivery'
+      where id=${notificationId} and status='sending' and attempts=${notification.attempts}`;
     return {status:"skipped"};
   }
   const message = renderAppointmentEmail(payload);
-  const result = await sendEmail(payload.recipient,message.subject,message.text,message.html,String(notification.idempotency_key ?? notification.id));
+  const result = await sendEmail(payload.recipient,message.subject,message.text,message.html,String(notification.idempotency_key ?? appointmentEmailIdempotencyKey(payload)));
   if (result.status==="sent") {
     await db`update notifications set status='sent',provider=${result.provider},provider_id=${result.provider_id},
-      sent_at=now(),error=null where id=${notificationId}`;
+      sent_at=now(),error=null where id=${notificationId} and status='sending' and attempts=${notification.attempts}`;
   } else if (result.status==="not_configured") {
-    await db`update notifications set status='not_configured',provider=${result.provider} where id=${notificationId}`;
+    await db`update notifications set status='not_configured',provider=${result.provider}
+      where id=${notificationId} and status='sending' and attempts=${notification.attempts}`;
   } else {
-    await db`update notifications set status='failed',provider=${result.provider},error=${result.error.slice(0,500)} where id=${notificationId}`;
+    await db`update notifications set status='failed',provider=${result.provider},error=${result.error.slice(0,500)}
+      where id=${notificationId} and status='sending' and attempts=${notification.attempts}`;
   }
   return result;
 }
@@ -165,8 +196,13 @@ export async function queueAdvanceAppointmentReminders() {
     from appointments a join clients c on c.id=a.client_id
     where a.status in ('confirmed','rescheduled')
       and c.deleted_at is null and c.communication_consent and c.email is not null
-      and a.scheduled_at >= now()+interval '24 hours'
+      and a.scheduled_at > now()
       and a.scheduled_at < now()+interval '48 hours'
+      and not exists (
+        select 1 from notifications n where n.template='appointment_reminder' and n.channel='email'
+          and n.payload->>'appointmentId'=a.id::text
+          and n.payload->>'scheduledAt'=to_char(a.scheduled_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+      )
     order by a.scheduled_at limit 250`;
   let queued=0;
   for(const appointment of eligible) {
@@ -177,10 +213,8 @@ export async function queueAdvanceAppointmentReminders() {
         clientName:String(appointment.full_name),appointmentType:String(appointment.appointment_type),
         recipient:String(appointment.email),recipientKind:"client",event:"reminder",
       };
-      const [row] = await tx`insert into notifications(client_id,channel,template,payload,status,idempotency_key)
-        values(${appointment.client_id},'email','appointment_reminder',${tx.json(payload)},'queued',${appointmentEmailIdempotencyKey(payload)})
-        on conflict do nothing returning id`;
-      if(row){await enqueue(tx,{type:"notification_send",entityId:String(row.id),dedupeKey:`notify:${row.id}`});queued++;}
+      const reminderAt = new Date(Math.max(Date.now(),new Date(appointment.scheduled_at).getTime()-24*3_600_000));
+      if(await queueOne(tx,String(appointment.client_id),payload,`reminder:${appointment.id}`,reminderAt)) queued++;
     });
   }
   return queued;

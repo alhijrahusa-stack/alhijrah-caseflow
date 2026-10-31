@@ -15,7 +15,7 @@ import {
   POST_HIRE_STATUS_LABELS,
   POST_HIRE_STATUSES,
 } from "@/lib/domain";
-import { dateOnly, dateTime, toLocalInput } from "@/lib/format";
+import { appointmentInstant, dateOnly, dateTime, toLocalInput } from "@/lib/format";
 import { Card, SmallBtn, useRowAction, type Row } from "./common";
 
 
@@ -35,6 +35,8 @@ export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
   const [notes, setNotes] = useState<string>(appt.notes ?? "");
   const [appointmentType,setAppointmentType] = useState<string>(String(appt.appointment_type ?? "Appointment"));
   const [durationMinutes,setDurationMinutes] = useState<number>(Math.max(5,Math.round((new Date(appt.ends_at).getTime()-new Date(appt.scheduled_at).getTime())/60000)||30));
+  const [validationError,setValidationError] = useState<string | null>(null);
+  const instant = appointmentInstant(when);
 
   useEffect(() => {
     if (!mounted) return;
@@ -53,7 +55,15 @@ export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
       onCancel={(event) => { event.preventDefault(); if (!pending) onClose(); }}
       className="fixed inset-0 m-auto max-h-[90dvh] w-[min(96vw,38rem)] overflow-y-auto rounded-2xl border border-amber-300/35 bg-[#0b2238] p-4 text-slate-100 shadow-2xl backdrop:bg-slate-950/85 sm:p-5"
     >
-      <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); void onSave({ when, location, notes, appointmentType, durationMinutes }); }}>
+      <form className="grid gap-3" onSubmit={(event) => {
+        event.preventDefault();
+        if (!instant) {
+          setValidationError("Choose a valid, unambiguous Detroit date and time. Daylight-saving transition times cannot be used.");
+          return;
+        }
+        setValidationError(null);
+        void onSave({ when, location, notes, appointmentType, durationMinutes });
+      }}>
         <h2 className="text-lg font-semibold text-amber-100">Manage appointment · إدارة الموعد</h2>
         <p className="text-xs text-slate-300">Edit the real appointment in one save. Customer and resource notifications update automatically.</p>
         <label className="text-xs text-slate-300">Appointment type
@@ -62,13 +72,22 @@ export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
         <label className="text-xs text-slate-300">Minutes
           <input aria-label="Edit appointment duration" required type="number" min={5} max={480} className="input mt-1 w-full" value={durationMinutes} onChange={e=>setDurationMinutes(Number(e.target.value)||30)} />
         </label>
-        <QuickDateTime ariaLabel="New date and time" testId="input-new-date-time" autoFocus value={when} onChange={setWhen} required />
+        <QuickDateTime ariaLabel="New date and time" testId="input-new-date-time" autoFocus value={when} onChange={value=>{setWhen(value);setValidationError(null);}} required />
         <AmazonWarehousePicker value={location} onChange={setLocation} disabled={pending}/>
         <input aria-label="Location" maxLength={300} className="input" placeholder="Office or Amazon interview location" value={location} onChange={(event) => setLocation(event.target.value)} />
         {siteForLocation(location) && <a href={warehouseMapUrl(siteForLocation(location)!.address)} rel="noopener noreferrer" target="_blank" className="text-xs text-amber-200 underline">Open Google Maps</a>}
         <textarea aria-label="Notes" maxLength={2000} rows={2} className="input" placeholder="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} />
+        <section aria-label="Review appointment changes" className="rounded-xl border border-amber-300/25 bg-[#112c45] p-3 text-xs">
+          <p className="font-semibold text-amber-200">Review before saving</p>
+          <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+            <div><dt className="text-slate-400">Client</dt><dd>{String(appt.full_name)}</dd></div>
+            <div><dt className="text-slate-400">Appointment</dt><dd>{appointmentType} · {durationMinutes} minutes</dd></div>
+            <div><dt className="text-slate-400">Detroit time</dt><dd>{instant ? dateTime(instant) : "Choose a valid date and time"}</dd></div>
+            <div><dt className="text-slate-400">Location</dt><dd className="break-words">{location || "Office / Not specified"}</dd></div>
+          </dl>
+        </section>
         <p className="rounded-lg border border-amber-200/20 bg-[#112c45] p-3 text-xs text-slate-200" dir="rtl">يرجى الوصول قبل الموعد بنصف ساعة وإحضار الوثائق الأصلية للمقابلة. نتمنى لكم التوفيق.</p>
-        {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
+        {(validationError || error) && <p role="alert" className="text-xs text-red-300">{validationError || error}</p>}
         <div className="flex flex-wrap justify-end gap-2">
           <SmallBtn aria-label="Cancel reschedule" disabled={pending} onClick={onClose}>Cancel</SmallBtn>
           <SmallBtn type="submit" aria-label="Save changes" data-testid="button-confirm-reschedule" disabled={pending}>
