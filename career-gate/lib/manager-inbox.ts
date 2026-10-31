@@ -149,7 +149,7 @@ export async function resolveManagerReview(session: StaffSession, input: Resolve
       const destination = CLIENT_STAGES.find(stage => stage.id === input.destination)!.label;
       const [task] = await tx`insert into tasks(title,description,assigned_to,created_by)
         values(${`${destination} · ${String(item.title)}`.slice(0, 200)},
-          ${`${input.note ? `${input.note}\n\n` : ""}Manager review: ${input.id}\nWorkflow destination: ${destination}\nSource: ${item.source_path}`},
+          ${`Manager review: ${input.id}\nWorkflow destination: ${destination}\nSource: ${item.source_path}`},
           ${item.submitted_by},${session.staff.id}) returning id`;
       taskId = String(task.id);
     }

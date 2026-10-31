@@ -5,7 +5,9 @@ import { MUTATION_RESOURCES, RESOURCE_PAYLOADS, RESOURCES } from "@/lib/realtime
 describe("surface ownership", () => {
   it("owns the private manager aggregate through its independent endpoint payload", () => {
     expect(MANAGER_INBOX_SURFACE.resources).toEqual(["manager_inbox"]);
-    expect(RESOURCE_PAYLOADS.manager_inbox).toEqual(["inbox"]);
+    expect(RESOURCE_PAYLOADS.manager_inbox).toEqual([]);
+    expect(MANAGER_INBOX_SURFACE.endpoint).toBe("/api/staff/manager-inbox");
+    expect(MANAGER_INBOX_SURFACE.aggregatePayloads?.manager_inbox).toEqual(["inbox"]);
     expect(MANAGER_INBOX_SURFACE.payloads).toContain("inbox");
   });
   it("only claims a resource whose payloads the surface renders", () => {
@@ -14,7 +16,9 @@ describe("surface ownership", () => {
     // the operator is looking at stale.
     for (const [name, surface] of Object.entries(SURFACES)) {
       for (const resource of surface.resources) {
-        for (const payload of RESOURCE_PAYLOADS[resource]) {
+        const aggregatePayloads = surface.aggregatePayloads?.[resource];
+        if (aggregatePayloads) expect(surface.endpoint, `${name} aggregate must have its own endpoint`).toMatch(/^\/api\/staff\//);
+        for (const payload of aggregatePayloads ?? RESOURCE_PAYLOADS[resource]) {
           expect(surface.payloads, `${name} claims ${resource} but does not render ${payload}`).toContain(payload);
         }
       }

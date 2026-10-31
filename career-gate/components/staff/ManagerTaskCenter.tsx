@@ -97,7 +97,7 @@ export function ManagerTaskCenter({ initial }: { initial: ManagerInboxPage }) {
     controllerRef.current?.abort();
     const controller = new AbortController(); controllerRef.current = controller;
     try {
-      const response = await fetch(`/api/staff/manager-inbox?page=${nextPage}`, { cache: "no-store", signal: controller.signal });
+      const response = await fetch(`${MANAGER_INBOX_SURFACE.endpoint}?page=${nextPage}`, { cache: "no-store", signal: controller.signal });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error?.message ?? "Inbox is unavailable");
       if (sequence !== fetchSequence.current || controller.signal.aborted) return;

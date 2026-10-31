@@ -43,6 +43,7 @@ grant all on public.manager_inbox to service_role;
 create policy manager_inbox_read on public.manager_inbox for select to authenticated
 using (
   (public.cg_staff_role() in ('admin','manager') or submitted_by=public.cg_staff_id())
+  and (kind<>'report' or public.cg_staff_role() in ('admin','manager'))
   and (client_id is null or public.cg_can_access_client(client_id))
 );
 create policy manager_inbox_submit on public.manager_inbox for insert to authenticated

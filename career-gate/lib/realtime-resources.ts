@@ -279,7 +279,7 @@ export const RESOURCE_PAYLOADS: Record<Resource, readonly string[]> = {
   finance: ["account"],
   placement: ["client"],
   pipeline: ["client"],
-  manager_inbox: ["inbox"], // /api/staff/manager-inbox aggregate, not a client-file slice.
+  manager_inbox: [], // Private aggregate owns an independent endpoint, never a client-file slice.
 };
 
 /** Derived payload keys the client file does not read as a plain slice. */

@@ -13,7 +13,7 @@ async function actor(role: "manager" | "staff"): Promise<StaffSession> {
   const id = randomUUID();
   const email = `assistant-${id}@test.invalid`;
   await db`insert into auth.users(id,email) values(${id},${email})`;
-  const [member] = await db`insert into staff(display_name,email,role,auth_user_id) values('TEST Operations Assistant',${email},${role},${id}) returning id,display_name,email,role`;
+  const [member] = await db`insert into staff(display_name,email,role,auth_user_id) values(${`TEST Operations Assistant ${role} ${id}`},${email},${role},${id}) returning id,display_name,email,role`;
   return { authUserId: id, staff: member as StaffSession["staff"] };
 }
 beforeAll(async () => { manager = await actor("manager"); staff = await actor("staff"); });

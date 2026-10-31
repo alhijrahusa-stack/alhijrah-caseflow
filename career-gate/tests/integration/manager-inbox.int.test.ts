@@ -110,9 +110,17 @@ describe("manager inbox scope and audited routing", () => {
     expect(result.task_id).toBeTruthy(); expect(result.client_id).toBeNull();
     const [task] = await db`select title,description,assigned_to,created_by,client_id from tasks where id=${result.task_id}`;
     expect(task).toMatchObject({ assigned_to: sessions.manager.staff.id, created_by: sessions.manager2.staff.id, client_id: null });
-    expect(task.title).toContain("Account Setup"); expect(task.description).toContain("Review account preparation delays");
-    const [snapshot] = await db`select snapshot from manager_inbox where id=${report.id}`;
+    expect(task.title).toContain("Account Setup"); expect(task.description).toContain(`Manager review: ${report.id}`);
+    expect(task.description).not.toContain("Review account preparation delays");
+    // Office tasks are visible to ordinary staff by the established RLS policy.
+    // They must carry only a generic reference, never the private review note.
+    const [ordinaryStaffTask] = await withStaff(sessions.other, tx => tx`select description from tasks where id=${result.task_id}`);
+    expect(ordinaryStaffTask.description).toContain(`Manager review: ${report.id}`);
+    expect(ordinaryStaffTask.description).not.toContain("Review account preparation delays");
+    expect(ordinaryStaffTask.description).not.toContain("Review the seven-day workload");
+    const [snapshot] = await db`select snapshot,resolution_note from manager_inbox where id=${report.id}`;
     expect(snapshot.snapshot).toMatchObject({ period: 7, kpis: expect.objectContaining({ active: expect.any(Number) }) });
+    expect(snapshot.resolution_note).toBe("Review account preparation delays");
   });
 
   it("enforces current granular permission in the API service and direct Data API RLS", async () => {
@@ -122,5 +130,17 @@ describe("manager inbox scope and audited routing", () => {
       await expect(request(client.id)).rejects.toMatchObject({ code: "forbidden" });
       await expect(withStaff(sessions.sender, tx => tx`insert into manager_inbox(request_key,kind,client_id,title,source_path,submitted_by) values(${randomUUID()},'client',${client.id},'Unauthorized',${`/staff/client/${client.id}`},${sessions.sender.staff.id})`)).rejects.toMatchObject({ code: "42501" });
     } finally { await db`update staff set permission_mode='full' where id=${sessions.sender.staff.id}`; }
+  });
+
+  it("hides a sender's historical financial report immediately after a management role downgrade", async () => {
+    const report = await submitManagerReview(sessions.manager, { kind: "report", period: 30, request_key: randomUUID(), note: "Financial report privilege regression" }, "report-privilege");
+    expect(await withStaff(sessions.manager, tx => tx`select id from manager_inbox where id=${report.id}`)).toHaveLength(1);
+    await db`update staff set role='staff' where id=${sessions.manager.staff.id}`;
+    try {
+      // Keep the same authenticated subject (and even a stale application
+      // session role) to prove RLS reads the current authoritative staff role.
+      expect(await withStaff(sessions.manager, tx => tx`select id,snapshot from manager_inbox where id=${report.id}`)).toHaveLength(0);
+      expect(await withStaff(sessions.manager2, tx => tx`select id from manager_inbox where id=${report.id}`)).toHaveLength(1);
+    } finally { await db`update staff set role='manager' where id=${sessions.manager.staff.id}`; }
   });
 });
