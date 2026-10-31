@@ -19,6 +19,7 @@ for (const layout of [
     const createdAt = "2026-10-26T02:30:00.000Z";
     await db()`update clients set created_at=${createdAt} where id=${client.id}`;
     if (layout.completed) {
+      await db()`update clients set start_date='2026-11-09' where id=${client.id}`;
       const [account]=await db()`select id from client_accounts where client_id=${client.id}`;
       await db()`insert into payment_transactions(account_id,client_id,transaction_type,direction,amount,status,payment_method,idempotency_key) values(${account.id},${client.id},'payment','credit',150,'confirmed','cash',${randomUUID()})`;
       for(const item of POST_HIRE_ITEMS) await db()`insert into post_hire_items(client_id,item,status) values(${client.id},${item},'completed') on conflict(client_id,item) do update set status='completed'`;
@@ -55,6 +56,7 @@ for (const layout of [
       await expect(page.locator("article time")).toHaveAttribute("datetime", createdAt);
     }
     expect(errors).toEqual([]);
+    if (layout.completed) await expect(page.getByTestId("completed-start-date")).toHaveText(dateOnly("2026-11-09"));
     expect(prefetches).toEqual([]);
     expect(drawerRequests).toEqual([]);
 

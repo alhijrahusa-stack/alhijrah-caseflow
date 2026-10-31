@@ -3,6 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
+import { dateOnly } from "@/lib/format";
 import type { OperationalClientRow } from "@/lib/operational-clients";
 
 const Client360Drawer = dynamic(() => import("@/components/staff/Client360Drawer").then(module => module.Client360Drawer), {
@@ -43,7 +44,7 @@ export function ClientArchiveCards({ clients }: { clients: OperationalClientRow[
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 text-xs">
             <div><span className="text-slate-400">Received · الاستلام</span><time className="mt-1 block font-medium text-slate-100" dateTime={new Date(record.created_at).toISOString()}>{dateLabel(record.created_at)}</time></div>
             <div className="min-w-0"><span className="text-slate-400">Assigned to</span><p className="mt-1 truncate text-slate-100">{record.assigned_name ?? "Unassigned"}</p></div>
-            <div><span className="text-slate-400">Completion / Start</span><p className="mt-1 text-slate-100">{record.start_date ? dateLabel(record.start_date) : "Not confirmed"}</p></div>
+            <div><span className="text-slate-400">Completion / Start</span><p data-testid="completed-start-date" className="mt-1 text-slate-100">{record.start_date ? dateOnly(record.start_date) : "Not confirmed"}</p></div>
             <div className="min-w-0"><span className="text-slate-400">Location</span><p className="mt-1 truncate text-slate-100">{record.site_name ?? "—"}</p></div>
           </div>
           <div className="mt-3 flex items-center gap-2">
