@@ -291,7 +291,7 @@ describe("transactional appointment notification and reminder outbox", () => {
     const client = await makeClient("TEST Notification Profile");
     const instant = new Date(Date.now() + 56 * 86_400_000).toISOString();
     const created = await act("manager", {
-      action:"schedule_appointment",client_id:client.id,appointment_type:"Employment interview",
+      action:"schedule_appointment",client_id:client.id,appointment_type:"Office intake",
       lifecycle_interview:false,approve_booking:true,scheduled_at:instant,duration_minutes:30,
       resource_key:"office",location:"Romulus (DTW1): Amazon Fulfillment Center - 32801 Ecorse Rd, Romulus, MI 48174",notes:null,
     });
@@ -322,7 +322,7 @@ describe("transactional appointment notification and reminder outbox", () => {
     const client = await makeClient("TEST Appointment Resource");
     const start = new Date(Date.now()+63*86_400_000).toISOString();
     const created = await act("manager", {
-      action:"schedule_appointment",client_id:client.id,appointment_type:"Employment interview",
+      action:"schedule_appointment",client_id:client.id,appointment_type:"Office intake",
       approve_booking:true,scheduled_at:start,duration_minutes:30,
       resource_key:`staff:${sessions.manager.staff.id}`,location:"DTW1 test address",notes:null,
     });
@@ -706,5 +706,18 @@ describe("event-driven workflow completion",()=>{
     }
     expect(summary.priorities.length).toBeLessThanOrEqual(5);
     expect(summary.team.every(member=>!("email" in member))).toBe(true);
+  });
+});
+
+
+describe("interview-purpose workflow binding",()=>{
+  it("does not let an unchecked lifecycle flag create a disconnected pre-hire interview",async()=>{
+    const client=await makeClient("TEST Interview Purpose");
+    const appointment={action:"schedule_appointment" as const,client_id:client.id,appointment_type:"Pre-hire appointment",lifecycle_interview:false,approve_booking:false,scheduled_at:new Date(Date.now()+90*86400000).toISOString(),duration_minutes:30,resource_key:"office",location:"Office",notes:null};
+    await expect(act("manager",appointment)).rejects.toMatchObject({code:"lifecycle_conflict"});
+    await act("admin",{action:"override_status",client_id:client.id,status:"appointment_required",reason:"Verified Job Ready fixture",next_step:null});
+    const result=await act("manager",appointment);
+    expect((await db`select appointment_kind from appointments where id=${String(result.appointment_id)}`)[0].appointment_kind).toBe("employment_interview");
+    expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe("appointment_scheduled");
   });
 });

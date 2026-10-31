@@ -176,6 +176,7 @@ test.describe.serial("office workflow", () => {
     }
     await page.reload();
     await page.getByTestId("quick-actions").getByRole("button", { name: "Add Appointment" }).click();
+    await page.getByLabel("Appointment type",{exact:true}).fill("Office intake");
     const locationPicker = page.getByRole("button", { name: /اختيار موقع مستودع أمازون/ });
     await locationPicker.click();
     const picker = page.getByRole("dialog", { name: "Amazon warehouse location picker" });

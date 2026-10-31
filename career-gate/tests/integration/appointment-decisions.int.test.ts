@@ -143,7 +143,7 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     const paymentAgain = await operationalClientList(admin,"active",1,25,{stage:"payment_required",q:String(original.ref)});
     expect(paymentAgain.rows.map(row=>row.id)).toContain(clientId);
     const paperworkAfterRefund=await operationalClientList(admin,"active",1,25,{stage:"paperwork_pending",q:String(original.ref)});
-    expect(paperworkAfterRefund.rows.map(row=>row.id)).not.toContain(clientId);
+    expect(paperworkAfterRefund.rows.map(row=>row.id)).toContain(clientId);
     const audits = await db`select action from activity_log where client_id=${clientId}
       and action in ('status_changed','pipeline_stage_changed') order by created_at desc`;
     expect(audits.some(r=>r.action==="pipeline_stage_changed")).toBe(true);

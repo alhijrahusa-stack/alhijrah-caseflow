@@ -25,7 +25,7 @@ const Input = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("move_stage"), client_id: id, stage }),
   z.object({ operation: z.literal("request_transfer"), client_id: id, requested_owner: id.nullable().optional(), reason: z.string().trim().max(500).nullable().optional() }),
   z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable().optional(), target_stage: z.string().refine(isClientStageFilter).optional(), reason: z.string().trim().min(3).max(500).optional() }),
-  z.object({ operation: z.literal("reconcile_workflow"), client_id: id, reason: z.string().trim().min(3).max(500) }),
+  z.object({ operation: z.literal("reconcile_workflow"), client_id: id, reason: z.string().trim().min(3).max(500), complete_only:z.boolean().default(false) }),
   z.object({ operation: z.literal("reassign_client"), client_id: id, staff_id: id.nullable(), task_ids: z.array(id).max(100).default([]), reason: z.string().trim().max(500).nullable().optional() }),
   z.object({ operation: z.literal("confirm_started"), client_id: id, start_date: date }),
   z.object({ operation: z.literal("set_round_robin"), enabled: z.boolean() }),
@@ -93,6 +93,12 @@ export async function POST(req: Request) {
         if (!management(session.staff.role)) throw new Error("FORBIDDEN");
         const [client] = await tx`select id from clients where id=${input.client_id} and deleted_at is null for update`;
         if (!client) throw new Error("CLIENT_NOT_ACCESSIBLE");
+        if(input.complete_only){
+          const [evidence]=await tx`select career_gate_private.post_hire_complete(${input.client_id}) paperwork_complete,
+            exists(select 1 from client_account_balances b where b.client_id=${input.client_id} and b.payment_status='paid') payment_verified`;
+          if(!evidence.paperwork_complete||!evidence.payment_verified)
+            throw new LifecycleRoutingError("completion_required","إغلاق الملف يتطلب سداد الدفتر واكتمال جميع بنود ما بعد المقابلة");
+        }
         const [result] = await tx`select career_gate_private.reconcile_client_completion(${input.client_id}) changed`;
         await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,new_value,trace_id)
           values(${input.client_id},'client_updated',${session.staff.id},'client',${input.client_id},

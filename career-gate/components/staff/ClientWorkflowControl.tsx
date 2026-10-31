@@ -21,7 +21,7 @@ export function ClientWorkflowControl({ clientId, status, management, compact=fa
     setBusy(true);setMessage("");setFailed(false);
     try {
       const body=target==="completed"||target==="reconcile"
-        ? {operation:"reconcile_workflow",client_id:clientId,reason:reason.trim()}
+        ? {operation:"reconcile_workflow",client_id:clientId,reason:reason.trim(),complete_only:target==="completed"}
         : {operation:"bulk_assign",client_ids:[clientId],target_stage:target,reason:reason.trim()};
       const response=await fetch("/api/staff/operations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
       const data=await response.json().catch(()=>null);
