@@ -721,3 +721,23 @@ describe("interview-purpose workflow binding",()=>{
     expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe("appointment_scheduled");
   });
 });
+
+
+describe("recorded macro-stage waiting time",()=>{
+  it("does not reset the account-stage clock when an internal assessment status changes",async()=>{
+    await makeStaff('waitClock','staff');
+    const client=await makeClient('TEST Recorded Stage Clock',{assigned:sessions.waitClock.staff.id});
+    await db.begin(async tx=>{
+      await tx`select set_config('cg.status_override','Wait-clock fixture',true)`;
+      await tx`update clients set current_status='assessment_required' where id=${client.id}`;
+      await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,created_at)
+        values(${client.id},'status_changed',${sessions.admin.staff.id},'client',${client.id},${tx.json({status:'new_intake'})},${tx.json({status:'ready_to_apply'})},now()-interval '20 days'),
+        (${client.id},'status_changed',${sessions.admin.staff.id},'client',${client.id},${tx.json({status:'ready_to_apply'})},${tx.json({status:'assessment_required'})},now()-interval '1 day')`;
+    });
+    const summary=await executiveSummary(sessions.waitClock);
+    const account=summary.stages.find(stage=>stage.id==='account')!;
+    expect(account.total).toBe(1);
+    expect(account.wait_hours).toBeGreaterThanOrEqual(480);
+    expect(account.wait_hours).toBeLessThan(481);
+  });
+});

@@ -16,17 +16,25 @@ export type ExecutiveSummary = {
   health:{status:"HEALTHY"|"DEGRADED"|"FAILED";db_ms:number;dead_jobs:number;failed_deliveries:number}|null;
 };
 
+const STAGE_BY_STATUS=Object.fromEntries(G3_STAGES.flatMap(stage=>stage.statuses.map(status=>[status,stage.id])));
+
 export const executiveSummary=cache(async(session:StaffSession):Promise<ExecutiveSummary>=>{
   const [operational,team,system]=await Promise.all([
     withStaff(session,async tx=>{
       await tx`select set_config('statement_timeout','6500',true)`;
       const [groups,[totals],priorities]=await Promise.all([
-        tx`select c.current_status status,count(*)::int total,
-          sum(extract(epoch from(now()-coalesce(last_entry.entered_at,c.created_at)))/3600)::numeric age_hours
-          from clients c left join lateral (
+        tx`with stage_map as(select ${tx.json(STAGE_BY_STATUS)}::jsonb mapping), ages as(
+          select c.current_status,coalesce(last_entry.entered_at,
+            case when c.current_status in('new_intake','needs_review') then c.created_at end) entered_at
+          from clients c cross join stage_map m left join lateral (
             select max(l.created_at) entered_at from activity_log l where l.client_id=c.id
-              and l.action in ('status_changed','status_overridden') and l.new_value->>'status'=c.current_status
-          ) last_entry on true where c.deleted_at is null and c.current_status<>'cancelled' group by c.current_status`,
+              and l.action in ('status_changed','status_overridden')
+              and m.mapping->>(l.new_value->>'status')=m.mapping->>c.current_status
+              and m.mapping->>(l.old_value->>'status') is distinct from m.mapping->>(l.new_value->>'status')
+          ) last_entry on true where c.deleted_at is null and c.current_status<>'cancelled')
+          select current_status status,count(*)::int total,count(entered_at)::int age_count,
+            sum(extract(epoch from(now()-entered_at))/3600)::numeric age_hours
+          from ages group by current_status`,
         tx`with live as(select id,current_status from clients where deleted_at is null and current_status<>'cancelled'),
           last_outcome as(select distinct on(o.client_id) o.client_id,o.decision from appointment_outcomes o
             join live c on c.id=o.client_id order by o.client_id,o.recorded_at desc,o.appointment_id desc)
@@ -80,8 +88,9 @@ export const executiveSummary=cache(async(session:StaffSession):Promise<Executiv
     stages:G3_STAGES.map(stage=>{
       const groups=operational.groups.filter(group=>(stage.statuses as readonly string[]).includes(String(group.status)));
       const total=groups.reduce((sum,group)=>sum+n(group.total),0);
+      const timed=groups.reduce((sum,group)=>sum+n(group.age_count),0);
       return {id:stage.id,label:stage.label,labelAr:stage.labelAr,href:stage.href,total,
-        wait_hours:total?groups.reduce((sum,group)=>sum+n(group.age_hours),0)/total:null};
+        wait_hours:timed?groups.reduce((sum,group)=>sum+n(group.age_hours),0)/timed:null};
     }),
     queues:{overdue_tasks:n(totals.overdue_tasks),overdue_followups:n(totals.overdue_followups),unassigned_clients:n(totals.unassigned_clients),completed_this_month:n(totals.completed_this_month)},
     revenue_pending:n(totals.revenue_pending),document_blockers:n(totals.document_blockers),
