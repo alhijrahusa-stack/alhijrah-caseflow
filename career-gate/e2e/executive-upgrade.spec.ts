@@ -24,7 +24,7 @@ test.describe("executive staff upgrade acceptance", () => {
       ["/staff/staff?tab=assignments", /^Assignments$/i],
       ["/staff/staff?tab=activity", /Operational Activity/i],
       ["/staff/reports", /^Reports$/i],
-      ["/staff/accounting", /Accounting/i],
+      ["/staff/accounting", /^Accounts & Commissions$/i],
       ["/staff/import", /SMART CAREER COLLECT CLIENT/i],
       ["/staff/settings/availability", /Office Availability/i],
     ];
