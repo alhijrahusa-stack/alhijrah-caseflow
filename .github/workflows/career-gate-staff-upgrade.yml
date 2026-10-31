@@ -45,6 +45,7 @@ jobs:
         run: >-
           ./e2e/run.sh
           e2e/executive-upgrade.spec.ts e2e/client-registry-navigation.spec.ts
+          e2e/client-lifecycle-routing.spec.ts e2e/field-ux.spec.ts e2e/staff-intelligence.spec.ts
           e2e/royal-dropdown.spec.ts e2e/staff-language.spec.ts
           e2e/manager-inbox.spec.ts e2e/registry-experience.spec.ts
           e2e/operational-assistant.spec.ts e2e/royal-routing-guards.spec.ts

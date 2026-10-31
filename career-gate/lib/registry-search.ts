@@ -1,13 +1,13 @@
 import "server-only";
 import type { Tx } from "@/lib/auth";
-import { normalizeRegistrySearch } from "@/lib/registry-filters";
+import { normalizeRegistrySearch, registryPhoneSearchDigits } from "@/lib/registry-filters";
 
 /** The caller must already scope alias c through withStaff/RLS and lifecycle filters. */
 export function registrySearchPredicate(tx: Tx, query: string) {
   const normalized = normalizeRegistrySearch(query.trim());
   const like = `%${normalized.replace(/[\\%_]/g, m => `\\${m}`)}%`;
   const rawLike = `%${query.trim().replace(/[\\%_]/g, m => `\\${m}`)}%`;
-  const digits = query.replace(/\D/g, "");
+  const digits = registryPhoneSearchDigits(query);
   // Codes, phone numbers and emails use exact substring matching, never fuzzy identity matching.
   const fuzzy = normalized.length >= 4 && /^[\p{L}\s]+$/u.test(normalized);
   return tx`(c.ref ilike ${rawLike} or c.email ilike ${rawLike}

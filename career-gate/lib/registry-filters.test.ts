@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeRegistrySearch, parseRegistryFilters, registryFilterValues, registryHighlightParts, registryPageNumbers } from "@/lib/registry-filters";
+import { normalizeRegistrySearch, parseRegistryFilters, registryFilterValues, registryHighlightParts, registryPageNumbers, registryPhoneSearchDigits } from "@/lib/registry-filters";
 
 describe("registry filter contract",()=>{
   it("keeps the default reception scope identical for list and export; ignores unsupported role filters",()=>{
@@ -12,11 +12,27 @@ describe("registry filter contract",()=>{
     expect(registryFilterValues(new URLSearchParams("view=all&assigned=anything&page=4&sql=drop&q=Ahmed&status=bogus"),true)).toEqual({view:"all",q:"Ahmed"});
     expect(parseRegistryFilters(new URLSearchParams("page=NaN"),true).page).toBe(1);
     expect(parseRegistryFilters(new URLSearchParams("page=-1"),true).page).toBe(1);
-    expect(parseRegistryFilters(new URLSearchParams("page=9007199254740999"),true).page).toBe(1);
+    expect(parseRegistryFilters(new URLSearchParams("page=1.5"),true).page).toBe(1);
+    expect(parseRegistryFilters(new URLSearchParams("page=1e5"),true).page).toBe(1);
+  });
+  it("preserves very large positive stale pages for clamping by the actual server result count",()=>{
+    expect(parseRegistryFilters(new URLSearchParams("page=9007199254740999"),true).page).toBe(Number.MAX_SAFE_INTEGER);
+    expect(parseRegistryFilters(new URLSearchParams(`page=${"9".repeat(400)}`),true).page).toBe(Number.MAX_SAFE_INTEGER);
+    expect(parseRegistryFilters(new URLSearchParams("page=99999"),true).page).toBe(99999);
   });
 });
 
 describe("multilingual search highlighting",()=>{
+  it("searches digits as a phone only for phone-shaped input, never mixed names, references or emails",()=>{
+    expect(registryPhoneSearchDigits("RegistryUX-mabc313xyz")).toBe("");
+    expect(registryPhoneSearchDigits("Candidate 6401")).toBe("");
+    expect(registryPhoneSearchDigits("CG-2026-000207")).toBe("");
+    expect(registryPhoneSearchDigits("client313@example.com")).toBe("");
+    expect(registryPhoneSearchDigits("+1 (313) 555-6401")).toBe("13135556401");
+    expect(registryPhoneSearchDigits("555.6401")).toBe("5556401");
+    expect(registryPhoneSearchDigits("313")).toBe("313");
+    expect(registryPhoneSearchDigits("31")).toBe("");
+  });
   it("normalizes Arabic diacritics and alef/ya variants while retaining the actual displayed text",()=>{
     const name="أَحْمَد مصطفى";
     expect(normalizeRegistrySearch(name)).toBe("احمد مصطفي");

@@ -53,7 +53,7 @@ test("mobile navigation and language controls stay usable in both directions", a
   await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Open navigation", exact: true }).click();
   await expect(page.getByRole("complementary", { name: "Executive navigation" })).toBeVisible();
-  await page.getByRole("button", { name: "Close navigation", exact: true }).click();
+  await page.getByRole("complementary", { name: "Executive navigation" }).getByRole("button", { name: "Close navigation", exact: true }).click();
   await expect(page.getByRole("complementary", { name: "Executive navigation" })).not.toBeVisible();
   await page.getByTestId("staff-language-toggle").click();
   await page.getByRole("button", { name: "فتح قائمة الأقسام", exact: true }).click();

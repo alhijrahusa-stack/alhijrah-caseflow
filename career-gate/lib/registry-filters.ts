@@ -19,8 +19,11 @@ export function parseRegistryFilters(params: URLSearchParams, management: boolea
     !requested && !status && !attention && !assigned ? "new_intake" : undefined;
   const view = stage === "completed" ? "completed" : (stage || attention || assigned === "none") ? "active" :
     requested === "all" || requested === "completed" ? requested : "active";
-  const rawPage = Number(params.get("page") ?? "1");
-  const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+  const rawPage = params.get("page") ?? "1";
+  // A stale positive page, even above JS's safe integer range, clamps to the
+  // last actual server page. Malformed, fractional and non-positive values reset.
+  const numericPage = /^\d+$/.test(rawPage) ? Number(rawPage) : 0;
+  const page = numericPage > 0 ? Math.min(numericPage, Number.MAX_SAFE_INTEGER) : 1;
   return { view, page, q: params.get("q")?.trim().slice(0, 100) || undefined, status,
     stage: isClientStageFilter(stage) ? stage : undefined, assigned, attention,
     completedThisMonth: params.get("completed_this_month") === "1" } as const;
@@ -35,6 +38,14 @@ export function registryFilterValues(params: URLSearchParams, management: boolea
 
 export function normalizeRegistrySearch(value: string) {
   return value.toLowerCase().replace(/[أإآٱ]/g, "ا").replace(/ى/g, "ي").replace(/[\u0640\u064B-\u065F\u0670\u06D6-\u06ED]/g, "");
+}
+
+/** Names, references and email addresses containing digits are not phone queries. */
+export function registryPhoneSearchDigits(value: string) {
+  const query=value.trim();
+  if(!/^[+\d\s().-]+$/.test(query))return "";
+  const digits=query.replace(/\D/g, "");
+  return digits.length>=3?digits:"";
 }
 
 /** Keep original text boundaries when Arabic diacritics are removed for highlighting. */

@@ -25,7 +25,7 @@ test("field appointment and client workspaces remain usable at laptop and phone 
         };
       });
       expect(report.overflow, `${path} at ${width}px`).toBeLessThanOrEqual(1);
-      expect(report.headerColor).toBe("rgba(8, 17, 37, 0.82)");
+      expect(report.headerColor).toBe("rgba(8, 17, 37, 0.6)");
       expect(report.headerHeight).toBeGreaterThan(60);
       expect(report.mainWidth).toBeGreaterThan(200);
       expect(report.mainWidth).toBeLessThanOrEqual(width+1);

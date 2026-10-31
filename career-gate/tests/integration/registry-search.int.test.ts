@@ -5,6 +5,7 @@ import { withStaff, type StaffSession } from "@/lib/auth";
 import { operationalClientList } from "@/lib/operational-clients";
 import { ProfileSchema } from "@/lib/schemas";
 import { insertClient } from "@/lib/service";
+import { parseRegistryFilters } from "@/lib/registry-filters";
 
 const db=postgres(process.env.DATABASE_URL!,{prepare:false,max:1});
 const tag=randomUUID().slice(0,8);
@@ -23,6 +24,15 @@ beforeAll(async()=>{admin=await makeStaff("admin","admin");owner=await makeStaff
 afterAll(async()=>{await db.end();});
 
 describe("indexed multilingual canonical registry",()=>{
+  it("does not return an unrelated phone when a mixed name/reference query contains those digits",async()=>{
+    const item=await client(`TEST Registry Literal Name ${tag}`);
+    const [record]=await db`select phone from clients where id=${item.id}`;
+    const suffix=String(record.phone).slice(-4);
+    expect((await operationalClientList(owner,"active",1,10,{q:`REGISTRY-NO-SUCH-NAME-${suffix}`,stage:"new_intake"})).total).toBe(0);
+    const phone=String(record.phone);
+    const formatted=`(${phone.slice(0,3)}) ${phone.slice(3,6)}-${phone.slice(6)}`;
+    expect((await operationalClientList(owner,"active",1,10,{q:formatted,stage:"new_intake"})).rows.map(row=>row.id)).toContain(item.id);
+  });
   it("matches Arabic alef/diacritics and a misspelled English name without widening staff scope",async()=>{
     const arabic=await client(`TEST ${tag} أَحْمَد المري`);
     const english=await client(`TEST ${tag} Zebramontgomery`);
@@ -52,7 +62,8 @@ describe("indexed multilingual canonical registry",()=>{
     const search=`RegistryPage-${tag}`;
     for(let index=0;index<13;index++)await client(`TEST ${search} ${index}`);
     const first=await operationalClientList(owner,"active",1,10,{q:search,stage:"new_intake"});
-    const last=await operationalClientList(owner,"active",99,10,{q:search,stage:"new_intake"});
+    const stalePage=parseRegistryFilters(new URLSearchParams("page=999999999999999999999"),true).page;
+    const last=await operationalClientList(owner,"active",stalePage,10,{q:search,stage:"new_intake"});
     expect(first.total).toBe(13);expect(first.rows).toHaveLength(10);expect(last.rows).toHaveLength(3);expect(last.page).toBe(2);
     expect(new Set([...first.rows,...last.rows].map(row=>row.id)).size).toBe(13);
   });

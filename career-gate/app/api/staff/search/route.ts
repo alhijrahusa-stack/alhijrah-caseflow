@@ -3,6 +3,7 @@ import { ACCOUNT_NET_FEE } from "@/lib/accounting-schema";
 import { ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { registrySearchPredicate } from "@/lib/registry-search";
+import { registryPhoneSearchDigits } from "@/lib/registry-filters";
 import { staffGuard } from "@/lib/staff-api";
 
 export const runtime = "nodejs";
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
   if (g.response) return g.response;
   const q = (new URL(req.url).searchParams.get("q") ?? "").trim().slice(0, 100);
   if (q.length < 2) return ok({ results: [] });
-  const digits = q.replace(/\D/g, "");
+  const digits = registryPhoneSearchDigits(q);
   const results = await withStaff(g.session, async (tx) => {
     await tx`select set_config('pg_trgm.word_similarity_threshold','0.45',true),set_config('statement_timeout','5000',true)`;
     return tx`

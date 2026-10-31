@@ -43,8 +43,16 @@ test("dashboard stations route into one canonical clients registry with safe act
     await open.click();
     const drawer = page.getByRole("dialog", { name: /Client 360:/ });
     await expect(drawer).toBeVisible();
-    const width = await drawer.evaluate(element => element.getBoundingClientRect().width);
-    expect(width).toBeLessThanOrEqual(505);
+    const viewport = page.viewportSize()!;
+    // Client 360 now uses the shared review drawer: a 620px desktop panel
+    // inside an 18px viewport inset. Wider document previews are separate.
+    await expect(async () => {
+      const bounds = await drawer.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.width).toBeCloseTo(Math.min(620, viewport.width - 36), 0);
+      expect(bounds!.x).toBeGreaterThanOrEqual(18);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width - 18);
+    }).toPass({ timeout: 3000 });
     await page.getByRole("button", { name: "Close Client 360" }).click();
   }
   await context.close();

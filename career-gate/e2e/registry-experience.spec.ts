@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { parseXlsx } from "../lib/intake-file";
 import { accessToken, db, intakeBody, RUN, signIn, submitIntake } from "./helpers";
 
+// Keep the mixed alphanumeric marker: its digits must never broaden a name
+// search into unrelated phone matches elsewhere in the full shared-fixture suite.
 const tag=`RegistryUX-${RUN}`;
 const fixtures:{id:string;ref:string;name:string}[]=[];
 
