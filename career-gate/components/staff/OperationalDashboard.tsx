@@ -9,7 +9,7 @@ import type { DashboardCommandData } from "@/lib/operational-dashboard";
 function Kpi({label,value,href,tone="neutral",detail}:{label:string;value:ReactNode;href?:string;tone?:"neutral"|"warn"|"danger"|"good";detail?:string}){
   const cls=tone==="danger"?"text-red-300":tone==="warn"?"text-amber-300":tone==="good"?"text-emerald-300":"text-slate-100";
   const body=<div className="staff-kpi rounded-2xl p-4"><p className="text-sm text-slate-400">{label}</p><p className={`mt-2 text-3xl font-semibold tabular-nums ${cls}`}>{value}</p>{detail&&<p className="mt-1 text-xs text-slate-500">{detail}</p>}</div>;
-  return href?<Link href={href} className="block transition hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">{body}</Link>:body;
+  return href?<Link prefetch={false} href={href} className="block transition hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">{body}</Link>:body;
 }
 
 function Money({value}:{value:number}){
@@ -17,7 +17,7 @@ function Money({value}:{value:number}){
 }
 
 function SectionTitle({title,subtitle,href,label}:{title:string;subtitle:string;href?:string;label?:string}){
-  return <div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="text-xl font-semibold text-slate-100">{title}</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p></div>{href&&<Link href={href} className="text-sm font-medium text-amber-200 hover:text-amber-100">{label??"Open"}</Link>}</div>;
+  return <div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="text-xl font-semibold text-slate-100">{title}</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p></div>{href&&<Link prefetch={false} href={href} className="text-sm font-medium text-amber-200 hover:text-amber-100">{label??"Open"}</Link>}</div>;
 }
 
 export function OperationalDashboard({data}:{data:DashboardCommandData}){
@@ -31,9 +31,9 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
     </header>
 
     <section aria-label="Six-stage lifecycle" className="ops-glass-card overflow-hidden rounded-[26px] border border-amber-300/15 bg-gradient-to-br from-[#111f37]/85 to-[#081325]/95 p-4 shadow-[0_18px_45px_rgba(0,0,0,.22)] backdrop-blur-2xl sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="ops-kicker">ONE CLIENT · ONE WORKFLOW</p><h2 className="mt-1 text-lg font-semibold tracking-tight text-white">Six-stage operational flow / المسار الموحد</h2></div><Link href="/staff/pipeline" className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/20">Open pipeline</Link></div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="ops-kicker">ONE CLIENT · ONE WORKFLOW</p><h2 className="mt-1 text-lg font-semibold tracking-tight text-white">Six-stage operational flow / المسار الموحد</h2></div><Link prefetch={false} href="/staff/pipeline" className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/20">Open pipeline</Link></div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-        {g3Counts(data.pipeline).map((stage,index)=><Link key={stage.label} href={stage.href} className="group relative min-w-0 rounded-2xl border border-amber-200/25 bg-gradient-to-br from-[#183753] to-[#071727] px-3 py-3.5 shadow-[inset_0_1px_rgba(255,255,255,.07)] transition-colors duration-150 hover:border-amber-200/65 hover:from-[#244562] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
+        {g3Counts(data.pipeline).map((stage,index)=><Link prefetch={false} key={stage.label} href={stage.href} className="group relative min-w-0 rounded-2xl border border-amber-200/25 bg-gradient-to-br from-[#183753] to-[#071727] px-3 py-3.5 shadow-[inset_0_1px_rgba(255,255,255,.07)] transition-colors duration-150 hover:border-amber-200/65 hover:from-[#244562] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
           <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/35 to-transparent"/>
           <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{String(index + 1).padStart(2,"0")} · {stage.label}</span><span aria-hidden="true" className="text-xs text-amber-200/70">{index<5?"›":"✓"}</span></div>
           <strong className="mt-3 block text-3xl font-semibold tabular-nums tracking-tight text-white">{data.lifecycle[stage.id]}</strong>
@@ -41,9 +41,9 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
         </Link>)}
       </div>
       <nav aria-label="Payment and paperwork queues" className="mt-3 flex flex-wrap gap-2">
-        <Link href="/staff/clients?stage=payment_required" className="cg-command-button">Payment Required · {data.payment_pending}</Link>
-        <Link href="/staff/clients?stage=paperwork_pending" className="cg-command-button">Paperwork Pending · {data.paperwork_pending}</Link>
-        <Link href="/staff/clients?view=all" className="cg-command-button">Clients Master Registry ↗</Link>
+        <Link prefetch={false} href="/staff/clients?stage=payment_required" className="cg-command-button">Payment Required · {data.payment_pending}</Link>
+        <Link prefetch={false} href="/staff/clients?stage=paperwork_pending" className="cg-command-button">Paperwork Pending · {data.paperwork_pending}</Link>
+        <Link prefetch={false} href="/staff/clients?view=all" className="cg-command-button">Clients Master Registry ↗</Link>
       </nav>
     </section>
 
@@ -61,7 +61,7 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
 
     <section aria-labelledby="today-heading">
       <SectionTitle title="Today" subtitle="Immediate production workload." href="/staff/today" label="Open Today"/>
-      <div className="mb-3 text-right"><Link className="text-sm font-medium text-amber-200 hover:text-amber-100" href="/staff/week">Open This Week →</Link></div>
+      <div className="mb-3 text-right"><Link prefetch={false} className="text-sm font-medium text-amber-200 hover:text-amber-100" href="/staff/week">Open This Week →</Link></div>
       <h2 id="today-heading" className="sr-only">Today&apos;s workload</h2>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi label="New Clients" value={data.new_clients} href="/staff/clients?status=new_intake"/>
@@ -96,7 +96,7 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
     <section className="ops-glass-card">
       <SectionTitle title="Pipeline" subtitle="Active workload by authoritative workflow status." href="/staff/pipeline" label="Open Pipeline"/>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {data.pipeline.map((p)=><Link key={p.status} href={pipelineClientHref(p.status)} className="staff-glass flex items-center justify-between rounded-xl px-4 py-3 transition hover:border-amber-300/30"><span className="truncate text-sm text-slate-300">{STATUS_LABELS[p.status as Status]??p.status.replace(/_/g," ")}</span><strong className="ml-3 tabular-nums text-slate-100">{p.total}</strong></Link>)}
+        {data.pipeline.map((p)=><Link prefetch={false} key={p.status} href={pipelineClientHref(p.status)} className="staff-glass flex items-center justify-between rounded-xl px-4 py-3 transition hover:border-amber-300/30"><span className="truncate text-sm text-slate-300">{STATUS_LABELS[p.status as Status]??p.status.replace(/_/g," ")}</span><strong className="ml-3 tabular-nums text-slate-100">{p.total}</strong></Link>)}
       </div>
     </section>
 
@@ -104,7 +104,7 @@ export function OperationalDashboard({data}:{data:DashboardCommandData}){
       <div className="ops-glass-card">
         <SectionTitle title="Team Workload" subtitle="Active files and due-work pressure." href="/staff/staff?tab=team" label="View Team"/>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {activeMembers.map((member)=><Link key={member.id} href={`/staff/staff?tab=team&member=${member.id}`} className="staff-glass rounded-2xl p-4 transition hover:-translate-y-px hover:border-amber-300/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">
+          {activeMembers.map((member)=><Link prefetch={false} key={member.id} href={`/staff/staff?tab=team&member=${member.id}`} className="staff-glass rounded-2xl p-4 transition hover:-translate-y-px hover:border-amber-300/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">
             <div className="flex items-center justify-between gap-3"><strong className="truncate text-base text-slate-100">{member.display_name}</strong><span className="rounded-full border border-white/10 px-2 py-1 text-xs uppercase text-slate-400">{member.role}</span></div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-center"><div><b className="block text-xl tabular-nums text-slate-100">{member.active_clients}</b><span className="text-xs text-slate-500">files</span></div><div><b className="block text-xl tabular-nums text-slate-100">{member.open_tasks}</b><span className="text-xs text-slate-500">tasks</span></div><div><b className={`block text-xl tabular-nums ${member.overdue_tasks?"text-red-300":"text-slate-100"}`}>{member.overdue_tasks}</b><span className="text-xs text-slate-500">overdue</span></div></div>
             <div className="mt-3 space-y-1.5 text-sm text-slate-400">{member.sites.slice(0,3).map((site)=><div key={`${site.site_code}-${site.shift_code}`} className="flex justify-between gap-3"><span className="truncate">{site.site_name} · {site.shift_name}</span><b className="tabular-nums text-slate-200">{site.total}</b></div>)}</div>
