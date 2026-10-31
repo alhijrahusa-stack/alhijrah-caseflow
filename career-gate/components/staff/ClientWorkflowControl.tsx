@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { CLIENT_STAGES } from "@/lib/client-lifecycle-filters";
 import { g3StageForStatus } from "@/lib/g3-stages";
 import { useTargetedMutationBatch } from "@/components/staff/realtime/useTargetedMutation";
@@ -13,7 +12,6 @@ export function ClientWorkflowControl({ clientId, status, management, compact=fa
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
   const [failed,setFailed]=useState(false);
-  const router=useRouter();
   const changed=useTargetedMutationBatch();
   if (!management) return null;
   async function submit() {
@@ -27,7 +25,7 @@ export function ClientWorkflowControl({ clientId, status, management, compact=fa
       const data=await response.json().catch(()=>null);
       if (!response.ok || !data?.ok) throw new Error(data?.error?.message??"تعذر تحديث المسار");
       setMessage(data.changed?"تم تحديث المسار وتسجيل العملية":"تم التحقق؛ لم تستوفِ الحالة انتقالًا إضافيًا");
-      changed("bulk_assign",[clientId]);router.refresh();
+      changed("bulk_assign",[clientId]);
     } catch(error) {setFailed(true);setMessage(error instanceof Error?error.message:"تعذر الاتصال");}
     finally {setBusy(false);}
   }

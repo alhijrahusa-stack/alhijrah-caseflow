@@ -208,7 +208,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
   test("appointment list reports real totals and clamps invalid page offsets", async () => {
     await page.goto("/staff/appointments?view=all&page=999999");
     await expect(page.getByRole("heading", { name: /Appointments/ })).toBeVisible();
-    const [count] = await db()`select count(*)::int as total from appointments a join clients c on c.id=a.client_id where c.deleted_at is null`;
+    const [count] = await db()`select count(*)::int as total from appointments a join clients c on c.id=a.client_id where c.deleted_at is null and c.current_status='appointment_scheduled' and not exists(select 1 from appointment_outcomes o where o.appointment_id=a.id)`;
     const total = Number(count.total);
     const pages = Math.max(1, Math.ceil(total / 25));
     await expect(page.locator(".ops-hero p").last()).toContainText(`${total} matching appointment`);

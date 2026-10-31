@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useExecutiveSummary } from "@/components/staff/ExecutiveShell";
 import { useStaff } from "@/components/staff/StaffContext";
 import { useTargetedMutationBatch } from "@/components/staff/realtime/useTargetedMutation";
@@ -17,7 +16,6 @@ export function OperationalDashboard(){
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
   const [failed,setFailed]=useState(false);
-  const router=useRouter();
   const changed=useTargetedMutationBatch();
   const team=[...data.team].sort((a,b)=>b.overdue_tasks-a.overdue_tasks||(b.active_clients+b.open_tasks)-(a.active_clients+a.open_tasks));
   const maximum=Math.max(1,...team.map(member=>member.active_clients+member.open_tasks));
@@ -28,7 +26,7 @@ export function OperationalDashboard(){
       const response=await fetch('/api/staff/operations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'reassign_client',client_id:clientId,staff_id:staffId,reason:'Assigned from Executive Command Center',task_ids:[]}),signal:AbortSignal.timeout(20000)});
       const body=await response.json().catch(()=>null);
       if(!response.ok||!body?.ok)throw new Error(body?.error?.message??'تعذر تعيين الملف');
-      setSelected(null);setMessage('تم تعيين الملف وتسجيل العملية');changed('reassign_client',[clientId]);router.refresh();
+      setSelected(null);setMessage('تم تعيين الملف وتسجيل العملية');changed('reassign_client',[clientId]);
     }catch(error){setFailed(true);setMessage(error instanceof Error?error.message:'تعذر الاتصال');}finally{setBusy(false);}
   }
   return <div className="royal-dashboard" dir="rtl">

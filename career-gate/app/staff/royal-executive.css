@@ -14,3 +14,5 @@
 .royal-client-rows .cg-registry-card:after{content:"";position:absolute;top:-1px;left:24px;right:24px;height:1px;background:linear-gradient(90deg,transparent,#d4af3755,transparent);pointer-events:none}
 
 .royal-sync-toast{position:fixed;left:85px;bottom:22px;z-index:55;max-width:calc(100vw - 115px);border:1px solid #37d6cb55;background:#10283df2;backdrop-filter:blur(20px);color:#a6efe2;box-shadow:0 10px 35px #0004;padding:13px 18px;border-radius:12px;font-size:12px;direction:rtl}
+
+html:has(.royal-shell),body:has(.royal-shell){overflow-x:clip}
