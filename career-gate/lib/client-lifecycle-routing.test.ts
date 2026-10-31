@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveLifecycleRoute, LifecycleRoutingError, type RoutingEvidence } from "@/lib/client-lifecycle-routing";
+import { resolveLifecycleRoute, type RoutingEvidence } from "@/lib/client-lifecycle-routing";
 
 const evidence: RoutingEvidence = {
   current_status: "new_intake",
@@ -11,9 +11,9 @@ const evidence: RoutingEvidence = {
 };
 
 describe("safe six-stage assignment and routing", () => {
-  it("keeps first intake canonical and requires approval to start Account Setup", () => {
+  it("routes reviewed intake into account setup without leaving the intake status unchanged", () => {
     expect(resolveLifecycleRoute("new_intake", evidence)).toMatchObject({ status: "new_intake", pipelineStage: "portal_intake" });
-    expect(() => resolveLifecycleRoute("account_setup", evidence)).toThrow(LifecycleRoutingError);
+    expect(resolveLifecycleRoute("account_setup", evidence)).toMatchObject({ status: "ready_to_apply", pipelineStage: "no_amazon_account" });
     expect(resolveLifecycleRoute("account_setup", { ...evidence, current_status: "ready_to_apply" })).toMatchObject({
       status: "ready_to_apply", pipelineStage: "no_amazon_account"
     });
@@ -30,8 +30,8 @@ describe("safe six-stage assignment and routing", () => {
     expect(resolveLifecycleRoute("job_ready", { ...candidate, documents_ready: true })).toMatchObject({
       status: "shift_selected", pipelineStage: "amazon_account_waiting_job"
     });
-    expect(() => resolveLifecycleRoute("job_ready", { ...candidate, current_status: "new_intake", documents_ready: true }))
-      .toThrow("Complete application");
+    expect(resolveLifecycleRoute("job_ready", { ...candidate, current_status: "new_intake", documents_ready: true }))
+      .toMatchObject({status:"shift_selected",transitionPath:["ready_to_apply","application_in_progress","shift_selected"]});
   });
 
   it("cannot fake an interview appointment from a bulk command", () => {
@@ -52,9 +52,10 @@ describe("safe six-stage assignment and routing", () => {
       .toThrow("recorded Pass");
   });
 
-  it("requires actual ledger payment before paperwork, then follows a legal transition", () => {
+  it("allows passed clients to prepare paperwork alongside payment, then follows a legal transition", () => {
     const candidate = { ...evidence, current_status: "pre_hire_completed", interview_passed: true };
-    expect(() => resolveLifecycleRoute("paperwork_pending", candidate)).toThrow("verified paid ledger");
+    expect(resolveLifecycleRoute("paperwork_pending", candidate)).toMatchObject({ status: "screening_pending", pipelineStage: "post_interview_completion" });
+    expect(() => resolveLifecycleRoute("paperwork_pending", {...candidate, interview_passed:false})).toThrow("recorded Pass");
     expect(resolveLifecycleRoute("paperwork_pending", { ...candidate, payment_verified: true })).toMatchObject({
       status: "screening_pending", pipelineStage: "post_interview_completion"
     });
@@ -69,3 +70,12 @@ describe("safe six-stage assignment and routing", () => {
     }
   });
 });
+
+ describe("completion evidence",()=>{
+  it("requires both a verified ledger and completed paperwork for manual completion",()=>{
+    const candidate={...evidence,current_status:"ready_for_first_day",paperwork_complete:true};
+    expect(()=>resolveLifecycleRoute("completed",candidate)).toThrow("Verify payment");
+    expect(()=>resolveLifecycleRoute("completed",{...candidate,payment_verified:true,paperwork_complete:false})).toThrow("Verify payment");
+    expect(resolveLifecycleRoute("completed",{...candidate,payment_verified:true})).toMatchObject({status:"completed",pipelineStage:"completed_files"});
+  });
+ });

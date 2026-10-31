@@ -65,7 +65,7 @@ test.describe("executive staff upgrade acceptance", () => {
 
     await page.goto("/staff/clients");
     const current = page.locator('.staff-nav-link[aria-current="page"]');
-    await expect(current).toHaveText("Clients");
+    await expect(current).toHaveAttribute("aria-label", "Clients");
     await expect(current).toHaveCSS("font-weight", "600");
     const navMetrics = await current.evaluate((el) => {
       const s = getComputedStyle(el);

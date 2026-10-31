@@ -20,10 +20,10 @@ export function CommandPalette() {
   const pages: Item[] = useMemo(() => [
     { id: "p-dash", label: "Dashboard", href: "/staff" },
     { id: "p-pipeline", label: "Pipeline", href: "/staff/pipeline" },
-    { id: "p-clients", label: "Clients", href: "/staff/clients?view=active" },
+    { id: "p-clients", label: "Clients · الاستقبال", href: "/staff/clients" },
     { id: "p-completed", label: "Completed clients", href: "/staff/clients?view=completed" },
     { id: "p-appt", label: "Appointments", href: "/staff/appointments" },
-    { id: "p-tasks", label: "Tasks", href: "/staff/tasks" },
+    { id: "p-tasks", label: "Tasks · المهام والمتأخرات", href: "/staff/tasks?view=overdue" },
     { id: "p-fu", label: "Follow-ups", href: "/staff/follow-ups" },
     { id: "p-team", label: "Staff · Team", href: "/staff/staff?tab=team" },
     ...(isManager ? [
@@ -47,8 +47,10 @@ export function CommandPalette() {
         setOpen((o) => !o);
       }
     };
+    const onOpen = () => { opener.current = document.activeElement as HTMLElement; setOpen(true); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("career-gate:open-command", onOpen);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("career-gate:open-command", onOpen); };
   }, []);
 
   useEffect(() => {

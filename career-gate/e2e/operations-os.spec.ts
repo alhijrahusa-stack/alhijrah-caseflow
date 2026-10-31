@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { accessToken, db, intakeBody, STAFF, submitIntake, uniqueIp } from "./helpers";
+import { accessToken, passedInterviewFixture, db, intakeBody, STAFF, submitIntake, uniqueIp } from "./helpers";
 
 async function postStaff(request: APIRequestContext, role: keyof typeof STAFF, path: string, data: Record<string, unknown>) {
   const res = await request.post(path, {
@@ -36,10 +36,7 @@ test.describe.serial("Career Gate Operations OS core", () => {
     });
     expect(comp.status, JSON.stringify(comp.json)).toBe(200);
 
-    const stage = await postStaff(request, "admin", "/api/staff/operations", {
-      operation: "move_stage", client_id: clientId, stage: "interview_passed",
-    });
-    expect(stage.status, JSON.stringify(stage.json)).toBe(200);
+    await passedInterviewFixture(request,clientId);
     const [account] = await db()`select id from client_accounts where client_id=${clientId}`;
     expect(account?.id).toBeTruthy();
   });
@@ -254,10 +251,7 @@ test.describe.serial("Career Gate Operations OS core", () => {
     expect(fresh.res.status(), JSON.stringify(fresh.json)).toBe(201);
     const [waiverClient] = await db()`select id from clients where ref=${fresh.json.ref}`;
     const waiverClientId = waiverClient.id as string;
-    const stage = await postStaff(request, "admin", "/api/staff/operations", {
-      operation: "move_stage", client_id: waiverClientId, stage: "interview_passed",
-    });
-    expect(stage.status, JSON.stringify(stage.json)).toBe(200);
+    await passedInterviewFixture(request,waiverClientId);
 
     const waived = await postStaff(request, "manager", "/api/staff/accounting", {
       operation: "record_transaction", client_id: waiverClientId, transaction_type: "waiver", direction: "credit",

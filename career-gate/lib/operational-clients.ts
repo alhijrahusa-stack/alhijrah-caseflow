@@ -1,6 +1,7 @@
 import "server-only";
 import { ACCOUNT_NET_FEE } from "@/lib/accounting-schema";
-import { ACCOUNT_SETUP_STATUSES, JOB_READY_STATUSES, PAPERWORK_STATUSES, type ClientStageFilter } from "@/lib/client-lifecycle-filters";
+import { type ClientStageFilter } from "@/lib/client-lifecycle-filters";
+import { workflowFilter } from "@/lib/workflow-filters";
 import { withStaff, type StaffSession } from "@/lib/auth";
 
 export type ClientView = "active" | "completed" | "all";
@@ -20,19 +21,7 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
       : view === "completed"
         ? tx`c.current_status = 'completed'`
         : tx`true`;
-    const stageFilter = !extra.stage ? tx`true`
-      : extra.stage === "new_intake" ? tx`c.current_status in ('new_intake','needs_review')`
-      : extra.stage === "account_setup" ? tx`c.current_status=any(${ACCOUNT_SETUP_STATUSES as unknown as string[]}) and not career_gate_private.has_ready_gate_job_account(c.id)`
-      : extra.stage === "job_ready" ? tx`c.current_status=any(${JOB_READY_STATUSES as unknown as string[]})
-          and career_gate_private.has_ready_gate_job_account(c.id)
-          and exists (select 1 from client_readiness r where r.client_id=c.id and r.total_requirements>0 and r.readiness_percent=100)
-        `
-      : extra.stage === "appointments" ? tx`c.current_status='appointment_scheduled'`
-      : extra.stage === "payment_required" ? tx`c.current_status=any(${PAPERWORK_STATUSES as unknown as string[]}) and
-          exists (select 1 from appointment_outcomes o where o.client_id=c.id and o.decision='pass')
-          and not exists (select 1 from client_accounts a where a.client_id=c.id and a.payment_status='paid')`
-      : tx`c.current_status=any(${PAPERWORK_STATUSES as unknown as string[]})
-          and exists (select 1 from client_accounts a where a.client_id=c.id and a.payment_status='paid')`;
+    const stageFilter = extra.stage ? workflowFilter(tx, extra.stage) : tx`true`;
         const term=extra.q?.trim()??"";
     const like=`%${term.replace(/[\\%_]/g,(m)=>`\\${m}`)}%`;
     const where=tx`c.deleted_at is null and ${lifecycle} and ${stageFilter}

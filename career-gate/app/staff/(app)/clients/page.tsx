@@ -22,8 +22,8 @@ export default async function ClientsPage({searchParams}:{searchParams:Promise<R
   const management=session.staff.role!=="staff";
   const sp=await searchParams;
   const requested=sp.view as ClientView|undefined;
-  const stage=isClientStageFilter(sp.stage)?sp.stage:undefined;
-  const view:ClientView=(stage||sp.attention==="documents"||sp.assigned==="none")?"active":requested&&VIEWS.has(requested)?requested:"all";
+  const stage=isClientStageFilter(sp.stage)?sp.stage:!sp.view&&!sp.status&&!sp.attention&&!sp.assigned?"new_intake":undefined;
+  const view:ClientView=stage==="completed"?"completed":(stage||sp.attention==="documents"||sp.assigned==="none")?"active":requested&&VIEWS.has(requested)?requested:"active";
   const rawPage=Number(sp.page??"1");
   const requestedPage=Number.isSafeInteger(rawPage) && rawPage>0 ? rawPage : 1;
   const status=(STATUSES as readonly string[]).includes(sp.status??"")?sp.status:undefined;
@@ -50,7 +50,7 @@ export default async function ClientsPage({searchParams}:{searchParams:Promise<R
     </nav>
     {stage==="account_setup"&&management&&<Link prefetch={false} href="/staff/gate-job-account" className="cg-command-button inline-flex w-fit">Open Amazon Account Setup ↗</Link>}
     {stage==="payment_required"&&management&&<Link prefetch={false} href="/staff/accounting" className="cg-command-button inline-flex w-fit">Open verified payment ledger ↗</Link>}
-    {stage==="paperwork_pending"&&<p role="status" className="text-sm text-emerald-200">Only files with verified paid accounts are shown here. Paperwork remains a separate completion task.</p>}
+    {stage==="paperwork_pending"&&<p role="status" className="text-sm text-emerald-200">Post-interview preparation continues alongside payment. Fully paid, completed files move to Completed Files automatically.</p>}
 
     {assigned==="none"&&<p role="status" className="text-sm text-amber-200">Unassigned files · all matching active records, across server-side pages.</p>}
     {completedThisMonth&&<p role="status" className="text-sm text-amber-200">Completed this month · showing currently completed client files with recorded completion this calendar month.</p>}

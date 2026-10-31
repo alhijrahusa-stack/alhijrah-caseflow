@@ -8,12 +8,14 @@ export type RoutingEvidence = {
   interview_scheduled: boolean;
   interview_passed: boolean;
   payment_verified: boolean;
+  paperwork_complete?: boolean;
 };
 
 export type RoutingDecision = {
   status: Status;
   pipelineStage: string;
   nextStep: string;
+  transitionPath?: Status[];
 };
 
 export class LifecycleRoutingError extends Error {
@@ -27,6 +29,13 @@ const POST_HIRE: readonly string[] = ["pre_hire_completed", "screening_pending",
 
 export function resolveLifecycleRoute(stage: ClientStageFilter, evidence: RoutingEvidence): RoutingDecision {
   const current = evidence.current_status as Status;
+  if (stage === "completed") {
+    if (!evidence.payment_verified || !evidence.paperwork_complete)
+      throw new LifecycleRoutingError("completion_required", "Verify payment and complete every post-interview item before closing the file");
+    if (current !== "ready_for_first_day" && current !== "completed")
+      throw new LifecycleRoutingError("reconciliation_required", "Use Reconcile workflow to recover a completed file from an earlier stage");
+    return { status: "completed", pipelineStage: "completed_files", nextStep: DEFAULT_NEXT_STEP.completed };
+  }
   if (!(STATUSES as readonly string[]).includes(current) || current === "completed" || current === "cancelled") {
     throw new LifecycleRoutingError("closed_case", "Completed, cancelled, or invalid cases cannot be bulk-routed");
   }
@@ -41,7 +50,8 @@ export function resolveLifecycleRoute(stage: ClientStageFilter, evidence: Routin
       pipelineStage = "portal_intake";
       break;
     case "account_setup":
-      if (!["ready_to_apply", "application_in_progress", "assessment_required", "shift_selected", "appointment_required"].includes(current)) {
+      if (["new_intake", "needs_review"].includes(current)) target = "ready_to_apply";
+      if (!["ready_to_apply", "application_in_progress", "assessment_required"].includes(target)) {
         throw new LifecycleRoutingError("approval_required", "Approve and verify the intake before account setup");
       }
       if (evidence.account_ready) {
@@ -53,7 +63,7 @@ export function resolveLifecycleRoute(stage: ClientStageFilter, evidence: Routin
       if (!evidence.account_ready || !evidence.documents_ready) {
         throw new LifecycleRoutingError("requirements_missing", "A READY Amazon account and verified requirements are necessary for Job Ready");
       }
-      if (current === "application_in_progress" || current === "assessment_required") target = "shift_selected";
+      if (["new_intake","needs_review","ready_to_apply","application_in_progress","assessment_required"].includes(current)) target = "shift_selected";
       if (!["shift_selected", "appointment_required"].includes(target)) {
         throw new LifecycleRoutingError("invalid_stage", "Complete application and assessment before Job Ready");
       }
@@ -80,15 +90,18 @@ export function resolveLifecycleRoute(stage: ClientStageFilter, evidence: Routin
       pipelineStage = "payment_required";
       break;
     case "paperwork_pending":
-      if (!evidence.interview_passed || !evidence.payment_verified || !POST_HIRE.includes(current)) {
-        throw new LifecycleRoutingError("verified_payment_required", "A recorded Pass and a verified paid ledger are required before paperwork");
+      if (!evidence.interview_passed || !POST_HIRE.includes(current)) {
+        throw new LifecycleRoutingError("interview_required", "A recorded Pass is required before post-interview preparation");
       }
       if (current === "pre_hire_completed") target = "screening_pending";
       pipelineStage = "post_interview_completion";
       break;
   }
+  let transitionPath:Status[]|undefined;
   if (target !== current && !canTransition(current, target)) {
-    throw new LifecycleRoutingError("invalid_transition", `Illegal lifecycle transition: ${current} → ${target}`);
+    if(stage==='job_ready' && ['new_intake','needs_review','ready_to_apply'].includes(current))
+      transitionPath=current==='ready_to_apply'?['application_in_progress','shift_selected']:['ready_to_apply','application_in_progress','shift_selected'];
+    else throw new LifecycleRoutingError("invalid_transition", `Illegal lifecycle transition: ${current} → ${target}`);
   }
-  return { status: target, pipelineStage, nextStep: target === current ? "" : DEFAULT_NEXT_STEP[target] };
+  return { status: target, pipelineStage, nextStep: target === current ? "" : DEFAULT_NEXT_STEP[target], ...(transitionPath?{transitionPath}:{}) };
 }

@@ -15,8 +15,8 @@ test("dashboard stations route into one canonical clients registry with safe act
     ["Account Setup", "/staff/clients?stage=account_setup"],
     ["Job Ready", "/staff/clients?stage=job_ready"],
     ["Appointments", "/staff/appointments"],
-    ["Payment & Paperwork", "/staff/clients?stage=payment_required"],
-    ["Master Registry", "/staff/clients?view=all"],
+    ["Payment & Paperwork", "/staff/clients?stage=paperwork_pending"],
+    ["Master Registry", "/staff/clients?view=completed"],
   ]) {
     await expect(stageLinks.filter({ hasText: label })).toHaveAttribute("href", href);
   }
@@ -30,7 +30,7 @@ test("dashboard stations route into one canonical clients registry with safe act
   }
 
   await page.goto("/staff/clients");
-  await expect(page.getByRole("link", { name: "All Records" })).toHaveAttribute("data-active", "true");
+  await expect(page.getByRole("navigation", {name:"Operational client lifecycle stages"}).getByRole("link",{name:/New Intake/})).toHaveAttribute("aria-current","page");
   await page.goto("/staff/clients?view=active");
   await expect(page.getByRole("combobox", { name: "Move selected clients to lifecycle stage" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Assign selected cases to" })).toBeVisible();

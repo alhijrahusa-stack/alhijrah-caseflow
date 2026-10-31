@@ -38,7 +38,7 @@ export const G3_STAGES = [
     label: "Payment & Paperwork",
     labelAr: "الدفع واستكمال الوثائق",
     statuses: ["pre_hire_completed", "screening_pending", "i9_available", "post_hire_tasks", "ready_for_first_day"],
-    href: "/staff/clients?stage=payment_required",
+    href: "/staff/clients?stage=paperwork_pending",
     action: "Verify payments and finish paperwork",
   },
   {
@@ -46,7 +46,7 @@ export const G3_STAGES = [
     label: "Master Registry",
     labelAr: "السجل والأرشيف",
     statuses: ["completed", "cancelled"],
-    href: "/staff/clients?view=all",
+    href: "/staff/clients?view=completed",
     action: "Open full registry",
   },
 ] as const satisfies ReadonlyArray<{

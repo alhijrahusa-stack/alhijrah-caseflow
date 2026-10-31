@@ -233,7 +233,9 @@ export async function appointmentList(s: StaffSession, view: string, limit = 300
     select a.*, c.full_name, c.ref, s.display_name as created_by_name
     from appointments a join clients c on c.id = a.client_id left join staff s on s.id = a.created_by_staff
     where c.deleted_at is null and ${
-      view === "next_2h"
+      view === "active"
+        ? tx`a.status in ('scheduled','confirmed','rescheduled','attended')`
+        : view === "next_2h"
         ? tx`a.status = any(${OPEN_APPT}) and a.scheduled_at >= now() and a.scheduled_at <= now() + interval '2 hours' and c.current_status not in ('completed','cancelled')`
         : view === "today"
           ? tx`(a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date`
@@ -253,6 +255,7 @@ export async function appointmentPage(s: StaffSession, view: string, requestedPa
     const q = search.trim().slice(0,100);
     const like = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
     const filter = tx`c.deleted_at is null
+      ${view !== "past" ? tx`and c.current_status='appointment_scheduled' and not exists(select 1 from appointment_outcomes final where final.appointment_id=a.id)` : tx``}
       ${q ? tx`and (c.full_name ilike ${like} or c.ref ilike ${like} or c.phone like ${like})` : tx``}
       and ${
       view === "next_2h"

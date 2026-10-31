@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { ClientWorkflowControl } from "@/components/staff/ClientWorkflowControl";
 import dynamic from "next/dynamic";
 import { CLIENT_STAGES, type ClientStageFilter } from "@/lib/client-lifecycle-filters";
 import { dateTime } from "@/lib/format";
@@ -81,6 +82,7 @@ export function ClientCommandTable({clients,staff,management}:{clients:CommandCl
        <Link href={`/staff/client/${c.id}`} prefetch={false} className="cg-command-button flex-1 text-center">Open Client ↗</Link>
        <button type="button" className="cg-command-button text-xs" onClick={()=>setDrawer(c)}>Quick view · Client 360</button>
      </div>
+     <ClientWorkflowControl clientId={c.id} status={c.current_status} management={management} compact/>
    </article>)}
  </div>;
  return <section className="ops-glass-card space-y-4">

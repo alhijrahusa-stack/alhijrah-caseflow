@@ -96,6 +96,7 @@ export type DeliveryResult = { delivered: number; resources: readonly Resource[]
 
 /** Delivers a resolved change to every matching subscriber. */
 export function publishChange(change: ResourceChange): DeliveryResult {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("career-gate:executive-refresh", { detail: { resources: change.resources } }));
   let delivered = 0;
   for (const [id, entry] of entries) {
     if (!inScope(entry, change.clientId)) continue;

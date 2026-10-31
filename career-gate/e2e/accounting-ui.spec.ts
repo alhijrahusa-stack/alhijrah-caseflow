@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
-import { accessToken, db, intakeBody, RUN, signIn, STAFF, submitIntake, uniqueIp } from "./helpers";
+import { accessToken, passedInterviewFixture, db, intakeBody, RUN, signIn, STAFF, submitIntake, uniqueIp } from "./helpers";
 
 /**
  * The Client financial surface and the Accounting board, as an operator meets
@@ -33,11 +33,7 @@ test.describe.serial("Accounting and Client financial surfaces", () => {
     await signIn(ctx, baseURL!, "admin");
     page = await ctx.newPage();
 
-    const stage = await page.request.post("/api/staff/operations", {
-      data: { operation: "move_stage", client_id: clientId, stage: "interview_passed" },
-      headers: { cookie: `cg_at=${await accessToken("admin")}`, "x-forwarded-for": uniqueIp() },
-    });
-    expect(stage.status()).toBe(200);
+    await passedInterviewFixture(page.request,clientId);
   });
 
   test("the accounting row states the account and opens no financial form until asked", async () => {

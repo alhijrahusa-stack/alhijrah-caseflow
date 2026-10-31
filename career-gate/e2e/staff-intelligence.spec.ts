@@ -1,7 +1,7 @@
 import { pipelineClientHref } from "../lib/pipeline-navigation";
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
-import { accessToken, db, intakeBody, RUN, signIn, submitIntake, uniqueIp } from "./helpers";
+import { accessToken, passedInterviewFixture, db, intakeBody, RUN, signIn, submitIntake, uniqueIp } from "./helpers";
 
 /**
  * Server-paged Accounting, Reports intelligence, isolated rendering failures
@@ -18,11 +18,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
     expect(intake.res.status(), JSON.stringify(intake.json)).toBe(201);
     const [client] = await db()`select id from clients where ref=${intake.json.ref}`;
     clientId = client.id as string;
-    const stage = await request.post("/api/staff/operations", {
-      data: { operation: "move_stage", client_id: clientId, stage: "interview_passed" },
-      headers: { cookie: `cg_at=${await accessToken("admin")}`, "x-forwarded-for": uniqueIp() },
-    });
-    expect(stage.status()).toBe(200);
+    await passedInterviewFixture(request,clientId);
     const ctx = await browser.newContext({ baseURL });
     await signIn(ctx, baseURL!, "admin");
     page = await ctx.newPage();

@@ -24,7 +24,8 @@ const stage = z.enum([
 const Input = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("move_stage"), client_id: id, stage }),
   z.object({ operation: z.literal("request_transfer"), client_id: id, requested_owner: id.nullable().optional(), reason: z.string().trim().max(500).nullable().optional() }),
-  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable().optional(), target_stage: z.string().refine(isClientStageFilter).optional() }),
+  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable().optional(), target_stage: z.string().refine(isClientStageFilter).optional(), reason: z.string().trim().min(3).max(500).optional() }),
+  z.object({ operation: z.literal("reconcile_workflow"), client_id: id, reason: z.string().trim().min(3).max(500) }),
   z.object({ operation: z.literal("reassign_client"), client_id: id, staff_id: id.nullable(), task_ids: z.array(id).max(100).default([]), reason: z.string().trim().max(500).nullable().optional() }),
   z.object({ operation: z.literal("confirm_started"), client_id: id, start_date: date }),
   z.object({ operation: z.literal("set_round_robin"), enabled: z.boolean() }),
@@ -54,7 +55,10 @@ export async function POST(req: Request) {
   if (guard.response) return guard.response;
   const parsed = Input.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return err("invalid_input", parsed.error.issues[0]?.message ?? "Invalid operation", 400, traceId);
-  const input = parsed.data;
+  const moveTargets = {portal_intake:"new_intake",no_amazon_account:"account_setup",amazon_account_waiting_job:"job_ready",interview_scheduled:"appointments",interview_passed:"payment_required",interview_rejected:"job_ready",post_interview_completion:"paperwork_pending"} as const;
+  const input = parsed.data.operation==="move_stage"
+    ? {operation:"bulk_assign" as const,client_ids:[parsed.data.client_id],target_stage:moveTargets[parsed.data.stage],staff_id:undefined,reason:"Manual pipeline move"}
+    : parsed.data;
   const session = guard.session;
 
   if (input.operation === "update_staff_permissions") {
@@ -85,15 +89,15 @@ export async function POST(req: Request) {
 
   try {
     const result = await withStaff(session, async (tx) => {
-      if (input.operation === "move_stage") {
-        const [before] = await tx`select id,pipeline_stage from clients where id=${input.client_id} and deleted_at is null for update`;
-        if (!before) throw new Error("CLIENT_NOT_ACCESSIBLE");
-        if (before.pipeline_stage === input.stage) return { changed: false };
-        await tx`update clients set pipeline_stage=${input.stage} where id=${input.client_id}`;
-        await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
-                 values(${input.client_id},'pipeline_stage_changed',${session.staff.id},'client',${input.client_id},
-                        ${tx.json({ pipeline_stage: before.pipeline_stage })},${tx.json({ pipeline_stage: input.stage })},${traceId})`;
-        return { changed: true };
+      if (input.operation === "reconcile_workflow") {
+        if (!management(session.staff.role)) throw new Error("FORBIDDEN");
+        const [client] = await tx`select id from clients where id=${input.client_id} and deleted_at is null for update`;
+        if (!client) throw new Error("CLIENT_NOT_ACCESSIBLE");
+        const [result] = await tx`select career_gate_private.reconcile_client_completion(${input.client_id}) changed`;
+        await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,new_value,trace_id)
+          values(${input.client_id},'client_updated',${session.staff.id},'client',${input.client_id},
+            ${tx.json({operation:'reconcile_workflow',reason:input.reason,changed:result.changed})},${traceId})`;
+        return { changed:result.changed, client_id:input.client_id };
       }
 
       if (input.operation === "request_transfer") {
@@ -122,10 +126,13 @@ export async function POST(req: Request) {
           const locked = await tx`
             select c.id,c.current_status,c.pipeline_stage,c.next_step,c.assigned_staff,
               career_gate_private.has_ready_gate_job_account(c.id) account_ready,
-              exists(select 1 from client_readiness r where r.client_id=c.id and r.total_requirements>0 and r.readiness_percent=100) documents_ready,
+              exists(select 1 from documents d where d.client_id=c.id and d.status='verified')
+                and not exists(select 1 from requirements r where r.client_id=c.id and r.requirement_key not like 'post_hire:%'
+                  and r.status not in ('complete','not_applicable')) documents_ready,
               exists(select 1 from appointments ap where ap.client_id=c.id and ap.appointment_kind='employment_interview' and ap.status in ('scheduled','confirmed','rescheduled')) interview_scheduled,
               exists(select 1 from appointment_outcomes o where o.client_id=c.id and o.decision='pass') interview_passed,
-              exists(select 1 from client_accounts a where a.client_id=c.id and a.payment_status='paid') payment_verified
+              exists(select 1 from client_account_balances a where a.client_id=c.id and a.payment_status='paid') payment_verified,
+              career_gate_private.post_hire_complete(c.id) paperwork_complete
             from clients c
             where c.id=any(${input.client_ids}) and c.deleted_at is null
             order by c.id for update of c`;
@@ -139,6 +146,7 @@ export async function POST(req: Request) {
               interview_scheduled: Boolean(client.interview_scheduled),
               interview_passed: Boolean(client.interview_passed),
               payment_verified: Boolean(client.payment_verified),
+              paperwork_complete: Boolean(client.paperwork_complete),
             }),
           }));
           let changed = 0;
@@ -149,9 +157,9 @@ export async function POST(req: Request) {
             const statusChanged = client.current_status !== route.status;
             if (!staffChanged && !stageChanged && !statusChanged) continue;
             const nextStep = statusChanged ? route.nextStep : String(client.next_step);
-            await tx`update clients set
+            for(const status of route.transitionPath??[route.status]) await tx`update clients set
               assigned_staff=${targetStaff},pipeline_stage=${route.pipelineStage},
-              current_status=${route.status},next_step=${nextStep}
+              current_status=${status},next_step=${nextStep}
               where id=${client.id}`;
             if (staffChanged) {
               await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
@@ -161,12 +169,12 @@ export async function POST(req: Request) {
             if (stageChanged) {
               await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
                 values(${client.id},'pipeline_stage_changed',${session.staff.id},'client',${client.id},
-                  ${tx.json({pipeline_stage:client.pipeline_stage})},${tx.json({pipeline_stage:route.pipelineStage})},${traceId})`;
+                  ${tx.json({pipeline_stage:client.pipeline_stage})},${tx.json({pipeline_stage:route.pipelineStage,reason:input.reason??"Reviewed lifecycle routing"})},${traceId})`;
             }
             if (statusChanged) {
               await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
                 values(${client.id},'status_changed',${session.staff.id},'client',${client.id},
-                  ${tx.json({status:client.current_status})},${tx.json({status:route.status})},${traceId})`;
+                  ${tx.json({status:client.current_status})},${tx.json({status:route.status,reason:input.reason??"Reviewed lifecycle routing",transition_path:route.transitionPath})},${traceId})`;
             }
             changed++;
           }

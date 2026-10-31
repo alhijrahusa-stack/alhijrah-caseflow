@@ -3,6 +3,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ActionSchema, runAction } from "@/lib/actions";
 import { runAudit } from "@/lib/audit";
 import { withStaff, type StaffSession } from "@/lib/auth";
+import { reconcileAccount, lockAccount } from "@/lib/accounting-ledger";
+import { POST_HIRE_ITEMS } from "@/lib/domain";
+import { operationalClientList } from "@/lib/operational-clients";
+import { appointmentPage } from "@/lib/queries";
+import { executiveSummary } from "@/lib/executive-summary";
 import { otpHash } from "@/lib/crypto";
 import { sql } from "@/lib/db";
 import { processDocument } from "@/lib/doc-intel";
@@ -644,5 +649,62 @@ describe("integrity", () => {
     const other = await withStaff(sessions.staff2, (tx) => tx`select client_id from semantic_index order by embedding <=> ${v}::vector limit 5`);
     expect(own.map((r) => r.client_id)).toContain(A.id);
     expect(other.length).toBe(0);
+  });
+});
+
+
+describe("event-driven workflow completion",()=>{
+  async function completePaperwork(clientId:string){
+    for(const item of POST_HIRE_ITEMS) await act("manager",{action:"update_post_hire",client_id:clientId,item,status:"completed",note:"Verified integration fixture",...(item==="start_date"?{start_date:"2026-11-09"}:{})});
+  }
+  async function pay(clientId:string){
+    const [account]=await db`select id from client_accounts where client_id=${clientId}`;
+    await db`insert into payment_transactions(account_id,client_id,transaction_type,direction,amount,status,payment_method,recorded_by,idempotency_key)
+      values(${account.id},${clientId},'payment','credit',150,'confirmed','cash',${sessions.manager.staff.id},${randomUUID()})`;
+    await withStaff(sessions.manager,async tx=>reconcileAccount(tx,{account:await lockAccount(tx,clientId),staffId:sessions.manager.staff.id,traceId:trace,eligibilityDate:"2026-10-31"}));
+  }
+  it("moves a paid legacy intake with complete post-interview work out of intake and active appointments, preserving the appointment and ledger",async()=>{
+    const client=await makeClient("TEST Workflow Complete");
+    const [appointment]=await db`insert into appointments(client_id,appointment_type,scheduled_at,ends_at,resource_key,created_by_staff,status)
+      values(${client.id},'Pre-hire appointment',now()+interval '2 days',now()+interval '2 days 30 minutes','office',${sessions.manager.staff.id},'scheduled') returning id`;
+    await pay(client.id);
+    expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe('new_intake');
+    await completePaperwork(client.id);
+    const [after]=await db`select current_status,pipeline_stage from clients where id=${client.id}`;
+    expect(after).toMatchObject({current_status:'completed',pipeline_stage:'completed_files'});
+    const intake=await operationalClientList(sessions.manager,'active',1,25,{stage:'new_intake',q:client.ref});
+    expect(intake.total).toBe(0);
+    expect((await operationalClientList(sessions.manager,'completed',1,25,{q:client.ref})).total).toBe(1);
+    expect((await appointmentPage(sessions.manager,'all',1,25,client.ref)).total).toBe(0);
+    expect(await db`select id from appointments where id=${appointment.id}`).toHaveLength(1);
+    expect(await db`select id from payment_transactions where client_id=${client.id}`).toHaveLength(1);
+    expect(await db`select appointment_id from appointment_outcomes where client_id=${client.id}`).toHaveLength(0);
+    const [audit]=await db`select staff_id,new_value from activity_log where client_id=${client.id} and trace_id='workflow-completion-reconciliation' order by created_at desc limit 1`;
+    expect(audit.staff_id).toBe(sessions.manager.staff.id);
+    expect(audit.new_value).toMatchObject({paperwork_complete:true,payment_verified:true,status:'completed'});
+  });
+  it("waits for actual ledger settlement and cannot bypass completion evidence with an override",async()=>{
+    const client=await makeClient("TEST Workflow Awaiting Payment");
+    await completePaperwork(client.id);
+    expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).not.toBe('completed');
+    await expect(act('admin',{action:'override_status',client_id:client.id,status:'completed',reason:'Cannot fake payment',next_step:null})).rejects.toThrow('completion_prerequisites_required');
+    await pay(client.id);
+    expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe('completed');
+    await act('manager',{action:'update_post_hire',client_id:client.id,item:'employment_paperwork',status:'pending',note:'Requires correction'});
+    expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe('post_hire_tasks');
+  });
+  it("does not expose another staff member's file during reconciliation and keeps aggregate drilldowns consistent",async()=>{
+    const client=await makeClient("TEST Workflow Scoped",{assigned:sessions.staff2.staff.id});
+    const [result]=await withStaff(sessions.staff1,tx=>tx`select career_gate_private.reconcile_client_completion(${client.id}) changed`);
+    expect(result.changed).toBe(false);
+    const summary=await executiveSummary(sessions.manager);
+    for(const stage of summary.stages){
+      if(stage.id==='registry')continue;
+      const filter={intake:'new_intake',account:'account_setup',job:'job_ready',appointments:'appointments',paperwork:'paperwork_pending'}[stage.id] as 'new_intake';
+      const list=await operationalClientList(sessions.manager,'active',1,25,{stage:filter});
+      expect(stage.total,stage.id).toBe(list.total);
+    }
+    expect(summary.priorities.length).toBeLessThanOrEqual(5);
+    expect(summary.team.every(member=>!("email" in member))).toBe(true);
   });
 });

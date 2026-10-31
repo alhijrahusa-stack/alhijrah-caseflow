@@ -5,14 +5,14 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { getStaffSession } from "@/lib/auth";
 import { appointmentPage } from "@/lib/queries";
 
-const VIEWS = [["upcoming", "Upcoming"], ["next_2h", "Next 2 Hours"], ["today", "Today"], ["past", "Past"], ["all", "All"]] as const;
+const VIEWS = [["active", "Active Cases"], ["upcoming", "Upcoming"], ["next_2h", "Next 2 Hours"], ["today", "Today"], ["past", "Past"], ["all", "All"]] as const;
 const PAGE_SIZE = 25;
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ view?: string; page?: string; q?: string }> }) {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
   const params = await searchParams;
-  const view = VIEWS.some(([key]) => key === params.view) ? params.view! : "upcoming";
+  const view = VIEWS.some(([key]) => key === params.view) ? params.view! : "active";
   const requestedPage = Number(params.page ?? "1");
   const q = params.q?.trim().slice(0, 100) ?? "";
   const result = await appointmentPage(session, view, requestedPage, PAGE_SIZE, q);
@@ -31,6 +31,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         </div>
         <Link href="/staff/clients" className="ops-primary-button">Open client registry</Link>
       </header>
+      {view==="past"&&<p className="text-xs text-slate-400">سجل المواعيد السابق محفوظ للمراجعة، ويشمل الملفات التي غادرت قائمة العمل النشطة.</p>}
       <form method="get" role="search" className="ops-glass-card flex flex-wrap items-end gap-2">
         <input type="hidden" name="view" value={view} />
         <label className="min-w-0 flex-1 text-xs font-semibold text-slate-400">
@@ -40,7 +41,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         <button type="submit" className="ops-primary-button">Search / بحث</button>
         {q && <Link href={href(view).split("&q=")[0]} className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm text-slate-300">Clear</Link>}
       </form>
-      <nav className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5" aria-label="Appointment views">
+      <nav className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-6" aria-label="Appointment views">
         {VIEWS.map(([key, label]) => (
           <Link key={key} href={href(key)} aria-current={key === view ? "page" : undefined}
             className={key === view

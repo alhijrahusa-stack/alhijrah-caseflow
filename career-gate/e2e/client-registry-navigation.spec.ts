@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { POST_HIRE_ITEMS } from "../lib/domain";
 import { dateOnly, dateTime } from "../lib/format";
 import { db, intakeBody, RUN, signIn, staffAction, submitIntake } from "./helpers";
 
@@ -17,6 +19,10 @@ for (const layout of [
     const createdAt = "2026-10-26T02:30:00.000Z";
     await db()`update clients set created_at=${createdAt} where id=${client.id}`;
     if (layout.completed) {
+      const [account]=await db()`select id from client_accounts where client_id=${client.id}`;
+      await db()`insert into payment_transactions(account_id,client_id,transaction_type,direction,amount,status,payment_method,idempotency_key) values(${account.id},${client.id},'payment','credit',150,'confirmed','cash',${randomUUID()})`;
+      for(const item of POST_HIRE_ITEMS) await db()`insert into post_hire_items(client_id,item,status) values(${client.id},${item},'completed') on conflict(client_id,item) do update set status='completed'`;
+
       const completed = await staffAction(request, "admin", { action: "override_status", client_id: client.id, status: "completed", reason: "e2e completed registry navigation" });
       expect(completed.status, JSON.stringify(completed.json)).toBe(200);
     }
