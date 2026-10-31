@@ -55,6 +55,7 @@ for (const layout of [
       await expect(page.locator("article time")).toHaveAttribute("datetime", createdAt);
     }
     expect(errors).toEqual([]);
+    if (layout.completed) await expect(page.getByTestId("completed-start-date")).toHaveText(dateOnly("2026-10-25"));
     expect(prefetches).toEqual([]);
     expect(drawerRequests).toEqual([]);
 

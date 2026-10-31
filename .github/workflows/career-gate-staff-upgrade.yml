@@ -42,6 +42,6 @@ jobs:
         run: ./tests/run-integration.sh
       - run: npx playwright install --with-deps chromium
       - name: Staff upgrade end-to-end acceptance
-        run: ./e2e/run.sh e2e/executive-upgrade.spec.ts
+        run: ./e2e/run.sh e2e/executive-upgrade.spec.ts e2e/client-registry-navigation.spec.ts
         env:
           PW_CHROMIUM: ""
