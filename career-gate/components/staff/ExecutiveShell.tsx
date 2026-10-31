@@ -6,6 +6,7 @@ import { createContext,useContext,useEffect,useRef,useState,type ReactNode } fro
 import type { ExecutiveSummary } from "@/lib/executive-summary";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { RECOVERY_EVENT,subscribeResources } from "@/components/staff/realtime/update-bus";
+import { timeOnly } from "@/lib/format";
 
 const Context=createContext<ExecutiveSummary|null>(null);
 export function useExecutiveSummary(){const value=useContext(Context);if(!value)throw new Error("Executive summary provider missing");return value;}
@@ -88,7 +89,7 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
         </details>}
       </nav>
       <section className="royal-sidebar-team" aria-label="حمل الفريق المختصر"><p className="royal-group-label">حمل الفريق الآن</p>{ranked.map(member=><Link key={member.id} href={`/staff/staff?tab=team&member=${member.id}`} prefetch={false} title={`${member.display_name} · ${member.active_clients} ملفات · ${member.open_tasks} مهام`}><span className="royal-nav-copy">{member.display_name}<small>{member.active_clients} ملفات · {member.open_tasks} مهام</small></span><span className={`royal-load-dot ${member.overdue_tasks?'critical':member.open_tasks>8?'busy':''}`}/></Link>)}</section>
-      <Link className="royal-system" href={management?'/staff/audit-alerts':'/staff'} prefetch={false}><span className={`royal-load-dot ${status!=='HEALTHY'&&status!=='LIVE'?'critical':''}`}/><span className="royal-nav-copy">SYSTEM {status}<small>{stale?'تعذر التحديث — أعد المحاولة':`DB ${data.health?.db_ms??'—'} ms · ${new Date(data.generated_at).toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'})}`}</small></span></Link>
+      <Link className="royal-system" href={management?'/staff/audit-alerts':'/staff'} prefetch={false}><span className={`royal-load-dot ${status!=='HEALTHY'&&status!=='LIVE'?'critical':''}`}/><span className="royal-nav-copy">SYSTEM {status}<small>{stale?'تعذر التحديث — أعد المحاولة':`DB ${data.health?.db_ms??'—'} ms · ${timeOnly(data.generated_at)}`}</small></span></Link>
     </aside>
     <div className="royal-main"><header className="royal-topbar">{header}{!pathname.startsWith('/staff/client/')&&<RealtimeRefresher/>}</header><main className="royal-content">{children}</main></div>
     <button type="button" className="royal-orb" aria-label="فتح مساعد الأوامر" title="مساعد الأوامر · Ctrl+K" onClick={()=>{window.dispatchEvent(new Event('career-gate:open-command'));}}>✧</button>
