@@ -16,3 +16,7 @@
 .royal-sync-toast{position:fixed;left:85px;bottom:22px;z-index:55;max-width:calc(100vw - 115px);border:1px solid #37d6cb55;background:#10283df2;backdrop-filter:blur(20px);color:#a6efe2;box-shadow:0 10px 35px #0004;padding:13px 18px;border-radius:12px;font-size:12px;direction:rtl}
 
 html:has(.royal-shell),body:has(.royal-shell){overflow-x:clip}
+
+.royal-shell [hidden]{display:none!important}
+
+@media(max-width:800px){.royal-session>button{display:inline-flex!important;align-items:center;justify-content:center;font-size:0;width:30px;height:32px;border:1px solid #d4af3725;border-radius:8px}.royal-session>button:before{content:"⇥";font-size:18px;color:#b6c7db}}

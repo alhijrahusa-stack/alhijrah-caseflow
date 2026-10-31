@@ -32,7 +32,7 @@ test.describe("executive staff upgrade acceptance", () => {
     for (const [path, text] of routes) {
       const response = await page.goto(path);
       expect(response?.status(), path).toBeLessThan(400);
-      await expect(page.getByText(text).first(), path).toBeVisible();
+      await expect(page.getByText(text).filter({visible:true}).first(), path).toBeVisible();
     }
 
     const legacyDistribution = await page.goto("/staff/distribution");

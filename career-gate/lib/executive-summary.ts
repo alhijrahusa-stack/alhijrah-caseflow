@@ -98,7 +98,7 @@ export const executiveSummary=cache(async(session:StaffSession):Promise<Executiv
     completed:n(totals.completed),payment_pending:n(totals.payment_pending),audit_alerts:n(totals.audit_alerts),
     priorities:operational.priorities.map(row=>({
       id:String(row.id),ref:String(row.ref),full_name:String(row.full_name),kind:String(row.kind),amount:n(row.amount),age_days:n(row.age_days),
-      href:row.kind==='payment_overdue'?`/staff/accounting?q=${encodeURIComponent(String(row.ref))}`:`/staff/client/${row.id}${row.kind==='schedule_interview'||row.kind==='appointment_repair'?'?panel=appointment':'?tab=documents'}`,
+      href:session.staff.role==='staff'?`/staff/client/${row.id}${row.kind==='document_review'?'?tab=documents':''}`:row.kind==='payment_overdue'?`/staff/accounting?q=${encodeURIComponent(String(row.ref))}`:`/staff/client/${row.id}${row.kind==='schedule_interview'||row.kind==='appointment_repair'?'?panel=appointment':'?tab=documents'}`,
     })),
     team:team.members.filter(member=>member.active).map(member=>({id:member.id,display_name:member.display_name,role:member.role,
       active_clients:member.active_clients,open_tasks:member.open_tasks,overdue_tasks:member.overdue_tasks,followups_due:member.followups_due})),

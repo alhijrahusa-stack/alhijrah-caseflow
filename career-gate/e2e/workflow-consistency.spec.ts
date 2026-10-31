@@ -56,3 +56,17 @@ test('summary API requires authentication and serves private aggregated data',as
   expect(body.summary.priorities.length).toBeLessThanOrEqual(5);
   expect(body.summary.team.every((member:Record<string,unknown>)=>!('email' in member))).toBe(true);
 });
+
+
+test("staff navigation respects the existing management-only finance and audit boundaries",async({browser,baseURL})=>{
+  const context=await browser.newContext({baseURL});
+  await signIn(context,baseURL!,'staff');
+  const page=await context.newPage();
+  for(const path of ['/staff','/career-gate-royal.html']){
+    await page.goto(path);
+    await expect(page.getByRole('heading',{name:'Operations Command Center',exact:true})).toBeVisible();
+    const links=await page.getByRole('link').evaluateAll(elements=>elements.map(element=>element.getAttribute('href')??''));
+    expect(links.filter(href=>/^\/staff\/(accounting|reports|audit-alerts|import)(?:[/?]|$)/.test(href))).toEqual([]);
+  }
+  await context.close();
+});
