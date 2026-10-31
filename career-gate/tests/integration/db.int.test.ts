@@ -395,6 +395,23 @@ describe("idempotency", () => {
 });
 
 describe("job queue", () => {
+  it("claims semantic recovery work once and leaves notification delivery untouched", async () => {
+    const key = `test-semantic-recovery-${randomUUID()}`;
+    const notificationKey = `test-notification-isolation-${randomUUID()}`;
+    await enqueue(db, { type: "semantic_embedding", entityId: randomUUID(), payload: { source: "note" }, dedupeKey: key });
+    await enqueue(db, { type: "notification_send", entityId: randomUUID(), dedupeKey: notificationKey });
+    try {
+      const runs = await Promise.all([processJobs(50, { types: ["semantic_embedding"], concurrency: 3 }), processJobs(50, { types: ["semantic_embedding"], concurrency: 3 })]);
+      const [semantic] = await db`select id,status,attempts from jobs where dedupe_key=${key}`;
+      const [notification] = await db`select status,attempts from jobs where dedupe_key=${notificationKey}`;
+      expect(semantic).toMatchObject({ status: "succeeded", attempts: 1 });
+      expect(runs.flat().filter(job => job.id === semantic.id)).toHaveLength(1);
+      expect(notification).toMatchObject({ status: "queued", attempts: 0 });
+    } finally {
+      await db`delete from jobs where dedupe_key in (${key},${notificationKey})`;
+    }
+  });
+
   it("retries with backoff, then dead-letters after max attempts", async () => {
     await import("@/lib/job-handlers");
     registerHandler("audit_scan", async () => { throw new Error("boom"); });
@@ -491,6 +508,23 @@ describe("OTP status access", () => {
 });
 
 describe("audit agent", () => {
+  it("distinguishes an ended appointment awaiting an outcome from a missing appointment", async () => {
+    const client = await makeClient("TEST Appointment Audit Classification");
+    await act("admin", { action: "override_status", client_id: client.id, status: "appointment_scheduled", reason: "Audit regression fixture", next_step: null });
+    await runAudit(client.id, trace);
+    expect((await db`select rule from audit_alerts where client_id=${client.id} and status='open'`).map(row => row.rule)).toContain("appointment_scheduled_without_appointment");
+    const when = new Date(Date.now() - 48 * 3_600_000);
+    const [appointment] = await db`insert into appointments (client_id,appointment_type,scheduled_at,ends_at,resource_key,location,created_by_staff,status)
+      values(${client.id},'Office intake',${when},${new Date(when.getTime()+30*60_000)},'office','Office',${sessions.manager.staff.id},'confirmed') returning id`;
+    await runAudit(client.id, trace);
+    const open = (await db`select rule from audit_alerts where client_id=${client.id} and status='open'`).map(row => row.rule);
+    expect(open).toContain("appointment_outcome_missing");
+    expect(open).not.toContain("appointment_scheduled_without_appointment");
+    await db`update appointments set scheduled_at=now()+interval '2 days',ends_at=now()+interval '2 days 30 minutes' where id=${appointment.id}`;
+    await runAudit(client.id, trace);
+    expect(await db`select 1 from audit_alerts where client_id=${client.id} and rule in ('appointment_outcome_missing','appointment_scheduled_without_appointment') and status='open'`).toHaveLength(0);
+  });
+
   it("raises alerts, honours ignore, and auto-closes when the condition clears", async () => {
     const C = await makeClient("TEST Audit Client");
     await act("admin", { action: "override_status", client_id: C.id, status: "ready_for_first_day", reason: "test", next_step: null });

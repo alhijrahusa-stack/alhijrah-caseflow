@@ -37,13 +37,22 @@ export const VISIBILITY_SECONDS = 120;
 export const backoffSeconds = (attempt: number) => Math.min(3600, 30 * 2 ** Math.max(0, attempt - 1));
 
 /** Claims and runs ready jobs. Safe to call concurrently (SKIP LOCKED). */
-export async function processJobs(limit = 10) {
+export async function processJobs(limit = 10, options: { types?: readonly JobType[]; concurrency?: number } = {}) {
   // Handlers register on import.
   await import("@/lib/job-handlers");
   const db = sql();
-  const claimed = (await db`select * from public.claim_jobs(${limit}, ${VISIBILITY_SECONDS})`) as unknown as Job[];
+  const claimed = (options.types
+    ? await db`
+      update jobs j set status='running', attempts=j.attempts+1, started_at=now(),
+        locked_until=now()+make_interval(secs => ${VISIBILITY_SECONDS})
+      where j.id in (
+        select id from jobs where type=any(${[...options.types]})
+          and ((status='queued' and run_after<=now()) or (status='running' and locked_until<now()))
+        order by run_after limit ${limit} for update skip locked
+      ) returning j.*`
+    : await db`select * from public.claim_jobs(${limit}, ${VISIBILITY_SECONDS})`) as unknown as Job[];
   const results: { id: string; type: string; status: string }[] = [];
-  for (const job of claimed) {
+  const run = async (job: Job) => {
     const handler = handlers.get(job.type);
     const t0 = performance.now();
     let status: string;
@@ -76,6 +85,10 @@ export async function processJobs(limit = 10) {
       duration_ms: Math.round(performance.now() - t0), result: status,
     });
     results.push({ id: job.id, type: job.type, status });
+  };
+  const concurrency = Math.max(1, Math.min(3, Math.trunc(options.concurrency ?? 1) || 1));
+  for (let offset = 0; offset < claimed.length; offset += concurrency) {
+    await Promise.all(claimed.slice(offset, offset + concurrency).map(run));
   }
   return results;
 }

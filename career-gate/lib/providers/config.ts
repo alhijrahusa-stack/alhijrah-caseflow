@@ -18,6 +18,7 @@ export const registry = {
     fastModel: env("DOCUMENT_VISION_FAST_MODEL"),
     escalationModel: env("DOCUMENT_VISION_ESCALATION_MODEL"),
   }),
+  geminiEmbedding: () => ({ apiKey: env("GOOGLE_GEMINI_API_KEY"), model: env("GEMINI_EMBEDDING_MODEL") }),
   openai: () => ({
     apiKey: env("OPENAI_API_KEY"),
     agentModel: env("OPENAI_AGENT_MODEL"),
@@ -54,6 +55,7 @@ export function providerStates() {
   const w = registry.whatsapp();
   const t = registry.twilio();
   const r = registry.resend();
+  const ge = registry.geminiEmbedding();
   const st = (ok: boolean): ProviderState => (ok ? "CONFIGURED" : "NOT_CONFIGURED");
   return {
     supabase_auth: st(Boolean(s.url && s.anonKey && (s.jwtSecret || s.url))),
@@ -62,7 +64,7 @@ export function providerStates() {
     document_vision_fast: st(Boolean(v.apiKey && v.fastModel)),
     document_vision_escalation: st(Boolean(v.apiKey && v.escalationModel)),
     agent_llm: st(Boolean(o.apiKey && o.agentModel)),
-    embeddings: st(Boolean(o.apiKey && o.embeddingModel && o.embeddingDimensions === EMBEDDING_COLUMN_DIMENSIONS)),
+    embeddings: st(Boolean((o.apiKey && o.embeddingModel && o.embeddingDimensions === EMBEDDING_COLUMN_DIMENSIONS) || (ge.apiKey && ge.model))),
     whatsapp_meta: st(Boolean(w.token && w.phoneId && w.apiVersion && w.templateLang)),
     sms_twilio: st(Boolean(t.sid && t.token && t.from)),
     email_resend: st(Boolean(r.apiKey && r.from)),
