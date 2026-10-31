@@ -65,13 +65,28 @@ export const RULES: Rule[] = [
     rule: "appointment_scheduled_without_appointment",
     severity: "high",
     recommended_action: "Add the appointment record or move the status back to Appointment Required.",
-    explanation: "Status says an appointment is scheduled, but there is no upcoming scheduled, confirmed or rescheduled appointment.",
+    explanation: "Status says an appointment is scheduled, but no scheduled, confirmed, rescheduled or attended appointment record exists.",
     query: (db, id) => db`
       select c.id as client_id, jsonb_build_object('status', c.current_status) as evidence
       from clients c
       where c.deleted_at is null and c.current_status = 'appointment_scheduled'
         and not exists (select 1 from appointments a where a.client_id = c.id
-                        and a.status in ('scheduled', 'confirmed', 'rescheduled') and a.ends_at >= now())
+                        and a.status in ('scheduled', 'confirmed', 'rescheduled', 'attended'))
+        ${scope(db, id)}` as never,
+  },
+  {
+    rule: "appointment_outcome_missing",
+    severity: "high",
+    recommended_action: "Open the appointment and record the actual attendance and outcome, or reschedule if the interview did not take place.",
+    explanation: "The latest appointment has ended and its outcome has not been recorded.",
+    query: (db, id) => db`
+      select c.id as client_id, jsonb_build_object('appointment_id', a.id, 'scheduled_at', a.scheduled_at, 'status', a.status) as evidence
+      from clients c join lateral (
+        select id,scheduled_at,ends_at,status from appointments p where p.client_id=c.id
+          and p.status in ('scheduled','confirmed','rescheduled','attended') order by p.scheduled_at desc,p.id desc limit 1
+      ) a on true
+      where c.deleted_at is null and c.current_status='appointment_scheduled' and a.ends_at<now()
+        and not exists (select 1 from appointment_outcomes o where o.appointment_id=a.id)
         ${scope(db, id)}` as never,
   },
   {

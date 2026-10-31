@@ -2,7 +2,7 @@ import "server-only";
 import type postgres from "postgres";
 import { sql } from "@/lib/db";
 import { enqueue } from "@/lib/jobs";
-import { embed } from "@/lib/providers/openai";
+import { embed } from "@/lib/providers/embeddings";
 
 export type SemanticSource = "note" | "task" | "contact" | "followup";
 

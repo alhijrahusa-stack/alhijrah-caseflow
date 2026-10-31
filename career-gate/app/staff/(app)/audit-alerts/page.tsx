@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertActions } from "@/components/staff/AlertActions";
 import { RunAuditButton } from "@/components/staff/RunAuditButton";
+import { RecoverSearchIndexButton } from "@/components/staff/RecoverSearchIndexButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getStaffSession } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
@@ -26,7 +27,7 @@ export default async function AuditAlertsPage({ searchParams }: { searchParams: 
         <nav className="flex flex-wrap gap-3 text-sm" aria-label="Alert status">
           {["open", "resolved", "ignored"].map((k) => <Link key={k} href={`/staff/audit-alerts?status=${k}`} aria-current={k === status ? "page" : undefined} className={k === status ? "font-semibold capitalize text-brand-700" : "capitalize text-slate-500"}>{k}</Link>)}
         </nav>
-        <div className="ml-auto"><RunAuditButton /></div>
+        <div className="ml-auto flex flex-wrap gap-2">{session.staff.role === "admin" && <RecoverSearchIndexButton />}<RunAuditButton /></div>
       </div>
       <p className="text-sm text-slate-500">Deterministic rules flag inconsistencies. Alerts never change client data.</p>
       <p data-testid="audit-alert-total" className="text-sm text-slate-500">{total} {status} alert{total === 1 ? "" : "s"} · Page {page} of {pages}</p>
