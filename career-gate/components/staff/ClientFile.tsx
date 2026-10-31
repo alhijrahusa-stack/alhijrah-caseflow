@@ -6,6 +6,7 @@ import {
   AddNoteForm, AppointmentForm, AssignForm, ContactedForm, DocumentForm, FollowupForm, NextStepForm, type Panel, StatusForm, TaskForm,
 } from "@/components/staff/ClientActions";
 import { ClientAccountPanel } from "@/components/staff/ClientAccountPanel";
+import { ClientWorkflowControl } from "@/components/staff/ClientWorkflowControl";
 import { InlineField } from "@/components/staff/InlineField";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { CLIENT_FILE_SURFACE } from "@/components/staff/realtime/surfaces";
@@ -239,6 +240,7 @@ export function ClientFile({
         </div>
       </section>
 
+      <ClientWorkflowControl clientId={String(c.id)} status={String(c.current_status)} management={isManager} />
       <div className="cg-profile-tabs" aria-label="Client file sections">
         {tabs.map((item) => (
           <button key={item.id} type="button" className="staff-tab cg-profile-tab whitespace-nowrap" data-active={selectedTab === item.id} aria-busy={selectedTab === item.id && tab !== item.id} onClick={() => replaceTab(item.id)}>

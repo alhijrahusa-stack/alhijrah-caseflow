@@ -1,4 +1,5 @@
 import "server-only";
+import { g3StageForStatus } from "@/lib/g3-stages";
 import { ACCOUNT_NET_FEE } from "@/lib/accounting-schema";
 import { withStaff, type StaffSession } from "@/lib/auth";
 import type { PipelineClient, PipelineStage } from "@/lib/operations";
@@ -27,11 +28,12 @@ export async function activePipelineData(session:StaffSession):Promise<{stages:P
       left join client_accounts a on a.client_id=c.id
       where c.deleted_at is null and c.current_status not in ('completed','cancelled')
       order by c.updated_at desc limit 1000`,
-      tx`select current_status as status,count(*)::int as total from clients where deleted_at is null group by current_status`,
+      tx`select current_status as status,count(*)::int as total from clients where deleted_at is null and current_status<>'cancelled' group by current_status`,
     ]);
     const stages=stagesRaw as unknown as PipelineStage[];
     const terminal=new Set(stages.filter((s)=>s.terminal).map((s)=>s.key));
-    const all=(clientsRaw as unknown as PipelineClient[]).map((c)=>({...c,fee_amount:c.fee_amount==null?null:Number(c.fee_amount)}));
+    const projection:Record<string,string>={intake:"portal_intake",account:"no_amazon_account",job:"amazon_account_waiting_job",appointments:"interview_scheduled",paperwork:"post_interview_completion",registry:"completed_files"};
+    const all=(clientsRaw as unknown as PipelineClient[]).map((c)=>({...c,pipeline_stage:projection[g3StageForStatus(c.current_status)??""]??c.pipeline_stage,fee_amount:c.fee_amount==null?null:Number(c.fee_amount)}));
     return { stages:stages.filter((s)=>!s.terminal), clients:all.filter((c)=>!terminal.has(c.pipeline_stage)), exceptions:all.filter((c)=>terminal.has(c.pipeline_stage)), statusCounts: countsRaw as unknown as {status:string;total:number}[] };
   });
 }

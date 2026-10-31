@@ -159,9 +159,10 @@ describe("canonical client lifecycle station filters", () => {
     expect(privileges).toEqual({ anon: false, staff: true });
   });
 
-  it("never exposes job-ready applicants without verified Amazon and documentary requirements", async () => {
+  it("keeps every authoritative Job Ready file visible for prerequisite verification", async () => {
     const list = await operationalClientList(admin, "active", 1, 25, { stage: "job_ready" });
-    expect(list.rows.every(row => row.amazon_account_ready)).toBe(true);
+    const [{total}]=await db`select count(*)::int total from clients where deleted_at is null and current_status in ('shift_selected','appointment_required')`;
+    expect(list.total).toBe(total);
     expect(list.rows.every(row => ["shift_selected","appointment_required"].includes(row.current_status))).toBe(true);
   });
 });

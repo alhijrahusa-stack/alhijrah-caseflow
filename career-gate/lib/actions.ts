@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { isEmploymentInterview } from "@/lib/appointment-purpose";
 import { findOption } from "@/lib/catalog";
 import {
   APPOINTMENT_STATUSES,
@@ -387,8 +388,9 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
 
     case "schedule_appointment":
     case "book_slot": {
+      const lifecycleInterview=a.lifecycle_interview||isEmploymentInterview(a.appointment_type);
       const scheduledClient = await requireClient(tx, a.client_id);
-      if (a.lifecycle_interview && scheduledClient.current_status !== "appointment_scheduled" && !canTransition(scheduledClient.current_status as Status, "appointment_scheduled")) {
+      if (lifecycleInterview && scheduledClient.current_status !== "appointment_scheduled" && !canTransition(scheduledClient.current_status as Status, "appointment_scheduled")) {
         throw new ActionError("lifecycle_conflict", "Advance the client to Job Ready before scheduling an employment interview", 409);
       }
       const start = new Date(a.action === "book_slot" ? a.start : a.scheduled_at);
@@ -400,9 +402,9 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       const staffResource = a.resource_key.startsWith("staff:") ? a.resource_key.slice(6) : null;
       const [appt] = await tx`
         insert into appointments (client_id, appointment_type, appointment_kind, scheduled_at, ends_at, resource_key, assigned_staff, location, notes, created_by_staff, status)
-        values (${a.client_id}, ${a.appointment_type}, ${a.lifecycle_interview ? 'employment_interview' : 'general'}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${a.location}, ${a.notes}, ${by}, ${a.approve_booking ? "confirmed" : "scheduled"})
+        values (${a.client_id}, ${a.appointment_type}, ${lifecycleInterview ? 'employment_interview' : 'general'}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${a.location}, ${a.notes}, ${by}, ${a.approve_booking ? "confirmed" : "scheduled"})
         returning id`;
-      if (a.lifecycle_interview && scheduledClient.current_status !== "appointment_scheduled") {
+      if (lifecycleInterview && scheduledClient.current_status !== "appointment_scheduled") {
         await tx`update clients
           set current_status = 'appointment_scheduled', pipeline_stage = 'interview_scheduled',
               next_step = 'Attend the confirmed employment interview.'

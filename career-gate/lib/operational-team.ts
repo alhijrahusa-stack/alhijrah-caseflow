@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { options } from "@/lib/catalog";
 import { withStaff, type StaffSession } from "@/lib/auth";
 import { TZ } from "@/lib/queries";
@@ -46,7 +47,7 @@ export type TeamWorkloadData = {
   unassigned_sites: TeamSiteRow[];
 };
 
-export async function teamWorkload(session: StaffSession): Promise<TeamWorkloadData> {
+export const teamWorkload = cache(async (session: StaffSession): Promise<TeamWorkloadData> => {
   const activeCatalogKeys = new Set(options.map((option) => option.key));
   return withStaff(session, async (tx) => {
     await tx`select set_config('statement_timeout', '6500', true)`;
@@ -112,4 +113,4 @@ export async function teamWorkload(session: StaffSession): Promise<TeamWorkloadD
       members, unassigned_sites:unassignedSites.sort((a,b)=>b.total-a.total || a.site_code.localeCompare(b.site_code)),
     };
   });
-}
+});

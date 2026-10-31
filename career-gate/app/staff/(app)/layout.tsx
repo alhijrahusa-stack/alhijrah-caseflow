@@ -7,7 +7,8 @@ import { ExecutiveTactileFX } from "@/components/staff/ExecutiveTactileFX";
 import { ExecutiveTelemetry } from "@/components/staff/ExecutiveTelemetry";
 import { QuickClientSearch } from "@/components/staff/QuickClientSearch";
 import { SignOutButton } from "@/components/staff/SignOutButton";
-import { StaffNavigation } from "@/components/staff/StaffNavigation";
+import { ExecutiveShell } from "@/components/staff/ExecutiveShell";
+import { executiveSummary } from "@/lib/executive-summary";
 import { StaffProvider } from "@/components/staff/StaffContext";
 import { SectionBoundary } from "@/components/ui/SectionBoundary";
 import { getStaffSession } from "@/lib/auth";
@@ -19,54 +20,26 @@ import "../extras.css";
 import "../executive-design-system.css";
 import "../executive-refinement.css";
 import "../field-ux.css";
+import "../royal-executive.css";
 
 export const dynamic = "force-dynamic";
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
-  const staff = await staffDirectory(session);
+  const [staff, summary] = await Promise.all([staffDirectory(session), executiveSummary(session)]);
   const mgmt = session.staff.role !== "staff";
 
   return (
     <StaffProvider me={{ id: session.staff.id, display_name: session.staff.display_name, role: session.staff.role }} staff={staff}>
       <SectionBoundary name="tactile-fx" fallback={null}><ExecutiveTactileFX /></SectionBoundary>
-      <div className="staff-shell">
-        <header className="staff-topbar sticky top-0 z-30">
-          <div className="staff-executive-header mx-auto max-w-[1800px] px-4 py-3 lg:px-6">
-            <div className="staff-executive-header-row">
-              <Link href="/staff" className="staff-brand-lockup staff-brand-capsule min-w-0" data-executive-tactile="true">
-                <span className="staff-brand-halo" aria-hidden="true" />
-                <span className="staff-brand-mark" aria-hidden="true"><Image src="/brand/career-gate.webp" alt="" width={48} height={48} priority /></span>
-                <span className="staff-brand-office" aria-hidden="true"><Image src="/brand/alhijrah-services.webp" alt="" width={40} height={40} priority /></span>
-                <span className="staff-brand-copy min-w-0"><strong className="block truncate text-slate-100">CAREER GATE</strong><p className="truncate">{OFFICE.company} · {OFFICE.location}</p></span>
-              </Link>
-
-              <div className="staff-institutional-masthead" dir="rtl">
-                <span>مرحبا بكم</span>
-                <strong>النظام الإداري مكتب الهجرة — قسم إدارة التوظيف</strong>
-                <p>الدقة · السرعة · المصداقية</p>
-              </div>
-
-              <div className="staff-header-actions">
-                <SectionBoundary name="telemetry" fallback={null}><ExecutiveTelemetry /></SectionBoundary>
-                <SectionBoundary name="quick-search" fallback={null}><QuickClientSearch /></SectionBoundary>
-                <SectionBoundary name="command-palette" fallback={null}><CommandPalette /></SectionBoundary>
-                <SectionBoundary name="appointment-alerts" fallback={null}><StaffAppointmentAlerts staffId={session.staff.id} /></SectionBoundary>
-                {mgmt && <Link href="/staff/audit-alerts" className="staff-header-alert" aria-label="Audit alerts" data-executive-tactile="true">Alerts</Link>}
-                <div className="staff-session-cluster">
-                  <span className="staff-session-chip hidden sm:flex" data-testid="me"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.7)]" /><span className="max-w-32 truncate text-xs text-slate-200">{session.staff.display_name}</span><span className="text-[10px] uppercase tracking-wide text-slate-500">{session.staff.role}</span></span>
-                  <Link href="/staff/staff?tab=team" className="staff-session-link" data-executive-tactile="true">Executive Profile</Link>
-                  <div data-executive-tactile="true"><SignOutButton /></div>
-                </div>
-              </div>
-            </div>
-
-            <StaffNavigation management={mgmt} />
-          </div>
-        </header>
-        <main className="px-4 py-5 lg:px-6">{children}</main>
-      </div>
+      <ExecutiveShell initial={summary} management={mgmt} header={<>
+        <Link href="/staff" className="royal-header-brand" prefetch={false}><Image src="/brand/career-gate.webp" alt="Career Gate" width={40} height={40}/><span>CAREER GATE<small>{OFFICE.location}</small></span></Link>
+        <div className="royal-command-bar"><SectionBoundary name="quick-search" fallback={null}><QuickClientSearch /></SectionBoundary><SectionBoundary name="command-palette" fallback={null}><CommandPalette /></SectionBoundary></div>
+        <div className="royal-session"><SectionBoundary name="telemetry" fallback={null}><ExecutiveTelemetry /></SectionBoundary><StaffAppointmentAlerts staffId={session.staff.id} /><Link href="/staff/staff?tab=team" prefetch={false} aria-label="Executive Profile" data-testid="me">{session.staff.display_name}<small>{session.staff.role}</small></Link><SignOutButton /></div>
+      </>}>
+        {children}
+      </ExecutiveShell>
     </StaffProvider>
   );
 }

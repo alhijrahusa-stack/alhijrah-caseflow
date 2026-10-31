@@ -1,124 +1,50 @@
-import { pipelineClientHref } from "@/lib/pipeline-navigation";
-import { g3Counts } from "@/lib/g3-stages";
-import type { ReactNode } from "react";
+"use client";
+
 import Link from "next/link";
-import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
-import { STATUS_LABELS, type Status } from "@/lib/domain";
-import type { DashboardCommandData } from "@/lib/operational-dashboard";
+import { useState } from "react";
+import { useExecutiveSummary } from "@/components/staff/ExecutiveShell";
+import { useStaff } from "@/components/staff/StaffContext";
+import { useTargetedMutationBatch } from "@/components/staff/realtime/useTargetedMutation";
 
-function Kpi({label,value,href,tone="neutral",detail}:{label:string;value:ReactNode;href?:string;tone?:"neutral"|"warn"|"danger"|"good";detail?:string}){
-  const cls=tone==="danger"?"text-red-300":tone==="warn"?"text-amber-300":tone==="good"?"text-emerald-300":"text-slate-100";
-  const body=<div className="staff-kpi rounded-2xl p-4"><p className="text-sm text-slate-400">{label}</p><p className={`mt-2 text-3xl font-semibold tabular-nums ${cls}`}>{value}</p>{detail&&<p className="mt-1 text-xs text-slate-500">{detail}</p>}</div>;
-  return href?<Link prefetch={false} href={href} className="block transition hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">{body}</Link>:body;
-}
+const currency=(value:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(value);
+const kindLabels:Record<string,string>={appointment_repair:'حالة موعد بلا حجز نشط — يلزم تصحيح الربط',payment_overdue:'نجح بالمقابلة — متابعة المستحقات',schedule_interview:'جاهز — يحتاج حجز مقابلة',document_review:'وثائق معلقة — تحتاج تدقيقًا'};
 
-function Money({value}:{value:number}){
-  return <>{new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(value)}</>;
-}
-
-function SectionTitle({title,subtitle,href,label}:{title:string;subtitle:string;href?:string;label?:string}){
-  return <div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="text-xl font-semibold text-slate-100">{title}</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p></div>{href&&<Link prefetch={false} href={href} className="text-sm font-medium text-amber-200 hover:text-amber-100">{label??"Open"}</Link>}</div>;
-}
-
-export function OperationalDashboard({data}:{data:DashboardCommandData}){
-  const activeMembers=data.team.members.filter((m)=>m.active);
-  const configuredProviders=data.system?Object.values(data.system.providers).filter((s)=>s==="CONFIGURED").length:0;
-  const totalProviders=data.system?Object.keys(data.system.providers).length:0;
-  return <div className="ops-page space-y-6">
-    <header className="ops-hero">
-      <div><p className="ops-kicker">CAREER GATE · EXECUTIVE COMMAND CENTER</p><h1>Operations Command Center</h1><p>Exceptions first. Workload, readiness, finance and system health from canonical operational data.</p></div>
-      <div className="flex items-center gap-3"><span className={`rounded-full border px-3 py-1 text-xs font-semibold ${data.exceptions>0?"border-amber-300/30 bg-amber-300/10 text-amber-200":"border-emerald-300/30 bg-emerald-300/10 text-emerald-200"}`}>{data.exceptions} exceptions</span><RealtimeRefresher /></div>
-    </header>
-
-    <section aria-label="Six-stage lifecycle" className="ops-glass-card overflow-hidden rounded-[26px] border border-amber-300/15 bg-gradient-to-br from-[#111f37]/85 to-[#081325]/95 p-4 shadow-[0_18px_45px_rgba(0,0,0,.22)] backdrop-blur-2xl sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="ops-kicker">ONE CLIENT · ONE WORKFLOW</p><h2 className="mt-1 text-lg font-semibold tracking-tight text-white">Six-stage operational flow / المسار الموحد</h2></div><Link prefetch={false} href="/staff/pipeline" className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/20">Open pipeline</Link></div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-        {g3Counts(data.pipeline).map((stage,index)=><Link prefetch={false} key={stage.label} href={stage.href} className="group relative min-w-0 rounded-2xl border border-amber-200/25 bg-gradient-to-br from-[#183753] to-[#071727] px-3 py-3.5 shadow-[inset_0_1px_rgba(255,255,255,.07)] transition-colors duration-150 hover:border-amber-200/65 hover:from-[#244562] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
-          <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/35 to-transparent"/>
-          <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{String(index + 1).padStart(2,"0")} · {stage.label}</span><span aria-hidden="true" className="text-xs text-amber-200/70">{index<5?"›":"✓"}</span></div>
-          <strong className="mt-3 block text-3xl font-semibold tabular-nums tracking-tight text-white">{data.lifecycle[stage.id]}</strong>
-          <span lang="ar" dir="rtl" className="mt-2 block text-xs text-amber-100/85">{stage.labelAr}</span>
-        </Link>)}
-      </div>
-      <nav aria-label="Payment and paperwork queues" className="mt-3 flex flex-wrap gap-2">
-        <Link prefetch={false} href="/staff/clients?stage=payment_required" className="cg-command-button">Payment Required · {data.payment_pending}</Link>
-        <Link prefetch={false} href="/staff/clients?stage=paperwork_pending" className="cg-command-button">Paperwork Pending · {data.paperwork_pending}</Link>
-        <Link prefetch={false} href="/staff/clients?view=all" className="cg-command-button">Clients Master Registry ↗</Link>
-      </nav>
+export function OperationalDashboard(){
+  const data=useExecutiveSummary();
+  const {isManager}=useStaff();
+  const [selected,setSelected]=useState<string|null>(null);
+  const [busy,setBusy]=useState(false);
+  const [message,setMessage]=useState('');
+  const [failed,setFailed]=useState(false);
+  const changed=useTargetedMutationBatch();
+  const team=[...data.team].sort((a,b)=>b.overdue_tasks-a.overdue_tasks||(b.active_clients+b.open_tasks)-(a.active_clients+a.open_tasks));
+  const maximum=Math.max(1,...team.map(member=>member.active_clients+member.open_tasks));
+  async function assign(clientId:string,staffId:string){
+    if(!isManager||busy||!data.priorities.some(client=>client.id===clientId))return;
+    setBusy(true);setMessage('');setFailed(false);
+    try{
+      const response=await fetch('/api/staff/operations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'reassign_client',client_id:clientId,staff_id:staffId,reason:'Assigned from Executive Command Center',task_ids:[]}),signal:AbortSignal.timeout(20000)});
+      const body=await response.json().catch(()=>null);
+      if(!response.ok||!body?.ok)throw new Error(body?.error?.message??'تعذر تعيين الملف');
+      setSelected(null);setMessage('تم تعيين الملف وتسجيل العملية');changed('reassign_client',[clientId]);
+    }catch(error){setFailed(true);setMessage(error instanceof Error?error.message:'تعذر الاتصال');}finally{setBusy(false);}
+  }
+  return <div className="royal-dashboard" dir="rtl">
+    <header className="royal-page-heading"><div><p className="royal-eyebrow">CAREER GATE · ROYAL EXECUTIVE</p><h1>Operations Command Center</h1><p>مركز القيادة · القرارات المهمة أمامك، والتفاصيل عند الحاجة</p></div><span className="royal-live-pill"><i/>متصل بالبيانات الفعلية</span></header>
+    <section className="royal-pulse" aria-label="المؤشرات الحرجة">
+      <article className="royal-glass royal-pulse-card"><div className="royal-pulse-label"><span>المستحقات المعلقة</span><span className="royal-metric-symbol">＄</span></div><strong dir="ltr">{currency(data.revenue_pending)}</strong><p>الرصيد الفعلي غير المسدد في دفتر الحسابات</p><Link href={isManager?"/staff/accounting?status=unpaid":"/staff/clients?stage=payment_required"} prefetch={false}>متابعة السداد <span>↗</span></Link></article>
+      <article className="royal-glass royal-pulse-card"><Link className="royal-card-link" href="/staff/clients?attention=documents" aria-label="Documents Needing Action" prefetch={false}><div className="royal-pulse-label"><span>عوائق الوثائق</span><span className="royal-metric-symbol">▤</span></div><strong>{data.document_blockers}</strong><p>ملفات نشطة ذات وثائق تحتاج إجراءً</p><span className="royal-card-cta">مراجعة النواقص <span>↗</span></span></Link></article>
+      <article className="royal-glass royal-pulse-card"><div className="royal-pulse-label"><span>معدل نجاح المقابلات</span><span className="royal-metric-symbol">↗</span></div><strong className="royal-turquoise">{data.conversion_rate==null?'—':`${data.conversion_rate}%`}</strong><p>{data.conversion_rate==null?"لم تُسجل نتائج مقابلات كافية لحساب النسبة":"النجاح ÷ نتائج النجاح والرسوب المسجلة لكل عميل"}</p><Link href="/staff/appointments?view=past" prefetch={false}>مراجعة النتائج <span>↗</span></Link></article>
     </section>
-
-    <section aria-labelledby="now-heading">
-      <SectionTitle title="Now" subtitle="Items requiring operational attention."/>
-      <h2 id="now-heading" className="sr-only">Current exceptions</h2>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Overdue Tasks" value={data.overdue_tasks} href="/staff/tasks?view=overdue" tone={data.overdue_tasks?"danger":"good"}/>
-        <Kpi label="Overdue Follow-Ups" value={data.overdue_followups} href="/staff/follow-ups?view=overdue" tone={data.overdue_followups?"danger":"good"}/>
-        <Kpi label="Documents Needing Action" value={data.document_attention} href="/staff/clients?attention=documents" tone={data.document_attention?"warn":"good"}/>
-        <Kpi label="Unassigned Files" value={data.unassigned_clients} href="/staff/clients?assigned=none" tone={data.unassigned_clients?"warn":"good"}/>
-        {data.system&&<><Kpi label="Dead Jobs" value={data.system.queue.dead} tone={data.system.queue.dead?"danger":"good"}/><Kpi label="Delivery Failures · 24h" value={data.system.failed_notifications_24h} tone={data.system.failed_notifications_24h?"danger":"good"}/><Kpi label="Open Audit Alerts" value={data.system.open_audit_alerts} href="/staff/audit-alerts" tone={data.system.open_audit_alerts?"warn":"good"}/><Kpi label="System" value={data.system.status} tone={data.system.status==="HEALTHY"?"good":data.system.status==="DEGRADED"?"warn":"danger"} detail={`DB ${data.system.db_ms} ms`}/></>}
+    <section className="royal-glass royal-pipeline" aria-label="Six-stage lifecycle"><div className="royal-section-title"><div><p className="royal-eyebrow">ONE CLIENT · ONE WORKFLOW</p><h2>مسار العمل الحي</h2></div><Link href="/staff/pipeline" prefetch={false}>عرض مسار العمل ↗</Link></div><div className="royal-stations grid">{data.stages.map((stage,index)=><Link key={stage.id} href={stage.href} prefetch={false} className={`royal-station station-${stage.id}`}><div><span className="royal-station-number">{String(index+1).padStart(2,'0')}</span><span aria-hidden="true">{index===5?'✓':'←'}</span></div><strong>{stage.total}</strong><b>{stage.labelAr}</b><small>{stage.label}</small><span className={`royal-wait ${(stage.wait_hours??0)>72&&index<5?'delayed':''}`}>{stage.wait_hours==null?(stage.total?'زمن الدخول غير مسجل':'لا ملفات حاليًا'):`متوسط البقاء: ${stage.wait_hours>=24?`${(stage.wait_hours/24).toFixed(1)} يوم`:`${Math.round(stage.wait_hours)} ساعة`}`}</span></Link>)}</div><div className="royal-loop"><span>↻ الرسوب أو الاعتذار مع استمرار الاهتمام: إعادة توجيه إلى تجهيز الوظيفة</span><Link href="/staff/clients?stage=job_ready" prefetch={false}>فتح ملفات إعادة التوجيه</Link><Link href="/staff/clients?stage=paperwork_pending" prefetch={false}>استكمال ما بعد المقابلة</Link></div></section>
+    <section className="royal-cockpit">
+      <div className="royal-glass royal-actions"><div className="royal-section-title"><div><p className="royal-eyebrow">ACTION CENTER</p><h2>أولويات المدير</h2></div><span className="royal-count-pill">{data.priorities.length} ملفات</span></div>
+        {data.priorities.length===0?<p className="royal-empty">لا ملفات حرجة في قائمة التدخل الحالية.</p>:<div className="royal-action-list">{data.priorities.map(client=><article key={client.id} className="royal-action-row" draggable={isManager&&!busy} onDragStart={event=>{event.dataTransfer.setData('application/career-gate-client',client.id);event.dataTransfer.effectAllowed='move';}}><span className={`royal-action-marker ${client.kind==='payment_overdue'?'critical':''}`} aria-hidden="true"/><div className="royal-action-content"><strong>{client.full_name}</strong><p>{kindLabels[client.kind]}{client.kind==='payment_overdue'?` · ${currency(client.amount)}`:''}</p><small>{client.ref} · {Math.floor(client.age_days)} يوم</small></div><div className="royal-action-buttons"><Link href={client.href} prefetch={false}>{!isManager?'فتح الملف':client.kind==='payment_overdue'?'متابعة الدفع':client.kind==='schedule_interview'?'جدولة':'مراجعة'} ↗</Link>{isManager&&<button type="button" aria-pressed={selected===client.id} disabled={busy} onClick={()=>setSelected(selected===client.id?null:client.id)}>تعيين</button>}</div></article>)}</div>}
+        {isManager?<Link className="royal-audit-link" href="/staff/audit-alerts" prefetch={false}><span className={`royal-load-dot ${data.audit_alerts?'critical':''}`}/>{data.audit_alerts} تنبيه تدقيق مفتوح <span>مراجعة ↗</span></Link>:<p className="royal-audit-link">{data.audit_alerts} تنبيه تدقيق · يراجعها المدير</p>}
       </div>
+      <div className="royal-glass royal-team"><div className="royal-section-title"><div><p className="royal-eyebrow">REAL TEAM LOAD</p><h2>حمل الفريق</h2></div><Link href="/staff/staff?tab=team" prefetch={false}>عرض الفريق ↗</Link></div><p className="royal-team-hint">{selected?'اختر الموظف لتعيين الملف المحدد':isManager?'اسحب ملفًا من الأولويات إلى الموظف، أو استخدم زر تعيين':'الحمل النسبي للملفات والمهام المفتوحة'}</p><div className="royal-team-list">{team.map(member=>{const load=member.active_clients+member.open_tasks;const tone=member.overdue_tasks?'critical':load/maximum>=.7?'busy':'available';return <article key={member.id} className={`royal-team-row ${tone}`} onDragOver={event=>{if(isManager&&!busy&&event.dataTransfer.types.includes('application/career-gate-client')){event.preventDefault();event.dataTransfer.dropEffect='move';}}} onDrop={event=>{event.preventDefault();const id=event.dataTransfer.getData('application/career-gate-client');if(id)void assign(id,member.id);}}><div className="royal-team-identity"><span className="royal-team-avatar">{member.display_name.trim().slice(0,1)}<i/></span><div><Link href={`/staff/staff?tab=team&member=${member.id}`} prefetch={false} aria-label={`${member.display_name} ${member.active_clients} files ${member.open_tasks} tasks ${member.overdue_tasks} overdue`}>{member.display_name}</Link><p>{member.active_clients} ملفات · {member.open_tasks} مهام{member.overdue_tasks>0?` · ${member.overdue_tasks} متأخرة`:''}</p></div><span className="royal-team-state">{member.overdue_tasks?'يحتاج تدخلًا':load===0?'متاح':'جارٍ العمل'}</span></div><div className="royal-load-track" role="meter" aria-label={`حمل ${member.display_name} النسبي`} aria-valuemin={0} aria-valuemax={maximum} aria-valuenow={load}><span style={{width:`${100*load/maximum}%`}}/></div>{selected&&isManager&&<button type="button" className="royal-assign-button" disabled={busy} onClick={()=>void assign(selected,member.id)}>تعيين الملف لهذا الموظف</button>}</article>;})}</div><p className="royal-team-hint">الأشرطة نسبة إلى أعلى حمل حالي. أسماء الموظفين وأعدادهم من النظام.</p></div>
     </section>
-
-    <section aria-labelledby="today-heading">
-      <SectionTitle title="Today" subtitle="Immediate production workload." href="/staff/today" label="Open Today"/>
-      <div className="mb-3 text-right"><Link prefetch={false} className="text-sm font-medium text-amber-200 hover:text-amber-100" href="/staff/week">Open This Week →</Link></div>
-      <h2 id="today-heading" className="sr-only">Today&apos;s workload</h2>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="New Clients" value={data.new_clients} href="/staff/clients?status=new_intake"/>
-        <Kpi label="Appointments · Next 2 Hours" value={data.appointments_2h} href="/staff/appointments?view=next_2h" tone={data.appointments_2h?"warn":"neutral"}/>
-        <Kpi label="Tasks Due Today" value={data.tasks_due} href="/staff/tasks?view=due_today"/>
-        <Kpi label="Completed This Month" value={data.completed_this_month} href="/staff/clients?view=completed&completed_this_month=1" tone="good"/>
-      </div>
-    </section>
-
-    <section className="grid gap-4 xl:grid-cols-2">
-      <div className="ops-glass-card">
-        <SectionTitle title="Readiness" subtitle="Derived from canonical requirements."/>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi label="Ready" value={data.readiness.ready} tone="good"/>
-          <Kpi label="Nearly Ready" value={data.readiness.nearly_ready}/>
-          <Kpi label="Blocked" value={data.readiness.blocked} tone={data.readiness.blocked?"warn":"good"}/>
-          <Kpi label="Missing Requirements" value={data.readiness.missing_requirements} tone={data.readiness.missing_requirements?"warn":"good"}/>
-        </div>
-      </div>
-
-      <div className="ops-glass-card">
-        <SectionTitle title="Finance" subtitle="Ledger-backed operational projection." href="/staff/accounting" label="Open Accounting"/>
-        <div className="grid grid-cols-2 gap-3">
-          <Kpi label="Receivables" value={<Money value={data.finance.receivables}/>} tone={data.finance.receivables>0?"warn":"good"}/>
-          <Kpi label="Collected · Month" value={<Money value={data.finance.collected_this_month}/>} tone="good"/>
-          <Kpi label="Refunds · Month" value={<Money value={data.finance.refunds_this_month}/>}/>
-          <Kpi label="Commissions Attention" value={data.finance.commissions_attention} tone={data.finance.commissions_attention?"warn":"neutral"}/>
-        </div>
-      </div>
-    </section>
-
-    <section className="ops-glass-card">
-      <SectionTitle title="Pipeline" subtitle="Active workload by authoritative workflow status." href="/staff/pipeline" label="Open Pipeline"/>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {data.pipeline.map((p)=><Link prefetch={false} key={p.status} href={pipelineClientHref(p.status)} className="staff-glass flex items-center justify-between rounded-xl px-4 py-3 transition hover:border-amber-300/30"><span className="truncate text-sm text-slate-300">{STATUS_LABELS[p.status as Status]??p.status.replace(/_/g," ")}</span><strong className="ml-3 tabular-nums text-slate-100">{p.total}</strong></Link>)}
-      </div>
-    </section>
-
-    <section className="grid gap-4 xl:grid-cols-[1.4fr_.6fr]">
-      <div className="ops-glass-card">
-        <SectionTitle title="Team Workload" subtitle="Active files and due-work pressure." href="/staff/staff?tab=team" label="View Team"/>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {activeMembers.map((member)=><Link prefetch={false} key={member.id} href={`/staff/staff?tab=team&member=${member.id}`} className="staff-glass rounded-2xl p-4 transition hover:-translate-y-px hover:border-amber-300/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">
-            <div className="flex items-center justify-between gap-3"><strong className="truncate text-base text-slate-100">{member.display_name}</strong><span className="rounded-full border border-white/10 px-2 py-1 text-xs uppercase text-slate-400">{member.role}</span></div>
-            <div className="mt-3 grid grid-cols-3 gap-2 text-center"><div><b className="block text-xl tabular-nums text-slate-100">{member.active_clients}</b><span className="text-xs text-slate-500">files</span></div><div><b className="block text-xl tabular-nums text-slate-100">{member.open_tasks}</b><span className="text-xs text-slate-500">tasks</span></div><div><b className={`block text-xl tabular-nums ${member.overdue_tasks?"text-red-300":"text-slate-100"}`}>{member.overdue_tasks}</b><span className="text-xs text-slate-500">overdue</span></div></div>
-            <div className="mt-3 space-y-1.5 text-sm text-slate-400">{member.sites.slice(0,3).map((site)=><div key={`${site.site_code}-${site.shift_code}`} className="flex justify-between gap-3"><span className="truncate">{site.site_name} · {site.shift_name}</span><b className="tabular-nums text-slate-200">{site.total}</b></div>)}</div>
-          </Link>)}
-        </div>
-      </div>
-
-      <div className="ops-glass-card">
-        <h2 className="text-xl font-semibold text-slate-100">Operational Health</h2>
-        <p className="mt-1 text-sm text-slate-500">Assigned, no overdue work and no current blocking document.</p>
-        <div className="mt-6 flex items-end gap-2"><strong className="text-5xl font-semibold tabular-nums text-slate-100">{data.efficiency==null?"N/A":`${data.efficiency}%`}</strong></div>
-        {data.efficiency!=null&&<div className="mt-5 h-2 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-emerald-400/80" style={{width:`${Math.max(0,Math.min(100,data.efficiency))}%`}}/></div>}
-        <dl className="mt-6 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-slate-500">Active Files</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{data.team.active_clients}</dd></div><div><dt className="text-slate-500">Unassigned</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{data.team.unassigned_clients}</dd></div>{data.system&&<><div><dt className="text-slate-500">Queue</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{data.system.queue.queued}</dd></div><div><dt className="text-slate-500">Providers</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{configuredProviders}/{totalProviders}</dd></div></>}</dl>
-      </div>
-    </section>
+    {message&&<p role={failed?'alert':'status'} className={`royal-feedback ${failed?'critical':''}`}>{message}</p>}
+    <footer className="royal-dashboard-footer"><span>{currency(data.paid_total)} صافي محصل</span><Link href="/staff/tasks?view=overdue" aria-label="Overdue Tasks" prefetch={false}>{data.queues.overdue_tasks} مهام متأخرة</Link><Link href="/staff/follow-ups?view=overdue" aria-label="Overdue Follow-Ups" prefetch={false}>{data.queues.overdue_followups} متابعات متأخرة</Link><Link href="/staff/clients?assigned=none" aria-label="Unassigned Files" prefetch={false}>{data.queues.unassigned_clients} ملفات غير معينة</Link><Link href="/staff/clients?view=completed&completed_this_month=1" aria-label="Completed This Month" prefetch={false}>{data.queues.completed_this_month} مكتمل هذا الشهر</Link><Link href="/staff/today" prefetch={false}>عمل اليوم</Link><Link href="/staff/week" prefetch={false}>هذا الأسبوع</Link><Link href="/staff/clients?view=all" prefetch={false}>جميع السجلات</Link></footer>
   </div>;
 }

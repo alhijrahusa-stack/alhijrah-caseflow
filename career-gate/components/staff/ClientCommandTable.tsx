@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { ClientWorkflowControl } from "@/components/staff/ClientWorkflowControl";
 import dynamic from "next/dynamic";
 import { CLIENT_STAGES, type ClientStageFilter } from "@/lib/client-lifecycle-filters";
 import { dateTime } from "@/lib/format";
@@ -58,7 +59,7 @@ export function ClientCommandTable({clients,staff,management}:{clients:CommandCl
  const eligible=matching.filter(c=>!["completed","cancelled"].includes(c.current_status));
  const toggle=(id:string)=>setSelected(cur=>cur.includes(id)?cur.filter(x=>x!==id):[...cur,id]);
  const badge=(s:string)=>{const fresh=s==="new_intake",progress=s==="application_in_progress";return <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold capitalize shadow-[inset_0_1px_rgba(255,255,255,.08)] ${fresh?"border-cyan-300/35 bg-cyan-400/10 text-cyan-200":progress?"border-amber-300/35 bg-gradient-to-r from-orange-400/15 to-amber-300/10 text-amber-200":"border-amber-300/20 bg-amber-200/10 text-amber-100"}`}>{fresh&&<span className="cg-status-dot"/>}{s.replaceAll("_"," ")}{progress&&<span className="ml-1 h-0.5 w-6 rounded-full bg-gradient-to-r from-orange-300 to-amber-100/30"/>}</span>};
- const cards=<div className="grid min-w-0 gap-2.5 md:grid-cols-2 2xl:grid-cols-3" data-testid="client-registry-responsive-cards">
+ const cards=<div className="royal-client-rows grid min-w-0 gap-3" data-testid="client-registry-responsive-cards">
    {matching.map(c=><article key={c.id} className="cg-registry-card">
      <div className="flex items-start justify-between gap-2">
        <div className="flex min-w-0 items-start gap-3">
@@ -71,7 +72,7 @@ export function ClientCommandTable({clients,staff,management}:{clients:CommandCl
        </div>
        {management&&<input type="checkbox" aria-label={`Select ${c.full_name}`} checked={selected.includes(c.id)} onChange={()=>toggle(c.id)} disabled={["completed","cancelled"].includes(c.current_status)} className="mt-1 h-4 w-4 shrink-0"/>}
      </div>
-     <div className="mt-2.5 flex flex-wrap items-center gap-2">{badge(c.current_status)}{c.amazon_account_ready&&<span className="text-xs text-emerald-300">Amazon READY</span>}{c.payment_status==="paid"&&<span className="text-xs text-emerald-300">Paid</span>}<span className="text-xs text-slate-400">{c.assigned_name??"Unassigned"}</span></div>
+     <div className="mt-2.5 flex flex-wrap items-center gap-2">{badge(c.current_status)}{c.amazon_account_ready&&<span className="text-xs text-emerald-300">Amazon READY</span>}{!c.amazon_account_ready&&["shift_selected","appointment_required"].includes(c.current_status)&&<span className="text-xs text-amber-200">Account needs verification</span>}{c.payment_status==="paid"&&<span className="text-xs text-emerald-300">Paid</span>}<span className="text-xs text-slate-400">{c.assigned_name??"Unassigned"}</span></div>
      <div className="mt-2.5 grid grid-cols-2 gap-2 border-t border-white/10 pt-2.5 text-xs">
        <div className="min-w-0"><span className="text-slate-400">Received / الاستلام</span><time dateTime={new Date(c.created_at).toISOString()} className="mt-1 block font-medium text-slate-200">{dateTime(c.created_at)}</time></div>
        <div className="min-w-0"><span className="text-slate-400">Location · Shift</span><p className="mt-1 truncate text-slate-200">{c.site_name??"—"} · {c.shift_name??"—"}</p></div>
@@ -81,6 +82,7 @@ export function ClientCommandTable({clients,staff,management}:{clients:CommandCl
        <Link href={`/staff/client/${c.id}`} prefetch={false} className="cg-command-button flex-1 text-center">Open Client ↗</Link>
        <button type="button" className="cg-command-button text-xs" onClick={()=>setDrawer(c)}>Quick view · Client 360</button>
      </div>
+     <ClientWorkflowControl clientId={c.id} status={c.current_status} management={management} compact/>
    </article>)}
  </div>;
  return <section className="ops-glass-card space-y-4">

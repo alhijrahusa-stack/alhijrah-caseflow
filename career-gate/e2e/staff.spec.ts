@@ -30,8 +30,8 @@ test.describe.serial("office workflow", () => {
   test("dashboard shows real counts and the new application", async () => {
     await page.goto("/staff");
     await expect(page.getByTestId("me")).toContainText("TEST Admin");
-    const [{ n }] = await db()`select count(*)::int as n from clients where current_status = 'new_intake' and deleted_at is null`;
-    const newClientsKpi = page.locator(".staff-kpi").filter({ hasText: "New clients" }).first();
+    const [{ n }] = await db()`select count(*)::int as n from clients where current_status in ('new_intake','needs_review') and deleted_at is null`;
+    const newClientsKpi = page.locator(".royal-station.station-intake");
     await expect(newClientsKpi).toContainText(String(n));
     await page.goto("/staff/clients?status=new_intake");
     await expect(page.getByRole("link", { name: ref })).toBeVisible();
@@ -176,6 +176,7 @@ test.describe.serial("office workflow", () => {
     }
     await page.reload();
     await page.getByTestId("quick-actions").getByRole("button", { name: "Add Appointment" }).click();
+    await page.getByLabel("Appointment type",{exact:true}).fill("Office intake");
     const locationPicker = page.getByRole("button", { name: /اختيار موقع مستودع أمازون/ });
     await locationPicker.click();
     const picker = page.getByRole("dialog", { name: "Amazon warehouse location picker" });

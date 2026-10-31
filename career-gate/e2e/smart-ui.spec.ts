@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { PNG, db, signIn, STAFF } from "./helpers";
+import { PNG, chooseImportSpreadsheet, db, signIn, STAFF } from "./helpers";
 
 const DESKTOP = { width: 1500, height: 1000 };
 const TABLET = { width: 900, height: 1100 };
@@ -475,7 +475,7 @@ test.describe("Smart Review experience", () => {
     await page.goto("/staff/import");
 
     const csv = `full_name,phone,english_proficiency,shift_days\n${name},${phone},Englis is goog,Weekdays\n`;
-    await page.locator('input[type="file"]').first().setInputFiles({ name: "review-ui.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await chooseImportSpreadsheet(page, { name: "review-ui.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await page.getByRole("button", { name: "PREVIEW" }).click();
     await page.getByRole("button", { name: /STAGE SELECTED/ }).click();
     await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
@@ -596,7 +596,7 @@ test.describe("Smart Review experience", () => {
     await page.setViewportSize(DESKTOP);
     await page.goto("/staff/import");
     const csv = `full_name,phone,date_of_birth\n${name},${phone},1976-01-01\n`;
-    await page.locator('input[type="file"]').first().setInputFiles({ name: "review-conflict.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await chooseImportSpreadsheet(page, { name: "review-conflict.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await page.getByRole("button", { name: "PREVIEW" }).click();
     await page.getByRole("button", { name: /STAGE SELECTED/ }).click();
     await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
@@ -677,7 +677,7 @@ test.describe("Smart Review experience", () => {
     await signIn(page.context(), baseURL!, "admin");
     await page.setViewportSize(DESKTOP);
     await page.goto("/staff/import");
-    await page.locator('input[type="file"]').first().setInputFiles({
+    await chooseImportSpreadsheet(page, {
       name: "review-followup.csv", mimeType: "text/csv",
       buffer: Buffer.from(`full_name,phone,date_of_birth\n${name},${phone},1976-01-01\n`),
     });
@@ -770,7 +770,7 @@ test.describe("Smart Review experience", () => {
     await signIn(page.context(), baseURL!, "admin");
     await page.setViewportSize(DESKTOP);
     await page.goto("/staff/import");
-    await page.locator('input[type="file"]').first().setInputFiles({ name: "review-mobile.csv", mimeType: "text/csv", buffer: Buffer.from(`full_name,phone\n${name},${phone}\n`) });
+    await chooseImportSpreadsheet(page, { name: "review-mobile.csv", mimeType: "text/csv", buffer: Buffer.from(`full_name,phone\n${name},${phone}\n`) });
     await page.getByRole("button", { name: "PREVIEW" }).click();
     await page.getByRole("button", { name: /STAGE SELECTED/ }).click();
     await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();

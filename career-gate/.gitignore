@@ -6,3 +6,5 @@ next-env.d.ts
 test-results/
 playwright-report/
 data/job-catalog.json.orig
+
+supabase/.temp/

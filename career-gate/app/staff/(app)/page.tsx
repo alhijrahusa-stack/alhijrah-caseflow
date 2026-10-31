@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { OperationalDashboard } from "@/components/staff/OperationalDashboard";
 import { getStaffSession } from "@/lib/auth";
-import { monitoredDashboardCommandData } from "@/lib/operational-dashboard";
+
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,5 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   if (params.tab === "today") redirect("/staff/today");
   if (params.tab === "week") redirect("/staff/week");
 
-  const data = await monitoredDashboardCommandData(session);
-  return <OperationalDashboard data={data} />;
+  return <OperationalDashboard />;
 }

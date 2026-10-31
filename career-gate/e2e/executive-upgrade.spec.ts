@@ -24,7 +24,7 @@ test.describe("executive staff upgrade acceptance", () => {
       ["/staff/staff?tab=assignments", /^Assignments$/i],
       ["/staff/staff?tab=activity", /Operational Activity/i],
       ["/staff/reports", /^Reports$/i],
-      ["/staff/accounting", /Accounting/i],
+      ["/staff/accounting", /^Accounts & Commissions$/i],
       ["/staff/import", /SMART CAREER COLLECT CLIENT/i],
       ["/staff/settings/availability", /Office Availability/i],
     ];
@@ -32,7 +32,7 @@ test.describe("executive staff upgrade acceptance", () => {
     for (const [path, text] of routes) {
       const response = await page.goto(path);
       expect(response?.status(), path).toBeLessThan(400);
-      await expect(page.getByText(text).first(), path).toBeVisible();
+      await expect(page.getByText(text).filter({visible:true}).first(), path).toBeVisible();
     }
 
     const legacyDistribution = await page.goto("/staff/distribution");
@@ -65,7 +65,7 @@ test.describe("executive staff upgrade acceptance", () => {
 
     await page.goto("/staff/clients");
     const current = page.locator('.staff-nav-link[aria-current="page"]');
-    await expect(current).toHaveText("Clients");
+    await expect(current).toHaveAttribute("aria-label", "Clients");
     await expect(current).toHaveCSS("font-weight", "600");
     const navMetrics = await current.evaluate((el) => {
       const s = getComputedStyle(el);

@@ -1,7 +1,17 @@
 import { createHmac, randomUUID } from "node:crypto";
-import type { APIRequestContext, BrowserContext } from "@playwright/test";
+import type { APIRequestContext, BrowserContext, Page } from "@playwright/test";
 import { SignJWT } from "jose";
 import postgres from "postgres";
+
+// Use the employee's file-picker flow. Injecting a hidden input before React
+// attaches its change handler can leave the native file and form state apart.
+export async function chooseImportSpreadsheet(page: Page, file: { name: string; mimeType: string; buffer: Buffer }) {
+  const [chooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button", { name: /Choose XLSX \/ CSV/ }).click(),
+  ]);
+  await chooser.setFiles(file);
+}
 
 // Local e2e helpers. Staff sessions are Supabase-format access tokens signed
 // with the test SUPABASE_JWT_SECRET, which exercises the app's real JWT
@@ -81,4 +91,16 @@ export async function staffAction(request: APIRequestContext, role: Role, payloa
     headers: { cookie: `cg_at=${await accessToken(role)}`, "x-forwarded-for": uniqueIp() },
   });
   return { status: res.status(), json: await res.json() };
+}
+
+
+export async function passedInterviewFixture(request:APIRequestContext,clientId:string){
+  const moved=await staffAction(request,"admin",{action:"override_status",client_id:clientId,status:"appointment_scheduled",reason:"E2E interview fixture"});
+  if(moved.status!==200)throw new Error(JSON.stringify(moved.json));
+  const [actor]=await db()`select id from staff where auth_user_id=${STAFF.admin}`;
+  const [appointment]=await db()`insert into appointments(client_id,appointment_type,appointment_kind,scheduled_at,ends_at,resource_key,created_by_staff,status)
+    values(${clientId},'E2E employment interview','employment_interview',now()-interval '4 days',now()-interval '4 days'+interval '30 minutes','office',${actor.id},'attended') returning id`;
+  const result=await staffAction(request,"admin",{action:"appointment_decision",appointment_id:appointment.id,decision:"pass",note:"E2E verified interview result"});
+  if(result.status!==200)throw new Error(JSON.stringify(result.json));
+  return result;
 }

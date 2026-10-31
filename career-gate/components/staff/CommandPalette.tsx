@@ -9,10 +9,11 @@ type Item = { id: string; label: string; hint?: string; href: string };
 
 export function CommandPalette() {
   const router = useRouter();
-  const { isManager } = useStaff();
+  const { isManager, activeStaff } = useStaff();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [clients, setClients] = useState<Item[]>([]);
+  const [searching,setSearching]=useState(false);
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const opener = useRef<HTMLElement | null>(null);
@@ -20,14 +21,17 @@ export function CommandPalette() {
   const pages: Item[] = useMemo(() => [
     { id: "p-dash", label: "Dashboard", href: "/staff" },
     { id: "p-pipeline", label: "Pipeline", href: "/staff/pipeline" },
-    { id: "p-clients", label: "Clients", href: "/staff/clients?view=active" },
+    { id: "p-clients", label: "Clients · الاستقبال", href: "/staff/clients" },
     { id: "p-completed", label: "Completed clients", href: "/staff/clients?view=completed" },
     { id: "p-appt", label: "Appointments", href: "/staff/appointments" },
-    { id: "p-tasks", label: "Tasks", href: "/staff/tasks" },
-    { id: "p-fu", label: "Follow-ups", href: "/staff/follow-ups" },
+    { id: "p-tasks", label: "Tasks · المهام والمتأخرات", href: "/staff/tasks?view=overdue" },
+    { id: "p-fu", label: "Follow-ups · المتابعات", href: "/staff/follow-ups" },
+    { id: "p-docs", label: "Documents · الوثائق المعلقة", href: "/staff/clients?attention=documents" },
+    ...activeStaff.map(member=>({id:`s-${member.id}`,label:member.display_name,hint:"Team Load · حمل الفريق",href:`/staff/staff?tab=team&member=${member.id}`})),
     { id: "p-team", label: "Staff · Team", href: "/staff/staff?tab=team" },
     ...(isManager ? [
       { id: "p-assign", label: "Staff · Assignments", href: "/staff/staff?tab=assignments" },
+      { id: "p-finance", label: "Accounting · المالية والسداد", href: "/staff/accounting" },
       { id: "p-new", label: "New client", href: "/staff/new-client" },
       { id: "p-audit", label: "Audit alerts", href: "/staff/audit-alerts" },
       { id: "p-reports", label: "Reports", href: "/staff/reports" },
@@ -37,7 +41,7 @@ export function CommandPalette() {
     ...(["new_intake", "needs_review", "ready_to_apply", "application_in_progress", "screening_pending", "i9_available", "ready_for_first_day"] as Status[]).map((s) => ({
       id: `f-${s}`, label: `Filter: ${STATUS_LABELS[s]}`, hint: "Active clients", href: `/staff/clients?view=active&status=${s}`,
     })),
-  ], [isManager]);
+  ], [isManager, activeStaff]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -47,8 +51,10 @@ export function CommandPalette() {
         setOpen((o) => !o);
       }
     };
+    const onOpen = () => { opener.current = document.activeElement as HTMLElement; setOpen(true); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("career-gate:open-command", onOpen);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("career-gate:open-command", onOpen); };
   }, []);
 
   useEffect(() => {
@@ -62,11 +68,12 @@ export function CommandPalette() {
     const t = setTimeout(async () => {
       const res = await fetch(`/api/staff/search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal }).catch(() => null);
       const data = await res?.json().catch(() => null);
-      if (data?.ok) {
+      if (data?.ok&&!ctrl.signal.aborted) {
         setClients(data.results.map((c: { id: string; ref: string; full_name: string; current_status: Status }) => ({
           id: c.id, label: `${c.full_name} · ${c.ref}`, hint: STATUS_LABELS[c.current_status], href: `/staff/client/${c.id}`,
         })));
       }
+      if(!ctrl.signal.aborted)setSearching(false);
     }, 200);
     return () => { clearTimeout(t); ctrl.abort(); };
   }, [q, open]);
@@ -78,8 +85,8 @@ export function CommandPalette() {
 
   return <div className="fixed inset-0 z-40 flex items-start justify-center bg-slate-900/30 px-4 pt-24" onMouseDown={() => setOpen(false)}>
     <div role="dialog" aria-modal="true" aria-label="Command palette" data-testid="command-palette" className="w-full max-w-lg overflow-hidden rounded-lg bg-white shadow-xl" onMouseDown={(e) => e.stopPropagation()}>
-      <input ref={input} role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-activedescendant={items[active] ? `cmdk-${items[active].id}` : undefined} className="w-full border-b border-slate-200 px-4 py-3 text-sm focus:outline-none" placeholder="Search clients or jump to a page…" value={q} onChange={(e) => { setQ(e.target.value); setActive(0); }} onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, items.length - 1)); } if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); } if (e.key === "Enter") { e.preventDefault(); go(items[active]); } }}/>
-      <ul id="cmdk-list" role="listbox" className="max-h-80 overflow-y-auto py-1">{items.map((it, i) => <li key={it.id} id={`cmdk-${it.id}`} role="option" aria-selected={i === active} className={`flex cursor-pointer justify-between px-4 py-2 text-sm ${i === active ? "bg-brand-50 text-brand-700" : ""}`} onMouseEnter={() => setActive(i)} onClick={() => go(it)}><span>{it.label}</span>{it.hint && <span className="text-xs text-slate-400">{it.hint}</span>}</li>)}{!items.length && <li className="px-4 py-3 text-sm text-slate-500">No matches.</li>}</ul>
+      <input ref={input} role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-activedescendant={items[active] ? `cmdk-${items[active].id}` : undefined} className="w-full border-b border-slate-200 px-4 py-3 text-sm focus:outline-none" placeholder="Search clients or jump to a page…" value={q} onChange={(e) => { setQ(e.target.value); setActive(0); setClients([]);setSearching(e.target.value.trim().length>=2); }} onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, items.length - 1)); } if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); } if (e.key === "Enter") { e.preventDefault(); go(items[active]); } }}/>
+      <ul id="cmdk-list" role="listbox" className="max-h-80 overflow-y-auto py-1">{items.map((it, i) => <li key={it.id} id={`cmdk-${it.id}`} role="option" aria-selected={i === active} className={`flex cursor-pointer justify-between px-4 py-2 text-sm ${i === active ? "bg-brand-50 text-brand-700" : ""}`} onMouseEnter={() => setActive(i)} onClick={() => go(it)}><span>{it.label}</span>{it.hint && <span className="text-xs text-slate-400">{it.hint}</span>}</li>)}{!items.length && <li className="px-4 py-3 text-sm text-slate-500">{searching?"جارٍ البحث…":"No matches."}</li>}</ul>
     </div>
   </div>;
 }

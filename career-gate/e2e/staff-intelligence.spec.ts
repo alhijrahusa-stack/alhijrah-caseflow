@@ -1,7 +1,7 @@
 import { pipelineClientHref } from "../lib/pipeline-navigation";
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
-import { accessToken, db, intakeBody, RUN, signIn, submitIntake, uniqueIp } from "./helpers";
+import { accessToken, passedInterviewFixture, db, intakeBody, RUN, signIn, submitIntake, uniqueIp } from "./helpers";
 
 /**
  * Server-paged Accounting, Reports intelligence, isolated rendering failures
@@ -18,11 +18,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
     expect(intake.res.status(), JSON.stringify(intake.json)).toBe(201);
     const [client] = await db()`select id from clients where ref=${intake.json.ref}`;
     clientId = client.id as string;
-    const stage = await request.post("/api/staff/operations", {
-      data: { operation: "move_stage", client_id: clientId, stage: "interview_passed" },
-      headers: { cookie: `cg_at=${await accessToken("admin")}`, "x-forwarded-for": uniqueIp() },
-    });
-    expect(stage.status()).toBe(200);
+    await passedInterviewFixture(request,clientId);
     const ctx = await browser.newContext({ baseURL });
     await signIn(ctx, baseURL!, "admin");
     page = await ctx.newPage();
@@ -212,7 +208,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
   test("appointment list reports real totals and clamps invalid page offsets", async () => {
     await page.goto("/staff/appointments?view=all&page=999999");
     await expect(page.getByRole("heading", { name: /Appointments/ })).toBeVisible();
-    const [count] = await db()`select count(*)::int as total from appointments a join clients c on c.id=a.client_id where c.deleted_at is null`;
+    const [count] = await db()`select count(*)::int as total from appointments a join clients c on c.id=a.client_id where c.deleted_at is null and c.current_status='appointment_scheduled' and not exists(select 1 from appointment_outcomes o where o.appointment_id=a.id)`;
     const total = Number(count.total);
     const pages = Math.max(1, Math.ceil(total / 25));
     await expect(page.locator(".ops-hero p").last()).toContainText(`${total} matching appointment`);

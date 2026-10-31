@@ -95,7 +95,10 @@ function enqueue(id: number, entry: Entry, change: ResourceChange, matched: Reso
 export type DeliveryResult = { delivered: number; resources: readonly Resource[] };
 
 /** Delivers a resolved change to every matching subscriber. */
+const EXECUTIVE_RESOURCES=new Set<Resource>(["client_identity","pipeline","placement","finance","account","readiness","documents","appointments","tasks","followups","alerts","attention"]);
+
 export function publishChange(change: ResourceChange): DeliveryResult {
+  if (typeof window !== "undefined" && change.resources.some(resource=>EXECUTIVE_RESOURCES.has(resource))) window.dispatchEvent(new CustomEvent("career-gate:executive-refresh", { detail: { resources: change.resources } }));
   let delivered = 0;
   for (const [id, entry] of entries) {
     if (!inScope(entry, change.clientId)) continue;

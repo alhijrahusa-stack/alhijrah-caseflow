@@ -11,8 +11,8 @@ test("field appointment and client workspaces remain usable at laptop and phone 
     for (const path of ["/staff/appointments?view=all", "/staff/clients?view=active", "/staff/pipeline"]) {
       await page.goto(path);
       const report = await page.evaluate(() => {
-        const nav = document.querySelector<HTMLElement>(".staff-topbar");
-        const main = document.querySelector<HTMLElement>(".staff-shell main");
+        const nav = document.querySelector<HTMLElement>(".royal-topbar");
+        const main = document.querySelector<HTMLElement>(".royal-main main");
         const card = document.querySelector<HTMLElement>(".cg-appointment-card,.cg-registry-card");
         const bounds = card?.getBoundingClientRect();
         return {
@@ -25,8 +25,9 @@ test("field appointment and client workspaces remain usable at laptop and phone 
         };
       });
       expect(report.overflow, `${path} at ${width}px`).toBeLessThanOrEqual(1);
-      expect(report.headerColor).toBe("rgb(7, 16, 28)");
+      expect(report.headerColor).toBe("rgba(8, 17, 37, 0.82)");
       expect(report.headerHeight).toBeGreaterThan(60);
+      expect(report.mainWidth).toBeGreaterThan(200);
       expect(report.mainWidth).toBeLessThanOrEqual(width+1);
       if (report.cardLeft !== null && report.cardRight !== null) {
         expect(report.cardLeft, `${path}: card left at ${width}px`).toBeGreaterThanOrEqual(-1);

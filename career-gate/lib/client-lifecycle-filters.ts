@@ -5,6 +5,7 @@ export const CLIENT_STAGES = [
   { id: "appointments", label: "Appointments", labelAr: "المقابلات", href: "/staff/appointments" },
   { id: "payment_required", label: "Payment Required", labelAr: "رسوم المكتب", href: "/staff/clients?stage=payment_required" },
   { id: "paperwork_pending", label: "Paperwork Pending", labelAr: "الوثائق النهائية", href: "/staff/clients?stage=paperwork_pending" },
+  { id: "completed", label: "Completed Files", labelAr: "الملفات المكتملة", href: "/staff/clients?view=completed" },
 ] as const;
 
 export type ClientStageFilter = (typeof CLIENT_STAGES)[number]["id"];
@@ -14,7 +15,7 @@ export function isClientStageFilter(value: unknown): value is ClientStageFilter 
   return typeof value === "string" && CLIENT_STAGE_IDS.includes(value);
 }
 
-export const ACCOUNT_SETUP_STATUSES = ["ready_to_apply", "application_in_progress", "assessment_required", "shift_selected", "appointment_required"] as const;
+export const ACCOUNT_SETUP_STATUSES = ["ready_to_apply", "application_in_progress", "assessment_required"] as const;
 export const JOB_READY_STATUSES = ["shift_selected", "appointment_required"] as const;
 export const PAPERWORK_STATUSES = ["pre_hire_completed", "screening_pending", "i9_available", "post_hire_tasks", "ready_for_first_day"] as const;
 
