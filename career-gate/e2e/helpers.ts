@@ -1,7 +1,17 @@
 import { createHmac, randomUUID } from "node:crypto";
-import type { APIRequestContext, BrowserContext } from "@playwright/test";
+import type { APIRequestContext, BrowserContext, Page } from "@playwright/test";
 import { SignJWT } from "jose";
 import postgres from "postgres";
+
+// Use the employee's file-picker flow. Injecting a hidden input before React
+// attaches its change handler can leave the native file and form state apart.
+export async function chooseImportSpreadsheet(page: Page, file: { name: string; mimeType: string; buffer: Buffer }) {
+  const [chooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button", { name: /Choose XLSX \/ CSV/ }).click(),
+  ]);
+  await chooser.setFiles(file);
+}
 
 // Local e2e helpers. Staff sessions are Supabase-format access tokens signed
 // with the test SUPABASE_JWT_SECRET, which exercises the app's real JWT

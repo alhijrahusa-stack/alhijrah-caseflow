@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { db, signIn, STAFF } from "./helpers";
+import { chooseImportSpreadsheet, db, signIn, STAFF } from "./helpers";
 
 test.describe("Smart Career Collect Client", () => {
   test("stages evidence, preserves a manual correction, approves once, and creates the canonical Client", async ({ page, baseURL }) => {
@@ -20,7 +20,7 @@ test.describe("Smart Career Collect Client", () => {
       "full_name,phone,email,preferred_language,english_proficiency,address,preferred_location,location_option_2,shift_days,shift_start_time,shift_end_time",
       `${name},${phone},${email},English,Good,"28772 GOODSON ST, DETROIT, MI 48212-3768",Romulus,Detroit,Thursday–Monday,6pm,4:30am`,
     ].join("\n");
-    await page.locator('input[type="file"]').first().setInputFiles({ name: "smart-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await chooseImportSpreadsheet(page, { name: "smart-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await page.getByRole("button", { name: "PREVIEW" }).click();
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     await expect(page.getByText("VALID", { exact: true }).first()).toBeVisible();
@@ -179,7 +179,7 @@ test.describe("Smart Career Collect Client", () => {
     await page.goto("/staff/import");
 
     const csv = `full_name,phone\n${name},${phone}\n`;
-    await page.locator('input[type="file"]').first().setInputFiles({ name: "archive-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await chooseImportSpreadsheet(page, { name: "archive-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await page.getByRole("button", { name: "PREVIEW" }).click();
     await page.getByRole("button", { name: /STAGE SELECTED/ }).click();
     await expect(page.getByText("1 import case staged.", { exact: true })).toBeVisible();
