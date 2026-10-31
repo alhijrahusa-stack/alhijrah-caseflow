@@ -1,7 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { dropdownChoiceTexts, signIn } from "./helpers";
+import { dropdownChoiceTexts, intakeBody, RUN, signIn, submitIntake } from "./helpers";
 
-test("dashboard stations route into one canonical clients registry with safe actions", async ({ browser, baseURL }) => {
+test("dashboard stations route into one canonical clients registry with safe actions", async ({ browser, baseURL, request }) => {
+  // This spec also runs before all other client fixtures in the focused suite.
+  // Own an active intake rather than depending on another test's surviving rows.
+  const name = `TEST Lifecycle Registry ${RUN}`;
+  const intake = await submitIntake(request, intakeBody(name));
+  expect(intake.res.status(), JSON.stringify(intake.json)).toBe(201);
   const context = await browser.newContext({ baseURL, viewport: { width: 1366, height: 900 } });
   await signIn(context, baseURL!, "admin");
   const page = await context.newPage();
@@ -32,28 +37,27 @@ test("dashboard stations route into one canonical clients registry with safe act
   await page.goto("/staff/clients");
   await expect(page.getByRole("navigation", {name:"Operational client lifecycle stages"}).getByRole("link",{name:/New Intake/})).toHaveAttribute("aria-current","page");
   await page.goto("/staff/clients?view=active");
+  const fixture = page.locator("article.cg-registry-card").filter({ has: page.getByRole("link", { name: intake.json.ref, exact: true }) });
+  await expect(fixture).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Move selected clients to lifecycle stage" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Assign selected cases to" })).toBeVisible();
   const optionLabels = await dropdownChoiceTexts(page.getByRole("combobox", { name: "Move selected clients to lifecycle stage" }));
   for (const text of ["New Intake", "Account Setup", "Job Ready", "Appointments", "Payment Required", "Paperwork Pending"])
     expect(optionLabels).toContain(text);
 
-  const open = page.getByRole("button", { name: "Quick view · Client 360" }).first();
-  if (await open.count()) {
-    await open.click();
-    const drawer = page.getByRole("dialog", { name: /Client 360:/ });
-    await expect(drawer).toBeVisible();
-    const viewport = page.viewportSize()!;
-    // Client 360 now uses the shared review drawer: a 620px desktop panel
-    // inside an 18px viewport inset. Wider document previews are separate.
-    await expect(async () => {
-      const bounds = await drawer.boundingBox();
-      expect(bounds).not.toBeNull();
-      expect(bounds!.width).toBeCloseTo(Math.min(620, viewport.width - 36), 0);
-      expect(bounds!.x).toBeGreaterThanOrEqual(18);
-      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width - 18);
-    }).toPass({ timeout: 3000 });
-    await page.getByRole("button", { name: "Close Client 360" }).click();
-  }
+  await fixture.getByRole("button", { name: "Quick view · Client 360" }).click();
+  const drawer = page.getByRole("dialog", { name: `Client 360: ${name}`, exact: true });
+  await expect(drawer).toBeVisible();
+  const viewport = page.viewportSize()!;
+  // Client 360 now uses the shared review drawer: a 620px desktop panel
+  // inside an 18px viewport inset. Wider document previews are separate.
+  await expect(async () => {
+    const bounds = await drawer.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.width).toBeCloseTo(Math.min(620, viewport.width - 36), 0);
+    expect(bounds!.x).toBeGreaterThanOrEqual(18);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width - 18);
+  }).toPass({ timeout: 3000 });
+  await page.getByRole("button", { name: "Close Client 360" }).click();
   await context.close();
 });

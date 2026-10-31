@@ -197,12 +197,8 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
   // Strip select-only DOM attributes; data-* attributes and ARIA remain on the trigger.
   const { onInvalid: _onInvalid, ...triggerProps } = rest;
   return <span className="royal-select-root" data-disabled={disabled || undefined}>
-    <input ref={field} className="royal-select-form-value" type="text" name={name} form={form}
-      value={currentValue} readOnly={false} required={required} disabled={disabled} tabIndex={-1} aria-hidden="true"
-      autoComplete="off" onChange={() => {}} onInvalid={event => {
-        event.preventDefault(); setInvalid(true); trigger.current?.focus();
-        _onInvalid?.(event as unknown as React.InvalidEvent<HTMLSelectElement>);
-      }}/>
+    {/* The trigger must be the first labelable child: a wrapping label then
+        names/focuses the visible combobox rather than its form-value input. */}
     <button {...triggerProps as React.ButtonHTMLAttributes<HTMLButtonElement>} ref={trigger} id={triggerId} type="button"
       role="combobox" aria-haspopup="listbox" aria-expanded={open && !disabled} aria-controls={open ? listId : undefined}
       aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
@@ -216,6 +212,12 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
       <span className="royal-select-value">{chosen?.label || "—"}</span>
       <span className="royal-select-chevron" aria-hidden="true">⌄</span>
     </button>
+    <input ref={field} className="royal-select-form-value" type="text" name={name} form={form}
+      value={currentValue} readOnly={false} required={required} disabled={disabled} tabIndex={-1} aria-hidden="true"
+      autoComplete="off" onChange={() => {}} onInvalid={event => {
+        event.preventDefault(); setInvalid(true); trigger.current?.focus();
+        _onInvalid?.(event as unknown as React.InvalidEvent<HTMLSelectElement>);
+      }}/>
     {open && !disabled && createPortal(<div ref={popup} className="royal-select-popup" dir={position.direction}
       style={{ left: position.left, top: position.flip ? undefined : position.top, bottom: position.flip ? position.bottom : undefined, width: position.width, maxHeight: position.maxHeight }}>
       {canSearch && <div className="royal-select-search"><input ref={optionSearch} type="search" placeholder={t("Search options…", "ابحث في الخيارات…")} aria-label={t("Search options", "البحث في الخيارات")}
