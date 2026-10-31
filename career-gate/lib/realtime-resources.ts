@@ -23,6 +23,7 @@ export const REALTIME_ENTITIES = [
   "documents",
   "audit_alerts",
   "client_import_cases",
+  "manager_inbox",
 ] as const;
 export type RealtimeEntity = (typeof REALTIME_ENTITIES)[number];
 
@@ -59,6 +60,7 @@ export const RESOURCES = [
   "finance",
   "placement",
   "pipeline",
+  "manager_inbox",
 ] as const;
 export type Resource = (typeof RESOURCES)[number];
 
@@ -79,6 +81,7 @@ export const ENTITY_RESOURCES: Record<RealtimeEntity, readonly Resource[]> = {
   documents: ["documents", "readiness", "next_action", "activity"],
   audit_alerts: ["alerts", "attention"],
   client_import_cases: ["import_cases", "activity"],
+  manager_inbox: ["manager_inbox", "activity"],
 };
 
 function isEntity(table: string): table is RealtimeEntity {
@@ -97,6 +100,8 @@ export function resourcesForEntity(table: string): readonly Resource[] {
  * same resources.
  */
 export const MUTATION_RESOURCES: Record<string, readonly Resource[]> = {
+  manager_review_requested: ["manager_inbox", "activity"],
+  manager_review_resolved: ["manager_inbox", "client_identity", "pipeline", "notes", "tasks", "next_action", "attention", "activity"],
   // Client record and workflow position
   create_client: ["client_identity", "pipeline", "attention", "next_action", "activity"],
   update_client: ["client_identity", "next_action", "activity"],
@@ -274,6 +279,7 @@ export const RESOURCE_PAYLOADS: Record<Resource, readonly string[]> = {
   finance: ["account"],
   placement: ["client"],
   pipeline: ["client"],
+  manager_inbox: ["inbox"], // /api/staff/manager-inbox aggregate, not a client-file slice.
 };
 
 /** Derived payload keys the client file does not read as a plain slice. */

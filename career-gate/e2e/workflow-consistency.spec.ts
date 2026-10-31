@@ -16,7 +16,7 @@ test('paid, completed legacy intake leaves active queues and retains its origina
   await signIn(context,baseURL!,'admin');
   const page=await context.newPage();
   await page.goto(`/staff/client/${client.id}`);
-  await page.getByRole('button',{name:/المسار والنقل اليدوي/}).click();
+  await page.getByRole('button',{name:/Workflow & manual routing/}).click();
   await expect(page.getByLabel('Workflow destination')).toBeVisible();
   const forbidden=await staffAction(request,'admin',{action:'override_status',client_id:client.id,status:'completed',reason:'E2E completion must reject missing evidence'});
   expect(forbidden.status).toBeGreaterThanOrEqual(400);
@@ -41,7 +41,7 @@ test('paid, completed legacy intake leaves active queues and retains its origina
   expect(await db()`select appointment_id from appointment_outcomes where client_id=${client.id}`).toHaveLength(0);
   await page.goto('/staff');
   await expect(page.locator('.royal-station')).toHaveCount(6);
-  await page.getByRole('button',{name:'فتح مساعد الأوامر'}).click();
+  await page.keyboard.press("Control+k");
   await expect(page.getByTestId('command-palette')).toBeVisible();
   await context.close();
 });

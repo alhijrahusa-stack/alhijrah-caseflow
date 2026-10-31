@@ -25,7 +25,7 @@ export const SMART_IMPORT_LIMITS = Object.freeze({
   maxFiles: 10,
   maxCellLength: 4000,
   maxRawTextLength: 10000,
-  queuePageSize: 50,
+  queuePageSize: 10,
 });
 
 type FieldDefinition = { key: string; label: string; aliases: readonly string[]; required?: boolean };

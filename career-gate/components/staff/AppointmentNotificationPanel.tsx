@@ -1,4 +1,7 @@
 "use client";
+
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
 import { useEffect, useRef, useState } from "react";
 import { DOCUMENTS, type DocumentId, type NotificationLanguage } from "@/lib/appointment-notification-card";
 export function AppointmentNotificationPanel({appointmentId}:{appointmentId:string}) {
@@ -31,9 +34,9 @@ export function AppointmentNotificationPanel({appointmentId}:{appointmentId:stri
   {expanded&&<div className="mt-3 min-w-0">
   <p className="mt-1 text-xs text-slate-300">اختر اللغة والمستندات المطلوبة، ثم راجع البطاقة قبل إرسالها.</p>
   <label className="mt-3 block text-sm">Client language / لغة العميل</label>
-  <select className="mt-2 w-full rounded-xl border border-white/20 bg-[#193753] p-3" value={language} onChange={e=>{setLanguage(e.target.value as NotificationLanguage);setPreview("");}}>
-    <option value="ar">العربية</option><option value="en">English</option><option value="both">العربية + English</option>
-  </select>
+  <RoyalSelect className="mt-2 w-full rounded-xl border border-white/20 bg-[#193753] p-3" value={language} onChange={e=>{setLanguage(e.target.value as NotificationLanguage);setPreview("");}}>
+    <RoyalOption value="ar">العربية</RoyalOption><RoyalOption value="en">English</RoyalOption><RoyalOption value="both">العربية + English</RoyalOption>
+  </RoyalSelect>
   <fieldset className="mt-3"><legend className="text-sm">Required documents / المستندات المطلوبة</legend>
    <div className="mt-2 grid min-w-0 grid-cols-1 gap-2 xl:grid-cols-2">
    {DOCUMENTS.map(d=><label key={d.id} className="flex min-w-0 cursor-pointer items-start gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-xs leading-5 transition-all duration-300 hover:border-amber-300/50 hover:bg-white/10">

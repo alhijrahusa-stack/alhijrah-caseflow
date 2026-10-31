@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
-import { accessToken, passedInterviewFixture, db, intakeBody, RUN, signIn, STAFF, submitIntake, uniqueIp } from "./helpers";
+import { selectChoice, accessToken, passedInterviewFixture, db, intakeBody, RUN, signIn, STAFF, submitIntake, uniqueIp } from "./helpers";
 
 /**
  * The Client financial surface and the Accounting board, as an operator meets
@@ -86,7 +86,7 @@ test.describe.serial("Accounting and Client financial surfaces", () => {
     await row.getByTestId("row-discount-action").click();
 
     const surface = row.getByTestId("action-surface-discount");
-    await surface.getByTestId("discount-type").selectOption("percentage");
+    await selectChoice(surface.getByTestId("discount-type"), "percentage");
     await surface.getByTestId("discount-value").fill("20");
     await surface.getByTestId("discount-reason").fill("E2E UI percentage");
     // The preview is labelled as one and names the server as the authority.

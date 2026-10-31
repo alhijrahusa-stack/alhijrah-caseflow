@@ -1,5 +1,8 @@
 "use client";
 
+import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
+
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -37,15 +40,17 @@ function toForm(c: R, employment: R[]): ProfileForm {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const uiLabel = useStaffLabel();
   return (
     <section className="rounded-2xl border border-white/[.08] bg-white/[.028] shadow-[inset_0_1px_0_rgba(255,255,255,.025)] backdrop-blur-xl">
-      <h2 className="border-b border-white/[.06] px-5 py-3 text-sm font-semibold text-slate-200">{title}</h2>
+      <h2 className="border-b border-white/[.06] px-5 py-3 text-sm font-semibold text-slate-200">{uiLabel(title)}</h2>
       <div className="p-5">{children}</div>
     </section>
   );
 }
 
 export function EditClientForm({ client, employment, preferences }: { client: R; employment: R[]; preferences: R[] }) {
+  const uiLabel = useStaffLabel();
   const router = useRouter();
   const { run, pending, error } = useAction({ successMessage: null });
   const { activeStaff, isManager } = useStaff();
@@ -100,34 +105,34 @@ export function EditClientForm({ client, employment, preferences }: { client: R;
   return (
     <div className="grid gap-6 xl:grid-cols-2">
       <div className="space-y-6">
-        <Section title="Personal information"><ProfileFields section="personal" value={profile} onChange={setProfile} /></Section>
-        <Section title="Amazon history"><ProfileFields section="amazon" value={profile} onChange={setProfile} /></Section>
+        <Section title={uiLabel("Personal information")}><ProfileFields section="personal" value={profile} onChange={setProfile} /></Section>
+        <Section title={uiLabel("Amazon history")}><ProfileFields section="amazon" value={profile} onChange={setProfile} /></Section>
       </div>
       <div className="space-y-6">
-        <Section title="Employment history"><ProfileFields section="employment" value={profile} onChange={setProfile} /></Section>
-        <Section title="Appointment availability"><ProfileFields section="availability" value={profile} onChange={setProfile} /></Section>
+        <Section title={uiLabel("Employment history")}><ProfileFields section="employment" value={profile} onChange={setProfile} /></Section>
+        <Section title={uiLabel("Appointment availability")}><ProfileFields section="availability" value={profile} onChange={setProfile} /></Section>
         <Preferences clientId={client.id} prefs={preferences} />
-        <Section title="Next step & assignment">
+        <Section title={uiLabel("Next step & assignment")}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label" htmlFor="ec_next">Next step</label>
+              <label className="label" htmlFor="ec_next"><StaffLabel en="Next step"/></label>
               <input id="ec_next" className="input" value={nextStep} onChange={(e) => setNextStep(e.target.value)} />
             </div>
             {isManager && (
               <div>
-                <label className="label">Handled by</label>
+                <label className="label"><StaffLabel en="Handled by"/></label>
                 <StaffPicker value={assigned} staff={activeStaff} onChange={setAssigned} disabled={pending} />
               </div>
             )}
           </div>
           <p className="mt-3 text-[10px] text-slate-600" aria-live="polite">
-            {draftState === "restored" ? "Temporary draft restored for this browser session." : draftState === "saved" ? "Temporary draft saved in this browser session." : ""}
+            {draftState === "restored" ? uiLabel("Temporary draft restored for this browser session.") : draftState === "saved" ? uiLabel("Temporary draft saved in this browser session.") : ""}
           </p>
         </Section>
         {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
         <div className="flex gap-2">
-          <Button onClick={save} disabled={pending}>{pending ? "Saving…" : "Save changes"}</Button>
-          <Link href={`/staff/client/${client.id}`} className="rounded-md px-4 py-2 text-sm text-slate-400 hover:bg-white/[.05] hover:text-slate-100">Cancel</Link>
+          <Button onClick={save} disabled={pending}>{pending ? uiLabel("Saving…") : uiLabel("Save changes")}</Button>
+          <Link href={`/staff/client/${client.id}`} className="rounded-md px-4 py-2 text-sm text-slate-400 hover:bg-white/[.05] hover:text-slate-100"><StaffLabel en="Cancel"/></Link>
         </div>
       </div>
     </div>

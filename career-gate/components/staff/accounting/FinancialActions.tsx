@@ -1,5 +1,8 @@
 "use client";
 
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
+
 import { useMemo, useState } from "react";
 import { DOC_MAX_BYTES } from "@/lib/domain";
 import type { PaymentTransactionRow } from "@/lib/accounting-ledger-read";
@@ -307,10 +310,10 @@ export function FinancialActionForm({
           </p>
           <label className="ops-field">
             <span>Completed by</span>
-            <select className="ops-select" value={completedBy} disabled={!canChooseCompleter} onChange={(e) => setCompletedBy(e.target.value)} data-testid="completion-staff">
-              <option value="">— Select —</option>
-              {(staffOptions ?? []).map((s) => <option key={s.id} value={s.id}>{s.display_name}</option>)}
-            </select>
+            <RoyalSelect className="ops-select" value={completedBy} disabled={!canChooseCompleter} onChange={(e) => setCompletedBy(e.target.value)} data-testid="completion-staff">
+              <RoyalOption value="">— Select —</RoyalOption>
+              {(staffOptions ?? []).map((s) => <RoyalOption key={s.id} value={s.id}>{s.display_name}</RoyalOption>)}
+            </RoyalSelect>
           </label>
           <label className="ops-field">
             <span>Completed on</span>
@@ -324,10 +327,10 @@ export function FinancialActionForm({
           <p className="ops-note">The contracted fee stays {formatMoney(account.feeAmount)}; the discount is recorded beside it.</p>
           <label className="ops-field">
             <span>Discount type</span>
-            <select className="ops-select" value={discountType} onChange={(e) => setDiscountType(e.target.value as "amount" | "percentage")} data-testid="discount-type">
-              <option value="amount">Amount</option>
-              <option value="percentage">Percentage</option>
-            </select>
+            <RoyalSelect className="ops-select" value={discountType} onChange={(e) => setDiscountType(e.target.value as "amount" | "percentage")} data-testid="discount-type">
+              <RoyalOption value="amount">Amount</RoyalOption>
+              <RoyalOption value="percentage">Percentage</RoyalOption>
+            </RoyalSelect>
           </label>
           <label className="ops-field">
             <span>{discountType === "percentage" ? "Percentage" : "Amount"}</span>
@@ -351,28 +354,28 @@ export function FinancialActionForm({
           {action === "refund" && (
             <label className="ops-field">
               <span>Original payment</span>
-              <select
+              <RoyalSelect
                 className="ops-select"
                 value={selectedPayment?.id ?? ""}
                 onChange={(e) => { setRelatedId(e.target.value); setConfirming(false); }}
                 data-testid="refund-original"
               >
-                {refundable.length === 0 && <option value="">No refundable payment</option>}
+                {refundable.length === 0 && <RoyalOption value="">No refundable payment</RoyalOption>}
                 {refundable.map((t) => (
-                  <option key={t.id} value={t.id}>
+                  <RoyalOption key={t.id} value={t.id}>
                     {formatMoney(t.amount)} · {t.occurred_on} · {methodLabel(t.payment_method)} · {formatMoney(t.refundable_remaining ?? 0)} refundable
-                  </option>
+                  </RoyalOption>
                 ))}
-              </select>
+              </RoyalSelect>
             </label>
           )}
           {action === "adjustment" && (
             <label className="ops-field">
               <span>Direction</span>
-              <select className="ops-select" value={direction} onChange={(e) => setDirection(e.target.value as "credit" | "debit")} data-testid="adjustment-direction">
-                <option value="credit">Credit — reduces what is owed</option>
-                <option value="debit">Debit — increases what is owed</option>
-              </select>
+              <RoyalSelect className="ops-select" value={direction} onChange={(e) => setDirection(e.target.value as "credit" | "debit")} data-testid="adjustment-direction">
+                <RoyalOption value="credit">Credit — reduces what is owed</RoyalOption>
+                <RoyalOption value="debit">Debit — increases what is owed</RoyalOption>
+              </RoyalSelect>
             </label>
           )}
           <label className="ops-field">
@@ -385,9 +388,9 @@ export function FinancialActionForm({
           {action === "payment" && (
             <label className="ops-field">
               <span>Payment method</span>
-              <select className="ops-select" value={method} onChange={(e) => setMethod(e.target.value)} data-testid="payment-method">
-                {PAYMENT_METHODS.map((value) => <option key={value} value={value}>{methodLabel(value)}</option>)}
-              </select>
+              <RoyalSelect className="ops-select" value={method} onChange={(e) => setMethod(e.target.value)} data-testid="payment-method">
+                {PAYMENT_METHODS.map((value) => <RoyalOption key={value} value={value}>{methodLabel(value)}</RoyalOption>)}
+              </RoyalSelect>
             </label>
           )}
           <label className="ops-field">

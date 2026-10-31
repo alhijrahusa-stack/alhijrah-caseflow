@@ -1,5 +1,8 @@
 "use client";
 
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
+
 import { useMemo, useState } from "react";
 import { QuickDate } from "@/components/staff/QuickDate";
 import { REQUIREMENTS_SURFACE } from "@/components/staff/realtime/surfaces";
@@ -55,7 +58,7 @@ function RequirementRow({ row, clientId }: { row: Row; clientId: string }) {
           {row.why && <p className="mt-1 text-xs text-slate-400">{String(row.why)}</p>}
           {row.completion_rule && <p className="mt-1 text-[10px] text-slate-500">Complete when: {String(row.completion_rule)}</p>}
         </div>
-        <select className="ops-select" aria-label={`${String(row.title)} status`} value={status} onChange={(e) => setStatus(e.target.value)}>{STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select>
+        <RoyalSelect className="ops-select" aria-label={`${String(row.title)} status`} value={status} onChange={(e) => setStatus(e.target.value)}>{STATUSES.map((s) => <RoyalOption key={s} value={s}>{s.replace("_", " ")}</RoyalOption>)}</RoyalSelect>
         <QuickDate ariaLabel={`${String(row.title)} due date`} value={due} onChange={setDue} />
         <button className="ops-primary-button" type="button" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button>
       </div>

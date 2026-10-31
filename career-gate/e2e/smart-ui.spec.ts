@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { PNG, chooseImportSpreadsheet, db, signIn, STAFF } from "./helpers";
+import { selectChoice, PNG, chooseImportSpreadsheet, db, signIn, STAFF } from "./helpers";
 
 const DESKTOP = { width: 1500, height: 1000 };
 const TABLET = { width: 900, height: 1100 };
@@ -96,13 +96,13 @@ test.describe("Smart Client Import experience", () => {
 
     // English ability sets proficiency and leaves preferred language alone.
     await expect(value("english_proficiency")).toHaveText("GOOD");
-    await expect(value("preferred_language")).toHaveText("—");
+    await expect(value("preferred_language")).toHaveText("Not supplied");
     await expect(state("preferred_language")).toHaveText("MISSING");
 
     // Residential city and work preference stay separate.
     await expect(value("city")).toHaveText("DEARBORN");
     await expect(value("preferred_location")).toHaveText("Romulus");
-    await expect(value("location_option_1")).toHaveText("—");
+    await expect(value("location_option_1")).toHaveText("Not supplied");
     // "Romulus night shift" states one location and the shift type, and nothing else.
     await expect(value("preferred_shift")).toHaveText("NIGHT");
 
@@ -161,9 +161,9 @@ test.describe("Smart Client Import experience", () => {
     // Three work locations, named with no ranking: they are candidates, and no
     // preference order is invented for them.
     await expect(value("work_location_candidates")).toHaveText("Detroit, Romulus, Pontiac");
-    await expect(value("preferred_location")).toHaveText("—");
-    await expect(value("location_option_1")).toHaveText("—");
-    await expect(value("location_option_2")).toHaveText("—");
+    await expect(value("preferred_location")).toHaveText("Not supplied");
+    await expect(value("location_option_1")).toHaveText("Not supplied");
+    await expect(value("location_option_2")).toHaveText("Not supplied");
     // Shift type, days and an overnight range, none of them labelled.
     await expect(value("preferred_shift")).toHaveText("NIGHT");
     await expect(value("shift_days")).toHaveText("FRI, SAT, SUN, MON");
@@ -172,7 +172,7 @@ test.describe("Smart Client Import experience", () => {
     // The one detail with no field of its own is preserved, not dropped.
     await expect(value("additional_notes")).toHaveText("Has reliable transportation.");
     // Nothing the source never stated is shown as a value.
-    await expect(value("preferred_language")).toHaveText("—");
+    await expect(value("preferred_language")).toHaveText("Not supplied");
     await expect(page.getByText(/\d%/)).toHaveCount(0);
   });
 
@@ -239,9 +239,9 @@ test.describe("Smart Client Import experience", () => {
     const value = (key: string) => page.locator(`[data-field="${key}"] [data-value]`);
     await expect(value("work_location_candidates")).toHaveText("Detroit, Romulus, Pontiac");
     // No ranking was stated, so none is shown.
-    await expect(value("preferred_location")).toHaveText("—");
-    await expect(value("location_option_1")).toHaveText("—");
-    await expect(value("location_option_2")).toHaveText("—");
+    await expect(value("preferred_location")).toHaveText("Not supplied");
+    await expect(value("location_option_1")).toHaveText("Not supplied");
+    await expect(value("location_option_2")).toHaveText("Not supplied");
   });
 
   test("reads a dictated Arabic sentence into the same fields", async ({ page }) => {
@@ -261,8 +261,8 @@ test.describe("Smart Client Import experience", () => {
     await expect(value("shift_end_time")).toHaveText("04:30");
     await expect(page.locator('[data-smart-overnight="true"]')).toBeVisible();
     // Nothing the sentence never stated is shown as a value.
-    await expect(value("email")).toHaveText("—");
-    await expect(value("zip")).toHaveText("—");
+    await expect(value("email")).toHaveText("Not supplied");
+    await expect(value("zip")).toHaveText("Not supplied");
   });
 
   test("creates no particle, burst or pointer line under reduced motion", async ({ page }) => {
@@ -464,7 +464,7 @@ test.describe("Smart Client Import experience", () => {
 });
 
 test.describe("Smart Review experience", () => {
-  test("edits a field inline with manual authority, reverts on Escape, and blocks approval only for real reasons", async ({ page, baseURL }) => {
+  test("reviews a field in a glass drawer with manual authority, reverts on Escape, and blocks approval only for real reasons", async ({ page, baseURL }) => {
     const token = Date.now().toString().slice(-7);
     const name = `TEST Review UI ${token}`;
     const phone = `248${token}`.slice(0, 10).padEnd(10, "6");
@@ -490,20 +490,20 @@ test.describe("Smart Review experience", () => {
     await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
 
     // Provenance is never the workflow word "staged".
-    const matrix = page.getByRole("table", { name: /validation matrix/i });
+    const matrix = page.locator(".cg-matrix");
     await expect(matrix.getByText("staged", { exact: true })).toHaveCount(0);
     await expect(matrix.getByText("csv").first()).toBeVisible();
 
     // Missing source documents and unrecorded match confirmations remain follow-up
     // work; approval may create the canonical client without fabricating a match.
-    await expect(page.getByLabel("REVIEWED BY")).toHaveValue(String(admin.id));
+    await expect(page.getByLabel("REVIEWED BY")).toHaveAttribute("data-value", String(admin.id));
     await expect(page.getByRole("button", { name: "START REVIEW", exact: true })).toHaveCount(0);
     await expect(page.getByText("APPROVAL IS BLOCKED")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "APPROVE FILE" })).toBeEnabled();
     await expect(page.getByText(/follow-up items? can be completed later/).first()).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: "APPROVE WITH WARNINGS" }).first()).toBeVisible();
 
-    // A row is read-only until it is opened, then edits inline.
+    // A row opens a context-preserving drawer with its editor and original evidence.
     const proficiencyRow = page.locator('tr[data-field="english_proficiency"]');
     await expect(proficiencyRow.getByText("GOOD", { exact: true })).toBeVisible();
     await expect(page.getByLabel("English Proficiency", { exact: true })).toHaveCount(0);
@@ -520,9 +520,9 @@ test.describe("Smart Review experience", () => {
     await expect(page.locator('tr[data-field="phone"]').getByRole("button", { name: /^Edit Phone/ })).toBeDisabled();
     await cityInput.blur();
     await expect(cityInput).toHaveValue("Unsaved city");
-    await cityRow.getByRole("button", { name: /^Cancel/ }).click();
+    await page.getByRole("dialog").getByRole("button", { name: /^Cancel/ }).click();
     await expect(cityInput).toHaveCount(0);
-    await expect(cityRow.locator('[data-label="Current value"]')).toHaveText("—");
+    await expect(cityRow.locator('[data-label="Current value"]')).toHaveText("Not supplied");
     await expect(page.getByRole("button", { name: "SAVE DRAFT", exact: true })).toBeEnabled();
 
     // Escape abandons an unsaved edit.
@@ -531,7 +531,7 @@ test.describe("Smart Review experience", () => {
     await page.getByLabel("Date of Birth", { exact: true }).fill("1990-03-14");
     await page.keyboard.press("Escape");
     await expect(page.getByLabel("Date of Birth", { exact: true })).toHaveCount(0);
-    await expect(dobRow.locator('[data-label="Current value"]')).toHaveText("—");
+    await expect(dobRow.locator('[data-label="Current value"]')).toHaveText("Not supplied");
 
     // Shift times edit through a native time control, so an out-of-range time cannot be
     // entered in the first place.
@@ -542,14 +542,14 @@ test.describe("Smart Review experience", () => {
     await startInput.fill("18:00");
     await startInput.blur();
     await expect(startInput).toHaveValue("18:00");
-    await startRow.getByRole("button", { name: /^Apply/ }).click();
+    await page.getByRole("dialog").getByRole("button", { name: /^Apply/ }).click();
     await expect(startRow.locator('[data-label="Current value"]')).toHaveText("18:00");
     // Authority is server-recorded, so it still reads SOURCE until the review is saved.
     await expect(startRow.locator('[data-label="Authority"]')).toHaveText("SOURCE");
 
     // Cancelling the close confirmation keeps the applied draft in the review.
-    page.once("dialog", async (dialog) => dialog.dismiss());
     await page.locator("#smart-review").getByRole("button", { name: "CLOSE", exact: true }).click();
+    await page.getByRole("dialog", {name:"Unsaved review",exact:true}).getByRole("button", {name:"Cancel",exact:true}).click();
     await expect(page.locator("#smart-review")).toBeVisible();
     await expect(startRow.locator('[data-label="Current value"]')).toHaveText("18:00");
 
@@ -558,7 +558,7 @@ test.describe("Smart Review experience", () => {
     await expect(daysRow.getByText("MON, TUE, WED, THU, FRI", { exact: true })).toBeVisible();
     await daysRow.getByRole("button", { name: /^Edit Shift Days/ }).click();
     await page.getByRole("button", { name: "SAT", exact: true }).click();
-    await daysRow.getByRole("button", { name: /^Apply/ }).click();
+    await page.getByRole("dialog").getByRole("button", { name: /^Apply/ }).click();
     await expect(daysRow.getByText("MON, TUE, WED, THU, FRI, SAT", { exact: true })).toBeVisible();
 
     // A committed manual edit persists through the existing review-save flow with MANUAL
@@ -574,7 +574,7 @@ test.describe("Smart Review experience", () => {
     expect(dayEvidence.at(-1)?.source_type).toBe("manual_review");
     await expect(daysRow.locator('[data-label="Authority"]')).toHaveText("MANUAL");
     await expect(daysRow.locator('[data-label="Provenance"]')).toHaveText("manual");
-    await expect(daysRow.locator('[data-label="State"]')).toHaveText("MANUAL");
+    await expect(daysRow.locator('[data-label="State"]')).toContainText("Staff reviewed");
     await expect(startRow.locator('[data-label="Authority"]')).toHaveText("MANUAL");
 
     // The source said nothing about the shift start, so its only evidence is the manual
@@ -612,14 +612,15 @@ test.describe("Smart Review experience", () => {
     const review = page.locator("#smart-review");
     const dob = review.locator('tr[data-field="date_of_birth"]');
     await expect(dob.locator('[data-label="State"]')).toHaveText("CONFLICT");
-    await dob.getByRole("button", { name: "Audit Date of Birth", exact: true }).click();
-    await expect(dob.getByRole("button", { name: "Audit Date of Birth", exact: true })).toHaveAttribute("aria-expanded", "true");
-    const history = review.getByRole("region", { name: "Date of Birth evidence history", exact: true });
+    await dob.getByRole("button", { name: "Edit Date of Birth", exact: true }).click();
+    await expect(dob.getByRole("button", { name: "Edit Date of Birth", exact: true })).toHaveAttribute("aria-expanded", "true");
+    const history = page.getByRole("region", { name: "Date of Birth evidence history", exact: true });
     await expect(history.getByRole("listitem")).toHaveCount(2);
     await expect(history.getByText("1976-01-01", { exact: true })).toBeVisible();
     await expect(history.getByText("1977-01-01", { exact: true })).toBeVisible();
     await expect(history.getByText("Alternate source reading: 1977-01-01", { exact: true })).toBeVisible();
 
+    await page.getByRole("button", {name:"Close Date of Birth · Review",exact:true}).click();
     // Search and attention filters narrow the same authoritative field list.
     const search = review.getByRole("searchbox", { name: "Filter client fields", exact: true });
     await search.fill("Date of Birth");
@@ -634,7 +635,7 @@ test.describe("Smart Review experience", () => {
     // required to record a manual conflict resolution.
     await dob.getByRole("button", { name: "Edit Date of Birth", exact: true }).click();
     await expect(page.getByLabel("Date of Birth", { exact: true })).toHaveValue("1976-01-01");
-    await dob.getByRole("button", { name: "Apply", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Apply", exact: true }).click();
     await expect(dob.getByText("Unsaved change", { exact: true })).toBeVisible();
     await review.getByRole("button", { name: "Edited fields", exact: true }).click();
     await expect(review.locator("tr[data-field]")).toHaveCount(1);
@@ -703,26 +704,32 @@ test.describe("Smart Review experience", () => {
     await queueRow.getByRole("button", { name: `Source for client ${name}`, exact: true }).click();
 
     const review = page.locator("#smart-review");
-    const source = review.locator("#smart-document-viewer");
-    await expect(source).toHaveAttribute("open", "");
+    const source = page.locator("#smart-document-viewer");
+    await expect(source).toBeVisible();
     await expect(source.getByText(/No source document attached/)).toBeVisible();
     const city = review.locator('tr[data-field="city"]');
     await expect(city.getByRole("button", { name: "Edit City", exact: true })).toBeEnabled();
-    await city.getByRole("button", { name: "Audit City", exact: true }).click();
-    await expect(review.getByRole("region", { name: "City evidence history", exact: true }).getByText("No evidence has been recorded for this field.", { exact: true })).toBeVisible();
-    await source.locator("summary").click();
-    await expect(source).not.toHaveAttribute("open", "");
-    await city.getByRole("button", { name: "Source for City", exact: true }).click();
-    await expect(source).toHaveAttribute("open", "");
+    await page.getByRole("button", {name:"Close Source documents",exact:true}).click();
+    await city.getByRole("button", { name: "Edit City", exact: true }).click();
+    await expect(page.getByRole("region", { name: "City evidence history", exact: true }).getByText("No evidence has been recorded for this field.", { exact: true })).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", {name:"View source document",exact:true}).click();
+    await expect(source).toBeVisible();
     await expect(source.getByText(/No source document attached/)).toBeVisible();
 
+    await page.getByRole("button", {name:"Close Source documents",exact:true}).click();
     await expect(review.locator('tr[data-field="date_of_birth"] [data-label="State"]')).toHaveText("CONFLICT");
     await expect(review.getByRole("checkbox", { name: /CURRENT DOCUMENT STATUS REVIEWED/i })).not.toBeChecked();
     await expect(review.getByRole("checkbox", { name: /INFORMATION MATCH CONFIRMED/i })).not.toBeChecked();
     const approve = review.getByRole("button", { name: "APPROVE FILE", exact: true });
     await expect(approve).toBeEnabled();
     await approve.click();
-    await expect(page).toHaveURL(/\/staff\/client\/[0-9a-f-]+$/);
+    const override = page.getByRole("dialog", {name:"Approve with missing items",exact:true});
+    await expect(override.getByRole("button",{name:"Approve & defer missing items",exact:true})).toBeDisabled();
+    await override.getByLabel("Reason for approval and follow-up plan").fill("Identity checked; remaining source documents will be collected at the next visit.");
+    await override.getByRole("button",{name:"Approve & defer missing items",exact:true}).click();
+    await expect(page.locator(".cg-intake-toast")).toContainText("Client approved and routed to Intake");
+    await expect(page).toHaveURL(/\/staff\/import$/);
+    await expect(queueRow).toHaveCount(0);
 
     const [approved] = await db()`select status,created_client_id,document_match_confirmed,information_match_confirmed,conflicts,field_evidence,verification_result from client_import_cases where id=${staged.id}`;
     expect(approved.status).toBe("APPROVED_FILE");
@@ -750,16 +757,154 @@ test.describe("Smart Review experience", () => {
     const approvedReview = page.locator("#smart-review");
     await expect(approvedReview.locator(".cg-review-audit-overview > summary")).toContainText("Latest recorded evidence");
     await approvedRow.getByRole("button", { name: `Source for client ${name}`, exact: true }).click();
-    await expect(approvedReview.locator("#smart-document-viewer")).toHaveAttribute("open", "");
-    await expect(approvedReview.getByText(/No source document attached/)).toBeVisible();
-    const continueEditing = approvedReview.getByRole("link", { name: "Edit Date of Birth", exact: true });
+    await expect(page.locator("#smart-document-viewer")).toBeVisible();
+    await expect(page.locator("#smart-document-viewer").getByText(/No source document attached/)).toBeVisible();
+    await page.getByRole("button", {name:"Close Source documents",exact:true}).click();
+    await approvedReview.locator('tr[data-field="date_of_birth"]').getByRole("button", {name:"Review Date of Birth",exact:true}).click();
+    const continueEditing = page.getByRole("dialog").getByRole("link", { name: "Edit Date of Birth in Client", exact: true });
     await expect(continueEditing).toHaveAttribute("href", `/staff/client/${approved.created_client_id}/edit`);
     await continueEditing.click();
-    await page.getByLabel("English proficiency", { exact: true }).selectOption("GOOD");
+    await selectChoice(page.getByLabel("English proficiency", { exact: true }), "GOOD");
     await page.getByRole("button", { name: "Save changes", exact: true }).click();
     await page.waitForURL(`**/staff/client/${approved.created_client_id}`);
     const [completed] = await db()`select english_proficiency from clients where id=${approved.created_client_id}`;
     expect(completed.english_proficiency).toBe("GOOD");
+  });
+
+  test("paginates ten imports, highlights search matches and keeps secondary actions available to keyboard users", async ({page,baseURL}) => {
+    const token=Date.now().toString().slice(-7), marker=`TEST Paged Import ${token}`;
+    await signIn(page.context(),baseURL!,"admin");
+    await page.goto("/staff/import");
+    const rows=Array.from({length:23},(_,index)=>`${marker} ${index},586${String((Number(token)+index)%10000000).padStart(7,"0")}`).join("\n");
+    await chooseImportSpreadsheet(page,{name:"paged-import.csv",mimeType:"text/csv",buffer:Buffer.from(`full_name,phone\n${rows}\n`)});
+    await page.getByRole("button",{name:"PREVIEW",exact:true}).click();
+    await page.getByRole("button",{name:/STAGE SELECTED/}).click();
+    await expect(page.getByText("23 import cases staged.",{exact:true})).toBeVisible();
+    await page.getByRole("textbox",{name:"Search imports",exact:true}).fill(marker);
+    const queue=page.locator(".cg-import-queue"), cards=queue.locator(".cg-import-line:not(.cg-import-loading)");
+    await expect(cards).toHaveCount(10);
+    await expect(queue.getByRole("navigation",{name:"Import queue pages"})).toContainText("1–10 of 23");
+    await expect(cards.first().locator("mark")).toHaveText(marker);
+    const firstIds=await cards.locator(".cg-import-origin span:last-child").allTextContents();
+    await queue.getByRole("button",{name:"Import page 2",exact:true}).click();
+    await expect(queue.getByRole("navigation",{name:"Import queue pages"})).toContainText("11–20 of 23");
+    await expect(cards).toHaveCount(10);
+    const secondIds=await cards.locator(".cg-import-origin span:last-child").allTextContents();
+    expect(secondIds.every((id)=>!firstIds.includes(id))).toBe(true);
+    await queue.getByRole("button",{name:"Next",exact:true}).click();
+    await expect(cards).toHaveCount(3);
+    await expect(queue.getByRole("navigation",{name:"Import queue pages"})).toContainText("21–23 of 23");
+    const open=cards.first().getByRole("button",{name:"OPEN / EDIT",exact:true});
+    await open.focus();
+    await expect(cards.first().locator(".cg-import-secondary")).toHaveCSS("opacity","1");
+    await expect(cards.first().getByRole("button",{name:/^Approve /})).toBeVisible();
+  });
+
+  test("queues a versioned draft offline, syncs safely, and retains edits when another review wins", async ({page,baseURL}) => {
+    const token=Date.now().toString().slice(-7),name=`TEST Offline Review ${token}`,phone=`810${token}`;
+    await signIn(page.context(),baseURL!,"admin");
+    await page.goto("/staff/import");
+    await chooseImportSpreadsheet(page,{name:"offline-review.csv",mimeType:"text/csv",buffer:Buffer.from(`full_name,phone\n${name},${phone}\n`)});
+    await page.getByRole("button",{name:"PREVIEW",exact:true}).click();
+    await page.getByRole("button",{name:/STAGE SELECTED/}).click();
+    await page.locator(".cg-import-queue").getByRole("row").filter({hasText:name}).getByRole("button",{name:"OPEN / EDIT",exact:true}).click();
+    await expect(page.locator("#smart-review").getByRole("heading",{name,exact:true})).toBeVisible();
+    const [staged]=await db()`select id from client_import_cases where mapped_draft #>> '{profile,full_name}'=${name}`;
+    await page.context().setOffline(true);
+    await expect(page.locator(".cg-offline-review")).toContainText("Offline");
+    await page.locator('tr[data-field="city"]').getByRole("button",{name:"Edit City",exact:true}).click();
+    await page.getByLabel("City",{exact:true}).fill("Offline local city");
+    await page.getByRole("dialog").getByRole("button",{name:"Apply",exact:true}).click();
+    await page.getByRole("button",{name:"SAVE DRAFT",exact:true}).click();
+    await expect(page.locator(".cg-offline-review")).toContainText(/queued/i);
+    await expect(page.getByRole("button",{name:"APPROVE FILE",exact:true})).toBeDisabled();
+    const synced=page.waitForResponse((response)=>response.request().method()==="POST" && new URL(response.url()).pathname==="/api/staff/smart-client-import" && response.request().postDataJSON()?.action==="save");
+    await page.context().setOffline(false);
+    expect((await synced).status()).toBe(200);
+    await expect(page.locator('tr[data-field="city"] [data-label="Current value"]')).toHaveText("Offline local city");
+    await expect(page.locator('tr[data-field="city"] [data-label="Authority"]')).toHaveText("MANUAL");
+    await expect(page.getByRole("button",{name:"SAVE DRAFT",exact:true})).toBeEnabled();
+    await page.context().setOffline(true);
+    await expect(page.locator(".cg-offline-review")).toContainText("Offline");
+    await page.locator('tr[data-field="city"]').getByRole("button",{name:"Edit City",exact:true}).click();
+    await page.getByLabel("City",{exact:true}).fill("Retained stale draft");
+    await page.getByRole("dialog").getByRole("button",{name:"Apply",exact:true}).click();
+    await page.getByRole("button",{name:"SAVE DRAFT",exact:true}).click();
+    const [current]=await db()`select mapped_draft from client_import_cases where id=${staged.id}`;
+    const newer={...current.mapped_draft,profile:{...current.mapped_draft.profile,city:"Newer server city"}};
+    await db()`update client_import_cases set mapped_draft=${db().json(newer)} where id=${staged.id}`;
+    const conflict=page.waitForResponse((response)=>response.request().method()==="POST" && new URL(response.url()).pathname==="/api/staff/smart-client-import" && response.request().postDataJSON()?.action==="save");
+    await page.context().setOffline(false);
+    expect((await conflict).status()).toBe(409);
+    await expect(page.locator(".cg-offline-review")).toContainText(/changed|conflict|updated/i);
+    await expect(page.locator('tr[data-field="city"] [data-label="Current value"]')).toHaveText("Retained stale draft");
+    const [preserved]=await db()`select mapped_draft #>> '{profile,city}' as city from client_import_cases where id=${staged.id}`;
+    expect(preserved.city).toBe("Newer server city");
+    await expect(page.getByRole("button",{name:"APPROVE FILE",exact:true})).toBeDisabled();
+  });
+
+  test("retains field and match edits made while an older offline draft is syncing", async ({page,baseURL}) => {
+    const token=Date.now().toString().slice(-7),name=`TEST Sync Revision ${token}`,phone=`989${token}`;
+    await signIn(page.context(),baseURL!,"admin");
+    await page.goto("/staff/import");
+    await chooseImportSpreadsheet(page,{name:"sync-revision.csv",mimeType:"text/csv",buffer:Buffer.from(`full_name,phone\n${name},${phone}\n`)});
+    await page.getByRole("button",{name:"PREVIEW",exact:true}).click();
+    await page.getByRole("button",{name:/STAGE SELECTED/}).click();
+    await page.locator(".cg-import-queue").getByRole("row").filter({hasText:name}).getByRole("button",{name:"OPEN / EDIT",exact:true}).click();
+    await expect(page.locator("#smart-review").getByRole("heading",{name,exact:true})).toBeVisible();
+    const [staged]=await db()`select id from client_import_cases where mapped_draft #>> '{profile,full_name}'=${name}`;
+    await page.context().setOffline(true);
+    await expect(page.locator(".cg-offline-review")).toContainText("Offline");
+    const city=page.locator('tr[data-field="city"]');
+    await city.getByRole("button",{name:"Edit City",exact:true}).click();
+    await page.getByLabel("City",{exact:true}).fill("Earlier queued city");
+    await page.getByRole("dialog").getByRole("button",{name:"Apply",exact:true}).click();
+    await page.getByRole("button",{name:"SAVE DRAFT",exact:true}).click();
+    await expect(page.locator(".cg-offline-review")).toContainText(/queued/i);
+    // Keep a field editor open while the old request starts. Applying its newer
+    // contents and changing a match flag must survive that request's response.
+    await city.getByRole("button",{name:"Edit City",exact:true}).click();
+    await page.getByLabel("City",{exact:true}).fill("Newer on-screen city");
+    let releaseResponse!:()=>void, serverSaved!:()=>void;
+    const heldResponse=new Promise<void>((resolve)=>{releaseResponse=resolve;});
+    const savedOnServer=new Promise<void>((resolve)=>{serverSaved=resolve;});
+    await page.route("**/api/staff/smart-client-import",async(route)=>{
+      const request=route.request(),body=request.method()==="POST"?request.postDataJSON():null;
+      if(body?.action==="save" && body.id===staged.id && body.expected_actor_id){
+        const response=await route.fetch();
+        serverSaved();
+        await heldResponse;
+        await route.fulfill({response});
+      } else await route.continue();
+    });
+    await page.context().setOffline(false);
+    try {
+      await savedOnServer;
+      await expect(page.getByRole("button",{name:"SAVE DRAFT",exact:true})).toBeDisabled();
+      await page.getByRole("dialog").getByRole("button",{name:"Apply",exact:true}).click();
+      const documentCheck=page.getByRole("checkbox",{name:/CURRENT DOCUMENT STATUS REVIEWED/i});
+      await documentCheck.check();
+      await expect(city.locator('[data-label="Current value"]')).toHaveText("Newer on-screen city");
+      const [earlier]=await db()`select mapped_draft #>> '{profile,city}' as city,document_match_confirmed from client_import_cases where id=${staged.id}`;
+      expect(earlier).toMatchObject({city:"Earlier queued city",document_match_confirmed:false});
+    } finally { releaseResponse(); }
+    await expect(page.locator(".cg-offline-review")).toContainText(/newer local edits|retained/i);
+    await expect(city.locator('[data-label="Current value"]')).toHaveText("Newer on-screen city");
+    await expect(page.getByRole("checkbox",{name:/CURRENT DOCUMENT STATUS REVIEWED/i})).toBeChecked();
+    await expect(page.getByText("Unsaved manual edits",{exact:true})).toBeVisible();
+    await expect(page.getByRole("button",{name:"APPROVE FILE",exact:true})).toBeDisabled();
+    await expect.poll(async()=>page.evaluate((caseId)=>{
+      for(let index=0;index<sessionStorage.length;index++){
+        const key=sessionStorage.key(index);
+        if(key?.startsWith("career-gate:review-draft:") && key.endsWith(`:${caseId}`)){
+          const draft=JSON.parse(sessionStorage.getItem(key)!);
+          return {conflict:draft.conflict,queued:draft.queued,city:draft.payload.draft.profile.city,document_confirmed:draft.payload.document_match_confirmed};
+        }
+      }
+      return null;
+    },String(staged.id))).toEqual({conflict:true,queued:false,city:"Newer on-screen city",document_confirmed:true});
+    const [preserved]=await db()`select mapped_draft #>> '{profile,city}' as city,document_match_confirmed from client_import_cases where id=${staged.id}`;
+    expect(preserved).toMatchObject({city:"Earlier queued city",document_match_confirmed:false});
   });
 
   test("stacks the validation matrix into labelled blocks on a phone", async ({ page, baseURL }) => {
@@ -781,7 +926,7 @@ test.describe("Smart Review experience", () => {
 
     await page.setViewportSize(MOBILE);
     // Native table semantics survive the stacked layout.
-    const matrix = page.getByRole("table", { name: /validation matrix/i });
+    const matrix = page.locator(".cg-matrix");
     await expect(matrix.getByRole("rowheader", { name: /^Full Name/ })).toBeVisible();
     const columnHeadersHidden = await page.evaluate(() => {
       const head = document.querySelector(".cg-matrix thead");

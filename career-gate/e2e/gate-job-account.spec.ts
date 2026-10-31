@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { db, intakeBody, signIn, submitIntake } from "./helpers";
+import { selectChoice, db, intakeBody, signIn, submitIntake } from "./helpers";
 
 test.describe("Gate Job Account Workspace", () => {
   test("adds an encrypted vault email, assigns exact client, marks ready and exposes no plaintext before reveal", async ({ page, request, baseURL }) => {
@@ -27,7 +27,7 @@ test.describe("Gate Job Account Workspace", () => {
     await page.getByRole("tab", { name: "GATE JOB ACCOUNTS" }).click();
     const accounts = page.getByTestId("gate-job-accounts");
     await accounts.getByRole("button", { name: /CREATE \/ ASSIGN ACCOUNT/ }).click();
-    await accounts.getByLabel("Gate Job email", { exact: true }).selectOption({ label: email });
+    await selectChoice(accounts.getByLabel("Gate Job email", { exact: true }), { label: email });
     await accounts.getByLabel("Assigned To", { exact: true }).fill(name);
     await accounts.getByRole("button", { name: new RegExp(name) }).click();
     await accounts.getByRole("button", { name: /CONFIRM ASSIGNMENT/ }).click();

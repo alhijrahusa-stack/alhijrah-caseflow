@@ -5,7 +5,7 @@ import type { StaffSession } from "@/lib/auth";
 import { runAudit } from "@/lib/audit";
 import { publicImportStatus } from "@/lib/public-status";
 import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
-import { listActiveImportQueue, listArchivedImportQueue } from "@/lib/smart-import-archive";
+import { archiveImportCase, listActiveImportQueue, listArchivedImportQueue } from "@/lib/smart-import-archive";
 import {
   approveImportCase,
   previewImportRows,
@@ -35,6 +35,41 @@ beforeAll(async () => {
 afterAll(async () => { await db.end(); });
 
 describe("Smart Career Collect Client staging security", () => {
+  it("paginates exactly ten matching active imports and keeps archived files out of the queue", async () => {
+    const marker = `TEST Paged Intake ${randomUUID()}`;
+    const staged = await stageSheetRows({ session: manager, source: "csv", idempotencyKey: randomUUID(), rows: Array.from({ length: 23 }, (_, index) => ({full_name: `${marker} ${index}`, phone: `616551${String(1000+index)}`})) });
+    const first = await listActiveImportQueue(manager, {q:marker,page:1});
+    const second = await listActiveImportQueue(manager, {q:marker,page:2});
+    const third = await listActiveImportQueue(manager, {q:marker,page:3});
+    expect(first.total).toBe(23); expect(first.rows).toHaveLength(10); expect(second.rows).toHaveLength(10); expect(third.rows).toHaveLength(3);
+    expect(new Set([...first.rows,...second.rows,...third.rows].map((row) => row.id)).size).toBe(23);
+    await archiveImportCase(manager, String(staged.cases[0].id));
+    const active = await listActiveImportQueue(manager, {q:marker,page:1});
+    const archived = await listArchivedImportQueue(manager, {q:marker,page:1});
+    expect(active.total).toBe(22); expect(archived.total).toBe(1); expect(archived.rows[0].id).toBe(staged.cases[0].id);
+    await expect(listActiveImportQueue({...manager,staff:{...manager.staff,role:"staff"}}, {q:marker,page:1})).rejects.toMatchObject({code:"forbidden"});
+  });
+
+  it("requires and audits the explicit missing-item reason before creating the Intake client", async () => {
+    const staged = await stageSheetRows({session:manager,source:"csv",idempotencyKey:randomUUID(),rows:[{full_name:"TEST Explicit Missing Approval",phone:"6165529001"}]});
+    const id = String(staged.cases[0].id);
+    const [before] = await db`select mapped_draft,field_evidence from client_import_cases where id=${id}`;
+    const args = {id,reviewerId:manager.staff.id,draft:before.mapped_draft,documentConfirmed:false,informationConfirmed:false,traceId:"explicit-override-test"};
+    await expect(approveImportCase(manager,args)).rejects.toMatchObject({code:"override_required"});
+    await expect(approveImportCase(manager,{...args,override:true,overrideReason:" "})).rejects.toMatchObject({code:"override_required"});
+    const [untouched] = await db`select status,created_client_id from client_import_cases where id=${id}`;
+    expect(untouched.status).toBe("PENDING"); expect(untouched.created_client_id).toBeNull();
+    const reason = "Identity checked in person; source documents due at the next visit.";
+    const approved = await approveImportCase(manager,{...args,override:true,overrideReason:reason});
+    const [saved] = await db`select verification_result,field_evidence from client_import_cases where id=${id}`;
+    expect(saved.verification_result.override).toMatchObject({approved_with_missing_items:true,reason,actor_id:manager.staff.id,reviewer_id:manager.staff.id,outstanding_fields:expect.arrayContaining(["source_documents"])});
+    expect(saved.field_evidence).toEqual(before.field_evidence);
+    const [client] = await db`select current_status from clients where id=${approved.client_id}`;
+    expect(client.current_status).toBe("new_intake");
+    const [followup] = await db`select count(*)::int as n from tasks where client_id=${approved.client_id}`;
+    expect(followup.n).toBeGreaterThan(0);
+  });
+
   it("UPSERT stages a concurrent retry once and returns the same canonical staging batch", async () => {
     const idempotencyKey = randomUUID();
     const rows = [{ full_name: "TEST Atomic Import Claim", phone: "3135558891", date_of_birth: "1995-01-05" }];
@@ -86,7 +121,7 @@ describe("Smart Career Collect Client staging security", () => {
 
     await expect(approveImportCase(manager, {
       id, reviewerId: String(alternate.id), draft: initial.mapped_draft,
-      documentConfirmed: true, informationConfirmed: true, traceId: "review-ownership-test",
+      documentConfirmed: true, informationConfirmed: true, traceId: "review-ownership-test", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     })).rejects.toMatchObject({ code: "review_assigned", status: 409 });
 
     const [unchanged] = await db`select status,reviewer_id,created_client_id,document_match_confirmed
@@ -186,7 +221,7 @@ describe("Smart Career Collect Client staging security", () => {
     const approved = await approveImportCase(manager, {
       id, reviewerId: manager.staff.id, draft,
       documentConfirmed: true, informationConfirmed: true,
-      expectedUpdatedAt: String(before.revision), traceId: "direct-review-audit",
+      expectedUpdatedAt: String(before.revision), traceId: "direct-review-audit", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     });
     const [client] = await db`select city from clients where id=${approved.client_id}`;
     expect(client.city).toBe("Dearborn");
@@ -337,7 +372,7 @@ describe("Smart Career Collect Client staging security", () => {
       draft: reviewed.mapped_draft,
       documentConfirmed: true,
       informationConfirmed: true,
-      traceId: trace,
+      traceId: trace, override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     });
     expect(approved.idempotent).toBe(false);
 
@@ -372,7 +407,7 @@ describe("Smart Career Collect Client staging security", () => {
       draft: reviewed.mapped_draft,
       documentConfirmed: true,
       informationConfirmed: true,
-      traceId: trace,
+      traceId: trace, override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     });
     expect(again).toEqual({ client_id: approved.client_id, idempotent: true });
     expect((await listActiveImportQueue(manager, { q: caseId })).rows).toHaveLength(0);
@@ -426,7 +461,7 @@ describe("Smart Career Collect Client staging security", () => {
         draft: row.mapped_draft,
         documentConfirmed: true,
         informationConfirmed: true,
-        traceId: `family-approval-${randomUUID()}`,
+        traceId: `family-approval-${randomUUID()}`, override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
       });
       expect(done.idempotent).toBe(false);
       expect(done.ref).toBe(row.public_ref);
@@ -476,7 +511,7 @@ describe("Smart Career Collect Client staging security", () => {
       draft: (await db`select mapped_draft from client_import_cases where id=${caseId}`)[0].mapped_draft,
       documentConfirmed: false,
       informationConfirmed: false,
-      traceId: "smart-optional-integration",
+      traceId: "smart-optional-integration", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     });
     expect(approved.idempotent).toBe(false);
 
@@ -526,7 +561,7 @@ describe("Smart Career Collect Client staging security", () => {
     const args = {
       id, reviewerId: manager.staff.id, draft: before.mapped_draft,
       documentConfirmed: false, informationConfirmed: false,
-      expectedUpdatedAt: String(version.revision), traceId: "deferred-source-review",
+      expectedUpdatedAt: String(version.revision), traceId: "deferred-source-review", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     };
     const approved = await approveImportCase(manager, args);
     const [client] = await db`select full_name,phone,date_of_birth::text from clients where id=${approved.client_id}`;
@@ -596,7 +631,7 @@ describe("Smart Career Collect Client staging security", () => {
       draft: before.mapped_draft,
       documentConfirmed: true,
       informationConfirmed: true,
-      traceId: "stable-ref-integration",
+      traceId: "stable-ref-integration", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     });
     const [client] = await db`select ref from clients where id=${approved.client_id}`;
     expect(client.ref).toBe(before.public_ref);
@@ -624,7 +659,7 @@ describe("Smart Career Collect Client staging security", () => {
       draft: firstCase.mapped_draft,
       documentConfirmed: true,
       informationConfirmed: true,
-      traceId: "shared-email-alpha",
+      traceId: "shared-email-alpha", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     });
 
     const second = await stageSheetRows({
@@ -650,7 +685,7 @@ describe("Smart Career Collect Client staging security", () => {
       draft: secondCase.mapped_draft,
       documentConfirmed: true,
       informationConfirmed: true,
-      traceId: "shared-email-beta",
+      traceId: "shared-email-beta", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     });
     const [secondClient] = await db`select ref,email,phone from clients where id=${approved.client_id}`;
     expect(secondClient.ref).toBe(secondCase.public_ref);
@@ -672,7 +707,7 @@ describe("Smart Career Collect Client staging security", () => {
     };
     const approve = (item: Awaited<ReturnType<typeof stage>>) => approveImportCase(manager, {
       id: item.id, reviewerId: manager.staff.id, draft: item.row.mapped_draft,
-      documentConfirmed: true, informationConfirmed: true, traceId: "staff-shared-phone",
+      documentConfirmed: true, informationConfirmed: true, traceId: "staff-shared-phone", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     });
     const first = await stage("TEST Phone Family Alpha", "1980-01-01");
     await approve(first);
@@ -730,7 +765,7 @@ describe("Smart Career Collect Client staging security", () => {
       draft: firstCase.mapped_draft,
       documentConfirmed: true,
       informationConfirmed: true,
-      traceId: "same-applicant-first",
+      traceId: "same-applicant-first", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     });
 
     // Same name and date of birth on the shared email: the same applicant.
@@ -777,7 +812,7 @@ describe("Smart Career Collect Client staging security", () => {
       draft: secondCase.mapped_draft,
       documentConfirmed: false,
       informationConfirmed: false,
-      traceId: "same-applicant-second",
+      traceId: "same-applicant-second", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     })).rejects.toMatchObject({ code: "approval_blocked" });
 
     // The rule that matters: no second lifecycle was created for this applicant.
@@ -801,7 +836,7 @@ describe("Smart Career Collect Client staging security", () => {
     try {
       await expect(approveImportCase(manager, {
         id: caseId, reviewerId: manager.staff.id, draft,
-        documentConfirmed: true, informationConfirmed: true, traceId: "smart-schema-fail",
+        documentConfirmed: true, informationConfirmed: true, traceId: "smart-schema-fail", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
       })).rejects.toThrow(/english_proficiency/);
 
       // No Client and no fake approval survived the failure.
@@ -819,7 +854,7 @@ describe("Smart Career Collect Client staging security", () => {
     // With the column restored the same file approves.
     const approved = await approveImportCase(manager, {
       id: caseId, reviewerId: manager.staff.id, draft,
-      documentConfirmed: true, informationConfirmed: true, traceId: "smart-schema-fail-retry",
+      documentConfirmed: true, informationConfirmed: true, traceId: "smart-schema-fail-retry", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     });
     const [client] = await db`select english_proficiency from clients where id=${approved.client_id}`;
     expect(client.english_proficiency).toBe("GOOD");

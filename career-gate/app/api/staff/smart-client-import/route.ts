@@ -55,6 +55,7 @@ export async function GET(req: Request) {
       const queue = await listArchivedImportQueue(guard.session, {
         q: url.searchParams.get("q"),
         cursor: url.searchParams.get("cursor"),
+        page: z.coerce.number().int().min(1).max(100000).parse(url.searchParams.get("page") ?? "1"),
       });
       return ok(await withUploaderMetadata(queue), 200, traceId);
     }
@@ -62,6 +63,7 @@ export async function GET(req: Request) {
       status: url.searchParams.get("status"),
       q: url.searchParams.get("q"),
       cursor: url.searchParams.get("cursor"),
+        page: z.coerce.number().int().min(1).max(100000).parse(url.searchParams.get("page") ?? "1"),
     });
     return ok(await withUploaderMetadata(queue), 200, traceId);
   } catch (error) {
@@ -75,12 +77,14 @@ const ActionBody = z.discriminatedUnion("action", [
   z.object({ action: z.literal("start_review"), id: z.uuid(), reviewer_id: z.uuid() }),
   z.object({
     action: z.literal("save"), id: z.uuid(), reviewer_id: z.uuid(), draft: z.record(z.string(), z.unknown()),
+    expected_actor_id: z.uuid().optional(),
     document_match_confirmed: z.boolean(), information_match_confirmed: z.boolean(),
     resolved_fields: ResolvedFields, expected_updated_at: ReviewVersion,
   }),
   z.object({ action: z.literal("verify"), id: z.uuid(), expected_updated_at: ReviewVersion }),
   z.object({
     action: z.literal("approve"), id: z.uuid(), reviewer_id: z.uuid(), draft: z.record(z.string(), z.unknown()),
+    override: z.boolean().optional(), override_reason: z.string().max(1000).optional(),
     document_match_confirmed: z.boolean(), information_match_confirmed: z.boolean(),
     resolved_fields: ResolvedFields, expected_updated_at: ReviewVersion,
   }),
@@ -97,6 +101,7 @@ export async function POST(req: Request) {
     if (body.action === "archive") return ok(await archiveImportCase(guard.session, body.id), 200, traceId);
     await assertImportNotArchived(body.id);
     if (body.action === "start_review") return ok(await startImportReview(guard.session, body.id, body.reviewer_id), 200, traceId);
+    if (body.action === "save" && body.expected_actor_id && body.expected_actor_id !== guard.session.staff.id) return err("session_changed", "Sign in to the original staff account before syncing this draft", 409, traceId);
     if (body.action === "save") return ok(await saveImportReview(guard.session, {
       id: body.id,
       reviewerId: body.reviewer_id,
@@ -114,6 +119,8 @@ export async function POST(req: Request) {
       documentConfirmed: body.document_match_confirmed,
       informationConfirmed: body.information_match_confirmed,
       traceId,
+      override: body.override,
+      overrideReason: body.override_reason,
       resolvedFields: body.resolved_fields,
       expectedUpdatedAt: body.expected_updated_at,
     });

@@ -1,5 +1,11 @@
 "use client";
 
+import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
+
+
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -83,12 +89,12 @@ function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: (opera
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase text-slate-300" data-testid="commission-status">{row.commission_status}</span>
         <strong className="text-sm" data-testid="commission-amount">{money(row.commission_amount)}</strong>
-        <span className="ops-note">Owner: {row.commission_name ?? "—"}</span>
+        <span className="ops-note"><StaffLabel en="Owner:"/>{" "}{row.commission_name ?? "—"}</span>
       </div>
 
       {row.commission_status === "approved" && (
         <label className="ops-field">
-          <span>Payment reference</span>
+          <span><StaffLabel en="Payment reference"/></span>
           <input className="ops-input" value={reference} onChange={(e) => setReference(e.target.value)} data-testid="commission-reference" />
         </label>
       )}
@@ -101,12 +107,12 @@ function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: (opera
 
       {pending && (
         <div className="ops-confirm" data-testid="commission-confirmation">
-          <strong>Confirm {pending === "paid" ? "commission payment" : pending}</strong>
+          <strong><StaffLabel en="Confirm"/>{" "}{pending === "paid" ? "commission payment" : pending}</strong>
           <dl>
-            <dt>Client</dt><dd>{row.full_name}</dd>
-            <dt>Owner</dt><dd>{row.commission_name ?? "—"}</dd>
-            <dt>Amount</dt><dd>{money(row.commission_amount)}</dd>
-            <dt>Effect</dt>
+            <dt><StaffLabel en="Client"/></dt><dd>{row.full_name}</dd>
+            <dt><StaffLabel en="Owner"/></dt><dd>{row.commission_name ?? "—"}</dd>
+            <dt><StaffLabel en="Amount"/></dt><dd>{money(row.commission_amount)}</dd>
+            <dt><StaffLabel en="Effect"/></dt>
             <dd>
               {pending === "paid"
                 ? "Marks this commission as paid to the owner. Reversal is the only way back."
@@ -119,7 +125,7 @@ function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: (opera
             <button type="button" className="ops-primary-button" disabled={busy} onClick={() => void change(pending)} data-testid="commission-confirm">
               {busy ? "Working…" : `Confirm ${pending}`}
             </button>
-            <button type="button" className="ops-secondary-button" disabled={busy} onClick={() => setPending(null)}>Cancel</button>
+            <button type="button" className="ops-secondary-button" disabled={busy} onClick={() => setPending(null)}><StaffLabel en="Cancel"/></button>
           </div>
         </div>
       )}
@@ -127,16 +133,16 @@ function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: (opera
       {!pending && (
         <div className="ops-action-bar">
           {row.commission_status === "eligible" && (
-            <button type="button" className="ops-primary-button" disabled={busy} onClick={() => request("approved")} data-testid="commission-approve">Approve</button>
+            <button type="button" className="ops-primary-button" disabled={busy} onClick={() => request("approved")} data-testid="commission-approve"><StaffLabel en="Approve"/></button>
           )}
           {row.commission_status === "approved" && (
-            <button type="button" className="ops-primary-button" disabled={busy || !reference.trim()} onClick={() => request("paid")} data-testid="commission-pay">Mark paid</button>
+            <button type="button" className="ops-primary-button" disabled={busy || !reference.trim()} onClick={() => request("paid")} data-testid="commission-pay"><StaffLabel en="Mark paid"/></button>
           )}
           {(row.commission_status === "eligible" || row.commission_status === "approved") && (
-            <button type="button" className="ops-secondary-button" disabled={busy || !reason.trim()} onClick={() => request("cancelled")} data-testid="commission-cancel">Cancel</button>
+            <button type="button" className="ops-secondary-button" disabled={busy || !reason.trim()} onClick={() => request("cancelled")} data-testid="commission-cancel"><StaffLabel en="Cancel"/></button>
           )}
           {row.commission_status === "paid" && (
-            <button type="button" className="ops-secondary-button" disabled={busy || !reason.trim()} onClick={() => request("reversed")} data-testid="commission-reverse">Reverse</button>
+            <button type="button" className="ops-secondary-button" disabled={busy || !reason.trim()} onClick={() => request("reversed")} data-testid="commission-reverse"><StaffLabel en="Reverse"/></button>
           )}
         </div>
       )}
@@ -144,7 +150,7 @@ function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: (opera
       {outcome.state === "failed" && <p className="ops-inline-error" role="alert">{outcome.message}</p>}
       {outcome.state === "unknown" && (
         <p className="ops-inline-error" role="alert" data-testid="commission-unknown">
-          {outcome.message} <button type="button" className="ops-secondary-button" onClick={() => { reset(); onDone("update_commission"); }}>Reload</button>
+          {outcome.message} <button type="button" className="ops-secondary-button" onClick={() => { reset(); onDone("update_commission"); }}><StaffLabel en="Reload"/></button>
         </p>
       )}
     </div>
@@ -176,36 +182,36 @@ function AccountRow({ row, onDone }: { row: AccountingRow; onDone: (operation: s
     <article className="ops-account-row" data-testid="account-row">
       <div className="ops-account-main-wide">
         <div>
-          <span>Client</span>
+          <span><StaffLabel en="Client"/></span>
           <strong><Link href={`/staff/client/${row.client_id}`} className="ops-account-name">{row.full_name}</Link></strong>
           <code>{row.ref}</code>
         </div>
         <div><span>Status</span><strong className="capitalize" data-testid="row-status">{row.payment_status.replace(/_/g, " ")}</strong></div>
         <div><span>Application completed by</span><strong data-testid="row-completed-by">{row.application_completed_name ?? "Not recorded"}</strong></div>
-        <div><span>Original fee</span><strong data-testid="row-fee">{money(row.fee_amount)}</strong></div>
-        <div><span>Discount</span><strong data-testid="row-discount">{row.discount_amount > 0 ? `${money(row.discount_amount)}${discountEntered ? ` (${discountEntered})` : ""}` : "—"}</strong></div>
-        <div><span>Net fee</span><strong data-testid="row-net-fee">{money(row.net_fee)}</strong></div>
-        <div><span>Paid</span><strong data-testid="row-paid">{money(row.amount_paid)}</strong></div>
-        <div><span>Refunded</span><strong data-testid="row-refunded">{money(row.refund_amount)}</strong></div>
-        <div><span>Outstanding</span><strong data-testid="row-outstanding">{money(row.balance)}</strong></div>
-        <div><span>Commission staff</span><strong data-testid="row-commission-staff">{row.commission_name ?? "—"}</strong></div>
-        <div><span>Commission</span><strong data-testid="row-commission-amount">{row.commission_status ? money(row.commission_amount) : "—"}</strong></div>
-        <div><span>Commission status</span><strong data-testid="row-commission-status">{row.commission_status ?? "—"}</strong></div>
+        <div><span><StaffLabel en="Original fee"/></span><strong data-testid="row-fee">{money(row.fee_amount)}</strong></div>
+        <div><span><StaffLabel en="Discount"/></span><strong data-testid="row-discount">{row.discount_amount > 0 ? `${money(row.discount_amount)}${discountEntered ? ` (${discountEntered})` : ""}` : "—"}</strong></div>
+        <div><span><StaffLabel en="Net fee"/></span><strong data-testid="row-net-fee">{money(row.net_fee)}</strong></div>
+        <div><span><StaffLabel en="Paid"/></span><strong data-testid="row-paid">{money(row.amount_paid)}</strong></div>
+        <div><span><StaffLabel en="Refunded"/></span><strong data-testid="row-refunded">{money(row.refund_amount)}</strong></div>
+        <div><span><StaffLabel en="Outstanding"/></span><strong data-testid="row-outstanding">{money(row.balance)}</strong></div>
+        <div><span><StaffLabel en="Commission staff"/></span><strong data-testid="row-commission-staff">{row.commission_name ?? "—"}</strong></div>
+        <div><span><StaffLabel en="Commission"/></span><strong data-testid="row-commission-amount">{row.commission_status ? money(row.commission_amount) : "—"}</strong></div>
+        <div><span><StaffLabel en="Commission status"/></span><strong data-testid="row-commission-status">{row.commission_status ?? "—"}</strong></div>
       </div>
 
       <div className="ops-action-bar">
-        <button type="button" className="ops-primary-button" onClick={openAction("payment")} data-testid="row-record-payment">Record Payment</button>
-        <Link href={`/staff/client/${row.client_id}`} className="ops-secondary-button" data-testid="row-view-client">View Client</Link>
+        <button type="button" className="ops-primary-button" onClick={openAction("payment")} data-testid="row-record-payment"><StaffLabel en="Record Payment"/></button>
+        <Link href={`/staff/client/${row.client_id}`} className="ops-secondary-button" data-testid="row-view-client"><StaffLabel en="View Client"/></Link>
         <span className="ops-more">
-          <button type="button" className="ops-secondary-button" aria-expanded={moreOpen} onClick={() => setMoreOpen((v) => !v)} data-testid="row-more">More</button>
+          <button type="button" className="ops-secondary-button" aria-expanded={moreOpen} onClick={() => setMoreOpen((v) => !v)} data-testid="row-more"><StaffLabel en="More"/></button>
           {moreOpen && (
             <span className="ops-more-menu" role="menu">
-              <button type="button" role="menuitem" onClick={openAction("discount")} data-testid="row-discount-action">Apply Discount</button>
-              <button type="button" role="menuitem" onClick={openAction("refund")} data-testid="row-refund">Refund</button>
-              <button type="button" role="menuitem" onClick={openAction("adjustment")} data-testid="row-adjustment">Adjustment</button>
-              <button type="button" role="menuitem" onClick={openAction("waiver")} data-testid="row-waiver">Waiver</button>
-              <button type="button" role="menuitem" onClick={toggle({ kind: "commission" })} data-testid="row-commission">Commission</button>
-              <button type="button" role="menuitem" onClick={toggle({ kind: "ledger" })} data-testid="row-ledger">Ledger · {row.transactions.length}</button>
+              <button type="button" role="menuitem" onClick={openAction("discount")} data-testid="row-discount-action"><StaffLabel en="Apply Discount"/></button>
+              <button type="button" role="menuitem" onClick={openAction("refund")} data-testid="row-refund"><StaffLabel en="Refund"/></button>
+              <button type="button" role="menuitem" onClick={openAction("adjustment")} data-testid="row-adjustment"><StaffLabel en="Adjustment"/></button>
+              <button type="button" role="menuitem" onClick={openAction("waiver")} data-testid="row-waiver"><StaffLabel en="Waiver"/></button>
+              <button type="button" role="menuitem" onClick={toggle({ kind: "commission" })} data-testid="row-commission"><StaffLabel en="Commission"/></button>
+              <button type="button" role="menuitem" onClick={toggle({ kind: "ledger" })} data-testid="row-ledger"><StaffLabel en="Ledger ·"/>{" "}{row.transactions.length}</button>
             </span>
           )}
         </span>
@@ -231,7 +237,7 @@ function AccountRow({ row, onDone }: { row: AccountingRow; onDone: (operation: s
 
       {panel?.kind === "commission" && (
         <div className="ops-action-surface" data-testid="commission-surface">
-          <p className="ops-action-title">Commission</p>
+          <p className="ops-action-title"><StaffLabel en="Commission"/></p>
           <CommissionControl row={row} onDone={onDone} />
         </div>
       )}
@@ -258,6 +264,7 @@ function accountingHref(filters: AccountingFilters, patch: Partial<AccountingFil
 }
 
 export function AccountingBoard({ data, filters, staff }: { data: AccountingPage; filters: AccountingFilters; staff: OperationsStaff[] }) {
+  const uiLabel = useStaffLabel();
   const onMutated = useTargetedMutation();
   const router = useRouter();
   const [navigating, startNavigation] = useTransition();
@@ -281,37 +288,35 @@ export function AccountingBoard({ data, filters, staff }: { data: AccountingPage
 
   return (
     <div className="ops-page">
-      <header className="ops-hero"><div><p className="ops-kicker">CAREER GATE · ACCOUNTS</p><h1>Accounts &amp; Commissions</h1><p>Immutable transaction ledger, derived balances, and auditable commissions.</p></div></header>
+      <header className="ops-hero"><div><p className="ops-kicker"><StaffLabel en="CAREER GATE · ACCOUNTS"/></p><h1><StaffLabel en="Accounts & Commissions"/></h1><p><StaffLabel en="Immutable transaction ledger, derived balances, and auditable commissions."/></p></div></header>
       <div className="ops-metric-grid">
-        <div className="ops-metric"><span>Outstanding</span><strong data-testid="total-outstanding">{money(totals.outstanding)}</strong></div>
-        <div className="ops-metric"><span>Payments</span><strong data-testid="total-paid">{money(totals.paid)}</strong></div>
-        <div className="ops-metric"><span>Refunds</span><strong data-testid="total-refunded">{money(totals.refunded)}</strong></div>
-        <div className="ops-metric"><span>Commissions</span><strong data-testid="total-commissions">{money(totals.commissions)}</strong></div>
+        <div className="ops-metric"><span><StaffLabel en="Outstanding"/></span><strong data-testid="total-outstanding">{money(totals.outstanding)}</strong></div>
+        <div className="ops-metric"><span><StaffLabel en="Payments"/></span><strong data-testid="total-paid">{money(totals.paid)}</strong></div>
+        <div className="ops-metric"><span><StaffLabel en="Refunds"/></span><strong data-testid="total-refunded">{money(totals.refunded)}</strong></div>
+        <div className="ops-metric"><span><StaffLabel en="Commissions"/></span><strong data-testid="total-commissions">{money(totals.commissions)}</strong></div>
       </div>
 
       <section className="ops-glass-card" aria-busy={navigating}>
         <div className="ops-toolbar">
-          <input className="ops-input ops-search-input" value={q} onChange={(e) => onSearch(e.target.value)} placeholder="Search name, phone, email, file or site" data-testid="accounting-search" />
-          <select className="ops-select" value={filters.status} onChange={(e) => go({ status: e.target.value as AccountingFilters["status"] })} data-testid="accounting-status"><option value="all">All accounts</option><option value="unpaid">Unpaid</option><option value="partially_paid">Partially paid</option><option value="paid">Paid</option><option value="refunded">Refunded</option></select>
-          <select className="ops-select" value={filters.staffId ?? "all"} onChange={(e) => go({ staffId: e.target.value === "all" ? null : e.target.value })} data-testid="accounting-staff"><option value="all">All staff</option>{activeStaff.map((s) => <option key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</option>)}</select>
+          <input className="ops-input ops-search-input" value={q} onChange={(e) => onSearch(e.target.value)} placeholder={uiLabel("Search name, phone, email, file or site")} data-testid="accounting-search" />
+          <RoyalSelect className="ops-select" value={filters.status} onChange={(e) => go({ status: e.target.value as AccountingFilters["status"] })} data-testid="accounting-status"><RoyalOption labelAr="جميع الحسابات" value="all">All accounts</RoyalOption><RoyalOption labelAr="غير مسدد" value="unpaid">Unpaid</RoyalOption><RoyalOption labelAr="مسدد جزئياً" value="partially_paid">Partially paid</RoyalOption><RoyalOption labelAr="مسدد" value="paid">Paid</RoyalOption><RoyalOption labelAr="مسترد" value="refunded">Refunded</RoyalOption></RoyalSelect>
+          <RoyalSelect className="ops-select" value={filters.staffId ?? "all"} onChange={(e) => go({ staffId: e.target.value === "all" ? null : e.target.value })} data-testid="accounting-staff"><RoyalOption labelAr="جميع الموظفين" value="all">All staff</RoyalOption>{activeStaff.map((s) => <RoyalOption key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</RoyalOption>)}</RoyalSelect>
           {filters.clientId && (
-            <button type="button" className="ops-secondary-button" data-testid="clear-client-focus" onClick={() => go({ clientId: null })}>
-              Showing one client · show all
-            </button>
+            <button type="button" className="ops-secondary-button" data-testid="clear-client-focus" onClick={() => go({ clientId: null })}><StaffLabel en="Showing one client · show all"/>{" "}</button>
           )}
-          <span className="ops-note" data-testid="accounting-count">{totals.count} account{totals.count === 1 ? "" : "s"}</span>
+          <span className="ops-note" data-testid="accounting-count">{totals.count}{" "}<StaffLabel en="account"/>{totals.count === 1 ? "" : "s"}</span>
         </div>
 
         <div className={`ops-account-list transition-opacity duration-200 ${navigating ? "opacity-60" : "opacity-100"}`}>
           {rows.map((row) => <AccountRow key={row.account_id} row={row} onDone={(operation) => onMutated(operation, row.client_id)} />)}
-          {!rows.length && <div className="ops-empty-large">No accounts match this filter.</div>}
+          {!rows.length && <div className="ops-empty-large"><StaffLabel en="No accounts match this filter."/></div>}
         </div>
 
         {pageCount > 1 && (
-          <nav aria-label="Account pages" className="mt-4 flex items-center justify-between gap-3" data-testid="accounting-pager">
-            <button type="button" className="ops-secondary-button" disabled={page <= 1 || navigating} onClick={() => go({ page: page - 1 })}>Previous</button>
-            <span className="ops-note">Page {page} of {pageCount}</span>
-            <button type="button" className="ops-primary-button" disabled={page >= pageCount || navigating} onClick={() => go({ page: page + 1 })}>Next</button>
+          <nav aria-label={uiLabel("Account pages")} className="mt-4 flex items-center justify-between gap-3" data-testid="accounting-pager">
+            <button type="button" className="ops-secondary-button" disabled={page <= 1 || navigating} onClick={() => go({ page: page - 1 })}><StaffLabel en="Previous"/></button>
+            <span className="ops-note"><StaffLabel en="Page"/>{" "}{page}{" "}<StaffLabel en="of"/>{" "}{pageCount}</span>
+            <button type="button" className="ops-primary-button" disabled={page >= pageCount || navigating} onClick={() => go({ page: page + 1 })}><StaffLabel en="Next"/></button>
           </nav>
         )}
       </section>

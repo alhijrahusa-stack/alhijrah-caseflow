@@ -3,6 +3,7 @@ import { ACCOUNT_NET_FEE } from "@/lib/accounting-schema";
 import { type ClientStageFilter } from "@/lib/client-lifecycle-filters";
 import { workflowFilter } from "@/lib/workflow-filters";
 import { withStaff, type StaffSession } from "@/lib/auth";
+import { registrySearchPredicate } from "@/lib/registry-search";
 
 export type ClientView = "active" | "completed" | "all";
 export type OperationalClientRow = {
@@ -22,8 +23,8 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
         ? tx`c.current_status = 'completed'`
         : tx`true`;
     const stageFilter = extra.stage ? workflowFilter(tx, extra.stage) : tx`true`;
-        const term=extra.q?.trim()??"";
-    const like=`%${term.replace(/[\\%_]/g,(m)=>`\\${m}`)}%`;
+    const term=extra.q?.trim().slice(0,100)??"";
+    if(term)await tx`select set_config('pg_trgm.word_similarity_threshold','0.45',true)`;
     const where=tx`c.deleted_at is null and ${lifecycle} and ${stageFilter}
       ${extra.status?tx`and c.current_status=${extra.status}`:tx``}
       ${extra.completedThisMonth?tx`and c.current_status='completed' and exists (select 1 from activity_log l where l.client_id=c.id and l.action in ('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now()))`:tx``}
@@ -37,7 +38,7 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
           )
       )`:tx``}
       ${extra.assigned==="none"?tx`and c.assigned_staff is null and c.current_status not in ('completed','cancelled')`:extra.assigned?tx`and c.assigned_staff=${extra.assigned}`:tx``}
-      ${term?tx`and (c.ref ilike ${like} or c.full_name ilike ${like} or c.email ilike ${like} or c.phone like ${like})`:tx``}`;
+      ${term?tx`and ${registrySearchPredicate(tx,term)}`:tx``}`;
     const [{total}] = await tx`select count(*)::int as total from clients c where ${where}`;
     // Keep the view on a real page if filters or records changed since navigation.
     const maxPage = Math.max(1, Math.ceil(Number(total ?? 0) / pageSize));

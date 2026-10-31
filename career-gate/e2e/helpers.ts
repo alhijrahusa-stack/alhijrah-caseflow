@@ -1,7 +1,19 @@
 import { createHmac, randomUUID } from "node:crypto";
-import type { APIRequestContext, BrowserContext, Page } from "@playwright/test";
+import type { APIRequestContext, BrowserContext, Locator, Page } from "@playwright/test";
 import { SignJWT } from "jose";
 import postgres from "postgres";
+
+/** Choose through the visible custom combobox, including its portalled listbox. */
+export async function selectChoice(control: Locator, choice: string | { label: string } | { value: string }) {
+  await control.click();
+  const listId = await control.getAttribute("aria-controls");
+  if (!listId) throw new Error("Dropdown did not open an accessible listbox");
+  const list = control.page().locator(`[id=${JSON.stringify(listId)}]`);
+  const option = typeof choice === "object" && "label" in choice
+    ? list.getByRole("option", { name: choice.label, exact: true })
+    : list.locator(`[role="option"][data-value=${JSON.stringify(typeof choice === "string" ? choice : choice.value)}]`);
+  await option.click();
+}
 
 // Use the employee's file-picker flow. Injecting a hidden input before React
 // attaches its change handler can leave the native file and form state apart.

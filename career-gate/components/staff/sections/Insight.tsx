@@ -1,5 +1,12 @@
 "use client";
 
+import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
+import { arabicStaffLabel } from "@/lib/staff-ui-labels";
+
+
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
+
 import { useState } from "react";
 import { useStaff } from "@/components/staff/StaffContext";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -10,6 +17,7 @@ import { OFFICE } from "@/lib/office";
 import { Card, SmallBtn, useRowAction, type Row } from "./common";
 
 function AssessmentRow({ clientId, item, canEdit }: { clientId: string; item: Row; canEdit: boolean }) {
+  const uiLabel = useStaffLabel();
   const a = useRowAction("Assessment item saved");
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(item.status);
@@ -21,28 +29,28 @@ function AssessmentRow({ clientId, item, canEdit }: { clientId: string; item: Ro
     <tr data-testid={`assessment-${item.item_key}`}>
       <td>{item.prompt_reference ?? item.item_key}<span className="block text-xs text-slate-400">{item.assessment_type}</span></td>
       <td>
-        {unresolved ? <span className="font-semibold text-amber-700">UNRESOLVED — NEEDS CLIENT CONFIRMATION</span> : item.status.replace("_", " ")}
+        {unresolved ? <span className="font-semibold text-amber-700"><StaffLabel en="UNRESOLVED — NEEDS CLIENT CONFIRMATION"/></span> : uiLabel(item.status.replace("_", " "))}
       </td>
-      <td>{item.confirmed_answer ?? <span className="text-slate-400">—</span>}{item.source && <span className="block text-xs text-slate-500">{ASSESSMENT_SOURCE_LABELS[item.source as keyof typeof ASSESSMENT_SOURCE_LABELS]}</span>}</td>
+      <td>{item.confirmed_answer ?? <span className="text-slate-400">—</span>}{item.source && <span className="block text-xs text-slate-500">{uiLabel(ASSESSMENT_SOURCE_LABELS[item.source as keyof typeof ASSESSMENT_SOURCE_LABELS])}</span>}</td>
       <td className="text-xs text-slate-500">{item.updated_by_name ?? "—"} · {dateTime(item.updated_at)}</td>
       <td>
-        {canEdit && <SmallBtn onClick={() => setOpen(!open)}>Update</SmallBtn>}
+        {canEdit && <SmallBtn onClick={() => setOpen(!open)}><StaffLabel en="Update"/></SmallBtn>}
         {open && (
           <form className="mt-2 grid w-72 gap-2 rounded-md bg-slate-50 p-2" onSubmit={async (e) => {
             e.preventDefault();
             const ok = await a.go({ action: "update_assessment", client_id: clientId, assessment_type: item.assessment_type, item_key: item.item_key, status, confirmed_answer: answer || null, source: source || null, notes: notes || null });
             if (ok) setOpen(false);
           }}>
-            <select aria-label="Assessment status" className="input py-1" value={status} onChange={(e) => setStatus(e.target.value)}>
-              {ASSESSMENT_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-            </select>
-            <input aria-label="Answer the client confirmed" className="input py-1" placeholder="Answer the client confirmed" value={answer} onChange={(e) => setAnswer(e.target.value)} />
-            <select aria-label="Source" className="input py-1" value={source} onChange={(e) => setSource(e.target.value)}>
-              <option value="">Source…</option>
-              {ASSESSMENT_SOURCES.map((s) => <option key={s} value={s}>{ASSESSMENT_SOURCE_LABELS[s]}</option>)}
-            </select>
-            <input aria-label="Notes" className="input py-1" placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-            <SmallBtn type="submit" disabled={a.pending}>Save</SmallBtn>
+            <RoyalSelect aria-label={uiLabel("Assessment status")} className="input py-1" value={status} onChange={(e) => setStatus(e.target.value)}>
+              {ASSESSMENT_STATUSES.map((s) => <RoyalOption labelAr={arabicStaffLabel(s.replace("_", " "))} key={s} value={s}>{s.replace("_", " ")}</RoyalOption>)}
+            </RoyalSelect>
+            <input aria-label={uiLabel("Answer the client confirmed")} className="input py-1" placeholder={uiLabel("Answer the client confirmed")} value={answer} onChange={(e) => setAnswer(e.target.value)} />
+            <RoyalSelect aria-label={uiLabel("Source")} className="input py-1" value={source} onChange={(e) => setSource(e.target.value)}>
+              <RoyalOption labelAr="المصدر…" value="">Source…</RoyalOption>
+              {ASSESSMENT_SOURCES.map((s) => <RoyalOption labelAr={arabicStaffLabel(ASSESSMENT_SOURCE_LABELS[s])} key={s} value={s}>{ASSESSMENT_SOURCE_LABELS[s]}</RoyalOption>)}
+            </RoyalSelect>
+            <input aria-label={uiLabel("Notes")} className="input py-1" placeholder={uiLabel("Notes")} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <SmallBtn type="submit" disabled={a.pending}><StaffLabel en="Save"/></SmallBtn>
             {a.error && <p role="alert" className="text-xs text-red-600">{a.error}</p>}
           </form>
         )}
@@ -52,20 +60,21 @@ function AssessmentRow({ clientId, item, canEdit }: { clientId: string; item: Ro
 }
 
 export function Assessments({ clientId, items, references }: { clientId: string; items: Row[]; references: Row[] }) {
+  const uiLabel = useStaffLabel();
   const { isManager } = useStaff();
   const a = useRowAction("Standard items added as UNRESOLVED");
   const [custom, setCustom] = useState({ type: "", key: "", prompt: "" });
   const add = useRowAction("Assessment item added");
   return (
-    <Card title="Assessments" id="assessments"
-      actions={isManager && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "add_standard_assessments", client_id: clientId })}>+ Add standard items</SmallBtn>}>
-      <p className="mb-2 text-xs text-slate-500">Records only answers the client confirmed. The system never chooses or suggests assessment answers.</p>
+    <Card title={uiLabel("Assessments")} id="assessments"
+      actions={isManager && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "add_standard_assessments", client_id: clientId })}><StaffLabel en="+ Add standard items"/></SmallBtn>}>
+      <p className="mb-2 text-xs text-slate-500"><StaffLabel en="Records only answers the client confirmed. The system never chooses or suggests assessment answers."/></p>
       {items.length === 0 ? (
-        <EmptyState title="No assessment items" text="Add the items this client must confirm; they start as UNRESOLVED." />
+        <EmptyState title={uiLabel("No assessment items")} text={uiLabel("Add the items this client must confirm; they start as UNRESOLVED.")} />
       ) : (
         <div className="overflow-x-auto">
           <table className="table">
-            <thead><tr><th>Item</th><th>Status</th><th>Confirmed answer</th><th>Updated</th><th /></tr></thead>
+            <thead><tr><th><StaffLabel en="Item"/></th><th>Status</th><th><StaffLabel en="Confirmed answer"/></th><th><StaffLabel en="Updated"/></th><th /></tr></thead>
             <tbody>{items.map((i) => <AssessmentRow key={`${i.id}-${i.updated_at}`} clientId={clientId} item={i} canEdit={isManager} />)}</tbody>
           </table>
         </div>
@@ -76,14 +85,14 @@ export function Assessments({ clientId, items, references }: { clientId: string;
           const ok = await add.go({ action: "update_assessment", client_id: clientId, assessment_type: custom.type, item_key: custom.key, prompt_reference: custom.prompt || null, status: "unresolved" });
           if (ok) setCustom({ type: "", key: "", prompt: "" });
         }}>
-          <input aria-label="Assessment type" required className="input w-40 py-1" placeholder="Type" value={custom.type} onChange={(e) => setCustom({ ...custom, type: e.target.value })} />
-          <input aria-label="Item key" required className="input w-32 py-1" placeholder="Item key" value={custom.key} onChange={(e) => setCustom({ ...custom, key: e.target.value })} />
-          <input aria-label="Prompt reference" className="input w-56 py-1" placeholder="Prompt reference" value={custom.prompt} onChange={(e) => setCustom({ ...custom, prompt: e.target.value })} />
-          <SmallBtn type="submit" disabled={add.pending}>+ Add item</SmallBtn>
+          <input aria-label={uiLabel("Assessment type")} required className="input w-40 py-1" placeholder={uiLabel("Type")} value={custom.type} onChange={(e) => setCustom({ ...custom, type: e.target.value })} />
+          <input aria-label={uiLabel("Item key")} required className="input w-32 py-1" placeholder={uiLabel("Item key")} value={custom.key} onChange={(e) => setCustom({ ...custom, key: e.target.value })} />
+          <input aria-label={uiLabel("Prompt reference")} className="input w-56 py-1" placeholder={uiLabel("Prompt reference")} value={custom.prompt} onChange={(e) => setCustom({ ...custom, prompt: e.target.value })} />
+          <SmallBtn type="submit" disabled={add.pending}><StaffLabel en="+ Add item"/></SmallBtn>
         </form>
       )}
       <details className="mt-4">
-        <summary className="cursor-pointer text-sm font-medium">Reference material (not client answers)</summary>
+        <summary className="cursor-pointer text-sm font-medium"><StaffLabel en="Reference material (not client answers)"/></summary>
         <ul className="mt-2 space-y-2">
           {references.map((r) => (
             <li key={r.key}><p className="font-medium">{r.title}</p><p className="whitespace-pre-line text-slate-600">{r.body}</p></li>
@@ -95,30 +104,30 @@ export function Assessments({ clientId, items, references }: { clientId: string;
 }
 
 export function IntakeAgent({ clientId, run }: { clientId: string; run: Row | null }) {
+  const uiLabel = useStaffLabel();
   const a = useRowAction(null);
   const toast = useToast();
   const [latest, setLatest] = useState<Row | null>(null);
   const out = (latest?.findings ?? run?.output ?? null) as Row | null;
   const llm = (latest?.llm ?? run?.output?.llm ?? null) as Row | null;
   return (
-    <Card title="Intake Check (agent)" id="intake-agent"
+    <Card title={uiLabel("Intake Check (agent)")} id="intake-agent"
       actions={<SmallBtn disabled={a.pending} onClick={async () => {
         const r = await a.run({ action: "run_intake_agent", client_id: clientId }, null);
         if (r?.run) { setLatest(r.run as Row); toast("info", "Intake check complete"); }
-      }}>{a.pending ? "Checking…" : "Run check"}</SmallBtn>}>
+      }}>{a.pending ? uiLabel("Checking…") : uiLabel("Run check")}</SmallBtn>}>
       {!out ? (
-        <EmptyState title="Not run yet" text="Detects missing or inconsistent intake items. It never fills in values." />
+        <EmptyState title={uiLabel("Not run yet")} text={uiLabel("Detects missing or inconsistent intake items. It never fills in values.")} />
       ) : (
         <div className="space-y-2" data-testid="intake-agent-output">
-          {(out.missing_items as Row[]).length === 0 ? <p className="text-green-700">No missing intake items detected.</p> : (
+          {(out.missing_items as Row[]).length === 0 ? <p className="text-green-700"><StaffLabel en="No missing intake items detected."/></p> : (
             <ul className="list-disc pl-5">
               {(out.missing_items as Row[]).map((m) => <li key={m.code} className={m.severity === "required" ? "" : "text-slate-500"}>{m.label}{m.severity === "recommended" ? " (recommended)" : ""}</li>)}
             </ul>
           )}
-          <p><strong>Recommended action:</strong> {out.recommended_action}</p>
+          <p><strong><StaffLabel en="Recommended action:"/></strong> {out.recommended_action}</p>
           {out.message_draft && <pre className="whitespace-pre-wrap rounded bg-slate-50 p-2 font-sans text-xs">{out.message_draft}</pre>}
-          <p className="text-xs text-slate-500">
-            Findings: deterministic rules. Draft wording: {llm?.status === "succeeded" ? `model ${llm.model}` : llm?.status === "not_configured" ? "template (agent model NOT_CONFIGURED)" : llm?.status === "schema_invalid" ? "template (model output failed validation)" : llm?.status === "failed" ? "template (model call failed)" : "template"}.
+          <p className="text-xs text-slate-500"><StaffLabel en="Findings: deterministic rules. Draft wording:"/>{" "}{llm?.status === "succeeded" ? `model ${llm.model}` : llm?.status === "not_configured" ? "template (agent model NOT_CONFIGURED)" : llm?.status === "schema_invalid" ? "template (model output failed validation)" : llm?.status === "failed" ? "template (model call failed)" : uiLabel("template")}.
             {run?.created_at && !latest && ` Last run ${dateTime(run.created_at)}.`}
           </p>
         </div>
@@ -141,37 +150,38 @@ export function buildMessage(c: Row) {
 }
 
 export function Messages({ c, notifications, onContacted }: { c: Row; notifications: Row[]; onContacted: () => void }) {
+  const uiLabel = useStaffLabel();
   const { isManager } = useStaff();
   const toast = useToast();
   const send = useRowAction(null);
   const text = buildMessage(c);
   return (
-    <Card title="Communication" id="message">
+    <Card title={uiLabel("Communication")} id="message">
       <pre className="whitespace-pre-wrap rounded bg-slate-50 p-3 font-sans text-sm" data-testid="message-text">{text}</pre>
       <div className="mt-2 flex flex-wrap gap-2">
         <SmallBtn onClick={async () => {
           try { await navigator.clipboard.writeText(text); toast("success", "Message copied"); } catch { toast("error", "Copy failed — select the text and copy it manually"); }
-        }}>Copy Message</SmallBtn>
-        <SmallBtn onClick={onContacted}>Mark Contacted</SmallBtn>
+        }}><StaffLabel en="Copy Message"/></SmallBtn>
+        <SmallBtn onClick={onContacted}><StaffLabel en="Mark Contacted"/></SmallBtn>
         {isManager && c.communication_consent && (
           <>
             <SmallBtn disabled={send.pending} onClick={async () => {
               const r = await send.run({ action: "send_notification", client_id: c.id, channel: "sms", message: text }, null);
               if (r) toast(r.status === "sent" ? "success" : "warning", r.status === "sent" ? "SMS sent (provider confirmed)" : `SMS ${String(r.status).toUpperCase()}`);
-            }}>Send SMS</SmallBtn>
+            }}><StaffLabel en="Send SMS"/></SmallBtn>
             {c.email && (
               <SmallBtn disabled={send.pending} onClick={async () => {
                 const r = await send.run({ action: "send_notification", client_id: c.id, channel: "email", message: text }, null);
                 if (r) toast(r.status === "sent" ? "success" : "warning", r.status === "sent" ? "Email sent (provider confirmed)" : `Email ${String(r.status).toUpperCase()}`);
-              }}>Send Email</SmallBtn>
+              }}><StaffLabel en="Send Email"/></SmallBtn>
             )}
           </>
         )}
       </div>
-      <p className="mt-2 text-xs text-slate-500">A message counts as sent only when the provider confirms it. Otherwise it is recorded as NOT_CONFIGURED or failed.</p>
+      <p className="mt-2 text-xs text-slate-500"><StaffLabel en="A message counts as sent only when the provider confirms it. Otherwise it is recorded as NOT_CONFIGURED or failed."/></p>
       {notifications.length > 0 && (
         <table className="table mt-3" data-testid="notification-log">
-          <thead><tr><th>When</th><th>Channel</th><th>Template</th><th>Status</th></tr></thead>
+          <thead><tr><th>When</th><th><StaffLabel en="Channel"/></th><th><StaffLabel en="Template"/></th><th>Status</th></tr></thead>
           <tbody>
             {notifications.map((n, i) => (
               <tr key={i}><td className="whitespace-nowrap">{dateTime(n.created_at)}</td><td>{n.channel}</td><td>{n.template}</td>
@@ -185,6 +195,7 @@ export function Messages({ c, notifications, onContacted }: { c: Row; notificati
 }
 
 export function Alerts({ alerts }: { alerts: Row[] }) {
+  const uiLabel = useStaffLabel();
   const a = useRowAction("Alert updated");
   const [ignoring, setIgnoring] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -196,14 +207,14 @@ export function Alerts({ alerts }: { alerts: Row[] }) {
           <span className="rounded bg-red-600 px-1.5 text-xs uppercase text-white">{al.severity}</span>
           <div className="flex-1">
             <p className="font-medium">{al.explanation}</p>
-            <p className="text-xs text-red-900">Recommended: {al.recommended_action}</p>
+            <p className="text-xs text-red-900"><StaffLabel en="Recommended:"/>{" "}{al.recommended_action}</p>
           </div>
-          <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "resolve_alert", alert_id: al.id, note: "Resolved from client file" })}>Resolve</SmallBtn>
-          <SmallBtn onClick={() => { setIgnoring(al.id); setReason(""); }}>Ignore</SmallBtn>
+          <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "resolve_alert", alert_id: al.id, note: "Resolved from client file" })}><StaffLabel en="Resolve"/></SmallBtn>
+          <SmallBtn onClick={() => { setIgnoring(al.id); setReason(""); }}><StaffLabel en="Ignore"/></SmallBtn>
           {ignoring === al.id && (
             <form className="flex w-full gap-1" onSubmit={async (e) => { e.preventDefault(); if (await a.go({ action: "ignore_alert", alert_id: al.id, reason })) setIgnoring(null); }}>
-              <input aria-label="Ignore reason" required className="input py-1 text-xs" placeholder="Reason (required)" value={reason} onChange={(e) => setReason(e.target.value)} />
-              <SmallBtn type="submit">Save</SmallBtn>
+              <input aria-label={uiLabel("Ignore reason")} required className="input py-1 text-xs" placeholder={uiLabel("Reason (required)")} value={reason} onChange={(e) => setReason(e.target.value)} />
+              <SmallBtn type="submit"><StaffLabel en="Save"/></SmallBtn>
             </form>
           )}
         </div>
@@ -234,9 +245,10 @@ function summarize(v: unknown) {
 }
 
 export function Activity({ activity }: { activity: Row[] }) {
+  const uiLabel = useStaffLabel();
   return (
-    <Card title="Activity Log" id="activity">
-      {activity.length === 0 ? <EmptyState title="No activity" text="Every change to this file is recorded here." /> : (
+    <Card title={uiLabel("Activity Log")} id="activity">
+      {activity.length === 0 ? <EmptyState title={uiLabel("No activity")} text={uiLabel("Every change to this file is recorded here.")} /> : (
         <ol className="relative space-y-3 border-l border-slate-200 pl-4">
           {activity.map((l) => {
             const before = summarize(l.old_value);
@@ -245,7 +257,7 @@ export function Activity({ activity }: { activity: Row[] }) {
               <li key={l.id} data-testid="activity-row" data-action={l.action}>
                 <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border-2 border-white bg-brand-500" aria-hidden="true" />
                 <p className="font-medium">{ACTION_LABELS[l.action] ?? l.action}</p>
-                {before && <p className="text-xs text-slate-500">Before — {before}</p>}
+                {before && <p className="text-xs text-slate-500"><StaffLabel en="Before —"/>{" "}{before}</p>}
                 {after && <p className="text-xs text-slate-600">{before ? "After — " : ""}{after}</p>}
                 <p className="text-xs text-slate-400">{l.staff_name ?? "System / applicant"} · {dateTime(l.created_at)}</p>
               </li>

@@ -1,7 +1,7 @@
 import { pipelineClientHref } from "../lib/pipeline-navigation";
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
-import { accessToken, passedInterviewFixture, db, intakeBody, RUN, signIn, submitIntake, uniqueIp } from "./helpers";
+import { selectChoice, accessToken, passedInterviewFixture, db, intakeBody, RUN, signIn, submitIntake, uniqueIp } from "./helpers";
 
 /**
  * Server-paged Accounting, Reports intelligence, isolated rendering failures
@@ -37,10 +37,10 @@ test.describe.serial("Staff intelligence surfaces", () => {
   test("status and client filters compose and clear without a full reload", async () => {
     await page.goto(`/staff/accounting?client=${clientId}`);
     await expect(page.getByTestId("account-row")).toHaveCount(1);
-    await page.getByTestId("accounting-status").selectOption("paid");
+    await selectChoice(page.getByTestId("accounting-status"), "paid");
     await expect(page).toHaveURL(/status=paid/);
     await expect(page.getByTestId("account-row")).toHaveCount(0);
-    await page.getByTestId("accounting-status").selectOption("all");
+    await selectChoice(page.getByTestId("accounting-status"), "all");
     await expect(page.getByTestId("account-row")).toHaveCount(1);
     await page.getByTestId("clear-client-focus").click();
     await expect(page).not.toHaveURL(/client=/);
@@ -142,7 +142,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
     if (await pipeline.count()) {
       await pipeline.click();
       await expect(page).toHaveURL(/view=completed&status=completed/);
-      await expect(page.getByRole("heading", { name: /^Clients \/ سجل العملاء$/ })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
     }
   });
 
@@ -166,7 +166,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
     const match = pagination.match(/page ([0-9]+) of ([0-9]+)/);
     expect(match).not.toBeNull();
     expect(match![1]).toBe(match![2]);
-    await expect(page.getByRole("heading", { name: /^Clients \/ سجل العملاء$/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
     await page.goto("/staff/clients?view=all&page=garbage");
     await expect(page.getByTestId("client-total")).toContainText("page 1 of");
   });

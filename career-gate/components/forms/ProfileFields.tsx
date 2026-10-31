@@ -1,5 +1,11 @@
 "use client";
 
+import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
+
+
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
+
 import { ENGLISH_PROFICIENCY_VALUES, LANGUAGES } from "@/lib/domain";
 import { AMAZON_HISTORY, isVisible } from "@/lib/intake-schema";
 
@@ -75,23 +81,25 @@ export function profilePayload(p: ProfileForm) {
 type Props = { value: ProfileForm; onChange: (v: ProfileForm) => void; section?: "personal" | "amazon" | "employment" | "availability" | "all" };
 
 function Field({ id, label, children, className = "" }: { id: string; label: string; children: React.ReactNode; className?: string }) {
+  const uiLabel = useStaffLabel();
   return (
     <div className={className}>
-      <label className="label" htmlFor={id}>{label}</label>
+      <label className="label" htmlFor={id}>{uiLabel(label)}</label>
       {children}
     </div>
   );
 }
 
 function YesNoField({ id, label, value, onChange }: { id: string; label: string; value: YesNo; onChange: (v: YesNo) => void }) {
+  const uiLabel = useStaffLabel();
   return (
     <fieldset>
-      <legend className="label">{label}</legend>
+      <legend className="label">{uiLabel(label)}</legend>
       <div className="flex gap-2">
         {(["yes", "no"] as const).map((v) => (
           <label key={v} className={`flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm transition-colors duration-200 ${value === v ? "border-brand-600 bg-brand-50" : "border-slate-300 bg-white"}`}>
             <input type="radio" name={id} value={v} checked={value === v} onChange={() => onChange(v)} className="text-brand-600" />
-            {v === "yes" ? "Yes" : "No"}
+            {v === "yes" ? uiLabel("Yes") : uiLabel("No")}
           </label>
         ))}
       </div>
@@ -100,6 +108,7 @@ function YesNoField({ id, label, value, onChange }: { id: string; label: string;
 }
 
 export function ProfileFields({ value: v, onChange, section = "all" }: Props) {
+  const uiLabel = useStaffLabel();
   const set = (patch: Partial<ProfileForm>) => onChange({ ...v, ...patch });
   const show = (s: Props["section"]) => section === "all" || section === s;
   const setJob = (i: number, patch: Partial<Employment>) =>
@@ -109,43 +118,43 @@ export function ProfileFields({ value: v, onChange, section = "all" }: Props) {
     <div className="space-y-8">
       {show("personal") && (
         <section className="space-y-4">
-          {section === "all" && <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Personal information</h3>}
+          {section === "all" && <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500"><StaffLabel en="Personal information"/></h3>}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="full_name" label="Full name" className="sm:col-span-2">
+            <Field id="full_name" label={uiLabel("Full name")} className="sm:col-span-2">
               <input id="full_name" className="input" autoComplete="name" required value={v.full_name} onChange={(e) => set({ full_name: e.target.value })} />
             </Field>
-            <Field id="phone" label="Phone">
+            <Field id="phone" label={uiLabel("Phone")}>
               <input id="phone" className="input" type="tel" autoComplete="tel" required value={v.phone} onChange={(e) => set({ phone: e.target.value })} />
             </Field>
-            <Field id="email" label="Email">
+            <Field id="email" label={uiLabel("Email")}>
               <input id="email" className="input" type="email" autoComplete="email" value={v.email} onChange={(e) => set({ email: e.target.value })} />
             </Field>
-            <Field id="date_of_birth" label="Date of birth">
+            <Field id="date_of_birth" label={uiLabel("Date of birth")}>
               <input id="date_of_birth" className="input" type="date" value={v.date_of_birth} onChange={(e) => set({ date_of_birth: e.target.value })} />
             </Field>
-            <Field id="preferred_language" label="Preferred language">
-              <select id="preferred_language" className="input" value={v.preferred_language} onChange={(e) => set({ preferred_language: e.target.value as ProfileForm["preferred_language"] })}>
-                <option value="">Not provided</option>
-                {Object.entries(LANGUAGES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-              </select>
+            <Field id="preferred_language" label={uiLabel("Preferred language")}>
+              <RoyalSelect id="preferred_language" className="input" value={v.preferred_language} onChange={(e) => set({ preferred_language: e.target.value as ProfileForm["preferred_language"] })}>
+                <RoyalOption labelAr="غير متوفر" value="">Not provided</RoyalOption>
+                {Object.entries(LANGUAGES).map(([k, l]) => <RoyalOption key={k} value={k}>{l}</RoyalOption>)}
+              </RoyalSelect>
             </Field>
-            <Field id="english_proficiency" label="English proficiency">
-              <select id="english_proficiency" className="input" value={v.english_proficiency} onChange={(e) => set({ english_proficiency: e.target.value as ProfileForm["english_proficiency"] })}>
-                <option value="">Not provided</option>
-                {ENGLISH_PROFICIENCY_VALUES.map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>
+            <Field id="english_proficiency" label={uiLabel("English proficiency")}>
+              <RoyalSelect id="english_proficiency" className="input" value={v.english_proficiency} onChange={(e) => set({ english_proficiency: e.target.value as ProfileForm["english_proficiency"] })}>
+                <RoyalOption labelAr="غير متوفر" value="">Not provided</RoyalOption>
+                {ENGLISH_PROFICIENCY_VALUES.map((value) => <RoyalOption key={value} value={value}>{value}</RoyalOption>)}
+              </RoyalSelect>
             </Field>
-            <Field id="street" label="Street address" className="sm:col-span-2">
+            <Field id="street" label={uiLabel("Street address")} className="sm:col-span-2">
               <input id="street" className="input" autoComplete="street-address" value={v.street} onChange={(e) => set({ street: e.target.value })} />
             </Field>
-            <Field id="addr_city" label="City">
+            <Field id="addr_city" label={uiLabel("City")}>
               <input id="addr_city" className="input" autoComplete="address-level2" value={v.city} onChange={(e) => set({ city: e.target.value })} />
             </Field>
             <div className="grid grid-cols-2 gap-4">
-              <Field id="addr_state" label="State">
+              <Field id="addr_state" label={uiLabel("State")}>
                 <input id="addr_state" className="input" autoComplete="address-level1" value={v.state} onChange={(e) => set({ state: e.target.value })} />
               </Field>
-              <Field id="zip" label="ZIP">
+              <Field id="zip" label={uiLabel("ZIP")}>
                 <input id="zip" className="input" inputMode="numeric" autoComplete="postal-code" value={v.zip} onChange={(e) => set({ zip: e.target.value })} />
               </Field>
             </div>
@@ -156,16 +165,16 @@ export function ProfileFields({ value: v, onChange, section = "all" }: Props) {
 
       {show("availability") && (
         <section className="space-y-4">
-          {section === "all" && <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Appointment availability</h3>}
-            <Field id="appointment_availability" label="When are you available for appointments?" >
-              <textarea id="appointment_availability" rows={2} className="input" placeholder="Days and times" value={v.appointment_availability} onChange={(e) => set({ appointment_availability: e.target.value })} />
+          {section === "all" && <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500"><StaffLabel en="Appointment availability"/></h3>}
+            <Field id="appointment_availability" label={uiLabel("When are you available for appointments?")} >
+              <textarea id="appointment_availability" rows={2} className="input" placeholder={uiLabel("Days and times")} value={v.appointment_availability} onChange={(e) => set({ appointment_availability: e.target.value })} />
             </Field>
         </section>
       )}
 
       {show("amazon") && (
         <section className="space-y-4">
-          {section === "all" && <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Amazon history</h3>}
+          {section === "all" && <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500"><StaffLabel en="Amazon history"/></h3>}
           {AMAZON_HISTORY.filter((f) => isVisible(f, v as unknown as Record<string, string>)).map((f) =>
             f.type === "yes_no" ? (
               <YesNoField key={f.field_id} id={f.field_id} label={f.label} value={v[f.field_id as keyof ProfileForm] as YesNo}
@@ -189,41 +198,35 @@ export function ProfileFields({ value: v, onChange, section = "all" }: Props) {
 
       {show("employment") && (
         <section className="space-y-4">
-          {section === "all" && <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Employment history</h3>}
-          <p className="text-sm text-slate-600">Most recent paid work in the last five years, if any.</p>
+          {section === "all" && <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500"><StaffLabel en="Employment history"/></h3>}
+          <p className="text-sm text-slate-600"><StaffLabel en="Most recent paid work in the last five years, if any."/></p>
           {v.employment_history.map((e, i) => (
             <div key={i} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={e.self_employed} onChange={(x) => setJob(i, { self_employed: x.target.checked })} />
-                Self-employed
-              </label>
+                <input type="checkbox" checked={e.self_employed} onChange={(x) => setJob(i, { self_employed: x.target.checked })} /><StaffLabel en="Self-employed"/>{" "}</label>
               <div className="grid gap-3 sm:grid-cols-2">
                 {!e.self_employed && (
-                  <Field id={`emp_company_${i}`} label="Company">
+                  <Field id={`emp_company_${i}`} label={uiLabel("Company")}>
                     <input id={`emp_company_${i}`} className="input" value={e.company} onChange={(x) => setJob(i, { company: x.target.value })} />
                   </Field>
                 )}
-                <Field id={`emp_title_${i}`} label="Job title / type">
+                <Field id={`emp_title_${i}`} label={uiLabel("Job title / type")}>
                   <input id={`emp_title_${i}`} className="input" value={e.job_title} onChange={(x) => setJob(i, { job_title: x.target.value })} />
                 </Field>
-                <Field id={`emp_from_${i}`} label="From">
+                <Field id={`emp_from_${i}`} label={uiLabel("From")}>
                   <input id={`emp_from_${i}`} type="date" className="input" value={e.from_date} onChange={(x) => setJob(i, { from_date: x.target.value })} />
                 </Field>
-                <Field id={`emp_to_${i}`} label="To (blank if current)">
+                <Field id={`emp_to_${i}`} label={uiLabel("To (blank if current)")}>
                   <input id={`emp_to_${i}`} type="date" className="input" value={e.to_date} onChange={(x) => setJob(i, { to_date: x.target.value })} />
                 </Field>
               </div>
               <button type="button" className="text-sm text-red-600 hover:underline"
-                onClick={() => set({ employment_history: v.employment_history.filter((_, j) => j !== i) })}>
-                Remove
-              </button>
+                onClick={() => set({ employment_history: v.employment_history.filter((_, j) => j !== i) })}><StaffLabel en="Remove"/>{" "}</button>
             </div>
           ))}
           {v.employment_history.length < 10 && (
             <button type="button" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
-              onClick={() => set({ employment_history: [...v.employment_history, { company: "", job_title: "", from_date: "", to_date: "", self_employed: false }] })}>
-              + Add employment
-            </button>
+              onClick={() => set({ employment_history: [...v.employment_history, { company: "", job_title: "", from_date: "", to_date: "", self_employed: false }] })}><StaffLabel en="+ Add employment"/>{" "}</button>
           )}
         </section>
       )}

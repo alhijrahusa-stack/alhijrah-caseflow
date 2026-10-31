@@ -1,3 +1,4 @@
+import { StaffText } from "@/components/staff/StaffLanguage";
 import { redirect } from "next/navigation";
 import { AccountingBoard } from "@/components/staff/AccountingBoard";
 import { getStaffSession } from "@/lib/auth";
@@ -9,7 +10,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
   const params = await searchParams;
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
-  if (session.staff.role === "staff") return <p className="ops-error">403 — Management access required.</p>;
+  if (session.staff.role === "staff") return <p className="ops-error"><StaffText en="403 — Management access required." ar="403 — يلزم تصريح إداري."/></p>;
   const filters = parseAccountingFilters(params);
   const [data, staff] = await Promise.all([accountingData(session, filters), staffDirectory(session)]);
   return <AccountingBoard data={data} filters={filters} staff={staff} />;

@@ -1,3 +1,4 @@
+import { StaffText } from "@/components/staff/StaffLanguage";
 import { notFound, redirect } from "next/navigation";
 import { EditClientForm } from "@/components/staff/EditClientForm";
 import { getStaffSession } from "@/lib/auth";
@@ -13,7 +14,7 @@ export default async function EditClientPage({ params }: { params: Promise<{ id:
   if (!UUID.test(id)) notFound();
   const scope = await clientScope(session, id);
   if (!scope.ok) {
-    if (scope.status === 403) return <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" data-testid="forbidden">403 — This client is not assigned to you.</p>;
+    if (scope.status === 403) return <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" data-testid="forbidden"><StaffText en="403 — This client is not assigned to you." ar="403 — هذا العميل غير مسند إليك."/></p>;
     notFound();
   }
   const data = await clientFile(session, id);
@@ -21,7 +22,7 @@ export default async function EditClientPage({ params }: { params: Promise<{ id:
   const plain = JSON.parse(JSON.stringify(data));
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Edit {plain.client.full_name} <span className="font-mono text-base text-slate-500">{plain.client.ref}</span></h1>
+      <h1 className="text-2xl font-semibold"><StaffText en="Edit" ar="تعديل"/> {plain.client.full_name} <span className="font-mono text-base text-slate-500">{plain.client.ref}</span></h1>
       <EditClientForm client={plain.client} employment={plain.employment} preferences={plain.preferences} />
     </div>
   );

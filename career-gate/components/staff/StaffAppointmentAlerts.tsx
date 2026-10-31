@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { dateTime } from "@/lib/format";
+import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 
 type AppointmentEvent = {
   id: string;
@@ -39,14 +42,17 @@ function soundFor(action: AppointmentEvent["action"]) {
   }
 }
 
-function label(action: AppointmentEvent["action"]) {
-  if (action === "confirm") return "Appointment acknowledged / تم تأكيد الموعد";
-  if (action === "reschedule") return "Reschedule requested / طلب تعديل موعد";
-  return "Appointment cancelled / إلغاء موعد";
+function label(action: AppointmentEvent["action"], t: (en: string, ar: string) => string) {
+  if (action === "confirm") return t("Appointment acknowledged", "تم تأكيد الموعد");
+  if (action === "reschedule") return t("Reschedule requested", "طلب تعديل موعد");
+  return t("Appointment cancelled", "إلغاء موعد");
 }
 
 /** One staff-wide, permission-scoped appointment inbox; sound is an optional enhancement. */
 export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
+  const { t, dir } = useStaffLanguage();
+  const root = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const soundRef = useRef(false);
@@ -126,8 +132,12 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
+    const onPointer = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node) && !panel.current?.contains(event.target as Node)) setOpen(false);
+    };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointer);
+    return () => { window.removeEventListener("keydown", onKeyDown); document.removeEventListener("pointerdown", onPointer); };
   }, [open]);
 
   function markRead(ids: string[]) {
@@ -140,10 +150,10 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
   const unread = events.filter(e => !acknowledged.has(e.id)).length;
 
   return (
-    <div className="relative" data-testid="staff-appointment-inbox">
+    <div ref={root} className="relative" data-testid="staff-appointment-inbox">
       <button
         type="button"
-        aria-label={`Appointment alerts, ${unread} unread`}
+        aria-label={t(`Appointment alerts, ${unread} unread`, `تنبيهات المواعيد، ${unread} غير مقروء`)}
         aria-expanded={open}
         aria-controls="staff-appointment-alert-panel"
         onClick={() => setOpen(value => !value)}
@@ -154,45 +164,45 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
         </svg>
         {unread > 0 && <span data-testid="staff-appointment-unread" className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-300 px-1 text-[11px] font-extrabold text-slate-950">{unread > 9 ? "9+" : unread}</span>}
       </button>
-      {open && (
-        <section
+      {open && createPortal(
+        <section ref={panel} dir={dir}
           id="staff-appointment-alert-panel"
-          aria-label="Appointment notification inbox"
-          className="fixed right-3 top-24 z-[100] max-h-[min(72dvh,520px)] w-[min(410px,calc(100vw-24px))] overflow-y-auto rounded-2xl border border-amber-300/35 bg-[#102449] p-4 text-slate-100 shadow-[0_24px_70px_rgba(0,0,0,.65)] sm:right-6"
+          aria-label={t("Appointment notification inbox", "صندوق تنبيهات المواعيد")}
+          className="royal-appointment-panel fixed top-24 z-[130] max-h-[min(72dvh,520px)] w-[min(410px,calc(100vw-24px))] overflow-y-auto rounded-2xl border border-amber-300/35 bg-[#102449] p-4 text-slate-100 shadow-[0_24px_70px_rgba(0,0,0,.65)]"
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[.13em] text-amber-300">Career Gate · Staff</p>
-              <h2 className="mt-1 text-base font-bold">Appointment alerts / تنبيهات المواعيد</h2>
-              <p className="mt-1 text-xs text-slate-300">Last 24 hours · {unread} unread</p>
+              <p className="text-[10px] font-bold uppercase tracking-[.13em] text-amber-300">{t("Career Gate · Staff", "Career Gate · الموظفون")}</p>
+              <h2 className="mt-1 text-base font-bold">{t("Appointment alerts", "تنبيهات المواعيد")}</h2>
+              <p className="mt-1 text-xs text-slate-300">{t("Last 24 hours", "آخر 24 ساعة")} · {unread} {t("unread", "غير مقروء")}</p>
             </div>
-            <button type="button" aria-label="Close appointment alerts" onClick={() => setOpen(false)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/20 text-xl">×</button>
+            <button type="button" aria-label={t("Close appointment alerts", "إغلاق تنبيهات المواعيد")} onClick={() => setOpen(false)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/20 text-xl">×</button>
           </div>
           <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-            <button type="button" onClick={() => markRead(events.map(e => e.id))} disabled={unread === 0} className="min-h-10 rounded-lg border border-white/20 px-3 py-2 text-xs font-semibold text-slate-100 disabled:opacity-50">Mark all read / تمت القراءة</button>
+            <button type="button" onClick={() => markRead(events.map(e => e.id))} disabled={unread === 0} className="min-h-10 rounded-lg border border-white/20 px-3 py-2 text-xs font-semibold text-slate-100 disabled:opacity-50">{t("Mark all read", "تحديد الكل كمقروء")}</button>
             <button type="button" aria-pressed={soundEnabled} onClick={() => {
               const next = !soundEnabled;
               soundRef.current = next;
               setSoundEnabled(next);
-            }} className="min-h-10 rounded-lg border border-amber-300/30 px-3 py-2 text-xs text-amber-200">{soundEnabled ? "Sound on" : "Enable sound"}</button>
+            }} className="min-h-10 rounded-lg border border-amber-300/30 px-3 py-2 text-xs text-amber-200">{soundEnabled ? t("Sound on", "الصوت مفعّل") : t("Enable sound", "تفعيل الصوت")}</button>
           </div>
-          {!online && <p role="status" className="mb-3 rounded-lg bg-rose-400/10 p-2 text-xs text-rose-200">Connection interrupted. Retrying…</p>}
+          {!online && <p role="status" className="mb-3 rounded-lg bg-rose-400/10 p-2 text-xs text-rose-200">{t("Connection interrupted. Retrying…", "انقطع الاتصال. تجري إعادة المحاولة…")}</p>}
           {events.length === 0 ? (
-            <p className="rounded-xl border border-white/10 bg-white/[.04] p-4 text-sm text-slate-300">No recent client appointment actions / لا توجد إجراءات حديثة</p>
+            <p className="rounded-xl border border-white/10 bg-white/[.04] p-4 text-sm text-slate-300">{t("No recent client appointment actions", "لا توجد إجراءات حديثة على مواعيد العملاء")}</p>
           ) : (
             <ul className="grid gap-2" aria-live="polite">
               {events.map(e => (
                 <li key={e.id} className={`rounded-xl border p-3 ${acknowledged.has(e.id) ? "border-white/10 bg-white/[.03]" : "border-amber-300/35 bg-amber-300/[.08]"}`}>
                   <Link href={`/staff/client/${e.clientId}`} onClick={() => markRead([e.id])} className="block min-h-11 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300">
-                    <span className="block text-sm font-semibold text-white">{label(e.action)}</span>
+                    <span className="block text-sm font-semibold text-white">{label(e.action, t)}</span>
                     <span className="mt-1 block break-words text-sm text-slate-200">{e.name}</span>
-                    <span className="mt-1 block text-xs text-slate-300">{new Date(e.at).toLocaleString()} · Open client file →</span>
+                    <span className="mt-1 block text-xs text-slate-300"><bdi dir="ltr">{dateTime(e.at)}</bdi> · {t("Open client file", "فتح ملف العميل")} →</span>
                   </Link>
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </section>, document.body
       )}
     </div>
   );

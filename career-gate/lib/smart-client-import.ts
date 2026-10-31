@@ -809,6 +809,8 @@ export async function approveImportCase(session: StaffSession, args: {
   traceId: string;
   resolvedFields?: string[];
   expectedUpdatedAt?: string;
+  override?: boolean;
+  overrideReason?: string;
 }) {
   assertManager(session);
   return sql().begin(async (tx) => {
@@ -839,6 +841,21 @@ export async function approveImportCase(session: StaffSession, args: {
     if (!verification.draft) {
       throw new ActionError("approval_blocked", verification.result.validation_error || "This file cannot be saved as a Client yet", 409);
     }
+    // Deferral is explicit and audited. This does not relax canonical identity,
+    // duplicate, reviewer ownership or optimistic concurrency checks above.
+    const missingItems = verification.assessment.warnings.filter((warning) => warning.state === "MISSING");
+    const overrideRequired = missingItems.length > 0;
+    const overrideReason = String(args.overrideReason ?? "").trim();
+    if (overrideRequired && (args.override !== true || overrideReason.length < 8)) {
+      throw new ActionError("override_required", "Missing documents or data require an explicit approval and a reason of at least 8 characters.", 409);
+    }
+    if (overrideReason.length > 1000) throw new ActionError("invalid_override_reason", "Keep the override reason within 1,000 characters.", 400);
+    const override = overrideRequired ? {
+      approved_with_missing_items: true, reason: overrideReason, actor_id: session.staff.id,
+      reviewer_id: args.reviewerId, approved_at: new Date().toISOString(),
+      outstanding_fields: missingItems.map((warning) => warning.field),
+    } : null;
+    const approvalResult = { ...verification.result, override };
     // Approve the persistable draft: optional values that cannot satisfy their canonical
     // type were cleared and are reported as warnings, with their source evidence intact.
     const draft = verification.draft;
@@ -905,6 +922,7 @@ export async function approveImportCase(session: StaffSession, args: {
       entityId: args.id,
       newValue: {
         approved_from_import: true, source_type: row.source_type, document_count: verification.documentCount,
+        override,
         document_match_confirmed: args.documentConfirmed, information_match_confirmed: args.informationConfirmed,
         follow_up_required: verification.assessment.warnings.length > 0,
         outstanding_fields: verification.assessment.warnings.map((warning) => warning.field),
@@ -915,7 +933,7 @@ export async function approveImportCase(session: StaffSession, args: {
     await tx`
       update client_import_cases set
         reviewer_id=${args.reviewerId},reviewed_at=now(),mapped_draft=${tx.json(draft as never)},field_evidence=${tx.json(evidence as never)},
-        missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json(verification.conflicts as never)},verification_result=${tx.json(verification.result as never)},
+        missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json(verification.conflicts as never)},verification_result=${tx.json(approvalResult as never)},
         document_match_confirmed=${args.documentConfirmed},information_match_confirmed=${args.informationConfirmed},
         review_started_at=coalesce(review_started_at,now()),
         approved_by=${session.staff.id},approved_at=now(),created_client_id=${client.id},status='APPROVED_FILE',

@@ -41,10 +41,17 @@ export const NEXT_ACTION_SURFACE: SurfaceContract = {
   payloads: ["nextAction"],
 };
 
+/** Private manager aggregate, refreshed in-place by its own endpoint. */
+export const MANAGER_INBOX_SURFACE: SurfaceContract = {
+  resources: ["manager_inbox"],
+  payloads: ["inbox"],
+};
+
 export const SURFACES = {
   client_file: CLIENT_FILE_SURFACE,
   requirements_panel: REQUIREMENTS_SURFACE,
   next_action_card: NEXT_ACTION_SURFACE,
+  manager_task_center: MANAGER_INBOX_SURFACE,
 } as const;
 
 /**
