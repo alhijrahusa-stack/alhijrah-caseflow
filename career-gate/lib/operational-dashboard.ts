@@ -62,21 +62,19 @@ async function systemHealth(session: StaffSession): Promise<DashboardSystemHealt
   const db = sql();
   const started = performance.now();
   try {
-    const [[row], [{ failed_notifications_24h }], [{ open_audit_alerts }]] = await Promise.all([
-      db`
+    const [row] = await db`
       select
         count(*) filter (where status='queued')::int as queued,
         count(*) filter (where status='running')::int as running,
         count(*) filter (where status='queued' and attempts>0 and last_error is not null)::int as retrying,
         count(*) filter (where status='dead')::int as dead,
         count(*) filter (where status='not_configured')::int as not_configured,
-        extract(epoch from (now()-min(created_at) filter (where status='queued')))::int as oldest_queued_seconds
-      from jobs`,
-      db`
-      select count(*)::int as failed_notifications_24h
-      from notifications where status='failed' and updated_at>=now()-interval '24 hours'`,
-      db`select count(*)::int as open_audit_alerts from audit_alerts where status='open'`,
-    ]);
+        extract(epoch from (now()-min(created_at) filter (where status='queued')))::int as oldest_queued_seconds,
+        (select count(*)::int from notifications where status='failed' and updated_at>=now()-interval '24 hours') as failed_notifications_24h,
+        (select count(*)::int from audit_alerts where status='open') as open_audit_alerts
+      from jobs`;
+    const failed_notifications_24h = Number(row?.failed_notifications_24h ?? 0);
+    const open_audit_alerts = Number(row?.open_audit_alerts ?? 0);
     const dbMs = Math.round(performance.now() - started);
     const providers = providerStates();
     const failed = Number(row?.dead ?? 0) > 0 || Number(failed_notifications_24h ?? 0) > 0;
@@ -113,7 +111,8 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
     teamWorkload(session),
     withStaff(session, async (tx) => {
       await tx`select set_config('statement_timeout', '6500', true)`;
-      const [row] = await tx`
+      const [[row], pipelineRows, [lifecycleCounts]] = await Promise.all([
+        tx`
         with active as (
           select id,assigned_staff from clients
           where deleted_at is null and current_status not in ('completed','cancelled')
@@ -166,14 +165,14 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
           (select coalesce(sum(t.amount),0)::numeric from payment_transactions t join active a on a.id=t.client_id where t.transaction_type='payment' and t.status='confirmed' and t.created_at>=date_trunc('month',now())) as collected_this_month,
           (select coalesce(sum(t.amount),0)::numeric from payment_transactions t join active a on a.id=t.client_id where t.transaction_type='refund' and t.status='confirmed' and t.created_at>=date_trunc('month',now())) as refunds_this_month,
           (select count(*)::int from commissions c join active a on a.id=c.client_id where c.status in ('pending','eligible')) as commissions_attention
-        from readiness_rollup rr`;
-      const pipelineRows = await tx`
+        from readiness_rollup rr`,
+        tx`
         select current_status as status,count(*)::int as total
         from clients
         where deleted_at is null and current_status not in ('cancelled')
         group by current_status
-        order by current_status`;
-      const [lifecycleCounts] = await tx`
+        order by current_status`,
+        tx`
         select
           count(*) filter (where c.current_status in ('new_intake','needs_review'))::int intake,
           count(*) filter (where c.current_status in ('ready_to_apply','application_in_progress','assessment_required','shift_selected','appointment_required')
@@ -190,7 +189,8 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
           count(*) filter (where c.current_status in ('completed','cancelled'))::int registry
         from clients c
         left join client_accounts a on a.client_id=c.id
-        where c.deleted_at is null`;
+        where c.deleted_at is null`,
+      ]);
       const active = Number(row?.active_count ?? 0);
       const healthy = Number(row?.healthy_count ?? 0);
       const metrics = {

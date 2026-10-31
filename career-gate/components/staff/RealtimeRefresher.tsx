@@ -38,6 +38,8 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
     let channel: RealtimeChannel | null = null;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    const controller = new AbortController();
+    let disposeRealtime: (() => void) | null = null;
     let recoveryPending = false;
     let wasOffline = false;
 
@@ -84,7 +86,7 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
     publishRealtimeState("connecting");
 
     (async () => {
-      const res = await fetch("/api/staff/realtime-token").catch(() => null);
+      const res = await fetch("/api/staff/realtime-token", { signal: controller.signal }).catch(() => null);
       const data = await res?.json().catch(() => null);
       if (cancelled) return;
       if (!data?.ok) {
@@ -93,7 +95,9 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
       }
 
       const supabase = createClient(data.url, data.anon_key, { auth: { persistSession: false, autoRefreshToken: false } });
+      disposeRealtime = () => { void supabase.removeAllChannels(); };
       await supabase.realtime.setAuth(data.token);
+      if (cancelled) return;
       channel = supabase.channel(`staff-${clientId ?? "operations"}`);
       const tables = clientId ? CLIENT_REALTIME_ENTITIES : DASHBOARD_REALTIME_ENTITIES;
 
@@ -129,14 +133,15 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
         }
         updateState("connecting");
       });
-    })();
+    })().catch(() => updateState("offline"));
 
     return () => {
       cancelled = true;
+      controller.abort();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener(RECOVERY_EVENT, handleRecoveryRequest);
       if (timer) clearTimeout(timer);
-      channel?.unsubscribe();
+      disposeRealtime?.();
     };
   }, [clientId, router]);
 
