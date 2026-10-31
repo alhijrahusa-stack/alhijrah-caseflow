@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL) : null;
 const connect = ["'self'", supabase && supabase.origin, supabase && `wss://${supabase.host}`].filter(Boolean).join(" ");
+// Private document previews receive short-lived URLs on this configured storage
+// origin. Keep media scoped to it rather than allowing arbitrary HTTPS hosts.
+const documentMedia = ["'self'", "blob:", supabase && supabase.origin].filter(Boolean).join(" ");
 
 const csp = [
   "default-src 'self'",
@@ -8,7 +11,8 @@ const csp = [
   "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  "img-src 'self' data: blob:",
+  `img-src ${documentMedia} data:`,
+  `frame-src ${documentMedia}`,
   `connect-src ${connect}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",

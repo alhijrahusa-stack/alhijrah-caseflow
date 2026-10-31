@@ -51,3 +51,10 @@ jobs:
           e2e/smart-ui.spec.ts e2e/smart-client-import.spec.ts e2e/staff.spec.ts
         env:
           PW_CHROMIUM: ""
+      - name: Preserve browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staff-upgrade-browser-evidence
+          path: career-gate/test-results/
+          retention-days: 3

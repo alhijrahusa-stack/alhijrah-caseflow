@@ -58,6 +58,9 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
 }, forwardedRef) {
   const { t, language } = useStaffLanguage();
   const accessibleLabel = language === "ar" ? ariaLabelAr ?? ariaLabel : ariaLabel;
+  const listLabel = accessibleLabel || title
+    ? `${accessibleLabel ?? title} ${t("options", "خيارات")}`
+    : t("Options", "الخيارات");
   const generatedId = useId();
   const triggerId = id ?? `royal-select-${generatedId}`;
   const listId = `${triggerId}-list`;
@@ -218,7 +221,7 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
       {canSearch && <div className="royal-select-search"><input ref={optionSearch} type="search" placeholder={t("Search options…", "ابحث في الخيارات…")} aria-label={t("Search options", "البحث في الخيارات")}
         aria-controls={listId} aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
         value={query} onChange={event => { setQuery(event.target.value); setActive(0); }} onKeyDown={keys}/></div>}
-      <div id={listId} role="listbox" aria-label={accessibleLabel ?? title ?? t("Options", "الخيارات")} className="royal-select-options">
+      <div id={listId} role="listbox" aria-label={listLabel} className="royal-select-options">
         {visible.length ? visible.map((option, index) => <div key={`${option.value}-${index}`} id={`${listId}-${index}`} role="option"
           aria-selected={option.value === currentValue} aria-disabled={option.disabled || undefined}
           data-option-index={index} data-value={option.value} data-active={index === activeIndex || undefined}

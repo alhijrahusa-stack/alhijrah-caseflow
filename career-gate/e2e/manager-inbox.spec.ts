@@ -5,8 +5,14 @@ test("staff hands off a real client; manager reviews and routes the same file wi
   const [owner] = await db()`select id from staff where auth_user_id=${STAFF.staff}`;
   const name = `TEST Manager Handoff ${RUN}`;
   const created = await staffAction(request, "admin", { action: "create_client", profile: intakeBody(name).profile, primary: [], backup: [], status: "new_intake", next_step: null, assigned_staff: owner.id, communication_consent: false });
-  expect(created.status).toBe(200);
-  const clientId = String(created.json.id);
+  expect(created.status, JSON.stringify(created.json)).toBe(200);
+  // create_client returns client_id (shared by all staff action responses),
+  // not id. Validate it before opening a browser route so a fixture regression
+  // fails here instead of waiting for /staff/client/undefined to time out.
+  expect(created.json, "create_client must return its canonical client_id").toMatchObject({
+    ok: true, client_id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+  });
+  const clientId: string = created.json.client_id;
   const staffContext = await browser.newContext({ baseURL });
   const managerContext = await browser.newContext({ baseURL });
   try {
@@ -40,7 +46,7 @@ test("staff hands off a real client; manager reviews and routes the same file wi
     expect(row).toMatchObject({ current_status: "ready_to_apply", pipeline_stage: "no_amazon_account" });
     const [resolution] = await db()`select status,resolution_note from manager_inbox where client_id=${clientId}`;
     expect(resolution).toMatchObject({ status: "resolved", resolution_note: "Reviewed; move to account preparation" });
-  } finally { await staffContext.close(); await managerContext.close(); }
+  } finally { await Promise.allSettled([staffContext.close(), managerContext.close()]); }
 });
 
 test("ordinary staff cannot open or resolve the manager inbox", async ({ browser, baseURL }) => {

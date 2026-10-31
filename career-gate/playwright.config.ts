@@ -7,6 +7,8 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     baseURL: process.env.BASE_URL ?? "http://127.0.0.1:3456",
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
     trace: "retain-on-failure",
     launchOptions: process.env.PW_CHROMIUM === "" ? {} : { executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium" },
   },

@@ -120,10 +120,16 @@ export function SmartCareerCollectClient() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [stageBusy, setStageBusy] = useState(false);
-  const [queueBusy, setQueueBusy] = useState(false);
+  const [queueBusy, setQueueBusy] = useState(true);
   const [filter, setFilter] = useState<Status | "ALL">("ALL");
   const [archiveView, setArchiveView] = useState(false);
   const [search, setSearch] = useState("");
+  // Requested controls may change before their rows arrive. Only a committed
+  // server snapshot supplies the visible range, active page and query metadata.
+  const queueKey = JSON.stringify([archiveView,filter,search.trim(),page]);
+  const [queueSnapshot,setQueueSnapshot] = useState({page:1,key:JSON.stringify([false,"ALL","",1]),query:""});
+  const [failedQueueKey,setFailedQueueKey] = useState<string|null>(null);
+  const queuePending = queueBusy || (queueKey !== queueSnapshot.key && queueKey !== failedQueueKey);
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [counters, setCounters] = useState<Record<Status, number>>({ PENDING: 0, UNDER_REVIEW: 0, MISSING_DOCUMENT: 0, APPROVED_FILE: 0 });
   const [detail, setDetail] = useState<CaseDetail | null>(null);
@@ -192,7 +198,8 @@ export function SmartCareerCollectClient() {
   const mobilePath = "/staff/smart-client-import/new";
   const loadQueue = useCallback(async (requestedPage = page) => {
     const request = (queueRequest.current += 1);
-    setQueueBusy(true);
+    const requestKey = JSON.stringify([archiveView,filter,search.trim(),requestedPage]);
+    setFailedQueueKey(null); setQueueBusy(true);
     try {
       const params = new URLSearchParams();
       if (archiveView) params.set("archive", "1");
@@ -203,12 +210,13 @@ export function SmartCareerCollectClient() {
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, `Queue failed (${res.status})`));
       if (request !== queueRequest.current) return;
-      setRows(data.rows);
-      setTotal(data.total ?? data.archived_count ?? data.rows.length);
-      const lastPage = Math.max(1, Math.ceil((data.total ?? data.archived_count ?? data.rows.length) / 10));
-      if (requestedPage > lastPage) setPage(lastPage);
+      const matchedTotal = data.total ?? data.archived_count ?? data.rows.length;
+      const lastPage = Math.max(1, Math.ceil(matchedTotal / 10));
+      if (requestedPage > lastPage) { setPage(lastPage); return; }
+      setRows(data.rows); setTotal(matchedTotal);
+      setQueueSnapshot({page:requestedPage,key:requestKey,query:search.trim()});
       if (data.counters) setCounters(data.counters);
-    } catch (e) { if (request === queueRequest.current) setError(e instanceof Error ? e.message : "Queue failed"); }
+    } catch (e) { if (request === queueRequest.current) { setFailedQueueKey(requestKey); setError(e instanceof Error ? e.message : "Queue failed"); } }
     finally { if (request === queueRequest.current) setQueueBusy(false); }
   }, [archiveView, filter, search, page]);
 
@@ -566,10 +574,10 @@ export function SmartCareerCollectClient() {
           <input className="ops-input min-w-0 w-full sm:w-72" aria-label="Search imports" placeholder="Name, phone, email, Import ID" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         </div></div>
       {!archiveView && <div className="flex flex-wrap gap-2">{STATUSES.map((status) => <button key={status} type="button" onClick={() => { setFilter(status); setPage(1); }} className={`rounded-full border px-3 py-2 text-[10px] font-semibold ${filter === status ? "border-amber-300/35 bg-amber-300/[.08] text-amber-200" : "border-white/10 text-slate-500"}`}>{STATUS_LABEL[status]} · {counters[status]}</button>)}</div>}
-      <div className="cg-import-lines" role="table" aria-label="Import queue" aria-busy={queueBusy}>
+      <div className="cg-import-lines" role="table" aria-label="Import queue" aria-busy={queuePending} data-page={queueSnapshot.page} data-query={queueSnapshot.query}>
         <div role="rowgroup" className="cg-import-line-head"><div role="row"><span role="columnheader">Client</span><span role="columnheader">Progress</span><span role="columnheader">Received</span><span role="columnheader">Reviewer</span><span role="columnheader">Actions</span></div></div>
         <div role="rowgroup">
-          {queueBusy && rows.length === 0 ? Array.from({ length: 3 }).map((_, index) => <div role="row" key={index} className="cg-import-line cg-import-loading"><div role="cell" className="h-12 animate-pulse rounded-xl bg-white/[.05] motion-reduce:animate-none" /></div>) : rows.map((row) => <div role="row" key={row.id} className={`cg-import-line ${detail?.case.id === row.id ? "is-selected" : ""}`}>
+          {queuePending && rows.length === 0 ? Array.from({ length: 3 }).map((_, index) => <div role="row" key={index} className="cg-import-line cg-import-loading"><div role="cell" className="h-12 animate-pulse rounded-xl bg-white/[.05] motion-reduce:animate-none" /></div>) : rows.map((row) => <div role="row" key={row.id} className={`cg-import-line ${detail?.case.id === row.id ? "is-selected" : ""}`}>
             <div role="cell" className="cg-import-client"><span className="cg-import-avatar" aria-hidden="true">{row.full_name?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "—"}</span><div className="min-w-0"><strong dir="auto">{highlight(row.full_name || "Unidentified client")}</strong><p className="cg-import-contact">{row.phone || "Phone pending"}{row.email && <span> · {row.email}</span>}</p><p className="cg-import-origin"><span>{row.source_type.replaceAll("_", " ")}</span><span>{row.document_count} source{row.document_count === 1 ? "" : "s"}</span><span title={row.id}>#{row.id.slice(0, 8)}</span></p></div></div>
             <div role="cell" className="cg-import-progress"><span className={`cg-import-state ${row.status === "APPROVED_FILE" ? "is-approved" : ""}`}><i aria-hidden="true" />{row.status === "APPROVED_FILE" ? "Approved" : row.status === "PENDING" ? "New intake" : "In review"}</span><small>{row.issue_count ? `${row.issue_count} follow-up item${row.issue_count === 1 ? "" : "s"}` : "Ready to continue"}</small></div>
             <div role="cell" className="cg-import-received"><span>{new Date(row.created_at).toLocaleDateString("en-US", { timeZone: "America/Detroit", month: "short", day: "numeric" })}</span><small>{new Date(row.created_at).toLocaleTimeString("en-US", { timeZone: "America/Detroit", hour: "numeric", minute: "2-digit" })}</small></div>
@@ -584,8 +592,8 @@ export function SmartCareerCollectClient() {
           </div>)}
         </div>
       </div>
-      {!queueBusy && rows.length === 0 && <div className="rounded-xl border border-white/10 p-6 text-center"><p className="text-sm text-slate-400">No imports match this view.</p><button type="button" className="ops-secondary-button mt-3" onClick={() => { setArchiveView(false); setFilter("ALL"); setPage(1); setSearch(""); }}>SHOW ACTIVE IMPORTS</button></div>}
-      <nav className="cg-pagination" aria-label="Import queue pages"><span>{total ? `${(page-1)*10+1}–${Math.min(page*10,total)}` : "0"} {t("of","من")} {total} · {t("10 clients per page","10 عملاء في الصفحة")}</span><div><button type="button" disabled={queueBusy || page <= 1} onClick={() => setPage((value) => value-1)}>{t("Previous","السابق")}</button>{Array.from({length:Math.min(5,Math.max(1,Math.ceil(total/10)))},(_,index)=>Math.max(1,Math.min(page-2,Math.max(1,Math.ceil(total/10))-4))+index).map((number)=><button key={number} type="button" aria-label={`Import page ${number}`} aria-current={page===number?"page":undefined} disabled={queueBusy} onClick={() => setPage(number)}>{number}</button>)}<button type="button" disabled={queueBusy || page >= Math.max(1,Math.ceil(total/10))} onClick={() => setPage((value) => value+1)}>{t("Next","التالي")}</button></div></nav>
+      {!queuePending && rows.length === 0 && <div className="rounded-xl border border-white/10 p-6 text-center"><p className="text-sm text-slate-400">No imports match this view.</p><button type="button" className="ops-secondary-button mt-3" onClick={() => { setArchiveView(false); setFilter("ALL"); setPage(1); setSearch(""); }}>SHOW ACTIVE IMPORTS</button></div>}
+      <nav className="cg-pagination" aria-label="Import queue pages"><span>{total ? `${(queueSnapshot.page-1)*10+1}–${Math.min(queueSnapshot.page*10,total)}` : "0"} {t("of","من")} {total} · {t("10 clients per page","10 عملاء في الصفحة")}</span><div><button type="button" disabled={queuePending || queueSnapshot.page <= 1} onClick={() => setPage(queueSnapshot.page-1)}>{t("Previous","السابق")}</button>{Array.from({length:Math.min(5,Math.max(1,Math.ceil(total/10)))},(_,index)=>Math.max(1,Math.min(queueSnapshot.page-2,Math.max(1,Math.ceil(total/10))-4))+index).map((number)=><button key={number} type="button" aria-label={`Import page ${number}`} aria-current={queueSnapshot.page===number?"page":undefined} disabled={queuePending} onClick={() => {if(number===page)void loadQueue(number);else setPage(number);}}>{number}</button>)}<button type="button" disabled={queuePending || queueSnapshot.page >= Math.max(1,Math.ceil(total/10))} onClick={() => {const next=queueSnapshot.page+1;if(next===page)void loadQueue(next);else setPage(next);}}>{t("Next","التالي")}</button></div></nav>
     </section>
 
     {detail && draft && <section id="smart-review" onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); void mutate("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed }); } }} className="ops-glass-card cg-smart-review relative space-y-5">

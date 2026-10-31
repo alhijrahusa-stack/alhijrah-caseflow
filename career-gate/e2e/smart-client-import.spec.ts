@@ -89,6 +89,7 @@ test.describe("Smart Career Collect Client", () => {
     const languageSelect = page.getByLabel("Preferred Language", { exact: true });
     await expect(languageSelect).toHaveAttribute("data-value", "en");
     await selectChoice(languageSelect, "es");
+    await expect(languageSelect).toHaveAttribute("data-value", "es");
     await page.getByRole("dialog").getByRole("button", { name: /^Apply/ }).click();
     await expect(languageRow.locator('[data-label="Current value"]')).toHaveText("es");
 
@@ -194,8 +195,17 @@ test.describe("Smart Career Collect Client", () => {
     const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("xpath=ancestor::section[1]");
     const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
     await expect(queueRow).toBeVisible();
-    page.once("dialog", async (dialog) => dialog.accept());
-    await queueRow.getByRole("button", { name: "ARCHIVE", exact: true }).click();
+    await queueRow.getByRole("button", {name:"OPEN / EDIT",exact:true}).focus();
+    await expect(queueRow.locator(".cg-import-secondary")).toHaveCSS("opacity","1");
+    await queueRow.getByRole("button", { name: "Archive", exact: true }).click();
+    const archiveDialog=page.getByRole("dialog",{name:"Archive import",exact:true});
+    await expect(archiveDialog).toBeVisible();
+    const [pending] = await db()`select archived_at from client_import_cases where id=${staged.id}`;
+    expect(pending.archived_at).toBeNull();
+    await archiveDialog.getByRole("button",{name:"Cancel",exact:true}).click();
+    await expect(queueRow).toBeVisible();
+    await queueRow.getByRole("button", { name: "Archive", exact: true }).click();
+    await archiveDialog.getByRole("button",{name:"Continue",exact:true}).click();
     await expect(page.getByText("Import archived. Canonical client data was not deleted.", { exact: true })).toBeVisible();
     await expect(queueRow).toHaveCount(0);
 

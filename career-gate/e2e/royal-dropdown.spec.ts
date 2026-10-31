@@ -36,10 +36,10 @@ for (const width of [390, 1366]) {
   });
 }
 
-test("custom dropdown preserves a server form's selected name and value", async ({ page, baseURL }) => {
+test("label-based selection remains unambiguous and preserves a server form's value", async ({ page, baseURL }) => {
   await signIn(page.context(), baseURL!, "admin");
   await page.goto("/staff/tasks");
-  const assignee = page.getByRole("combobox", { name: "Assigned to", exact: true });
+  const assignee = page.getByLabel("Assigned to");
   const [employee] = await db()`select id from staff where auth_user_id=${STAFF.staff}`;
   const selectedId = String(employee.id);
   await selectChoice(assignee, selectedId);
