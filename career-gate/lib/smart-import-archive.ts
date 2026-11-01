@@ -17,12 +17,15 @@ function parseStatus(value: string | null): ImportStatus | "ALL" {
 
 function decodeCursor(value: string | null) {
   if (!value) return null;
+  const invalid = () => new ActionError("invalid_cursor", "Invalid import queue cursor", 400);
+  if (value.length > 512 || !/^[A-Za-z0-9_-]+$/.test(value)) throw invalid();
   try {
     const raw = Buffer.from(value, "base64url").toString("utf8");
-    const [createdAt, id] = raw.split("|");
-    if (!createdAt || !id || Number.isNaN(Date.parse(createdAt))) return null;
+    const parts = raw.split("|");
+    const [createdAt, id] = parts;
+    if (parts.length !== 2 || !createdAt || !id || createdAt.length > 128 || Number.isNaN(Date.parse(createdAt)) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw invalid();
     return { createdAt, id };
-  } catch { return null; }
+  } catch { throw invalid(); }
 }
 function encodeCursor(createdAt: string, id: string) { return Buffer.from(`${createdAt}|${id}`, "utf8").toString("base64url"); }
 
@@ -38,7 +41,7 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
            c.mapped_draft #>> '{profile,full_name}' as full_name,
            c.mapped_draft #>> '{profile,phone}' as phone,
            c.mapped_draft #>> '{profile,email}' as email,
-           c.created_at,c.created_client_id,c.archived_at,
+           c.created_at,c.created_at::text as cursor_created_at,c.created_client_id,c.archived_at,
            (select count(*)::int from client_import_documents d where d.import_case_id=c.id) as document_count,
            (coalesce(jsonb_array_length(c.missing_fields),0)+coalesce(jsonb_array_length(c.conflicts),0))::int as issue_count
     from client_import_cases c
@@ -51,9 +54,13 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
            or coalesce(c.mapped_draft #>> '{profile,email}','') ilike ${`%${q}%`})
       and (${cursor == null} or (c.created_at,c.id) < (${cursor?.createdAt ?? "9999-12-31T23:59:59.999Z"}::timestamptz,${cursor?.id ?? "ffffffff-ffff-ffff-ffff-ffffffffffff"}::uuid))
     order by c.created_at desc,c.id desc
-    limit ${limit + 1} offset ${(requestedPage - 1) * limit}`;
-  const visible = rows.slice(0, limit) as unknown as QueueRow[];
-  const next = rows.length > limit ? visible[visible.length - 1] : null;
+    limit ${limit + 1} offset ${cursor ? 0 : (requestedPage - 1) * limit}`;
+  const visible = rows.slice(0, limit).map(row => {
+    const copy = { ...row };
+    delete copy.cursor_created_at;
+    return copy;
+  }) as unknown as QueueRow[];
+  const next = rows.length > limit ? rows[limit - 1] : null;
   const counterRows = await sql()`select status,count(*)::int as count from client_import_cases where archived_at is null and status <> 'APPROVED_FILE' group by status`;
   const counters = Object.fromEntries(IMPORT_STATUSES.map((key) => [key, 0])) as Record<ImportStatus, number>;
   for (const row of counterRows) if ((IMPORT_STATUSES as readonly string[]).includes(String(row.status))) counters[row.status as ImportStatus] = Number(row.count);
@@ -64,7 +71,7 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
         or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
         or coalesce(c.mapped_draft #>> '{profile,phone}','') ilike ${`%${q}%`}
         or coalesce(c.mapped_draft #>> '{profile,email}','') ilike ${`%${q}%`})`;
-  return { rows: visible, counters, total: Number(matched?.count ?? 0), page: requestedPage, page_size: limit, next_cursor: next ? encodeCursor(String(next.created_at), String(next.id)) : null };
+  return { rows: visible, counters, total: Number(matched?.count ?? 0), page: requestedPage, page_size: limit, next_cursor: next ? encodeCursor(String(next.cursor_created_at), String(next.id)) : null };
 }
 
 
@@ -79,7 +86,7 @@ export async function listArchivedImportQueue(session: StaffSession, args: { q?:
            c.mapped_draft #>> '{profile,full_name}' as full_name,
            c.mapped_draft #>> '{profile,phone}' as phone,
            c.mapped_draft #>> '{profile,email}' as email,
-           c.created_at,c.created_client_id,c.archived_at,
+           c.created_at,c.created_at::text as cursor_created_at,c.created_client_id,c.archived_at,
            (select count(*)::int from client_import_documents d where d.import_case_id=c.id) as document_count,
            (coalesce(jsonb_array_length(c.missing_fields),0)+coalesce(jsonb_array_length(c.conflicts),0))::int as issue_count
     from client_import_cases c
@@ -91,16 +98,20 @@ export async function listArchivedImportQueue(session: StaffSession, args: { q?:
            or coalesce(c.mapped_draft #>> '{profile,email}','') ilike ${`%${q}%`})
       and (${cursor == null} or (c.created_at,c.id) < (${cursor?.createdAt ?? "9999-12-31T23:59:59.999Z"}::timestamptz,${cursor?.id ?? "ffffffff-ffff-ffff-ffff-ffffffffffff"}::uuid))
     order by c.created_at desc,c.id desc
-    limit ${limit + 1} offset ${(requestedPage - 1) * limit}`;
-  const visible = rows.slice(0, limit) as unknown as QueueRow[];
-  const next = rows.length > limit ? visible[visible.length - 1] : null;
+    limit ${limit + 1} offset ${cursor ? 0 : (requestedPage - 1) * limit}`;
+  const visible = rows.slice(0, limit).map(row => {
+    const copy = { ...row };
+    delete copy.cursor_created_at;
+    return copy;
+  }) as unknown as QueueRow[];
+  const next = rows.length > limit ? rows[limit - 1] : null;
   const [{ count }] = await sql()`select count(*)::int as count from client_import_cases c
     where (c.archived_at is not null or c.status='APPROVED_FILE')
       and (${q === ""} or c.id::text ilike ${`%${q}%`}
         or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
         or coalesce(c.mapped_draft #>> '{profile,phone}','') ilike ${`%${q}%`}
         or coalesce(c.mapped_draft #>> '{profile,email}','') ilike ${`%${q}%`})`;
-  return { rows: visible, archived_count: Number(count ?? 0), total: Number(count ?? 0), page: requestedPage, page_size: limit, next_cursor: next ? encodeCursor(String(next.created_at), String(next.id)) : null };
+  return { rows: visible, archived_count: Number(count ?? 0), total: Number(count ?? 0), page: requestedPage, page_size: limit, next_cursor: next ? encodeCursor(String(next.cursor_created_at), String(next.id)) : null };
 }
 
 export async function archiveImportCase(session: StaffSession, id: string) {
