@@ -42,7 +42,7 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
            c.mapped_draft #>> '{profile,full_name}' as full_name,
            c.mapped_draft #>> '{profile,phone}' as phone,
            c.mapped_draft #>> '{profile,email}' as email,
-           c.created_at,c.created_at::text as cursor_created_at,c.created_client_id,c.archived_at,to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,
+           c.created_at,c.created_at::text as cursor_created_at,c.created_client_id,c.archived_at,to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,c.verification_result->'workflow_override'->>'state' as override_state,c.verification_result->>'processing_state' as processing_state,
            (select count(*)::int from client_import_documents d where d.import_case_id=c.id) as document_count,
            (coalesce(jsonb_array_length(c.missing_fields),0)+coalesce(jsonb_array_length(c.conflicts),0))::int as issue_count
     from client_import_cases c
@@ -89,7 +89,7 @@ export async function listArchivedImportQueue(session: StaffSession, args: { q?:
            c.mapped_draft #>> '{profile,full_name}' as full_name,
            c.mapped_draft #>> '{profile,phone}' as phone,
            c.mapped_draft #>> '{profile,email}' as email,
-           c.created_at,c.created_at::text as cursor_created_at,c.created_client_id,c.archived_at,to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,
+           c.created_at,c.created_at::text as cursor_created_at,c.created_client_id,c.archived_at,to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,c.verification_result->'workflow_override'->>'state' as override_state,c.verification_result->>'processing_state' as processing_state,
            (select count(*)::int from client_import_documents d where d.import_case_id=c.id) as document_count,
            (coalesce(jsonb_array_length(c.missing_fields),0)+coalesce(jsonb_array_length(c.conflicts),0))::int as issue_count
     from client_import_cases c
@@ -122,9 +122,11 @@ export async function listArchivedImportQueue(session: StaffSession, args: { q?:
 export async function archiveImportCase(session: StaffSession, id: string) {
   assertManager(session);
   return sql().begin(async (tx) => {
-    const [row] = await tx`select id,archived_at from client_import_cases where id=${id} for update`;
+    const [row] = await tx`select id,archived_at,verification_result from client_import_cases where id=${id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.archived_at) return { archived: true, idempotent: true };
+    if (row.verification_result?.processing_state === "CAPTURING") throw new ActionError("capture_in_progress", "Recover the source capture before archiving", 409);
+    if (row.verification_result?.workflow_override?.state === "PENDING_OVERRIDE") throw new ActionError("pending_override_active", "Cancel the pending override before archiving", 409);
     await tx`update client_import_cases set archived_at=now(),archived_by=${session.staff.id} where id=${id}`;
     return { archived: true, idempotent: false };
   });

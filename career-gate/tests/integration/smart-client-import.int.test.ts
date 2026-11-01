@@ -7,7 +7,9 @@ import { publicImportStatus } from "@/lib/public-status";
 import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
 import { archiveImportCase, listActiveImportQueue, listArchivedImportQueue } from "@/lib/smart-import-archive";
 import {
-  approveImportCase,
+  approveImportCase as approveRaw,
+  beginImportOverride,
+  getImportCase,
   previewImportRows,
   saveImportReview,
   stageSheetRows,
@@ -16,6 +18,25 @@ import {
 } from "@/lib/smart-client-import";
 
 const db = postgres(process.env.DATABASE_URL!, { prepare: false, max: 1 });
+
+async function approveImportCase(session: StaffSession, args: Parameters<typeof approveRaw>[1]) {
+  if (!args.override || (args.overrideReason ?? "").trim().length < 8) return approveRaw(session, args);
+  const before = await getImportCase(session, args.id);
+  if (before.case.status === "APPROVED_FILE") return approveRaw(session, args);
+  if (before.case.verification_result?.workflow_override?.state !== "PENDING_OVERRIDE") {
+    try {
+      await beginImportOverride(session, { id: args.id, reviewerId: args.reviewerId, draft: args.draft,
+        documentConfirmed: args.documentConfirmed, informationConfirmed: args.informationConfirmed, resolvedFields: args.resolvedFields,
+        expectedUpdatedAt: args.expectedUpdatedAt ?? String(before.case.updated_at), traceId: args.traceId });
+    } catch (error) {
+      if ((error as { code?: string }).code === "override_not_required") return approveRaw(session, args);
+      throw error;
+    }
+  }
+  const pending = await getImportCase(session, args.id);
+  return approveRaw(session, { ...args, draft: pending.case.mapped_draft, resolvedFields: [], expectedUpdatedAt: String(pending.case.updated_at),
+    documentConfirmed: Boolean(pending.case.document_match_confirmed), informationConfirmed: Boolean(pending.case.information_match_confirmed) });
+}
 
 const tables = ["client_import_batches", "client_import_cases", "client_import_documents"] as const;
 const privileges = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"] as const;

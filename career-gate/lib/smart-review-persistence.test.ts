@@ -3,7 +3,7 @@ import type { StaffSession } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import { findClientIdentityMatches, insertClient, logActivity } from "@/lib/service";
 import { prepareImportDraft } from "@/lib/smart-client-import-core";
-import { approveImportCase, saveImportReview, verifyImportCase } from "@/lib/smart-client-import";
+import { approveImportCase, beginImportOverride, saveImportReview, verifyImportCase } from "@/lib/smart-client-import";
 
 vi.mock("@/lib/db", () => ({ sql: vi.fn() }));
 vi.mock("@/lib/service", async (importOriginal) => ({
@@ -47,6 +47,7 @@ function database(overrides: Record<string, unknown> = {}) {
     if (text.startsWith("select idempotency_key from client_import_batches")) return [{ idempotency_key: "staff-import:test" }];
     if (text.startsWith("select * from client_import_documents")) return [];
     if (text.startsWith("insert into tasks")) return [{ id: "missing-documents-task" }];
+    if (text.startsWith("insert into security_events")) return [];
     if (text.startsWith("update client_import_cases")) return [{ id: row.id, status: row.status, updated_at: new Date(nextVersion) }];
     throw new Error(`Unexpected review persistence query: ${text}`);
   });
@@ -86,7 +87,8 @@ describe("Smart Review persistence and audit regressions", () => {
     }));
     expect(update.text).toContain("conflicts=?");
     expect(update.values[4]).toEqual([]);
-    expect(update.text).toContain("verification_result='{}'::jsonb");
+    expect(update.text).toContain("verification_result=?");
+    expect(update.values[5]).toEqual({});
     expect(state.row.field_evidence).toEqual(sourceEvidence);
     expect(state.row.conflicts).toEqual([sourceConflict]);
   });
@@ -119,16 +121,14 @@ describe("Smart Review persistence and audit regressions", () => {
     expect(state.statements.some((statement) => statement.text.startsWith("update"))).toBe(false);
   });
 
-  it("records unsaved field changes and same-value conflict resolutions when approving directly", async () => {
+  it("persists unsaved field changes and conflict resolutions before opening the pending override", async () => {
     const state = database();
     const changed = draft();
     changed.profile.phone = "3135550177";
-    const result = await approveImportCase(manager, { ...approvalArgs(), draft: changed, resolvedFields: ["date_of_birth"] });
-    expect(result).toEqual({ client_id: "canonical-client", ref: "CG-2026-123456", idempotent: false });
-    expect(insertClient).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      profile: expect.objectContaining({ phone: "3135550177" }), createdBy: manager.staff.id,
-    }), { staffId: manager.staff.id, traceId: "review-audit-trace" });
-    const update = state.statements.find((statement) => statement.text.includes("status='APPROVED_FILE'"))!;
+    const result = await beginImportOverride(manager, { ...approvalArgs(), draft: changed, resolvedFields: ["date_of_birth"] });
+    expect(result.state).toBe("PENDING_OVERRIDE");
+    expect(insertClient).not.toHaveBeenCalled();
+    const update = state.statements.find((statement) => statement.text.includes("mapped_draft=") && statement.text.startsWith("update"))!;
     const evidence = update.values.find((value) => Array.isArray(value) && value.some((entry) => entry?.source_type === "manual_review")) as Record<string, unknown>[];
     expect(evidence[0]).toEqual(sourceEvidence[0]);
     expect(evidence).toContainEqual(expect.objectContaining({ field_key: "phone", value: "3135550177", previous_value: "3135550199", actor_id: manager.staff.id }));
@@ -136,7 +136,7 @@ describe("Smart Review persistence and audit regressions", () => {
   });
 
   it("approves unmatched source readings without confirmations and carries outstanding review into tasks and audit", async () => {
-    const state = database();
+    const state = database({ verification_result: { workflow_override: { state: "PENDING_OVERRIDE" } }, document_match_confirmed: false, information_match_confirmed: false });
     const result = await approveImportCase(manager, { ...approvalArgs(), documentConfirmed: false, informationConfirmed: false });
     expect(result.client_id).toBe("canonical-client");
     const update = state.statements.find((statement) => statement.text.includes("status='APPROVED_FILE'"))!;
@@ -167,7 +167,7 @@ describe("Smart Review persistence and audit regressions", () => {
   });
 
   it("records the actual override actor, reason and missing items without changing source evidence", async () => {
-    const state = database();
+    const state = database({ verification_result: { workflow_override: { state: "PENDING_OVERRIDE" } }, document_match_confirmed: true, information_match_confirmed: true });
     await approveImportCase(manager, approvalArgs());
     const update = state.statements.find((statement) => statement.text.includes("status='APPROVED_FILE'"))!;
     expect(update.values[5]).toMatchObject({ override: {

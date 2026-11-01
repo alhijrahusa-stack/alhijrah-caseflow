@@ -56,6 +56,8 @@ type QueueRow = {
   created_client_id: string | null;
   archived_at?: string | null;
   updated_at: string;
+  override_state?: string | null;
+  processing_state?: string | null;
 };
 type Evidence = SmartEvidence;
 type CaseDetail = {
@@ -91,6 +93,7 @@ function errMessage(data: any, fallback: string) { return data?.error?.message ?
 function asText(value: unknown) { return Array.isArray(value) ? value.join(", ") : typeof value === "string" ? value : value == null ? "" : String(value); }
 function detailState(detail: CaseDetail, dirty: boolean) {
   if (detail.case.status === "APPROVED_FILE") return "APPROVED";
+  if (detail.case.verification_result?.workflow_override?.state === "PENDING_OVERRIDE") return "PENDING_OVERRIDE";
   if (!detail.case.review_started_at) return "START REVIEW";
   if (dirty) return "CHANGES NEED VERIFICATION";
   if (detail.case.verification_result?.approval_ready) return "READY FOR APPROVAL";
@@ -243,6 +246,31 @@ export function SmartCareerCollectClient() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [draftDirty, editingField]);
 
+  const overrideKey = (id: string) => `cg-smart-override:${me.id}:${id}`;
+  function restoreOverrideReason(id: string) {
+    try { setOverrideReason(sessionStorage.getItem(overrideKey(id)) ?? ""); } catch { setOverrideReason(""); }
+  }
+
+  async function beginPendingOverride(next: CaseDetail, currentDraft: Record<string, any>, currentReviewer: string, docConfirmed: boolean, infoConfirmed: boolean, resolved: string[]) {
+    const res = await fetch("/api/staff/smart-client-import", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "begin_override", id: next.case.id, reviewer_id: currentReviewer, draft: currentDraft,
+        document_match_confirmed: docConfirmed, information_match_confirmed: infoConfirmed,
+        resolved_fields: resolved, expected_updated_at: next.case.updated_at }) });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.ok) {
+      if (data?.error?.code === "review_changed") setReviewChanged(true);
+      throw new Error(errMessage(data, "Unable to start override"));
+    }
+    const fresh = await fetch(`/api/staff/smart-client-import?id=${encodeURIComponent(next.case.id)}`, { cache: "no-store" });
+    const loaded = await fresh.json().catch(() => null);
+    if (!fresh.ok || !loaded?.ok) throw new Error(errMessage(loaded, "Override saved. Reopen the file to continue."));
+    const updated = { case: loaded.case, documents: loaded.documents } as CaseDetail;
+    setDetail(updated); setDraft(structuredClone(updated.case.mapped_draft)); setDraftDirty(false); setPendingFields([]);
+    offlineDraft.clear();
+    restoreOverrideReason(updated.case.id); setOverrideOpen(true);
+    void loadQueue();
+  }
+
   async function openCase(id: string, refresh = false, mode: ReviewMode = "edit", approveIntent = false) {
     if (!refresh && (draftDirty || editingField) && !await confirmReview(t("Unsaved review", "مراجعة غير محفوظة"), t("Discard unsaved review changes and open this file?", "هل تريد ترك التغييرات غير المحفوظة وفتح هذا الملف؟"))) return;
     const request = (caseRequest.current += 1);
@@ -277,10 +305,14 @@ export function SmartCareerCollectClient() {
       setInformationConfirmed(Boolean(next.case.information_match_confirmed));
       setActiveDocumentId((current) => refresh && next.documents.some((doc) => doc.id === current) ? current : next.documents[0]?.id ?? null);
       if (!refresh) window.setTimeout(() => document.getElementById("smart-review")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-      if (approveIntent) {
+      if (next.case.verification_result?.workflow_override?.state === "PENDING_OVERRIDE") {
+        restoreOverrideReason(id); setOverrideOpen(true);
+      } else if (approveIntent) {
         const assessment = smartApprovalGate({read: (field) => next.case.mapped_draft[field.scope]?.[field.key], conflicts: next.case.conflicts.filter((entry) => entry.type === "SOURCE_CONFLICT").length, identityConflicts: next.case.conflicts.filter((entry) => entry.type !== "SOURCE_CONFLICT").length, reviewerAssigned:Boolean(next.case.reviewer_id),confirmationsRecorded:next.case.document_match_confirmed && next.case.information_match_confirmed});
         if (assessment.blocked) setError(assessment.blockers.join(" "));
-        else if (!next.documents.length || assessment.warnings.some((warning) => warning.state === "MISSING")) {setOverrideReason("");setOverrideOpen(true);}
+        else if (!next.documents.length || next.case.verification_result?.source_capture_incomplete === true || assessment.warnings.some((warning) => warning.state === "MISSING")) {
+          await beginPendingOverride(next, next.case.mapped_draft, next.case.reviewer_id ?? "", Boolean(next.case.document_match_confirmed), Boolean(next.case.information_match_confirmed), []);
+        }
         else window.setTimeout(() => document.getElementById("smart-approval-bar")?.scrollIntoView({behavior:"smooth",block:"center"}),0);
       }
     } catch (e) { if (request === caseRequest.current) setError(e instanceof Error ? e.message : "Unable to open import"); }
@@ -361,6 +393,20 @@ export function SmartCareerCollectClient() {
     finally { setActionBusy(null); }
   }
 
+  async function recoverCapture(row: QueueRow) {
+    if (actionBusy) return;
+    setActionBusy(`recover:${row.id}`); setError(null);
+    try {
+      const res = await fetch("/api/staff/smart-client-import", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "recover_capture", id: row.id, expected_updated_at: row.updated_at }) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) throw new Error(errMessage(data, "Capture recovery failed"));
+      await loadQueue();
+      setNotice(t("Capture stopped safely. Attach any missing documents before continuing.", "تم إيقاف الالتقاط بأمان. أرفق الوثائق الناقصة قبل المتابعة."));
+    } catch (e) { setError(e instanceof Error ? e.message : "Capture recovery failed"); }
+    finally { setActionBusy(null); }
+  }
+
   async function mutate(action: string, extra: Record<string, unknown> = {}) {
     if (!detail || actionBusy || editingField || reviewChanged || offlineSyncing || actionLock.current) return null;
     if (!offlineDraft.online) {
@@ -374,6 +420,7 @@ export function SmartCareerCollectClient() {
       const data = await postAction(action, extra);
       if (action === "approve" && data?.client_id) {
         approvedNavigation.current = true;
+        try { sessionStorage.removeItem(overrideKey(detail.case.id)); } catch { /* Draft is not required after approval. */ }
         offlineDraft.clear();
         setDraftDirty(false); setPendingFields([]);
         handshake("emerald");
@@ -535,11 +582,37 @@ export function SmartCareerCollectClient() {
   }
 
   const missingApprovalItems = approvalWarnings.filter((warning) => warning.state === "MISSING");
-  const needsOverride = missingApprovalItems.length > 0 || Boolean(detail && detail.documents.length === 0);
-  function requestApproval() {
+  const needsOverride = missingApprovalItems.length > 0 || Boolean(detail && (detail.documents.length === 0 || detail.case.verification_result?.source_capture_incomplete === true));
+  async function requestApproval() {
     if (!canApprove || !detail || !draft || actionBusy || !offlineDraft.online || offlineSyncing) return;
-    if (needsOverride) { setOverrideReason(""); setOverrideOpen(true); return; }
+    if (needsOverride) {
+      if (actionLock.current) return;
+      actionLock.current = true; setActionBusy("begin_override"); setError(null);
+      try { await beginPendingOverride(detail, draft, reviewerId, documentConfirmed, informationConfirmed, pendingFields); }
+      catch (e) { setError(e instanceof Error ? e.message : "Unable to start override"); }
+      finally { actionLock.current = false; setActionBusy(null); }
+      return;
+    }
     void mutate("approve", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed });
+  }
+
+  async function cancelPendingOverride() {
+    if (!detail || actionBusy || actionLock.current) return;
+    actionLock.current = true; setActionBusy("cancel_override"); setError(null);
+    try {
+      const res = await fetch("/api/staff/smart-client-import", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel_override", id: detail.case.id, expected_updated_at: detail.case.updated_at }) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        if (data?.error?.code === "review_changed") setReviewChanged(true);
+        throw new Error(errMessage(data, "Unable to cancel override"));
+      }
+      try { sessionStorage.removeItem(overrideKey(detail.case.id)); } catch { /* Cancellation remains recorded on the server. */ }
+      setOverrideOpen(false); setOverrideReason("");
+      await openCase(detail.case.id, true);
+      void loadQueue();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to cancel override"); }
+    finally { actionLock.current = false; setActionBusy(null); }
   }
   useEffect(() => {
     if (!notice) return;
@@ -599,10 +672,10 @@ export function SmartCareerCollectClient() {
         <div role="rowgroup">
           {queuePending && rows.length === 0 ? Array.from({ length: 3 }).map((_, index) => <div role="row" key={index} className="cg-import-line cg-import-loading"><div role="cell" className="h-12 animate-pulse rounded-xl bg-white/[.05] motion-reduce:animate-none" /></div>) : rows.map((row) => <div role="row" key={row.id} className={`cg-import-line ${detail?.case.id === row.id ? "is-selected" : ""}`}>
             <div role="cell" className="cg-import-client"><span className="cg-import-avatar" aria-hidden="true">{row.full_name?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "—"}</span><div className="min-w-0"><strong dir="auto">{highlight(row.full_name || "Unidentified client")}</strong><p className="cg-import-contact">{row.phone || "Phone pending"}{row.email && <span> · {row.email}</span>}</p><p className="cg-import-origin"><span>{row.source_type.replaceAll("_", " ")}</span><span>{row.document_count} source{row.document_count === 1 ? "" : "s"}</span><span title={row.id}>#{row.id.slice(0, 8)}</span></p></div></div>
-            <div role="cell" className="cg-import-progress"><span className={`cg-import-state ${row.status === "APPROVED_FILE" ? "is-approved" : ""}`}><i aria-hidden="true" />{row.status === "APPROVED_FILE" ? "Approved" : row.status === "PENDING" ? "New intake" : "In review"}</span><small>{row.issue_count ? `${row.issue_count} follow-up item${row.issue_count === 1 ? "" : "s"}` : "Ready to continue"}</small></div>
+            <div role="cell" className="cg-import-progress"><span className={`cg-import-state ${row.status === "APPROVED_FILE" ? "is-approved" : ""}`}><i aria-hidden="true" />{row.status === "APPROVED_FILE" ? "Approved" : row.override_state === "PENDING_OVERRIDE" ? "Pending override" : row.processing_state === "CAPTURING" ? "Capturing source" : row.status === "PENDING" ? "New intake" : "In review"}</span><small>{["CAPTURE_FAILED", "CAPTURE_INTERRUPTED"].includes(row.processing_state ?? "") ? t("Source capture incomplete; attach missing documents.", "التقاط المصدر غير مكتمل؛ أرفق الوثائق الناقصة.") : row.issue_count ? `${row.issue_count} follow-up item${row.issue_count === 1 ? "" : "s"}` : "Ready to continue"}</small></div>
             <div role="cell" className="cg-import-received"><span>{new Date(row.created_at).toLocaleDateString("en-US", { timeZone: "America/Detroit", month: "short", day: "numeric" })}</span><small>{new Date(row.created_at).toLocaleTimeString("en-US", { timeZone: "America/Detroit", hour: "numeric", minute: "2-digit" })}</small></div>
             <div role="cell" className="cg-import-reviewer"><span>{row.reviewer_name ?? "Unassigned"}</span><small>{row.reviewer_id ? "Review owner" : "Assigned when opened"}</small>
-              {me.role !== "staff" && !row.archived_at && <div className="mt-2 grid gap-2">
+              {me.role !== "staff" && !row.archived_at && row.processing_state !== "CAPTURING" && <div className="mt-2 grid gap-2">
                 <RoyalSelect aria-label={`Assign reviewer for ${row.full_name || "import"}`} className="input w-full" value={reviewAssignments[row.id] ?? ""} onChange={(event) => setReviewAssignments(current => ({ ...current, [row.id]: event.target.value }))}>
                   <RoyalOption value="" labelAr="اختر المراجع">Choose reviewer</RoyalOption>
                   {activeStaff.map(member => <RoyalOption key={member.id} value={member.id}>{member.display_name}</RoyalOption>)}
@@ -612,8 +685,9 @@ export function SmartCareerCollectClient() {
             </div>
             <div role="cell" className="cg-import-actions">
               {row.created_client_id ? <Link className="cg-review-button" href={`/staff/client/${row.created_client_id}`}>{t("Open Client","فتح العميل")}</Link> : <>
-                <button className="cg-review-button" type="button" aria-label="OPEN / EDIT" disabled={Boolean(actionBusy) || Boolean(row.archived_at)} onClick={() => void openCase(row.id)}>{t("Open","فتح")}</button>
-                <button className={`cg-review-button cg-queue-approve ${row.issue_count || !row.document_count ? "is-missing" : ""}`} type="button" aria-label={`Approve ${row.full_name || "import"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at)} onClick={() => void openCase(row.id, false, "edit", true)}>{t("Approve","اعتماد")}{!row.document_count && <span className="cg-missing-badge">{t("Missing","نواقص")}</span>}</button>
+                <button className="cg-review-button" type="button" aria-label="OPEN / EDIT" disabled={Boolean(actionBusy) || Boolean(row.archived_at) || row.processing_state === "CAPTURING"} onClick={() => void openCase(row.id)}>{t("Open","فتح")}</button>
+                <button className={`cg-review-button cg-queue-approve ${row.issue_count || !row.document_count ? "is-missing" : ""}`} type="button" aria-label={`Approve ${row.full_name || "import"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at) || row.processing_state === "CAPTURING"} onClick={() => void openCase(row.id, false, "edit", true)}>{t("Approve","اعتماد")}{!row.document_count && <span className="cg-missing-badge">{t("Missing","نواقص")}</span>}</button>
+                {me.role !== "staff" && row.processing_state === "CAPTURING" && <button className="cg-review-button" type="button" disabled={Boolean(actionBusy)} onClick={() => void recoverCapture(row)}>{t("Stop & recover capture", "إيقاف الالتقاط واسترداده")}</button>}
               </>}
               <div className="cg-import-secondary"><button className="cg-review-button cg-review-audit" type="button" aria-label={`Audit client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "audit")}>{t("Audit","تدقيق")}</button><button className="cg-review-button cg-review-audit" type="button" aria-label={`Source for client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "source")}>{t("Source","المصدر")}</button>{me.role !== "staff" && <button className="cg-import-archive" type="button" disabled={Boolean(actionBusy)} onClick={() => void archiveRow(row.id)}>{actionBusy === `archive:${row.id}` ? t("ARCHIVING…","جارٍ الأرشفة…") : t("Archive","أرشفة")}</button>}</div>
             </div>
@@ -753,7 +827,7 @@ export function SmartCareerCollectClient() {
     </section>}
     {notice && <div role="status" className="cg-intake-toast">{notice}{approvedClient && (notice.startsWith("Client approved") || notice.startsWith("تم اعتماد العميل")) && <Link className="ml-3 underline" href={`/staff/client/${approvedClient}`}>{t("Open Client","فتح العميل")} ↗</Link>}</div>}
     {confirmation && <GlassReviewDialog title={confirmation.title} onClose={() => finishConfirmation(false)}><p>{confirmation.message}</p><div className="cg-confirm-actions"><button type="button" onClick={() => finishConfirmation(false)}>{t("Cancel","إلغاء")}</button><button type="button" className="cg-confirm-primary" onClick={() => finishConfirmation(true)}>{t("Continue","متابعة")}</button></div></GlassReviewDialog>}
-    {overrideOpen && detail && draft && <GlassReviewDialog title={t("Approve with missing items","اعتماد مع نواقص")} onClose={() => {if(!actionBusy)setOverrideOpen(false);}}><div className="cg-override-summary"><strong>{t("Outstanding data and documents will remain visible to the team.","ستبقى البيانات والوثائق الناقصة ظاهرة للفريق.")}</strong><ul>{missingApprovalItems.map((item) => <li key={item.field}>{item.message}</li>)}{!detail.documents.length && !missingApprovalItems.some((item) => item.field === "source_documents") && <li>{t("No source document attached","لا توجد وثيقة مصدر مرفقة")}</li>}</ul></div><label htmlFor="override-reason">{t("Reason for approval and follow-up plan","سبب الاعتماد وخطة استكمال النواقص")}<textarea id="override-reason" rows={3} required minLength={8} maxLength={1000} value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} placeholder={t("Explain why this file can proceed (at least 8 characters)","وضح سبب السماح بمتابعة الملف (8 أحرف على الأقل)")} /></label><p className="cg-matrix-summary">{t("Your identity, reason, time and outstanding fields will be recorded in the audit log. Follow-up tasks will be created. Identity and payment safeguards remain enforced.","سيتم تسجيل هويتك والسبب والوقت والحقول الناقصة في سجل التدقيق وإنشاء مهام متابعة، مع استمرار ضوابط الهوية والدفع.")}</p>{error && <p role="alert" style={{color:"#f49ba5"}}>{error}</p>}<div className="cg-confirm-actions"><button type="button" disabled={Boolean(actionBusy)} onClick={() => setOverrideOpen(false)}>{t("Cancel","إلغاء")}</button><button type="button" className="cg-confirm-primary" disabled={!canApprove || overrideReason.trim().length<8 || Boolean(actionBusy) || !offlineDraft.online || offlineSyncing} onClick={() => void mutate("approve", {reviewer_id:reviewerId,draft,document_match_confirmed:documentConfirmed,information_match_confirmed:informationConfirmed,override:true,override_reason:overrideReason.trim()})}>{actionBusy === "approve" ? t("Approving…","جارٍ الاعتماد…") : t("Approve & defer missing items","اعتماد وتأجيل النواقص")}</button></div></GlassReviewDialog>}
+    {overrideOpen && detail && draft && <GlassReviewDialog title={t("Approve with missing items","اعتماد مع نواقص")} onClose={() => { if (!actionBusy) void cancelPendingOverride(); }}><div className="cg-override-summary"><strong>{t("Outstanding data and documents will remain visible to the team.","ستبقى البيانات والوثائق الناقصة ظاهرة للفريق.")}</strong><ul>{missingApprovalItems.map((item) => <li key={item.field}>{item.message}</li>)}{detail.case.verification_result?.source_capture_incomplete === true && !missingApprovalItems.some((item) => item.field === "source_capture") && <li>{t("Source capture was interrupted; remaining documents must be collected.", "انقطع التقاط المصدر؛ يجب استكمال الوثائق الناقصة.")}</li>}{!detail.documents.length && !missingApprovalItems.some((item) => item.field === "source_documents") && <li>{t("No source document attached","لا توجد وثيقة مصدر مرفقة")}</li>}</ul></div><label htmlFor="override-reason">{t("Reason for approval and follow-up plan","سبب الاعتماد وخطة استكمال النواقص")}<textarea id="override-reason" rows={3} required minLength={8} maxLength={1000} value={overrideReason} onChange={(event) => { const value = event.target.value; setOverrideReason(value); try { sessionStorage.setItem(overrideKey(detail.case.id), value); } catch { /* The open dialog retains the reason. */ } }} placeholder={t("Explain why this file can proceed (at least 8 characters)","وضح سبب السماح بمتابعة الملف (8 أحرف على الأقل)")} /></label><p className="cg-matrix-summary">{t("Your identity, reason, time and outstanding fields will be recorded in the audit log. Follow-up tasks will be created. Identity and payment safeguards remain enforced.","سيتم تسجيل هويتك والسبب والوقت والحقول الناقصة في سجل التدقيق وإنشاء مهام متابعة، مع استمرار ضوابط الهوية والدفع.")}</p>{error && <p role="alert" style={{color:"#f49ba5"}}>{error}</p>}<div className="cg-confirm-actions"><button type="button" disabled={Boolean(actionBusy)} onClick={() => void cancelPendingOverride()}>{t("Cancel","إلغاء")}</button><button type="button" className="cg-confirm-primary" disabled={!canApprove || overrideReason.trim().length<8 || Boolean(actionBusy) || !offlineDraft.online || offlineSyncing} onClick={() => void mutate("approve", {reviewer_id:reviewerId,draft,document_match_confirmed:documentConfirmed,information_match_confirmed:informationConfirmed,override:true,override_reason:overrideReason.trim()})}>{actionBusy === "approve" ? t("Approving…","جارٍ الاعتماد…") : t("Approve & defer missing items","اعتماد وتأجيل النواقص")}</button></div></GlassReviewDialog>}
   </div>;
 }
 

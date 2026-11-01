@@ -10,6 +10,9 @@ import {
   approveImportCase,
   assignImportReviewer,
   assertImportReviewPermission,
+  beginImportOverride,
+  cancelImportOverride,
+  recoverImportCapture,
   getImportCase,
   saveImportReview,
   startImportReview,
@@ -77,6 +80,10 @@ export async function GET(req: Request) {
 
 const ActionBody = z.discriminatedUnion("action", [
   z.object({ action: z.literal("assign_review"), id: z.uuid(), reviewer_id: z.uuid(), expected_updated_at: z.iso.datetime({ offset: true }) }),
+  z.object({ action: z.literal("begin_override"), id: z.uuid(), reviewer_id: z.uuid(), draft: z.record(z.string(), z.unknown()),
+    document_match_confirmed: z.boolean(), information_match_confirmed: z.boolean(), resolved_fields: ResolvedFields, expected_updated_at: z.iso.datetime({ offset: true }) }),
+  z.object({ action: z.literal("cancel_override"), id: z.uuid(), expected_updated_at: z.iso.datetime({ offset: true }) }),
+  z.object({ action: z.literal("recover_capture"), id: z.uuid(), expected_updated_at: z.iso.datetime({ offset: true }) }),
   z.object({ action: z.literal("start_review"), id: z.uuid(), reviewer_id: z.uuid() }),
   z.object({
     action: z.literal("save"), id: z.uuid(), reviewer_id: z.uuid(), draft: z.record(z.string(), z.unknown()),
@@ -103,7 +110,13 @@ export async function POST(req: Request) {
     const body = ActionBody.parse(await req.json());
     if (body.action === "archive") return ok(await archiveImportCase(guard.session, body.id), 200, traceId);
     if (body.action === "assign_review") return ok(await assignImportReviewer(guard.session, body.id, body.reviewer_id, body.expected_updated_at, traceId), 200, traceId);
+    if (body.action === "recover_capture") return ok(await recoverImportCapture(guard.session, body.id, body.expected_updated_at, traceId), 200, traceId);
     if (guard.session.staff.role !== "staff") await assertImportNotArchived(body.id);
+    if (body.action === "begin_override") return ok(await beginImportOverride(guard.session, {
+      id: body.id, reviewerId: body.reviewer_id, draft: body.draft, documentConfirmed: body.document_match_confirmed,
+      informationConfirmed: body.information_match_confirmed, resolvedFields: body.resolved_fields, expectedUpdatedAt: body.expected_updated_at, traceId,
+    }), 200, traceId);
+    if (body.action === "cancel_override") return ok(await cancelImportOverride(guard.session, body.id, body.expected_updated_at, traceId), 200, traceId);
     if (body.action === "start_review") return ok(await startImportReview(guard.session, body.id, body.reviewer_id), 200, traceId);
     if (body.action === "save" && body.expected_actor_id && body.expected_actor_id !== guard.session.staff.id) return err("session_changed", "Sign in to the original staff account before syncing this draft", 409, traceId);
     if (body.action === "save") return ok(await saveImportReview(guard.session, {
