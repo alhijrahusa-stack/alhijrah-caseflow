@@ -26,6 +26,13 @@ test("registry has ten real rows per page and instant search finds a record outs
   await page.getByRole("link",{name:"Next",exact:true}).click();
   await expect(rows).toHaveCount(3);
   await expect(page.getByTestId("client-total")).toContainText("page 2 of 2");
+  await expect(page).toHaveURL(/cursor=/);
+  await expect(page).toHaveURL(new RegExp(`q=${tag}`));
+  await page.getByRole("link",{name:"Previous",exact:true}).click();
+  await expect(rows).toHaveCount(10);
+  await expect(page.getByTestId("client-total")).toContainText("page 1 of 2");
+  await page.getByRole("link",{name:"Next",exact:true}).click();
+  await expect(rows).toHaveCount(3);
   const outside=fixtures[12];
   await page.getByRole("searchbox",{name:"Search clients",exact:true}).fill(outside.ref);
   await expect(page).toHaveURL(new RegExp(`q=${outside.ref}`));

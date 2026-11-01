@@ -4,6 +4,7 @@ import { type ClientStageFilter } from "@/lib/client-lifecycle-filters";
 import { workflowFilter } from "@/lib/workflow-filters";
 import { withStaff, type StaffSession } from "@/lib/auth";
 import { registrySearchPredicate } from "@/lib/registry-search";
+import { decodeRegistryCursor, encodeRegistryCursor, type RegistryCursor } from "@/lib/registry-cursor";
 
 export type ClientView = "active" | "completed" | "all";
 export type OperationalClientRow = {
@@ -15,7 +16,7 @@ export type OperationalClientRow = {
 };
 export type OperationalClientExtraFilters={q?:string;status?:string;stage?:ClientStageFilter;assigned?:string;attention?:"documents";completedThisMonth?:boolean};
 
-export async function operationalClientList(session:StaffSession, view:ClientView, page:number, pageSize:number, extra:OperationalClientExtraFilters={}){
+export async function operationalClientList(session:StaffSession, view:ClientView, page:number, pageSize:number, extra:OperationalClientExtraFilters={}, cursorValue?:string){
   return withStaff(session, async(tx)=>{
     const lifecycle = view === "active"
       ? tx`c.current_status not in ('completed','cancelled')`
@@ -43,8 +44,23 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
     // Keep the view on a real page if filters or records changed since navigation.
     const maxPage = Math.max(1, Math.ceil(Number(total ?? 0) / pageSize));
     const safePage = Number.isSafeInteger(page) && page > 0 ? Math.min(page, maxPage) : 1;
+    let cursor = decodeRegistryCursor(cursorValue);
+    if (!cursor && safePage > 1) {
+      // Legacy numbered links retain direct navigation without applying OFFSET.
+      // This boundary lookup may still scan preceding rows; sequential links use cursors.
+      const [anchor] = await tx`select id,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_time from (
+        select c.id,c.updated_at,row_number() over(order by c.updated_at desc,c.id asc) as position
+        from clients c where ${where}
+      ) ranked where position=${(safePage-1)*pageSize}`;
+      if (anchor) cursor = { time:String(anchor.cursor_time), id:String(anchor.id), direction:"after" };
+    }
+    const boundary = cursor ? (cursor.direction === "after"
+      ? tx`and c.updated_at <= ${cursor.time}::text::timestamptz and (c.updated_at < ${cursor.time}::text::timestamptz or c.id > ${cursor.id}::uuid)`
+      : tx`and c.updated_at >= ${cursor.time}::text::timestamptz and (c.updated_at > ${cursor.time}::text::timestamptz or c.id < ${cursor.id}::uuid)`) : tx``;
+    const order = cursor?.direction === "before" ? tx`c.updated_at asc,c.id desc` : tx`c.updated_at desc,c.id asc`;
     const rows = await tx`
       select c.id,c.ref,c.full_name,c.phone,c.email,c.city,c.current_status,c.next_step,c.start_date,c.created_at,c.updated_at,c.assigned_staff,
+             to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_time,
              s.display_name as assigned_name,p.site_code,p.site_name,p.job_id,p.job_title,p.shift_code,p.shift_name,a.payment_status,${tx.unsafe(ACCOUNT_NET_FEE("a"))} fee_amount, career_gate_private.has_ready_gate_job_account(c.id) as amazon_account_ready
       from clients c
       left join staff s on s.id=c.assigned_staff
@@ -54,9 +70,24 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
         order by p.preference_order limit 1
       ) p on true
       left join client_accounts a on a.client_id=c.id
-      where ${where}
-      order by c.updated_at desc,c.id
-      limit ${pageSize} offset ${(safePage-1)*pageSize}`;
-    return { rows:(rows as unknown as OperationalClientRow[]).map((r)=>({...r,fee_amount:r.fee_amount==null?null:Number(r.fee_amount)})), total:Number(total??0), page:safePage };
-  });
+      where ${where} ${boundary}
+      order by ${order}
+      limit ${pageSize}`;
+    const ordered = cursor?.direction === "before" ? [...rows].reverse() : [...rows];
+    const first = ordered[0];
+    const last = ordered.at(-1);
+    let before = 0;
+    if (first && cursor) {
+      const [rank] = await tx`select count(*)::int as n from clients c where ${where}
+        and c.updated_at >= ${String(first.cursor_time)}::text::timestamptz and (c.updated_at > ${String(first.cursor_time)}::text::timestamptz or c.id < ${String(first.id)}::uuid)`;
+      before = Number(rank.n);
+    }
+    const totalCount = Number(total ?? 0);
+    const makeCursor = (row:typeof first,direction:RegistryCursor["direction"]) => row
+      ? encodeRegistryCursor({ time:String(row.cursor_time), id:String(row.id), direction }) : undefined;
+    const previous = first && before > 0 ? makeCursor(first,"before") : !first && cursor?.direction === "after" ? encodeRegistryCursor({...cursor,direction:"before"}) : undefined;
+    const next = last && before + ordered.length < totalCount ? makeCursor(last,"after") : !last && cursor?.direction === "before" ? encodeRegistryCursor({...cursor,direction:"after"}) : undefined;
+    return { rows:ordered.map((row)=>{const copy={...row};delete copy.cursor_time;return {...copy,fee_amount:copy.fee_amount==null?null:Number(copy.fee_amount)};}) as unknown as OperationalClientRow[],
+      total:totalCount, page:first ? Math.floor(before/pageSize)+1 : safePage, start:first ? before+1 : 0, end:first ? before+ordered.length : 0, previous_cursor:previous, next_cursor:next };
+  }, { consistentRead: true });
 }

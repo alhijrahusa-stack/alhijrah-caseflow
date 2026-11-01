@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { summarizeFrameCapture, type FrameCapture } from "./frame-diagnostics";
 import { db, intakeBody, RUN, signIn, STAFF, submitIntake } from "./helpers";
 
 function requireIsolatedFixture(baseURL: string | undefined) {
@@ -8,42 +9,42 @@ function requireIsolatedFixture(baseURL: string | undefined) {
   }
 }
 
-async function frameSample(page: Page, action: () => Promise<void>) {
-  await page.evaluate(() => {
-    type Collector = { active: boolean; timestamps: number[] };
-    const host = window as unknown as { __cgFrameSample: Collector };
-    const collector: Collector = { active: true, timestamps: [] };
-    host.__cgFrameSample = collector;
-    const sample = (time: number) => {
-      if (!collector.active) return;
-      collector.timestamps.push(time);
-      requestAnimationFrame(sample);
-    };
-    requestAnimationFrame(sample);
+async function frameSample(page: Page, trigger: Locator, action: () => Promise<void>) {
+  await trigger.evaluate(element => {
+    type Collector = FrameCapture & { done: boolean };
+    const host = window as unknown as { __cgFrameSample?: Collector };
+    delete host.__cgFrameSample;
+    element.addEventListener("click", () => {
+      const collector: Collector = { clickTime: performance.now(), frameTimes: [], longTasks: [], longTaskSupported: false, windowMs: 1200, done: false };
+      host.__cgFrameSample = collector;
+      let observer: PerformanceObserver | null = null;
+      const addTasks = (entries: PerformanceEntry[]) => {
+        for (const entry of entries) collector.longTasks.push({ startTime: entry.startTime, duration: entry.duration });
+      };
+      try {
+        if (PerformanceObserver.supportedEntryTypes?.includes("longtask")) {
+          observer = new PerformanceObserver(list => addTasks(list.getEntries()));
+          observer.observe({ entryTypes: ["longtask"] });
+          collector.longTaskSupported = true;
+        }
+      } catch { observer = null; }
+      const frame = (time: number) => {
+        if (collector.done || time - collector.clickTime > collector.windowMs) return;
+        collector.frameTimes.push(time);
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+      window.setTimeout(() => {
+        if (observer) { addTasks(observer.takeRecords()); observer.disconnect(); }
+        collector.done = true;
+      }, collector.windowMs);
+    }, { capture: true, once: true });
   });
   await action();
-  await page.waitForTimeout(1200);
-  return page.evaluate(() => {
-    type Collector = { active: boolean; timestamps: number[] };
-    const collector = (window as unknown as { __cgFrameSample: Collector }).__cgFrameSample;
-    collector.active = false;
-    const gaps = collector.timestamps.slice(1).map((time, i) => time - collector.timestamps[i]);
-    const sorted = [...gaps].sort((a, b) => a - b);
-    const percentile = (n: number) => sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * n) - 1)] : null;
-    const duration = collector.timestamps.length > 1 ? collector.timestamps.at(-1)! - collector.timestamps[0] : 0;
-    const earlyGaps = gaps.filter((_, i) => collector.timestamps[i + 1] - collector.timestamps[0] <= 500);
-    const earlyDuration = earlyGaps.reduce((sum, gap) => sum + gap, 0);
-    return {
-      first500ms: { frames: earlyGaps.length + 1, observedFps: earlyDuration ? earlyGaps.length * 1000 / earlyDuration : null, longestIntervalMs: earlyGaps.length ? Math.max(...earlyGaps) : null },
-      durationMs: duration,
-      frames: collector.timestamps.length,
-      observedFps: duration ? gaps.length * 1000 / duration : null,
-      intervalP95Ms: percentile(.95),
-      intervalP99Ms: percentile(.99),
-      intervalsAbove20ms: gaps.filter(gap => gap > 20).length,
-      longestIntervalMs: sorted.at(-1) ?? null,
-    };
-  });
+  const observedActionMs = await page.evaluate(() => performance.now() - (window as unknown as { __cgFrameSample: FrameCapture }).__cgFrameSample.clickTime);
+  await page.waitForFunction(() => (window as unknown as { __cgFrameSample?: { done: boolean } }).__cgFrameSample?.done, null, { timeout: 10000 });
+  const capture = await page.evaluate(() => (window as unknown as { __cgFrameSample: FrameCapture }).__cgFrameSample);
+  return { ...summarizeFrameCapture(capture), observedActionMs, clickTime: capture.clickTime };
 }
 
 test("measure drawer and routing frame intervals in isolated browser fixtures", async ({ browser, baseURL, request }, testInfo) => {
@@ -55,8 +56,11 @@ test("measure drawer and routing frame intervals in isolated browser fixtures", 
   await signIn(context, baseURL!, "admin");
   const page = await context.newPage();
   const result: Record<string, unknown> = {
-    methodology: "requestAnimationFrame intervals during and after interactions; 20ms is a diagnostic marker, not a 60fps pass threshold",
-    environment: await page.evaluate(() => ({ userAgent: navigator.userAgent, logicalCores: navigator.hardwareConcurrency, devicePixelRatio: devicePixelRatio, reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches, visibility: document.visibilityState })),
+    methodology: "1200ms from the captured click; requestAnimationFrame windows and main-thread long tasks are diagnostics, not a 60 FPS pass threshold. Network and UI waits are reported separately; concurrent test load and headless rendering affect results.",
+    workers: testInfo.config.workers,
+    retry: testInfo.retry,
+    ci: Boolean(process.env.CI),
+    environment: await page.evaluate(() => ({ userAgent: navigator.userAgent, logicalCores: navigator.hardwareConcurrency, devicePixelRatio: devicePixelRatio, reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches, visibility: document.visibilityState, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })),
     browserVersion: browser.version(),
     headless: true,
   };
@@ -66,21 +70,36 @@ test("measure drawer and routing frame intervals in isolated browser fixtures", 
     const card = page.getByTestId("client-registry-responsive-cards").locator("article").filter({ has: page.getByRole("link", { name: intake.json.ref, exact: true }) });
     await expect(card).toBeVisible();
     const drawer = page.getByRole("dialog", { name: `Client 360: ${name}`, exact: true });
-    const openDrawer = await frameSample(page, async () => {
-      await card.getByRole("button", { name: "Quick view · Client 360" }).click();
+    const openButton = card.getByRole("button", { name: "Quick view · Client 360" });
+    const clientResponse = page.waitForResponse(response => response.url().includes("/api/staff/client-resource?") && response.request().method() === "GET", { timeout: 15000 }).catch(() => null);
+    let dataReady: Promise<number> | undefined;
+    const openDrawer = await frameSample(page, openButton, async () => {
+      await openButton.click();
       await expect(drawer).toBeVisible();
+      dataReady = (async () => {
+        await expect(drawer.getByRole("status")).toHaveCount(0, { timeout: 15000 });
+        return page.evaluate(() => performance.now() - (window as unknown as { __cgFrameSample: FrameCapture }).__cgFrameSample.clickTime);
+      })();
     });
-    const closeDrawer = await frameSample(page, async () => {
-      await page.getByRole("button", { name: "Close Client 360" }).click();
+    const response = await clientResponse;
+    const dataReadyObservedMs = await dataReady!;
+    const network = await page.evaluate(clickTime => {
+      const entry = performance.getEntriesByType("resource").find(item => item.name.includes("/api/staff/client-resource?") && item.startTime >= clickTime) as PerformanceResourceTiming | undefined;
+      return entry ? { startAfterClickMs: entry.startTime - clickTime, durationMs: entry.duration, responseEndAfterClickMs: entry.responseEnd - clickTime } : null;
+    }, openDrawer.clickTime);
+    const closeButton = page.getByRole("button", { name: "Close Client 360" });
+    const closeDrawer = await frameSample(page, closeButton, async () => {
+      await closeButton.click();
       await expect(drawer).toBeHidden();
     });
-    const routing = await frameSample(page, async () => {
-      await card.getByRole("button", { name: /Workflow routing/ }).click();
+    const routingButton = card.getByRole("button", { name: /Workflow routing/ });
+    const routing = await frameSample(page, routingButton, async () => {
+      await routingButton.click();
       await card.getByRole("combobox", { name: "Workflow destination" }).click();
       await expect(card.getByRole("listbox", { name: "Workflow destination options" })).toBeVisible();
     });
-    for (const sample of [openDrawer, closeDrawer, routing]) expect(sample.frames).toBeGreaterThan(2);
-    result[`${viewport.width}x${viewport.height}`] = { openDrawer, closeDrawer, routing };
+    for (const sample of [openDrawer, closeDrawer, routing]) expect(sample.wholeWindow.frames).toBeGreaterThan(2);
+    result[`${viewport.width}x${viewport.height}`] = { openDrawer, clientData: { status: response?.status() ?? null, network, dataReadyObservedMs }, closeDrawer, routing };
   }
   const report = JSON.stringify(result, null, 2);
   console.log(`FRAME_DIAGNOSTICS ${report}`);

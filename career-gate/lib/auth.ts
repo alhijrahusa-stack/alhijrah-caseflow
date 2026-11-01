@@ -31,8 +31,9 @@ export const getStaffSession = cache(async (): Promise<StaffSession | null> => {
  * Runs fn in a transaction as the Supabase `authenticated` role with the
  * caller's JWT subject, so row-level security applies to every statement.
  */
-export async function withStaff<T>(session: StaffSession, fn: (tx: Tx) => Promise<T>): Promise<T> {
+export async function withStaff<T>(session: StaffSession, fn: (tx: Tx) => Promise<T>, options?: { consistentRead?: boolean }): Promise<T> {
   return sql().begin(async (tx) => {
+    if (options?.consistentRead) await tx.unsafe("set transaction isolation level repeatable read read only");
     await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: session.authUserId, role: "authenticated" })}, true)`;
     await tx.unsafe("set local role authenticated");
     return fn(tx);
