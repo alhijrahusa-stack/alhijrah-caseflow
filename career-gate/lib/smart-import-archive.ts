@@ -52,7 +52,7 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
            or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,phone}','') ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,email}','') ilike ${`%${q}%`})
-      and (${cursor == null} or (c.created_at,c.id) < (${cursor?.createdAt ?? "9999-12-31T23:59:59.999Z"}::timestamptz,${cursor?.id ?? "ffffffff-ffff-ffff-ffff-ffffffffffff"}::uuid))
+      and (${cursor == null} or (c.created_at,c.id) < (${cursor?.createdAt ?? "9999-12-31T23:59:59.999Z"}::text::timestamptz,${cursor?.id ?? "ffffffff-ffff-ffff-ffff-ffffffffffff"}::uuid))
     order by c.created_at desc,c.id desc
     limit ${limit + 1} offset ${cursor ? 0 : (requestedPage - 1) * limit}`;
   const visible = rows.slice(0, limit).map(row => {
@@ -96,7 +96,7 @@ export async function listArchivedImportQueue(session: StaffSession, args: { q?:
            or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,phone}','') ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,email}','') ilike ${`%${q}%`})
-      and (${cursor == null} or (c.created_at,c.id) < (${cursor?.createdAt ?? "9999-12-31T23:59:59.999Z"}::timestamptz,${cursor?.id ?? "ffffffff-ffff-ffff-ffff-ffffffffffff"}::uuid))
+      and (${cursor == null} or (c.created_at,c.id) < (${cursor?.createdAt ?? "9999-12-31T23:59:59.999Z"}::text::timestamptz,${cursor?.id ?? "ffffffff-ffff-ffff-ffff-ffffffffffff"}::uuid))
     order by c.created_at desc,c.id desc
     limit ${limit + 1} offset ${cursor ? 0 : (requestedPage - 1) * limit}`;
   const visible = rows.slice(0, limit).map(row => {

@@ -36,6 +36,9 @@ afterAll(async () => { await db.end(); });
 
 describe("Smart Career Collect Client staging security", () => {
   it("preserves microsecond cursor boundaries and does not double-skip when page is also supplied", async () => {
+    const exactTimestamp = "2025-01-01 00:00:00.000013+00";
+    const [roundTrip] = await db`select ${exactTimestamp}::text::timestamptz::text as value`;
+    expect(String(roundTrip.value)).toContain(".000013");
     const marker = `TEST Cursor Intake ${randomUUID()}`;
     const staged = await stageSheetRows({ session: manager, source: "csv", idempotencyKey: randomUUID(), rows: Array.from({ length: 23 }, (_, index) => ({ full_name: `${marker} ${index}`, phone: `616553${String(1000 + index)}` })) });
     for (let index = 0; index < staged.cases.length; index++) {
@@ -47,6 +50,7 @@ describe("Smart Career Collect Client staging security", () => {
         ? listArchivedImportQueue(manager, { q: marker, page, cursor })
         : listActiveImportQueue(manager, { q: marker, page, cursor });
       const first = await list(1);
+      expect(Buffer.from(first.next_cursor!, "base64url").toString("utf8")).toContain(".000013");
       const second = await list(2, first.next_cursor);
       const third = await list(3, second.next_cursor);
       expect(first.rows).toHaveLength(10);
