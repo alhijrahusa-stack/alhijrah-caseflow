@@ -108,9 +108,11 @@ test("staff navigation enforces import permission and management-only finance an
         await expect(page.getByRole('heading',{name:'Operations Command Center',exact:true})).toBeVisible();
         const links=await page.getByRole('link').evaluateAll(elements=>elements.map(element=>element.getAttribute('href')??''));
         expect(links.filter(href=>/^\/staff\/(accounting|reports|audit-alerts)(?:[/?]|$)/.test(href))).toEqual([]);
-        if(path === '/staff') expect(links.includes('/staff/import')).toBe(permitted);
-        else if(!permitted) expect(links).not.toContain('/staff/import');
+        expect(links.includes('/staff/import')).toBe(permitted);
       }
+      const summary=await page.request.get('/api/staff/dashboard-summary');
+      expect(summary.status()).toBe(200);
+      expect((await summary.json()).permissions.can_review_smart_import).toBe(permitted);
       const response=await page.request.get('/api/staff/smart-client-import');
       expect(response.status()).toBe(permitted ? 200 : 403);
       await page.goto('/staff/import');
