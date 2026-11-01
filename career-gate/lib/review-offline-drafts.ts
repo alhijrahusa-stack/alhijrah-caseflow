@@ -1,3 +1,5 @@
+import { sameReviewDraft } from "@/lib/review-draft-snapshot";
+
 /** Session-only review drafts. This module stores no uploaded files, auth tokens or signed document URLs. */
 export const REVIEW_DRAFT_PREFIX = "career-gate:review-draft:";
 export const REVIEW_DRAFT_TTL_MS = 8 * 60 * 60 * 1000;
@@ -130,7 +132,7 @@ export async function syncReviewDrafts(
       }
       const current = readReviewDraft(storage, staffId, caseId);
       if (response.ok && result?.ok) {
-        if (current?.nonce === stored.nonce) storage.removeItem(key);
+        if (current && !current.conflict && (current.nonce === stored.nonce || sameReviewDraft(current.payload, stored.payload))) storage.removeItem(key);
         else if (current) {
           // Do not replace newer edits with the server response from an earlier queued draft.
           storage.setItem(key, JSON.stringify({ ...current, queued: false, conflict: true }));
