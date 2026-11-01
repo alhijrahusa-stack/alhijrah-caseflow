@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { chooseImportSpreadsheet, db, signIn, STAFF } from "./helpers";
+import { selectChoice, chooseImportSpreadsheet, db, signIn, STAFF } from "./helpers";
 
 test.describe("Smart Career Collect Client", () => {
   test("stages evidence, preserves a manual correction, approves once, and creates the canonical Client", async ({ page, baseURL }) => {
@@ -69,9 +69,9 @@ test.describe("Smart Career Collect Client", () => {
     await queueRow.getByRole("button", { name: "OPEN / EDIT" }).click();
     await expect(page.getByText("SMART CLIENT REVIEW", { exact: true })).toBeVisible();
     await expect(page.getByText("CLIENT DATA · VALIDATION MATRIX", { exact: true })).toBeVisible();
-    const matrix = page.getByRole("table", { name: /validation matrix/i });
-    for (const group of ["IDENTITY", "ADDRESS", "LANGUAGE & ENGLISH", "JOB PREFERENCES"]) {
-      await expect(matrix.getByText(group, { exact: true })).toBeVisible();
+    const matrix = page.locator(".cg-matrix");
+    for (const group of ["Identity", "Contact & language", "Job preferences"]) {
+      await expect(matrix.getByRole("heading", {name:group,exact:true})).toBeVisible();
     }
     for (const field of ["Full Name","Phone","Email","Date of Birth","Preferred Language","English Proficiency","Street","City","State","ZIP","Preferred Location","Location Option 1","Location Option 2","Shift Days","Shift Start","Shift End"]) {
       await expect(matrix.getByRole("rowheader", { name: new RegExp(`^${field}`) })).toBeVisible();
@@ -79,7 +79,7 @@ test.describe("Smart Career Collect Client", () => {
 
     // Opening a pending import now atomically claims the authenticated reviewer.
     // There is no separate START REVIEW action or chance to steal another review.
-    await expect(page.getByLabel("REVIEWED BY")).toHaveValue(String(admin.id));
+    await expect(page.getByLabel("REVIEWED BY")).toHaveAttribute("data-value", String(admin.id));
     await expect(page.getByRole("button", { name: "START REVIEW", exact: true })).toHaveCount(0);
 
     const languageRow = page.locator('tr[data-field="preferred_language"]');
@@ -87,9 +87,10 @@ test.describe("Smart Career Collect Client", () => {
     await expect(languageRow.locator('[data-label="Authority"]')).toHaveText("SOURCE");
     await languageRow.getByRole("button", { name: /^Edit Preferred Language/ }).click();
     const languageSelect = page.getByLabel("Preferred Language", { exact: true });
-    await expect(languageSelect).toHaveValue("en");
-    await languageSelect.selectOption("es");
-    await languageRow.getByRole("button", { name: /^Apply/ }).click();
+    await expect(languageSelect).toHaveAttribute("data-value", "en");
+    await selectChoice(languageSelect, "es");
+    await expect(languageSelect).toHaveAttribute("data-value", "es");
+    await page.getByRole("dialog").getByRole("button", { name: /^Apply/ }).click();
     await expect(languageRow.locator('[data-label="Current value"]')).toHaveText("es");
 
     const verifyResponsePromise = page.waitForResponse((response) => {
@@ -122,6 +123,11 @@ test.describe("Smart Career Collect Client", () => {
       await dialog.accept();
     });
     await page.getByRole("button", { name: "APPROVE FILE" }).click();
+    const override = page.getByRole("dialog", {name:"Approve with missing items",exact:true});
+    await override.getByLabel("Reason for approval and follow-up plan").fill("Identity reviewed; source documents will be collected at the next visit.");
+    await override.getByRole("button", {name:"Approve & defer missing items",exact:true}).click();
+    await expect(page).toHaveURL(/\/staff\/import$/);
+    await page.locator(".cg-intake-toast").getByRole("link", {name:"Open Client",exact:false}).click();
     await expect(page).toHaveURL(/\/staff\/client\/[0-9a-f-]+$/);
     expect(approvalDialogs, "A saved approval must navigate without an unsaved-changes prompt").toEqual([]);
 
@@ -159,8 +165,8 @@ test.describe("Smart Career Collect Client", () => {
     await expect(field("Shift Days")).toHaveText("THU, FRI, SAT, SUN, MON");
     await expect(field("Shift Time")).toHaveText("18:00:00 – 04:30:00");
     await page.getByRole("link", { name: "Edit Client", exact: true }).click();
-    await expect(page.getByLabel("English proficiency", { exact: true })).toHaveValue("GOOD");
-    await page.getByLabel("English proficiency", { exact: true }).selectOption("EXCELLENT");
+    await expect(page.getByLabel("English proficiency", { exact: true })).toHaveAttribute("data-value", "GOOD");
+    await selectChoice(page.getByLabel("English proficiency", { exact: true }), "EXCELLENT");
     await page.getByRole("button", { name: "Save changes" }).click();
     await page.waitForURL(`**/staff/client/${client.id}`);
     await page.reload();
@@ -189,8 +195,17 @@ test.describe("Smart Career Collect Client", () => {
     const importQueue = page.getByRole("heading", { name: "IMPORT QUEUE" }).locator("xpath=ancestor::section[1]");
     const queueRow = importQueue.getByRole("row").filter({ hasText: name }).first();
     await expect(queueRow).toBeVisible();
-    page.once("dialog", async (dialog) => dialog.accept());
-    await queueRow.getByRole("button", { name: "ARCHIVE", exact: true }).click();
+    await queueRow.getByRole("button", {name:"OPEN / EDIT",exact:true}).focus();
+    await expect(queueRow.locator(".cg-import-secondary")).toHaveCSS("opacity","1");
+    await queueRow.getByRole("button", { name: "Archive", exact: true }).click();
+    const archiveDialog=page.getByRole("dialog",{name:"Archive import",exact:true});
+    await expect(archiveDialog).toBeVisible();
+    const [pending] = await db()`select archived_at from client_import_cases where id=${staged.id}`;
+    expect(pending.archived_at).toBeNull();
+    await archiveDialog.getByRole("button",{name:"Cancel",exact:true}).click();
+    await expect(queueRow).toBeVisible();
+    await queueRow.getByRole("button", { name: "Archive", exact: true }).click();
+    await archiveDialog.getByRole("button",{name:"Continue",exact:true}).click();
     await expect(page.getByText("Import archived. Canonical client data was not deleted.", { exact: true })).toBeVisible();
     await expect(queueRow).toHaveCount(0);
 

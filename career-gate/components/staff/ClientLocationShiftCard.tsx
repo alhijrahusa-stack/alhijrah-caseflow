@@ -1,4 +1,7 @@
 "use client";
+
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
 import { useState } from "react";
 import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 import { AMAZON_LOCATIONS, SHIFT_TYPES, DAY_PATTERNS, SHIFT_DEFAULT_DAYS, SHIFT_DEFAULT_HOURS } from "@/lib/location-shift-options";
@@ -36,25 +39,25 @@ export function ClientLocationShiftCard({clients}:{clients:{id:string;full_name:
    <p className="mb-4 text-xs text-slate-400">Preferences update the existing canonical client file; they do not create a duplicate case.</p>
   <div className="relative grid gap-4 lg:grid-cols-4">
    <label className="grid gap-1.5 text-sm font-semibold text-white/85">Client
-    <select className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={client} onChange={e=>{setClient(e.target.value);setMessage("");}}>
-     <option value="">Select existing client</option>{clients.map(c=><option key={c.id} value={c.id}>{c.full_name} · {c.ref}</option>)}
-    </select></label>
+    <RoyalSelect className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={client} onChange={e=>{setClient(e.target.value);setMessage("");}}>
+     <RoyalOption value="">Select existing client</RoyalOption>{clients.map(c=><RoyalOption key={c.id} value={c.id}>{c.full_name} · {c.ref}</RoyalOption>)}
+    </RoyalSelect></label>
    <label className="grid gap-1.5 text-sm font-semibold text-white/85">Preferred Location
-    <select className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={location} onChange={e=>{setLocation(e.target.value);setShift("");setDays("");setHours("");}}>
-     <option value="">Choose Amazon location</option>{AMAZON_LOCATIONS.map(([name,address],i)=><option key={i} value={i}>{name} · {address}</option>)}
-    </select></label>
+    <RoyalSelect className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={location} onChange={e=>{setLocation(e.target.value);setShift("");setDays("");setHours("");}}>
+     <RoyalOption value="">Choose Amazon location</RoyalOption>{AMAZON_LOCATIONS.map(([name,address],i)=><RoyalOption key={i} value={i}>{name} · {address}</RoyalOption>)}
+    </RoyalSelect></label>
    {location!==""&&<label className="grid gap-1.5 text-sm font-semibold text-white/85">Select Schedule / Shift
-    <select className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={shift} onChange={e=>{const value=e.target.value;setShift(value);setDays(SHIFT_DEFAULT_DAYS[value]??"custom");setHours(SHIFT_DEFAULT_HOURS[value]??"");}}>
-     <option value="">Choose shift preference</option>{SHIFT_TYPES.map(([code,name])=><option key={code} value={code}>{name}</option>)}
-    </select></label>}
+    <RoyalSelect className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={shift} onChange={e=>{const value=e.target.value;setShift(value);setDays(SHIFT_DEFAULT_DAYS[value]??"custom");setHours(SHIFT_DEFAULT_HOURS[value]??"");}}>
+     <RoyalOption value="">Choose shift preference</RoyalOption>{SHIFT_TYPES.map(([code,name])=><RoyalOption key={code} value={code}>{name}</RoyalOption>)}
+    </RoyalSelect></label>}
    {shift&&<label className="grid gap-1.5 text-sm font-semibold text-white/85">Days / Pattern
-    <select className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={days} onChange={e=>setDays(e.target.value)}>
-     {DAY_PATTERNS.map(([code,name])=><option key={code} value={code}>{name}</option>)}
-    </select></label>}
+    <RoyalSelect className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={days} onChange={e=>setDays(e.target.value)}>
+     {DAY_PATTERNS.map(([code,name])=><RoyalOption key={code} value={code}>{name}</RoyalOption>)}
+    </RoyalSelect></label>}
   </div>
   {shift&&<div className="relative mt-4 grid gap-4 lg:grid-cols-[1fr_auto]">
    <label className="grid gap-1 text-sm font-semibold text-white/80">Preferred Hours (compatible schedule options)
-    <select className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={hours} onChange={e=>setHours(e.target.value)}><option value={SHIFT_DEFAULT_HOURS[shift]}>{SHIFT_DEFAULT_HOURS[shift]}</option>{shift==="front_half"||shift==="back_half"?<option value="06:30 PM – 05:00 AM">06:30 PM – 05:00 AM</option>:null}{shift==="morning"||shift==="mid"?<option value="08:00 AM – 04:30 PM">08:00 AM – 04:30 PM</option>:null}{shift==="night"?<option value="10:00 PM – 06:30 AM">10:00 PM – 06:30 AM</option>:null}</select>
+    <RoyalSelect className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={hours} onChange={e=>setHours(e.target.value)}><RoyalOption value={SHIFT_DEFAULT_HOURS[shift]}>{SHIFT_DEFAULT_HOURS[shift]}</RoyalOption>{shift==="front_half"||shift==="back_half"?<RoyalOption value="06:30 PM – 05:00 AM">06:30 PM – 05:00 AM</RoyalOption>:null}{shift==="morning"||shift==="mid"?<RoyalOption value="08:00 AM – 04:30 PM">08:00 AM – 04:30 PM</RoyalOption>:null}{shift==="night"?<RoyalOption value="10:00 PM – 06:30 AM">10:00 PM – 06:30 AM</RoyalOption>:null}</RoyalSelect>
    </label>
    <button type="button" disabled={busy||!client||!location||!shift||!days||!hours.trim()} onClick={save} className="self-end rounded-xl bg-orange-500 px-6 py-3 font-bold text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-40">
      {busy?"Saving…":"Save Location & Shift"}

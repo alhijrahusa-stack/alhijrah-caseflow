@@ -1,5 +1,7 @@
 "use client";
 
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
 import { useState } from "react";
 import { MultiSelect } from "@/components/forms/MultiSelect";
 import { CityStep, JobStep, PreferenceSummary, ShiftStep, SiteStep } from "@/components/forms/PreferenceSteps";
@@ -215,9 +217,9 @@ export function IntakeWizard() {
             <div className="flex flex-wrap items-end gap-2">
               <div>
                 <label className="label" htmlFor="doc_type">Document type</label>
-                <select id="doc_type" className="input" value={docType} onChange={(e) => setDocType(e.target.value as typeof docType)}>
-                  {DOC_TYPES.map((t) => <option key={t} value={t}>{DOC_LABELS[t]}</option>)}
-                </select>
+                <RoyalSelect id="doc_type" className="input" value={docType} onChange={(e) => setDocType(e.target.value as typeof docType)}>
+                  {DOC_TYPES.map((t) => <RoyalOption key={t} value={t}>{DOC_LABELS[t]}</RoyalOption>)}
+                </RoyalSelect>
               </div>
               <input
                 aria-label="Choose file"

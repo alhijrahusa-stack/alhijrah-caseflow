@@ -1,7 +1,12 @@
 "use client";
 
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
+
 import { useRef, useState } from "react";
 import { useAction } from "@/components/forms/useAction";
+import { useStaffLabel } from "@/components/staff/StaffLabel";
+import { arabicStaffLabel } from "@/lib/staff-ui-labels";
 
 /**
  * Click to edit; Enter saves, Esc cancels. The new value is shown only after
@@ -26,11 +31,12 @@ export function InlineField({
   label: string;
   multiline?: boolean;
 }) {
-  const { run, pending } = useAction({ successMessage: `${label} saved` });
+  const uiLabel = useStaffLabel();
+  const { run, pending } = useAction({ successMessage: `${uiLabel(label)} ${uiLabel("saved")}` });
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
   const [shown, setShown] = useState<string | null>(null);
-  const ref = useRef<HTMLInputElement & HTMLTextAreaElement & HTMLSelectElement>(null);
+  const ref = useRef<HTMLElement | null>(null);
 
   const start = () => {
     setDraft(value ?? "");
@@ -69,16 +75,16 @@ export function InlineField({
     return (
       <button type="button" onClick={start} data-testid={`inline-${field}`}
         className="group -mx-1 w-full rounded px-1 text-left transition-colors duration-200 hover:bg-brand-50 focus:bg-brand-50 focus:outline-none focus:ring-2 focus:ring-brand-100"
-        aria-label={`Edit ${label}`}>
+        aria-label={`${uiLabel("Edit")} ${uiLabel(label)}`}>
         <span className={value ? "" : "text-slate-400"}>{shown ?? display ?? (value || "—")}</span>
-        <span className="ml-2 text-xs text-slate-400 opacity-0 group-hover:opacity-100">Edit</span>
+        <span className="ml-2 text-xs text-slate-400 opacity-0 group-hover:opacity-100">{uiLabel("Edit")}</span>
       </button>
     );
   }
 
   const common = {
-    ref,
-    "aria-label": label,
+    ref: (node: HTMLElement | null) => { ref.current = node; },
+    "aria-label": uiLabel(label),
     value: draft,
     disabled: pending,
     onKeyDown: onKey,
@@ -87,16 +93,16 @@ export function InlineField({
   return (
     <div className="flex items-start gap-1" data-testid={`inline-edit-${field}`}>
       {options ? (
-        <select {...common} onChange={(e) => setDraft(e.target.value)}>
-          {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        <RoyalSelect {...common} onChange={(e) => setDraft(e.target.value)}>
+          {options.map((o) => <RoyalOption key={o.value} value={o.value} labelAr={arabicStaffLabel(o.label)}>{o.label}</RoyalOption>)}
+        </RoyalSelect>
       ) : multiline ? (
         <textarea {...common} rows={2} onChange={(e) => setDraft(e.target.value)} />
       ) : (
         <input {...common} type={type} onChange={(e) => setDraft(e.target.value)} />
       )}
-      <button type="button" onClick={save} disabled={pending} className="rounded bg-brand-600 px-2 py-1 text-xs text-white">{pending ? "…" : "Save"}</button>
-      <button type="button" onClick={cancel} disabled={pending} className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100">Esc</button>
+      <button type="button" onClick={save} disabled={pending} className="rounded bg-brand-600 px-2 py-1 text-xs text-white">{pending ? "…" : uiLabel("Save")}</button>
+      <button type="button" onClick={cancel} disabled={pending} className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100">{uiLabel("Esc")}</button>
     </div>
   );
 }

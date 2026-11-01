@@ -134,11 +134,14 @@ export async function POST(req: Request) {
           const locked = await tx`
             select c.id,c.current_status,c.pipeline_stage,c.next_step,c.assigned_staff,
               career_gate_private.has_ready_gate_job_account(c.id) account_ready,
-              exists(select 1 from documents d where d.client_id=c.id and d.status='verified')
+              coalesce((select bool_and(latest.status='verified') from (
+                select distinct on(d.doc_type) d.status from documents d where d.client_id=c.id
+                order by d.doc_type,d.uploaded_at desc,d.id desc
+              ) latest),false)
                 and not exists(select 1 from requirements r where r.client_id=c.id and r.requirement_key not like 'post_hire:%'
                   and r.status not in ('complete','not_applicable')) documents_ready,
               exists(select 1 from appointments ap where ap.client_id=c.id and ap.appointment_kind='employment_interview' and ap.status in ('scheduled','confirmed','rescheduled')) interview_scheduled,
-              exists(select 1 from appointment_outcomes o where o.client_id=c.id and o.decision='pass') interview_passed,
+              coalesce((select o.decision='pass' from appointment_outcomes o where o.client_id=c.id order by o.recorded_at desc,o.appointment_id desc limit 1),false) interview_passed,
               exists(select 1 from client_account_balances a where a.client_id=c.id and a.payment_status='paid') payment_verified,
               career_gate_private.post_hire_complete(c.id) paperwork_complete
             from clients c

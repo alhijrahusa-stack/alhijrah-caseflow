@@ -1,5 +1,7 @@
 "use client";
 
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
 import { useEffect, useState } from "react";
 
 type EmailOption = { id: string; email: string; status: string };
@@ -80,10 +82,10 @@ export function GateJobAssignDialog({ onDone, onClose }: { onDone: () => void; o
 
   return <div className="space-y-4">
     <label className="block text-xs text-slate-300">GATE JOB EMAIL
-      <select aria-label="Gate Job email" className="mt-1 w-full rounded-xl border border-white/10 bg-[#090f1b] px-3 py-2 text-sm" value={emailId} onChange={(event) => { setEmailId(event.target.value); setReserved(false); }}>
-        <option value="">Select AVAILABLE email</option>
-        {emailOptions.map((option) => <option key={option.id} value={option.id}>{option.email}</option>)}
-      </select>
+      <RoyalSelect aria-label="Gate Job email" className="mt-1 w-full rounded-xl border border-white/10 bg-[#090f1b] px-3 py-2 text-sm" value={emailId} onChange={(event) => { setEmailId(event.target.value); setReserved(false); }}>
+        <RoyalOption value="">Select AVAILABLE email</RoyalOption>
+        {emailOptions.map((option) => <RoyalOption key={option.id} value={option.id}>{option.email}</RoyalOption>)}
+      </RoyalSelect>
     </label>
     <div>
       <label className="block text-xs text-slate-300">ASSIGNED TO

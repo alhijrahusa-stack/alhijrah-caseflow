@@ -61,7 +61,7 @@ function saveArgs() {
 }
 
 function approvalArgs() {
-  return { ...saveArgs(), traceId: "review-audit-trace" };
+  return { ...saveArgs(), traceId: "review-audit-trace", override: true, overrideReason: "Reviewed identity; documents will be collected at next visit." };
 }
 
 describe("Smart Review persistence and audit regressions", () => {
@@ -155,6 +155,29 @@ describe("Smart Review persistence and audit regressions", () => {
     }));
     expect(state.row.field_evidence).toEqual(sourceEvidence);
     expect(state.row.conflicts).toEqual([sourceConflict]);
+  });
+
+  it("requires explicit missing-item approval and a meaningful reason before creating a client", async () => {
+    const state = database();
+    await expect(approveImportCase(manager, { ...approvalArgs(), override: false })).rejects.toMatchObject({ code: "override_required", status: 409 });
+    expect(insertClient).not.toHaveBeenCalled();
+    expect(state.statements.some((statement) => statement.text.includes("status='APPROVED_FILE'"))).toBe(false);
+    await expect(approveImportCase(manager, { ...approvalArgs(), overrideReason: "  " })).rejects.toMatchObject({ code: "override_required", status: 409 });
+    expect(insertClient).not.toHaveBeenCalled();
+  });
+
+  it("records the actual override actor, reason and missing items without changing source evidence", async () => {
+    const state = database();
+    await approveImportCase(manager, approvalArgs());
+    const update = state.statements.find((statement) => statement.text.includes("status='APPROVED_FILE'"))!;
+    expect(update.values[5]).toMatchObject({ override: {
+      approved_with_missing_items: true, actor_id: manager.staff.id, reviewer_id: reviewerId,
+      reason: approvalArgs().overrideReason, outstanding_fields: expect.arrayContaining(["source_documents"]),
+    } });
+    expect(logActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      entityType: "client_import_case", newValue: expect.objectContaining({override: expect.objectContaining({ actor_id: manager.staff.id, reason: approvalArgs().overrideReason })}),
+    }));
+    expect(state.row.field_evidence).toEqual(sourceEvidence);
   });
 
   it("rejects stale direct approvals before creating a canonical client", async () => {

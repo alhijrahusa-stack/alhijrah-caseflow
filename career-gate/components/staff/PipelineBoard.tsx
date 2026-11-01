@@ -1,5 +1,11 @@
 "use client";
 
+import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
+
+
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
+
 import Link from "next/link";
 import { Client360Drawer } from "@/components/staff/Client360Drawer";
 import { g3StageForStatus, g3Counts, type G3StageId } from "@/lib/g3-stages";
@@ -43,9 +49,7 @@ function ShowMore({ hidden, step, onMore, testId }: { hidden: number; step: numb
   if (hidden <= 0) return null;
   return (
     <button type="button" onClick={onMore} data-testid={testId}
-      className="w-full rounded-xl border border-amber-300/30 bg-amber-300/[.06] px-3 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/10">
-      Show {Math.min(step, hidden)} more · {hidden} hidden
-    </button>
+      className="w-full rounded-xl border border-amber-300/30 bg-amber-300/[.06] px-3 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/10"><StaffLabel en="Show"/>{" "}{Math.min(step, hidden)}{" "}<StaffLabel en="more ·"/>{" "}{hidden}{" "}<StaffLabel en="hidden"/>{" "}</button>
   );
 }
 
@@ -80,25 +84,25 @@ function ClientCard({ client, stages, onMove, busy }: {
           <h3>{client.full_name}</h3>
           <code>{client.ref}</code>
         </div>
-        {client.payment_status === "paid" && <span className="ops-paid">Paid ${Number(client.fee_amount ?? 0).toFixed(0)}</span>}
+        {client.payment_status === "paid" && <span className="ops-paid"><StaffLabel en="Paid $"/>{Number(client.fee_amount ?? 0).toFixed(0)}</span>}
       </div>
       <div className="ops-client-meta">
         <span>{client.site_code ?? "No site"}</span>
         <span>{client.shift_code ?? "No shift"}</span>
         <span>{client.assigned_name ?? "Unassigned"}</span>
       </div>
-      <p className="ops-next"><span>Next</span>{client.next_step}</p>
+      <p className="ops-next"><span><StaffLabel en="Next"/></span>{client.next_step}</p>
       <div className="ops-client-actions">
-        <Link href={`/staff/client/${client.id}`}>Open file</Link>
-        <select
+        <Link href={`/staff/client/${client.id}`}><StaffLabel en="Open file"/></Link>
+        <RoyalSelect
           aria-label={`Move ${client.full_name}`}
           value={client.pipeline_stage}
           disabled={busy}
           onChange={(e) => onMove(client, e.target.value)}
           className="ops-select"
         >
-          {stages.map((s) => <option key={s.key} value={s.key}>{s.label_en}</option>)}
-        </select>
+          {stages.map((s) => <RoyalOption key={s.key} value={s.key}>{s.label_en}</RoyalOption>)}
+        </RoyalSelect>
       </div>
     </article>
   );
@@ -121,7 +125,7 @@ function DispatchClient({client,staff,canAssign,onAssign,busy,pulsing}:{client:P
    <div className="ops-dispatch-client-head">
      <div className="min-w-0"><Link href={`/staff/client/${client.id}`} className="block truncate text-base font-bold text-white hover:text-orange-300">{client.full_name}</Link>
      <code>{client.ref}</code></div>
-     {client.auto_dispatched_at&&<span className="ops-auto-badge">Auto-Dispatched</span>}
+     {client.auto_dispatched_at&&<span className="ops-auto-badge"><StaffLabel en="Auto-Dispatched"/></span>}
    </div>
    <div className="ops-dispatch-meta text-sm">
     <span>{client.shift_name??client.shift_code??"—"}</span>
@@ -129,11 +133,11 @@ function DispatchClient({client,staff,canAssign,onAssign,busy,pulsing}:{client:P
     <span>{client.shift_hours??"—"}</span>
    </div>
    <div className="ops-dispatch-footer flex flex-wrap items-center gap-2">
-    {canAssign?<select aria-label={`Assign ${client.full_name}`} value={client.assigned_staff??""} disabled={busy} onChange={e=>onAssign(client,e.target.value||null)} className="ops-select min-w-32 !text-sm">
-      <option value="">Unassigned</option>{staff.map(x=><option value={x.id} key={x.id}>{x.display_name}</option>)}
-    </select>:<span>{client.assigned_name??"Unassigned"}</span>}
-    <Link href={`/staff/client/${client.id}`} className="rounded-lg border border-orange-300/25 px-3 py-2 text-sm font-semibold text-orange-200">Open file</Link>
-    {client.payment_status==="paid"&&<b>Paid ${Number(client.fee_amount??0).toFixed(0)}</b>}
+    {canAssign?<RoyalSelect aria-label={`Assign ${client.full_name}`} value={client.assigned_staff??""} disabled={busy} onChange={e=>onAssign(client,e.target.value||null)} className="ops-select min-w-32 !text-sm">
+      <RoyalOption labelAr="غير معيّن" value="">Unassigned</RoyalOption>{staff.map(x=><RoyalOption value={x.id} key={x.id}>{x.display_name}</RoyalOption>)}
+    </RoyalSelect>:<span>{client.assigned_name??"Unassigned"}</span>}
+    <Link href={`/staff/client/${client.id}`} className="rounded-lg border border-orange-300/25 px-3 py-2 text-sm font-semibold text-orange-200"><StaffLabel en="Open file"/></Link>
+    {client.payment_status==="paid"&&<b><StaffLabel en="Paid $"/>{Number(client.fee_amount??0).toFixed(0)}</b>}
    </div>
  </article>;
 }
@@ -155,13 +159,14 @@ function DispatchLane({ title, subtitle, clients, tone, staff, canAssign, onAssi
       <div className="ops-dispatch-list">
         {clients.slice(0, limit).map((client) => <DispatchClient key={client.id} client={client} staff={staff} canAssign={canAssign} onAssign={onAssign} busy={busyId===client.id} pulsing={lastAssignedId===client.id}/>)}
         <ShowMore hidden={clients.length - limit} step={LANE_BATCH} onMore={() => setLimit((n) => n + LANE_BATCH)} testId="lane-show-more" />
-        {!clients.length && <div className="ops-dispatch-empty">No clients in this lane.</div>}
+        {!clients.length && <div className="ops-dispatch-empty"><StaffLabel en="No clients in this lane."/></div>}
       </div>
     </section>
   );
 }
 
 export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, staff, canAssign }: { stages: PipelineStage[]; clients: PipelineClient[]; exceptions?: PipelineClient[]; statusCounts: {status:string;total:number}[]; staff:StaffOption[]; canAssign:boolean }) {
+  const uiLabel = useStaffLabel();
   const onMutated = useTargetedMutation();
   const [rows, setRows] = useState(clients);
   const [seen, setSeen] = useState(clients);
@@ -260,40 +265,40 @@ export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, 
     <div className="ops-page">
       <header className="ops-hero">
         <div>
-          <p className="ops-kicker">CAREER GATE · OPERATIONS</p>
-          <h1>Candidate Pipeline</h1>
+          <p className="ops-kicker"><StaffLabel en="CAREER GATE · OPERATIONS"/></p>
+          <h1><StaffLabel en="Candidate Pipeline"/></h1>
           <p>ملف واحد لكل عميل · نقل مرحلي بدون إنشاء نسخ مكررة</p>
         </div>
-        <div className="ops-segmented flex-wrap" role="tablist" aria-label="Pipeline views">
-          <button type="button" data-active={view === "lifecycle"} onClick={() => setView("lifecycle")}>Smart Lifecycle</button>
-          <button type="button" data-active={view === "pipeline"} onClick={() => setView("pipeline")}>Detailed Pipeline</button>
-          <button type="button" data-active={view === "location"} onClick={() => setView("location")}>Location & Shift</button>
+        <div className="ops-segmented flex-wrap" role="tablist" aria-label={uiLabel("Pipeline views")}>
+          <button type="button" data-active={view === "lifecycle"} onClick={() => setView("lifecycle")}><StaffLabel en="Smart Lifecycle"/></button>
+          <button type="button" data-active={view === "pipeline"} onClick={() => setView("pipeline")}><StaffLabel en="Detailed Pipeline"/></button>
+          <button type="button" data-active={view === "location"} onClick={() => setView("location")}><StaffLabel en="Location & Shift"/></button>
         </div>
       </header>
 
       {error && <div className="ops-error" role="alert">{error}</div>}
       <LocationShiftTelemetry clients={rows} periodOf={normalizedPeriod}/>
-      <div className="flex items-center justify-end"><label className="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-300/20 bg-white/[.04] px-3 py-2 text-sm text-slate-200"><input type="checkbox" checked={voiceEnabled} onChange={e=>setVoiceEnabled(e.target.checked)}/> Arabic voice confirmations</label></div>
+      <div className="flex items-center justify-end"><label className="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-300/20 bg-white/[.04] px-3 py-2 text-sm text-slate-200"><input type="checkbox" checked={voiceEnabled} onChange={e=>setVoiceEnabled(e.target.checked)}/>{" "}<StaffLabel en="Arabic voice confirmations"/></label></div>
 
       {view === "lifecycle" ? (
         <section className="space-y-4" data-testid="g3-smart-lifecycle">
-          <nav aria-label="Six-stage lifecycle" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+          <nav aria-label={uiLabel("Six-stage lifecycle")} className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
             {lifecycleStages.map((stage,index)=><button key={stage.id} type="button"
               aria-pressed={activeStage === stage.id}
               onClick={()=>{setActiveStage(stage.id);setStatusFilter(null);setLifecycleLimit(COLUMN_BATCH);}}
               className={`min-w-0 rounded-2xl border p-3 text-left transition-colors ${activeStage === stage.id ? "border-amber-300/60 bg-amber-300/15 text-white" : "border-white/10 bg-white/[.04] text-slate-200 hover:border-amber-300/35 hover:bg-white/[.08]"}`}>
-              <span className="text-xs text-amber-200">{String(index+1).padStart(2,"0")} · {stage.label}</span>
+              <span className="text-xs text-amber-200">{String(index+1).padStart(2,"0")} · {uiLabel(stage.label)}</span>
               <strong className="mt-2 block text-2xl font-semibold tabular-nums">{stage.total}</strong>
               <span className="mt-1 block text-xs text-slate-300" lang="ar" dir="rtl">{stage.labelAr}</span>
             </button>)}
           </nav>
           <div className="ops-glass-card flex min-w-0 flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="ops-kicker">SMART ACTION RIBBON</p>
+              <p className="ops-kicker"><StaffLabel en="SMART ACTION RIBBON"/></p>
               <h2 className="text-lg font-semibold">{stageDefinition.label} <span dir="rtl" className="text-sm text-amber-200">{stageDefinition.labelAr}</span></h2>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" onClick={()=>setStatusFilter(null)} aria-pressed={!statusFilter} className={`cg-command-button ${!statusFilter?"border-amber-300 bg-amber-300/15":""}`}>All states</button>
-                {stageDefinition.statuses.map(status=><button key={status} type="button" onClick={()=>setStatusFilter(status)} aria-pressed={statusFilter===status} className={`cg-command-button ${statusFilter===status?"border-amber-300 bg-amber-300/15":""}`}>{STATUS_LABELS[status]}</button>)}
+                <button type="button" onClick={()=>setStatusFilter(null)} aria-pressed={!statusFilter} className={`cg-command-button ${!statusFilter?"border-amber-300 bg-amber-300/15":""}`}><StaffLabel en="All states"/></button>
+                {stageDefinition.statuses.map(status=><button key={status} type="button" onClick={()=>setStatusFilter(status)} aria-pressed={statusFilter===status} className={`cg-command-button ${statusFilter===status?"border-amber-300 bg-amber-300/15":""}`}>{uiLabel(STATUS_LABELS[status])}</button>)}
               </div>
             </div>
             {(canAssign || !["intake","paperwork"].includes(stageDefinition.id)) &&
@@ -306,17 +311,17 @@ export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, 
                   <button type="button" className="break-words text-left text-base font-semibold text-white hover:text-amber-200" onClick={()=>setActiveClient(client)}>{client.full_name}</button>
                   <p className="mt-1 font-mono text-xs text-cyan-200">{client.ref}</p>
                 </div>
-                <span className="shrink-0 rounded-full border border-amber-200/25 px-2 py-1 text-[11px] text-amber-100">{STATUS_LABELS[client.current_status as Status] ?? client.current_status}</span>
+                <span className="shrink-0 rounded-full border border-amber-200/25 px-2 py-1 text-[11px] text-amber-100">{uiLabel(STATUS_LABELS[client.current_status as Status] ?? client.current_status)}</span>
               </div>
               <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-300">{client.next_step}</p>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
                 <span className="truncate text-xs text-slate-400">{client.assigned_name ?? "Unassigned"}</span>
-                <button type="button" className="cg-command-button" onClick={()=>setActiveClient(client)}>Client 360 ↗</button>
+                <button type="button" className="cg-command-button" onClick={()=>setActiveClient(client)}><StaffLabel en="Client 360 ↗"/></button>
               </div>
             </article>)}
           </div>
           {visibleLifecycle.length > lifecycleLimit && <ShowMore hidden={visibleLifecycle.length-lifecycleLimit} step={COLUMN_BATCH} onMore={()=>setLifecycleLimit(x=>x+COLUMN_BATCH)} testId="lifecycle-show-more"/>}
-          {!visibleLifecycle.length && <div className="ops-glass-card text-sm text-slate-300">{activeStage === "registry" ? "Completed and closed files are available in the Master Registry." : "No matching active files in this lifecycle station."} <Link className="ml-2 text-amber-200 underline" href={stageDefinition.href}>Open station</Link></div>}
+          {!visibleLifecycle.length && <div className="ops-glass-card text-sm text-slate-300">{activeStage === "registry" ? "Completed and closed files are available in the Master Registry." : "No matching active files in this lifecycle station."} <Link className="ml-2 text-amber-200 underline" href={stageDefinition.href}><StaffLabel en="Open station"/></Link></div>}
           {activeClient && <Client360Drawer client={{id:activeClient.id,ref:activeClient.ref,full_name:activeClient.full_name}} onClose={()=>setActiveClient(null)}/>}
         </section>
       ) : view === "pipeline" ? (
@@ -344,7 +349,7 @@ export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, 
                 <div className="ops-column-list">
                   {group.slice(0, limit).map((client) => <ClientCard key={client.id} client={client} stages={stages} onMove={move} busy={busyId === client.id} />)}
                   <ShowMore hidden={group.length - limit} step={COLUMN_BATCH} onMore={() => setLimits((current) => ({ ...current, [stage.key]: limit + COLUMN_BATCH }))} testId="column-show-more" />
-                  {!group.length && <div className="ops-empty">Drop client here</div>}
+                  {!group.length && <div className="ops-empty"><StaffLabel en="Drop client here"/></div>}
                 </div>
               </section>
             );
@@ -356,21 +361,21 @@ export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, 
             <article key={location.key} className="ops-location-board">
               <header className="ops-location-head">
                 <div>
-                  <p className="ops-kicker">AMAZON LOCATION</p>
+                  <p className="ops-kicker"><StaffLabel en="AMAZON LOCATION"/></p>
                   <h2>{location.siteName}</h2>
                   <span>{location.siteCode}{location.siteAddress ? ` · ${location.siteAddress}` : ""}</span>
                 </div>
-                <div className="ops-location-total"><strong>{location.morning.length + location.evening.length + location.night.length + location.needs_manual_review.length}</strong><span>clients</span></div>
+                <div className="ops-location-total"><strong>{location.morning.length + location.evening.length + location.night.length + location.needs_manual_review.length}</strong><span><StaffLabel en="clients"/></span></div>
               </header>
               <div className="ops-location-lanes ops-location-lanes-four">
-                <DispatchLane title="Morning" subtitle="القائمة الصباحية" clients={location.morning} tone="morning" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
-                <DispatchLane title="Evening" subtitle="القائمة المسائية" clients={location.evening} tone="evening" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
-                <DispatchLane title="Night" subtitle="القائمة الليلية" clients={location.night} tone="night" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
-                <DispatchLane title="Needs review" subtitle="يتطلب تصنيف يدوي" clients={location.needs_manual_review} tone="needs_manual_review" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
+                <DispatchLane title={uiLabel("Morning")} subtitle="القائمة الصباحية" clients={location.morning} tone="morning" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
+                <DispatchLane title={uiLabel("Evening")} subtitle="القائمة المسائية" clients={location.evening} tone="evening" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
+                <DispatchLane title={uiLabel("Night")} subtitle="القائمة الليلية" clients={location.night} tone="night" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
+                <DispatchLane title={uiLabel("Needs review")} subtitle="يتطلب تصنيف يدوي" clients={location.needs_manual_review} tone="needs_manual_review" staff={staff} canAssign={canAssign} onAssign={assign} busyId={busyId} lastAssignedId={lastAssignedId} />
               </div>
             </article>
           ))}
-          {!locations.length && <div className="ops-glass-card ops-empty-large">No clients are available for location dispatch.</div>}
+          {!locations.length && <div className="ops-glass-card ops-empty-large"><StaffLabel en="No clients are available for location dispatch."/></div>}
         </div>
       )}
     </div>

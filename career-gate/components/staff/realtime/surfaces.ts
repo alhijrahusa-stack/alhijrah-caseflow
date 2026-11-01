@@ -13,6 +13,9 @@ export type SurfaceContract = {
   resources: readonly Resource[];
   /** Payload keys this surface renders from a scoped refetch. */
   payloads: readonly string[];
+  /** Aggregate endpoints are deliberately separate from the client-slice API. */
+  endpoint?: string;
+  aggregatePayloads?: Partial<Record<Resource, readonly string[]>>;
 };
 
 /** The client file: the client row and every per-client list it renders. */
@@ -41,10 +44,19 @@ export const NEXT_ACTION_SURFACE: SurfaceContract = {
   payloads: ["nextAction"],
 };
 
+/** Private manager aggregate, refreshed in-place by its own endpoint. */
+export const MANAGER_INBOX_SURFACE: SurfaceContract & { endpoint: string } = {
+  resources: ["manager_inbox"],
+  payloads: ["inbox"],
+  endpoint: "/api/staff/manager-inbox",
+  aggregatePayloads: { manager_inbox: ["inbox"] },
+};
+
 export const SURFACES = {
   client_file: CLIENT_FILE_SURFACE,
   requirements_panel: REQUIREMENTS_SURFACE,
   next_action_card: NEXT_ACTION_SURFACE,
+  manager_task_center: MANAGER_INBOX_SURFACE,
 } as const;
 
 /**

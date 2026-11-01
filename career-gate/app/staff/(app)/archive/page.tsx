@@ -1,3 +1,4 @@
+import { StaffText } from "@/components/staff/StaffLanguage";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArchiveRestoreButton } from "@/components/staff/ArchiveRestoreButton";
@@ -48,27 +49,27 @@ export default async function ArchivePage() {
     <div className="ops-page space-y-4">
       <header className="ops-hero archive-hero">
         <div>
-          <p className="ops-kicker">CAREER GATE · CONTROLLED ARCHIVE</p>
-          <h1>Archive</h1>
-          <p>Recoverable operational records retained without destructive deletion.</p>
+          <p className="ops-kicker"><StaffText en="CAREER GATE · CONTROLLED ARCHIVE" ar="CAREER GATE · الأرشيف المنظّم"/></p>
+          <h1><StaffText en="Archive" ar="الأرشيف"/></h1>
+          <p><StaffText en="Recoverable operational records retained without destructive deletion." ar="سجلات تشغيلية محفوظة وقابلة للاستعادة دون حذف نهائي."/></p>
         </div>
         <div className="archive-summary-grid" aria-label="Archive summary">
-          <div><span>Archived Clients</span><strong>{rows.length}</strong></div>
-          <div><span>Retained Documents</span><strong>{retainedDocuments}</strong></div>
+          <div><span><StaffText en="Archived Clients" ar="العملاء المؤرشفون"/></span><strong>{rows.length}</strong></div>
+          <div><span><StaffText en="Retained Documents" ar="الوثائق المحفوظة"/></span><strong>{retainedDocuments}</strong></div>
         </div>
       </header>
 
       <section className="archive-section ops-glass-card p-0">
         <div className="archive-section-head">
-          <div><p className="ops-kicker">CLIENT RECORDS</p><h2>Archived Clients</h2></div>
+          <div><p className="ops-kicker"><StaffText en="CLIENT RECORDS" ar="سجلات العملاء"/></p><h2><StaffText en="Archived Clients" ar="العملاء المؤرشفون"/></h2></div>
           <span>{rows.length}</span>
         </div>
         {rows.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500">No archived clients.</div>
+          <div className="p-8 text-center text-sm text-slate-500"><StaffText en="No archived clients." ar="لا يوجد عملاء مؤرشفون."/></div>
         ) : (
           <div className="overflow-x-auto">
             <table className="table min-w-[980px]">
-              <thead><tr><th>Reference</th><th>Client</th><th>Archived</th><th>Reason</th><th>Documents Retained</th><th>Archived By</th><th>Action</th></tr></thead>
+              <thead><tr><th><StaffText en="Reference" ar="رقم الملف"/></th><th><StaffText en="Client" ar="العميل"/></th><th><StaffText en="Archived" ar="الأرشفة"/></th><th><StaffText en="Reason" ar="السبب"/></th><th><StaffText en="Documents Retained" ar="الوثائق المحفوظة"/></th><th><StaffText en="Archived By" ar="أرشفة بواسطة"/></th><th><StaffText en="Action" ar="الإجراء"/></th></tr></thead>
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id}>
@@ -89,11 +90,11 @@ export default async function ArchivePage() {
 
       <section className="archive-section ops-glass-card">
         <div className="archive-section-head px-0 pt-0">
-          <div><p className="ops-kicker">DOCUMENT RETENTION</p><h2>Documents Retained With Archived Clients</h2></div>
+          <div><p className="ops-kicker"><StaffText en="DOCUMENT RETENTION" ar="حفظ الوثائق"/></p><h2><StaffText en="Documents Retained With Archived Clients" ar="الوثائق المحفوظة مع ملفات العملاء المؤرشفة"/></h2></div>
           <span>{retainedDocuments}</span>
         </div>
-        <p className="text-sm text-slate-400">Archived client files retain their documents and audit history. Restoring the client restores the operational file without recreating records.</p>
-        <Link href="/staff/clients" className="mt-4 inline-flex text-sm font-semibold text-cyan-300 hover:text-cyan-200">Return to Clients</Link>
+        <p className="text-sm text-slate-400"><StaffText en="Archived client files retain their documents and audit history. Restoring the client restores the operational file without recreating records." ar="تحتفظ الملفات المؤرشفة بوثائقها وسجل تدقيقها. تعيد الاستعادة الملف التشغيلي نفسه دون إنشاء سجلات مكررة."/></p>
+        <Link href="/staff/clients" className="mt-4 inline-flex text-sm font-semibold text-cyan-300 hover:text-cyan-200"><StaffText en="Return to Clients" ar="العودة إلى العملاء"/></Link>
       </section>
     </div>
   );

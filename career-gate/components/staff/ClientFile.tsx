@@ -1,5 +1,8 @@
 "use client";
 
+import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
+
+
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import {
@@ -7,6 +10,7 @@ import {
 } from "@/components/staff/ClientActions";
 import { ClientAccountPanel } from "@/components/staff/ClientAccountPanel";
 import { ClientWorkflowControl } from "@/components/staff/ClientWorkflowControl";
+import { SendToManagerButton } from "@/components/staff/SendToManagerButton";
 import { InlineField } from "@/components/staff/InlineField";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { CLIENT_FILE_SURFACE } from "@/components/staff/realtime/surfaces";
@@ -100,6 +104,7 @@ export function ClientFile({
   initialPanel?: ClientPanel | null;
   initialTab?: ClientTab | null;
 }) {
+  const uiLabel = useStaffLabel();
   // Stable across client re-renders: only a new server render changes either
   // prop, and only then may the targeted patches be discarded.
   const serverState = useMemo<LiveState>(() => ({ data: serverData, account: serverAccount }), [serverData, serverAccount]);
@@ -200,36 +205,36 @@ export function ClientFile({
           <div className="cg-client-avatar" aria-hidden="true">{String(c.full_name).trim().slice(0, 1).toUpperCase()}</div>
           <div className="min-w-0 flex-1">
             <div className="cg-client-identity-line">
-              <p className="cg-client-kicker">CLIENT 360 · COMMAND CENTER</p>
-              <span className="cg-live-client"><span aria-hidden="true" /> Live Client</span>
+              <p className="cg-client-kicker"><StaffLabel en="CLIENT 360 · COMMAND CENTER"/></p>
+              <span className="cg-live-client"><span aria-hidden="true" />{" "}<StaffLabel en="Live Client"/></span>
             </div>
             <h1 id="client-name-heading" className="cg-client-name" data-testid="client-name">{c.full_name}</h1>
             <div className="cg-client-meta">
               <span className="cg-client-ref" data-testid="client-ref">{c.ref}</span>
               <StatusBadge status={c.current_status} />
-              <span className="cg-client-pipeline">{pipelineLabel(c.pipeline_stage)}</span>
-              {account?.payment_status === "paid" && <span className="cg-client-paid">Paid · ${account.net_fee.toFixed(2)}</span>}
+              <span className="cg-client-pipeline">{uiLabel(pipelineLabel(c.pipeline_stage))}</span>
+              {account?.payment_status === "paid" && <span className="cg-client-paid"><StaffLabel en="Paid · $"/>{account.net_fee.toFixed(2)}</span>}
             </div>
-            <p className="cg-client-handler">Handled by: <strong data-testid="assigned-name">{c.assigned_name ?? "Unassigned"}</strong></p>
+            <p className="cg-client-handler"><StaffLabel en="Handled by:"/>{" "}<strong data-testid="assigned-name">{c.assigned_name ?? "Unassigned"}</strong></p>
           </div>
           <div className="cg-client-live-slot"><RealtimeRefresher clientId={c.id} /></div>
         </div>
 
-        {c.deleted_at && <div className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[.06] px-3 py-2 text-xs text-red-200">Deleted: {c.delete_reason}</div>}
+        {c.deleted_at && <div className="mt-3 rounded-xl border border-red-400/20 bg-red-400/[.06] px-3 py-2 text-xs text-red-200"><StaffLabel en="Deleted:"/>{" "}{c.delete_reason}</div>}
 
         <div className="cg-client-command-grid">
           <article className="cg-client-command-card">
             <div className="cg-command-card-icon" aria-hidden="true">◈</div>
             <div>
-              <p className="cg-command-card-label">Current Status</p>
+              <p className="cg-command-card-label"><StaffLabel en="Current Status"/></p>
               <div className="mt-2" data-testid="current-status"><StatusBadge status={c.current_status} /></div>
             </div>
           </article>
           <article className="cg-client-command-card cg-client-command-card-primary">
             <div className="cg-command-card-icon" aria-hidden="true">↗</div>
             <div className="min-w-0">
-              <p className="cg-command-card-label">Next Step</p>
-              <div className="mt-1 text-sm font-medium text-slate-100" data-testid="next-step"><InlineField clientId={c.id} field="next_step" label="Next step" value={c.next_step} /></div>
+              <p className="cg-command-card-label"><StaffLabel en="Next Step"/></p>
+              <div className="mt-1 text-sm font-medium text-slate-100" data-testid="next-step"><InlineField clientId={c.id} field="next_step" label={uiLabel("Next step")} value={c.next_step} /></div>
             </div>
           </article>
           {account && (
@@ -241,27 +246,28 @@ export function ClientFile({
       </section>
 
       <ClientWorkflowControl clientId={String(c.id)} status={String(c.current_status)} management={isManager} />
-      <div className="cg-profile-tabs" aria-label="Client file sections">
+      {!c.deleted_at && <div className="flex justify-end"><SendToManagerButton clientId={String(c.id)} /></div>}
+      <div className="cg-profile-tabs" aria-label={uiLabel("Client file sections")}>
         {tabs.map((item) => (
           <button key={item.id} type="button" className="staff-tab cg-profile-tab whitespace-nowrap" data-active={selectedTab === item.id} aria-busy={selectedTab === item.id && tab !== item.id} onClick={() => replaceTab(item.id)}>
-            {item.label}{item.count != null && <span className="ml-1.5 font-mono text-[9px] text-slate-600">{item.count}</span>}
+            {uiLabel(item.label)}{item.count != null && <span className="ml-1.5 font-mono text-[9px] text-slate-600">{item.count}</span>}
           </button>
         ))}
       </div>
 
-      <div className="cg-command-deck" data-testid="quick-actions" aria-label="Client command deck">
+      <div className="cg-command-deck" data-testid="quick-actions" aria-label={uiLabel("Client command deck")}>
         <div className="cg-command-track">
-          <span className="cg-command-context" aria-hidden="true">COMMAND</span>
-          <Link href={`/staff/client/${c.id}/edit`} aria-label="Edit Client" className="cg-command-button cg-command-primary">Correct Data</Link>
+          <span className="cg-command-context" aria-hidden="true"><StaffLabel en="COMMAND"/></span>
+          <Link href={`/staff/client/${c.id}/edit`} aria-label={uiLabel("Edit Client")} className="cg-command-button cg-command-primary"><StaffLabel en="Correct Data"/></Link>
           {orderedQuick.filter(([, , allowed]) => allowed).map(([p, label], index) => (
             <button key={p} type="button" disabled={!isMounted} onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
               data-promoted={index < promoted.length}
               className={`cg-command-button ${panel === p ? "cg-command-active" : ""}`}>
               <span className="cg-command-signal" aria-hidden="true" />
-              {label}
+              {uiLabel(label)}
             </button>
           ))}
-          <Link href={`/staff/client/${c.id}/status-preview`} className="cg-command-button" data-testid="open-status-page">Open Status Page</Link>
+          <Link href={`/staff/client/${c.id}/status-preview`} className="cg-command-button" data-testid="open-status-page"><StaffLabel en="Open Status Page"/></Link>
         </div>
       </div>
 
@@ -307,10 +313,10 @@ export function ClientFile({
             <section className="cg-status-stage" id="status-timeline" data-testid="section-status-timeline" aria-labelledby="status-timeline-title">
               <header className="cg-status-stage-header">
                 <div>
-                  <p className="cg-status-kicker">LIVING WORKFLOW</p>
-                  <h2 id="status-timeline-title">Status Timeline</h2>
+                  <p className="cg-status-kicker"><StaffLabel en="LIVING WORKFLOW"/></p>
+                  <h2 id="status-timeline-title"><StaffLabel en="Status Timeline"/></h2>
                 </div>
-                <span className="cg-status-live"><span aria-hidden="true" /> LIVE PATH</span>
+                <span className="cg-status-live"><span aria-hidden="true" />{" "}<StaffLabel en="LIVE PATH"/></span>
               </header>
               <div className="cg-status-stage-body">
                 <StatusTimeline created={{ at: c.created_at, status: createdStatus }} events={statusEvents} current={c.current_status} />
@@ -319,13 +325,13 @@ export function ClientFile({
             <section className="relative overflow-hidden rounded-2xl border border-amber-300/30 bg-gradient-to-br from-[#173d61] via-[#102b49] to-[#0b1b32] p-5 shadow-[0_18px_45px_rgba(0,0,0,.2)]" aria-labelledby="client-notifications-title">
               <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-amber-300/10 blur-3xl" />
               <div className="relative flex flex-wrap items-center justify-between gap-3">
-                <div><p className="text-[10px] font-bold tracking-[.18em] text-amber-300">CAREER GATE · بوابة التوظيف</p><h2 id="client-notifications-title" className="mt-2 text-lg font-bold text-white">Client Notifications / إشعارات العميل</h2><p className="mt-1 text-xs text-slate-300">Official client communication history</p></div>
-                <span className="rounded-full border border-sky-300/30 bg-sky-300/10 px-3 py-1 text-xs text-sky-100">{data.notifications.length} notifications</span>
+                <div><p className="text-[10px] font-bold tracking-[.18em] text-amber-300">CAREER GATE · بوابة التوظيف</p><h2 id="client-notifications-title" className="mt-2 text-lg font-bold text-white"><StaffLabel en="Client Notifications / إشعارات العميل"/></h2><p className="mt-1 text-xs text-slate-300"><StaffLabel en="Official client communication history"/></p></div>
+                <span className="rounded-full border border-sky-300/30 bg-sky-300/10 px-3 py-1 text-xs text-sky-100">{data.notifications.length}{" "}<StaffLabel en="notifications"/></span>
               </div>
               <div className="relative mt-4 grid gap-2 sm:grid-cols-2">
-                {data.notifications.length===0 ? <p className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">No notifications recorded / لا توجد إشعارات مسجلة</p> : data.notifications.slice(0,6).map((n,i)=><article key={String(n.id??i)} className="min-w-0 rounded-xl border border-white/10 bg-white/5 p-3 transition-all duration-300 hover:border-amber-300/40 hover:bg-white/10"><p className="break-words text-sm font-semibold text-white">{String(n.template??"Client update").replace(/_/g," ")}</p><div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300"><span>{String(n.channel??"notification")}</span><span className="rounded-full border border-white/20 px-2 py-1">{String(n.status??"unknown")}</span></div></article>)}
+                {data.notifications.length===0 ? <p className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300"><StaffLabel en="No notifications recorded / لا توجد إشعارات مسجلة"/></p> : data.notifications.slice(0,6).map((n,i)=><article key={String(n.id??i)} className="min-w-0 rounded-xl border border-white/10 bg-white/5 p-3 transition-all duration-300 hover:border-amber-300/40 hover:bg-white/10"><p className="break-words text-sm font-semibold text-white">{String(n.template??"Client update").replace(/_/g," ")}</p><div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300"><span>{String(n.channel??"notification")}</span><span className="rounded-full border border-white/20 px-2 py-1">{String(n.status??"unknown")}</span></div></article>)}
               </div>
-              <Link href={`/staff/client/${c.id}?tab=work`} className="relative mt-4 inline-flex rounded-xl border border-amber-300/40 px-4 py-2 text-xs font-semibold text-amber-200 transition-all duration-300 hover:bg-amber-300/10">View all notifications / عرض جميع الإشعارات</Link>
+              <Link href={`/staff/client/${c.id}?tab=work`} className="relative mt-4 inline-flex rounded-xl border border-amber-300/40 px-4 py-2 text-xs font-semibold text-amber-200 transition-all duration-300 hover:bg-amber-300/10"><StaffLabel en="View all notifications / عرض جميع الإشعارات"/></Link>
             </section>
             <EmploymentHistory rows={data.employment} editHref={`/staff/client/${c.id}/edit`} />
           </div>

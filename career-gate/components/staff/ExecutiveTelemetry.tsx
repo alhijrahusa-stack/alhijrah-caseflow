@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 
 type HealthState = "unknown" | "healthy" | "degraded" | "unavailable";
 type RealtimeState = "unknown" | "connecting" | "live" | "offline" | "NOT_CONFIGURED";
@@ -11,6 +12,7 @@ const SAMPLE_MS = 30_000;
 const TIMEOUT_MS = 6_000;
 
 export function ExecutiveTelemetry() {
+  const { t } = useStaffLanguage();
   const [health, setHealth] = useState<HealthState>("unknown");
   const [latency, setLatency] = useState<number | null>(null);
   const [realtime, setRealtime] = useState<RealtimeState>("unknown");
@@ -61,23 +63,23 @@ export function ExecutiveTelemetry() {
     };
   }, [sample]);
 
-  const healthLabel = health === "healthy" ? "SYSTEM" : health === "degraded" ? "DEGRADED" : health === "unavailable" ? "UNAVAILABLE" : "SYSTEM";
-  const realtimeLabel = realtime === "live" ? "LIVE" : realtime === "connecting" ? "CONNECTING" : realtime === "offline" ? "OFFLINE" : realtime === "NOT_CONFIGURED" ? "NOT CONFIGURED" : "REALTIME";
+  const healthLabel = health === "healthy" ? t("SYSTEM", "النظام") : health === "degraded" ? t("DEGRADED", "يحتاج مراجعة") : health === "unavailable" ? t("UNAVAILABLE", "غير متاح") : t("SYSTEM", "النظام");
+  const realtimeLabel = realtime === "live" ? t("LIVE", "مباشر") : realtime === "connecting" ? t("CONNECTING", "جارٍ الاتصال") : realtime === "offline" ? t("OFFLINE", "غير متصل") : realtime === "NOT_CONFIGURED" ? t("NOT CONFIGURED", "غير مهيّأ") : t("REALTIME", "مزامنة");
   const realtimeTone = realtime === "NOT_CONFIGURED" ? "unknown" : realtime;
 
   return (
-    <div className="cg-telemetry" aria-label="Application runtime status">
-      <span className="cg-telemetry-item" data-state={health} title={`System health: ${health}`}>
+    <div className="cg-telemetry" aria-label={t("Application runtime status", "حالة تشغيل النظام")}>
+      <span className="cg-telemetry-item" data-state={health} title={`${t("System health", "حالة النظام")}: ${health}`}>
         <span className="cg-telemetry-dot" aria-hidden="true" />
         <span>{healthLabel}</span>
       </span>
       <span className="cg-telemetry-separator" aria-hidden="true" />
-      <span className="cg-telemetry-item" data-state={realtimeTone} title={`Realtime: ${realtime}`}>
+      <span className="cg-telemetry-item" data-state={realtimeTone} title={`${t("Realtime", "التحديث اللحظي")}: ${realtime}`}>
         <span className="cg-telemetry-dot" aria-hidden="true" />
         <span>{realtimeLabel}</span>
       </span>
       <span className="cg-telemetry-separator" aria-hidden="true" />
-      <span className="cg-telemetry-item" data-state={latency == null ? "unknown" : latency > 1500 ? "degraded" : "healthy"} title="Client-observed application round trip">
+      <span className="cg-telemetry-item" data-state={latency == null ? "unknown" : latency > 1500 ? "degraded" : "healthy"} title={t("Client-observed application round trip", "زمن استجابة التطبيق المقاس من المتصفح")}>
         <span>APP {latency == null ? "—" : `${latency} ms`}</span>
       </span>
     </div>

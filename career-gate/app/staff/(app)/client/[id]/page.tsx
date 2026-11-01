@@ -1,3 +1,4 @@
+import { StaffText } from "@/components/staff/StaffLanguage";
 import { notFound, redirect } from "next/navigation";
 import { GateJobAccountCard, type GateJobAccountCardData } from "@/components/gate-job-account/GateJobAccountCard";
 import { ClientFile, type ClientFileData, type ClientPanel, type ClientTab } from "@/components/staff/ClientFile";
@@ -25,7 +26,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   if (!scope.ok) {
     if (scope.status === 403) {
       await securityEvent({ event: "access_denied", staffId: session.staff.id, route: `/staff/client/${id}`, detail: { client_id: id } });
-      return <div className="rounded-lg border border-red-900/40 bg-red-950/30 p-6" data-testid="forbidden"><h1 className="text-lg font-semibold text-red-300">403 — Not permitted</h1><p className="text-sm text-red-400">This client is not assigned to you.</p></div>;
+      return <div className="rounded-lg border border-red-900/40 bg-red-950/30 p-6" data-testid="forbidden"><h1 className="text-lg font-semibold text-red-300"><StaffText en="403 — Not permitted" ar="403 — لا تملك الصلاحية"/></h1><p className="text-sm text-red-400"><StaffText en="This client is not assigned to you." ar="هذا العميل غير مسند إليك."/></p></div>;
     }
     notFound();
   }

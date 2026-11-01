@@ -1,5 +1,12 @@
 "use client";
 
+import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
+import { arabicStaffLabel } from "@/lib/staff-ui-labels";
+
+
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
+
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAction } from "@/components/forms/useAction";
@@ -27,15 +34,17 @@ type Draft = {
 const DRAFT_KEY = "career-gate:new-client-draft";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const uiLabel = useStaffLabel();
   return (
     <section className="rounded-2xl border border-white/[.08] bg-white/[.028] shadow-[inset_0_1px_0_rgba(255,255,255,.025),0_18px_48px_rgba(0,0,0,.12)] backdrop-blur-xl">
-      <h2 className="border-b border-white/[.06] px-5 py-3 text-sm font-semibold text-slate-200">{title}</h2>
+      <h2 className="border-b border-white/[.06] px-5 py-3 text-sm font-semibold text-slate-200">{uiLabel(title)}</h2>
       <div className="space-y-4 p-5">{children}</div>
     </section>
   );
 }
 
 export function NewClientForm() {
+  const uiLabel = useStaffLabel();
   const router = useRouter();
   const { run, pending, error } = useAction({ successMessage: null });
   const { activeStaff, me } = useStaff();
@@ -123,36 +132,36 @@ export function NewClientForm() {
   return (
     <div className="grid gap-6 xl:grid-cols-2">
       <div className="space-y-6">
-        <Section title="Personal information"><ProfileFields section="personal" value={profile} onChange={setProfile} /></Section>
-        <Section title="Amazon history"><ProfileFields section="amazon" value={profile} onChange={setProfile} /></Section>
-        <Section title="Employment history"><ProfileFields section="employment" value={profile} onChange={setProfile} /></Section>
-        <Section title="Appointment availability"><ProfileFields section="availability" value={profile} onChange={setProfile} /></Section>
+        <Section title={uiLabel("Personal information")}><ProfileFields section="personal" value={profile} onChange={setProfile} /></Section>
+        <Section title={uiLabel("Amazon history")}><ProfileFields section="amazon" value={profile} onChange={setProfile} /></Section>
+        <Section title={uiLabel("Employment history")}><ProfileFields section="employment" value={profile} onChange={setProfile} /></Section>
+        <Section title={uiLabel("Appointment availability")}><ProfileFields section="availability" value={profile} onChange={setProfile} /></Section>
       </div>
       <div className="space-y-6">
-        <Section title="Job preferences">
+        <Section title={uiLabel("Job preferences")}>
           {options.length === 0 ? (
-            <p className="text-sm text-slate-500">The job catalog has no active options. Preferences can be added once data/job-catalog.json lists them.</p>
+            <p className="text-sm text-slate-500"><StaffLabel en="The job catalog has no active options. Preferences can be added once data/job-catalog.json lists them."/></p>
           ) : (
             <>
               <div className="grid gap-4 md:grid-cols-3">
-                <div data-testid="pref-city"><p className="label">City</p><CityStep value={prefs} onChange={setPrefs} /></div>
-                <div data-testid="pref-site"><p className="label">Site</p><SiteStep value={prefs} onChange={setPrefs} /></div>
-                <div data-testid="pref-job"><p className="label">Job</p><JobStep value={prefs} onChange={setPrefs} /></div>
+                <div data-testid="pref-city"><p className="label"><StaffLabel en="City"/></p><CityStep value={prefs} onChange={setPrefs} /></div>
+                <div data-testid="pref-site"><p className="label"><StaffLabel en="Site"/></p><SiteStep value={prefs} onChange={setPrefs} /></div>
+                <div data-testid="pref-job"><p className="label"><StaffLabel en="Job"/></p><JobStep value={prefs} onChange={setPrefs} /></div>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <div data-testid="pref-primary"><p className="label">Primary shifts</p><ShiftStep rank="primary" value={prefs} onChange={setPrefs} /></div>
-                <div data-testid="pref-backup"><p className="label">Backup shifts</p><ShiftStep rank="backup" value={prefs} onChange={setPrefs} /></div>
+                <div data-testid="pref-primary"><p className="label"><StaffLabel en="Primary shifts"/></p><ShiftStep rank="primary" value={prefs} onChange={setPrefs} /></div>
+                <div data-testid="pref-backup"><p className="label"><StaffLabel en="Backup shifts"/></p><ShiftStep rank="backup" value={prefs} onChange={setPrefs} /></div>
               </div>
               <PreferenceSummary value={prefs} />
             </>
           )}
         </Section>
-        <Section title="Documents">
+        <Section title={uiLabel("Documents")}>
           <div className="flex flex-wrap items-end gap-2">
-            <select aria-label="Document type" className="input w-56" value={docType} onChange={(e) => setDocType(e.target.value as typeof docType)}>
-              {DOC_TYPES.map((t) => <option key={t} value={t}>{DOC_LABELS[t]}</option>)}
-            </select>
-            <input aria-label="Choose file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="text-sm text-slate-400 file:mr-3 file:rounded-lg file:border file:border-white/[.08] file:bg-white/[.04] file:px-3 file:py-2 file:text-xs file:text-slate-300"
+            <RoyalSelect aria-label={uiLabel("Document type")} className="input w-56" value={docType} onChange={(e) => setDocType(e.target.value as typeof docType)}>
+              {DOC_TYPES.map((t) => <RoyalOption labelAr={arabicStaffLabel(DOC_LABELS[t])} key={t} value={t}>{DOC_LABELS[t]}</RoyalOption>)}
+            </RoyalSelect>
+            <input aria-label={uiLabel("Choose file")} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="text-sm text-slate-400 file:mr-3 file:rounded-lg file:border file:border-white/[.08] file:bg-white/[.04] file:px-3 file:py-2 file:text-xs file:text-slate-300"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = "";
@@ -165,40 +174,38 @@ export function NewClientForm() {
           {docs.map((d) => (
             <p key={d.id} className="flex justify-between text-sm text-slate-300">
               <span>{DOC_LABELS[d.doc_type]} — {d.file.name}</span>
-              <button type="button" className="text-red-400" onClick={() => setDocs((x) => x.filter((y) => y.id !== d.id))}>Remove</button>
+              <button type="button" className="text-red-400" onClick={() => setDocs((x) => x.filter((y) => y.id !== d.id))}><StaffLabel en="Remove"/></button>
             </p>
           ))}
         </Section>
-        <Section title="Status, next step and notes">
+        <Section title={uiLabel("Status, next step and notes")}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label" htmlFor="nc_status">Initial status</label>
-              <select id="nc_status" className="input" value={status}
+              <label className="label" htmlFor="nc_status"><StaffLabel en="Initial status"/></label>
+              <RoyalSelect id="nc_status" className="input" value={status}
                 onChange={(e) => {
                   const s = e.target.value as Status;
                   if (nextStep === DEFAULT_NEXT_STEP[status]) setNextStep(DEFAULT_NEXT_STEP[s]);
                   setStatus(s);
                 }}>
-                {ENTRY_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-              </select>
+                {ENTRY_STATUSES.map((s) => <RoyalOption labelAr={arabicStaffLabel(STATUS_LABELS[s])} key={s} value={s}>{STATUS_LABELS[s]}</RoyalOption>)}
+              </RoyalSelect>
             </div>
             <div>
-              <label className="label" htmlFor="nc_next">Next step</label>
+              <label className="label" htmlFor="nc_next"><StaffLabel en="Next step"/></label>
               <input id="nc_next" className="input" value={nextStep} onChange={(e) => setNextStep(e.target.value)} />
             </div>
           </div>
           <div>
-            <label className="label">Assigned staff (Handled By)</label>
+            <label className="label"><StaffLabel en="Assigned staff (Handled By)"/></label>
             <StaffPicker value={assigned} staff={activeStaff} onChange={setAssigned} disabled={pending} />
           </div>
           <div>
-            <label className="label" htmlFor="nc_note">Initial note</label>
+            <label className="label" htmlFor="nc_note"><StaffLabel en="Initial note"/></label>
             <textarea id="nc_note" rows={3} className="input" value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-            Client agreed to be contacted by phone, WhatsApp or email
-          </label>
+            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /><StaffLabel en="Client agreed to be contacted by phone, WhatsApp or email"/>{" "}</label>
           <p className="text-[10px] text-slate-600" aria-live="polite">
             {draftState === "restored" ? "Temporary browser draft restored." : draftState === "saved" ? "Temporary browser draft saved." : ""}
           </p>
@@ -206,7 +213,7 @@ export function NewClientForm() {
         {(error || fileError) && <p role="alert" className="text-sm text-red-400">{error ?? fileError}</p>}
         {progress && <p className="text-sm text-slate-400">{progress}</p>}
         <Button onClick={save} disabled={pending || Boolean(progress)} className="w-full">
-          {pending ? "Saving…" : "Create client file"}
+          {pending ? uiLabel("Saving…") : "Create client file"}
         </Button>
       </div>
     </div>

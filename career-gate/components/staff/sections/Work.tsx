@@ -1,5 +1,12 @@
 "use client";
 
+import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
+import { arabicStaffLabel } from "@/lib/staff-ui-labels";
+
+
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
+
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useHydrated } from "@/components/staff/useHydrated";
@@ -28,6 +35,7 @@ export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
   onClose: () => void;
   onSave: (values: RescheduleValues) => Promise<void>;
 }) {
+  const uiLabel = useStaffLabel();
   const mounted = useHydrated();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [when, setWhen] = useState(() => toLocalInput(appt.scheduled_at));
@@ -49,30 +57,28 @@ export function RescheduleModal({ appt, pending, error, onClose, onSave }: {
     <dialog
       ref={dialogRef}
       data-testid="reschedule-modal"
-      aria-label="Reschedule appointment"
+      aria-label={uiLabel("Reschedule appointment")}
       onCancel={(event) => { event.preventDefault(); if (!pending) onClose(); }}
       className="fixed inset-0 m-auto max-h-[90dvh] w-[min(96vw,38rem)] overflow-y-auto rounded-2xl border border-amber-300/35 bg-[#0b2238] p-4 text-slate-100 shadow-2xl backdrop:bg-slate-950/85 sm:p-5"
     >
       <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); void onSave({ when, location, notes, appointmentType, durationMinutes }); }}>
-        <h2 className="text-lg font-semibold text-amber-100">Manage appointment · إدارة الموعد</h2>
-        <p className="text-xs text-slate-300">Edit the real appointment in one save. Customer and resource notifications update automatically.</p>
-        <label className="text-xs text-slate-300">Appointment type
-          <input aria-label="Edit appointment type" required maxLength={100} className="input mt-1 w-full" value={appointmentType} onChange={e=>setAppointmentType(e.target.value)} />
+        <h2 className="text-lg font-semibold text-amber-100"><StaffLabel en="Manage appointment · إدارة الموعد"/></h2>
+        <p className="text-xs text-slate-300"><StaffLabel en="Edit the real appointment in one save. Customer and resource notifications update automatically."/></p>
+        <label className="text-xs text-slate-300"><StaffLabel en="Appointment type"/>{" "}<input aria-label={uiLabel("Edit appointment type")} required maxLength={100} className="input mt-1 w-full" value={appointmentType} onChange={e=>setAppointmentType(e.target.value)} />
         </label>
-        <label className="text-xs text-slate-300">Minutes
-          <input aria-label="Edit appointment duration" required type="number" min={5} max={480} className="input mt-1 w-full" value={durationMinutes} onChange={e=>setDurationMinutes(Number(e.target.value)||30)} />
+        <label className="text-xs text-slate-300"><StaffLabel en="Minutes"/>{" "}<input aria-label={uiLabel("Edit appointment duration")} required type="number" min={5} max={480} className="input mt-1 w-full" value={durationMinutes} onChange={e=>setDurationMinutes(Number(e.target.value)||30)} />
         </label>
         <QuickDateTime ariaLabel="New date and time" testId="input-new-date-time" autoFocus value={when} onChange={setWhen} required />
         <AmazonWarehousePicker value={location} onChange={setLocation} disabled={pending}/>
-        <input aria-label="Location" maxLength={300} className="input" placeholder="Office or Amazon interview location" value={location} onChange={(event) => setLocation(event.target.value)} />
-        {siteForLocation(location) && <a href={warehouseMapUrl(siteForLocation(location)!.address)} rel="noopener noreferrer" target="_blank" className="text-xs text-amber-200 underline">Open Google Maps</a>}
-        <textarea aria-label="Notes" maxLength={2000} rows={2} className="input" placeholder="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} />
+        <input aria-label={uiLabel("Location")} maxLength={300} className="input" placeholder={uiLabel("Office or Amazon interview location")} value={location} onChange={(event) => setLocation(event.target.value)} />
+        {siteForLocation(location) && <a href={warehouseMapUrl(siteForLocation(location)!.address)} rel="noopener noreferrer" target="_blank" className="text-xs text-amber-200 underline"><StaffLabel en="Open Google Maps"/></a>}
+        <textarea aria-label={uiLabel("Notes")} maxLength={2000} rows={2} className="input" placeholder={uiLabel("Notes")} value={notes} onChange={(event) => setNotes(event.target.value)} />
         <p className="rounded-lg border border-amber-200/20 bg-[#112c45] p-3 text-xs text-slate-200" dir="rtl">يرجى الوصول قبل الموعد بنصف ساعة وإحضار الوثائق الأصلية للمقابلة. نتمنى لكم التوفيق.</p>
         {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
         <div className="flex flex-wrap justify-end gap-2">
-          <SmallBtn aria-label="Cancel reschedule" disabled={pending} onClick={onClose}>Cancel</SmallBtn>
-          <SmallBtn type="submit" aria-label="Save changes" data-testid="button-confirm-reschedule" disabled={pending}>
-            {pending ? "Saving..." : "Save changes"}
+          <SmallBtn aria-label={uiLabel("Cancel reschedule")} disabled={pending} onClick={onClose}><StaffLabel en="Cancel"/></SmallBtn>
+          <SmallBtn type="submit" aria-label={uiLabel("Save changes")} data-testid="button-confirm-reschedule" disabled={pending}>
+            {pending ? "Saving..." : uiLabel("Save changes")}
           </SmallBtn>
         </div>
       </form>
@@ -86,6 +92,7 @@ export function AppointmentRowActions({ appt, onReschedule, rescheduling }: {
   onReschedule: (appointmentId: string) => void;
   rescheduling: boolean;
 }) {
+  const uiLabel = useStaffLabel();
   const { isManager } = useStaff();
   const a = useRowAction("Appointment decision saved");
   const isMounted = useHydrated();
@@ -99,37 +106,37 @@ export function AppointmentRowActions({ appt, onReschedule, rescheduling }: {
     a.go({ action: "appointment_decision", appointment_id: appt.id, decision, note: decisionNote || null });
   return (
     <div className="space-y-3 whitespace-normal">
-      {appt.outcome && <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">Decision recorded: {String(appt.outcome).replaceAll("_", " ")}</p>}
+      {appt.outcome && <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300"><StaffLabel en="Decision recorded:"/>{" "}{String(appt.outcome).replaceAll("_", " ")}</p>}
       {pendingInterviewDecision && <>
-        <p role="status" className="text-xs font-semibold text-amber-200">Attendance recorded · Interview decision pending</p>
+        <p role="status" className="text-xs font-semibold text-amber-200"><StaffLabel en="Attendance recorded · Interview decision pending"/></p>
         <div className="flex flex-wrap gap-2">
-          <SmallBtn disabled={a.pending} onClick={() => decide("pass")}>Pass / نجح</SmallBtn>
-          <SmallBtn disabled={a.pending} onClick={() => decide("fail")}>Fail / رسب</SmallBtn>
+          <SmallBtn disabled={a.pending} onClick={() => decide("pass")}><StaffLabel en="Pass / نجح"/></SmallBtn>
+          <SmallBtn disabled={a.pending} onClick={() => decide("fail")}><StaffLabel en="Fail / رسب"/></SmallBtn>
         </div>
-        <input className="input w-full" aria-label="Interview decision note" placeholder="Decision evidence or note" value={decisionNote} maxLength={1000} onChange={(e) => setDecisionNote(e.target.value)} />
+        <input className="input w-full" aria-label={uiLabel("Interview decision note")} placeholder={uiLabel("Decision evidence or note")} value={decisionNote} maxLength={1000} onChange={(e) => setDecisionNote(e.target.value)} />
       </>}
       {!closed && <>
         <div className="flex flex-wrap gap-2">
-          {appt.status !== "confirmed" && <SmallBtn aria-label="Confirm" disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "confirmed" })}>Confirm booking</SmallBtn>}
+          {appt.status !== "confirmed" && <SmallBtn aria-label={uiLabel("Confirm")} disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "confirmed" })}><StaffLabel en="Confirm booking"/></SmallBtn>}
           {interview ? <>
-            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "record_appointment_attendance", appointment_id: appt.id })}>Mark attended / تسجيل الحضور</SmallBtn>
-            <SmallBtn disabled={a.pending} onClick={() => decide("missed")}>Missed / تخلف</SmallBtn>
+            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "record_appointment_attendance", appointment_id: appt.id })}><StaffLabel en="Mark attended / تسجيل الحضور"/></SmallBtn>
+            <SmallBtn disabled={a.pending} onClick={() => decide("missed")}><StaffLabel en="Missed / تخلف"/></SmallBtn>
           </> : <>
-            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "attended" })}>Attended / حضر</SmallBtn>
-            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "missed" })}>Missed / تخلف</SmallBtn>
+            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "attended" })}><StaffLabel en="Attended / حضر"/></SmallBtn>
+            <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "missed" })}><StaffLabel en="Missed / تخلف"/></SmallBtn>
           </>}
-          <SmallBtn aria-label="Edit / Reschedule" aria-expanded={rescheduling} disabled={!isMounted || a.pending} onClick={() => onReschedule(String(appt.id))}>Reschedule / إعادة جدولة</SmallBtn>
+          <SmallBtn aria-label={uiLabel("Edit / Reschedule")} aria-expanded={rescheduling} disabled={!isMounted || a.pending} onClick={() => onReschedule(String(appt.id))}><StaffLabel en="Reschedule / إعادة جدولة"/></SmallBtn>
           {interview
-            ? <SmallBtn disabled={a.pending} onClick={() => setCancelling((v) => !v)}>Canceled / إلغاء</SmallBtn>
-            : <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "cancelled" })}>Cancel / إلغاء</SmallBtn>}
+            ? <SmallBtn disabled={a.pending} onClick={() => setCancelling((v) => !v)}><StaffLabel en="Canceled / إلغاء"/></SmallBtn>
+            : <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_appointment", appointment_id: appt.id, status: "cancelled" })}><StaffLabel en="Cancel / إلغاء"/></SmallBtn>}
         </div>
-        {interview && <input className="input w-full" aria-label="Interview decision note" placeholder="Decision evidence or note" value={decisionNote} maxLength={1000} onChange={(e) => setDecisionNote(e.target.value)} />}
+        {interview && <input className="input w-full" aria-label={uiLabel("Interview decision note")} placeholder={uiLabel("Decision evidence or note")} value={decisionNote} maxLength={1000} onChange={(e) => setDecisionNote(e.target.value)} />}
         {cancelling && <div className="flex flex-wrap gap-2 rounded-xl border border-amber-300/20 bg-white/5 p-3">
-          <SmallBtn disabled={a.pending} onClick={() => decide("cancelled_interested")}>Interested — return to Job Ready</SmallBtn>
-          <SmallBtn disabled={a.pending} onClick={() => decide("cancelled_not_interested")}>Not interested — close file</SmallBtn>
+          <SmallBtn disabled={a.pending} onClick={() => decide("cancelled_interested")}><StaffLabel en="Interested — return to Job Ready"/></SmallBtn>
+          <SmallBtn disabled={a.pending} onClick={() => decide("cancelled_not_interested")}><StaffLabel en="Not interested — close file"/></SmallBtn>
         </div>}
       </>}
-      {a.pending && <p role="status" className="text-xs text-amber-200">Saving to Career Gate...</p>}
+      {a.pending && <p role="status" className="text-xs text-amber-200"><StaffLabel en="Saving to Career Gate..."/></p>}
       {a.error && <p role="alert" className="text-xs text-red-300">{a.error}</p>}
     </div>
   );
@@ -141,20 +148,21 @@ export function Appointments({ appts, onAdd, onReschedule, reschedulingId }: {
   onReschedule: (appointmentId: string) => void;
   reschedulingId: string | null;
 }) {
+  const uiLabel = useStaffLabel();
   return (
-    <Card title="Appointments" id="appointments" actions={onAdd && <SmallBtn onClick={onAdd}>+ Add appointment</SmallBtn>}>
+    <Card title={uiLabel("Appointments")} id="appointments" actions={onAdd && <SmallBtn onClick={onAdd}><StaffLabel en="+ Add appointment"/></SmallBtn>}>
       {appts.length === 0 ? (
-        <EmptyState title="No appointments" text="Book from the office calendar's next free slots." action={onAdd ? <SmallBtn onClick={onAdd}>+ Add appointment</SmallBtn> : undefined} />
+        <EmptyState title={uiLabel("No appointments")} text={uiLabel("Book from the office calendar's next free slots.")} action={onAdd ? <SmallBtn onClick={onAdd}><StaffLabel en="+ Add appointment"/></SmallBtn> : undefined} />
       ) : (
         <div className="overflow-x-auto">
           <table className="table">
-            <thead><tr><th>When</th><th>Type</th><th>With</th><th>Location</th><th>Status</th><th /></tr></thead>
+            <thead><tr><th>When</th><th><StaffLabel en="Type"/></th><th><StaffLabel en="With"/></th><th><StaffLabel en="Location"/></th><th>Status</th><th /></tr></thead>
             <tbody>
               {appts.map((x) => (
                 <tr id={`appointment-${String(x.id)}`} key={x.id} data-testid="appointment-row" className="scroll-mt-28">
-                  <td className="whitespace-nowrap">{dateTime(x.scheduled_at)}<span className="block text-xs text-slate-500">until {dateTime(x.ends_at).split(", ").pop()} · {x.timezone}</span></td>
+                  <td className="whitespace-nowrap">{dateTime(x.scheduled_at)}<span className="block text-xs text-slate-500"><StaffLabel en="until"/>{" "}{dateTime(x.ends_at).split(", ").pop()} · {x.timezone}</span></td>
                   <td>{x.appointment_type}{x.notes && <span className="block text-xs text-slate-500">{x.notes}</span>}</td>
-                  <td>{x.resource_key === "office" ? "Office" : "Staff member"}</td>
+                  <td>{x.resource_key === "office" ? uiLabel("Office") : "Staff member"}</td>
                   <td>{x.location ?? "—"}</td>
                   <td data-testid="appointment-status">{x.status}</td>
                   <td><AppointmentRowActions appt={x} onReschedule={onReschedule} rescheduling={reschedulingId === String(x.id)} /></td>
@@ -164,16 +172,17 @@ export function Appointments({ appts, onAdd, onReschedule, reschedulingId }: {
           </table>
         </div>
       )}
-      <p className="mt-2 text-xs text-slate-500">Source of truth: Career Gate internal calendar. No external calendar is connected.</p>
+      <p className="mt-2 text-xs text-slate-500"><StaffLabel en="Source of truth: Career Gate internal calendar. No external calendar is connected."/></p>
     </Card>
   );
 }
 
 export function Notes({ notes, onAdd }: { notes: Row[]; onAdd: () => void }) {
+  const uiLabel = useStaffLabel();
   return (
-    <Card title="Notes" id="notes" actions={<SmallBtn onClick={onAdd}>+ Add note</SmallBtn>}>
+    <Card title={uiLabel("Notes")} id="notes" actions={<SmallBtn onClick={onAdd}><StaffLabel en="+ Add note"/></SmallBtn>}>
       {notes.length === 0 ? (
-        <EmptyState title="No notes yet" text="Add the first note for this client." action={<SmallBtn onClick={onAdd}>+ Add note</SmallBtn>} />
+        <EmptyState title={uiLabel("No notes yet")} text={uiLabel("Add the first note for this client.")} action={<SmallBtn onClick={onAdd}><StaffLabel en="+ Add note"/></SmallBtn>} />
       ) : (
         <ul className="space-y-3">
           {notes.map((n) => (
@@ -193,24 +202,25 @@ export function TaskRowActions({ task }: { task: Row }) {
   const open = task.status === "pending" || task.status === "in_progress";
   return (
     <div className="space-x-1 whitespace-nowrap">
-      {task.status === "pending" && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_task", task_id: task.id, status: "in_progress" })}>Start</SmallBtn>}
-      {open && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "complete_task", task_id: task.id })}>Complete</SmallBtn>}
-      {open && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_task", task_id: task.id, status: "cancelled" })}>Cancel</SmallBtn>}
-      {!open && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_task", task_id: task.id, status: "pending" })}>Reopen</SmallBtn>}
+      {task.status === "pending" && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_task", task_id: task.id, status: "in_progress" })}><StaffLabel en="Start"/></SmallBtn>}
+      {open && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "complete_task", task_id: task.id })}><StaffLabel en="Complete"/></SmallBtn>}
+      {open && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_task", task_id: task.id, status: "cancelled" })}><StaffLabel en="Cancel"/></SmallBtn>}
+      {!open && <SmallBtn disabled={a.pending} onClick={() => a.go({ action: "update_task", task_id: task.id, status: "pending" })}><StaffLabel en="Reopen"/></SmallBtn>}
       {a.error && <p role="alert" className="whitespace-normal text-xs text-red-600">{a.error}</p>}
     </div>
   );
 }
 
 export function Tasks({ tasks, onAdd }: { tasks: Row[]; onAdd: () => void }) {
+  const uiLabel = useStaffLabel();
   return (
-    <Card title="Tasks" id="tasks" actions={<SmallBtn onClick={onAdd}>+ Add task</SmallBtn>}>
+    <Card title={uiLabel("Tasks")} id="tasks" actions={<SmallBtn onClick={onAdd}><StaffLabel en="+ Add task"/></SmallBtn>}>
       {tasks.length === 0 ? (
-        <EmptyState title="No tasks" text="Track the next piece of work for this client." action={<SmallBtn onClick={onAdd}>+ Add task</SmallBtn>} />
+        <EmptyState title={uiLabel("No tasks")} text={uiLabel("Track the next piece of work for this client.")} action={<SmallBtn onClick={onAdd}><StaffLabel en="+ Add task"/></SmallBtn>} />
       ) : (
         <div className="overflow-x-auto">
           <table className="table">
-            <thead><tr><th>Task</th><th>Assigned</th><th>Due</th><th>Status</th><th /></tr></thead>
+            <thead><tr><th><StaffLabel en="Task"/></th><th><StaffLabel en="Assigned"/></th><th><StaffLabel en="Due"/></th><th>Status</th><th /></tr></thead>
             <tbody>
               {tasks.map((t) => (
                 <tr id={`task-${String(t.id)}`} key={t.id} data-testid="task-row" className="scroll-mt-28">
@@ -230,16 +240,17 @@ export function Tasks({ tasks, onAdd }: { tasks: Row[]; onAdd: () => void }) {
 }
 
 export function Contacts({ contacts, onAdd }: { contacts: Row[]; onAdd: () => void }) {
+  const uiLabel = useStaffLabel();
   return (
-    <Card title="Contact History" id="contacts" actions={<SmallBtn onClick={onAdd}>Mark contacted</SmallBtn>}>
+    <Card title={uiLabel("Contact History")} id="contacts" actions={<SmallBtn onClick={onAdd}><StaffLabel en="Mark contacted"/></SmallBtn>}>
       {contacts.length === 0 ? (
-        <EmptyState title="No contacts logged" text="Record each call, message or visit after it happens." action={<SmallBtn onClick={onAdd}>Mark contacted</SmallBtn>} />
+        <EmptyState title={uiLabel("No contacts logged")} text={uiLabel("Record each call, message or visit after it happens.")} action={<SmallBtn onClick={onAdd}><StaffLabel en="Mark contacted"/></SmallBtn>} />
       ) : (
         <ul className="space-y-3">
           {contacts.map((k) => (
             <li key={k.id} data-testid="contact-row">
-              <p><span className="font-medium">{CONTACT_LABELS[k.method as keyof typeof CONTACT_LABELS]}</span> — {k.result}</p>
-              {k.next_action && <p className="text-slate-600">Next: {k.next_action}</p>}
+              <p><span className="font-medium">{uiLabel(CONTACT_LABELS[k.method as keyof typeof CONTACT_LABELS])}</span> — {k.result}</p>
+              {k.next_action && <p className="text-slate-600"><StaffLabel en="Next:"/>{" "}{k.next_action}</p>}
               <p className="text-xs text-slate-500">{k.staff_name} · {dateTime(k.created_at)}{k.followup_date ? ` · follow up ${dateOnly(k.followup_date)}` : ""}</p>
             </li>
           ))}
@@ -250,25 +261,27 @@ export function Contacts({ contacts, onAdd }: { contacts: Row[]; onAdd: () => vo
 }
 
 export function FollowupRowActions({ f }: { f: Row }) {
+  const uiLabel = useStaffLabel();
   const a = useRowAction("Follow-up completed");
   const [note, setNote] = useState("");
   if (f.status !== "open") return null;
   return (
     <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); a.go({ action: "complete_followup", followup_id: f.id, completion_note: note || null }); }}>
-      <input aria-label="Completion note" className="input py-1 text-xs" placeholder="Outcome (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-      <SmallBtn type="submit" disabled={a.pending}>Complete</SmallBtn>
+      <input aria-label={uiLabel("Completion note")} className="input py-1 text-xs" placeholder={uiLabel("Outcome (optional)")} value={note} onChange={(e) => setNote(e.target.value)} />
+      <SmallBtn type="submit" disabled={a.pending}><StaffLabel en="Complete"/></SmallBtn>
     </form>
   );
 }
 
 export function Followups({ followups, onAdd }: { followups: Row[]; onAdd: () => void }) {
+  const uiLabel = useStaffLabel();
   return (
-    <Card title="Follow-Ups" id="followups" actions={<SmallBtn onClick={onAdd}>+ Add follow-up</SmallBtn>}>
+    <Card title={uiLabel("Follow-Ups")} id="followups" actions={<SmallBtn onClick={onAdd}><StaffLabel en="+ Add follow-up"/></SmallBtn>}>
       {followups.length === 0 ? (
-        <EmptyState title="No follow-ups" text="Schedule the next check-in with this client." action={<SmallBtn onClick={onAdd}>+ Add follow-up</SmallBtn>} />
+        <EmptyState title={uiLabel("No follow-ups")} text={uiLabel("Schedule the next check-in with this client.")} action={<SmallBtn onClick={onAdd}><StaffLabel en="+ Add follow-up"/></SmallBtn>} />
       ) : (
         <table className="table">
-          <thead><tr><th>Due</th><th>Reason</th><th>Status</th><th /></tr></thead>
+          <thead><tr><th><StaffLabel en="Due"/></th><th><StaffLabel en="Reason"/></th><th>Status</th><th /></tr></thead>
           <tbody>
             {followups.map((f) => (
               <tr id={`followup-${String(f.id)}`} key={f.id} data-testid="followup-row" className="scroll-mt-28">
@@ -286,6 +299,7 @@ export function Followups({ followups, onAdd }: { followups: Row[]; onAdd: () =>
 }
 
 function PostHireRow({ clientId, item, row, startDate, canEdit }: { clientId: string; item: (typeof POST_HIRE_ITEMS)[number]; row?: Row; startDate: string | null; canEdit: boolean }) {
+  const uiLabel = useStaffLabel();
   const a = useRowAction(`${POST_HIRE_LABELS[item]} saved`);
   const [status, setStatus] = useState(row?.status ?? "not_started");
   const [note, setNote] = useState(row?.note ?? "");
@@ -296,16 +310,16 @@ function PostHireRow({ clientId, item, row, startDate, canEdit }: { clientId: st
     <article className="cg-workflow-pod" data-state={status} data-testid={`post-hire-${item}`}>
       <div className="cg-workflow-pod-head">
         <div className="min-w-0">
-          <p className="cg-workflow-pod-kicker">{complete ? "COMPLETE" : status === "not_started" ? "NOT STARTED" : "IN PROGRESS"}</p>
-          <h3 className="cg-workflow-pod-title">{POST_HIRE_LABELS[item]}</h3>
+          <p className="cg-workflow-pod-kicker">{complete ? uiLabel("COMPLETE") : status === "not_started" ? uiLabel("NOT STARTED") : uiLabel("IN PROGRESS")}</p>
+          <h3 className="cg-workflow-pod-title">{uiLabel(POST_HIRE_LABELS[item])}</h3>
         </div>
-        <select aria-label={`${POST_HIRE_LABELS[item]} status`} className="cg-workflow-status" value={status} disabled={!canEdit} onChange={(e) => setStatus(e.target.value)}>
-          {POST_HIRE_STATUSES.map((s) => <option key={s} value={s}>{POST_HIRE_STATUS_LABELS[s]}</option>)}
-        </select>
+        <RoyalSelect aria-label={`${uiLabel(POST_HIRE_LABELS[item])} ${uiLabel("status")}`} className="cg-workflow-status" value={status} disabled={!canEdit} onChange={(e) => setStatus(e.target.value)}>
+          {POST_HIRE_STATUSES.map((s) => <RoyalOption labelAr={arabicStaffLabel(POST_HIRE_STATUS_LABELS[s])} key={s} value={s}>{POST_HIRE_STATUS_LABELS[s]}</RoyalOption>)}
+        </RoyalSelect>
       </div>
       <div className="cg-workflow-pod-body">
         {item === "start_date" && <QuickDate ariaLabel="Start date" value={date} onChange={setDate} disabled={!canEdit} />}
-        <input aria-label={`${POST_HIRE_LABELS[item]} note`} className="cg-workflow-note" placeholder="What is confirmed, by whom" value={note} disabled={!canEdit} onChange={(e) => setNote(e.target.value)} />
+        <input aria-label={`${uiLabel(POST_HIRE_LABELS[item])} ${uiLabel("note")}`} className="cg-workflow-note" placeholder={uiLabel("What is confirmed, by whom")} value={note} disabled={!canEdit} onChange={(e) => setNote(e.target.value)} />
       </div>
       <div className="cg-workflow-pod-foot">
         <span>{row ? `${row.staff_name ?? "—"} · ${dateTime(row.updated_at)}` : "No update recorded"}</span>
@@ -313,7 +327,7 @@ function PostHireRow({ clientId, item, row, startDate, canEdit }: { clientId: st
           <button className="cg-workflow-save" type="button" disabled={a.pending} onClick={() => a.go({
             action: "update_post_hire", client_id: clientId, item, status, note: note || null,
             ...(item === "start_date" ? { start_date: date || null } : {}),
-          })}>{a.pending ? "Saving…" : "Save"}</button>
+          })}>{a.pending ? uiLabel("Saving…") : uiLabel("Save")}</button>
         )}
       </div>
     </article>
@@ -321,6 +335,7 @@ function PostHireRow({ clientId, item, row, startDate, canEdit }: { clientId: st
 }
 
 export function PostHire({ clientId, items, startDate, embedded = false }: { clientId: string; items: Row[]; startDate: string | null; embedded?: boolean }) {
+  const uiLabel = useStaffLabel();
   const { isManager } = useStaff();
   const byItem = new Map(items.map((r) => [r.item, r]));
   const completed = POST_HIRE_ITEMS.filter((item) => byItem.get(item)?.status === "completed").length;
@@ -329,11 +344,11 @@ export function PostHire({ clientId, items, startDate, embedded = false }: { cli
     <div className="cg-workflow-matrix">
       <div className="cg-workflow-telemetry">
         <div>
-          <p className="cg-workflow-kicker">EXECUTIVE WORKFLOW MATRIX</p>
-          <p className="mt-1 text-xs text-slate-400">Record only verified confirmations. Nothing is inferred.</p>
+          <p className="cg-workflow-kicker"><StaffLabel en="EXECUTIVE WORKFLOW MATRIX"/></p>
+          <p className="mt-1 text-xs text-slate-400"><StaffLabel en="Record only verified confirmations. Nothing is inferred."/></p>
         </div>
         <div className="cg-workflow-progress">
-          <div className="cg-workflow-progress-copy"><strong>{percent}%</strong><span>{completed}/{POST_HIRE_ITEMS.length} complete</span></div>
+          <div className="cg-workflow-progress-copy"><strong>{percent}%</strong><span>{completed}/{POST_HIRE_ITEMS.length}{" "}<StaffLabel en="complete"/></span></div>
           <div className="cg-workflow-progress-track" aria-label={`${percent}% complete`}><span style={{ width: `${percent}%` }} /></div>
         </div>
       </div>
@@ -345,5 +360,5 @@ export function PostHire({ clientId, items, startDate, embedded = false }: { cli
     </div>
   );
   if (embedded) return <div id="post-hire">{content}</div>;
-  return <Card title="Post-Hire Tasks" id="post-hire">{content}</Card>;
+  return <Card title={uiLabel("Post-Hire Tasks")} id="post-hire">{content}</Card>;
 }

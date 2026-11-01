@@ -1,15 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { RECOVERY_ONLY_RESOURCES, SURFACES } from "@/components/staff/realtime/surfaces";
+import { MANAGER_INBOX_SURFACE, RECOVERY_ONLY_RESOURCES, SURFACES } from "@/components/staff/realtime/surfaces";
 import { MUTATION_RESOURCES, RESOURCE_PAYLOADS, RESOURCES } from "@/lib/realtime-resources";
 
 describe("surface ownership", () => {
+  it("owns the private manager aggregate through its independent endpoint payload", () => {
+    expect(MANAGER_INBOX_SURFACE.resources).toEqual(["manager_inbox"]);
+    expect(RESOURCE_PAYLOADS.manager_inbox).toEqual([]);
+    expect(MANAGER_INBOX_SURFACE.endpoint).toBe("/api/staff/manager-inbox");
+    expect(MANAGER_INBOX_SURFACE.aggregatePayloads?.manager_inbox).toEqual(["inbox"]);
+    expect(MANAGER_INBOX_SURFACE.payloads).toContain("inbox");
+  });
   it("only claims a resource whose payloads the surface renders", () => {
     // The regression this guards: a surface that claims a resource it cannot
     // render accepts the change, suppresses the fallback, and leaves the panel
     // the operator is looking at stale.
     for (const [name, surface] of Object.entries(SURFACES)) {
       for (const resource of surface.resources) {
-        for (const payload of RESOURCE_PAYLOADS[resource]) {
+        const aggregatePayloads = surface.aggregatePayloads?.[resource];
+        if (aggregatePayloads) expect(surface.endpoint, `${name} aggregate must have its own endpoint`).toMatch(/^\/api\/staff\//);
+        for (const payload of aggregatePayloads ?? RESOURCE_PAYLOADS[resource]) {
           expect(surface.payloads, `${name} claims ${resource} but does not render ${payload}`).toContain(payload);
         }
       }

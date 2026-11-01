@@ -42,6 +42,20 @@ jobs:
         run: ./tests/run-integration.sh
       - run: npx playwright install --with-deps chromium
       - name: Staff upgrade end-to-end acceptance
-        run: ./e2e/run.sh e2e/executive-upgrade.spec.ts e2e/client-registry-navigation.spec.ts
+        run: >-
+          ./e2e/run.sh
+          e2e/executive-upgrade.spec.ts e2e/client-registry-navigation.spec.ts
+          e2e/client-lifecycle-routing.spec.ts e2e/field-ux.spec.ts e2e/staff-intelligence.spec.ts
+          e2e/royal-dropdown.spec.ts e2e/staff-language.spec.ts
+          e2e/manager-inbox.spec.ts e2e/registry-experience.spec.ts
+          e2e/operational-assistant.spec.ts e2e/royal-routing-guards.spec.ts
+          e2e/smart-ui.spec.ts e2e/smart-client-import.spec.ts e2e/staff.spec.ts
         env:
           PW_CHROMIUM: ""
+      - name: Preserve browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staff-upgrade-browser-evidence
+          path: career-gate/test-results/
+          retention-days: 3

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DigitalHandshake, useDigitalHandshake } from "@/components/staff/smart/DigitalHandshake";
 import {
@@ -1003,6 +1004,7 @@ function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, 
   verification: Record<string, unknown> | null;
   hasSource: boolean;
 }) {
+  const { t } = useStaffLanguage();
   const reading = readings.find((item) => item.field.key === field.key);
   const text = smartFieldText(value).trim();
   const serverEntry = serverDraft ? serverEvidence.find((item) => item.field_key === field.key) : undefined;
@@ -1036,7 +1038,7 @@ function IntelligenceRow({ field, value, serverDraft, serverEvidence, readings, 
         key={text}
         data-value="1"
         className={`min-w-0 break-words font-mono text-[15px] leading-6 motion-safe:animate-[cg-field-resolve_180ms_ease-out] ${field.editor === "notes" ? "whitespace-pre-line" : ""} ${text ? "text-slate-50" : "text-slate-500"}`}
-      >{text || "—"}</dd>
+      >{text || t("Not supplied", "لم يتم توفيره")}</dd>
       <dd className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span data-state="1" className={`font-mono text-[11px] font-semibold ${smartStateClass(state)}`}>{state}</span>
         <span aria-hidden="true" className="text-slate-700">·</span>

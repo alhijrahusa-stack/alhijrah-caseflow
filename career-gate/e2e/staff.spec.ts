@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { accessToken, db, FIXTURE_CATALOG, intakeBody, PNG, RUN, signIn, STAFF, staffAction, submitIntake } from "./helpers";
+import { dropdownChoiceTexts, selectChoice, accessToken, db, FIXTURE_CATALOG, intakeBody, PNG, RUN, signIn, STAFF, staffAction, submitIntake } from "./helpers";
 
 const tomorrowLocal = (additionalDays = 0) => {
   const d = new Date(Date.now() + (36 + 24 * additionalDays) * 3600 * 1000);
@@ -122,14 +122,14 @@ test.describe.serial("office workflow", () => {
   test("edit client and assign staff", async () => {
     await page.getByRole("link", { name: "Edit Client", exact: true }).click();
     await page.locator('input[name="via_agency"][value="yes"]').check();
-    await page.getByLabel("English proficiency", { exact: true }).selectOption("GOOD");
+    await selectChoice(page.getByLabel("English proficiency", { exact: true }), "GOOD");
     await page.getByRole("button", { name: "Save changes" }).click();
     await page.waitForURL(`**/staff/client/${clientId}`);
     await expect(page.getByTestId("section-amazon-history")).toContainText("Via third-party agency");
     await expect(page.getByTestId("inline-english_proficiency")).toHaveText(/GOOD/);
     expect((await db()`select english_proficiency from clients where id=${clientId}`)[0].english_proficiency).toBe("GOOD");
     await page.getByTestId("inline-english_proficiency").click();
-    await page.getByTestId("inline-edit-english_proficiency").getByLabel("English proficiency", { exact: true }).selectOption("FAIR");
+    await selectChoice(page.getByTestId("inline-edit-english_proficiency").getByLabel("English proficiency", { exact: true }), "FAIR");
     await page.getByTestId("inline-edit-english_proficiency").getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.getByTestId("inline-english_proficiency")).toContainText("FAIR");
     await page.reload();
@@ -146,7 +146,7 @@ test.describe.serial("office workflow", () => {
   test("documents: upload, private signed access, extraction NOT_CONFIGURED, human review", async () => {
     await page.getByTestId("quick-actions").getByRole("button", { name: "Add Document" }).click();
     await page.getByTestId("form-document").getByLabel("Document file").setInputFiles({ name: "work-auth.png", mimeType: "image/png", buffer: PNG });
-    await page.getByTestId("form-document").getByLabel("Type", { exact: true }).selectOption("work_authorization");
+    await selectChoice(page.getByTestId("form-document").getByLabel("Type", { exact: true }), "work_authorization");
     await page.getByTestId("form-document").getByRole("button", { name: "Upload" }).click();
     await expect(page.getByTestId("document-row")).toHaveCount(1);
     await expect.poll(async () => (await db()`select status from documents where client_id = ${clientId}`)[0]?.status, { timeout: 15_000 }).toBe("needs_review");
@@ -154,10 +154,22 @@ test.describe.serial("office workflow", () => {
     await expect(page.getByTestId("extraction-state")).toContainText("NOT_CONFIGURED");
     await expect(page.getByTestId("document-row").locator("img")).toHaveJSProperty("complete", true);
 
-    const [popup] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("document-row").getByRole("button", { name: "View" }).click()]);
-    await popup.waitForURL(/\/storage\/v1\/object\/sign\/documents\/.+token=/);
-    expect(await popup.evaluate(() => document.contentType)).toBe("image/png");
-    await popup.close();
+    const contextUrl = page.url();
+    const pageCount = page.context().pages().length;
+    const viewButton = page.getByTestId("document-row").getByRole("button", { name: "View", exact: true });
+    await viewButton.click();
+    const preview = page.getByRole("dialog", { name: "Document preview", exact: true });
+    await expect(preview).toBeVisible();
+    await expect(preview.locator("img")).toHaveAttribute("src", /\/storage\/v1\/object\/sign\/documents\/.+token=/);
+    await expect(preview.locator("img")).toHaveJSProperty("complete", true);
+    await expect.poll(() => preview.locator("img").evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    await preview.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await expect(preview.locator("output")).toHaveText("125%");
+    expect(page.context().pages()).toHaveLength(pageCount);
+    expect(page.url()).toBe(contextUrl);
+    await page.keyboard.press("Escape");
+    await expect(preview).toHaveCount(0);
+    await expect(viewButton).toBeFocused();
     const [log] = await db()`select count(*)::int as n from document_access_log where client_id = ${clientId} and access_type = 'view'`;
     expect(log.n).toBe(1);
 
@@ -259,7 +271,7 @@ test.describe.serial("office workflow", () => {
     await expect(page.getByTestId("task-status")).toContainText("completed");
 
     await page.getByTestId("quick-actions").getByRole("button", { name: "Mark Contacted" }).click();
-    await page.getByTestId("form-contacted").getByLabel("Method").selectOption("whatsapp");
+    await selectChoice(page.getByTestId("form-contacted").getByLabel("Method"), "whatsapp");
     await page.getByTestId("form-contacted").getByLabel("Result").fill("Reached client");
     await page.getByTestId("form-contacted").getByLabel("Next action").fill("Confirm appointment");
     await page.getByTestId("form-contacted").getByLabel("Follow-up date (optional)").fill(tomorrowLocal());
@@ -277,13 +289,13 @@ test.describe.serial("office workflow", () => {
 
   test("status engine: admin choices include normal transitions and auditable overrides", async () => {
     await page.getByTestId("quick-actions").getByRole("button", { name: "Change Status" }).click();
-    const options = await page.getByTestId("form-status").getByLabel("New status").locator("option").allInnerTexts();
+    const options = await dropdownChoiceTexts(page.getByTestId("form-status").getByLabel("New status"));
     expect(options).toEqual([
       "Needs Review", "Ready to Apply", "Application in Progress", "Assessment Required", "Shift Selected",
       "Appointment Required", "Appointment Scheduled", "Pre-Hire Completed", "Screening Pending", "I-9 Available",
       "Post-Hire Tasks", "Ready for First Day", "Completed", "Cancelled",
     ]);
-    await page.getByTestId("form-status").getByLabel("New status").selectOption("ready_to_apply");
+    await selectChoice(page.getByTestId("form-status").getByLabel("New status"), "ready_to_apply");
     await page.getByTestId("form-status").getByRole("button", { name: "Save status" }).click();
     await expect(page.getByTestId("current-status")).toContainText("Ready to Apply");
     await expect(page.getByTestId("status-timeline")).toContainText("New Intake");
@@ -303,11 +315,11 @@ test.describe.serial("office workflow", () => {
     await page.getByTestId("section-assessments").getByRole("button", { name: "+ Add standard items" }).click();
     await expect(page.getByTestId("assessment-item_10")).toContainText("UNRESOLVED — NEEDS CLIENT CONFIRMATION");
     await page.getByTestId("assessment-education").getByRole("button", { name: "Update" }).click();
-    await page.getByTestId("assessment-education").getByLabel("Assessment status").selectOption("completed");
+    await selectChoice(page.getByTestId("assessment-education").getByLabel("Assessment status"), "completed");
     await page.getByTestId("assessment-education").getByRole("button", { name: "Save" }).click();
     await expect(page.getByTestId("assessment-education").getByRole("alert")).toContainText("confirmed");
     await page.getByTestId("assessment-education").getByLabel("Answer the client confirmed").fill("High school diploma");
-    await page.getByTestId("assessment-education").getByLabel("Source").selectOption("client_confirmed");
+    await selectChoice(page.getByTestId("assessment-education").getByLabel("Source"), "client_confirmed");
     await page.getByTestId("assessment-education").getByRole("button", { name: "Save" }).click();
     await expect(page.getByTestId("assessment-education")).toContainText("High school diploma");
   });
@@ -315,7 +327,7 @@ test.describe.serial("office workflow", () => {
   test("post-hire start date, intake agent, activity log", async () => {
     await page.getByRole("button", { name: "Profile", exact: true }).click();
     const row = page.getByTestId("post-hire-start_date");
-    await row.getByLabel("Start Date status").selectOption("confirmed");
+    await selectChoice(row.getByLabel("Start Date status"), "confirmed");
     await row.getByLabel("Start date", { exact: true }).fill("2030-01-15");
     await row.getByRole("button", { name: "Save" }).click();
     await expect(page.getByTestId("post-hire-start_date")).toContainText("TEST Admin");
@@ -377,9 +389,9 @@ test.describe.serial("office workflow", () => {
     await p.locator('input[name="amazon_worked_before"][value="no"]').check();
     await p.locator('input[name="amazon_applied_before"][value="no"]').check();
     if (FIXTURE_CATALOG) for (const k of ["city", "site", "job", "primary"]) await p.getByTestId(`pref-${k}`).locator('input[type="checkbox"]:not(:disabled)').first().check();
-    await p.getByLabel("Document type").selectOption("resume");
+    await selectChoice(p.getByLabel("Document type"), "resume");
     await p.getByLabel("Choose file").setInputFiles({ name: "resume.png", mimeType: "image/png", buffer: PNG });
-    await p.getByLabel("Initial status").selectOption("needs_review");
+    await selectChoice(p.getByLabel("Initial status"), "needs_review");
     await p.getByLabel("Initial note").fill(`Walk-in ${RUN}`);
     await p.getByRole("button", { name: "Create client file" }).click();
     await p.waitForURL(/\/staff\/client\/[0-9a-f-]{36}$/);
@@ -392,7 +404,7 @@ test.describe.serial("office workflow", () => {
     await p.getByRole("button", { name: /Documents/ }).click();
     await expect(p.getByTestId("document-row")).toHaveCount(1);
     await p.getByTestId("quick-actions").getByRole("button", { name: "Change Status" }).click();
-    await p.getByTestId("form-status").getByLabel("New status").selectOption("ready_to_apply");
+    await selectChoice(p.getByTestId("form-status").getByLabel("New status"), "ready_to_apply");
     await p.getByTestId("form-status").getByRole("button", { name: "Save status" }).click();
     await expect(p.getByTestId("current-status")).toContainText("Ready to Apply");
     await p.goto("/staff/clients?status=ready_to_apply");

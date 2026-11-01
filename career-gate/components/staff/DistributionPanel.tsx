@@ -1,5 +1,8 @@
 "use client";
 
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
+
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -135,10 +138,10 @@ export function DistributionPanel({
       <section className="ops-glass-card">
         <div className="ops-toolbar">
           <input className="ops-input ops-search-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search client, phone, email or file" />
-          <select className="ops-select" value={target} onChange={(e) => setTarget(e.target.value)}>
-            <option value="">Unassigned</option>
-            {staff.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</option>)}
-          </select>
+          <RoyalSelect className="ops-select" value={target} onChange={(e) => setTarget(e.target.value)}>
+            <RoyalOption value="">Unassigned</RoyalOption>
+            {staff.filter((s) => s.active).map((s) => <RoyalOption key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</RoyalOption>)}
+          </RoyalSelect>
           <button type="button" className="ops-primary-button" disabled={busy || selected.size === 0} onClick={() => void assign()}>
             Assign {selected.size ? `(${selected.size})` : "selected"}
           </button>

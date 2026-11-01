@@ -1,7 +1,35 @@
 import { createHmac, randomUUID } from "node:crypto";
-import type { APIRequestContext, BrowserContext, Page } from "@playwright/test";
+import type { APIRequestContext, BrowserContext, Locator, Page } from "@playwright/test";
 import { SignJWT } from "jose";
 import postgres from "postgres";
+
+/** Choose through the visible custom combobox, including its portalled listbox. */
+export async function selectChoice(control: Locator, choice: string | { label: string } | { value: string }) {
+  // A broad getByLabel locator may also match the listbox after it opens.
+  // Keep the locator restricted to the actual control throughout the action.
+  const combobox = control.and(control.page().getByRole("combobox"));
+  await combobox.click();
+  const listId = await combobox.getAttribute("aria-controls");
+  if (!listId) throw new Error("Dropdown did not open an accessible listbox");
+  const list = control.page().locator(`[id=${JSON.stringify(listId)}]`);
+  const option = typeof choice === "object" && "label" in choice
+    ? list.getByRole("option", { name: choice.label, exact: true })
+    : list.locator(`[role="option"][data-value=${JSON.stringify(typeof choice === "string" ? choice : choice.value)}]`);
+  await option.click();
+}
+
+/** Inspect the choices an employee can actually open, without changing the form value. */
+export async function dropdownChoiceTexts(control: Locator): Promise<string[]> {
+  const combobox = control.and(control.page().getByRole("combobox"));
+  await combobox.click();
+  const listId = await combobox.getAttribute("aria-controls");
+  if (!listId) throw new Error("Dropdown did not open an accessible listbox");
+  const options = control.page().locator(`[id=${JSON.stringify(listId)}]`).getByRole("option");
+  try {
+    await options.first().waitFor({ state: "visible" });
+    return (await options.allTextContents()).map(text => text.trim());
+  } finally { await combobox.press("Escape"); }
+}
 
 // Use the employee's file-picker flow. Injecting a hidden input before React
 // attaches its change handler can leave the native file and form state apart.

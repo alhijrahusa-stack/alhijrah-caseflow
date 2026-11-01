@@ -1,5 +1,8 @@
 "use client";
 
+import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
+
+
 import { useState } from "react";
 import { useAction } from "@/components/forms/useAction";
 import { useStaff } from "@/components/staff/StaffContext";
@@ -36,8 +39,8 @@ export function AvailabilitySettings({ windows, blocked }: { windows: R[]; block
           </table>
         )}
         <form className="grid gap-2 sm:grid-cols-3" onSubmit={(e) => { e.preventDefault(); a.run({ action: "upsert_availability", ...w, appointment_type: w.appointment_type || null }); }}>
-          <select aria-label="Resource" className="input" value={w.resource_key} onChange={(e) => setW({ ...w, resource_key: e.target.value })}>{resources.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</select>
-          <select aria-label="Weekday" className="input" value={w.weekday} onChange={(e) => setW({ ...w, weekday: Number(e.target.value) })}>{DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select>
+          <RoyalSelect aria-label="Resource" className="input" value={w.resource_key} onChange={(e) => setW({ ...w, resource_key: e.target.value })}>{resources.map((r) => <RoyalOption key={r.value} value={r.value}>{r.label}</RoyalOption>)}</RoyalSelect>
+          <RoyalSelect aria-label="Weekday" className="input" value={w.weekday} onChange={(e) => setW({ ...w, weekday: Number(e.target.value) })}>{DAYS.map((d, i) => <RoyalOption key={d} value={i}>{d}</RoyalOption>)}</RoyalSelect>
           <input aria-label="Slot minutes" type="number" min={5} max={480} className="input" value={w.slot_minutes} onChange={(e) => setW({ ...w, slot_minutes: Number(e.target.value) })} />
           <input aria-label="Start time" type="time" className="input" value={w.start_time} onChange={(e) => setW({ ...w, start_time: e.target.value })} />
           <input aria-label="End time" type="time" className="input" value={w.end_time} onChange={(e) => setW({ ...w, end_time: e.target.value })} />
@@ -61,7 +64,7 @@ export function AvailabilitySettings({ windows, blocked }: { windows: R[]; block
           e.preventDefault();
           a.run({ action: "add_blocked_period", resource_key: b.resource_key, reason: b.reason, starts_at: fromLocalInput(b.starts_at).toISOString(), ends_at: fromLocalInput(b.ends_at).toISOString() });
         }}>
-          <select aria-label="Blocked resource" className="input" value={b.resource_key} onChange={(e) => setB({ ...b, resource_key: e.target.value })}>{resources.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</select>
+          <RoyalSelect aria-label="Blocked resource" className="input" value={b.resource_key} onChange={(e) => setB({ ...b, resource_key: e.target.value })}>{resources.map((r) => <RoyalOption key={r.value} value={r.value}>{r.label}</RoyalOption>)}</RoyalSelect>
           <input aria-label="Reason" required className="input" placeholder="Reason" value={b.reason} onChange={(e) => setB({ ...b, reason: e.target.value })} />
           <input aria-label="Blocked from" type="datetime-local" required className="input" value={b.starts_at} onChange={(e) => setB({ ...b, starts_at: e.target.value })} />
           <input aria-label="Blocked until" type="datetime-local" required className="input" value={b.ends_at} onChange={(e) => setB({ ...b, ends_at: e.target.value })} />
