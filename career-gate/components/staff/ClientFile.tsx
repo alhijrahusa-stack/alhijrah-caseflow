@@ -117,7 +117,7 @@ export function ClientFile({
   const data = live.data;
   const account = live.account;
   const { client: c } = data;
-  const { isManager, isAdmin } = useStaff();
+  const { isManager, isAdmin, canScheduleAppointment } = useStaff();
   const isMounted = useHydrated();
   const rescheduleAction = useRowAction("Appointment decision saved");
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
@@ -157,7 +157,7 @@ export function ClientFile({
   };
 
   const quick: [Panel, string, boolean][] = [
-    ["document", "Add Document", true], ["appointment", "Add Appointment", isManager], ["note", "Add Note", true], ["task", "Add Task", true],
+    ["document", "Add Document", true], ["appointment", "Add Appointment", canScheduleAppointment], ["note", "Add Note", true], ["task", "Add Task", true],
     ["contacted", "Mark Contacted", true], ["status", "Change Status", isManager], ["next_step", "Set Next Step", true],
     ["followup", "Add Follow-Up", true], ["assign", "Assign Staff", isManager],
   ];
@@ -350,7 +350,7 @@ export function ClientFile({
 
       {tab === "appointments" && <Appointments
         appts={data.appointments}
-        onAdd={isManager ? openPanel("appointment") : null}
+        onAdd={canScheduleAppointment ? openPanel("appointment") : null}
         reschedulingId={reschedulingId}
         onReschedule={(id) => { rescheduleAction.setError(null); setReschedulingId(id); }}
       />}

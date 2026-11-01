@@ -67,6 +67,47 @@ describe("indexed multilingual canonical registry",()=>{
     expect(first.total).toBe(13);expect(first.rows).toHaveLength(10);expect(last.rows).toHaveLength(3);expect(last.page).toBe(2);
     expect(new Set([...first.rows,...last.rows].map(row=>row.id)).size).toBe(13);
   });
+  it("navigates forward and backward over equal timestamps without crossing staff scope",async()=>{
+    const search=`RegistryCursor-${tag}`;
+    const owned:string[] = [];
+    for(let index=0;index<23;index++) owned.push(String((await client(`TEST ${search} ${index}`)).id));
+    for(let index=0;index<3;index++) await client(`TEST ${search} hidden ${index}`,other.staff.id);
+    await db`update clients set next_step='cursor fixture' where id=any(${owned}::uuid[])`;
+    const expected=await db`select id from clients where full_name ilike ${`%${search}%`} and assigned_staff=${owner.staff.id} order by updated_at desc,id asc`;
+    const filters={q:search,stage:"new_intake" as const};
+    const first=await operationalClientList(owner,"active",1,10,filters);
+    const second=await operationalClientList(owner,"active",2,10,filters,first.next_cursor);
+    const third=await operationalClientList(owner,"active",3,10,filters,second.next_cursor);
+    expect([first.rows.length,second.rows.length,third.rows.length]).toEqual([10,10,3]);
+    expect([first.start,first.end,second.start,second.end,third.start,third.end]).toEqual([1,10,11,20,21,23]);
+    expect([...first.rows,...second.rows,...third.rows].map(row=>row.id)).toEqual(expected.map(row=>row.id));
+    expect(first.total).toBe(23);
+    const back=await operationalClientList(owner,"active",2,10,filters,third.previous_cursor);
+    const backFirst=await operationalClientList(owner,"active",1,10,filters,back.previous_cursor);
+    expect(back.rows.map(row=>row.id)).toEqual(second.rows.map(row=>row.id));
+    expect(backFirst.rows.map(row=>row.id)).toEqual(first.rows.map(row=>row.id));
+    expect((await operationalClientList(other,"active",1,10,filters)).total).toBe(3);
+    expect((await operationalClientList(other,"active",2,10,filters,first.next_cursor)).rows.every(row=>!owned.includes(row.id))).toBe(true);
+    expect((await operationalClientList(owner,"active",2,10,filters)).rows.map(row=>row.id)).toEqual(second.rows.map(row=>row.id));
+  });
+  it("keeps registry counts and rows in one RLS-scoped snapshot across a concurrent deletion",async()=>{
+    const search=`RegistrySnapshot-${randomUUID()}`;
+    const mine=await client(`TEST ${search} own`);
+    const hidden=await client(`TEST ${search} hidden`,other.staff.id);
+    await withStaff(owner,async tx=>{
+      const [mode]=await tx`select current_setting('transaction_isolation') as isolation,current_setting('transaction_read_only') as read_only`;
+      expect(mode).toMatchObject({isolation:"repeatable read",read_only:"on"});
+      const before=await tx`select id from clients where deleted_at is null and full_name ilike ${`%${search}%`} order by updated_at desc,id asc`;
+      expect(before.map(row=>row.id)).toEqual([mine.id]);
+      await db`update clients set deleted_at=now() where id=${mine.id}`;
+      const [{count}]=await tx`select count(*)::int as count from clients where deleted_at is null and full_name ilike ${`%${search}%`}`;
+      const after=await tx`select id from clients where deleted_at is null and full_name ilike ${`%${search}%`} order by updated_at desc,id asc`;
+      expect(count).toBe(1);
+      expect(after.map(row=>row.id)).toEqual(before.map(row=>row.id));
+      expect(after.some(row=>row.id===hidden.id)).toBe(false);
+    },{consistentRead:true});
+    expect((await operationalClientList(owner,"active",1,10,{q:search,stage:"new_intake"})).total).toBe(0);
+  });
 });
 
 describe("saved filter account isolation",()=>{

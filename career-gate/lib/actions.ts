@@ -1,3 +1,4 @@
+import { appointmentLifecycleDecision } from "@/lib/appointment-lifecycle";
 import "server-only";
 import { z } from "zod";
 import { isEmploymentInterview } from "@/lib/appointment-purpose";
@@ -107,6 +108,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     client_id: id,
     appointment_type: text(100),
     lifecycle_interview: z.boolean().optional(),
+    lifecycle_override_reason: z.string().trim().min(5).max(500).optional(),
     approve_booking: z.boolean().optional(),
     scheduled_at: instant,
     duration_minutes: z.number().int().min(5).max(480).default(30),
@@ -121,6 +123,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
     end: instant,
     resource_key: resource,
     lifecycle_interview: z.boolean().optional(),
+    lifecycle_override_reason: z.string().trim().min(5).max(500).optional(),
     approve_booking: z.boolean().optional(),
     appointment_type: text(100),
     location: optText(300),
@@ -390,8 +393,14 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
     case "book_slot": {
       const lifecycleInterview=a.lifecycle_interview||isEmploymentInterview(a.appointment_type);
       const scheduledClient = await requireClient(tx, a.client_id);
-      if (lifecycleInterview && scheduledClient.current_status !== "appointment_scheduled" && !canTransition(scheduledClient.current_status as Status, "appointment_scheduled")) {
-        throw new ActionError("lifecycle_conflict", "Advance the client to Job Ready before scheduling an employment interview", 409);
+      const lifecycleDecision = lifecycleInterview
+        ? appointmentLifecycleDecision(String(scheduledClient.current_status), a.lifecycle_override_reason)
+        : "normal";
+      if (lifecycleDecision === "reason_required") {
+        throw new ActionError("lifecycle_conflict", "Job Ready is required; provide a reason to override this condition for this interview", 409);
+      }
+      if (lifecycleDecision === "ineligible") {
+        throw new ActionError("lifecycle_conflict", "This client cannot be moved to an interview from the current status", 409);
       }
       const start = new Date(a.action === "book_slot" ? a.start : a.scheduled_at);
       const end = a.action === "book_slot" ? new Date(a.end) : new Date(start.getTime() + a.duration_minutes * 60_000);
@@ -405,13 +414,16 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         values (${a.client_id}, ${a.appointment_type}, ${lifecycleInterview ? 'employment_interview' : 'general'}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${a.location}, ${a.notes}, ${by}, ${a.approve_booking ? "confirmed" : "scheduled"})
         returning id`;
       if (lifecycleInterview && scheduledClient.current_status !== "appointment_scheduled") {
+        if (lifecycleDecision === "override") await tx`select set_config('cg.status_override', ${a.lifecycle_override_reason!}, true)`;
         await tx`update clients
           set current_status = 'appointment_scheduled', pipeline_stage = 'interview_scheduled',
               next_step = 'Attend the confirmed employment interview.'
           where id = ${a.client_id}`;
+        if (lifecycleDecision === "override") await tx`select set_config('cg.status_override', '', true)`;
         await logActivity(tx, {
-          clientId: a.client_id, action: "status_changed", actor, entityType: "client", entityId: a.client_id,
-          oldValue: { status: scheduledClient.current_status }, newValue: { status: "appointment_scheduled" },
+          clientId: a.client_id, action: lifecycleDecision === "override" ? "status_overridden" : "status_changed", actor, entityType: "client", entityId: a.client_id,
+          oldValue: { status: scheduledClient.current_status, pipeline_stage: scheduledClient.pipeline_stage },
+          newValue: { status: "appointment_scheduled", pipeline_stage: "interview_scheduled", ...(lifecycleDecision === "override" ? { reason: a.lifecycle_override_reason, appointment_id: appt.id } : {}) },
         });
       }
       await touchClient(tx, a.client_id);

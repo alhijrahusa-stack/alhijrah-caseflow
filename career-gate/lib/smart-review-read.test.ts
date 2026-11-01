@@ -60,10 +60,21 @@ describe("Smart Review approved archive read access", () => {
     database(approved);
     await expect(assertImportNotArchived(id)).rejects.toMatchObject({ code: "archived", status: 409 });
     const response = await POST(new Request("https://careergate.example/api/staff/smart-client-import", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "verify", id }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "verify", id, expected_revision: "1" }),
     }));
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ error: { code: "archived" } });
+  });
+
+  it("rejects legacy timestamp-only edits with an upgrade message before touching a case", async () => {
+    const query = database(approved);
+    const response = await POST(new Request("https://careergate.example/api/staff/smart-client-import", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "verify", id, expected_updated_at: "2026-11-01T00:00:00.000Z" }),
+    }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: { code: "client_upgrade_required" } });
+    expect(query).not.toHaveBeenCalled();
   });
 
   it("rejects unauthenticated and ordinary staff reads before looking up a case", async () => {
@@ -75,6 +86,7 @@ describe("Smart Review approved archive read access", () => {
     expect((await GET(request())).status).toBe(403);
     await expect(getImportCase({ ...manager, staff: { ...manager.staff, role: "staff" } }, id)).rejects.toMatchObject({ code: "forbidden", status: 403 });
     await expect(getImportDocument({ ...manager, staff: { ...manager.staff, role: "staff" } }, id)).rejects.toMatchObject({ code: "forbidden", status: 403 });
-    expect(query).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(query.mock.calls.every(([parts]) => parts.join("?").includes("select permission_mode, custom_permissions"))).toBe(true);
   });
 });

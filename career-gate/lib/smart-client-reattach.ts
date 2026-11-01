@@ -48,9 +48,11 @@ export async function reattachSmartImportDocuments(args: {
   const totalBytes = args.files.reduce((sum, file) => sum + file.size, 0);
   if (totalBytes > SMART_IMPORT_LIMITS.maxTotalUploadBytes) throw new ActionError("upload_too_large", "Total upload exceeds the safe limit", 413);
 
-  const [existing] = await sql()`select id,status from client_import_cases where id=${args.caseId}`;
+  const [existing] = await sql()`select id,status,verification_result from client_import_cases where id=${args.caseId}`;
   if (!existing) throw new ActionError("not_found", "Import case not found", 404);
   if (existing.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot receive additional source documents", 409);
+  if (existing.verification_result?.processing_state === "CAPTURING") throw new ActionError("capture_in_progress", "Recover the source capture before attaching documents", 409);
+  if (existing.verification_result?.workflow_override?.state === "PENDING_OVERRIDE") throw new ActionError("pending_override_active", "Cancel the pending override before attaching documents", 409);
 
   const prepared: PreparedFile[] = [];
   for (const file of args.files) {
@@ -78,9 +80,11 @@ export async function reattachSmartImportDocuments(args: {
     }
 
     const result = await sql().begin(async (tx) => {
-      const [lockedCase] = await tx`select id,status from client_import_cases where id=${args.caseId} for update`;
+      const [lockedCase] = await tx`select id,status,verification_result from client_import_cases where id=${args.caseId} for update`;
       if (!lockedCase) throw new ActionError("not_found", "Import case not found", 404);
       if (lockedCase.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot receive additional source documents", 409);
+      if (lockedCase.verification_result?.processing_state === "CAPTURING") throw new ActionError("capture_in_progress", "Recover the source capture before attaching documents", 409);
+      if (lockedCase.verification_result?.workflow_override?.state === "PENDING_OVERRIDE") throw new ActionError("pending_override_active", "Cancel the pending override before attaching documents", 409);
 
       const documents: Array<Record<string, unknown>> = [];
       for (const file of prepared) {

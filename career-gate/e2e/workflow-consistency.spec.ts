@@ -3,6 +3,40 @@ import { expect,test } from '@playwright/test';
 import { POST_HIRE_ITEMS } from '../lib/domain';
 import { accessToken,db,intakeBody,RUN,signIn,STAFF,staffAction,submitIntake,uniqueIp } from './helpers';
 
+test('workflow routing stays inside its client card without covering the next client',async({request,browser,baseURL})=>{
+  const name=`TEST Routing Layout ${RUN}`;
+  for(const suffix of ['Alpha','Beta']) {
+    const intake=await submitIntake(request,intakeBody(`${name} ${suffix}`));
+    expect(intake.res.status(),JSON.stringify(intake.json)).toBe(201);
+  }
+  const context=await browser.newContext({baseURL,viewport:{width:1440,height:900}});
+  await signIn(context,baseURL!,'admin');
+  const page=await context.newPage();
+  await page.goto(`/staff/clients?q=${encodeURIComponent(name)}`);
+  const cards=page.getByTestId('client-registry-responsive-cards').locator('article');
+  await expect(cards).toHaveCount(2);
+  for(const width of [1440,390]) {
+    await page.setViewportSize({width,height:900});
+    const first=cards.nth(0);
+    const next=cards.nth(1);
+    const toggle=first.getByRole('button',{name:/Workflow routing/});
+    await toggle.click();
+    const destination=first.getByRole('combobox',{name:'Workflow destination'});
+    await destination.click();
+    const options=first.getByRole('listbox',{name:'Workflow destination options'});
+    await expect(options).toBeVisible();
+    const firstBox=await first.boundingBox();
+    const nextBox=await next.boundingBox();
+    const optionsBox=await options.boundingBox();
+    expect(firstBox && nextBox && optionsBox).toBeTruthy();
+    expect(optionsBox!.y+optionsBox!.height).toBeLessThanOrEqual(firstBox!.y+firstBox!.height);
+    expect(firstBox!.y+firstBox!.height).toBeLessThanOrEqual(nextBox!.y);
+    await page.keyboard.press('Escape');
+    await toggle.click();
+  }
+  await context.close();
+});
+
 test('paid, completed legacy intake leaves active queues and retains its original appointment and ledger',async({request,browser,baseURL})=>{
   const intake=await submitIntake(request,intakeBody(`TEST Royal Workflow ${RUN}`));
   expect(intake.res.status(),JSON.stringify(intake.json)).toBe(201);
@@ -58,15 +92,35 @@ test('summary API requires authentication and serves private aggregated data',as
 });
 
 
-test("staff navigation respects the existing management-only finance and audit boundaries",async({browser,baseURL})=>{
+test("staff navigation enforces import permission and management-only finance and audit boundaries",async({browser,baseURL})=>{
+  const loopback=new Set(['localhost','127.0.0.1','::1','[::1]']);
+  if(!baseURL || !process.env.DATABASE_URL || !loopback.has(new URL(baseURL).hostname) || !loopback.has(new URL(process.env.DATABASE_URL).hostname)) throw new Error('Permission test requires an isolated loopback app and database');
+  const [original]=await db()`select permission_mode,custom_permissions from staff where auth_user_id=${STAFF.staff}`;
+  expect(original).toBeTruthy();
   const context=await browser.newContext({baseURL});
-  await signIn(context,baseURL!,'staff');
-  const page=await context.newPage();
-  for(const path of ['/staff','/career-gate-royal.html']){
-    await page.goto(path);
-    await expect(page.getByRole('heading',{name:'Operations Command Center',exact:true})).toBeVisible();
-    const links=await page.getByRole('link').evaluateAll(elements=>elements.map(element=>element.getAttribute('href')??''));
-    expect(links.filter(href=>/^\/staff\/(accounting|reports|audit-alerts|import)(?:[/?]|$)/.test(href))).toEqual([]);
+  try {
+    await signIn(context,baseURL,'staff');
+    const page=await context.newPage();
+    for(const permitted of [false,true]){
+      await db()`update staff set permission_mode='custom',custom_permissions=${permitted ? ['review_smart_import'] : []}::text[] where auth_user_id=${STAFF.staff}`;
+      for(const path of ['/staff','/career-gate-royal.html']){
+        await page.goto(path);
+        await expect(page.getByRole('heading',{name:'Operations Command Center',exact:true})).toBeVisible();
+        const links=await page.getByRole('link').evaluateAll(elements=>elements.map(element=>element.getAttribute('href')??''));
+        expect(links.filter(href=>/^\/staff\/(accounting|reports|audit-alerts)(?:[/?]|$)/.test(href))).toEqual([]);
+        expect(links.includes('/staff/import')).toBe(permitted);
+      }
+      const summary=await page.request.get('/api/staff/dashboard-summary');
+      expect(summary.status()).toBe(200);
+      expect((await summary.json()).permissions.can_review_smart_import).toBe(permitted);
+      const response=await page.request.get('/api/staff/smart-client-import');
+      expect(response.status()).toBe(permitted ? 200 : 403);
+      await page.goto('/staff/import');
+      if(permitted) await expect(page.getByRole('heading',{name:'IMPORT QUEUE',exact:true})).toBeVisible();
+      else await expect(page).toHaveURL(/\/staff\/?$/);
+    }
+  } finally {
+    await db()`update staff set permission_mode=${original.permission_mode},custom_permissions=${original.custom_permissions}::text[] where auth_user_id=${STAFF.staff}`;
+    await context.close();
   }
-  await context.close();
 });

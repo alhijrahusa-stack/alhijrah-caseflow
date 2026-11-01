@@ -5,17 +5,53 @@ import type { StaffSession } from "@/lib/auth";
 import { runAudit } from "@/lib/audit";
 import { publicImportStatus } from "@/lib/public-status";
 import { stageMobileImportV2 } from "@/lib/smart-client-mobile";
-import { archiveImportCase, listActiveImportQueue, listArchivedImportQueue } from "@/lib/smart-import-archive";
+import { archiveImportCase as archiveRaw, listActiveImportQueue, listArchivedImportQueue } from "@/lib/smart-import-archive";
 import {
-  approveImportCase,
+  approveImportCase as approveRaw,
+  beginImportOverride,
+  getImportCase,
   previewImportRows,
-  saveImportReview,
+  saveImportReview as saveRaw,
   stageSheetRows,
-  startImportReview,
-  verifyImportCase,
+  startImportReview as startRaw,
+  verifyImportCase as verifyRaw,
 } from "@/lib/smart-client-import";
 
 const db = postgres(process.env.DATABASE_URL!, { prepare: false, max: 1 });
+
+async function currentRevision(session: StaffSession, id: string) {
+  return String((await getImportCase(session, id)).case.revision);
+}
+async function startImportReview(session: StaffSession, id: string, reviewer: string, revision?: string) {
+  return startRaw(session, id, reviewer, revision ?? await currentRevision(session, id));
+}
+async function verifyImportCase(session: StaffSession, id: string, revision?: string) {
+  return verifyRaw(session, id, revision ?? await currentRevision(session, id));
+}
+async function saveImportReview(session: StaffSession, args: Parameters<typeof saveRaw>[1]) {
+  return saveRaw(session, { ...args, expectedRevision: args.expectedRevision ?? await currentRevision(session, args.id) });
+}
+async function archiveImportCase(session: StaffSession, id: string) {
+  return archiveRaw(session, id, await currentRevision(session, id));
+}
+async function approveImportCase(session: StaffSession, input: Parameters<typeof approveRaw>[1]) {
+  const before = await getImportCase(session, input.id);
+  const args = { ...input, expectedRevision: input.expectedRevision ?? String(before.case.revision) };
+  if (!args.override || (args.overrideReason ?? "").trim().length < 8 || before.case.status === "APPROVED_FILE") return approveRaw(session, args);
+  if (before.case.verification_result?.workflow_override?.state !== "PENDING_OVERRIDE") {
+    try {
+      await beginImportOverride(session, { id: args.id, reviewerId: args.reviewerId, draft: args.draft,
+        documentConfirmed: args.documentConfirmed, informationConfirmed: args.informationConfirmed, resolvedFields: args.resolvedFields,
+        expectedRevision: args.expectedRevision, traceId: args.traceId });
+    } catch (error) {
+      if ((error as { code?: string }).code === "override_not_required") return approveRaw(session, args);
+      throw error;
+    }
+  }
+  const pending = await getImportCase(session, args.id);
+  return approveRaw(session, { ...args, draft: pending.case.mapped_draft, resolvedFields: [], expectedRevision: String(pending.case.revision),
+    documentConfirmed: Boolean(pending.case.document_match_confirmed), informationConfirmed: Boolean(pending.case.information_match_confirmed) });
+}
 
 const tables = ["client_import_batches", "client_import_cases", "client_import_documents"] as const;
 const privileges = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"] as const;
@@ -35,6 +71,42 @@ beforeAll(async () => {
 afterAll(async () => { await db.end(); });
 
 describe("Smart Career Collect Client staging security", () => {
+  it("preserves microsecond cursor boundaries and does not double-skip when page is also supplied", async () => {
+    const exactTimestamp = "2025-01-01 00:00:00.000013+00";
+    const [roundTrip] = await db`select ${exactTimestamp}::text::timestamptz::text as value`;
+    expect(String(roundTrip.value)).toContain(".000013");
+    const marker = `TEST Cursor Intake ${randomUUID()}`;
+    const staged = await stageSheetRows({ session: manager, source: "csv", idempotencyKey: randomUUID(), rows: Array.from({ length: 23 }, (_, index) => ({ full_name: `${marker} ${index}`, phone: `616553${String(1000 + index)}` })) });
+    for (let index = 0; index < staged.cases.length; index++) {
+      await db`update client_import_cases set created_at='2025-01-01 00:00:00+00'::timestamptz + ${index} * interval '1 microsecond' where id=${staged.cases[index].id}`;
+    }
+    for (const archive of [false, true]) {
+      if (archive) await db`update client_import_cases set archived_at=now(),archived_by=${manager.staff.id} where id=any(${staged.cases.map(row => row.id)}::uuid[])`;
+      const list = (page: number, cursor?: string | null) => archive
+        ? listArchivedImportQueue(manager, { q: marker, page, cursor })
+        : listActiveImportQueue(manager, { q: marker, page, cursor });
+      const first = await list(1);
+      expect(Buffer.from(first.next_cursor!, "base64url").toString("utf8")).toContain(".000013");
+      const second = await list(2, first.next_cursor);
+      const third = await list(3, second.next_cursor);
+      expect(first.rows).toHaveLength(10);
+      expect(second.rows).toHaveLength(10);
+      expect(third.rows).toHaveLength(3);
+      expect(second.rows.map(row => row.id)).toEqual((await list(2)).rows.map(row => row.id));
+      expect(third.rows.map(row => row.id)).toEqual((await list(3)).rows.map(row => row.id));
+      expect(new Set([...first.rows, ...second.rows, ...third.rows].map(row => row.id)).size).toBe(23);
+    }
+  });
+
+  it("rejects malformed import cursors before running a UUID query", async () => {
+    const malformedUuid = Buffer.from("2025-01-01T00:00:00Z|not-a-uuid").toString("base64url");
+    const extraField = Buffer.from(`2025-01-01T00:00:00Z|${randomUUID()}|extra`).toString("base64url");
+    for (const cursor of [malformedUuid, extraField, "!invalid!", "a".repeat(513)]) {
+      await expect(listActiveImportQueue(manager, { cursor })).rejects.toMatchObject({ code: "invalid_cursor", status: 400 });
+      await expect(listArchivedImportQueue(manager, { cursor })).rejects.toMatchObject({ code: "invalid_cursor", status: 400 });
+    }
+  });
+
   it("paginates exactly ten matching active imports and keeps archived files out of the queue", async () => {
     const marker = `TEST Paged Intake ${randomUUID()}`;
     const staged = await stageSheetRows({ session: manager, source: "csv", idempotencyKey: randomUUID(), rows: Array.from({ length: 23 }, (_, index) => ({full_name: `${marker} ${index}`, phone: `616551${String(1000+index)}`})) });
@@ -151,13 +223,14 @@ describe("Smart Career Collect Client staging security", () => {
       rows: [{ full_name: "TEST Concurrent Import Claim", phone: "3135558839" }],
     });
     const id = String(staged.cases[0].id);
+    const initialRevision = await currentRevision(manager, id);
     const results = await Promise.allSettled([
-      startImportReview(manager, id, manager.staff.id),
-      startImportReview(manager, id, String(alternate.id)),
+      startImportReview(manager, id, manager.staff.id, initialRevision),
+      startImportReview(manager, id, String(alternate.id), initialRevision),
     ]);
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     const denied = results.find((result) => result.status === "rejected");
-    expect(denied).toMatchObject({ status: "rejected", reason: { code: "review_assigned", status: 409 } });
+    expect(denied).toMatchObject({ status: "rejected", reason: { code: "review_changed", status: 409 } });
     const [caseRow] = await db`select status,reviewer_id from client_import_cases where id=${id}`;
     expect(caseRow.status).toBe("UNDER_REVIEW");
     expect([manager.staff.id, alternate.id]).toContain(caseRow.reviewer_id);
@@ -183,12 +256,12 @@ describe("Smart Career Collect Client staging security", () => {
     const conflict = { field_key: "date_of_birth", type: "SOURCE_CONFLICT", values: [{ value: "1976-01-01" }, { value: "1977-01-01" }] };
     await db`update client_import_cases set conflicts=${db.json([conflict])},verification_result=${db.json({ approval_ready: true })} where id=${id}`;
     const [before] = await db`select mapped_draft,field_evidence,
-      to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as revision from client_import_cases where id=${id}`;
+      revision::text as revision from client_import_cases where id=${id}`;
     const revision = String(before.revision);
     const saved = await saveImportReview(manager, {
       id, reviewerId: manager.staff.id, draft: before.mapped_draft,
       documentConfirmed: true, informationConfirmed: true,
-      resolvedFields: ["date_of_birth"], expectedUpdatedAt: revision,
+      resolvedFields: ["date_of_birth"], expectedRevision: revision,
     });
     expect(saved.updated_at).toBeTruthy();
     const [after] = await db`select conflicts,field_evidence,verification_result from client_import_cases where id=${id}`;
@@ -202,7 +275,7 @@ describe("Smart Career Collect Client staging security", () => {
     });
     await expect(saveImportReview(manager, {
       id, reviewerId: manager.staff.id, draft: before.mapped_draft,
-      documentConfirmed: false, informationConfirmed: false, expectedUpdatedAt: revision,
+      documentConfirmed: false, informationConfirmed: false, expectedRevision: revision,
     })).rejects.toMatchObject({ code: "review_changed", status: 409 });
     const [unchanged] = await db`select field_evidence,document_match_confirmed from client_import_cases where id=${id}`;
     expect(unchanged.field_evidence).toEqual(after.field_evidence);
@@ -216,12 +289,12 @@ describe("Smart Career Collect Client staging security", () => {
     });
     const id = String(staged.cases[0].id);
     const [before] = await db`select mapped_draft,field_evidence,
-      to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as revision from client_import_cases where id=${id}`;
+      revision::text as revision from client_import_cases where id=${id}`;
     const draft = { ...before.mapped_draft, profile: { ...before.mapped_draft.profile, city: "Dearborn" } };
     const approved = await approveImportCase(manager, {
       id, reviewerId: manager.staff.id, draft,
       documentConfirmed: true, informationConfirmed: true,
-      expectedUpdatedAt: String(before.revision), traceId: "direct-review-audit", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
+      expectedRevision: String(before.revision), traceId: "direct-review-audit", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     });
     const [client] = await db`select city from clients where id=${approved.client_id}`;
     expect(client.city).toBe("Dearborn");
@@ -556,12 +629,12 @@ describe("Smart Career Collect Client staging security", () => {
       source_text_reference: "Alternate birth date supplied: 1977-01-01",
     }];
     await db`update client_import_cases set conflicts=${db.json([conflict])},field_evidence=${db.json(evidence)} where id=${id}`;
-    const [version] = await db`select to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as revision
+    const [version] = await db`select revision::text as revision
       from client_import_cases where id=${id}`;
     const args = {
       id, reviewerId: manager.staff.id, draft: before.mapped_draft,
       documentConfirmed: false, informationConfirmed: false,
-      expectedUpdatedAt: String(version.revision), traceId: "deferred-source-review", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
+      expectedRevision: String(version.revision), traceId: "deferred-source-review", override: true, overrideReason: "Reviewed identity; missing details will be collected at the next visit.",
     };
     const approved = await approveImportCase(manager, args);
     const [client] = await db`select full_name,phone,date_of_birth::text from clients where id=${approved.client_id}`;

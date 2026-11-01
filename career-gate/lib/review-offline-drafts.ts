@@ -1,3 +1,5 @@
+import { sameReviewDraft } from "@/lib/review-draft-snapshot";
+
 /** Session-only review drafts. This module stores no uploaded files, auth tokens or signed document URLs. */
 export const REVIEW_DRAFT_PREFIX = "career-gate:review-draft:";
 export const REVIEW_DRAFT_TTL_MS = 8 * 60 * 60 * 1000;
@@ -13,6 +15,7 @@ export type ReviewDraftPayload = {
   information_match_confirmed: boolean;
   resolved_fields?: string[];
   expected_updated_at: string;
+  expected_revision?: string;
   expected_actor_id?: string;
 };
 export type StoredReviewDraft = {
@@ -56,6 +59,7 @@ export function readReviewDraft(storage: StorageLike, staffId: string, caseId: s
     if (value.format !== 1 || value.staffId !== staffId || value.payload?.id !== caseId || value.payload.action !== "save"
       || value.payload.expected_actor_id !== staffId || typeof value.payload.expected_updated_at !== "string"
       || !Number.isFinite(Date.parse(value.payload.expected_updated_at)) || typeof value.payload.reviewer_id !== "string"
+      || (value.payload.expected_revision !== undefined && (typeof value.payload.expected_revision !== "string" || !/^[1-9][0-9]{0,18}$/.test(value.payload.expected_revision) || BigInt(value.payload.expected_revision) > 9223372036854775807n))
       || !value.payload.draft || typeof value.payload.draft !== "object" || Array.isArray(value.payload.draft)
       || typeof value.payload.document_match_confirmed !== "boolean" || typeof value.payload.information_match_confirmed !== "boolean"
       || typeof value.nonce !== "string" || typeof value.queued !== "boolean" || !Number.isFinite(value.savedAt)
@@ -69,12 +73,13 @@ export function readReviewDraft(storage: StorageLike, staffId: string, caseId: s
 
 export function writeReviewDraft(storage: StorageLike, staffId: string, payload: ReviewDraftPayload, queued: boolean): StoredReviewDraft {
   if (!payload.expected_updated_at || !Number.isFinite(Date.parse(payload.expected_updated_at))) throw new Error("A server version is required before saving an offline draft.");
+  if (!payload.expected_revision || !/^[1-9][0-9]{0,18}$/.test(payload.expected_revision) || BigInt(payload.expected_revision) > 9223372036854775807n) throw new Error("Reload the review before saving this draft.");
   // Copy only the documented save contract, never arbitrary request headers or document data.
   const safePayload: ReviewDraftPayload = {
     action: "save", id: payload.id, reviewer_id: payload.reviewer_id, draft: payload.draft,
     document_match_confirmed: payload.document_match_confirmed, information_match_confirmed: payload.information_match_confirmed,
     ...(payload.resolved_fields ? { resolved_fields: payload.resolved_fields } : {}),
-    expected_updated_at: payload.expected_updated_at, expected_actor_id: staffId,
+    expected_updated_at: payload.expected_updated_at, expected_revision: payload.expected_revision, expected_actor_id: staffId,
   };
   const value: StoredReviewDraft = { format: 1, staffId, savedAt: Date.now(), nonce: crypto.randomUUID(), queued, payload: safePayload };
   const text = JSON.stringify(value);
@@ -107,6 +112,11 @@ export async function syncReviewDrafts(
       const caseId = key.slice(prefix.length);
       const stored = readReviewDraft(storage, staffId, caseId);
       if (!stored?.queued || stored.conflict) continue;
+      if (!stored.payload.expected_revision) {
+        storage.setItem(key, JSON.stringify({ ...stored, queued: false, conflict: true }));
+        deliver({ caseId, state: "conflict", message: "This draft predates the new review version. Reload and compare your retained draft before saving." });
+        continue;
+      }
       deliver({ caseId, state: "syncing", appliedPayload: stored.payload });
       let response: Response;
       try {
@@ -130,7 +140,7 @@ export async function syncReviewDrafts(
       }
       const current = readReviewDraft(storage, staffId, caseId);
       if (response.ok && result?.ok) {
-        if (current?.nonce === stored.nonce) storage.removeItem(key);
+        if (current && !current.conflict && (current.nonce === stored.nonce || sameReviewDraft(current.payload, stored.payload))) storage.removeItem(key);
         else if (current) {
           // Do not replace newer edits with the server response from an earlier queued draft.
           storage.setItem(key, JSON.stringify({ ...current, queued: false, conflict: true }));

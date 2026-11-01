@@ -36,13 +36,16 @@ export const executiveSummary=cache(async(session:StaffSession):Promise<Executiv
             sum(extract(epoch from(now()-entered_at))/3600)::numeric age_hours
           from ages group by current_status`,
         tx`with live as(select id,current_status from clients where deleted_at is null and current_status<>'cancelled'),
+          financial as(select coalesce(sum(greatest(b.balance,0)),0)::numeric revenue_pending,
+            coalesce(sum(b.amount_paid-b.refund_amount),0)::numeric paid_total,
+            count(distinct c.id) filter(where c.current_status=any(${[...G3_STAGES[4].statuses]}) and b.payment_status<>'paid')::int payment_pending
+            from client_account_balances b join live c on c.id=b.client_id),
           last_outcome as(select distinct on(o.client_id) o.client_id,o.decision from appointment_outcomes o
             join live c on c.id=o.client_id order by o.client_id,o.recorded_at desc,o.appointment_id desc)
           select
-            (select coalesce(sum(greatest(b.balance,0)),0) from client_account_balances b join live c on c.id=b.client_id)::numeric revenue_pending,
-            (select coalesce(sum(b.amount_paid-b.refund_amount),0) from client_account_balances b join live c on c.id=b.client_id)::numeric paid_total,
-            (select count(*) from live c where c.current_status=any(${[...G3_STAGES[4].statuses]}) and exists(
-              select 1 from client_account_balances b where b.client_id=c.id and b.payment_status<>'paid'))::int payment_pending,
+            (select revenue_pending from financial) revenue_pending,
+            (select paid_total from financial) paid_total,
+            (select payment_pending from financial) payment_pending,
             (select count(*) from live c where c.current_status not in ('completed','cancelled') and exists(
               select 1 from documents d where d.client_id=c.id and d.status in ('needs_review','needs_reupload','rejected')
                 and not exists(select 1 from documents n where n.client_id=d.client_id and n.doc_type=d.doc_type and (n.uploaded_at,n.id)>(d.uploaded_at,d.id))))::int document_blockers,

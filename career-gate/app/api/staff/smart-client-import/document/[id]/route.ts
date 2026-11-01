@@ -3,7 +3,7 @@ import { ActionError } from "@/lib/service";
 import { err } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { staffGuard } from "@/lib/staff-api";
-import { getImportDocument } from "@/lib/smart-client-import";
+import { assertImportReviewPermission, getImportDocument } from "@/lib/smart-client-import";
 import { downloadObjectStream, StorageNotConfigured } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -14,8 +14,8 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   const traceId = traceIdFrom(req);
   const guard = await staffGuard(req, traceId, { mutation: false });
   if (guard.response) return guard.response;
-  if (guard.session.staff.role === "staff") return err("forbidden", "Smart client import requires manager or admin access", 403, traceId);
   try {
+    await assertImportReviewPermission(guard.session);
     const { id } = await context.params;
     const document = await getImportDocument(guard.session, z.uuid().parse(id));
     if (!PREVIEW_MIME_TYPES.has(document.mime_type)) return err("unsupported_preview", "This document type cannot be previewed", 415, traceId);

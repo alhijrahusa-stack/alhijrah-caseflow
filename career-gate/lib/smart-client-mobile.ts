@@ -4,6 +4,7 @@ import type { StaffSession } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import type { IntakeRow } from "@/lib/intake-file";
 import { ActionError, normalizeClientEmail } from "@/lib/service";
+import { assertCaptureLease } from "@/lib/smart-capture";
 import { findPublicDuplicate } from "@/lib/public-intake-duplicate";
 import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
@@ -285,6 +286,10 @@ async function appendLinkedClientIntake(args: {
       if (!current || current.source_type !== "mobile" || ["APPROVED_FILE","ARCHIVED"].includes(String(current.status))) {
         throw new ActionError("case_closed", "This case cannot accept a client update", 409);
       }
+      if (current.verification_result?.workflow_override?.state === "PENDING_OVERRIDE") {
+        throw new ActionError("pending_override_active", "This file is being reviewed. Please retry your submission shortly.", 409);
+      }
+      if (current.verification_result?.processing_state === "CAPTURING") throw new ActionError("capture_in_progress", "This file is still receiving documents. Please retry shortly.", 409);
       if (link.status === "USED") {
         return {
           caseId: String(current.id), batchId: String(current.batch_id), publicRef: String(current.public_ref),
@@ -390,12 +395,16 @@ export async function stageMobileImportV2(args: {
     return appendLinkedClientIntake({ session: args.session, targetCaseId: args.targetCaseId, linkId: args.linkId, notes, preDraft, preMerge, files: fileData });
   }
 
+  const captureGeneration = randomUUID();
   const created = await sql().begin(async (tx) => {
     const [existing] = await tx`select id from client_import_batches where created_by=${args.session.staff.id} and idempotency_key=${key}`;
     if (existing) {
       const [caseRow] = await tx`
         select id,status,public_ref,created_at,mapped_draft,verification_result
         from client_import_cases where batch_id=${existing.id} order by created_at limit 1`;
+      if (["CAPTURING", "CAPTURE_FAILED", "CAPTURE_INTERRUPTED"].includes(String(caseRow.verification_result?.processing_state ?? ""))) {
+        throw new ActionError("capture_incomplete", "The previous submission needs staff review before it can be completed", 409);
+      }
       return {
         batchId: String(existing.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: true,
         createdAt: String(caseRow.created_at), mappedDraft: caseRow.mapped_draft, verificationResult: caseRow.verification_result,
@@ -439,7 +448,7 @@ export async function stageMobileImportV2(args: {
       insert into client_import_cases(batch_id,source_type,status,raw_input,mapped_draft,missing_fields,conflicts,field_evidence,verification_result,created_by)
       values(${batch.id},'mobile','PENDING',${tx.json({ notes } as never)},${tx.json(preDraft as never)},${tx.json(preMissing as never)},
         ${tx.json(preMerge.conflicts as never)},${tx.json(preMerge.evidence as never)},
-        ${tx.json({ processing_state: "CAPTURED", local_state: "COMPLETE", ai_state: args.files.length ? "PENDING" : "SKIPPED", extraction_errors: [], evidence_fields: preMerge.evidence.length } as never)},${args.session.staff.id})
+        ${tx.json({ processing_state: "CAPTURING", capture_generation: captureGeneration, local_state: "COMPLETE", ai_state: args.files.length ? "PENDING" : "SKIPPED", extraction_errors: [], evidence_fields: preMerge.evidence.length } as never)},${args.session.staff.id})
       returning id,public_ref,created_at,mapped_draft,verification_result`;
     return {
       batchId: String(batch.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: false,
@@ -449,22 +458,29 @@ export async function stageMobileImportV2(args: {
 
   if (!created.idempotent) {
     const uploadedPaths: string[] = [];
+    const persistedPaths = new Set<string>();
     try {
       for (const entry of fileData) {
         const path = `smart-import/${created.caseId}/${randomUUID()}-${safeFilename(entry.file.name || "upload")}`;
         await uploadObject(path, entry.bytes, entry.file.type);
         uploadedPaths.push(path);
         entry.storagePath = path;
-        const [doc] = await sql()`
+        const [doc] = await sql().begin(async tx => {
+          await assertCaptureLease(tx, created.caseId, captureGeneration);
+          return tx`
           insert into client_import_documents(import_case_id,storage_reference,original_filename,mime_type,size_bytes,sha256,detected_document_type,extraction_metadata,uploaded_by)
           values(${created.caseId},${path},${safeFilename(entry.file.name || "upload")},${entry.file.type},${entry.file.size},${entry.sha256},${conservativeDocumentType(entry.file.name)},
-            ${sql().json({ extracted_rows: 0, extraction_error: null, processing_state: "PENDING" } as never)},${args.session.staff.id})
+            ${tx.json({ extracted_rows: 0, extraction_error: null, processing_state: "PENDING" } as never)},${args.session.staff.id})
           returning id`;
+        });
+        persistedPaths.add(path);
         entry.documentId = String(doc.id);
       }
-      await sql()`
+      const [captured] = await sql().begin(async tx => {
+        await assertCaptureLease(tx, created.caseId, captureGeneration);
+        return tx`
         update client_import_cases
-        set verification_result=${sql().json({
+        set verification_result=coalesce(verification_result,'{}'::jsonb) || ${tx.json({
           processing_state: "CAPTURED",
           local_state: "COMPLETE",
           ai_state: args.files.length ? "PENDING" : "SKIPPED",
@@ -472,14 +488,13 @@ export async function stageMobileImportV2(args: {
           evidence_fields: preMerge.evidence.length,
           document_count: args.files.length,
         } as never)}
-        where id=${created.caseId}`;
-    } catch (error) {
-      for (const path of uploadedPaths) await removeObject(path).catch(() => undefined);
-      await sql().begin(async (tx) => {
-        await tx`delete from client_import_documents where import_case_id=${created.caseId}`;
-        await tx`delete from client_import_cases where id=${created.caseId}`;
-        await tx`delete from client_import_batches where id=${created.batchId}`;
+        where id=${created.caseId} returning verification_result`;
       });
+      created.verificationResult = captured.verification_result;
+    } catch (error) {
+      for (const path of uploadedPaths) if (!persistedPaths.has(path)) await removeObject(path).catch(() => undefined);
+      await sql()`update client_import_cases set verification_result=coalesce(verification_result,'{}'::jsonb) || ${sql().json({ processing_state: "CAPTURE_FAILED", source_capture_incomplete: true, capture_error: "Source upload did not complete; attach remaining documents before continuing." } as never)}
+        where id=${created.caseId} and verification_result->>'processing_state'='CAPTURING' and verification_result->>'capture_generation'=${captureGeneration}`;
       throw error;
     }
   }
@@ -522,16 +537,19 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     from client_import_documents where import_case_id=${caseId} order by created_at,id`;
   const extractionErrors: Record<string, unknown>[] = [];
 
-  await sql()`
+  const [started] = await sql()`
     update client_import_cases
     set verification_result=coalesce(verification_result,'{}'::jsonb) || ${sql().json({ processing_state: "AI_PROCESSING", local_state: "COMPLETE", ai_state: "PROCESSING" } as never)}
-    where id=${caseId}`;
+    where id=${caseId} and status<>'APPROVED_FILE' and coalesce(verification_result->'workflow_override'->>'state','')<>'PENDING_OVERRIDE' and coalesce(verification_result->>'processing_state','')<>'CAPTURING'
+    returning id`;
+  if (!started) throw new ActionError("pending_override_active", "Extraction is deferred while this review is pending", 409);
 
   type DocResult = {
     doc: Record<string, unknown>;
     rows: IntakeRow[];
     confidence: Record<string, number>;
     extractionError: string | null;
+    metadata: Record<string, unknown>;
   };
 
   async function processDocument(doc: Record<string, unknown>): Promise<DocResult> {
@@ -553,17 +571,14 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
         ${sql().json(confidence as never)},
         ${sql().json({ extracted_rows: rows.length, duration_ms: Date.now() - started } as never)},
         ${extractionError},${session.staff.id},now())`;
-    await sql()`
-      update client_import_documents
-      set extraction_metadata=${sql().json({
+    const metadata = {
         extracted_rows: rows.length,
         confidence,
         extraction_error: extractionError,
         processing_state: extractionError ? "FAILED" : "EXTRACTED",
         completed_at: new Date().toISOString(),
-      } as never)}
-      where id=${String(doc.id)}`;
-    return { doc, rows, confidence, extractionError };
+    };
+    return { doc, rows, confidence, extractionError, metadata };
   }
 
   const results: DocResult[] = [];
@@ -602,11 +617,17 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
   // stale pre-extraction review snapshot to replace manually reviewed values.
   return sql().begin(async (tx) => {
     const [latest] = await tx`
-      select status,mapped_draft,field_evidence,review_started_at
+      select status,mapped_draft,field_evidence,review_started_at,verification_result
       from client_import_cases where id=${caseId} for update`;
     if (!latest) throw new ActionError("not_found", "Import case not found", 404);
     if (latest.status === "APPROVED_FILE") {
       throw new ActionError("already_approved", "Approved files cannot be changed by delayed extraction", 409);
+    }
+    if (latest.verification_result?.workflow_override?.state === "PENDING_OVERRIDE") {
+      throw new ActionError("pending_override_active", "Extraction is deferred while this review is pending", 409);
+    }
+    for (const result of results) {
+      await tx`update client_import_documents set extraction_metadata=${tx.json(result.metadata as never)} where id=${String(result.doc.id)} and import_case_id=${caseId}`;
     }
 
     const manualFields = new Set<string>(
@@ -619,7 +640,9 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
     const evidence = appendExtractionEvidence(latest.field_evidence, merged.evidence as EvidenceEntry[]);
     const unresolvedConflicts = merged.conflicts.filter((conflict) => !manualFields.has(canonicalSmartFieldKey(conflict.field_key)));
     const missing = requiredMissingFromDraft(draft);
+    const previousResult = latest.verification_result && typeof latest.verification_result === "object" ? latest.verification_result as Record<string, unknown> : {};
     const verificationResult = {
+      ...previousResult,
       processing_state: processingState,
       local_state: "COMPLETE",
       ai_state: aiState,

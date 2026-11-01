@@ -25,3 +25,5 @@
 .royal-select-error{color:#fb9fa8;font-size:12px;margin-top:4px}
 @keyframes royal-select-appear{from{opacity:0;transform:translateY(-5px) scale(.99)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.royal-select-popup{animation:none}.royal-select-trigger,.royal-select-chevron,.royal-select-option{transition:none}}
+
+.royal-select-popup-inline{position:static;z-index:auto;width:100%;max-height:260px;margin-top:6px;box-shadow:none}

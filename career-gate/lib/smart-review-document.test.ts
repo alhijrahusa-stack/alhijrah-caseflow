@@ -2,12 +2,13 @@ import { createRequire } from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffSession } from "@/lib/auth";
 import { staffGuard } from "@/lib/staff-api";
-import { getImportDocument } from "@/lib/smart-client-import";
+import { assertImportReviewPermission, getImportDocument } from "@/lib/smart-client-import";
+import { ActionError } from "@/lib/service";
 import { downloadObjectStream, StorageNotConfigured } from "@/lib/storage";
 import { GET } from "@/app/api/staff/smart-client-import/document/[id]/route";
 
 vi.mock("@/lib/staff-api", () => ({ staffGuard: vi.fn() }));
-vi.mock("@/lib/smart-client-import", () => ({ getImportDocument: vi.fn() }));
+vi.mock("@/lib/smart-client-import", () => ({ assertImportReviewPermission: vi.fn(), getImportDocument: vi.fn() }));
 vi.mock("@/lib/storage", () => ({
   downloadObjectStream: vi.fn(),
   StorageNotConfigured: class StorageNotConfigured extends Error {},
@@ -40,6 +41,7 @@ describe("Smart Review authenticated document preview", () => {
 
   it("denies ordinary staff without reading document metadata or storage", async () => {
     vi.mocked(staffGuard).mockResolvedValue({ session: { ...manager, staff: { ...manager.staff, role: "staff" } }, response: null });
+    vi.mocked(assertImportReviewPermission).mockRejectedValue(new ActionError("forbidden", "Not permitted", 403));
     const response = await GET(request(), context());
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({ error: { code: "forbidden" } });

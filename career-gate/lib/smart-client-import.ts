@@ -1,8 +1,11 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { sql } from "@/lib/db";
 import type { StaffSession } from "@/lib/auth";
+import { permissionAllows } from "@/lib/authz";
+import { assertCaptureLease } from "@/lib/smart-capture";
 import type { IntakeRow } from "@/lib/intake-file";
 import {
   ActionError,
@@ -91,6 +94,52 @@ const PROFILE_REVIEW_KEYS = new Set<ReviewFieldKey>([
 
 function assertManager(session: StaffSession) {
   if (session.staff.role === "staff") throw new ActionError("forbidden", "Smart client import requires manager or admin access", 403);
+}
+
+export async function assertImportReviewPermission(session: StaffSession) {
+  if (!(await permissionAllows(session, "review_smart_import"))) throw new ActionError("forbidden", "Smart import review is not permitted", 403);
+}
+
+async function assertAssignedReviewer(tx: Tx, session: StaffSession, reviewer: unknown, requestedReviewer?: string) {
+  if (session.staff.role !== "staff") return;
+  const [actor] = await tx`select permission_mode,custom_permissions from staff
+    where id=${session.staff.id} and active and role='staff' for share`;
+  if (!actor || (actor.permission_mode !== "full" &&
+      !(actor.permission_mode === "custom" && Array.isArray(actor.custom_permissions) && actor.custom_permissions.includes("review_smart_import")))) {
+    throw new ActionError("forbidden", "Smart import review is not permitted", 403);
+  }
+  if (String(reviewer ?? "") !== session.staff.id || (requestedReviewer && requestedReviewer !== session.staff.id)) {
+    throw new ActionError("not_found", "Import case not found", 404);
+  }
+}
+
+function requireReviewVersion(expected: string | undefined) {
+  if (!expected) throw new ActionError("client_upgrade_required", "Reload Career Gate before saving. Your local draft remains available for comparison.", 409);
+}
+
+function hasPendingOverride(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+  const state = (value as Record<string, unknown>).workflow_override;
+  return !!state && typeof state === "object" && (state as Record<string, unknown>).state === "PENDING_OVERRIDE";
+}
+
+function assertCaptureFinished(value: unknown) {
+  if (value && typeof value === "object" && (value as Record<string, unknown>).processing_state === "CAPTURING") {
+    throw new ActionError("capture_in_progress", "Wait for source upload to finish before reviewing", 409);
+  }
+}
+
+function incompleteCapture(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+  const result = value as Record<string, unknown>;
+  return result.source_capture_incomplete === true || ["CAPTURE_FAILED", "CAPTURE_INTERRUPTED"].includes(String(result.processing_state ?? ""));
+}
+
+function preserveCaptureStatus(value: unknown) {
+  if (!incompleteCapture(value)) return {};
+  const result = value as Record<string, unknown>;
+  return { source_capture_incomplete: true, processing_state: result.processing_state, capture_error: result.capture_error,
+    capture_generation: result.capture_generation, document_count: result.document_count };
 }
 
 function parseSource(value: string): ImportSourceType {
@@ -196,19 +245,12 @@ export function resolveReviewConflicts(conflictsValue: unknown, resolvedFields: 
   return conflicts.filter((conflict) => isIdentityConflict(conflict) || !resolved.has(conflictField(conflict) ?? ""));
 }
 
-export function assertReviewVersion(updatedAt: unknown, expectedUpdatedAt?: string) {
-  if (!expectedUpdatedAt) return;
-  const micros = (value: unknown): bigint | null => {
-    if (value instanceof Date && !Number.isFinite(value.getTime())) return null;
-    const stamp = value instanceof Date ? value.toISOString() : String(value);
-    const milliseconds = Date.parse(stamp);
-    if (!Number.isFinite(milliseconds)) return null;
-    const fraction = stamp.match(/\.(\d+)(?:Z|[+-]\d{2}:?\d{2})$/i)?.[1] ?? "";
-    return BigInt(milliseconds) * 1000n + BigInt(fraction.padEnd(6, "0").slice(3, 6) || "0");
-  };
-  const current = micros(updatedAt);
-  const expected = micros(expectedUpdatedAt);
-  if (expected === null || current === null || current !== expected) {
+export function assertReviewVersion(currentRevision: unknown, expectedRevision?: string) {
+  if (!expectedRevision) throw new ActionError("client_upgrade_required", "Reload Career Gate before saving. Your local draft remains available for comparison.", 409);
+  if (!/^[1-9][0-9]{0,18}$/.test(expectedRevision) || BigInt(expectedRevision) > 9223372036854775807n) {
+    throw new ActionError("invalid_revision", "Invalid review revision", 400);
+  }
+  if (String(currentRevision) !== expectedRevision) {
     throw new ActionError("review_changed", "This file changed after you opened it. Reload the latest review before saving; your unsaved edits have been kept.", 409);
   }
 }
@@ -511,10 +553,14 @@ export async function stageMobileImport(args: {
   const key = args.idempotencyKey.trim();
   if (key.length < 8 || key.length > 200) throw new ActionError("invalid_idempotency_key", "A valid idempotency key is required", 400);
 
+  const captureGeneration = randomUUID();
   const created = await sql().begin(async (tx) => {
     const [existing] = await tx`select id from client_import_batches where created_by=${args.session.staff.id} and idempotency_key=${key}`;
     if (existing) {
-      const [caseRow] = await tx`select id,status,public_ref from client_import_cases where batch_id=${existing.id} order by created_at limit 1`;
+      const [caseRow] = await tx`select id,status,public_ref,verification_result from client_import_cases where batch_id=${existing.id} order by created_at limit 1`;
+      if (["CAPTURING", "CAPTURE_FAILED", "CAPTURE_INTERRUPTED"].includes(String(caseRow.verification_result?.processing_state ?? ""))) {
+        throw new ActionError("capture_incomplete", "The previous submission needs staff review before it can be completed", 409);
+      }
       return { batchId: String(existing.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: true };
     }
     const [batch] = await tx`
@@ -529,35 +575,41 @@ export async function stageMobileImport(args: {
       ) values(
         ${batch.id},'mobile','PENDING',${tx.json({ notes } as never)},${tx.json(draft as never)},${tx.json(missing as never)},
         ${tx.json(merged.conflicts as never)},${tx.json(merged.evidence as never)},
-        ${tx.json({ extraction_errors: extractionErrors } as never)},${args.session.staff.id}
+        ${tx.json({ extraction_errors: extractionErrors, processing_state: "CAPTURING", capture_generation: captureGeneration } as never)},${args.session.staff.id}
       ) returning id,public_ref`;
     return { batchId: String(batch.id), caseId: String(caseRow.id), publicRef: String(caseRow.public_ref), idempotent: false };
   });
   if (created.idempotent) return { batch_id: created.batchId, case_id: created.caseId, public_ref: created.publicRef, idempotent: true };
 
   const uploadedPaths: string[] = [];
+  const persistedPaths = new Set<string>();
   try {
     for (const entry of fileData) {
       const path = `smart-import/${created.caseId}/${randomUUID()}-${safeFilename(entry.file.name || "upload")}`;
       await uploadObject(path, entry.bytes, entry.file.type);
       uploadedPaths.push(path);
-      await sql()`
+      await sql().begin(async tx => {
+        await assertCaptureLease(tx, created.caseId, captureGeneration);
+        await tx`
         insert into client_import_documents(import_case_id,storage_reference,original_filename,mime_type,size_bytes,sha256,detected_document_type,extraction_metadata,uploaded_by)
         values(${created.caseId},${path},${safeFilename(entry.file.name || "upload")},${entry.file.type},${entry.file.size},${entry.sha256},'other',
-          ${sql().json({ extracted_rows: entry.extractedRows.length, confidence: entry.confidence, extraction_error: entry.extractionError } as never)},${args.session.staff.id})`;
-      await sql()`
+          ${tx.json({ extracted_rows: entry.extractedRows.length, confidence: entry.confidence, extraction_error: entry.extractionError } as never)},${args.session.staff.id})`;
+        await tx`
         insert into system_jobs(job_type,status,import_case_id,source_name,provider,confidence,result,error,created_by,completed_at)
         values('smart_document_extraction',${entry.extractionError ? "FAILED" : "COMPLETED"},${created.caseId},${safeFilename(entry.file.name || "upload")},'gemini',
-          ${sql().json(entry.confidence as never)},${sql().json({ extracted_rows: entry.extractedRows.length, sha256: entry.sha256 } as never)},
+          ${tx.json(entry.confidence as never)},${tx.json({ extracted_rows: entry.extractedRows.length, sha256: entry.sha256 } as never)},
           ${entry.extractionError},${args.session.staff.id},now())`;
+      });
+      persistedPaths.add(path);
     }
-  } catch (error) {
-    for (const path of uploadedPaths) await removeObject(path).catch(() => undefined);
-    await sql().begin(async (tx) => {
-      await tx`delete from client_import_documents where import_case_id=${created.caseId}`;
-      await tx`delete from client_import_cases where id=${created.caseId}`;
-      await tx`delete from client_import_batches where id=${created.batchId}`;
+    await sql().begin(async tx => {
+      await assertCaptureLease(tx, created.caseId, captureGeneration);
+      await tx`update client_import_cases set verification_result=coalesce(verification_result,'{}'::jsonb) || ${tx.json({ processing_state: "CAPTURED" } as never)} where id=${created.caseId}`;
     });
+  } catch (error) {
+    for (const path of uploadedPaths) if (!persistedPaths.has(path)) await removeObject(path).catch(() => undefined);
+    await sql()`update client_import_cases set verification_result=coalesce(verification_result,'{}'::jsonb) || ${sql().json({ processing_state: "CAPTURE_FAILED", source_capture_incomplete: true, capture_error: "Source upload did not complete; attach remaining documents before continuing." } as never)}
+      where id=${created.caseId} and verification_result->>'processing_state'='CAPTURING' and verification_result->>'capture_generation'=${captureGeneration}`;
     throw error;
   }
   return { batch_id: created.batchId, case_id: created.caseId, public_ref: created.publicRef, idempotent: false };
@@ -611,14 +663,14 @@ export async function listImportQueue(session: StaffSession, args: { status?: st
 }
 
 export async function getImportCase(session: StaffSession, id: string) {
-  assertManager(session);
+  await assertImportReviewPermission(session);
   const [row] = await sql()`
-    select c.*,to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,
+    select c.*,to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,c.revision::text as revision,
       s.display_name as reviewer_name,a.display_name as approved_by_name
     from client_import_cases c
     left join staff s on s.id=c.reviewer_id
     left join staff a on a.id=c.approved_by
-    where c.id=${id}`;
+    where c.id=${id} and (${session.staff.role !== "staff"} or c.reviewer_id=${session.staff.id})`;
   if (!row) throw new ActionError("not_found", "Import case not found", 404);
   if (row.archived_at && row.status !== "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
   const docs = await sql()`
@@ -639,21 +691,71 @@ async function requireActiveReviewer(tx: Tx, id: string) {
   return String(reviewer.id);
 }
 
-export async function startImportReview(session: StaffSession, id: string, reviewerId: string) {
+export async function recoverImportCapture(session: StaffSession, id: string, expectedRevision: string, traceId: string) {
   assertManager(session);
+  if (!expectedRevision) throw new ActionError("review_version_required", "Reload the import before recovery", 409);
+  return sql().begin(async tx => {
+    const [row] = await tx`select id,status,archived_at,verification_result,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision from client_import_cases where id=${id} for update`;
+    if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    if (row.archived_at || row.status === "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
+    assertReviewVersion(row.revision, expectedRevision);
+    const result = (row.verification_result ?? {}) as Record<string, unknown>;
+    if (result.processing_state !== "CAPTURING") throw new ActionError("capture_not_active", "Source capture is not active", 409);
+    const [count] = await tx`select count(*)::int as n from client_import_documents where import_case_id=${id}`;
+    const recovered = { ...result, processing_state: "CAPTURE_INTERRUPTED", source_capture_incomplete: true, capture_error: "Capture was interrupted; attach remaining documents before continuing.", capture_recovered_by: session.staff.id, capture_recovered_at: new Date().toISOString(), document_count: Number(count.n) };
+    const [updated] = await tx`update client_import_cases set verification_result=${tx.json(recovered as never)} where id=${id}
+      returning to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision`;
+    await tx`insert into security_events(event,staff_id,route,detail,trace_id)
+      values('smart_import_capture_recovered',${session.staff.id},'/api/staff/smart-client-import',${tx.json({ case_id: id, document_count: Number(count.n), capture_generation: typeof result.capture_generation === "string" ? result.capture_generation : null })},${traceId})`;
+    return { state: "CAPTURE_INTERRUPTED", document_count: Number(count.n), updated_at: updated.updated_at, revision: updated.revision };
+  });
+}
+
+export async function assignImportReviewer(session: StaffSession, id: string, reviewerId: string, expectedRevision: string, traceId: string) {
+  assertManager(session);
+  if (!expectedRevision) throw new ActionError("review_version_required", "Reload the review before continuing", 409);
+  return sql().begin(async (tx) => {
+    const [row] = await tx`select id,status,reviewer_id,archived_at,verification_result,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision from client_import_cases where id=${id} for update`;
+    if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    if (row.archived_at || row.status === "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
+    assertReviewVersion(row.revision, expectedRevision);
+    assertCaptureFinished(row.verification_result);
+    if (hasPendingOverride(row.verification_result)) throw new ActionError("pending_override_active", "Cancel the pending override before changing the reviewer", 409);
+    const [reviewer] = await tx`select id,role,permission_mode,custom_permissions from staff where id=${reviewerId} and active for share`;
+    if (!reviewer) throw new ActionError("invalid_reviewer", "Reviewer is not an active staff member", 400);
+    if (reviewer.role === "staff" && reviewer.permission_mode !== "full" &&
+        !(reviewer.permission_mode === "custom" && Array.isArray(reviewer.custom_permissions) && reviewer.custom_permissions.includes("review_smart_import"))) {
+      throw new ActionError("invalid_reviewer", "Reviewer lacks smart import review permission", 400);
+    }
+    if (String(row.reviewer_id ?? "") === reviewerId) return { id, reviewer_id: reviewerId, idempotent: true };
+    await tx`update client_import_cases set reviewer_id=${reviewerId} where id=${id}`;
+    await tx`insert into security_events(event,staff_id,route,detail,trace_id)
+      values('smart_import_reviewer_assigned',${session.staff.id},'/api/staff/smart-client-import',
+        ${tx.json({ case_id: id, previous_reviewer_id: row.reviewer_id ?? null, reviewer_id: reviewerId })},${traceId})`;
+    return { id, reviewer_id: reviewerId, idempotent: false };
+  });
+}
+
+export async function startImportReview(session: StaffSession, id: string, reviewerId: string, expectedRevision?: string) {
+  requireReviewVersion(expectedRevision);
+  await assertImportReviewPermission(session);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, reviewerId);
-    const [row] = await tx`select id,status,reviewer_id,review_started_at,archived_at from client_import_cases where id=${id} for update`;
+    const [row] = await tx`select id,status,reviewer_id,review_started_at,archived_at,verification_result,revision::text as revision from client_import_cases where id=${id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    await assertAssignedReviewer(tx, session, row.reviewer_id, reviewerId);
+    assertReviewVersion(row.revision, expectedRevision);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot be reopened", 409);
     if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
+    assertCaptureFinished(row.verification_result);
+    if (hasPendingOverride(row.verification_result)) throw new ActionError("pending_override_active", "Cancel the pending override before changing this review", 409);
     assertReviewOwnership(row.reviewer_id, reviewerId);
     const [updated] = await tx`
       update client_import_cases
       set reviewer_id=${reviewerId},review_started_at=coalesce(review_started_at,now()),status='UNDER_REVIEW'
       where id=${id}
       returning id,status,reviewer_id,review_started_at,
-        to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at`;
+        to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision`;
     return updated;
   });
 }
@@ -665,19 +767,23 @@ export async function saveImportReview(session: StaffSession, args: {
   documentConfirmed: boolean;
   informationConfirmed: boolean;
   resolvedFields?: string[];
-  expectedUpdatedAt?: string;
+  expectedRevision?: string;
 }) {
-  assertManager(session);
+  await assertImportReviewPermission(session);
+  requireReviewVersion(args.expectedRevision);
   if (!JsonObject.safeParse(args.draft).success) throw new ActionError("invalid_draft", "Mapped draft must be an object", 400);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, args.reviewerId);
-    const [row] = await tx`select id,status,reviewer_id,review_started_at,mapped_draft,field_evidence,conflicts,
-      to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,archived_at
+    const [row] = await tx`select id,status,reviewer_id,review_started_at,mapped_draft,field_evidence,conflicts,verification_result,
+      to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision,archived_at
       from client_import_cases where id=${args.id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    await assertAssignedReviewer(tx, session, row.reviewer_id, args.reviewerId);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot be changed", 409);
     if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
-    assertReviewVersion(row.updated_at, args.expectedUpdatedAt);
+    assertCaptureFinished(row.verification_result);
+    assertReviewVersion(row.revision, args.expectedRevision);
+    if (hasPendingOverride(row.verification_result)) throw new ActionError("pending_override_active", "Cancel the pending override before editing this review", 409);
     assertReviewOwnership(row.reviewer_id, args.reviewerId);
     const sanitizedDraft = sanitizeReviewDraft(args.draft);
     let storedDraft: unknown = sanitizedDraft;
@@ -693,11 +799,11 @@ export async function saveImportReview(session: StaffSession, args: {
       update client_import_cases set
         reviewer_id=${args.reviewerId},review_started_at=coalesce(review_started_at,now()),reviewed_at=now(),
         mapped_draft=${tx.json(storedDraft as never)},missing_fields=${tx.json(missing as never)},field_evidence=${tx.json(evidence as never)},
-        conflicts=${tx.json(conflicts as never)},verification_result='{}'::jsonb,
+        conflicts=${tx.json(conflicts as never)},verification_result=${tx.json(preserveCaptureStatus(row.verification_result) as never)},
         document_match_confirmed=${args.documentConfirmed},information_match_confirmed=${args.informationConfirmed},
         status=case when status='PENDING' then 'UNDER_REVIEW' else status end
       where id=${args.id}
-      returning id,status,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at`;
+      returning id,status,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision`;
     return updated;
   });
 }
@@ -745,6 +851,10 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
     confirmationsRecorded: Boolean(row.document_match_confirmed) && Boolean(row.information_match_confirmed),
     documentCount,
   });
+  if (incompleteCapture(row.verification_result)) {
+    assessment.warnings.push({ field: "source_capture", state: "MISSING", message: "Source capture was interrupted; remaining documents must be collected." });
+    if (assessment.readiness === "READY_TO_APPROVE") assessment.readiness = "APPROVE_WITH_WARNINGS";
+  }
   const approvalReady = assessment.readiness !== "BLOCKED";
   // Optional gaps are reported, never used to withhold approval.
   const missing = assessment.warnings.filter((warning) => warning.state === "MISSING").map((warning) => warning.field);
@@ -777,14 +887,77 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
   };
 }
 
-export async function verifyImportCase(session: StaffSession, id: string, expectedUpdatedAt?: string) {
-  assertManager(session);
-  return sql().begin(async (tx) => {
-    const [row] = await tx`select *,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at from client_import_cases where id=${id} for update`;
+export async function beginImportOverride(session: StaffSession, args: {
+  id: string; reviewerId: string; draft: unknown; documentConfirmed: boolean; informationConfirmed: boolean;
+  resolvedFields?: string[]; expectedRevision: string; traceId: string;
+}) {
+  await assertImportReviewPermission(session);
+  if (!args.expectedRevision) throw new ActionError("review_version_required", "Reload the review before continuing", 409);
+  if (!JsonObject.safeParse(args.draft).success) throw new ActionError("invalid_draft", "Mapped draft must be an object", 400);
+  return sql().begin(async tx => {
+    const [row] = await tx`select *,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision from client_import_cases where id=${args.id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    await assertAssignedReviewer(tx, session, row.reviewer_id, args.reviewerId);
+    if (row.archived_at || row.status === "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
+    assertReviewVersion(row.revision, args.expectedRevision);
+    assertReviewOwnership(row.reviewer_id, args.reviewerId);
+    assertCaptureFinished(row.verification_result);
+    if (hasPendingOverride(row.verification_result)) throw new ActionError("pending_override_active", "A pending override already exists", 409);
+    await requireActiveReviewer(tx, args.reviewerId);
+    const conflicts = resolveReviewConflicts(row.conflicts, args.resolvedFields);
+    const verification = await verifyLockedCase(tx, { ...row, mapped_draft: args.draft, reviewer_id: args.reviewerId,
+      document_match_confirmed: args.documentConfirmed, information_match_confirmed: args.informationConfirmed, conflicts });
+    if (!verification.draft) throw new ActionError("approval_blocked", verification.result.validation_error || "This file cannot be approved", 409);
+    const missing = verification.assessment.warnings.filter(warning => warning.state === "MISSING").map(warning => warning.field);
+    if (!missing.length) throw new ActionError("override_not_required", "No missing item requires an override", 409);
+    const evidence = mergeManualEvidence(row.field_evidence, row.mapped_draft, verification.draft, args.reviewerId, {
+      resolvedFields: args.resolvedFields, conflicts: Array.isArray(row.conflicts) ? row.conflicts : [], actorId: session.staff.id,
+    });
+    const workflowOverride = { state: "PENDING_OVERRIDE", started_by: session.staff.id, reviewer_id: args.reviewerId, started_at: new Date().toISOString(), outstanding_fields: missing };
+    const [updated] = await tx`update client_import_cases set reviewer_id=${args.reviewerId},review_started_at=coalesce(review_started_at,now()),
+      status=case when status='PENDING' then 'UNDER_REVIEW' else status end, mapped_draft=${tx.json(verification.draft as never)},
+      field_evidence=${tx.json(evidence as never)},missing_fields=${tx.json(verification.missing as never)}, conflicts=${tx.json(verification.conflicts as never)},
+      document_match_confirmed=${args.documentConfirmed},information_match_confirmed=${args.informationConfirmed},
+      verification_result=${tx.json({ ...preserveCaptureStatus(row.verification_result), ...verification.result, workflow_override: workflowOverride } as never)}
+      where id=${args.id} returning to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision`;
+    await tx`insert into security_events(event,staff_id,route,detail,trace_id)
+      values('smart_import_override_pending',${session.staff.id},'/api/staff/smart-client-import',${tx.json({ case_id: args.id, reviewer_id: args.reviewerId, outstanding_fields: missing })},${args.traceId})`;
+    return { updated_at: updated.updated_at, revision: updated.revision, state: "PENDING_OVERRIDE" };
+  });
+}
+
+export async function cancelImportOverride(session: StaffSession, id: string, expectedRevision: string, traceId: string) {
+  await assertImportReviewPermission(session);
+  if (!expectedRevision) throw new ActionError("review_version_required", "Reload the review before continuing", 409);
+  return sql().begin(async tx => {
+    const [row] = await tx`select id,status,reviewer_id,archived_at,verification_result,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision from client_import_cases where id=${id} for update`;
+    if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    await assertAssignedReviewer(tx, session, row.reviewer_id);
+    if (row.archived_at || row.status === "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
+    assertReviewVersion(row.revision, expectedRevision);
+    if (!hasPendingOverride(row.verification_result)) throw new ActionError("no_pending_override", "No override is pending", 409);
+    const result = row.verification_result as Record<string, unknown>;
+    const workflow = result.workflow_override as Record<string, unknown>;
+    const [updated] = await tx`update client_import_cases set verification_result=${tx.json({ ...result, workflow_override: { ...workflow, state: "CANCELLED", cancelled_by: session.staff.id, cancelled_at: new Date().toISOString() } } as never)} where id=${id}
+      returning to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision`;
+    await tx`insert into security_events(event,staff_id,route,detail,trace_id)
+      values('smart_import_override_cancelled',${session.staff.id},'/api/staff/smart-client-import',${tx.json({ case_id: id })},${traceId})`;
+    return { updated_at: updated.updated_at, revision: updated.revision, state: "CANCELLED" };
+  });
+}
+
+export async function verifyImportCase(session: StaffSession, id: string, expectedRevision?: string) {
+  await assertImportReviewPermission(session);
+  requireReviewVersion(expectedRevision);
+  return sql().begin(async (tx) => {
+    const [row] = await tx`select *,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision from client_import_cases where id=${id} for update`;
+    if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    await assertAssignedReviewer(tx, session, row.reviewer_id);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Import is already approved", 409);
     if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
-    assertReviewVersion(row.updated_at, expectedUpdatedAt);
+    assertCaptureFinished(row.verification_result);
+    assertReviewVersion(row.revision, expectedRevision);
+    if (hasPendingOverride(row.verification_result)) throw new ActionError("pending_override_active", "Cancel the pending override before verifying this review", 409);
     const verification = await verifyLockedCase(tx, row as Record<string, unknown>);
     // The case guard only allows PENDING -> UNDER_REVIEW, so a pending case verifies
     // into UNDER_REVIEW regardless of its document count.
@@ -793,10 +966,10 @@ export async function verifyImportCase(session: StaffSession, id: string, expect
       : "UNDER_REVIEW";
     const [updated] = await tx`
       update client_import_cases set missing_fields=${tx.json(verification.missing as never)},conflicts=${tx.json(verification.conflicts as never)},
-        verification_result=${tx.json(verification.result as never)},reviewed_at=now(),status=${nextStatus}
+        verification_result=${tx.json({ ...preserveCaptureStatus(row.verification_result), ...verification.result } as never)},reviewed_at=now(),status=${nextStatus}
       where id=${id}
-      returning to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at`;
-    return { ...verification.result, updated_at: updated.updated_at };
+      returning to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision`;
+    return { ...verification.result, updated_at: updated.updated_at, revision: updated.revision };
   });
 }
 
@@ -808,22 +981,31 @@ export async function approveImportCase(session: StaffSession, args: {
   informationConfirmed: boolean;
   traceId: string;
   resolvedFields?: string[];
-  expectedUpdatedAt?: string;
+  expectedRevision?: string;
   override?: boolean;
   overrideReason?: string;
 }) {
-  assertManager(session);
+  await assertImportReviewPermission(session);
+  requireReviewVersion(args.expectedRevision);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, args.reviewerId);
-    const [row] = await tx`select *,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at from client_import_cases where id=${args.id} for update`;
+    const [row] = await tx`select *,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,revision::text as revision from client_import_cases where id=${args.id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    await assertAssignedReviewer(tx, session, row.reviewer_id, args.reviewerId);
     if (row.status === "APPROVED_FILE") {
       if (row.created_client_id) return { client_id: String(row.created_client_id), idempotent: true };
       throw new ActionError("invalid_approved_state", "Approved import is missing its client reference", 500);
     }
     if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
-    assertReviewVersion(row.updated_at, args.expectedUpdatedAt);
+    assertCaptureFinished(row.verification_result);
+    assertReviewVersion(row.revision, args.expectedRevision);
     assertReviewOwnership(row.reviewer_id, args.reviewerId);
+    if (hasPendingOverride(row.verification_result) && !args.expectedRevision) throw new ActionError("review_version_required", "Reload the pending review before approving", 409);
+    if (hasPendingOverride(row.verification_result) && (!isDeepStrictEqual(args.draft, row.mapped_draft) ||
+      args.documentConfirmed !== Boolean(row.document_match_confirmed) || args.informationConfirmed !== Boolean(row.information_match_confirmed) ||
+      (args.resolvedFields?.length ?? 0) > 0)) {
+      throw new ActionError("review_changed", "The pending override must use the saved review. Cancel it to make changes.", 409);
+    }
     // The case guard only permits PENDING -> UNDER_REVIEW, so approval performs that
     // legal transition itself instead of requiring a separate START REVIEW step. The
     // reviewer and the review start time are still recorded for the audit trail.
@@ -849,13 +1031,18 @@ export async function approveImportCase(session: StaffSession, args: {
     if (overrideRequired && (args.override !== true || overrideReason.length < 8)) {
       throw new ActionError("override_required", "Missing documents or data require an explicit approval and a reason of at least 8 characters.", 409);
     }
+    if (overrideRequired && !hasPendingOverride(row.verification_result)) {
+      throw new ActionError("pending_override_required", "Start the pending override before approving missing items.", 409);
+    }
     if (overrideReason.length > 1000) throw new ActionError("invalid_override_reason", "Keep the override reason within 1,000 characters.", 400);
     const override = overrideRequired ? {
       approved_with_missing_items: true, reason: overrideReason, actor_id: session.staff.id,
       reviewer_id: args.reviewerId, approved_at: new Date().toISOString(),
       outstanding_fields: missingItems.map((warning) => warning.field),
     } : null;
-    const approvalResult = { ...verification.result, override };
+    const previousWorkflow = hasPendingOverride(row.verification_result)
+      ? (row.verification_result as Record<string, unknown>).workflow_override as Record<string, unknown> : null;
+    const approvalResult = { ...preserveCaptureStatus(row.verification_result), ...verification.result, override, ...(previousWorkflow ? { workflow_override: { ...previousWorkflow, state: "APPROVED", completed_by: session.staff.id, completed_at: new Date().toISOString() } } : {}) };
     // Approve the persistable draft: optional values that cannot satisfy their canonical
     // type were cleared and are reported as warnings, with their source evidence intact.
     const draft = verification.draft;
@@ -865,7 +1052,11 @@ export async function approveImportCase(session: StaffSession, args: {
       actorId: session.staff.id,
     });
 
-    const assignedStaff = await resolveImportedStaff(tx, draft.staff_code);
+    const resolvedStaff = await resolveImportedStaff(tx, draft.staff_code);
+    if (session.staff.role === "staff" && (draft.status !== "new_intake" || (resolvedStaff && resolvedStaff !== session.staff.id))) {
+      throw new ActionError("forbidden", "Staff may only create an intake file assigned to themselves", 403);
+    }
+    const assignedStaff = session.staff.role === "staff" ? session.staff.id : resolvedStaff;
     const [sourceBatch] = await tx`select idempotency_key from client_import_batches where id=${String(row.batch_id)}`;
     const publicLinkImport = String(sourceBatch?.idempotency_key ?? "").startsWith("client-link:");
     const client = await insertClient(tx, {
@@ -944,11 +1135,11 @@ export async function approveImportCase(session: StaffSession, args: {
 }
 
 export async function getImportDocument(session: StaffSession, id: string) {
-  assertManager(session);
+  await assertImportReviewPermission(session);
   const [row] = await sql()`
     select d.id,d.storage_reference,d.original_filename,d.mime_type,d.import_case_id,c.status,c.archived_at
     from client_import_documents d join client_import_cases c on c.id=d.import_case_id
-    where d.id=${id}`;
+    where d.id=${id} and (${session.staff.role !== "staff"} or c.reviewer_id=${session.staff.id})`;
   if (!row) throw new ActionError("not_found", "Import document not found", 404);
   if (row.archived_at && row.status !== "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
   return row as { id: string; storage_reference: string; original_filename: string; mime_type: string; import_case_id: string };

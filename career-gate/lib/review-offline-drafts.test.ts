@@ -13,7 +13,7 @@ const staffId = "staff-owner";
 const payload = (id = "review-case"): ReviewDraftPayload => ({
   action: "save", id, reviewer_id: "reviewer", draft: { profile: { full_name: "TEST Offline Draft" } },
   document_match_confirmed: false, information_match_confirmed: false,
-  expected_updated_at: "2026-10-31T10:00:00.000001Z", resolved_fields: ["full_name"],
+  expected_updated_at: "2026-10-31T10:00:00.000001Z", expected_revision: "41", resolved_fields: ["full_name"],
 });
 const response = (status: number, value: object) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 
@@ -26,6 +26,7 @@ describe("versioned offline review outbox", () => {
     expect(draft.payload).not.toHaveProperty("token");
     expect(draft.payload.action).toBe("save");
     expect(draft.payload.expected_updated_at).toBe("2026-10-31T10:00:00.000001Z");
+    expect(draft.payload.expected_revision).toBe("41");
   });
   it("discards malformed, expired or wrong-actor drafts without replaying them", () => {
     const storage = new MemoryStorage();
@@ -44,12 +45,34 @@ describe("versioned offline review outbox", () => {
     await syncReviewDrafts(storage, staffId, fetcher, (detail) => events.push(detail));
     expect(fetcher).toHaveBeenCalledTimes(1);
     const options = (fetcher.mock.calls[0] as unknown as [string, RequestInit])[1];
-    expect(JSON.parse(String(options.body))).toMatchObject({ action: "save", expected_updated_at: payload().expected_updated_at, expected_actor_id: staffId });
+    expect(JSON.parse(String(options.body))).toMatchObject({ action: "save", expected_updated_at: payload().expected_updated_at, expected_revision: "41", expected_actor_id: staffId });
     expect(readReviewDraft(storage, staffId, "review-case")).toBeNull();
     expect(readReviewDraft(storage, staffId, "local-only")).not.toBeNull();
     expect(events.map((detail) => detail.state)).toEqual(["syncing", "synced"]);
     expect(events.every((detail) => detail.staffId === staffId)).toBe(true);
     expect(events.at(-1)?.appliedPayload).toMatchObject({ expected_actor_id: staffId, draft: payload().draft });
+  });
+  it("retains legacy queued and local-only drafts without replaying either", async () => {
+    const storage = new MemoryStorage();
+    for (const [id, queued] of [["legacy-queued", true], ["legacy-local", false]] as const) {
+      const stored = writeReviewDraft(storage, staffId, payload(id), queued);
+      const legacyPayload = { ...stored.payload };
+      delete legacyPayload.expected_revision;
+      storage.setItem(reviewDraftKey(staffId, id), JSON.stringify({ ...stored, payload: legacyPayload }));
+    }
+    const fetcher = vi.fn();
+    const events: ReviewSyncDetail[] = [];
+    await syncReviewDrafts(storage, staffId, fetcher, detail => events.push(detail));
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(readReviewDraft(storage, staffId, "legacy-queued")).toMatchObject({ queued: false, conflict: true, payload: { draft: payload().draft } });
+    expect(readReviewDraft(storage, staffId, "legacy-local")).toMatchObject({ queued: false, payload: { draft: payload().draft } });
+    expect(events).toEqual([expect.objectContaining({ caseId: "legacy-queued", state: "conflict" })]);
+  });
+  it("requires a valid positive revision for newly saved drafts", () => {
+    const storage = new MemoryStorage();
+    for (const revision of [undefined, "0", "01", "1.1", "9223372036854775808"]) {
+      expect(() => writeReviewDraft(storage, staffId, { ...payload(), expected_revision: revision }, true)).toThrow("Reload the review");
+    }
   });
   it("retains a conflict for human comparison and never retries over newer server data", async () => {
     const storage = new MemoryStorage();
@@ -74,6 +97,17 @@ describe("versioned offline review outbox", () => {
     expect(readReviewDraft(storage, staffId, "review-case")).toMatchObject({ queued: false, conflict: true, payload: { draft: { profile: { full_name: "TEST Newer Local Edit" } } } });
     expect(events.at(-1)?.state).toBe("conflict");
     expect(events.some((detail) => detail.state === "synced")).toBe(false);
+  });
+  it("accepts an identical autosave written while the queued request is in flight", async () => {
+    const storage = new MemoryStorage();
+    writeReviewDraft(storage, staffId, payload(), true);
+    const events: ReviewSyncDetail[] = [];
+    await syncReviewDrafts(storage, staffId, async () => {
+      writeReviewDraft(storage, staffId, payload(), true);
+      return response(200, { ok: true, updated_at: "2026-10-31T10:02:00Z" });
+    }, (detail) => events.push(detail));
+    expect(readReviewDraft(storage, staffId, "review-case")).toBeNull();
+    expect(events.map((detail) => detail.state)).toEqual(["syncing", "synced"]);
   });
   it("keeps queued saves during connection failures and serializes overlapping sync requests", async () => {
     const storage = new MemoryStorage();
