@@ -75,6 +75,17 @@ describe("versioned offline review outbox", () => {
     expect(events.at(-1)?.state).toBe("conflict");
     expect(events.some((detail) => detail.state === "synced")).toBe(false);
   });
+  it("accepts an identical autosave written while the queued request is in flight", async () => {
+    const storage = new MemoryStorage();
+    writeReviewDraft(storage, staffId, payload(), true);
+    const events: ReviewSyncDetail[] = [];
+    await syncReviewDrafts(storage, staffId, async () => {
+      writeReviewDraft(storage, staffId, payload(), true);
+      return response(200, { ok: true, updated_at: "2026-10-31T10:02:00Z" });
+    }, (detail) => events.push(detail));
+    expect(readReviewDraft(storage, staffId, "review-case")).toBeNull();
+    expect(events.map((detail) => detail.state)).toEqual(["syncing", "synced"]);
+  });
   it("keeps queued saves during connection failures and serializes overlapping sync requests", async () => {
     const storage = new MemoryStorage();
     writeReviewDraft(storage, staffId, payload(), true);

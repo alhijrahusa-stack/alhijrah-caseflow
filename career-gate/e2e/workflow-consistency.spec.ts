@@ -3,6 +3,40 @@ import { expect,test } from '@playwright/test';
 import { POST_HIRE_ITEMS } from '../lib/domain';
 import { accessToken,db,intakeBody,RUN,signIn,STAFF,staffAction,submitIntake,uniqueIp } from './helpers';
 
+test('workflow routing stays inside its client card without covering the next client',async({request,browser,baseURL})=>{
+  const name=`TEST Routing Layout ${RUN}`;
+  for(const suffix of ['Alpha','Beta']) {
+    const intake=await submitIntake(request,intakeBody(`${name} ${suffix}`));
+    expect(intake.res.status(),JSON.stringify(intake.json)).toBe(201);
+  }
+  const context=await browser.newContext({baseURL,viewport:{width:1440,height:900}});
+  await signIn(context,baseURL!,'admin');
+  const page=await context.newPage();
+  await page.goto(`/staff/clients?q=${encodeURIComponent(name)}`);
+  const cards=page.getByTestId('client-registry-responsive-cards').locator('article');
+  await expect(cards).toHaveCount(2);
+  for(const width of [1440,390]) {
+    await page.setViewportSize({width,height:900});
+    const first=cards.nth(0);
+    const next=cards.nth(1);
+    const toggle=first.getByRole('button',{name:/Workflow routing/});
+    await toggle.click();
+    const destination=first.getByRole('combobox',{name:'Workflow destination'});
+    await destination.click();
+    const options=first.getByRole('listbox',{name:'Workflow destination options'});
+    await expect(options).toBeVisible();
+    const firstBox=await first.boundingBox();
+    const nextBox=await next.boundingBox();
+    const optionsBox=await options.boundingBox();
+    expect(firstBox && nextBox && optionsBox).toBeTruthy();
+    expect(optionsBox!.y+optionsBox!.height).toBeLessThanOrEqual(firstBox!.y+firstBox!.height);
+    expect(firstBox!.y+firstBox!.height).toBeLessThanOrEqual(nextBox!.y);
+    await page.keyboard.press('Escape');
+    await toggle.click();
+  }
+  await context.close();
+});
+
 test('paid, completed legacy intake leaves active queues and retains its original appointment and ledger',async({request,browser,baseURL})=>{
   const intake=await submitIntake(request,intakeBody(`TEST Royal Workflow ${RUN}`));
   expect(intake.res.status(),JSON.stringify(intake.json)).toBe(201);

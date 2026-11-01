@@ -102,6 +102,8 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
   const [when, setWhen] = useState("");
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
+  const [override, setOverride] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotError, setSlotError] = useState<string | null>(null);
   const selectedSite = siteForLocation(location);
@@ -125,7 +127,7 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
     <form onSubmit={(e) => {
       e.preventDefault();
       if (!validWhen || !formattedWhen) return f.setError("Choose a valid date and time");
-      f.submit({ action: "schedule_appointment", ...base, approve_booking: true, resource_key: resource, duration_minutes: duration, scheduled_at: formattedWhen.toISOString() });
+      f.submit({ action: "schedule_appointment", ...base, ...(lifecycleInterview && override ? { lifecycle_override_reason: overrideReason.trim() } : {}), approve_booking: true, resource_key: resource, duration_minutes: duration, scheduled_at: formattedWhen.toISOString() });
     }}>
       <Shell title={uiLabel("Add appointment")} testId="form-appointment" error={f.error} pending={f.pending} onCancel={onDone} submitLabel={uiLabel("Approve & Save appointment")}>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -155,6 +157,15 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
             <span className="mt-1 block text-xs text-slate-400"><StaffLabel en="Moves an eligible Job Ready client to Appointment Scheduled in the same database transaction. Office and document appointments remain independent."/></span>
           </span>
         </label>
+        {lifecycleInterview && <div className="rounded-2xl border border-amber-300/25 bg-amber-300/[.06] p-3">
+          <label className="flex items-center gap-2 text-sm text-amber-100">
+            <input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} className="h-4 w-4 accent-amber-300" />
+            <span>Override Job Ready condition for this interview · تجاوز شرط جاهزية العمل لهذه المقابلة</span>
+          </label>
+          {override && <label className="mt-3 block text-sm text-slate-200">Reason for override · سبب التجاوز
+            <textarea required minLength={5} maxLength={500} value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} className="input mt-1 w-full" rows={2} />
+          </label>}
+        </div>}
         <div data-testid="slot-suggestions">
           <p className="label"><StaffLabel en="Next available (office calendar)"/></p>
           {slotError && <p className="text-sm text-red-400">{slotError}</p>}

@@ -40,9 +40,7 @@ html:has(.royal-shell),body:has(.royal-shell){overflow-x:clip}
   inset: -12%;
   z-index: -1;
   background: radial-gradient(ellipse at 12% 12%, rgba(30, 58, 138, .38), transparent 54%), radial-gradient(ellipse at 86% 66%, rgba(0, 180, 216, .13), transparent 48%), radial-gradient(ellipse at 50% 100%, rgba(28, 37, 65, .6), transparent 62%);
-  animation: royal-mesh-drift 32s ease-in-out infinite alternate;
 }
-@keyframes royal-mesh-drift { from { transform: translate3d(-1%, 0, 0) scale(1); } to { transform: translate3d(1%, -1.5%, 0) scale(1.035); } }
 .staff-shell.royal-shell[data-collapsed="true"] { --royal-side: 86px; }
 .staff-shell.royal-shell .royal-sidebar {
   inset: 0;
@@ -54,13 +52,13 @@ html:has(.royal-shell),body:has(.royal-shell){overflow-x:clip}
   border: 0;
   border-inline-end: 1px solid var(--royal-hairline);
   box-shadow: 8px 0 38px rgba(0, 0, 0, .16);
-  transition: width .28s var(--royal-ease), transform .3s var(--royal-ease);
+  transition: transform .3s var(--royal-ease);
 }
 .staff-shell.royal-shell .royal-main {
   margin-left: 0;
   margin-right: 0;
   margin-inline-start: var(--royal-side);
-  transition: margin-inline-start .28s var(--royal-ease);
+  transition: none;
 }
 .staff-shell.royal-shell .royal-brand { padding-bottom: 22px; gap: 6px; }
 .staff-shell.royal-shell .royal-brand > a { gap: 10px; }

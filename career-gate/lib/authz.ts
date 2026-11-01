@@ -17,7 +17,7 @@ export const ACTION_ROLES = {
   set_next_step: ALL,
   add_preference: MGMT,
   remove_preference: MGMT,
-  schedule_appointment: MGMT,
+  schedule_appointment: ALL,
   book_slot: MGMT,
   update_appointment: MGMT,
   appointment_decision: MGMT,

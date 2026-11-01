@@ -38,6 +38,7 @@ export type RoyalSelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "mu
   value?: string | number;
   defaultValue?: string | number;
   searchable?: boolean;
+  inlineOptions?: boolean;
   ariaLabelAr?: string;
   onChange?: (event: ChangeEvent<HTMLSelectElement>) => void;
   onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
@@ -52,7 +53,7 @@ export type RoyalSelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "mu
  */
 export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(function RoyalSelect({
   children, value, defaultValue, name, form, id, disabled, required, className = "",
-  searchable, ariaLabelAr, onChange, onKeyDown, onFocus, onBlur, onClick, autoFocus, title,
+  searchable, inlineOptions = false, ariaLabelAr, onChange, onKeyDown, onFocus, onBlur, onClick, autoFocus, title,
   "aria-label": ariaLabel, "aria-labelledby": labelledBy, "aria-describedby": describedBy,
   "aria-invalid": ariaInvalid, ...rest
 }, forwardedRef) {
@@ -103,7 +104,7 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
 
   const show = () => {
     if (disabled) return;
-    measure();
+    if (!inlineOptions) measure();
     setQuery("");
     const index = choices.findIndex(option => option.value === currentValue && !option.disabled);
     setActive(index >= 0 ? index : Math.max(0, choices.findIndex(option => !option.disabled)));
@@ -115,7 +116,7 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
     const outside = (event: PointerEvent) => {
       if (!trigger.current?.contains(event.target as Node) && !popup.current?.contains(event.target as Node)) setOpen(false);
     };
-    const onViewport = () => measure();
+    const onViewport = () => { if (!inlineOptions) measure(); };
     document.addEventListener("pointerdown", outside);
     window.addEventListener("resize", onViewport);
     window.addEventListener("scroll", onViewport, true);
@@ -124,7 +125,7 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
       window.removeEventListener("resize", onViewport);
       window.removeEventListener("scroll", onViewport, true);
     };
-  }, [open, measure]);
+  }, [open, measure, inlineOptions]);
 
   useEffect(() => {
     const parentForm = field.current?.form;
@@ -194,6 +195,22 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
     }
   };
 
+  const optionsPopup = <div ref={popup} className={`royal-select-popup${inlineOptions ? " royal-select-popup-inline" : ""}`} dir={inlineOptions ? undefined : position.direction}
+      style={inlineOptions ? undefined : { left: position.left, top: position.flip ? undefined : position.top, bottom: position.flip ? position.bottom : undefined, width: position.width, maxHeight: position.maxHeight }}>
+      {canSearch && <div className="royal-select-search"><input ref={optionSearch} type="search" placeholder={t("Search options…", "ابحث في الخيارات…")} aria-label={t("Search options", "البحث في الخيارات")}
+        aria-controls={listId} aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
+        value={query} onChange={event => { setQuery(event.target.value); setActive(0); }} onKeyDown={keys}/></div>}
+      <div id={listId} role="listbox" aria-label={listLabel} className="royal-select-options">
+        {visible.length ? visible.map((option, index) => <div key={`${option.value}-${index}`} id={`${listId}-${index}`} role="option"
+          aria-selected={option.value === currentValue} aria-disabled={option.disabled || undefined}
+          data-option-index={index} data-value={option.value} data-active={index === activeIndex || undefined}
+          className="royal-select-option" onPointerMove={() => { if (!option.disabled) setActive(index); }}
+          onMouseDown={event => event.preventDefault()} onClick={() => choose(option)}>
+          <span>{option.label}</span><span className="royal-select-radio" aria-hidden="true"/>
+        </div>) : <p className="royal-select-empty">{t("No matching options", "لا توجد خيارات مطابقة")}</p>}
+      </div>
+    </div>;
+
   // Strip select-only DOM attributes; data-* attributes and ARIA remain on the trigger.
   const { onInvalid: _onInvalid, ...triggerProps } = rest;
   return <span className="royal-select-root" data-disabled={disabled || undefined}>
@@ -218,21 +235,7 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
         event.preventDefault(); setInvalid(true); trigger.current?.focus();
         _onInvalid?.(event as unknown as React.InvalidEvent<HTMLSelectElement>);
       }}/>
-    {open && !disabled && createPortal(<div ref={popup} className="royal-select-popup" dir={position.direction}
-      style={{ left: position.left, top: position.flip ? undefined : position.top, bottom: position.flip ? position.bottom : undefined, width: position.width, maxHeight: position.maxHeight }}>
-      {canSearch && <div className="royal-select-search"><input ref={optionSearch} type="search" placeholder={t("Search options…", "ابحث في الخيارات…")} aria-label={t("Search options", "البحث في الخيارات")}
-        aria-controls={listId} aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
-        value={query} onChange={event => { setQuery(event.target.value); setActive(0); }} onKeyDown={keys}/></div>}
-      <div id={listId} role="listbox" aria-label={listLabel} className="royal-select-options">
-        {visible.length ? visible.map((option, index) => <div key={`${option.value}-${index}`} id={`${listId}-${index}`} role="option"
-          aria-selected={option.value === currentValue} aria-disabled={option.disabled || undefined}
-          data-option-index={index} data-value={option.value} data-active={index === activeIndex || undefined}
-          className="royal-select-option" onPointerMove={() => { if (!option.disabled) setActive(index); }}
-          onMouseDown={event => event.preventDefault()} onClick={() => choose(option)}>
-          <span>{option.label}</span><span className="royal-select-radio" aria-hidden="true"/>
-        </div>) : <p className="royal-select-empty">{t("No matching options", "لا توجد خيارات مطابقة")}</p>}
-      </div>
-    </div>, document.body)}
+    {open && !disabled && (inlineOptions ? optionsPopup : createPortal(optionsPopup, document.body))}
     {invalid && <span className="royal-select-error" role="alert">{t("Please select an option.", "يرجى اختيار أحد الخيارات.")}</span>}
   </span>;
 });
