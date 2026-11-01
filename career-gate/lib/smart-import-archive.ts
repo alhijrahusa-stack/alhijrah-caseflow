@@ -4,6 +4,7 @@ import type { StaffSession } from "@/lib/auth";
 import { ActionError } from "@/lib/service";
 import type { QueueRow } from "@/lib/smart-client-import";
 import { IMPORT_STATUSES, SMART_IMPORT_LIMITS, type ImportStatus } from "@/lib/smart-client-import-core";
+import { permissionAllows } from "@/lib/authz";
 
 function assertManager(session: StaffSession) {
   if (session.staff.role === "staff") throw new ActionError("forbidden", "Smart client import requires manager or admin access", 403);
@@ -30,7 +31,7 @@ function decodeCursor(value: string | null) {
 function encodeCursor(createdAt: string, id: string) { return Buffer.from(`${createdAt}|${id}`, "utf8").toString("base64url"); }
 
 export async function listActiveImportQueue(session: StaffSession, args: { status?: string | null; q?: string | null; cursor?: string | null; page?: number }) {
-  assertManager(session);
+  if (!(await permissionAllows(session, "review_smart_import"))) throw new ActionError("forbidden", "Smart import review is not permitted", 403);
   const status = parseStatus(args.status ?? null);
   const q = (args.q ?? "").trim().slice(0, 160);
   const cursor = decodeCursor(args.cursor ?? null);
@@ -41,12 +42,13 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
            c.mapped_draft #>> '{profile,full_name}' as full_name,
            c.mapped_draft #>> '{profile,phone}' as phone,
            c.mapped_draft #>> '{profile,email}' as email,
-           c.created_at,c.created_at::text as cursor_created_at,c.created_client_id,c.archived_at,
+           c.created_at,c.created_at::text as cursor_created_at,c.created_client_id,c.archived_at,to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,
            (select count(*)::int from client_import_documents d where d.import_case_id=c.id) as document_count,
            (coalesce(jsonb_array_length(c.missing_fields),0)+coalesce(jsonb_array_length(c.conflicts),0))::int as issue_count
     from client_import_cases c
     left join staff s on s.id=c.reviewer_id
     where c.archived_at is null and c.status <> 'APPROVED_FILE'
+      and (${session.staff.role !== "staff"} or c.reviewer_id=${session.staff.id})
       and (${status === "ALL"} or c.status=${status === "ALL" ? "PENDING" : status})
       and (${q === ""} or c.id::text ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
@@ -61,11 +63,12 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
     return copy;
   }) as unknown as QueueRow[];
   const next = rows.length > limit ? rows[limit - 1] : null;
-  const counterRows = await sql()`select status,count(*)::int as count from client_import_cases where archived_at is null and status <> 'APPROVED_FILE' group by status`;
+  const counterRows = await sql()`select status,count(*)::int as count from client_import_cases where archived_at is null and status <> 'APPROVED_FILE' and (${session.staff.role !== "staff"} or reviewer_id=${session.staff.id}) group by status`;
   const counters = Object.fromEntries(IMPORT_STATUSES.map((key) => [key, 0])) as Record<ImportStatus, number>;
   for (const row of counterRows) if ((IMPORT_STATUSES as readonly string[]).includes(String(row.status))) counters[row.status as ImportStatus] = Number(row.count);
   const [matched] = await sql()`select count(*)::int as count from client_import_cases c
     where c.archived_at is null and c.status <> 'APPROVED_FILE'
+      and (${session.staff.role !== "staff"} or c.reviewer_id=${session.staff.id})
       and (${status === "ALL"} or c.status=${status === "ALL" ? "PENDING" : status})
       and (${q === ""} or c.id::text ilike ${`%${q}%`}
         or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
@@ -76,7 +79,7 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
 
 
 export async function listArchivedImportQueue(session: StaffSession, args: { q?: string | null; cursor?: string | null; page?: number }) {
-  assertManager(session);
+  if (!(await permissionAllows(session, "review_smart_import"))) throw new ActionError("forbidden", "Smart import review is not permitted", 403);
   const q = (args.q ?? "").trim().slice(0, 160);
   const cursor = decodeCursor(args.cursor ?? null);
   const limit = SMART_IMPORT_LIMITS.queuePageSize;
@@ -86,12 +89,13 @@ export async function listArchivedImportQueue(session: StaffSession, args: { q?:
            c.mapped_draft #>> '{profile,full_name}' as full_name,
            c.mapped_draft #>> '{profile,phone}' as phone,
            c.mapped_draft #>> '{profile,email}' as email,
-           c.created_at,c.created_at::text as cursor_created_at,c.created_client_id,c.archived_at,
+           c.created_at,c.created_at::text as cursor_created_at,c.created_client_id,c.archived_at,to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,
            (select count(*)::int from client_import_documents d where d.import_case_id=c.id) as document_count,
            (coalesce(jsonb_array_length(c.missing_fields),0)+coalesce(jsonb_array_length(c.conflicts),0))::int as issue_count
     from client_import_cases c
     left join staff s on s.id=c.reviewer_id
     where (c.archived_at is not null or c.status='APPROVED_FILE')
+      and (${session.staff.role !== "staff"} or c.reviewer_id=${session.staff.id})
       and (${q === ""} or c.id::text ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,phone}','') ilike ${`%${q}%`}
@@ -107,6 +111,7 @@ export async function listArchivedImportQueue(session: StaffSession, args: { q?:
   const next = rows.length > limit ? rows[limit - 1] : null;
   const [{ count }] = await sql()`select count(*)::int as count from client_import_cases c
     where (c.archived_at is not null or c.status='APPROVED_FILE')
+      and (${session.staff.role !== "staff"} or c.reviewer_id=${session.staff.id})
       and (${q === ""} or c.id::text ilike ${`%${q}%`}
         or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
         or coalesce(c.mapped_draft #>> '{profile,phone}','') ilike ${`%${q}%`}

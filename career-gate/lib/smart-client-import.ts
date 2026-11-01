@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { sql } from "@/lib/db";
 import type { StaffSession } from "@/lib/auth";
+import { permissionAllows } from "@/lib/authz";
 import type { IntakeRow } from "@/lib/intake-file";
 import {
   ActionError,
@@ -91,6 +92,27 @@ const PROFILE_REVIEW_KEYS = new Set<ReviewFieldKey>([
 
 function assertManager(session: StaffSession) {
   if (session.staff.role === "staff") throw new ActionError("forbidden", "Smart client import requires manager or admin access", 403);
+}
+
+export async function assertImportReviewPermission(session: StaffSession) {
+  if (!(await permissionAllows(session, "review_smart_import"))) throw new ActionError("forbidden", "Smart import review is not permitted", 403);
+}
+
+async function assertAssignedReviewer(tx: Tx, session: StaffSession, reviewer: unknown, requestedReviewer?: string) {
+  if (session.staff.role !== "staff") return;
+  const [actor] = await tx`select permission_mode,custom_permissions from staff
+    where id=${session.staff.id} and active and role='staff' for share`;
+  if (!actor || (actor.permission_mode !== "full" &&
+      !(actor.permission_mode === "custom" && Array.isArray(actor.custom_permissions) && actor.custom_permissions.includes("review_smart_import")))) {
+    throw new ActionError("forbidden", "Smart import review is not permitted", 403);
+  }
+  if (String(reviewer ?? "") !== session.staff.id || (requestedReviewer && requestedReviewer !== session.staff.id)) {
+    throw new ActionError("not_found", "Import case not found", 404);
+  }
+}
+
+function requireStaffReviewVersion(session: StaffSession, expected: string | undefined) {
+  if (session.staff.role === "staff" && !expected) throw new ActionError("review_version_required", "Reload the review before continuing", 409);
 }
 
 function parseSource(value: string): ImportSourceType {
@@ -611,14 +633,14 @@ export async function listImportQueue(session: StaffSession, args: { status?: st
 }
 
 export async function getImportCase(session: StaffSession, id: string) {
-  assertManager(session);
+  await assertImportReviewPermission(session);
   const [row] = await sql()`
     select c.*,to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,
       s.display_name as reviewer_name,a.display_name as approved_by_name
     from client_import_cases c
     left join staff s on s.id=c.reviewer_id
     left join staff a on a.id=c.approved_by
-    where c.id=${id}`;
+    where c.id=${id} and (${session.staff.role !== "staff"} or c.reviewer_id=${session.staff.id})`;
   if (!row) throw new ActionError("not_found", "Import case not found", 404);
   if (row.archived_at && row.status !== "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
   const docs = await sql()`
@@ -639,12 +661,36 @@ async function requireActiveReviewer(tx: Tx, id: string) {
   return String(reviewer.id);
 }
 
-export async function startImportReview(session: StaffSession, id: string, reviewerId: string) {
+export async function assignImportReviewer(session: StaffSession, id: string, reviewerId: string, expectedUpdatedAt: string, traceId: string) {
   assertManager(session);
+  if (!expectedUpdatedAt) throw new ActionError("review_version_required", "Reload the review before continuing", 409);
+  return sql().begin(async (tx) => {
+    const [row] = await tx`select id,status,reviewer_id,archived_at,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at from client_import_cases where id=${id} for update`;
+    if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    if (row.archived_at || row.status === "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
+    assertReviewVersion(row.updated_at, expectedUpdatedAt);
+    const [reviewer] = await tx`select id,role,permission_mode,custom_permissions from staff where id=${reviewerId} and active for share`;
+    if (!reviewer) throw new ActionError("invalid_reviewer", "Reviewer is not an active staff member", 400);
+    if (reviewer.role === "staff" && reviewer.permission_mode !== "full" &&
+        !(reviewer.permission_mode === "custom" && Array.isArray(reviewer.custom_permissions) && reviewer.custom_permissions.includes("review_smart_import"))) {
+      throw new ActionError("invalid_reviewer", "Reviewer lacks smart import review permission", 400);
+    }
+    if (String(row.reviewer_id ?? "") === reviewerId) return { id, reviewer_id: reviewerId, idempotent: true };
+    await tx`update client_import_cases set reviewer_id=${reviewerId} where id=${id}`;
+    await tx`insert into security_events(event,staff_id,route,detail,trace_id)
+      values('smart_import_reviewer_assigned',${session.staff.id},'/api/staff/smart-client-import',
+        ${tx.json({ case_id: id, previous_reviewer_id: row.reviewer_id ?? null, reviewer_id: reviewerId })},${traceId})`;
+    return { id, reviewer_id: reviewerId, idempotent: false };
+  });
+}
+
+export async function startImportReview(session: StaffSession, id: string, reviewerId: string) {
+  await assertImportReviewPermission(session);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, reviewerId);
     const [row] = await tx`select id,status,reviewer_id,review_started_at,archived_at from client_import_cases where id=${id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    await assertAssignedReviewer(tx, session, row.reviewer_id, reviewerId);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot be reopened", 409);
     if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
     assertReviewOwnership(row.reviewer_id, reviewerId);
@@ -667,7 +713,8 @@ export async function saveImportReview(session: StaffSession, args: {
   resolvedFields?: string[];
   expectedUpdatedAt?: string;
 }) {
-  assertManager(session);
+  await assertImportReviewPermission(session);
+  requireStaffReviewVersion(session, args.expectedUpdatedAt);
   if (!JsonObject.safeParse(args.draft).success) throw new ActionError("invalid_draft", "Mapped draft must be an object", 400);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, args.reviewerId);
@@ -675,6 +722,7 @@ export async function saveImportReview(session: StaffSession, args: {
       to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,archived_at
       from client_import_cases where id=${args.id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    await assertAssignedReviewer(tx, session, row.reviewer_id, args.reviewerId);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Approved imports cannot be changed", 409);
     if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
     assertReviewVersion(row.updated_at, args.expectedUpdatedAt);
@@ -778,10 +826,12 @@ async function verifyLockedCase(tx: Tx, row: Record<string, unknown>) {
 }
 
 export async function verifyImportCase(session: StaffSession, id: string, expectedUpdatedAt?: string) {
-  assertManager(session);
+  await assertImportReviewPermission(session);
+  requireStaffReviewVersion(session, expectedUpdatedAt);
   return sql().begin(async (tx) => {
     const [row] = await tx`select *,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at from client_import_cases where id=${id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    await assertAssignedReviewer(tx, session, row.reviewer_id);
     if (row.status === "APPROVED_FILE") throw new ActionError("already_approved", "Import is already approved", 409);
     if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
     assertReviewVersion(row.updated_at, expectedUpdatedAt);
@@ -812,11 +862,13 @@ export async function approveImportCase(session: StaffSession, args: {
   override?: boolean;
   overrideReason?: string;
 }) {
-  assertManager(session);
+  await assertImportReviewPermission(session);
+  requireStaffReviewVersion(session, args.expectedUpdatedAt);
   return sql().begin(async (tx) => {
     await requireActiveReviewer(tx, args.reviewerId);
     const [row] = await tx`select *,to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at from client_import_cases where id=${args.id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    await assertAssignedReviewer(tx, session, row.reviewer_id, args.reviewerId);
     if (row.status === "APPROVED_FILE") {
       if (row.created_client_id) return { client_id: String(row.created_client_id), idempotent: true };
       throw new ActionError("invalid_approved_state", "Approved import is missing its client reference", 500);
@@ -865,7 +917,11 @@ export async function approveImportCase(session: StaffSession, args: {
       actorId: session.staff.id,
     });
 
-    const assignedStaff = await resolveImportedStaff(tx, draft.staff_code);
+    const resolvedStaff = await resolveImportedStaff(tx, draft.staff_code);
+    if (session.staff.role === "staff" && (draft.status !== "new_intake" || (resolvedStaff && resolvedStaff !== session.staff.id))) {
+      throw new ActionError("forbidden", "Staff may only create an intake file assigned to themselves", 403);
+    }
+    const assignedStaff = session.staff.role === "staff" ? session.staff.id : resolvedStaff;
     const [sourceBatch] = await tx`select idempotency_key from client_import_batches where id=${String(row.batch_id)}`;
     const publicLinkImport = String(sourceBatch?.idempotency_key ?? "").startsWith("client-link:");
     const client = await insertClient(tx, {
@@ -944,11 +1000,11 @@ export async function approveImportCase(session: StaffSession, args: {
 }
 
 export async function getImportDocument(session: StaffSession, id: string) {
-  assertManager(session);
+  await assertImportReviewPermission(session);
   const [row] = await sql()`
     select d.id,d.storage_reference,d.original_filename,d.mime_type,d.import_case_id,c.status,c.archived_at
     from client_import_documents d join client_import_cases c on c.id=d.import_case_id
-    where d.id=${id}`;
+    where d.id=${id} and (${session.staff.role !== "staff"} or c.reviewer_id=${session.staff.id})`;
   if (!row) throw new ActionError("not_found", "Import document not found", 404);
   if (row.archived_at && row.status !== "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
   return row as { id: string; storage_reference: string; original_filename: string; mime_type: string; import_case_id: string };

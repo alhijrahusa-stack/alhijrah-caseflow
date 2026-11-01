@@ -8,6 +8,8 @@ import { traceIdFrom } from "@/lib/obs";
 import { staffGuard } from "@/lib/staff-api";
 import {
   approveImportCase,
+  assignImportReviewer,
+  assertImportReviewPermission,
   getImportCase,
   saveImportReview,
   startImportReview,
@@ -41,8 +43,8 @@ export async function GET(req: Request) {
   const traceId = traceIdFrom(req);
   const guard = await staffGuard(req, traceId, { mutation: false });
   if (guard.response) return guard.response;
-  if (guard.session.staff.role === "staff") return err("forbidden", "Smart client import requires manager or admin access", 403, traceId);
   try {
+    await assertImportReviewPermission(guard.session);
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
     if (id) {
@@ -74,6 +76,7 @@ export async function GET(req: Request) {
 }
 
 const ActionBody = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("assign_review"), id: z.uuid(), reviewer_id: z.uuid(), expected_updated_at: z.iso.datetime({ offset: true }) }),
   z.object({ action: z.literal("start_review"), id: z.uuid(), reviewer_id: z.uuid() }),
   z.object({
     action: z.literal("save"), id: z.uuid(), reviewer_id: z.uuid(), draft: z.record(z.string(), z.unknown()),
@@ -95,11 +98,12 @@ export async function POST(req: Request) {
   const traceId = traceIdFrom(req);
   const guard = await staffGuard(req, traceId, { mutation: true });
   if (guard.response) return guard.response;
-  if (guard.session.staff.role === "staff") return err("forbidden", "Smart client import requires manager or admin access", 403, traceId);
   try {
+    await assertImportReviewPermission(guard.session);
     const body = ActionBody.parse(await req.json());
     if (body.action === "archive") return ok(await archiveImportCase(guard.session, body.id), 200, traceId);
-    await assertImportNotArchived(body.id);
+    if (body.action === "assign_review") return ok(await assignImportReviewer(guard.session, body.id, body.reviewer_id, body.expected_updated_at, traceId), 200, traceId);
+    if (guard.session.staff.role !== "staff") await assertImportNotArchived(body.id);
     if (body.action === "start_review") return ok(await startImportReview(guard.session, body.id, body.reviewer_id), 200, traceId);
     if (body.action === "save" && body.expected_actor_id && body.expected_actor_id !== guard.session.staff.id) return err("session_changed", "Sign in to the original staff account before syncing this draft", 409, traceId);
     if (body.action === "save") return ok(await saveImportReview(guard.session, {

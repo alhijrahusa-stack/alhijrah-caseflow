@@ -10,6 +10,7 @@ import { timeOnly } from "@/lib/format";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import { OperationalAssistant } from "@/components/staff/OperationalAssistant";
 import { SessionDraftBoundary } from "@/components/staff/SessionDraftBoundary";
+import { useStaff } from "@/components/staff/StaffContext";
 
 const Context=createContext<ExecutiveSummary|null>(null);
 export function useExecutiveSummary(){const value=useContext(Context);if(!value)throw new Error("Executive summary provider missing");return value;}
@@ -36,6 +37,8 @@ function NavigationIcon({ icon }: { icon: string }) {
 
 export function ExecutiveShell({initial,management,header,children}:{initial:ExecutiveSummary;management:boolean;header:ReactNode;children:ReactNode}){
   const { language, dir, t } = useStaffLanguage();
+  const { me } = useStaff();
+  const canReviewSmartImport = me.canReviewSmartImport === true;
   const [data,setData]=useState(initial);
   const [seed,setSeed]=useState(initial);
   if(seed!==initial){setSeed(initial);setData(initial);}
@@ -143,6 +146,7 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
         {nav("Tasks", "المهام والمتابعات", "/staff/tasks", "☷")}
         {nav("Follow-Ups", "المتابعات", "/staff/follow-ups", "↻")}
         {nav("Gate Job Account", "إدارة الحسابات", "/staff/gate-job-account", "⌘")}
+        {!management && canReviewSmartImport && nav("Assigned imports", "الاستيراد المسند", "/staff/import", "✧")}
         {management && <details className="royal-tools" open={pathname === "/staff/import" || pathname === "/staff/accounting" || pathname === "/staff/archive" || pathname === "/staff/new-client" || undefined}>
           <summary>{t("Management tools", "أدوات الإدارة")} <span aria-hidden="true">＋</span></summary>
           {nav("Accounting", "دفتر المالية", "/staff/accounting", "＄")}

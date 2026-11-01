@@ -13,7 +13,7 @@ export type StaffMember = {
   commission_value?: number;
   eligible_for_round_robin?: boolean;
 };
-export type Me = { id: string; display_name: string; role: "admin" | "manager" | "staff"; canScheduleAppointment?: boolean };
+export type Me = { id: string; display_name: string; role: "admin" | "manager" | "staff"; canScheduleAppointment?: boolean; canReviewSmartImport?: boolean };
 
 const Ctx = createContext<{ me: Me; staff: StaffMember[] } | null>(null);
 

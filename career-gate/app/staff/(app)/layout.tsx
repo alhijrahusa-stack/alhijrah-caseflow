@@ -32,12 +32,12 @@ export const metadata: Metadata = { manifest: "/staff.webmanifest" };
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
-  const [staff, summary, cookieStore, canScheduleAppointment] = await Promise.all([staffDirectory(session), executiveSummary(session), cookies(), permissionAllows(session, "schedule_appointment")]);
+  const [staff, summary, cookieStore, canScheduleAppointment, canReviewSmartImport] = await Promise.all([staffDirectory(session), executiveSummary(session), cookies(), permissionAllows(session, "schedule_appointment"), permissionAllows(session, "review_smart_import")]);
   const mgmt = session.staff.role !== "staff";
   const initialLanguage = cookieStore.get("cg-staff-language")?.value === "ar" ? "ar" : "en";
 
   return (
-    <StaffLanguageProvider initialLanguage={initialLanguage}><StaffProvider me={{ id: session.staff.id, display_name: session.staff.display_name, role: session.staff.role, canScheduleAppointment }} staff={staff}>
+    <StaffLanguageProvider initialLanguage={initialLanguage}><StaffProvider me={{ id: session.staff.id, display_name: session.staff.display_name, role: session.staff.role, canScheduleAppointment, canReviewSmartImport }} staff={staff}>
       <SectionBoundary name="tactile-fx" fallback={null}><ExecutiveTactileFX /></SectionBoundary>
       <ExecutiveShell initial={summary} management={mgmt} header={<>
         <Link href="/staff" className="royal-header-brand" prefetch={false}><Image src="/brand/career-gate.webp" alt="Career Gate" width={48} height={48}/><span>CAREER GATE<small>{OFFICE.location}</small></span></Link>

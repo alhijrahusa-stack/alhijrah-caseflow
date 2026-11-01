@@ -75,6 +75,7 @@ describe("Smart Review approved archive read access", () => {
     expect((await GET(request())).status).toBe(403);
     await expect(getImportCase({ ...manager, staff: { ...manager.staff, role: "staff" } }, id)).rejects.toMatchObject({ code: "forbidden", status: 403 });
     await expect(getImportDocument({ ...manager, staff: { ...manager.staff, role: "staff" } }, id)).rejects.toMatchObject({ code: "forbidden", status: 403 });
-    expect(query).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(query.mock.calls.every(([parts]) => parts.join("?").includes("select permission_mode, custom_permissions"))).toBe(true);
   });
 });

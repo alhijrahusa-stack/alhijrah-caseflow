@@ -55,6 +55,7 @@ type QueueRow = {
   created_at: string;
   created_client_id: string | null;
   archived_at?: string | null;
+  updated_at: string;
 };
 type Evidence = SmartEvidence;
 type CaseDetail = {
@@ -145,6 +146,7 @@ export function SmartCareerCollectClient() {
   const actionLock = useRef(false);
   const approvedNavigation = useRef(false);
   const [reviewerId, setReviewerId] = useState("");
+  const [reviewAssignments, setReviewAssignments] = useState<Record<string, string>>({});
   const [documentConfirmed, setDocumentConfirmed] = useState(false);
   const [informationConfirmed, setInformationConfirmed] = useState(false);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
@@ -339,6 +341,24 @@ export function SmartCareerCollectClient() {
       throw new Error(errMessage(data, `${action} failed (${res.status})`));
     }
     return data;
+  }
+
+  async function assignReviewer(row: QueueRow) {
+    const caseId = row.id;
+    const reviewer = reviewAssignments[caseId];
+    if (!reviewer || actionBusy) return;
+    setActionBusy(`assign:${caseId}`); setError(null);
+    try {
+      const res = await fetch("/api/staff/smart-client-import", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "assign_review", id: caseId, reviewer_id: reviewer, expected_updated_at: row.updated_at }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) throw new Error(errMessage(data, "Assignment failed"));
+      await loadQueue();
+      setNotice(t("Reviewer assigned.", "تم إسناد المراجعة."));
+    } catch (e) { setError(e instanceof Error ? e.message : "Assignment failed"); }
+    finally { setActionBusy(null); }
   }
 
   async function mutate(action: string, extra: Record<string, unknown> = {}) {
@@ -536,14 +556,14 @@ export function SmartCareerCollectClient() {
       <div className="text-right text-[10px] tracking-[.16em] text-slate-500">{me.role.toUpperCase()} · LIVE SYNC</div>
     </header>
 
-    <section className="cg-intake-tabs grid gap-3 lg:grid-cols-2" aria-label="Smart Career Collect Client workspaces">
+    {me.role !== "staff" && <section className="cg-intake-tabs grid gap-3 lg:grid-cols-2" aria-label="Smart Career Collect Client workspaces">
       <button type="button" onClick={() => setWorkspace("sheet")} aria-pressed={workspace === "sheet"} className={`rounded-3xl border p-5 text-left transition motion-reduce:transition-none ${workspace === "sheet" ? "border-amber-300/35 bg-amber-300/[.08]" : "border-white/10 bg-white/[.035] hover:bg-white/[.055]"}`}><span className="text-[10px] font-bold tracking-[.18em] text-amber-300">01</span><strong className="mt-2 block text-lg text-slate-100">{t("NEW IMPORT BY SHEET","استيراد جديد من جدول")}</strong><span className="mt-1 block text-xs text-slate-500">{t("Structured Import · XLSX / CSV / Google Sheets","استيراد منظم · XLSX / CSV / Google Sheets")}</span></button>
       <button type="button" onClick={() => setWorkspace("mobile")} aria-pressed={workspace === "mobile"} className={`rounded-3xl border p-5 text-left transition motion-reduce:transition-none ${workspace === "mobile" ? "border-amber-300/35 bg-amber-300/[.08]" : "border-white/10 bg-white/[.035] hover:bg-white/[.055]"}`}><span className="text-[10px] font-bold tracking-[.18em] text-amber-300">02</span><strong className="mt-2 block text-lg text-slate-100">{t("SMART CLIENT IMPORT BY LINK","استيراد ذكي عبر رابط")}</strong><span className="mt-1 block text-xs text-slate-500">{t("Document Intake · Mobile / QR / Photo / PDF / Text","استقبال الوثائق · جوال / QR / صورة / PDF / نص")}</span></button>
-    </section>
+    </section>}
 
     {error && !detail && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-red-300/20 bg-red-300/[.06] p-3 text-sm text-red-200"><span>{error}</span><button type="button" className="ops-secondary-button" onClick={() => { setError(null); void loadQueue(); }}>RETRY QUEUE</button></div>}
 
-    {workspace === "sheet" ? <section className="ops-glass-card cg-intake-sheet space-y-4">
+    {me.role !== "staff" && (workspace === "sheet" ? <section className="ops-glass-card cg-intake-sheet space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-bold tracking-[.18em] text-cyan-300">{t("STRUCTURED IMPORT","الاستيراد المنظم")}</p><h2 className="text-lg font-semibold text-slate-100">{t("NEW IMPORT BY SHEET","استيراد جديد من جدول")}</h2><div className="cg-sheet-stepper">{[t("Ingest","استيراد"),t("Preview","معاينة"),t("Normalize","تنسيق"),t("Validate","تحقق"),t("Stage","إعداد"),t("Review","مراجعة"),t("Approve","اعتماد")].map((step)=><span key={step}>{step}</span>)}</div></div><div className="flex flex-wrap gap-2"><a className="ops-secondary-button" href="/api/staff/smart-client-import/template">{t("DOWNLOAD TEMPLATE","تنزيل القالب")}</a><button className={`ops-secondary-button ${legacy ? "ring-1 ring-amber-300/40" : ""}`} type="button" onClick={() => setLegacy((value) => !value)}>{t("CONVERT LEGACY SHEET","تحويل جدول قديم")}</button></div></div>
       <input ref={fileRef} className="hidden" type="file" accept={ACCEPT} onChange={(e) => { setFile(e.target.files?.[0] ?? null); if (e.target.files?.[0]) setSheetUrl(""); setPreview(null); }} />
       <div className="cg-sheet-upload"><button type="button" className="cg-sheet-dropzone" onDragOver={(event) => { event.preventDefault(); event.currentTarget.dataset.dragging="true"; }} onDragLeave={(event) => {event.currentTarget.dataset.dragging="false";}} onDrop={(event) => { event.preventDefault(); event.currentTarget.dataset.dragging="false"; const dropped=event.dataTransfer.files[0]; if(dropped){setFile(dropped);setSheetUrl("");setPreview(null);} }} onClick={() => fileRef.current?.click()}><strong className="block text-sm text-slate-200">{file ? file.name : t("Choose XLSX / CSV","اختيار XLSX / CSV")}</strong><span className="mt-1 block text-xs text-slate-500">{file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : t("Maximum 10 MB · 1,000 rows","الحد الأقصى 10 ميغابايت · 1,000 صف")}</span></button><button className="ops-primary-button cg-sheet-preview min-w-36" type="button" disabled={previewBusy || (!file && !sheetUrl.trim())} onClick={previewSheet}>{previewBusy ? "VALIDATING…" : "PREVIEW"}</button></div>
@@ -565,7 +585,7 @@ export function SmartCareerCollectClient() {
           <Link className="ops-secondary-button min-h-11" href="/staff/smart-client-import/new#client-self-intake">MANAGE CLIENT LINK</Link>
         </div>
       </div>
-    </section>}
+    </section>)}
 
     <section className="ops-glass-card cg-import-queue space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold text-slate-100">{t("IMPORT QUEUE","قائمة انتظار الاستيراد")}</h2><p className="text-xs text-slate-500">{t("Live staged files · Approve now and complete follow-up details later.","الملفات قيد الإعداد · اعتمد الآن واستكمل بيانات المتابعة لاحقاً.")}</p></div><div className="flex flex-wrap gap-2">
@@ -581,13 +601,21 @@ export function SmartCareerCollectClient() {
             <div role="cell" className="cg-import-client"><span className="cg-import-avatar" aria-hidden="true">{row.full_name?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "—"}</span><div className="min-w-0"><strong dir="auto">{highlight(row.full_name || "Unidentified client")}</strong><p className="cg-import-contact">{row.phone || "Phone pending"}{row.email && <span> · {row.email}</span>}</p><p className="cg-import-origin"><span>{row.source_type.replaceAll("_", " ")}</span><span>{row.document_count} source{row.document_count === 1 ? "" : "s"}</span><span title={row.id}>#{row.id.slice(0, 8)}</span></p></div></div>
             <div role="cell" className="cg-import-progress"><span className={`cg-import-state ${row.status === "APPROVED_FILE" ? "is-approved" : ""}`}><i aria-hidden="true" />{row.status === "APPROVED_FILE" ? "Approved" : row.status === "PENDING" ? "New intake" : "In review"}</span><small>{row.issue_count ? `${row.issue_count} follow-up item${row.issue_count === 1 ? "" : "s"}` : "Ready to continue"}</small></div>
             <div role="cell" className="cg-import-received"><span>{new Date(row.created_at).toLocaleDateString("en-US", { timeZone: "America/Detroit", month: "short", day: "numeric" })}</span><small>{new Date(row.created_at).toLocaleTimeString("en-US", { timeZone: "America/Detroit", hour: "numeric", minute: "2-digit" })}</small></div>
-            <div role="cell" className="cg-import-reviewer"><span>{row.reviewer_name ?? "Unassigned"}</span><small>{row.reviewer_id ? "Review owner" : "Assigned when opened"}</small></div>
+            <div role="cell" className="cg-import-reviewer"><span>{row.reviewer_name ?? "Unassigned"}</span><small>{row.reviewer_id ? "Review owner" : "Assigned when opened"}</small>
+              {me.role !== "staff" && !row.archived_at && <div className="mt-2 grid gap-2">
+                <RoyalSelect aria-label={`Assign reviewer for ${row.full_name || "import"}`} className="input w-full" value={reviewAssignments[row.id] ?? ""} onChange={(event) => setReviewAssignments(current => ({ ...current, [row.id]: event.target.value }))}>
+                  <RoyalOption value="" labelAr="اختر المراجع">Choose reviewer</RoyalOption>
+                  {activeStaff.map(member => <RoyalOption key={member.id} value={member.id}>{member.display_name}</RoyalOption>)}
+                </RoyalSelect>
+                <button type="button" className="cg-review-button" disabled={Boolean(actionBusy) || !reviewAssignments[row.id] || reviewAssignments[row.id] === row.reviewer_id} onClick={() => void assignReviewer(row)}>{t("Assign", "إسناد")}</button>
+              </div>}
+            </div>
             <div role="cell" className="cg-import-actions">
               {row.created_client_id ? <Link className="cg-review-button" href={`/staff/client/${row.created_client_id}`}>{t("Open Client","فتح العميل")}</Link> : <>
                 <button className="cg-review-button" type="button" aria-label="OPEN / EDIT" disabled={Boolean(actionBusy) || Boolean(row.archived_at)} onClick={() => void openCase(row.id)}>{t("Open","فتح")}</button>
                 <button className={`cg-review-button cg-queue-approve ${row.issue_count || !row.document_count ? "is-missing" : ""}`} type="button" aria-label={`Approve ${row.full_name || "import"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at)} onClick={() => void openCase(row.id, false, "edit", true)}>{t("Approve","اعتماد")}{!row.document_count && <span className="cg-missing-badge">{t("Missing","نواقص")}</span>}</button>
               </>}
-              <div className="cg-import-secondary"><button className="cg-review-button cg-review-audit" type="button" aria-label={`Audit client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "audit")}>{t("Audit","تدقيق")}</button><button className="cg-review-button cg-review-audit" type="button" aria-label={`Source for client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "source")}>{t("Source","المصدر")}</button><button className="cg-import-archive" type="button" disabled={Boolean(actionBusy)} onClick={() => void archiveRow(row.id)}>{actionBusy === `archive:${row.id}` ? t("ARCHIVING…","جارٍ الأرشفة…") : t("Archive","أرشفة")}</button></div>
+              <div className="cg-import-secondary"><button className="cg-review-button cg-review-audit" type="button" aria-label={`Audit client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "audit")}>{t("Audit","تدقيق")}</button><button className="cg-review-button cg-review-audit" type="button" aria-label={`Source for client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "source")}>{t("Source","المصدر")}</button>{me.role !== "staff" && <button className="cg-import-archive" type="button" disabled={Boolean(actionBusy)} onClick={() => void archiveRow(row.id)}>{actionBusy === `archive:${row.id}` ? t("ARCHIVING…","جارٍ الأرشفة…") : t("Archive","أرشفة")}</button>}</div>
             </div>
           </div>)}
         </div>
@@ -628,7 +656,7 @@ export function SmartCareerCollectClient() {
       <div className="cg-review-workspace">
         <div className="cg-source-launch"><div><strong>{t("Source documents","وثائق المصدر")}</strong><p>{detail.documents.length} {t("attached · Preview without leaving this review","مرفقة · معاينة دون مغادرة المراجعة")}</p></div><button type="button" className="cg-review-button" onClick={() => setSourceOpen(true)}>{t("Open documents","فتح الوثائق")} ↗</button></div>
         {sourceOpen && <GlassReviewDialog title={t("Source documents","وثائق المصدر")} wide drawer onClose={() => setSourceOpen(false)}><div id="smart-document-viewer">
-          <div className="cg-document-controls">{detail.case.status !== "APPROVED_FILE" && <><input ref={reattachRef} className="sr-only" type="file" accept={REATTACH_ACCEPT} multiple onChange={(event) => void reattach(event.target.files)} /><button className="cg-review-button" type="button" disabled={Boolean(actionBusy) || draftDirty || editingField || reviewChanged || offlineSyncing || !offlineDraft.online} onClick={() => reattachRef.current?.click()}>{t("Re-attach","إرفاق وثيقة")}</button></>}<button type="button" aria-label="Zoom out document" disabled={documentZoom <= 50} onClick={() => setDocumentZoom((value) => value-25)}>−</button><span dir="ltr">{documentZoom}%</span><button type="button" aria-label="Zoom in document" disabled={documentZoom >= 250} onClick={() => setDocumentZoom((value) => value+25)}>＋</button><button type="button" onClick={() => setDocumentZoom(100)}>{t("Fit","ملاءمة")}</button></div>
+          <div className="cg-document-controls">{me.role !== "staff" && detail.case.status !== "APPROVED_FILE" && <><input ref={reattachRef} className="sr-only" type="file" accept={REATTACH_ACCEPT} multiple onChange={(event) => void reattach(event.target.files)} /><button className="cg-review-button" type="button" disabled={Boolean(actionBusy) || draftDirty || editingField || reviewChanged || offlineSyncing || !offlineDraft.online} onClick={() => reattachRef.current?.click()}>{t("Re-attach","إرفاق وثيقة")}</button></>}<button type="button" aria-label="Zoom out document" disabled={documentZoom <= 50} onClick={() => setDocumentZoom((value) => value-25)}>−</button><span dir="ltr">{documentZoom}%</span><button type="button" aria-label="Zoom in document" disabled={documentZoom >= 250} onClick={() => setDocumentZoom((value) => value+25)}>＋</button><button type="button" onClick={() => setDocumentZoom(100)}>{t("Fit","ملاءمة")}</button></div>
           {sourceField && <p className="cg-matrix-summary">{t("Source review","مراجعة المصدر")} · {sourceField}</p>}
           {activeDocument ? <><div className="cg-document-stage">{activeDocument.mime_type.startsWith("image/") ? <img style={{width:`${documentZoom}%`}} src={`/api/staff/smart-client-import/document/${activeDocument.id}`} alt={activeDocument.original_filename} /> : <iframe title={activeDocument.original_filename} style={{width:`${documentZoom}%`}} src={`/api/staff/smart-client-import/document/${activeDocument.id}#page=${sourcePage??1}&zoom=${documentZoom}`} />}</div><div className="cg-document-controls" style={{marginTop:16}}>{detail.documents.map((doc) => <button type="button" key={doc.id} aria-pressed={activeDocument.id===doc.id} onClick={() => {setActiveDocumentId(doc.id);setSourcePage(null);setDocumentZoom(100);}}>{doc.original_filename}</button>)}</div></> : <p className="cg-override-summary">{t("No source document attached. You can approve with a recorded reason, then attach documents to the Client later.","لا توجد وثيقة مرفقة. يمكن الاعتماد بسبب مسجل، ثم استكمال الوثائق في ملف العميل لاحقاً.")}</p>}
         </div></GlassReviewDialog>}
