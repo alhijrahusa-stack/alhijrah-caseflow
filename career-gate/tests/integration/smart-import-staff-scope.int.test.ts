@@ -15,7 +15,7 @@ async function makeStaff(role: "manager" | "staff"): Promise<StaffSession> {
   const email = `smart-scope-${authId}@test.invalid`;
   await db`insert into auth.users (id,email) values (${authId},${email})`;
   const [row] = await db`insert into staff (display_name,email,role,auth_user_id,active)
-    values (${`TEST Smart Scope ${role}`},${email},${role},${authId},true) returning id,display_name,email,role`;
+    values (${`TEST Smart Scope ${role} ${authId}`},${email},${role},${authId},true) returning id,display_name,email,role`;
   return { authUserId: authId, staff: row as StaffSession["staff"] };
 }
 
