@@ -92,15 +92,33 @@ test('summary API requires authentication and serves private aggregated data',as
 });
 
 
-test("staff navigation respects the existing management-only finance and audit boundaries",async({browser,baseURL})=>{
+test("staff navigation enforces import permission and management-only finance and audit boundaries",async({browser,baseURL})=>{
+  const loopback=new Set(['localhost','127.0.0.1','::1','[::1]']);
+  if(!baseURL || !process.env.DATABASE_URL || !loopback.has(new URL(baseURL).hostname) || !loopback.has(new URL(process.env.DATABASE_URL).hostname)) throw new Error('Permission test requires an isolated loopback app and database');
+  const [original]=await db()`select permission_mode,custom_permissions from staff where auth_user_id=${STAFF.staff}`;
+  expect(original).toBeTruthy();
   const context=await browser.newContext({baseURL});
-  await signIn(context,baseURL!,'staff');
-  const page=await context.newPage();
-  for(const path of ['/staff','/career-gate-royal.html']){
-    await page.goto(path);
-    await expect(page.getByRole('heading',{name:'Operations Command Center',exact:true})).toBeVisible();
-    const links=await page.getByRole('link').evaluateAll(elements=>elements.map(element=>element.getAttribute('href')??''));
-    expect(links.filter(href=>/^\/staff\/(accounting|reports|audit-alerts|import)(?:[/?]|$)/.test(href))).toEqual([]);
+  try {
+    await signIn(context,baseURL,'staff');
+    const page=await context.newPage();
+    for(const permitted of [false,true]){
+      await db()`update staff set permission_mode='custom',custom_permissions=${permitted ? ['review_smart_import'] : []}::text[] where auth_user_id=${STAFF.staff}`;
+      for(const path of ['/staff','/career-gate-royal.html']){
+        await page.goto(path);
+        await expect(page.getByRole('heading',{name:'Operations Command Center',exact:true})).toBeVisible();
+        const links=await page.getByRole('link').evaluateAll(elements=>elements.map(element=>element.getAttribute('href')??''));
+        expect(links.filter(href=>/^\/staff\/(accounting|reports|audit-alerts)(?:[/?]|$)/.test(href))).toEqual([]);
+        if(path === '/staff') expect(links.includes('/staff/import')).toBe(permitted);
+        else if(!permitted) expect(links).not.toContain('/staff/import');
+      }
+      const response=await page.request.get('/api/staff/smart-client-import');
+      expect(response.status()).toBe(permitted ? 200 : 403);
+      await page.goto('/staff/import');
+      if(permitted) await expect(page.getByRole('heading',{name:'IMPORT QUEUE',exact:true})).toBeVisible();
+      else await expect(page).toHaveURL(/\/staff\/?$/);
+    }
+  } finally {
+    await db()`update staff set permission_mode=${original.permission_mode},custom_permissions=${original.custom_permissions}::text[] where auth_user_id=${STAFF.staff}`;
+    await context.close();
   }
-  await context.close();
 });
