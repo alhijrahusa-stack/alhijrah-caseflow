@@ -6,6 +6,7 @@ import { GlassReviewDialog } from "@/components/staff/smart/GlassReviewDialog";
 import { SecureDocumentDrawer } from "@/components/staff/SecureDocumentDrawer";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import { subscribeResources } from "@/components/staff/realtime/update-bus";
+import { formatClient360Date as when } from "@/lib/client360-date";
 
 type Client = { id: string; ref: string; full_name: string };
 type DocumentRow = { id: string; file_name?: string; doc_type?: string; status?: string; uploaded_at?: string };
@@ -33,14 +34,6 @@ const short = (value: unknown): string => {
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
   return JSON.stringify(value);
 };
-
-function when(value: string | undefined) {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isFinite(date.getTime())
-    ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Detroit" }).format(date)
-    : value;
-}
 
 export function Client360Drawer({ client, onClose }: { client: Client; onClose: () => void }) {
   const [data, setData] = useState<Data | null>(null);

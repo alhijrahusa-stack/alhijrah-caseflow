@@ -56,6 +56,7 @@ type QueueRow = {
   created_client_id: string | null;
   archived_at?: string | null;
   updated_at: string;
+  revision: string;
   override_state?: string | null;
   processing_state?: string | null;
 };
@@ -79,6 +80,7 @@ type CaseDetail = {
     information_match_confirmed: boolean;
     created_at: string;
     updated_at: string;
+    revision: string;
     created_client_id: string | null;
   };
   documents: { id: string; original_filename: string; mime_type: string; size_bytes: number; detected_document_type: string | null; extraction_metadata: Record<string, unknown>; created_at: string }[];
@@ -173,9 +175,9 @@ export function SmartCareerCollectClient() {
   }, [me.id]);
   function fieldEditingChanged(editing: boolean) { openFieldEditor.current = editing; setEditingField(editing); }
 
-  const draftPayload = useMemo(() => detail && draft ? ({ action: "save" as const, id: detail.case.id, reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed, resolved_fields: pendingFields, expected_updated_at: detail.case.updated_at, expected_actor_id:me.id }) : null, [detail,draft,reviewerId,documentConfirmed,informationConfirmed,pendingFields,me.id]);
+  const draftPayload = useMemo(() => detail && draft ? ({ action: "save" as const, id: detail.case.id, reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed, resolved_fields: pendingFields, expected_updated_at: detail.case.updated_at, expected_revision: detail.case.revision, expected_actor_id:me.id }) : null, [detail,draft,reviewerId,documentConfirmed,informationConfirmed,pendingFields,me.id]);
   const offlineDraft = useVersionedReviewDraft({
-    staffId: me.id, caseId: detail?.case.id ?? null, serverVersion: detail?.case.updated_at ?? null,
+    staffId: me.id, caseId: detail?.case.id ?? null, serverVersion: detail?.case.revision ?? null,
     onRestore: (payload) => { localReviewRevision.current += 1; setDraft(payload.draft); setReviewerId(payload.reviewer_id); setDocumentConfirmed(payload.document_match_confirmed); setInformationConfirmed(payload.information_match_confirmed); setPendingFields(payload.resolved_fields ?? []); setDraftDirty(true); },
     onSyncStart: () => { syncingReviewRevision.current = localReviewRevision.current; },
     onSynced: (_data, appliedPayload) => {
@@ -255,10 +257,10 @@ export function SmartCareerCollectClient() {
     const res = await fetch("/api/staff/smart-client-import", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "begin_override", id: next.case.id, reviewer_id: currentReviewer, draft: currentDraft,
         document_match_confirmed: docConfirmed, information_match_confirmed: infoConfirmed,
-        resolved_fields: resolved, expected_updated_at: next.case.updated_at }) });
+        resolved_fields: resolved, expected_revision: next.case.revision }) });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.ok) {
-      if (data?.error?.code === "review_changed") setReviewChanged(true);
+      if (data?.error?.code === "review_changed" || data?.error?.code === "client_upgrade_required") setReviewChanged(true);
       throw new Error(errMessage(data, "Unable to start override"));
     }
     const fresh = await fetch(`/api/staff/smart-client-import?id=${encodeURIComponent(next.case.id)}`, { cache: "no-store" });
@@ -284,7 +286,7 @@ export function SmartCareerCollectClient() {
       if (next.case.status === "PENDING" && !next.case.reviewer_id) {
         const claimResponse = await fetch("/api/staff/smart-client-import", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "start_review", id, reviewer_id: me.id }),
+          body: JSON.stringify({ action: "start_review", id, reviewer_id: me.id, expected_revision: next.case.revision }),
         });
         const claimed = await claimResponse.json().catch(() => null);
         if (!claimResponse.ok || !claimed?.ok) throw new Error(errMessage(claimed, "Reviewer assignment failed"));
@@ -363,13 +365,13 @@ export function SmartCareerCollectClient() {
     const res = await fetch("/api/staff/smart-client-import", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, id: detail.case.id,
-        ...(["save", "approve", "verify"].includes(action) ? { expected_updated_at: detail.case.updated_at } : {}),
+        ...(["save", "approve", "verify", "start_review"].includes(action) ? { expected_revision: detail.case.revision } : {}),
         ...(["save", "approve"].includes(action) ? { resolved_fields: pendingFields } : {}),
         ...extra }),
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.ok) {
-      if (data?.error?.code === "review_changed") setReviewChanged(true);
+      if (data?.error?.code === "review_changed" || data?.error?.code === "client_upgrade_required") setReviewChanged(true);
       throw new Error(errMessage(data, `${action} failed (${res.status})`));
     }
     return data;
@@ -383,7 +385,7 @@ export function SmartCareerCollectClient() {
     try {
       const res = await fetch("/api/staff/smart-client-import", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "assign_review", id: caseId, reviewer_id: reviewer, expected_updated_at: row.updated_at }),
+        body: JSON.stringify({ action: "assign_review", id: caseId, reviewer_id: reviewer, expected_revision: row.revision }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, "Assignment failed"));
@@ -398,7 +400,7 @@ export function SmartCareerCollectClient() {
     setActionBusy(`recover:${row.id}`); setError(null);
     try {
       const res = await fetch("/api/staff/smart-client-import", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "recover_capture", id: row.id, expected_updated_at: row.updated_at }) });
+        body: JSON.stringify({ action: "recover_capture", id: row.id, expected_revision: row.revision }) });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, "Capture recovery failed"));
       await loadQueue();
@@ -432,7 +434,7 @@ export function SmartCareerCollectClient() {
         setNotice(draft?.status && draft.status !== "new_intake" ? t("Client approved and routed to its saved workflow stage. Outstanding items were recorded for follow-up.","تم اعتماد العميل وتحويله إلى مرحلته المسجلة، مع تسجيل النواقص للمتابعة.") : t("Client approved and routed to Intake. Outstanding items were recorded for follow-up.", "تم اعتماد العميل وتحويله إلى الاستقبال، مع تسجيل النواقص للمتابعة."));
         return data;
       }
-      if (data?.updated_at) setDetail((current) => current ? { ...current, case: { ...current.case, updated_at: data.updated_at } } : current);
+      if (data?.updated_at && data?.revision) setDetail((current) => current ? { ...current, case: { ...current.case, updated_at: data.updated_at, revision: data.revision } } : current);
       if (action === "save") { offlineDraft.clear(); setDraftDirty(false); setPendingFields([]); handshake("gold"); }
       await Promise.all([openCase(detail.case.id, true), loadQueue()]);
       setNotice(action === "save" ? t("Review saved.","تم حفظ المراجعة.") : action === "start_review" ? t("Review started.","بدأت المراجعة.") : t("Action completed.","تم الإجراء."));
@@ -447,10 +449,10 @@ export function SmartCareerCollectClient() {
     setActionBusy("verify"); setError(null); setNotice(null);
     try {
       const saved = await postAction("save", { reviewer_id: reviewerId, draft, document_match_confirmed: documentConfirmed, information_match_confirmed: informationConfirmed });
-      setDetail((current) => current ? { ...current, case: { ...current.case, updated_at: saved.updated_at, verification_result: {} } } : current);
+      setDetail((current) => current ? { ...current, case: { ...current.case, updated_at: saved.updated_at, revision: saved.revision, verification_result: {} } } : current);
       offlineDraft.clear(); setDraftDirty(false); setPendingFields([]);
-      const verified = await postAction("verify", { expected_updated_at: saved.updated_at });
-      if (verified?.updated_at) setDetail((current) => current ? { ...current, case: { ...current.case, updated_at: verified.updated_at } } : current);
+      const verified = await postAction("verify", { expected_revision: saved.revision });
+      if (verified?.updated_at) setDetail((current) => current ? { ...current, case: { ...current.case, updated_at: verified.updated_at, revision: verified.revision } } : current);
       handshake("emerald");
       await Promise.all([openCase(detail.case.id, true), loadQueue()]);
       setNotice(t("Review saved and verification completed.","تم حفظ المراجعة واكتمال التحقق."));
@@ -491,13 +493,14 @@ export function SmartCareerCollectClient() {
     finally { if (reattachRef.current) reattachRef.current.value = ""; setActionBusy(null); }
   }
 
-  async function archiveRow(id: string) {
+  async function archiveRow(row: QueueRow) {
+    const id = row.id;
     if (actionBusy || !await confirmReview(t("Archive import", "أرشفة الاستيراد"), t("Archive this import from the active queue? Canonical client data will be preserved.", "هل تريد أرشفة هذا الاستيراد؟ سيبقى ملف العميل محفوظاً."))) return;
     setActionBusy(`archive:${id}`); setError(null); setNotice(null);
     try {
       const res = await fetch("/api/staff/smart-client-import", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "archive", id }),
+        body: JSON.stringify({ action: "archive", id, expected_revision: row.revision }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, `Archive failed (${res.status})`));
@@ -601,10 +604,10 @@ export function SmartCareerCollectClient() {
     actionLock.current = true; setActionBusy("cancel_override"); setError(null);
     try {
       const res = await fetch("/api/staff/smart-client-import", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "cancel_override", id: detail.case.id, expected_updated_at: detail.case.updated_at }) });
+        body: JSON.stringify({ action: "cancel_override", id: detail.case.id, expected_revision: detail.case.revision }) });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
-        if (data?.error?.code === "review_changed") setReviewChanged(true);
+        if (data?.error?.code === "review_changed" || data?.error?.code === "client_upgrade_required") setReviewChanged(true);
         throw new Error(errMessage(data, "Unable to cancel override"));
       }
       try { sessionStorage.removeItem(overrideKey(detail.case.id)); } catch { /* Cancellation remains recorded on the server. */ }
@@ -689,7 +692,7 @@ export function SmartCareerCollectClient() {
                 <button className={`cg-review-button cg-queue-approve ${row.issue_count || !row.document_count ? "is-missing" : ""}`} type="button" aria-label={`Approve ${row.full_name || "import"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at) || row.processing_state === "CAPTURING"} onClick={() => void openCase(row.id, false, "edit", true)}>{t("Approve","اعتماد")}{!row.document_count && <span className="cg-missing-badge">{t("Missing","نواقص")}</span>}</button>
                 {me.role !== "staff" && row.processing_state === "CAPTURING" && <button className="cg-review-button" type="button" disabled={Boolean(actionBusy)} onClick={() => void recoverCapture(row)}>{t("Stop & recover capture", "إيقاف الالتقاط واسترداده")}</button>}
               </>}
-              <div className="cg-import-secondary"><button className="cg-review-button cg-review-audit" type="button" aria-label={`Audit client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "audit")}>{t("Audit","تدقيق")}</button><button className="cg-review-button cg-review-audit" type="button" aria-label={`Source for client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "source")}>{t("Source","المصدر")}</button>{me.role !== "staff" && <button className="cg-import-archive" type="button" disabled={Boolean(actionBusy)} onClick={() => void archiveRow(row.id)}>{actionBusy === `archive:${row.id}` ? t("ARCHIVING…","جارٍ الأرشفة…") : t("Archive","أرشفة")}</button>}</div>
+              <div className="cg-import-secondary"><button className="cg-review-button cg-review-audit" type="button" aria-label={`Audit client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "audit")}>{t("Audit","تدقيق")}</button><button className="cg-review-button cg-review-audit" type="button" aria-label={`Source for client ${row.full_name || "Unidentified client"}`} disabled={Boolean(actionBusy) || Boolean(row.archived_at && row.status !== "APPROVED_FILE")} onClick={() => void openCase(row.id, false, "source")}>{t("Source","المصدر")}</button>{me.role !== "staff" && <button className="cg-import-archive" type="button" disabled={Boolean(actionBusy)} onClick={() => void archiveRow(row)}>{actionBusy === `archive:${row.id}` ? t("ARCHIVING…","جارٍ الأرشفة…") : t("Archive","أرشفة")}</button>}</div>
             </div>
           </div>)}
         </div>

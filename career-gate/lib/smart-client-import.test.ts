@@ -380,17 +380,12 @@ describe("Smart Career Collect Client canonical import contract", () => {
   });
 
   it("rejects a stale review revision without inventing a last-write-wins save", () => {
-    const current = new Date("2026-10-30T12:34:56.789Z");
-    expect(() => assertReviewVersion(current, current.toISOString())).not.toThrow();
-    expect(() => assertReviewVersion(current.toISOString(), current.toISOString())).not.toThrow();
-    expect(() => assertReviewVersion(current, "2026-10-30T12:34:55.789Z"))
+    expect(() => assertReviewVersion("9007199254740993", "9007199254740993")).not.toThrow();
+    expect(() => assertReviewVersion("9007199254740993", "9007199254740992"))
       .toThrow("This file changed after you opened it");
-    expect(() => assertReviewVersion(current, "invalid")).toThrow();
-    expect(() => assertReviewVersion(current)).not.toThrow();
-    expect(() => assertReviewVersion("2026-10-30T12:34:56.789123Z", "2026-10-30T12:34:56.789124Z"))
-      .toThrow("This file changed after you opened it");
-    expect(() => assertReviewVersion("2026-10-30T12:34:56.789123Z", "2026-10-30T08:34:56.789123-04:00"))
-      .not.toThrow();
+    expect(() => assertReviewVersion("1", "invalid")).toThrow();
+    expect(() => assertReviewVersion("1")).toThrow("Reload Career Gate");
+    expect(() => assertReviewVersion("1", "2026-10-30T12:34:56.789Z")).toThrow("Invalid review revision");
   });
 
   it("rejects missing canonical minimum Client identity data", () => {

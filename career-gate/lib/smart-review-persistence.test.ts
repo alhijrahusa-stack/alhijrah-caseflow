@@ -33,7 +33,7 @@ function draft() {
 function database(overrides: Record<string, unknown> = {}) {
   const row = {
     id: "case-1", batch_id: "batch-1", status: "UNDER_REVIEW", source_type: "mobile",
-    reviewer_id: reviewerId, review_started_at: version, updated_at: new Date(version), archived_at: null,
+    reviewer_id: reviewerId, review_started_at: version, updated_at: new Date(version), revision: "41", archived_at: null,
     mapped_draft: draft(), field_evidence: sourceEvidence, conflicts: [sourceConflict],
     public_ref: "CG-2026-123456", ...overrides,
   };
@@ -48,7 +48,7 @@ function database(overrides: Record<string, unknown> = {}) {
     if (text.startsWith("select * from client_import_documents")) return [];
     if (text.startsWith("insert into tasks")) return [{ id: "missing-documents-task" }];
     if (text.startsWith("insert into security_events")) return [];
-    if (text.startsWith("update client_import_cases")) return [{ id: row.id, status: row.status, updated_at: new Date(nextVersion) }];
+    if (text.startsWith("update client_import_cases")) return [{ id: row.id, status: row.status, updated_at: new Date(nextVersion), revision: "42" }];
     throw new Error(`Unexpected review persistence query: ${text}`);
   });
   const transaction = Object.assign(query, { json: (value: unknown) => value });
@@ -58,7 +58,7 @@ function database(overrides: Record<string, unknown> = {}) {
 }
 
 function saveArgs() {
-  return { id: "case-1", reviewerId, draft: draft(), documentConfirmed: true, informationConfirmed: true, expectedUpdatedAt: version };
+  return { id: "case-1", reviewerId, draft: draft(), documentConfirmed: true, informationConfirmed: true, expectedRevision: "41" };
 }
 
 function approvalArgs() {
@@ -103,10 +103,20 @@ describe("Smart Review persistence and audit regressions", () => {
   });
 
   it("rejects stale-tab saves before any write and keeps the newer stored draft", async () => {
-    const state = database({ updated_at: new Date(nextVersion) });
+    const state = database({ updated_at: new Date(version), revision: "42" });
     await expect(saveImportReview(manager, saveArgs())).rejects.toMatchObject({ code: "review_changed", status: 409 });
     expect(state.statements.some((statement) => statement.text.startsWith("update"))).toBe(false);
     expect(state.row.mapped_draft).toEqual(draft());
+  });
+
+  it("requires the revision and rejects malformed revisions before writing", async () => {
+    const state = database();
+    const legacy = { ...saveArgs(), expectedRevision: undefined };
+    await expect(saveImportReview(manager, legacy)).rejects.toMatchObject({ code: "client_upgrade_required", status: 409 });
+    for (const invalid of ["0", "-1", "01", "1.1", "9223372036854775808"]) {
+      await expect(saveImportReview(manager, { ...saveArgs(), expectedRevision: invalid })).rejects.toMatchObject({ code: "invalid_revision", status: 400 });
+    }
+    expect(state.statements.some((statement) => statement.text.startsWith("update"))).toBe(false);
   });
 
   it("rejects unknown resolution keys before persisting a draft", async () => {
@@ -181,7 +191,7 @@ describe("Smart Review persistence and audit regressions", () => {
   });
 
   it("rejects stale direct approvals before creating a canonical client", async () => {
-    const state = database({ updated_at: new Date(nextVersion) });
+    const state = database({ updated_at: new Date(version), revision: "42" });
     await expect(approveImportCase(manager, approvalArgs())).rejects.toMatchObject({ code: "review_changed", status: 409 });
     expect(insertClient).not.toHaveBeenCalled();
     expect(state.statements.some((statement) => statement.text.startsWith("update"))).toBe(false);
@@ -189,13 +199,13 @@ describe("Smart Review persistence and audit regressions", () => {
 
   it("returns the new revision from verification for the following approval", async () => {
     database({ conflicts: [] });
-    const result = await verifyImportCase(manager, "case-1", version);
-    expect(result).toMatchObject({ approval_ready: true, updated_at: new Date(nextVersion) });
+    const result = await verifyImportCase(manager, "case-1", "41");
+    expect(result).toMatchObject({ approval_ready: true, updated_at: new Date(nextVersion), revision: "42" });
   });
 
   it("rejects stale verification without replacing current findings", async () => {
-    const state = database({ updated_at: new Date(nextVersion) });
-    await expect(verifyImportCase(manager, "case-1", version)).rejects.toMatchObject({ code: "review_changed", status: 409 });
+    const state = database({ updated_at: new Date(version), revision: "42" });
+    await expect(verifyImportCase(manager, "case-1", "41")).rejects.toMatchObject({ code: "review_changed", status: 409 });
     expect(state.statements.some((statement) => statement.text.startsWith("update"))).toBe(false);
   });
 });

@@ -13,7 +13,7 @@ export function sameReviewDraft(left: ReviewDraftPayload | null | undefined, rig
     id: payload.id, reviewer_id: payload.reviewer_id, draft: payload.draft,
     document_match_confirmed: payload.document_match_confirmed,
     information_match_confirmed: payload.information_match_confirmed,
-    resolved_fields: [...(payload.resolved_fields ?? [])].sort(), expected_updated_at: payload.expected_updated_at,
+    resolved_fields: [...(payload.resolved_fields ?? [])].sort(), expected_updated_at: payload.expected_updated_at, expected_revision: payload.expected_revision,
   });
   return JSON.stringify(snapshot(left)) === JSON.stringify(snapshot(right));
 }

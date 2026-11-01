@@ -44,7 +44,7 @@ export function useVersionedReviewDraft(options: {
       try { stored = readReviewDraft(sessionStorage, staffId, caseId); }
       catch { setState("error"); setMessage("Temporary browser storage is unavailable. Keep this review open and save online."); return; }
       if (!stored) { setState("idle"); setMessage(""); return; }
-      if (stored.conflict || stored.payload.expected_updated_at !== serverVersion) {
+      if (stored.conflict || stored.payload.expected_revision !== serverVersion) {
         setState("conflict"); setMessage("A temporary draft exists from another server version. Restore it for comparison or discard it; it will not overwrite newer server data.");
         latest.current.onConflict();
         return;
@@ -82,7 +82,7 @@ export function useVersionedReviewDraft(options: {
       if (!current.caseId || payload.id !== current.caseId) throw new Error("Open the review before saving a draft.");
       const existing = readReviewDraft(sessionStorage, current.staffId, current.caseId);
       // A stale local payload may be viewed, but must never gain a new server version implicitly.
-      if (existing?.conflict || payload.expected_updated_at !== current.serverVersion) {
+      if (existing?.conflict || payload.expected_revision !== current.serverVersion) {
         setState("conflict"); current.onConflict(); return false;
       }
       const shouldQueue = queued || existing?.queued === true;

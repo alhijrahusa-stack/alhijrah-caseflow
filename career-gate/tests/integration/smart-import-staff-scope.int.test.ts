@@ -39,7 +39,7 @@ describe("assigned smart import reviewer", () => {
     ] });
     const own = String(staged.cases[0].id), foreign = String(staged.cases[1].id), unassigned = String(staged.cases[2].id);
     const revision = async (id: string) => {
-      const [row] = await db`select to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as revision from client_import_cases where id=${id}`;
+      const [row] = await db`select revision::text as revision from client_import_cases where id=${id}`;
       return String(row.revision);
     };
     const initial = await revision(own);
@@ -75,10 +75,10 @@ describe("assigned smart import reviewer", () => {
     expect((await getImportDocument(staff, String(ownDoc.id))).import_case_id).toBe(own);
     await db`delete from client_import_documents where id=${ownDoc.id}`;
     const detail = await getImportCase(staff, own);
-    const args = { id: own, reviewerId: staff.staff.id, draft: detail.case.mapped_draft, documentConfirmed: false, informationConfirmed: false, traceId: "scope-approve", expectedUpdatedAt: String(detail.case.updated_at) };
-    await expect(verifyImportCase(other, own, String(detail.case.updated_at))).rejects.toMatchObject({ code: "not_found" });
+    const args = { id: own, reviewerId: staff.staff.id, draft: detail.case.mapped_draft, documentConfirmed: false, informationConfirmed: false, traceId: "scope-approve", expectedRevision: String(detail.case.revision) };
+    await expect(verifyImportCase(other, own, String(detail.case.revision))).rejects.toMatchObject({ code: "not_found" });
     await expect(saveImportReview(staff, { ...args, reviewerId: other.staff.id })).rejects.toMatchObject({ code: "not_found" });
-    await expect(approveImportCase(staff, { ...args, expectedUpdatedAt: undefined })).rejects.toMatchObject({ code: "review_version_required" });
+    await expect(approveImportCase(staff, { ...args, expectedRevision: undefined })).rejects.toMatchObject({ code: "client_upgrade_required" });
     await expect(approveImportCase(staff, args)).rejects.toMatchObject({ code: "override_required" });
     await db`update staff set custom_permissions=array[]::text[] where id=${staff.staff.id}`;
     await expect(approveImportCase(staff, { ...args, override: true, overrideReason: "Documents due at next visit" })).rejects.toMatchObject({ code: "forbidden" });
@@ -88,29 +88,29 @@ describe("assigned smart import reviewer", () => {
     expect(pending.state).toBe("PENDING_OVERRIDE");
     const resumed = await getImportCase(staff, own);
     expect(resumed.case.verification_result.workflow_override).toMatchObject({ state: "PENDING_OVERRIDE", started_by: staff.staff.id, reviewer_id: staff.staff.id, outstanding_fields: expect.arrayContaining(["source_documents"]) });
-    await expect(saveImportReview(staff, { ...args, expectedUpdatedAt: String(pending.updated_at) })).rejects.toMatchObject({ code: "pending_override_active" });
-    await expect(verifyImportCase(staff, own, String(pending.updated_at))).rejects.toMatchObject({ code: "pending_override_active" });
-    await expect(startImportReview(staff, own, staff.staff.id)).rejects.toMatchObject({ code: "pending_override_active" });
-    await expect(archiveImportCase(manager, own)).rejects.toMatchObject({ code: "pending_override_active" });
+    await expect(saveImportReview(staff, { ...args, expectedRevision: String(pending.revision) })).rejects.toMatchObject({ code: "pending_override_active" });
+    await expect(verifyImportCase(staff, own, String(pending.revision))).rejects.toMatchObject({ code: "pending_override_active" });
+    await expect(startImportReview(staff, own, staff.staff.id, String(pending.revision))).rejects.toMatchObject({ code: "pending_override_active" });
+    await expect(archiveImportCase(manager, own, String(pending.revision))).rejects.toMatchObject({ code: "pending_override_active" });
     await expect(reattachSmartImportDocuments({ session: manager, caseId: own, files: [new File(["pdf"], "test.pdf", { type: "application/pdf" })] })).rejects.toMatchObject({ code: "pending_override_active" });
-    await expect(assignImportReviewer(manager, own, other.staff.id, String(pending.updated_at), "pending-transfer")).rejects.toMatchObject({ code: "pending_override_active" });
+    await expect(assignImportReviewer(manager, own, other.staff.id, String(pending.revision), "pending-transfer")).rejects.toMatchObject({ code: "pending_override_active" });
     const altered = structuredClone(resumed.case.mapped_draft);
     altered.profile.full_name = "TEST Changed While Override Pending";
-    await expect(approveImportCase(staff, { ...args, draft: altered, expectedUpdatedAt: String(pending.updated_at), override: true, overrideReason: "Documents due at next visit" })).rejects.toMatchObject({ code: "review_changed" });
+    await expect(approveImportCase(staff, { ...args, draft: altered, expectedRevision: String(pending.revision), override: true, overrideReason: "Documents due at next visit" })).rejects.toMatchObject({ code: "review_changed" });
     const [notCreated] = await db`select created_client_id from client_import_cases where id=${own}`;
     expect(notCreated.created_client_id).toBeNull();
-    await expect(cancelImportOverride(other, own, String(pending.updated_at), "foreign-cancel")).rejects.toMatchObject({ code: "not_found" });
-    await expect(cancelImportOverride(staff, own, args.expectedUpdatedAt, "stale-cancel")).rejects.toMatchObject({ code: "review_changed" });
-    const cancelled = await cancelImportOverride(staff, own, String(pending.updated_at), "cancel-override");
+    await expect(cancelImportOverride(other, own, String(pending.revision), "foreign-cancel")).rejects.toMatchObject({ code: "not_found" });
+    await expect(cancelImportOverride(staff, own, args.expectedRevision, "stale-cancel")).rejects.toMatchObject({ code: "review_changed" });
+    const cancelled = await cancelImportOverride(staff, own, String(pending.revision), "cancel-override");
     expect(cancelled.state).toBe("CANCELLED");
-    const reopened = await beginImportOverride(staff, { ...args, expectedUpdatedAt: String(cancelled.updated_at) });
+    const reopened = await beginImportOverride(staff, { ...args, expectedRevision: String(cancelled.revision) });
     const pendingEvents = await db`select event from security_events where event in ('smart_import_override_pending','smart_import_override_cancelled') and detail->>'case_id'=${own} order by id`;
     expect(pendingEvents.map(row => row.event)).toEqual(["smart_import_override_pending", "smart_import_override_cancelled", "smart_import_override_pending"]);
     const reason = "Documents due at next visit";
     const savedDraft = (await getImportCase(staff, own)).case.mapped_draft;
     const [a,b] = await Promise.all([
-      approveImportCase(staff, { ...args, draft: savedDraft, expectedUpdatedAt: String(reopened.updated_at), override: true, overrideReason: reason }),
-      approveImportCase(staff, { ...args, draft: savedDraft, expectedUpdatedAt: String(reopened.updated_at), override: true, overrideReason: reason }),
+      approveImportCase(staff, { ...args, draft: savedDraft, expectedRevision: String(reopened.revision), override: true, overrideReason: reason }),
+      approveImportCase(staff, { ...args, draft: savedDraft, expectedRevision: String(reopened.revision), override: true, overrideReason: reason }),
     ]);
     expect(a.client_id).toBe(b.client_id);
     expect([a.idempotent,b.idempotent].sort()).toEqual([false,true]);
@@ -131,7 +131,7 @@ describe("assigned smart import reviewer", () => {
     const id = staged.case_id;
     const detail = await getImportCase(manager, id);
     const pending = await beginImportOverride(manager, { id, reviewerId: manager.staff.id, draft: detail.case.mapped_draft,
-      documentConfirmed: false, informationConfirmed: false, expectedUpdatedAt: String(detail.case.updated_at), traceId: "pending-ocr" });
+      documentConfirmed: false, informationConfirmed: false, expectedRevision: String(detail.case.revision), traceId: "pending-ocr" });
     await expect(enrichMobileImportCase(manager, id)).rejects.toMatchObject({ code: "pending_override_active" });
     const [link] = await db`insert into client_import_links(token_hash,status,issued_by,expires_at,import_case_id)
       values(${"c".repeat(64)},'PROCESSING',${manager.staff.id},now()+interval '1 hour',${id}) returning id`;
@@ -139,18 +139,18 @@ describe("assigned smart import reviewer", () => {
       .rejects.toMatchObject({ code: "pending_override_active" });
     const resumed = await getImportCase(manager, id);
     expect(resumed.case.verification_result.workflow_override).toMatchObject({ state: "PENDING_OVERRIDE", started_by: manager.staff.id });
-    expect(resumed.case.updated_at).toBe(pending.updated_at);
-    await cancelImportOverride(manager, id, String(pending.updated_at), "pending-ocr-cancel");
+    expect(resumed.case.revision).toBe(pending.revision);
+    await cancelImportOverride(manager, id, String(pending.revision), "pending-ocr-cancel");
   });
 
   it("fences an interrupted capture, keeps already stored documents, and refuses a late writer", async () => {
     const staged = await stageSheetRows({ session: manager, source: "csv", idempotencyKey: randomUUID(), rows: [{ full_name: `TEST Capture Recovery ${randomUUID()}`, phone: "6165568877" }] });
     const id = String(staged.cases[0].id), generation = randomUUID();
     await db`update client_import_cases set verification_result=${db.json({ processing_state: "CAPTURING", capture_generation: generation })} where id=${id}`;
-    const [row] = await db`select to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as revision from client_import_cases where id=${id}`;
+    const [row] = await db`select revision::text as revision from client_import_cases where id=${id}`;
     await expect(recoverImportCapture(staff, id, String(row.revision), "capture-denied")).rejects.toMatchObject({ code: "forbidden" });
     await expect(beginImportOverride(manager, { id, reviewerId: manager.staff.id, draft: (await getImportCase(manager,id)).case.mapped_draft,
-      documentConfirmed: false, informationConfirmed: false, expectedUpdatedAt: String(row.revision), traceId: "capture-begin" })).rejects.toMatchObject({ code: "capture_in_progress" });
+      documentConfirmed: false, informationConfirmed: false, expectedRevision: String(row.revision), traceId: "capture-begin" })).rejects.toMatchObject({ code: "capture_in_progress" });
     let unlock!: () => void;
     let acquired!: () => void;
     const entered = new Promise<void>(resolve => { acquired = resolve; });
@@ -175,15 +175,15 @@ describe("assigned smart import reviewer", () => {
     const [audit] = await db`select staff_id,detail from security_events where event='smart_import_capture_recovered' and detail->>'case_id'=${id}`;
     expect(audit).toMatchObject({ staff_id: manager.staff.id, detail: { case_id: id, capture_generation: generation, document_count: 1 } });
     const beforeReview = await getImportCase(manager, id);
-    const reviewArgs = { id, reviewerId: manager.staff.id, draft: beforeReview.case.mapped_draft, documentConfirmed: false, informationConfirmed: false, traceId: "recovered-approval", expectedUpdatedAt: String(beforeReview.case.updated_at) };
+    const reviewArgs = { id, reviewerId: manager.staff.id, draft: beforeReview.case.mapped_draft, documentConfirmed: false, informationConfirmed: false, traceId: "recovered-approval", expectedRevision: String(beforeReview.case.revision) };
     const savedReview = await saveImportReview(manager, reviewArgs);
     const afterReview = await getImportCase(manager, id);
     expect(afterReview.case.verification_result.source_capture_incomplete).toBe(true);
-    await expect(approveImportCase(manager, { ...reviewArgs, draft: afterReview.case.mapped_draft, expectedUpdatedAt: String(savedReview.updated_at), override: true, overrideReason: "Remaining sources to be collected" })).rejects.toMatchObject({ code: "pending_override_required" });
-    const pending = await beginImportOverride(manager, { ...reviewArgs, draft: afterReview.case.mapped_draft, expectedUpdatedAt: String(savedReview.updated_at) });
+    await expect(approveImportCase(manager, { ...reviewArgs, draft: afterReview.case.mapped_draft, expectedRevision: String(savedReview.revision), override: true, overrideReason: "Remaining sources to be collected" })).rejects.toMatchObject({ code: "pending_override_required" });
+    const pending = await beginImportOverride(manager, { ...reviewArgs, draft: afterReview.case.mapped_draft, expectedRevision: String(savedReview.revision) });
     const resumed = await getImportCase(manager, id);
     expect(resumed.case.verification_result.workflow_override.outstanding_fields).toContain("source_capture");
-    const approved = await approveImportCase(manager, { ...reviewArgs, draft: resumed.case.mapped_draft, expectedUpdatedAt: String(pending.updated_at), override: true, overrideReason: "Remaining sources to be collected" });
+    const approved = await approveImportCase(manager, { ...reviewArgs, draft: resumed.case.mapped_draft, expectedRevision: String(pending.revision), override: true, overrideReason: "Remaining sources to be collected" });
     const [approvalLog] = await db`select new_value from activity_log where client_id=${approved.client_id} and action='client_updated' and entity_id=${id}`;
     expect(approvalLog.new_value.override.outstanding_fields).toContain("source_capture");
   });
