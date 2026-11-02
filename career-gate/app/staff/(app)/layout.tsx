@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { HeaderTools } from "@/components/staff/HeaderTools";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -42,6 +43,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       <ExecutiveShell initial={summary} management={mgmt} header={<>
         <Link href="/staff" className="royal-header-brand" prefetch={false}><Image src="/brand/career-gate.webp" alt="Career Gate" width={48} height={48}/><span>CAREER GATE<small>{OFFICE.location}</small></span></Link>
         <div className="royal-command-bar"><SectionBoundary name="quick-search" fallback={null}><QuickClientSearch /></SectionBoundary><SectionBoundary name="command-palette" fallback={null}><CommandPalette /></SectionBoundary></div>
+        {mgmt && <SectionBoundary name="header-tools" fallback={null}><HeaderTools /></SectionBoundary>}
         <div className="royal-session"><StaffLanguageToggle /><SectionBoundary name="telemetry" fallback={null}><ExecutiveTelemetry /></SectionBoundary><StaffAppointmentAlerts staffId={session.staff.id} /><Link href="/staff/staff?tab=team" prefetch={false} title="Executive Profile" data-testid="me"><bdi>{session.staff.display_name}</bdi><span className="sr-only"><StaffText en="Executive Profile" ar="الملف التنفيذي"/></span><small>{session.staff.role}</small></Link><SignOutButton /></div>
       </>}>
         {children}

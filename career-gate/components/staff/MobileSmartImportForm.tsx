@@ -1,5 +1,6 @@
 "use client";
 
+import { optimizeFilesForUpload } from "@/lib/image-upload-optimizer";
 import Link from "next/link";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -407,7 +408,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     }
   }, []);
 
-  function addFiles(list: FileList | null) {
+  function addFiles(list: FileList | File[] | null) {
     if (!list?.length || busy || submitted || preExtracting) return;
     const outcome = admitDocuments(documents, Array.from(list));
     const previous = new Set(documents.map((item) => item.id));
@@ -656,7 +657,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
           <div data-smart-capture-column className="order-1 min-w-0 space-y-3 sm:space-y-4 2xl:col-span-2">
             <section className={`${PANEL} ${documents.length ? PANEL_ACTIVE : ""} p-4 sm:p-5`} aria-labelledby="smart-source-capture">
               <PanelTitle id="smart-source-capture" number="01" title="SOURCE CAPTURE" meta={`${totals.count} of ${SMART_DOCUMENT_POLICY.maxFiles} files · ${totals.label} · ${submitted ? "STORED" : documents.length ? "READY TO UPLOAD" : "AWAITING FILES"}`} />
-              <input ref={inputRef} id="smart-files" className="sr-only" type="file" accept={SMART_DOCUMENT_ACCEPT} multiple disabled={busy || submitted || preExtracting} onChange={(e) => addFiles(e.target.files)} />
+              <input ref={inputRef} id="smart-files" className="sr-only" type="file" accept={SMART_DOCUMENT_ACCEPT} multiple disabled={busy || submitted || preExtracting} onChange={(e) => { const picked = Array.from(e.target.files ?? []); void optimizeFilesForUpload(picked).then((ready) => addFiles(ready.map((item) => item.file))); }} />
               <button
                 type="button"
                 disabled={busy || submitted || preExtracting}

@@ -1,5 +1,6 @@
 "use client";
 
+import { optimizeFilesForUpload } from "@/lib/image-upload-optimizer";
 import Link from "next/link";
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 import { GlassReviewDialog } from "@/components/staff/smart/GlassReviewDialog";
@@ -409,7 +410,8 @@ export function SmartCareerCollectClient() {
     if (!detail || !files?.length || actionBusy || draftDirty || editingField || reviewChanged || offlineSyncing || !offlineDraft.online) return;
     setActionBusy("reattach"); setError(null); setNotice(null);
     try {
-      const form = new FormData(); Array.from(files).forEach((entry) => form.append("files", entry));
+      const prepared = await optimizeFilesForUpload(Array.from(files));
+      const form = new FormData(); prepared.forEach((entry) => form.append("files", entry.file));
       const res = await fetch(`/api/staff/smart-client-import/${detail.case.id}/reattach`, { method: "POST", body: form });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, `Re-attach failed (${res.status})`));

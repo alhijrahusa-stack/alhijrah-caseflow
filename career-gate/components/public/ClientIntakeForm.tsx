@@ -1,5 +1,6 @@
 "use client";
 
+import { optimizeFilesForUpload } from "@/lib/image-upload-optimizer";
 import { DuplicateNotice } from "@/components/public/DuplicateNotice";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClientIntakeBrand, ClientIntakeShell, GlassCard } from "@/components/public/ClientIntakeShell";
@@ -326,7 +327,7 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
     }
   }
 
-  function admit(incoming: FileList | null) {
+  function admit(incoming: FileList | File[] | null) {
     if (!incoming?.length) return;
     setError(null);
     setTouchedDocuments(true);
@@ -362,7 +363,7 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
     if (remaining.length) void extractFromDocuments(remaining);
   }
 
-  function replace(incoming: FileList | null) {
+  function replace(incoming: FileList | File[] | null) {
     const target = replacingId.current;
     replacingId.current = null;
     if (!incoming?.length || !target) return;
@@ -531,14 +532,14 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
 
         <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
           <label className="flex min-h-[56px] cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#c79f4f] bg-gradient-to-b from-[#e6c87f] to-[#c79f4f] px-4 text-[16px] font-semibold text-[#2a2008] shadow-[0_14px_32px_-18px_rgba(184,147,74,.8)] transition-[filter] duration-200 hover:brightness-105 focus-within:ring-4 focus-within:ring-[#c79f4f]/30 motion-reduce:transition-none">
-            <input type="file" multiple accept={ACCEPT_ATTR} className="sr-only" data-testid="intake-choose-files" onChange={(event) => { admit(event.target.files); event.target.value = ""; }} />
+            <input type="file" multiple accept={ACCEPT_ATTR} className="sr-only" data-testid="intake-choose-files" onChange={(event) => { const picked = Array.from(event.target.files ?? []); event.target.value = ""; void optimizeFilesForUpload(picked).then((ready) => admit(ready.map((item) => item.file))); }} />
             <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h3l2 2.5h6A2.5 2.5 0 0 1 20 10v6.5A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5Z" /></svg>
             {t.chooseFiles}
           </label>
 
           {/* The device's own camera, through a capture input — no SDK. */}
           <label className="flex min-h-[56px] cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#2f6fd0]/40 bg-white px-4 text-[16px] font-semibold text-[#1f4f9c] shadow-[0_10px_26px_-18px_rgba(47,111,208,.6)] transition-colors duration-200 hover:bg-[#f2f7ff] focus-within:ring-4 focus-within:ring-[#2f6fd0]/20 motion-reduce:transition-none">
-            <input type="file" accept="image/*" capture="environment" className="sr-only" data-testid="intake-take-photo" onChange={(event) => { admit(event.target.files); event.target.value = ""; }} />
+            <input type="file" accept="image/*" capture="environment" className="sr-only" data-testid="intake-take-photo" onChange={(event) => { const picked = Array.from(event.target.files ?? []); event.target.value = ""; void optimizeFilesForUpload(picked).then((ready) => admit(ready.map((item) => item.file))); }} />
             <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3.5" y="7" width="17" height="12.5" rx="2.4" /><circle cx="12" cy="13.2" r="3.1" /><path d="M9 7l1.2-2h3.6L15 7" /></svg>
             {t.takePhoto}
           </label>
@@ -570,7 +571,7 @@ export function ClientIntakeForm({ token, targetCaseNumber = null }: { token: st
         )}
 
         {/* One hidden input serves every Replace action. */}
-        <input ref={replaceInput} type="file" accept={ACCEPT_ATTR} className="sr-only" aria-hidden="true" tabIndex={-1} onChange={(event) => { replace(event.target.files); event.target.value = ""; }} />
+        <input ref={replaceInput} type="file" accept={ACCEPT_ATTR} className="sr-only" aria-hidden="true" tabIndex={-1} onChange={(event) => { const picked = Array.from(event.target.files ?? []); event.target.value = ""; void optimizeFilesForUpload(picked.slice(0, 1)).then((ready) => replace(ready.map((item) => item.file))); }} />
 
         {attachments.length > 0 && (
           <div className="mt-5">

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatBytes, MAX_EDGE, optimizeImageForUpload } from "@/lib/image-upload-optimizer";
 import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
 import { arabicStaffLabel } from "@/lib/staff-ui-labels";
 
@@ -91,7 +92,8 @@ export function AddNoteForm({ clientId, onDone }: FormProps) {
 
 type Slot = { start: string; end: string; resource_key: string };
 
-export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { clientName: string }) {
+/** `presetOverrideReason` arrives from an authorized skip to Appointments: the Job Ready override starts selected with that reason. */
+export function AppointmentForm({ clientId, clientName, onDone, presetOverrideReason }: FormProps & { clientName: string; presetOverrideReason?: string }) {
   const uiLabel = useStaffLabel();
   const f = useSubmit(onDone, "Appointment saved");
   const { activeStaff } = useStaff();
@@ -102,8 +104,8 @@ export function AppointmentForm({ clientId, clientName, onDone }: FormProps & { 
   const [when, setWhen] = useState("");
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
-  const [override, setOverride] = useState(false);
-  const [overrideReason, setOverrideReason] = useState("");
+  const [override, setOverride] = useState(Boolean(presetOverrideReason));
+  const [overrideReason, setOverrideReason] = useState(presetOverrideReason ?? "");
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotError, setSlotError] = useState<string | null>(null);
   const selectedSite = siteForLocation(location);
@@ -400,11 +402,14 @@ export function DocumentForm({ clientId, onDone }: FormProps) {
   const toast = useToast();
   const [docType, setDocType] = useState<(typeof DOC_TYPES)[number]>("photo_id");
   const [file, setFile] = useState<File | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizedNote, setOptimizedNote] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
     <form onSubmit={async (e) => {
       e.preventDefault();
+      if (optimizing) return;
       if (!file) return setError("Choose a file");
       if (file.size > DOC_MAX_BYTES) return setError("File is larger than 4 MB");
       setPending(true);
@@ -435,9 +440,20 @@ export function DocumentForm({ clientId, onDone }: FormProps) {
             </RoyalSelect>
           </div>
           <input aria-label={uiLabel("Document file")} type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
-            className="text-sm text-slate-400 file:mr-3 file:rounded-lg file:border file:border-white/[.08] file:bg-white/[.04] file:px-3 file:py-2 file:text-xs file:text-slate-300" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            className="text-sm text-slate-400 file:mr-3 file:rounded-lg file:border file:border-white/[.08] file:bg-white/[.04] file:px-3 file:py-2 file:text-xs file:text-slate-300" onChange={async (e) => {
+              const chosen = e.target.files?.[0] ?? null;
+              setOptimizedNote(null);
+              if (!chosen) return setFile(null);
+              setOptimizing(true);
+              const result = await optimizeImageForUpload(chosen);
+              setOptimizing(false);
+              setFile(result.file);
+              if (result.optimized) setOptimizedNote(`${formatBytes(result.originalBytes)} → ${formatBytes(result.bytes)} · WebP ≤ ${MAX_EDGE}px`);
+            }} />
         </div>
-        <p className="text-xs text-slate-500"><StaffLabel en="JPEG, PNG, WebP or PDF up to 4 MB. Stored privately; the original is never modified."/></p>
+        {optimizing && <p role="status" className="text-xs text-cyan-200"><StaffLabel en="Optimizing photo…" ar="جارٍ تحسين الصورة…"/></p>}
+        {optimizedNote && <p role="status" className="text-xs text-teal-200" data-testid="upload-optimized">{optimizedNote}</p>}
+        <p className="text-xs text-slate-500"><StaffLabel en="JPEG, PNG, WebP or PDF up to 4 MB. Photos are resized to 1920 px and converted to WebP in this browser before upload; PDFs are uploaded as they are. Stored privately; the stored file is never modified." ar="JPEG أو PNG أو WebP أو PDF حتى 4 ميغابايت. تُصغَّر الصور إلى 1920 بكسل وتُحوَّل إلى WebP في المتصفح قبل الرفع؛ ملفات PDF تُرفع كما هي. يُحفظ الملف بشكل خاص ولا يُعدَّل بعد الحفظ."/></p>
       </Shell>
     </form>
   );

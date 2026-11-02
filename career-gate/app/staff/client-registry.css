@@ -7,3 +7,14 @@
 @media(max-width:1250px){.royal-shell .registry-fluid-row{grid-template-columns:minmax(250px,1.7fr) minmax(150px,1fr) minmax(150px,.8fr)}.registry-client-actions{grid-column:1/-1;flex-direction:row;align-items:start;flex-wrap:wrap}.registry-client-actions>*{min-width:120px;flex:1}.registry-toolbar-meta{align-items:start;flex-direction:column}}
 @media(max-width:650px){.royal-shell .registry-toolbar{padding:16px}.registry-query{flex-basis:100%}.registry-filter{flex-basis:calc(50% - 6px)}.royal-shell .registry-fluid-row{grid-template-columns:1fr;padding:18px;gap:15px}.registry-client-stage{flex-direction:row;flex-wrap:wrap;align-items:center}.registry-client-details{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.registry-client-details>span{margin:0}.registry-client-details p{margin:0}.registry-client-identity{gap:10px}.registry-client-avatar{width:42px;height:42px}.registry-name-link{font-size:15px}.registry-pagination{padding:16px}.registry-pages{gap:5px}.registry-pages a,.registry-page-disabled{min-width:32px;min-height:34px;font-size:11px;padding:5px 8px}}
 @media(prefers-reduced-motion:reduce){.royal-shell .registry-fluid-row{transition:none}.royal-shell .registry-fluid-row:hover{transform:none}}
+/* Registry readability: one clear name per card, a gold case chip, contact on its own lines, labelled columns. */
+.royal-shell .registry-name-link{font-size:17px;font-weight:700;letter-spacing:.005em;color:#ffffff;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 0 #0006}
+.royal-shell .registry-ref-link{display:inline-flex;align-items:center;margin-top:6px;padding:2px 9px;border:1px solid #d4af3744;border-radius:999px;background:#d4af370f;color:#e8cf86;font-size:11px;letter-spacing:.05em}
+.royal-shell .registry-ref-link:hover{border-color:#d4af3799;color:#ffe3a0}
+.royal-shell .registry-client-contact{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;color:#a9bad1;font-size:12px}
+.royal-shell .registry-client-contact>span{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow-wrap:anywhere}
+.royal-shell .registry-client-contact>span>span[aria-hidden]{color:#6fd9cf;font-size:11px}
+.royal-shell .registry-column-label,.royal-shell .registry-client-details>span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#8ea4c2}
+.royal-shell .registry-client-stage>.registry-owner{display:inline-flex;align-items:center;padding:3px 10px;border:1px solid #37d6cb33;border-radius:999px;background:#37d6cb0b;color:#bfeee8;font-size:12px}
+.royal-shell .registry-client-stage>.registry-owner.is-unassigned{border-color:#f0b35b55;background:#f0b35b10;color:#f6cf93}
+.royal-shell .registry-client-avatar{width:48px;height:48px;font-size:16px}

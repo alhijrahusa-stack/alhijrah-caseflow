@@ -143,13 +143,6 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
         {nav("Tasks", "المهام والمتابعات", "/staff/tasks", "☷")}
         {nav("Follow-Ups", "المتابعات", "/staff/follow-ups", "↻")}
         {nav("Gate Job Account", "إدارة الحسابات", "/staff/gate-job-account", "⌘")}
-        {management && <details className="royal-tools" open={pathname === "/staff/import" || pathname === "/staff/accounting" || pathname === "/staff/archive" || pathname === "/staff/new-client" || undefined}>
-          <summary>{t("Management tools", "أدوات الإدارة")} <span aria-hidden="true">＋</span></summary>
-          {nav("Accounting", "دفتر المالية", "/staff/accounting", "＄")}
-          {nav("Archive", "الأرشيف المؤقت", "/staff/archive", "▣")}
-          {nav("Smart Career Collect Client", "الاستقبال الذكي", "/staff/import", "✧")}
-          {nav("New Client", "إضافة عميل", "/staff/new-client", "＋")}
-        </details>}
       </nav>
       <section className="royal-sidebar-team" aria-label={t("Team load snapshot", "حمل الفريق المختصر")}>
         <p className="royal-group-label">{t("Team load now", "حمل الفريق الآن")}</p>

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isClientStageFilter } from "@/lib/client-lifecycle-filters";
-import { LifecycleRoutingError, resolveLifecycleRoute } from "@/lib/client-lifecycle-routing";
+import { LifecycleRoutingError, OVERRIDE_REASON_MIN, resolveLifecycleRoute, resolveOverrideRoute } from "@/lib/client-lifecycle-routing";
 import { withStaff } from "@/lib/auth";
 import { STAFF_ELIGIBLE_PERMISSIONS } from "@/lib/authz";
 import { err, ok } from "@/lib/http";
@@ -26,7 +26,7 @@ const stage = z.enum([
 const Input = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("move_stage"), client_id: id, stage }),
   z.object({ operation: z.literal("request_transfer"), client_id: id, requested_owner: id.nullable().optional(), reason: z.string().trim().max(500).nullable().optional() }),
-  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable().optional(), target_stage: z.string().refine(isClientStageFilter).optional(), reason: z.string().trim().min(3).max(500).optional() }),
+  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable().optional(), target_stage: z.string().refine(isClientStageFilter).optional(), reason: z.string().trim().min(3).max(500).optional(), override: z.boolean().optional() }),
   z.object({ operation: z.literal("reconcile_workflow"), client_id: id, reason: z.string().trim().min(3).max(500), complete_only:z.boolean().default(false) }),
   z.object({ operation: z.literal("reassign_client"), client_id: id, staff_id: id.nullable(), task_ids: z.array(id).max(100).default([]), reason: z.string().trim().max(500).nullable().optional() }),
   z.object({ operation: z.literal("confirm_started"), client_id: id, start_date: date }),
@@ -129,6 +129,36 @@ export async function POST(req: Request) {
         if (input.staff_id) {
           const [staff] = await tx`select id from staff where id=${input.staff_id} and active`;
           if (!staff) throw new Error("STAFF_NOT_FOUND");
+        }
+        if (input.override) {
+          // Authorized skip: one file, an explicit stage, a recorded reason.
+          if (!input.target_stage || !isClientStageFilter(input.target_stage)) throw new Error("TARGET_REQUIRED");
+          if (input.client_ids.length !== 1) throw new Error("OVERRIDE_SINGLE_CLIENT");
+          if ((input.reason ?? "").length < OVERRIDE_REASON_MIN) throw new Error("OVERRIDE_REASON_REQUIRED");
+          const [client] = await tx`
+            select id,current_status,pipeline_stage,next_step,assigned_staff from clients
+            where id=${input.client_ids[0]} and deleted_at is null for update`;
+          if (!client) throw new Error("CLIENT_NOT_ACCESSIBLE");
+          const route = resolveOverrideRoute(input.target_stage, String(client.current_status));
+          const targetStaff = input.staff_id === undefined ? client.assigned_staff : input.staff_id;
+          const statusChanged = client.current_status !== route.status;
+          const stageChanged = client.pipeline_stage !== route.pipelineStage;
+          const staffChanged = client.assigned_staff !== targetStaff;
+          if (!statusChanged && !stageChanged && !staffChanged) return { changed: 0, stage: input.target_stage };
+          await tx`select set_config('cg.status_override', ${input.reason!}, true)`;
+          await tx`update clients set current_status=${route.status},pipeline_stage=${route.pipelineStage},assigned_staff=${targetStaff},
+            next_step=${statusChanged ? route.nextStep : String(client.next_step)} where id=${client.id}`;
+          await tx`select set_config('cg.status_override', '', true)`;
+          await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
+            values(${client.id},'status_overridden',${session.staff.id},'client',${client.id},
+              ${tx.json({ status: client.current_status, pipeline_stage: client.pipeline_stage })},
+              ${tx.json({ status: route.status, pipeline_stage: route.pipelineStage, target_stage: input.target_stage, reason: input.reason!, skipped_prerequisites: true })},${traceId})`;
+          if (staffChanged) {
+            await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
+              values(${client.id},'bulk_staff_assigned',${session.staff.id},'client',${client.id},
+                ${tx.json({ assigned_staff: client.assigned_staff })},${tx.json({ assigned_staff: targetStaff })},${traceId})`;
+          }
+          return { changed: 1, stage: input.target_stage, overridden: true };
         }
         if (input.target_stage && isClientStageFilter(input.target_stage)) {
           const locked = await tx`
@@ -294,6 +324,8 @@ export async function POST(req: Request) {
     if (message === "CLIENT_NOT_ACCESSIBLE") return err("not_found", "Client not found or not accessible", 404, traceId);
     if (message === "STAFF_NOT_FOUND") return err("staff_not_found", "Active staff member not found", 404, traceId);
     if (message === "TARGET_REQUIRED") return err("target_required", "Select a staff member or lifecycle stage", 400, traceId);
+    if (message === "OVERRIDE_SINGLE_CLIENT") return err("override_single_client", "An authorized skip applies to one client at a time", 400, traceId);
+    if (message === "OVERRIDE_REASON_REQUIRED") return err("override_reason_required", `An authorized skip needs a reason of at least ${OVERRIDE_REASON_MIN} characters`, 400, traceId);
     if (message === "INVALID_START_STATE") return err("invalid_start_state", "Client must be Ready for First Day before confirming start", 409, traceId);
     if (message === "ALREADY_COMPLETED") return err("already_completed", "Client is already completed with a different start date", 409, traceId);
     return err("operation_failed", message, 409, traceId);
