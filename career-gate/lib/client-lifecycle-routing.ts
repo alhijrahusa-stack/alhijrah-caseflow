@@ -105,3 +105,36 @@ export function resolveLifecycleRoute(stage: ClientStageFilter, evidence: Routin
   }
   return { status: target, pipelineStage, nextStep: target === current ? "" : DEFAULT_NEXT_STEP[target], ...(transitionPath?{transitionPath}:{}) };
 }
+
+/**
+ * Authorized skip: the status each stage starts at when a manager moves a file
+ * there without its prerequisites. The evidence-gated route above stays the
+ * default; a skip is explicit, single-client and recorded with its reason.
+ * Appointments needs a real interview booking, so a skip there goes through the
+ * interview booking override instead. Closing a file is never skipped: it
+ * depends on a settled ledger.
+ */
+const OVERRIDE_ENTRY: Record<Exclude<ClientStageFilter, "appointments" | "completed">, { status: Status; pipelineStage: string }> = {
+  new_intake: { status: "new_intake", pipelineStage: "portal_intake" },
+  account_setup: { status: "ready_to_apply", pipelineStage: "no_amazon_account" },
+  job_ready: { status: "shift_selected", pipelineStage: "amazon_account_waiting_job" },
+  payment_required: { status: "pre_hire_completed", pipelineStage: "payment_required" },
+  paperwork_pending: { status: "screening_pending", pipelineStage: "post_interview_completion" },
+};
+
+export const OVERRIDE_REASON_MIN = 10;
+
+export function resolveOverrideRoute(stage: ClientStageFilter, currentStatus: string): RoutingDecision {
+  const current = currentStatus as Status;
+  if (stage === "completed") {
+    throw new LifecycleRoutingError("completion_not_overridable", "Closing a file cannot be skipped: it requires a settled ledger and completed post-interview items");
+  }
+  if (stage === "appointments") {
+    throw new LifecycleRoutingError("override_requires_booking", "Moving to Appointments needs a real interview: book it with the Job Ready override");
+  }
+  if (!(STATUSES as readonly string[]).includes(current) || current === "completed" || current === "cancelled") {
+    throw new LifecycleRoutingError("closed_case", "Completed, cancelled, or invalid cases cannot be moved");
+  }
+  const entry = OVERRIDE_ENTRY[stage];
+  return { status: entry.status, pipelineStage: entry.pipelineStage, nextStep: entry.status === current ? "" : DEFAULT_NEXT_STEP[entry.status] };
+}

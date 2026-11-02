@@ -117,7 +117,7 @@ export function ClientFile({
   const data = live.data;
   const account = live.account;
   const { client: c } = data;
-  const { isManager, isAdmin } = useStaff();
+  const { isManager, isAdmin, canScheduleAppointment } = useStaff();
   const isMounted = useHydrated();
   const rescheduleAction = useRowAction("Appointment decision saved");
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
@@ -149,7 +149,8 @@ export function ClientFile({
     window.history.replaceState(window.history.state, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
   };
 
-  const close = () => setPanel(null);
+  const [interviewOverride, setInterviewOverride] = useState<string | null>(null);
+  const close = () => { setPanel(null); setInterviewOverride(null); };
   const openPanel = (p: Panel) => () => {
     replaceTab(panelTab[p]);
     setPanel(p);
@@ -157,7 +158,7 @@ export function ClientFile({
   };
 
   const quick: [Panel, string, boolean][] = [
-    ["document", "Add Document", true], ["appointment", "Add Appointment", isManager], ["note", "Add Note", true], ["task", "Add Task", true],
+    ["document", "Add Document", true], ["appointment", "Add Appointment", canScheduleAppointment], ["note", "Add Note", true], ["task", "Add Task", true],
     ["contacted", "Mark Contacted", true], ["status", "Change Status", isManager], ["next_step", "Set Next Step", true],
     ["followup", "Add Follow-Up", true], ["assign", "Assign Staff", isManager],
   ];
@@ -245,7 +246,8 @@ export function ClientFile({
         </div>
       </section>
 
-      <ClientWorkflowControl clientId={String(c.id)} status={String(c.current_status)} management={isManager} />
+      <ClientWorkflowControl clientId={String(c.id)} status={String(c.current_status)} management={isManager}
+        onBookInterview={canScheduleAppointment ? (reason) => { setInterviewOverride(reason); openPanel("appointment")(); } : undefined} />
       {!c.deleted_at && <div className="flex justify-end"><SendToManagerButton clientId={String(c.id)} /></div>}
       <div className="cg-profile-tabs" aria-label={uiLabel("Client file sections")}>
         {tabs.map((item) => (
@@ -273,7 +275,7 @@ export function ClientFile({
 
       <div id="action-panel" data-testid="client-action-panel" aria-busy={!isMounted} className="relative z-40 scroll-mt-40">
         {isMounted && panel === "document" && <DocumentForm clientId={c.id} onDone={close} />}
-        {isMounted && panel === "appointment" && <AppointmentForm clientId={c.id} clientName={String(c.full_name)} onDone={close} />}
+        {isMounted && panel === "appointment" && <AppointmentForm key={interviewOverride ?? "standard"} clientId={c.id} clientName={String(c.full_name)} onDone={close} presetOverrideReason={interviewOverride ?? undefined} />}
         {isMounted && panel === "note" && <AddNoteForm clientId={c.id} onDone={close} />}
         {isMounted && panel === "task" && <TaskForm clientId={c.id} onDone={close} />}
         {isMounted && panel === "contacted" && <ContactedForm clientId={c.id} onDone={close} />}
@@ -350,7 +352,7 @@ export function ClientFile({
 
       {tab === "appointments" && <Appointments
         appts={data.appointments}
-        onAdd={isManager ? openPanel("appointment") : null}
+        onAdd={canScheduleAppointment ? openPanel("appointment") : null}
         reschedulingId={reschedulingId}
         onReschedule={(id) => { rescheduleAction.setError(null); setReschedulingId(id); }}
       />}

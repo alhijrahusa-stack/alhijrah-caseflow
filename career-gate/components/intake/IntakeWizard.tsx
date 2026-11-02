@@ -1,5 +1,6 @@
 "use client";
 
+import { optimizeImageForUpload } from "@/lib/image-upload-optimizer";
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 
 import { useState } from "react";
@@ -213,7 +214,7 @@ export function IntakeWizard() {
         {current.key === "availability" && <ProfileFields section="availability" value={profile} onChange={setProfile} />}
         {current.key === "documents" && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-600">Optional. JPEG, PNG, WebP or PDF, up to 4 MB each. Do not upload Amazon passwords.</p>
+            <p className="text-sm text-slate-600">Optional. JPEG, PNG, WebP or PDF, up to 4 MB each. Photos are resized and converted to WebP on your device before upload. Do not upload Amazon passwords.</p>
             <div className="flex flex-wrap items-end gap-2">
               <div>
                 <label className="label" htmlFor="doc_type">Document type</label>
@@ -226,10 +227,11 @@ export function IntakeWizard() {
                 type="file"
                 accept="image/jpeg,image/png,image/webp,application/pdf"
                 className="text-sm"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
+                onChange={async (e) => {
+                  const chosen = e.target.files?.[0];
                   e.target.value = "";
-                  if (!f) return;
+                  if (!chosen) return;
+                  const f = (await optimizeImageForUpload(chosen)).file;
                   if (f.size > DOC_MAX_BYTES) return setError(`${f.name} is larger than 4 MB`);
                   setError(null);
                   setDocs((d) => [...d, { id: crypto.randomUUID(), doc_type: docType, file: f }].slice(0, 10));

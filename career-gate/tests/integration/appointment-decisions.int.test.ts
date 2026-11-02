@@ -281,3 +281,45 @@ describe("Appointment decision lifecycle and direct PostgreSQL upsert", () => {
     )).rejects.toMatchObject({ code: "42501" });
   });
 });
+
+describe("staff appointment prerequisite override", () => {
+  it("requires permission and ownership, preserves the guard, and commits the appointment and audit together", async () => {
+    const { permissionAllows, clientScope } = await import("@/lib/authz");
+    const otherUser = randomUUID();
+    const otherEmail = `override-${otherUser}@test.invalid`;
+    await db`insert into auth.users(id,email) values (${otherUser},${otherEmail})`;
+    const [otherRow] = await db`insert into staff(display_name,email,role,auth_user_id)
+      values('TEST Override Other',${otherEmail},'staff',${otherUser}) returning id,display_name,email,role`;
+    const otherStaff: StaffSession = { authUserId: otherUser, staff: otherRow as StaffSession["staff"] };
+    const client = await db.begin((tx) => insertClient(tx, {
+      source: "staff_manual",
+      profile: ProfileSchema.parse({ full_name: "TEST Override", phone: "3135559921", employment_history: [] }),
+      primary: [], backup: [], status: "new_intake", nextStep: null,
+      assignedStaff: staff.staff.id, createdBy: admin.staff.id, communicationConsent: false,
+    }, { staffId: admin.staff.id, traceId: "override-integration" }));
+    const payload = { action: "schedule_appointment", client_id: client.id, appointment_type: "Employment interview", lifecycle_interview: true,
+      scheduled_at: new Date(Date.now() + 35 * 86400000).toISOString(), duration_minutes: 30, resource_key: "office", location: "Office", notes: null };
+    await db`update staff set permission_mode='custom', custom_permissions=array[]::text[] where id=${staff.staff.id}`;
+    expect(await permissionAllows(staff, "schedule_appointment")).toBe(false);
+    await db`update staff set custom_permissions=array['schedule_appointment'] where id=${staff.staff.id}`;
+    expect(await permissionAllows(staff, "schedule_appointment")).toBe(true);
+    expect(await clientScope(otherStaff, client.id as string)).toMatchObject({ ok: false, status: 403 });
+    await expect(act(otherStaff, { ...payload, lifecycle_override_reason: "Interview booked externally" })).rejects.toMatchObject({ code: "not_found" });
+    await expect(act(staff, payload)).rejects.toMatchObject({ code: "lifecycle_conflict" });
+    expect(await db`select id from appointments where client_id=${client.id}`).toHaveLength(0);
+    await expect(withStaff(staff, async tx => {
+      await runAction({ tx, actor: { staffId: staff.staff.id, traceId: "rollback-test" }, role: "staff", semantic: [] },
+        ActionSchema.parse({ ...payload, lifecycle_override_reason: "Interview booked externally" }));
+      throw new Error("force rollback");
+    })).rejects.toThrow("force rollback");
+    expect(await db`select id from appointments where client_id=${client.id}`).toHaveLength(0);
+    expect(await db`select id from activity_log where client_id=${client.id} and action='status_overridden'`).toHaveLength(0);
+    const result = await act(staff, { ...payload, lifecycle_override_reason: "Interview booked externally" });
+    const [row] = await db`select current_status,pipeline_stage from clients where id=${client.id}`;
+    expect(row).toMatchObject({ current_status: "appointment_scheduled", pipeline_stage: "interview_scheduled" });
+    const [log] = await db`select staff_id,new_value from activity_log where client_id=${client.id} and action='status_overridden'`;
+    expect(log.staff_id).toBe(staff.staff.id);
+    expect(log.new_value).toMatchObject({ reason: "Interview booked externally", appointment_id: result.appointment_id });
+    await db`update staff set permission_mode='full', custom_permissions=array[]::text[] where id=${staff.staff.id}`;
+  });
+});

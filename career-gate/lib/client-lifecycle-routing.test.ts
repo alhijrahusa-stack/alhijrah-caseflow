@@ -79,3 +79,19 @@ describe("safe six-stage assignment and routing", () => {
     expect(resolveLifecycleRoute("completed",{...candidate,payment_verified:true})).toMatchObject({status:"completed",pipelineStage:"completed_files"});
   });
  });
+
+describe("authorized skip route", () => {
+  it("maps each skippable stage to its entry status and refuses Appointments, closing and closed cases", async () => {
+    const { resolveOverrideRoute } = await import("@/lib/client-lifecycle-routing");
+    expect(resolveOverrideRoute("job_ready", "new_intake")).toMatchObject({ status: "shift_selected", pipelineStage: "amazon_account_waiting_job" });
+    expect(resolveOverrideRoute("account_setup", "new_intake")).toMatchObject({ status: "ready_to_apply", pipelineStage: "no_amazon_account" });
+    expect(resolveOverrideRoute("payment_required", "needs_review")).toMatchObject({ status: "pre_hire_completed", pipelineStage: "payment_required" });
+    expect(resolveOverrideRoute("paperwork_pending", "shift_selected")).toMatchObject({ status: "screening_pending", pipelineStage: "post_interview_completion" });
+    expect(resolveOverrideRoute("new_intake", "shift_selected")).toMatchObject({ status: "new_intake", pipelineStage: "portal_intake" });
+    expect(resolveOverrideRoute("job_ready", "shift_selected").nextStep).toBe("");
+    expect(() => resolveOverrideRoute("appointments", "new_intake")).toThrow(/real interview/);
+    expect(() => resolveOverrideRoute("completed", "ready_for_first_day")).toThrow(/settled ledger/);
+    expect(() => resolveOverrideRoute("job_ready", "completed")).toThrow(/cannot be moved/);
+    expect(() => resolveOverrideRoute("job_ready", "cancelled")).toThrow(/cannot be moved/);
+  });
+});

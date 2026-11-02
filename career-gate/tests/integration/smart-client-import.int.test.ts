@@ -35,6 +35,42 @@ beforeAll(async () => {
 afterAll(async () => { await db.end(); });
 
 describe("Smart Career Collect Client staging security", () => {
+  it("preserves microsecond cursor boundaries and does not double-skip when page is also supplied", async () => {
+    const exactTimestamp = "2025-01-01 00:00:00.000013+00";
+    const [roundTrip] = await db`select ${exactTimestamp}::text::timestamptz::text as value`;
+    expect(String(roundTrip.value)).toContain(".000013");
+    const marker = `TEST Cursor Intake ${randomUUID()}`;
+    const staged = await stageSheetRows({ session: manager, source: "csv", idempotencyKey: randomUUID(), rows: Array.from({ length: 23 }, (_, index) => ({ full_name: `${marker} ${index}`, phone: `616553${String(1000 + index)}` })) });
+    for (let index = 0; index < staged.cases.length; index++) {
+      await db`update client_import_cases set created_at='2025-01-01 00:00:00+00'::timestamptz + ${index} * interval '1 microsecond' where id=${staged.cases[index].id}`;
+    }
+    for (const archive of [false, true]) {
+      if (archive) await db`update client_import_cases set archived_at=now(),archived_by=${manager.staff.id} where id=any(${staged.cases.map(row => row.id)}::uuid[])`;
+      const list = (page: number, cursor?: string | null) => archive
+        ? listArchivedImportQueue(manager, { q: marker, page, cursor })
+        : listActiveImportQueue(manager, { q: marker, page, cursor });
+      const first = await list(1);
+      expect(Buffer.from(first.next_cursor!, "base64url").toString("utf8")).toContain(".000013");
+      const second = await list(2, first.next_cursor);
+      const third = await list(3, second.next_cursor);
+      expect(first.rows).toHaveLength(10);
+      expect(second.rows).toHaveLength(10);
+      expect(third.rows).toHaveLength(3);
+      expect(second.rows.map(row => row.id)).toEqual((await list(2)).rows.map(row => row.id));
+      expect(third.rows.map(row => row.id)).toEqual((await list(3)).rows.map(row => row.id));
+      expect(new Set([...first.rows, ...second.rows, ...third.rows].map(row => row.id)).size).toBe(23);
+    }
+  });
+
+  it("rejects malformed import cursors before running a UUID query", async () => {
+    const malformedUuid = Buffer.from("2025-01-01T00:00:00Z|not-a-uuid").toString("base64url");
+    const extraField = Buffer.from(`2025-01-01T00:00:00Z|${randomUUID()}|extra`).toString("base64url");
+    for (const cursor of [malformedUuid, extraField, "!invalid!", "a".repeat(513)]) {
+      await expect(listActiveImportQueue(manager, { cursor })).rejects.toMatchObject({ code: "invalid_cursor", status: 400 });
+      await expect(listArchivedImportQueue(manager, { cursor })).rejects.toMatchObject({ code: "invalid_cursor", status: 400 });
+    }
+  });
+
   it("paginates exactly ten matching active imports and keeps archived files out of the queue", async () => {
     const marker = `TEST Paged Intake ${randomUUID()}`;
     const staged = await stageSheetRows({ session: manager, source: "csv", idempotencyKey: randomUUID(), rows: Array.from({ length: 23 }, (_, index) => ({full_name: `${marker} ${index}`, phone: `616551${String(1000+index)}`})) });

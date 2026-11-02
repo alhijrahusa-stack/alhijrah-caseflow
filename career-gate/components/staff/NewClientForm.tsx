@@ -1,5 +1,6 @@
 "use client";
 
+import { optimizeImageForUpload } from "@/lib/image-upload-optimizer";
 import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
 import { arabicStaffLabel } from "@/lib/staff-ui-labels";
 
@@ -162,10 +163,12 @@ export function NewClientForm() {
               {DOC_TYPES.map((t) => <RoyalOption labelAr={arabicStaffLabel(DOC_LABELS[t])} key={t} value={t}>{DOC_LABELS[t]}</RoyalOption>)}
             </RoyalSelect>
             <input aria-label={uiLabel("Choose file")} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="text-sm text-slate-400 file:mr-3 file:rounded-lg file:border file:border-white/[.08] file:bg-white/[.04] file:px-3 file:py-2 file:text-xs file:text-slate-300"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
+              onChange={async (e) => {
+                const chosen = e.target.files?.[0];
                 e.target.value = "";
-                if (!f) return;
+                if (!chosen) return;
+                // Photos are resized and re-encoded before the size check, so a large phone photo is accepted.
+                const f = (await optimizeImageForUpload(chosen)).file;
                 if (f.size > DOC_MAX_BYTES) return setFileError(`${f.name} is larger than 4 MB`);
                 setFileError(null);
                 setDocs((d) => [...d, { id: crypto.randomUUID(), doc_type: docType, file: f }]);

@@ -129,11 +129,38 @@ export function googleSheetCsvUrl(input: string) {
 
 export async function fetchGoogleSheet(input: string) {
   const url = googleSheetCsvUrl(input);
-  const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15_000) }).catch(() => null);
+  const controller = new AbortController();
+  const res = await fetch(url, { redirect: "follow", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) }).catch(() => null);
   if (!res?.ok) throw new ActionError("sheet_unavailable", "Google Sheet must be accessible with the provided link", 422);
+  const tooLarge = () => new ActionError("sheet_too_large", "Google Sheet exceeds the 10 MB import limit", 413);
   const length = Number(res.headers.get("content-length") ?? 0);
-  if (length > MAX_GOOGLE_SHEET_BYTES) throw new ActionError("sheet_too_large", "Google Sheet exceeds the 10 MB import limit", 413);
-  const text = await res.text();
-  if (Buffer.byteLength(text, "utf8") > MAX_GOOGLE_SHEET_BYTES) throw new ActionError("sheet_too_large", "Google Sheet exceeds the 10 MB import limit", 413);
+  if (length > MAX_GOOGLE_SHEET_BYTES) {
+    controller.abort();
+    void res.body?.cancel().catch(() => {});
+    throw tooLarge();
+  }
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const parts: string[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_GOOGLE_SHEET_BYTES) {
+        controller.abort();
+        void reader.cancel().catch(() => {});
+        throw tooLarge();
+      }
+      parts.push(decoder.decode(value, { stream: true }));
+    }
+    parts.push(decoder.decode());
+  } finally {
+    reader.releaseLock();
+  }
+  const text = parts.join("");
+  if (Buffer.byteLength(text, "utf8") > MAX_GOOGLE_SHEET_BYTES) throw tooLarge();
   return text;
 }

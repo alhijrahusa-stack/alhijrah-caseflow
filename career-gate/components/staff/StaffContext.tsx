@@ -13,7 +13,7 @@ export type StaffMember = {
   commission_value?: number;
   eligible_for_round_robin?: boolean;
 };
-export type Me = { id: string; display_name: string; role: "admin" | "manager" | "staff" };
+export type Me = { id: string; display_name: string; role: "admin" | "manager" | "staff"; canScheduleAppointment?: boolean };
 
 const Ctx = createContext<{ me: Me; staff: StaffMember[] } | null>(null);
 
@@ -29,5 +29,6 @@ export function useStaff() {
     activeStaff: v.staff.filter((s) => s.active),
     isManager: v.me.role === "admin" || v.me.role === "manager",
     isAdmin: v.me.role === "admin",
+    canScheduleAppointment: v.me.role !== "staff" || v.me.canScheduleAppointment === true,
   };
 }
