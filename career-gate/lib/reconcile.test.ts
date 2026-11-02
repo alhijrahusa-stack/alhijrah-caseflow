@@ -32,3 +32,33 @@ describe("reconciliation", () => {
     expect(needsHuman([reconcileName("A B", "a b")])).toBe(true);
   });
 });
+
+describe("name variants across sources", async () => {
+  const { compatibleNames, composeName, mostCompleteName } = await import("./reconcile");
+
+  it("treats order, case, punctuation, initials and a missing middle name as one name", () => {
+    expect(compatibleNames("DOE, JOHN MICHAEL", "John Michael Doe")).toBe(true);
+    expect(compatibleNames("John M. Doe", "JOHN MICHAEL DOE")).toBe(true);
+    expect(compatibleNames("John Doe", "DOE JOHN MICHAEL")).toBe(true);
+    expect(compatibleNames("Abdullah Al-Muraisi", "ABDULLAH AL MURAISI")).toBe(true);
+  });
+
+  it("keeps different people, lone given names and initial-only matches apart", () => {
+    expect(compatibleNames("John Doe", "Jane Doe")).toBe(false);
+    expect(compatibleNames("John Doe", "John Smith")).toBe(false);
+    expect(compatibleNames("John", "John Doe")).toBe(false);
+    expect(compatibleNames("J Doe", "John Doe")).toBe(false);
+    expect(compatibleNames("John Michael Doe", "John Robert Doe")).toBe(false);
+  });
+
+  it("proposes the most complete form and composes a name from its parts", () => {
+    expect(mostCompleteName(["John Doe", "DOE, JOHN MICHAEL", "John M Doe"])).toBe("JOHN MICHAEL DOE");
+    expect(mostCompleteName(["Mary-Ann O'Neil"])).toBe("Mary-Ann O'Neil");
+    expect(mostCompleteName([])).toBeNull();
+    expect(composeName("John", "Michael", "Doe")).toBe("John Michael Doe");
+    expect(composeName("John", null, "Doe")).toBe("John Doe");
+    expect(composeName(" John ", "  ", " Doe ")).toBe("John Doe");
+    expect(composeName("John", "Michael", null)).toBeNull();
+    expect(composeName(null, null, "Doe")).toBeNull();
+  });
+});

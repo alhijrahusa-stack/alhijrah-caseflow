@@ -1,4 +1,5 @@
 import "server-only";
+import { compatibleNames, composeName, givenFirstName, mostCompleteName } from "@/lib/reconcile";
 import { createHash, randomUUID } from "node:crypto";
 import type { StaffSession } from "@/lib/auth";
 import { sql } from "@/lib/db";
@@ -82,7 +83,8 @@ function partialDraft(row: IntakeRow, notes: string) {
   }
 }
 
-function mergeEvidence(sources: SourceRow[]) {
+/** Exported for tests: merges per-source rows into one draft with field evidence and conflicts. */
+export function mergeEvidence(sources: SourceRow[]) {
   const merged: IntakeRow = {};
   const evidence: Record<string, unknown>[] = [];
   const conflicts: Record<string, unknown>[] = [];
@@ -90,7 +92,10 @@ function mergeEvidence(sources: SourceRow[]) {
   for (const field of EVIDENCE_FIELDS) {
     const values = sources
       .map((source) => ({
-        value: pickImportValue(source.row, field),
+        // A document that gives the name in parts still supplies the full name.
+        value: field === "full_name"
+          ? pickImportValue(source.row, "full_name") ?? composeName(pickImportValue(source.row, "first_name"), pickImportValue(source.row, "middle_name"), pickImportValue(source.row, "last_name"))
+          : pickImportValue(source.row, field),
         source: source.source,
         documentId: source.documentId,
         sourcePage: source.sourcePage,
@@ -110,7 +115,7 @@ function mergeEvidence(sources: SourceRow[]) {
     if (grouped.size === 1) {
       const group = [...grouped.values()][0];
       const representative = group[0];
-      merged[field] = representative.value;
+      merged[field] = field === "full_name" ? givenFirstName(representative.value) : representative.value;
       const multiSource = new Set(group.map((item) => `${item.source}:${item.documentId ?? "text"}`)).size > 1;
       for (const item of group) {
         evidence.push({
@@ -129,6 +134,26 @@ function mergeEvidence(sources: SourceRow[]) {
     }
 
     const variants = [...grouped.values()].map((group) => group[0]);
+    // Written forms of one name (order, initials, a missing middle name) are not a
+    // conflict: the most complete form is proposed and every source stays on record
+    // for the reviewer. Different names remain a conflict below.
+    if (field === "full_name" && variants.every((left, i) => variants.every((right, j) => i === j || compatibleNames(left.value, right.value)))) {
+      merged[field] = mostCompleteName(variants.map((item) => item.value)) ?? variants[0].value;
+      for (const item of values) {
+        evidence.push({
+          field_key: field,
+          value: item.value,
+          source_type: item.documentId ? "document" : item.source,
+          source_document_id: item.documentId,
+          source_page: item.sourcePage,
+          source_text_reference: null,
+          match_score: evidenceMatchScore(field, item.value, String(merged[field])),
+          verification_state: "REVIEW",
+          confidence_score: item.confidenceScore,
+        });
+      }
+      continue;
+    }
     let bestScore = 0;
     for (let i = 0; i < variants.length; i += 1) {
       for (let j = i + 1; j < variants.length; j += 1) bestScore = Math.max(bestScore, evidenceMatchScore(field, variants[i].value, variants[j].value));

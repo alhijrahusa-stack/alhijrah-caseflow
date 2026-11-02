@@ -520,7 +520,7 @@ test.describe("Smart Review experience", () => {
     await expect(page.locator('tr[data-field="phone"]').getByRole("button", { name: /^Edit Phone/ })).toBeDisabled();
     await cityInput.blur();
     await expect(cityInput).toHaveValue("Unsaved city");
-    await page.getByRole("dialog").getByRole("button", { name: /^Cancel/ }).click();
+    await page.locator(".cg-inline-review").getByRole("button", { name: /^Cancel/ }).click();
     await expect(cityInput).toHaveCount(0);
     await expect(cityRow.locator('[data-label="Current value"]')).toHaveText("Not supplied");
     await expect(page.getByRole("button", { name: "SAVE DRAFT", exact: true })).toBeEnabled();
@@ -542,7 +542,7 @@ test.describe("Smart Review experience", () => {
     await startInput.fill("18:00");
     await startInput.blur();
     await expect(startInput).toHaveValue("18:00");
-    await page.getByRole("dialog").getByRole("button", { name: /^Apply/ }).click();
+    await page.locator(".cg-inline-review").getByRole("button", { name: /^Apply/ }).click();
     await expect(startRow.locator('[data-label="Current value"]')).toHaveText("18:00");
     // Authority is server-recorded, so it still reads SOURCE until the review is saved.
     await expect(startRow.locator('[data-label="Authority"]')).toHaveText("SOURCE");
@@ -558,7 +558,7 @@ test.describe("Smart Review experience", () => {
     await expect(daysRow.getByText("MON, TUE, WED, THU, FRI", { exact: true })).toBeVisible();
     await daysRow.getByRole("button", { name: /^Edit Shift Days/ }).click();
     await page.getByRole("button", { name: "SAT", exact: true }).click();
-    await page.getByRole("dialog").getByRole("button", { name: /^Apply/ }).click();
+    await page.locator(".cg-inline-review").getByRole("button", { name: /^Apply/ }).click();
     await expect(daysRow.getByText("MON, TUE, WED, THU, FRI, SAT", { exact: true })).toBeVisible();
 
     // A committed manual edit persists through the existing review-save flow with MANUAL
@@ -613,7 +613,7 @@ test.describe("Smart Review experience", () => {
     const dob = review.locator('tr[data-field="date_of_birth"]');
     await expect(dob.locator('[data-label="State"]')).toHaveText("CONFLICT");
     await dob.getByRole("button", { name: "Edit Date of Birth", exact: true }).click();
-    await expect(dob.getByRole("button", { name: "Edit Date of Birth", exact: true })).toHaveAttribute("aria-expanded", "true");
+    await expect(dob.getByRole("button", { name: "Close Date of Birth · Review", exact: true })).toHaveAttribute("aria-expanded", "true");
     const history = page.getByRole("region", { name: "Date of Birth evidence history", exact: true });
     await expect(history.getByRole("listitem")).toHaveCount(2);
     await expect(history.getByText("1976-01-01", { exact: true })).toBeVisible();
@@ -635,7 +635,7 @@ test.describe("Smart Review experience", () => {
     // required to record a manual conflict resolution.
     await dob.getByRole("button", { name: "Edit Date of Birth", exact: true }).click();
     await expect(page.getByLabel("Date of Birth", { exact: true })).toHaveValue("1976-01-01");
-    await page.getByRole("dialog").getByRole("button", { name: "Apply", exact: true }).click();
+    await page.locator(".cg-inline-review").getByRole("button", { name: "Apply", exact: true }).click();
     await expect(dob.getByText("Unsaved change", { exact: true })).toBeVisible();
     await review.getByRole("button", { name: "Edited fields", exact: true }).click();
     await expect(review.locator("tr[data-field]")).toHaveCount(1);
@@ -709,14 +709,14 @@ test.describe("Smart Review experience", () => {
     await expect(source.getByText(/No source document attached/)).toBeVisible();
     const city = review.locator('tr[data-field="city"]');
     await expect(city.getByRole("button", { name: "Edit City", exact: true })).toBeEnabled();
-    await page.getByRole("button", {name:"Close Source documents",exact:true}).click();
+    // At this width the source viewer is docked beside the data: no drawer to close.
+    await expect(page.locator(".cg-source-dock #smart-document-viewer")).toBeVisible();
     await city.getByRole("button", { name: "Edit City", exact: true }).click();
     await expect(page.getByRole("region", { name: "City evidence history", exact: true }).getByText("No evidence has been recorded for this field.", { exact: true })).toBeVisible();
-    await page.getByRole("dialog").getByRole("button", {name:"View source document",exact:true}).click();
+    await page.locator(".cg-inline-review").getByRole("button", {name:"View source document",exact:true}).click();
     await expect(source).toBeVisible();
     await expect(source.getByText(/No source document attached/)).toBeVisible();
 
-    await page.getByRole("button", {name:"Close Source documents",exact:true}).click();
     await expect(review.locator('tr[data-field="date_of_birth"] [data-label="State"]')).toHaveText("CONFLICT");
     await expect(review.getByRole("checkbox", { name: /CURRENT DOCUMENT STATUS REVIEWED/i })).not.toBeChecked();
     await expect(review.getByRole("checkbox", { name: /INFORMATION MATCH CONFIRMED/i })).not.toBeChecked();
@@ -759,9 +759,8 @@ test.describe("Smart Review experience", () => {
     await approvedRow.getByRole("button", { name: `Source for client ${name}`, exact: true }).click();
     await expect(page.locator("#smart-document-viewer")).toBeVisible();
     await expect(page.locator("#smart-document-viewer").getByText(/No source document attached/)).toBeVisible();
-    await page.getByRole("button", {name:"Close Source documents",exact:true}).click();
     await approvedReview.locator('tr[data-field="date_of_birth"]').getByRole("button", {name:"Review Date of Birth",exact:true}).click();
-    const continueEditing = page.getByRole("dialog").getByRole("link", { name: "Edit Date of Birth in Client", exact: true });
+    const continueEditing = page.locator(".cg-inline-review").getByRole("link", { name: "Edit Date of Birth in Client", exact: true });
     await expect(continueEditing).toHaveAttribute("href", `/staff/client/${approved.created_client_id}/edit`);
     await continueEditing.click();
     await selectChoice(page.getByLabel("English proficiency", { exact: true }), "GOOD");
@@ -821,7 +820,7 @@ test.describe("Smart Review experience", () => {
     await expect(page.locator(".cg-offline-review")).toContainText("Offline");
     await page.locator('tr[data-field="city"]').getByRole("button",{name:"Edit City",exact:true}).click();
     await page.getByLabel("City",{exact:true}).fill("Offline local city");
-    await page.getByRole("dialog").getByRole("button",{name:"Apply",exact:true}).click();
+    await page.locator(".cg-inline-review").getByRole("button",{name:"Apply",exact:true}).click();
     await page.getByRole("button",{name:"SAVE DRAFT",exact:true}).click();
     await expect(page.locator(".cg-offline-review")).toContainText(/queued/i);
     await expect(page.getByRole("button",{name:"APPROVE FILE",exact:true})).toBeDisabled();
@@ -835,7 +834,7 @@ test.describe("Smart Review experience", () => {
     await expect(page.locator(".cg-offline-review")).toContainText("Offline");
     await page.locator('tr[data-field="city"]').getByRole("button",{name:"Edit City",exact:true}).click();
     await page.getByLabel("City",{exact:true}).fill("Retained stale draft");
-    await page.getByRole("dialog").getByRole("button",{name:"Apply",exact:true}).click();
+    await page.locator(".cg-inline-review").getByRole("button",{name:"Apply",exact:true}).click();
     await page.getByRole("button",{name:"SAVE DRAFT",exact:true}).click();
     const [current]=await db()`select mapped_draft from client_import_cases where id=${staged.id}`;
     const newer={...current.mapped_draft,profile:{...current.mapped_draft.profile,city:"Newer server city"}};
@@ -865,7 +864,7 @@ test.describe("Smart Review experience", () => {
     const city=page.locator('tr[data-field="city"]');
     await city.getByRole("button",{name:"Edit City",exact:true}).click();
     await page.getByLabel("City",{exact:true}).fill("Earlier queued city");
-    await page.getByRole("dialog").getByRole("button",{name:"Apply",exact:true}).click();
+    await page.locator(".cg-inline-review").getByRole("button",{name:"Apply",exact:true}).click();
     await page.getByRole("button",{name:"SAVE DRAFT",exact:true}).click();
     await expect(page.locator(".cg-offline-review")).toContainText(/queued/i);
     // Keep a field editor open while the old request starts. Applying its newer
@@ -888,7 +887,7 @@ test.describe("Smart Review experience", () => {
     try {
       await savedOnServer;
       await expect(page.getByRole("button",{name:"SAVE DRAFT",exact:true})).toBeDisabled();
-      await page.getByRole("dialog").getByRole("button",{name:"Apply",exact:true}).click();
+      await page.locator(".cg-inline-review").getByRole("button",{name:"Apply",exact:true}).click();
       const documentCheck=page.getByRole("checkbox",{name:/CURRENT DOCUMENT STATUS REVIEWED/i});
       await documentCheck.check();
       await expect(city.locator('[data-label="Current value"]')).toHaveText("Newer on-screen city");
