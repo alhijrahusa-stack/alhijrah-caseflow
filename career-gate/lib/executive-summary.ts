@@ -21,7 +21,6 @@ const STAGE_BY_STATUS=Object.fromEntries(G3_STAGES.flatMap(stage=>stage.statuses
 export const executiveSummary=cache(async(session:StaffSession):Promise<ExecutiveSummary>=>{
   const [operational,team,system]=await Promise.all([
     withStaff(session,async tx=>{
-      await tx`select set_config('statement_timeout','6500',true)`;
       const [groups,[totals],priorities]=await Promise.all([
         tx`with stage_map as(select ${tx.json(STAGE_BY_STATUS)}::jsonb mapping), ages as(
           select c.current_status,coalesce(last_entry.entered_at,
@@ -80,7 +79,7 @@ export const executiveSummary=cache(async(session:StaffSession):Promise<Executiv
           ) select * from(select distinct on(id) id,ref,full_name,kind,amount,age_days,priority from candidates order by id,priority desc) deduplicated order by priority desc,age_days desc,id limit 5`,
       ]);
       return {groups,totals,priorities};
-    }),
+    }, { statementTimeoutMs: 6500 }),
     teamWorkload(session),
     systemHealth(session),
   ]);

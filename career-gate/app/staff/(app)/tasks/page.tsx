@@ -26,10 +26,16 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   if (!session) redirect("/staff/login");
   const sp = await searchParams;
   const view = sp.view === "closed" || sp.view === "overdue" || sp.view === "due_today" ? sp.view : "open";
-  const staff = await staffDirectory(session);
-  const assignee = staff.some((s) => s.id === sp.assignee) ? sp.assignee : undefined;
   const requestedPage = Number(sp.page ?? "1");
-  const result = await taskPage(session, view, assignee, requestedPage, PAGE_SIZE);
+  // The staff list and the task page load together; an assignee filter that does not name
+  // an active staff member is dropped, as before, and only then is the page read again.
+  const requestedAssignee = typeof sp.assignee === "string" && /^[0-9a-f-]{36}$/i.test(sp.assignee) ? sp.assignee : undefined;
+  const [staff, firstRead] = await Promise.all([
+    staffDirectory(session),
+    taskPage(session, view, requestedAssignee, requestedPage, PAGE_SIZE),
+  ]);
+  const assignee = requestedAssignee && staff.some((s) => s.id === requestedAssignee) ? requestedAssignee : undefined;
+  const result = assignee === requestedAssignee ? firstRead : await taskPage(session, view, undefined, requestedPage, PAGE_SIZE);
   const {page, total, pages: pageCount} = result;
   const rows = JSON.parse(JSON.stringify(result.rows));
   return (
