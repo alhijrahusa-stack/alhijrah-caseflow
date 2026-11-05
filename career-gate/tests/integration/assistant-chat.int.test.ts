@@ -69,8 +69,15 @@ beforeAll(async () => {
   await db`insert into documents(client_id,doc_type,storage_path,file_name,mime_type,size_bytes,status)
     values(${client.id},'photo_id',${`chat/${randomUUID()}.png`},'id.png','image/png',10,'needs_review')`;
 });
-beforeEach(() => { process.env.GOOGLE_GEMINI_API_KEY = "integration-test-key"; });
-afterAll(async () => { delete process.env.GOOGLE_GEMINI_API_KEY; await db.end(); });
+beforeEach(() => {
+  process.env.GOOGLE_GEMINI_API_KEY = "integration-test-key";
+  process.env.DOCUMENT_VISION_FAST_MODEL = "gemini-3.5-flash-lite";
+});
+afterAll(async () => {
+  delete process.env.GOOGLE_GEMINI_API_KEY;
+  delete process.env.DOCUMENT_VISION_FAST_MODEL;
+  await db.end();
+});
 
 describe("operations assistant chat", () => {
   it("answers through a read-only check, streams the record links to the browser and keeps names from the model", async () => {
@@ -80,7 +87,8 @@ describe("operations assistant chat", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toContain("no-store");
     const parts = await chunks(res);
-    expect(create).toHaveBeenCalledWith("integration-test-key", "gemini-3.8-flash");
+    expect(create).toHaveBeenNthCalledWith(1, "integration-test-key", "gemini-3.8-flash");
+    expect(create).toHaveBeenNthCalledWith(2, "integration-test-key", "gemini-3.5-flash-lite");
 
     const output = parts.find(p => p.type === "tool-output-available");
     expect(output.output.status).toBe("ok");
@@ -97,6 +105,89 @@ describe("operations assistant chat", () => {
     expect(second).not.toContain("/staff/client/");
     // The system prompt confines figures to tool results.
     expect(JSON.stringify(model.doStreamCalls[0].prompt)).toContain("Never invent");
+    create.mockRestore();
+  });
+
+  it("falls back once to the configured fast model when the primary Gemini model is unavailable", async () => {
+    const primary = new MockLanguageModelV3({
+      modelId: "gemini-3.8-flash",
+      doStream: async () => {
+        throw Object.assign(new Error("model temporarily unavailable"), { statusCode: 503, isRetryable: true });
+      },
+    });
+    const fallback = scriptedModel("Fallback model completed the answer.");
+    const create = vi.spyOn(assistantModel, "create")
+      .mockReturnValueOnce(primary)
+      .mockReturnValueOnce(fallback);
+
+    const res = await request(manager, ask("Which documents need attention?"));
+    expect(res.status).toBe(200);
+    const parts = await chunks(res);
+    expect(parts.filter(p => p.type === "text-delta").map(p => p.delta).join("")).toContain("Fallback model completed");
+    expect(primary.doStreamCalls).toHaveLength(1);
+    expect(fallback.doStreamCalls).toHaveLength(2);
+    expect(create).toHaveBeenNthCalledWith(1, "integration-test-key", "gemini-3.8-flash");
+    expect(create).toHaveBeenNthCalledWith(2, "integration-test-key", "gemini-3.5-flash-lite");
+    create.mockRestore();
+  });
+
+  it("falls back for nested SDK RESOURCE_EXHAUSTED and UNAVAILABLE errors even without a top-level numeric status", async () => {
+    const cases = [
+      {
+        message: "Failed after retries",
+        nested: {
+          message: "quota pressure",
+          data: { error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "quota pressure" } },
+          isRetryable: true,
+        },
+      },
+      {
+        message: "Failed after retries",
+        nested: {
+          message: "model high demand",
+          data: { error: { status: "UNAVAILABLE", message: "model high demand" } },
+          responseBody: JSON.stringify({ error: { status: "UNAVAILABLE", message: "high demand" } }),
+        },
+      },
+    ];
+
+    for (const [index, shape] of cases.entries()) {
+      const primary = new MockLanguageModelV3({
+        doStream: async () => {
+          throw Object.assign(new Error(shape.message), { lastError: shape.nested });
+        },
+      });
+      const fallback = scriptedModel(`Fallback completed case ${index}.`);
+      const create = vi.spyOn(assistantModel, "create")
+        .mockReturnValueOnce(primary)
+        .mockReturnValueOnce(fallback);
+
+      const res = await request(manager, ask("Which documents need attention?"));
+      expect(res.status).toBe(200);
+      const parts = await chunks(res);
+      expect(parts.filter(p => p.type === "text-delta").map(p => p.delta).join("")).toContain(`Fallback completed case ${index}`);
+      expect(primary.doStreamCalls).toHaveLength(1);
+      expect(fallback.doStreamCalls).toHaveLength(2);
+      create.mockRestore();
+    }
+  });
+
+  it("does not mask non-retryable provider authorization failures with a fallback", async () => {
+    const primary = new MockLanguageModelV3({
+      doStream: async () => {
+        throw Object.assign(new Error("provider authorization rejected"), { statusCode: 403, isRetryable: false });
+      },
+    });
+    const fallback = scriptedModel();
+    const create = vi.spyOn(assistantModel, "create")
+      .mockReturnValueOnce(primary)
+      .mockReturnValueOnce(fallback);
+
+    const res = await request(manager, ask("Show team load"));
+    expect(res.status).toBe(200);
+    await res.text();
+    expect(primary.doStreamCalls).toHaveLength(1);
+    expect(fallback.doStreamCalls).toHaveLength(0);
     create.mockRestore();
   });
 

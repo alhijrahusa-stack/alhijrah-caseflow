@@ -18,8 +18,12 @@ export const registry = {
     fastModel: env("DOCUMENT_VISION_FAST_MODEL"),
     escalationModel: env("DOCUMENT_VISION_ESCALATION_MODEL"),
   }),
-  /** Operations assistant chat. Default model is used only when the env override is unset. */
-  operationsAssistant: () => ({ apiKey: env("GOOGLE_GEMINI_API_KEY"), model: env("OPERATIONS_ASSISTANT_MODEL") ?? "gemini-3.8-flash" }),
+  /** Operations assistant uses a primary model plus the existing fast Gemini model as a capacity fallback. */
+  operationsAssistant: () => ({
+    apiKey: env("GOOGLE_GEMINI_API_KEY"),
+    model: env("OPERATIONS_ASSISTANT_MODEL") ?? "gemini-3.8-flash",
+    fallbackModel: env("OPERATIONS_ASSISTANT_FALLBACK_MODEL") ?? env("DOCUMENT_VISION_FAST_MODEL") ?? "gemini-3.5-flash-lite",
+  }),
   geminiEmbedding: () => ({ apiKey: env("GOOGLE_GEMINI_API_KEY"), model: env("GEMINI_EMBEDDING_MODEL") }),
   openai: () => ({
     apiKey: env("OPENAI_API_KEY"),

@@ -11,12 +11,124 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** Overridable in tests only; production always builds the Gemini model from the registry. */
+type AssistantLanguageModel = Extract<LanguageModel, { specificationVersion: "v3" }>;
+
+type ProviderFailureMeta = { statusCode: number | null; retryable: boolean; providerStatus: string | null };
+
+function numericStatus(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value)) return value;
+  if (typeof value === "string" && /^\\d{3}$/.test(value)) return Number(value);
+  return null;
+}
+
+function providerErrorMeta(error: unknown, seen = new Set<object>()): ProviderFailureMeta {
+  if (!error) return { statusCode: null, retryable: false, providerStatus: null };
+
+  if (typeof error === "string") {
+    const upper = error.toUpperCase();
+    const code = /(?:^|\\D)(429)(?:\\D|$)/.test(upper) || upper.includes("RESOURCE_EXHAUSTED") ? 429
+      : /(?:^|\\D)(503)(?:\\D|$)/.test(upper) || upper.includes("UNAVAILABLE") || upper.includes("OVERLOADED") || upper.includes("HIGH DEMAND") ? 503
+      : null;
+    return { statusCode: code, retryable: code === 429 || code === 503, providerStatus: null };
+  }
+
+  if (typeof error !== "object" || seen.has(error)) return { statusCode: null, retryable: false, providerStatus: null };
+  seen.add(error);
+  const record = error as Record<string, unknown>;
+  const dataError = record.data && typeof record.data === "object" ? (record.data as Record<string, unknown>).error : null;
+  const responseError = dataError && typeof dataError === "object" ? dataError as Record<string, unknown> : null;
+
+  const ownStatus =
+    numericStatus(record.statusCode) ??
+    numericStatus(record.status) ??
+    numericStatus(record.code) ??
+    numericStatus(responseError?.code);
+  const providerStatus =
+    (typeof responseError?.status === "string" ? responseError.status : null) ??
+    (typeof record.code === "string" && !/^\\d+$/.test(record.code) ? record.code : null);
+  const ownRetryable = record.isRetryable === true;
+
+  const textCandidates = [
+    error instanceof Error ? error.message : null,
+    typeof record.message === "string" ? record.message : null,
+    typeof record.responseBody === "string" ? record.responseBody : null,
+    typeof responseError?.message === "string" ? responseError.message : null,
+    providerStatus,
+  ].filter((value): value is string => Boolean(value));
+  const textMeta = providerErrorMeta(textCandidates.join(" "));
+
+  const nested = [
+    record.lastError,
+    record.cause,
+    ...(Array.isArray(record.errors) ? record.errors : []),
+  ];
+  let childMeta: ProviderFailureMeta = { statusCode: null, retryable: false, providerStatus: null };
+  for (const child of nested) {
+    const meta = providerErrorMeta(child, seen);
+    if (meta.statusCode !== null || meta.retryable || meta.providerStatus) {
+      childMeta = meta;
+      break;
+    }
+  }
+
+  return {
+    statusCode: ownStatus ?? textMeta.statusCode ?? childMeta.statusCode,
+    retryable: ownRetryable || textMeta.retryable || childMeta.retryable,
+    providerStatus: providerStatus ?? textMeta.providerStatus ?? childMeta.providerStatus,
+  };
+}
+
+function shouldFallback(error: unknown, abortSignal?: AbortSignal): boolean {
+  if (abortSignal?.aborted) return false;
+  const { statusCode, retryable, providerStatus } = providerErrorMeta(error);
+  if (statusCode === 404 || statusCode === 408 || statusCode === 429 || (statusCode !== null && statusCode >= 500)) return true;
+  if (providerStatus === "RESOURCE_EXHAUSTED" || providerStatus === "UNAVAILABLE") return true;
+  if (retryable) return true;
+  return error instanceof Error && error.name === "TimeoutError";
+}
+
+/** Overridable in tests only; production always builds Gemini models from the registry. */
 export const assistantModel = {
-  create(apiKey: string, modelId: string): LanguageModel {
+  create(apiKey: string, modelId: string): AssistantLanguageModel {
     return createGoogleGenerativeAI({ apiKey })(modelId);
   },
 };
+
+export function withAssistantFallback(
+  primary: AssistantLanguageModel,
+  fallback: AssistantLanguageModel,
+  onFallback: (error: unknown) => void,
+): AssistantLanguageModel {
+  let fallbackActive = false;
+  return {
+    specificationVersion: "v3",
+    provider: primary.provider,
+    modelId: primary.modelId,
+    supportedUrls: primary.supportedUrls,
+    async doGenerate(options) {
+      if (fallbackActive) return fallback.doGenerate(options);
+      try {
+        return await primary.doGenerate(options);
+      } catch (error) {
+        if (!shouldFallback(error, options.abortSignal)) throw error;
+        fallbackActive = true;
+        onFallback(error);
+        return fallback.doGenerate(options);
+      }
+    },
+    async doStream(options) {
+      if (fallbackActive) return fallback.doStream(options);
+      try {
+        return await primary.doStream(options);
+      } catch (error) {
+        if (!shouldFallback(error, options.abortSignal)) throw error;
+        fallbackActive = true;
+        onFallback(error);
+        return fallback.doStream(options);
+      }
+    },
+  };
+}
 
 /**
  * Operations assistant chat for managers and admins. Streams a UI message
@@ -49,8 +161,26 @@ export async function POST(req: Request) {
   }
 
   const started = Date.now();
+  let activeModel = config.model;
+  const primary = assistantModel.create(config.apiKey, config.model);
+  const fallback = config.fallbackModel !== config.model ? assistantModel.create(config.apiKey, config.fallbackModel) : null;
+  const model = fallback
+    ? withAssistantFallback(primary, fallback, (error) => {
+        activeModel = config.fallbackModel;
+        const meta = providerErrorMeta(error);
+        log("warn", {
+          event: "assistant_model_fallback",
+          trace_id: traceId,
+          primary_model: config.model,
+          fallback_model: config.fallbackModel,
+          status_code: meta.statusCode,
+          error_message: error instanceof Error ? error.message.slice(0, 300) : "unknown",
+        });
+      })
+    : primary;
+
   const result = streamText({
-    model: assistantModel.create(config.apiKey, config.model),
+    model,
     system: assistantSystemPrompt(new Date()),
     messages: await convertToModelMessages(conversation),
     tools: assistantTools(session, (intent, error) => {
@@ -59,10 +189,12 @@ export async function POST(req: Request) {
     stopWhen: stepCountIs(ASSISTANT_LIMITS.steps),
     maxOutputTokens: ASSISTANT_LIMITS.outputTokens,
     temperature: 0.2,
+    // One primary attempt plus one explicit fallback is bounded and avoids exhausting the 60s function budget on SDK retries.
+    maxRetries: 0,
     abortSignal: req.signal,
     onFinish: ({ usage, steps, finishReason }) => {
       log("info", {
-        event: "assistant_chat_finished", trace_id: traceId, model: config.model, finish_reason: finishReason, steps: steps.length,
+        event: "assistant_chat_finished", trace_id: traceId, model: activeModel, finish_reason: finishReason, steps: steps.length,
         tools: steps.flatMap((step) => step.toolCalls.map((call) => call.toolName)), input_tokens: usage.inputTokens ?? null,
         output_tokens: usage.outputTokens ?? null, duration_ms: Date.now() - started,
       });
@@ -72,7 +204,7 @@ export async function POST(req: Request) {
   return result.toUIMessageStreamResponse({
     headers: { "Cache-Control": "private, no-store", "X-Trace-Id": traceId },
     onError: (error) => {
-      log("error", { event: "assistant_chat_failed", trace_id: traceId, model: config.model, error_message: error instanceof Error ? error.message.slice(0, 300) : "unknown" });
+      log("error", { event: "assistant_chat_failed", trace_id: traceId, model: activeModel, error_message: error instanceof Error ? error.message.slice(0, 300) : "unknown" });
       return "The assistant could not answer right now. Try again.";
     },
   });
