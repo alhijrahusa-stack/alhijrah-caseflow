@@ -13,25 +13,76 @@ export const maxDuration = 60;
 
 type AssistantLanguageModel = Extract<LanguageModel, { specificationVersion: "v3" }>;
 
-function providerErrorMeta(error: unknown, seen = new Set<object>()): { statusCode: number | null; retryable: boolean } {
-  if (!error || typeof error !== "object" || seen.has(error)) return { statusCode: null, retryable: false };
+type ProviderFailureMeta = { statusCode: number | null; retryable: boolean; providerStatus: string | null };
+
+function numericStatus(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value)) return value;
+  if (typeof value === "string" && /^\\d{3}$/.test(value)) return Number(value);
+  return null;
+}
+
+function providerErrorMeta(error: unknown, seen = new Set<object>()): ProviderFailureMeta {
+  if (!error) return { statusCode: null, retryable: false, providerStatus: null };
+
+  if (typeof error === "string") {
+    const upper = error.toUpperCase();
+    const code = /(?:^|\\D)(429)(?:\\D|$)/.test(upper) || upper.includes("RESOURCE_EXHAUSTED") ? 429
+      : /(?:^|\\D)(503)(?:\\D|$)/.test(upper) || upper.includes("UNAVAILABLE") || upper.includes("OVERLOADED") || upper.includes("HIGH DEMAND") ? 503
+      : null;
+    return { statusCode: code, retryable: code === 429 || code === 503, providerStatus: null };
+  }
+
+  if (typeof error !== "object" || seen.has(error)) return { statusCode: null, retryable: false, providerStatus: null };
   seen.add(error);
   const record = error as Record<string, unknown>;
-  const ownStatus = typeof record.statusCode === "number" ? record.statusCode : null;
+  const dataError = record.data && typeof record.data === "object" ? (record.data as Record<string, unknown>).error : null;
+  const responseError = dataError && typeof dataError === "object" ? dataError as Record<string, unknown> : null;
+
+  const ownStatus =
+    numericStatus(record.statusCode) ??
+    numericStatus(record.status) ??
+    numericStatus(record.code) ??
+    numericStatus(responseError?.code);
+  const providerStatus =
+    (typeof responseError?.status === "string" ? responseError.status : null) ??
+    (typeof record.code === "string" && !/^\\d+$/.test(record.code) ? record.code : null);
   const ownRetryable = record.isRetryable === true;
-  for (const nested of [record.lastError, record.cause]) {
-    const child = providerErrorMeta(nested, seen);
-    if (ownStatus !== null || ownRetryable || child.statusCode !== null || child.retryable) {
-      return { statusCode: ownStatus ?? child.statusCode, retryable: ownRetryable || child.retryable };
+
+  const textCandidates = [
+    error instanceof Error ? error.message : null,
+    typeof record.message === "string" ? record.message : null,
+    typeof record.responseBody === "string" ? record.responseBody : null,
+    typeof responseError?.message === "string" ? responseError.message : null,
+    providerStatus,
+  ].filter((value): value is string => Boolean(value));
+  const textMeta = providerErrorMeta(textCandidates.join(" "));
+
+  const nested = [
+    record.lastError,
+    record.cause,
+    ...(Array.isArray(record.errors) ? record.errors : []),
+  ];
+  let childMeta: ProviderFailureMeta = { statusCode: null, retryable: false, providerStatus: null };
+  for (const child of nested) {
+    const meta = providerErrorMeta(child, seen);
+    if (meta.statusCode !== null || meta.retryable || meta.providerStatus) {
+      childMeta = meta;
+      break;
     }
   }
-  return { statusCode: ownStatus, retryable: ownRetryable };
+
+  return {
+    statusCode: ownStatus ?? textMeta.statusCode ?? childMeta.statusCode,
+    retryable: ownRetryable || textMeta.retryable || childMeta.retryable,
+    providerStatus: providerStatus ?? textMeta.providerStatus ?? childMeta.providerStatus,
+  };
 }
 
 function shouldFallback(error: unknown, abortSignal?: AbortSignal): boolean {
   if (abortSignal?.aborted) return false;
-  const { statusCode, retryable } = providerErrorMeta(error);
+  const { statusCode, retryable, providerStatus } = providerErrorMeta(error);
   if (statusCode === 404 || statusCode === 408 || statusCode === 429 || (statusCode !== null && statusCode >= 500)) return true;
+  if (providerStatus === "RESOURCE_EXHAUSTED" || providerStatus === "UNAVAILABLE") return true;
   if (retryable) return true;
   return error instanceof Error && error.name === "TimeoutError";
 }
