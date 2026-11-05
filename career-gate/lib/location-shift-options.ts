@@ -49,3 +49,27 @@ export const SHIFT_DEFAULT_HOURS: Record<string,string> = {
  mid:"08:00 AM – 04:30 PM", reduced:"06:30 PM – 07:00 AM",
  weekend:"07:00 AM – 05:30 PM", flex:"Variable, 3–5h blocks", met:"Additional 1–2h or workday",
 };
+
+/** Stable site code for a directory entry, shared by every write path. */
+export const locationSiteCode = (index: number) => "MI_LOC_" + String(index + 1).padStart(2, "0");
+/** Directory index for a stored site code, or -1 when it is not a directory site. */
+export const locationIndexForCode = (code: string | null | undefined) => {
+  const match = /^MI_LOC_(\d{2})$/.exec(code ?? "");
+  const index = match ? Number(match[1]) - 1 : -1;
+  return index >= 0 && index < AMAZON_LOCATIONS.length ? index : -1;
+};
+
+/** The directory with stable codes and lowercase search text (name, building code, street, city, ZIP). */
+export const LOCATION_DIRECTORY = AMAZON_LOCATIONS.map(([name, address], index) => ({
+  index, name, address, code: locationSiteCode(index), haystack: `${name} ${address}`.toLowerCase(),
+}));
+
+/** Every search word must appear; names starting with the first word come first, then directory order. */
+export function matchLocations(query: string) {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return LOCATION_DIRECTORY;
+  const leads = (name: string) => Number(!name.toLowerCase().startsWith(terms[0]));
+  return LOCATION_DIRECTORY
+    .filter((location) => terms.every((term) => location.haystack.includes(term)))
+    .sort((a, b) => leads(a.name) - leads(b.name) || a.index - b.index);
+}

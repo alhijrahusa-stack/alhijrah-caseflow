@@ -16,6 +16,9 @@ export const LIMITS = {
   login_failed_15min: { window: 900, limit: 5 },
   login_send_15min: { window: 900, limit: 5 },
   document_upload_hour: { window: 3600, limit: 10 },
+  // Each chat turn is a paid model call; these bound cost per staff member.
+  assistant_chat_10min: { window: 600, limit: 30 },
+  assistant_chat_day: { window: 86400, limit: 300 },
 } as const;
 
 export type LimitName = keyof typeof LIMITS;

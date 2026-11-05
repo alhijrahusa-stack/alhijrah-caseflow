@@ -18,7 +18,10 @@
     "measure": "node scripts/measure.mjs"
   },
   "dependencies": {
+    "@ai-sdk/google": "3.0.136",
+    "@ai-sdk/react": "3.0.314",
     "@supabase/supabase-js": "2.117.2",
+    "ai": "6.0.311",
     "jose": "6.2.12",
     "next": "16.4.2",
     "pdf-lib": "1.17.1",

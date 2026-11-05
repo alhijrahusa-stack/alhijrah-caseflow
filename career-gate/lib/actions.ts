@@ -28,6 +28,7 @@ import { channelConfigured } from "@/lib/notify";
 import { inviteUser } from "@/lib/providers/supabase-auth";
 import { sendEmail, sendSms } from "@/lib/providers/messaging";
 import { Phone, ProfileSchema, SelectionSchema } from "@/lib/schemas";
+import { AMAZON_LOCATIONS, DAY_PATTERNS, SHIFT_DEFAULT_DAYS, SHIFT_DEFAULT_HOURS, SHIFT_TYPES, locationSiteCode } from "@/lib/location-shift-options";
 import { slotIsBookable } from "@/lib/scheduling";
 import { queueAppointmentEmails } from "@/lib/appointment-email";
 import {
@@ -103,6 +104,15 @@ export const ActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_next_step"), client_id: id, next_step: text(500) }),
   z.object({ action: z.literal("add_preference"), client_id: id, rank: z.enum(["primary", "backup"]), selection: SelectionSchema }),
   z.object({ action: z.literal("remove_preference"), client_id: id, preference_id: id }),
+  z.object({
+    action: z.literal("set_preferred_location"),
+    client_id: id,
+    location: z.number().int().min(0).max(AMAZON_LOCATIONS.length - 1),
+    /** The primary site the editor was opened on; a different stored site means someone else changed it. */
+    expected_site_code: z.string().max(40).nullable(),
+    /** Needed only when the client has no primary preference yet (a preference row requires a shift). */
+    shift: z.enum(SHIFT_TYPES.map((x) => x[0]) as [typeof SHIFT_TYPES[number][0], ...typeof SHIFT_TYPES[number][0][]]).optional(),
+  }),
   z.object({
     action: z.literal("schedule_appointment"),
     client_id: id,
@@ -387,6 +397,44 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       await touchClient(tx, a.client_id);
       await logActivity(tx, { clientId: a.client_id, action: "preference_removed", actor, entityType: "preference", entityId: p.id, oldValue: { rank: p.rank, site: p.site_name, job: p.job_title, shift: p.shift_code, pay: p.pay_snapshot } });
       return {};
+    }
+
+    case "set_preferred_location": {
+      // One transaction: the primary preference (what the pipeline and dispatcher
+      // read), the client's preferred location label, and the activity entry.
+      const c = await requireClient(tx, a.client_id);
+      const [primary] = await tx`select * from client_preferences where client_id = ${a.client_id} and rank = 'primary'
+        order by preference_order, id limit 1 for update`;
+      if ((primary?.site_code ?? null) !== a.expected_site_code) {
+        throw new ActionError("stale_location", "This client's location was changed by someone else. Reopen it to see the current value.", 409);
+      }
+      const [siteName, siteAddress] = AMAZON_LOCATIONS[a.location];
+      const siteCode = locationSiteCode(a.location);
+      const city = siteName.split(" (")[0];
+      if (primary?.site_code === siteCode && c.preferred_location === siteName) return { changed: false, site_code: siteCode, site_name: siteName };
+      if (primary) {
+        if (primary.site_code !== siteCode) {
+          const [taken] = await tx`select id from client_preferences where client_id = ${a.client_id} and id <> ${primary.id}
+            and site_code = ${siteCode} and job_id = ${primary.job_id} and shift_code = ${primary.shift_code}`;
+          if (taken) throw new ActionError("duplicate_preference", "This location and shift is already a backup preference for this client. Remove the backup first.", 409);
+          await tx`update client_preferences set site_code = ${siteCode}, site_name = ${siteName}, site_address = ${siteAddress}, city = ${city}
+            where id = ${primary.id}`;
+        }
+      } else {
+        if (!a.shift) throw new ActionError("shift_required", "Choose a shift: this client has no primary preference yet", 400);
+        const shiftName = SHIFT_TYPES.find((x) => x[0] === a.shift)![1];
+        const days = DAY_PATTERNS.find((x) => x[0] === (SHIFT_DEFAULT_DAYS[a.shift!] ?? "custom"))![1];
+        await tx`insert into client_preferences(client_id, rank, preference_order, city, site_code, site_name, site_address, job_id, job_title, shift_code, shift_name, days, hours, catalog_source)
+          values(${a.client_id}, 'primary', 1, ${city}, ${siteCode}, ${siteName}, ${siteAddress}, 'PREFERENCE', 'Amazon Associate', ${a.shift}, ${shiftName}, ${days}, ${SHIFT_DEFAULT_HOURS[a.shift] ?? null}, 'staff_preference')`;
+        await renumberPreferences(tx, a.client_id);
+      }
+      await tx`update clients set preferred_location = ${siteName}, updated_at = now() where id = ${a.client_id}`;
+      await logActivity(tx, {
+        clientId: a.client_id, action: "client_updated", actor, entityType: "client", entityId: a.client_id,
+        oldValue: { preferred_location: c.preferred_location ?? primary?.site_name ?? null, site: primary?.site_code ?? null },
+        newValue: { preferred_location: siteName, site: siteCode, ...(primary ? {} : { shift: a.shift }) },
+      });
+      return { changed: true, site_code: siteCode, site_name: siteName };
     }
 
     case "schedule_appointment":

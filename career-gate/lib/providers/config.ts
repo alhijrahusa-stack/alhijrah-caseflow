@@ -18,6 +18,8 @@ export const registry = {
     fastModel: env("DOCUMENT_VISION_FAST_MODEL"),
     escalationModel: env("DOCUMENT_VISION_ESCALATION_MODEL"),
   }),
+  /** Operations assistant chat. Default model is used only when the env override is unset. */
+  operationsAssistant: () => ({ apiKey: env("GOOGLE_GEMINI_API_KEY"), model: env("OPERATIONS_ASSISTANT_MODEL") ?? "gemini-2.5-flash" }),
   geminiEmbedding: () => ({ apiKey: env("GOOGLE_GEMINI_API_KEY"), model: env("GEMINI_EMBEDDING_MODEL") }),
   openai: () => ({
     apiKey: env("OPENAI_API_KEY"),
@@ -63,6 +65,7 @@ export function providerStates() {
     realtime: st(Boolean(s.url && s.anonKey)),
     document_vision_fast: st(Boolean(v.apiKey && v.fastModel)),
     document_vision_escalation: st(Boolean(v.apiKey && v.escalationModel)),
+    operations_assistant: st(Boolean(registry.operationsAssistant().apiKey)),
     agent_llm: st(Boolean(o.apiKey && o.agentModel)),
     embeddings: st(Boolean((o.apiKey && o.embeddingModel && o.embeddingDimensions === EMBEDDING_COLUMN_DIMENSIONS) || (ge.apiKey && ge.model))),
     whatsapp_meta: st(Boolean(w.token && w.phoneId && w.apiVersion && w.templateLang)),

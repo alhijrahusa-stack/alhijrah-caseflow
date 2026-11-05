@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ACCESS_COOKIE, REFRESH_COOKIE, verifyAccessToken } from "@/lib/jwt";
 
 const PUBLIC_API = [/^\/api\/intake(\/|$)/, /^\/api\/status(\/|$)/, /^\/api\/staff\/auth\//, /^\/api\/webhooks\//, /^\/api\/cron\//];
-const STAFF_API = [/^\/api\/staff\//, /^\/api\/documents\//, /^\/api\/audit\//];
+const STAFF_API = [/^\/api\/staff\//, /^\/api\/documents\//, /^\/api\/audit\//, /^\/api\/assistant(\/|$)/];
 
 function cookieOpts(maxAge: number) {
   return { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge };

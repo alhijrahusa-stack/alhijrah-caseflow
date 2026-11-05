@@ -3,7 +3,7 @@ import { withStaff } from "@/lib/auth";
 import { staffGuard } from "@/lib/staff-api";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
-import { AMAZON_LOCATIONS, SHIFT_TYPES, DAY_PATTERNS, SHIFT_DEFAULT_HOURS } from "@/lib/location-shift-options";
+import { AMAZON_LOCATIONS, SHIFT_TYPES, DAY_PATTERNS, SHIFT_DEFAULT_HOURS, locationSiteCode } from "@/lib/location-shift-options";
 
 export const runtime = "nodejs";
 const inputSchema=z.object({
@@ -24,7 +24,7 @@ export async function POST(req:Request){
  const [siteName,siteAddress]=AMAZON_LOCATIONS[location];
  const shiftName=SHIFT_TYPES.find(x=>x[0]===shift)![1];
  const dayName=DAY_PATTERNS.find(x=>x[0]===days)![1];
- const siteCode="MI_LOC_"+String(location+1).padStart(2,"0");
+ const siteCode=locationSiteCode(location);
  try{
   const data=await withStaff(guard.session,async tx=>{
    const [client]=await tx`select id from clients where id=${client_id} and deleted_at is null and current_status not in ('completed','cancelled') for update`;
