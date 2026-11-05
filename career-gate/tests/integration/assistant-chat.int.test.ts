@@ -131,6 +131,47 @@ describe("operations assistant chat", () => {
     create.mockRestore();
   });
 
+  it("falls back for nested SDK RESOURCE_EXHAUSTED and UNAVAILABLE errors even without a top-level numeric status", async () => {
+    const cases = [
+      {
+        message: "Failed after retries",
+        nested: {
+          message: "quota pressure",
+          data: { error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "quota pressure" } },
+          isRetryable: true,
+        },
+      },
+      {
+        message: "Failed after retries",
+        nested: {
+          message: "model high demand",
+          data: { error: { status: "UNAVAILABLE", message: "model high demand" } },
+          responseBody: JSON.stringify({ error: { status: "UNAVAILABLE", message: "high demand" } }),
+        },
+      },
+    ];
+
+    for (const [index, shape] of cases.entries()) {
+      const primary = new MockLanguageModelV3({
+        doStream: async () => {
+          throw Object.assign(new Error(shape.message), { lastError: shape.nested });
+        },
+      });
+      const fallback = scriptedModel(`Fallback completed case ${index}.`);
+      const create = vi.spyOn(assistantModel, "create")
+        .mockReturnValueOnce(primary)
+        .mockReturnValueOnce(fallback);
+
+      const res = await request(manager, ask("Which documents need attention?"));
+      expect(res.status).toBe(200);
+      const parts = await chunks(res);
+      expect(parts.filter(p => p.type === "text-delta").map(p => p.delta).join("")).toContain(`Fallback completed case ${index}`);
+      expect(primary.doStreamCalls).toHaveLength(1);
+      expect(fallback.doStreamCalls).toHaveLength(2);
+      create.mockRestore();
+    }
+  });
+
   it("does not mask non-retryable provider authorization failures with a fallback", async () => {
     const primary = new MockLanguageModelV3({
       doStream: async () => {
