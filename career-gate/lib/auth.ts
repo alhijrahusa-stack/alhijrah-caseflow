@@ -52,13 +52,12 @@ export async function withStaff<T>(session: StaffSession, fn: (tx: Tx) => Promis
   const scope = `select set_config('request.jwt.claims', '${claims}', true), set_config('role', 'authenticated', true)${timeout === null ? "" : `, set_config('statement_timeout', '${timeout}', true)`}`;
   return sql().begin(async (tx) => {
     const scoped = tx.unsafe(scope).execute();
-    const work = fn(tx);
-    try {
-      await scoped;
-    } catch (error) {
-      work.catch(() => undefined);
-      throw error;
-    }
+    // fn runs now so its first query is pipelined behind the scope. A handler is
+    // attached at once: fn may reject before the scope returns, and an unhandled
+    // rejection in that window would crash the process. The caller still gets it.
+    const work = (async () => fn(tx))();
+    work.catch(() => undefined);
+    await scoped;
     return work;
   }) as Promise<T>;
 }
