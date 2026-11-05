@@ -16,7 +16,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
   if (guard.session.staff.role === "staff") return err("forbidden", "Smart client import requires manager or admin access", 403, traceId);
   try {
     const { id } = await context.params;
-    const result = await enrichMobileImportCase(guard.session, z.uuid().parse(id));
+    const result = await enrichMobileImportCase(guard.session, z.uuid().parse(id), traceId);
     return ok(result, 200, traceId);
   } catch (error) {
     if (error instanceof ActionError) return err(error.code, error.message, error.status, traceId);

@@ -10,6 +10,9 @@ import { downloadObject, uploadObject, removeObject } from "@/lib/storage";
 import { rowsFromImageOrPdfDetailed } from "@/lib/universal-intake";
 import { extractDeterministicClient } from "@/lib/smart-client-local";
 import { canonicalSmartFieldKey } from "@/lib/smart-client-fields";
+import { approveImportCase } from "@/lib/smart-client-import";
+import { AUTO_APPROVAL_REASON, autoApprovalDecision, autoApprovalThreshold, type AutoApprovalDecision } from "@/lib/smart-auto-approval";
+import { log } from "@/lib/obs";
 import {
   SMART_IMPORT_LIMITS,
   evidenceMatchScore,
@@ -528,7 +531,7 @@ export async function stageMobileImportV2(args: {
   };
 }
 
-export async function enrichMobileImportCase(session: StaffSession, caseId: string) {
+export async function enrichMobileImportCase(session: StaffSession, caseId: string, traceId: string = randomUUID()) {
   assertManager(session);
   const [caseRow] = await sql()`
     select id,source_type,raw_input,status,created_by,mapped_draft,review_started_at,field_evidence
@@ -625,7 +628,7 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
   // Extraction can finish AFTER the client/staff reviewed or approved the file.
   // Re-read under a row lock immediately before persistence: never use the
   // stale pre-extraction review snapshot to replace manually reviewed values.
-  return sql().begin(async (tx) => {
+  const enriched = await sql().begin(async (tx) => {
     const [latest] = await tx`
       select status,mapped_draft,field_evidence,review_started_at
       from client_import_cases where id=${caseId} for update`;
@@ -663,6 +666,13 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
           conflicts=${tx.json(unresolvedConflicts as never)},field_evidence=${tx.json(evidence as never)},
           verification_result=${tx.json(verificationResult as never)}
       where id=${caseId}`;
+    const decision = autoApprovalDecision({
+      threshold: autoApprovalThreshold(),
+      aiState, documentCount: docs.length, extractionErrors, conflicts: unresolvedConflicts,
+      evidence: evidence as EvidenceEntry[], reviewed,
+      draftFullName: (draft as { profile?: { full_name?: unknown } }).profile?.full_name,
+      draftPhone: (draft as { profile?: { phone?: unknown } }).profile?.phone,
+    });
     return {
       case_id: caseId,
       mapped_draft: draft,
@@ -670,6 +680,49 @@ export async function enrichMobileImportCase(session: StaffSession, caseId: stri
       conflicts: unresolvedConflicts,
       field_evidence: evidence,
       verification_result: verificationResult,
+      decision,
     };
   });
+
+  const { decision, ...result } = enriched;
+  const autoApproval = await applyAutoApproval(session, caseId, String(caseRow.created_by), result.mapped_draft, decision, traceId);
+  return { ...result, auto_approval: autoApproval };
+}
+
+type AutoApprovalOutcome =
+  | { status: "approved"; client_id: string; threshold: number; confidence: Record<string, number> }
+  | { status: "not_eligible"; reason: string }
+  | { status: "refused"; code: string };
+
+/**
+ * Approves through the ordinary approval path when the decision allows it. Any refusal
+ * there (duplicate identity, invalid value, a reviewer who just opened the file) leaves
+ * the file for a person; the outcome is recorded on the case either way.
+ */
+async function applyAutoApproval(session: StaffSession, caseId: string, uploaderId: string, draft: unknown, decision: AutoApprovalDecision, traceId: string): Promise<AutoApprovalOutcome> {
+  let outcome: AutoApprovalOutcome;
+  if (!decision.eligible) {
+    outcome = { status: "not_eligible", reason: decision.reason };
+  } else {
+    try {
+      const approved = await approveImportCase(session, {
+        id: caseId, reviewerId: uploaderId, draft, documentConfirmed: false, informationConfirmed: false, traceId,
+        override: true, overrideReason: AUTO_APPROVAL_REASON, auto: { threshold: decision.threshold, confidence: decision.confidence },
+      });
+      outcome = { status: "approved", client_id: String(approved.client_id), threshold: decision.threshold, confidence: decision.confidence };
+    } catch (error) {
+      const code = error instanceof ActionError ? error.code : "approval_failed";
+      if (!(error instanceof ActionError)) log("error", { event: "smart_auto_approval_failed", trace_id: traceId, case_id: caseId, error_message: error instanceof Error ? error.message.slice(0, 200) : "unknown" });
+      outcome = { status: "refused", code };
+    }
+  }
+  if (outcome.status !== "approved") {
+    // Approved cases record the outcome in their approval result; others keep it for the reviewer.
+    await sql()`
+      update client_import_cases
+      set verification_result=coalesce(verification_result,'{}'::jsonb) || ${sql().json({ auto_approval: outcome } as never)}
+      where id=${caseId} and status<>'APPROVED_FILE'`;
+  }
+  log("info", { event: "smart_auto_approval", trace_id: traceId, case_id: caseId, ...outcome });
+  return outcome;
 }

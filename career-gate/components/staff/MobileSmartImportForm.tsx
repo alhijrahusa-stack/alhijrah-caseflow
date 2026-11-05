@@ -145,6 +145,8 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
   const [serverDraft, setServerDraft] = useState<Record<string, unknown> | null>(null);
   const [serverEvidence, setServerEvidence] = useState<SmartEvidence[]>([]);
   const [verification, setVerification] = useState<Record<string, unknown> | null>(null);
+  /** Set when the server approved the file automatically (identity read at or above its confidence threshold). */
+  const [autoApproved, setAutoApproved] = useState<{ clientId: string; threshold: number } | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
   /** Increments on each blocked submit so the rail reacts exactly once per attempt. */
   const [warningNonce, setWarningNonce] = useState(0);
@@ -444,6 +446,9 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
       setServerDraft(combineDraft(data.mapped_draft));
       setServerEvidence(Array.isArray(data.field_evidence) ? data.field_evidence : []);
       setVerification(data.verification_result ?? null);
+      if (data.auto_approval?.status === "approved" && typeof data.auto_approval.client_id === "string") {
+        setAutoApproved({ clientId: data.auto_approval.client_id, threshold: Number(data.auto_approval.threshold) });
+      }
       const reviewRequired = data.verification_result?.processing_state === "REVIEW_REQUIRED";
       setDocuments((current) => advanceDocuments(current, { processingState: reviewRequired ? "REVIEW_REQUIRED" : "COMPLETE" }));
       setStage(reviewRequired ? "REVIEW_REQUIRED" : "READY");
@@ -529,7 +534,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
     releaseDocuments(documents);
     sessionStart.current = Date.now();
     setDocuments([]); setRejected([]); setNotes(""); setDebouncedNotes("");
-    setError(null); setResult(null); setServerDraft(null); setServerEvidence([]); setVerification(null);
+    setError(null); setResult(null); setServerDraft(null); setServerEvidence([]); setVerification(null); setAutoApproved(null);
     setStage("DRAFT"); setElapsed(0); setWarningNonce(0); setActiveFieldKey(null);
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -813,6 +818,12 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
 
         <section className={`${PANEL} sticky bottom-2 z-20 order-3 min-w-0 p-3 sm:bottom-3 sm:p-4`} aria-label="Smart Client Import actions">
           <DigitalHandshake sweep={sweep} />
+          {autoApproved && (
+            <p role="status" data-testid="auto-approved" className="mb-3 rounded-xl border border-emerald-300/30 bg-emerald-300/[.08] px-3 py-2 text-sm text-emerald-100">
+              Approved automatically: the identity was read from the documents at {Math.round(autoApproved.threshold * 100)}% confidence or more. Follow-up items were assigned to you.{" "}
+              <Link className="font-semibold underline underline-offset-2" href={`/staff/client/${autoApproved.clientId}`}>Open client file</Link>
+            </p>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-400">
               <span className="rounded-md border border-white/[.08] bg-black/25 px-2 py-1 font-mono text-[11px]">⌘/Ctrl + Enter</span>
