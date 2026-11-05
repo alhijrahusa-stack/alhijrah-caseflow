@@ -80,7 +80,7 @@ describe("operations assistant chat", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toContain("no-store");
     const parts = await chunks(res);
-    expect(create).toHaveBeenCalledWith("integration-test-key", "gemini-2.5-flash");
+    expect(create).toHaveBeenCalledWith("integration-test-key", "gemini-3.8-flash");
 
     const output = parts.find(p => p.type === "tool-output-available");
     expect(output.output.status).toBe("ok");
