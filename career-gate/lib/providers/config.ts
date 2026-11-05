@@ -65,6 +65,7 @@ export function providerStates() {
     realtime: st(Boolean(s.url && s.anonKey)),
     document_vision_fast: st(Boolean(v.apiKey && v.fastModel)),
     document_vision_escalation: st(Boolean(v.apiKey && v.escalationModel)),
+    operations_assistant: st(Boolean(registry.operationsAssistant().apiKey)),
     agent_llm: st(Boolean(o.apiKey && o.agentModel)),
     embeddings: st(Boolean((o.apiKey && o.embeddingModel && o.embeddingDimensions === EMBEDDING_COLUMN_DIMENSIONS) || (ge.apiKey && ge.model))),
     whatsapp_meta: st(Boolean(w.token && w.phoneId && w.apiVersion && w.templateLang)),
