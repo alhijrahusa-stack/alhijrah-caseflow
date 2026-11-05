@@ -23,7 +23,7 @@
     "@supabase/supabase-js": "2.117.2",
     "ai": "6.0.311",
     "jose": "6.2.12",
-    "next": "16.3.6",
+    "next": "16.4.2",
     "pdf-lib": "1.17.1",
     "postgres": "3.4.9",
     "react": "19.3.0",
@@ -31,7 +31,7 @@
     "server-only": "0.0.1",
     "sharp": "0.35.5",
     "tesseract.js": "6.0.1",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
@@ -40,7 +40,7 @@
     "@types/react-dom": "19.3.0",
     "autoprefixer": "10.6.1",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "16.4.2",
     "postcss": "8.5.28",
     "tailwindcss": "3.4.19",
     "typescript": "5.9.3",
