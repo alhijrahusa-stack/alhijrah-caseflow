@@ -116,3 +116,25 @@ describe("quick preferred-location change", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("location & shift assignment card (/api/staff/client-preference)", () => {
+  it("is limited to managers and admins, as every other preference change is", async () => {
+    const { POST: assign } = await import("@/app/api/staff/client-preference/route");
+    const post = (as: StaffSession, body: Record<string, unknown>) => {
+      vi.mocked(staffGuard).mockResolvedValue({ session: as, response: null });
+      return assign(new Request("http://localhost/api/staff/client-preference", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }));
+    };
+    // Assigned to the staff member, so RLS alone would let them write it.
+    const client = await newClient(staffOnly.staff.id);
+    const body = { client_id: client.id, location: 2, shift: "night", days: "custom", hours: "06:30 PM – 05:00 AM" };
+    const denied = await post(staffOnly, body);
+    expect(denied.status).toBe(403);
+    expect(await primaryOf(client.id)).toBeUndefined();
+    const [event] = await db`select event from security_events where staff_id=${staffOnly.staff.id} and route='/api/staff/client-preference'`;
+    expect(event.event).toBe("access_denied");
+
+    const allowed = await post(manager, body);
+    expect(allowed.status).toBe(200);
+    expect(await primaryOf(client.id)).toMatchObject({ site_code: "MI_LOC_03", shift_code: "night" });
+  });
+});

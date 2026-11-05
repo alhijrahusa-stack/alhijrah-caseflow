@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withStaff } from "@/lib/auth";
-import { staffGuard } from "@/lib/staff-api";
+import { authorize, staffGuard } from "@/lib/staff-api";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { AMAZON_LOCATIONS, SHIFT_TYPES, DAY_PATTERNS, SHIFT_DEFAULT_HOURS, locationSiteCode } from "@/lib/location-shift-options";
@@ -19,6 +19,9 @@ export async function POST(req:Request){
  const parsed=inputSchema.safeParse(await req.json().catch(()=>null));
  if(!parsed.success)return err("invalid_input","Choose a valid location, shift, days and hours",400,traceId);
  const {client_id,location,shift,days,hours}=parsed.data;
+ // Same rule as every other preference change (add_preference: managers and admins), plus client scope.
+ const authz=await authorize(req,guard.session,"add_preference",{clientId:client_id},traceId);
+ if(!authz.ok)return authz.response;
  const compatibleHours=[SHIFT_DEFAULT_HOURS[shift],...(shift==="front_half"||shift==="back_half"?["06:30 PM – 05:00 AM"]:[]),...(shift==="morning"||shift==="mid"?["08:00 AM – 04:30 PM"]:[]),...(shift==="night"?["10:00 PM – 06:30 AM"]:[])];
  if(!compatibleHours.includes(hours))return err("invalid_shift_hours","Hours do not match the selected shift",400,traceId);
  const [siteName,siteAddress]=AMAZON_LOCATIONS[location];

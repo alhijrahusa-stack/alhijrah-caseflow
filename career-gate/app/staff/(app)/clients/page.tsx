@@ -34,7 +34,7 @@ export default async function ClientsPage({searchParams}:{searchParams:Promise<R
   return <div className="ops-page space-y-4">
     <header className="ops-hero"><div><p className="ops-kicker">CAREER GATE · MASTER REGISTRY</p><h1 className="tracking-tight"><StaffText en="Clients" ar="سجل العملاء"/></h1><p><StaffText en={`${total} file${total===1?"":"s"} in ${view} view · one original client record throughout the lifecycle`} ar={`${total} ملف في العرض الحالي · سجل عميل واحد طوال مسار العمل`}/></p></div>{management&&<div className="flex flex-wrap gap-2"><Link prefetch={false} href="/staff/archive" className="archive-link-button"><StaffText en="Archive" ar="الأرشيف"/></Link><Link prefetch={false} href="/staff/new-client" className="ops-primary-button"><StaffText en="+ New Client" ar="+ إضافة عميل"/></Link></div>}</header>
 
-    {view==="active"&&(!stage||stage==="job_ready")&&<ClientLocationShiftCard clients={rows.map(c=>({id:c.id,full_name:c.full_name,ref:c.ref}))}/>}
+    {management&&view==="active"&&(!stage||stage==="job_ready")&&<ClientLocationShiftCard clients={rows.map(c=>({id:c.id,full_name:c.full_name,ref:c.ref}))}/>}
     <nav aria-label="Operational client lifecycle stages" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
       {CLIENT_STAGES.map((station)=><Link prefetch={false} key={station.id} href={station.href} aria-current={stage===station.id?"page":undefined}
         className="cg-stage-tab registry-stage-tab">
