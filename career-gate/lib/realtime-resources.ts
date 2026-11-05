@@ -120,6 +120,7 @@ export const MUTATION_RESOURCES: Record<string, readonly Resource[]> = {
   // Preferences
   add_preference: ["preferences", "next_action", "activity"],
   remove_preference: ["preferences", "next_action", "activity"],
+  set_preferred_location: ["preferences", "client_identity", "pipeline", "activity"],
 
   // Appointments
   schedule_appointment: ["appointments", "next_action", "attention", "activity"],

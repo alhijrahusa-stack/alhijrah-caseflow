@@ -25,8 +25,12 @@ const STAGE_MAP = Object.fromEntries(G3_STAGES.flatMap((stage) => stage.statuses
 const num = (value: unknown) => Number(value ?? 0);
 
 export async function operationalAnswer(session: StaffSession, question: string): Promise<OperationalAnswer> {
+  return operationalAnswerFor(session, assistantIntent(question));
+}
+
+/** One read-only operational check. Each is scoped by withStaff (RLS) to the signed-in manager or admin. */
+export async function operationalAnswerFor(session: StaffSession, intent: AssistantIntent): Promise<OperationalAnswer> {
   if (session.staff.role === "staff") throw new ActionError("forbidden", "Operational assistant requires manager or admin access", 403);
-  const intent = assistantIntent(question);
   const base = {
     intent, generated_at: new Date().toISOString(), facts: [], links: [],
     method: "Read-only operational data, scoped to your signed-in permissions. No external messages are sent.",

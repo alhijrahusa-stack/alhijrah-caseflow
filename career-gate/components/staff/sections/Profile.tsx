@@ -9,6 +9,7 @@ import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 import { useState } from "react";
 import { shiftLabel } from "@/components/forms/PreferenceSteps";
 import { InlineField } from "@/components/staff/InlineField";
+import { QuickLocationEdit } from "@/components/staff/QuickLocationEdit";
 import { useStaff } from "@/components/staff/StaffContext";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -51,7 +52,7 @@ export function ClientInfo({ c, authorization, preferences = [] }: { c: Row; aut
         ["State", f("state", "State")],
         ["ZIP", f("zip", "ZIP")],
         ["Availability", f("appointment_availability", "Appointment availability", { multiline: true })],
-        ["Preferred Location", c.preferred_location ?? primary?.site_name ?? primary?.site_code ?? "—"],
+        ["Preferred Location", <QuickLocationEdit key="preferred-location" clientId={c.id} label={c.preferred_location ?? primary?.site_name ?? primary?.site_code ?? null} siteCode={primary?.site_code ?? null} />],
         ["Location Option 1", c.location_option_1 ?? "—"],
         ["Location Option 2", c.location_option_2 ?? "—"],
         ["Shift Days", c.shift_days?.join(", ") ?? primary?.days ?? "—"],
