@@ -90,7 +90,7 @@ test.describe("Smart Career Collect Client", () => {
     await expect(languageSelect).toHaveAttribute("data-value", "en");
     await selectChoice(languageSelect, "es");
     await expect(languageSelect).toHaveAttribute("data-value", "es");
-    await page.getByRole("dialog").getByRole("button", { name: /^Apply/ }).click();
+    await page.locator(".cg-inline-review").getByRole("button", { name: /^Apply/ }).click();
     await expect(languageRow.locator('[data-label="Current value"]')).toHaveText("es");
 
     const verifyResponsePromise = page.waitForResponse((response) => {

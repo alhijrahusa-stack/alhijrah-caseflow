@@ -2,7 +2,7 @@ import "server-only";
 import { getStaffSession, type StaffSession } from "@/lib/auth";
 import { clientOf, clientScope, permissionAllows, type ActionName } from "@/lib/authz";
 import { err, ipHash } from "@/lib/http";
-import { hit, securityEvent } from "@/lib/ratelimit";
+import { hitBoth, securityEvent } from "@/lib/ratelimit";
 
 type Guard = { session: StaffSession; response: null } | { session: null; response: Response };
 
@@ -12,8 +12,7 @@ export async function staffGuard(req: Request, traceId: string, opts: { mutation
   if (!session) return { session: null, response: err("unauthorized", "Sign in required", 401, traceId) };
   if (opts.mutation) {
     const key = `staff:${session.staff.id}`;
-    const okMin = await hit("staff_action_minute", key);
-    const okHour = await hit("staff_action_hour", key);
+    const [okMin, okHour] = await hitBoth("staff_action_minute", "staff_action_hour", key);
     if (!okMin || !okHour) {
       await securityEvent({ event: "rate_limited_staff_action", staffId: session.staff.id, ipHash: ipHash(req), route: new URL(req.url).pathname, traceId });
       return { session: null, response: err("rate_limited", "Too many actions. Wait a moment and try again.", 429, traceId) };

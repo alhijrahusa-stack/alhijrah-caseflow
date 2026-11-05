@@ -34,7 +34,6 @@ export async function operationalAnswer(session: StaffSession, question: string)
   } satisfies Omit<OperationalAnswer, "title" | "titleAr" | "answer" | "answerAr">;
   if (intent === "unpaid_interviews") {
     const result = await withStaff(session, async (tx) => {
-      await tx`select set_config('statement_timeout','6500',true)`;
       // The newest recorded outcome determines success; old passed interviews never override a later failure.
       const rows = await tx`with latest as (
         select distinct on(o.client_id) o.client_id,o.decision,o.recorded_at
@@ -47,7 +46,7 @@ export async function operationalAnswer(session: StaffSession, question: string)
       ) select (select count(*)::int from unpaid) total,(select coalesce(sum(balance),0) from unpaid) amount,
           coalesce((select jsonb_agg(x) from(select id,ref,full_name,balance from unpaid order by recorded_at,id limit 5)x),'[]'::jsonb) clients`;
       return rows[0];
-    });
+    }, { statementTimeoutMs: 6500 });
     const count = num(result?.total); const amount = num(result?.amount);
     return { ...base, title: "Successful interviews awaiting payment", titleAr: "مقابلات ناجحة بانتظار السداد",
       answer: `${count} clients have a latest successful interview recorded this office month and an outstanding balance of $${amount.toFixed(2)}.`,
@@ -85,7 +84,6 @@ export async function operationalAnswer(session: StaffSession, question: string)
   }
   if (intent === "flow_forecast") {
     const rows = await withStaff(session, async (tx) => {
-      await tx`select set_config('statement_timeout','6500',true)`;
       return tx`with stage_map as(select ${tx.json(STAGE_MAP)}::jsonb m), queued as (
         select m->>c.current_status stage,count(*)::int queued from clients c cross join stage_map
           where c.deleted_at is null and c.current_status not in('completed','cancelled') group by m->>c.current_status
@@ -99,7 +97,7 @@ export async function operationalAnswer(session: StaffSession, question: string)
         group by m->>(l.old_value->>'status')
       ) select coalesce(q.stage,e.stage) stage,coalesce(q.queued,0)::int queued,coalesce(e.exits_28d,0)::int exits_28d,coalesce(e.exits_7d,0)::int exits_7d
         from queued q full join exits e on e.stage=q.stage`;
-    });
+    }, { statementTimeoutMs: 6500 });
     const forecast = projectFlow(rows.map((row) => ({ stage: String(row.stage), queued: num(row.queued), exits_28d: num(row.exits_28d), exits_7d: num(row.exits_7d) })));
     const slowest = forecast.filter((row) => row.sample === "sufficient" && row.queued > 0).sort((a, b) => (b.estimated_clearance_days ?? 0) - (a.estimated_clearance_days ?? 0))[0];
     return { ...base, title: "Workflow capacity projection", titleAr: "تقدير طاقة مسار العمل",

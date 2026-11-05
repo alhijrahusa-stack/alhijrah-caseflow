@@ -1,4 +1,5 @@
 import "server-only";
+import { compatibleNames, givenFirstName, mostCompleteName } from "@/lib/reconcile";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { sql } from "@/lib/db";
@@ -414,8 +415,12 @@ function canonicalEvidence(rows: { row: IntakeRow; source: string; confidence?: 
       .map((source) => ({ value: pickImportValue(source.row, field), source: source.source, confidence_score: source.confidence?.[field] ?? null }))
       .filter((item): item is { value: string; source: string; confidence_score: number | null } => Boolean(item.value));
     const unique = [...new Map(values.map((item) => [item.value.trim().toLowerCase(), item])).values()];
-    if (unique.length === 1) {
-      merged[field] = unique[0].value;
+    if (field === "full_name" && unique.length > 1 && unique.every((left, i) => unique.every((right, j) => i === j || compatibleNames(left.value, right.value)))) {
+      // One name written differently across sources: propose the most complete form, keep every source for review.
+      merged[field] = mostCompleteName(unique.map((item) => item.value)) ?? unique[0].value;
+      for (const item of unique) evidence.push({ field_key: field, value: item.value, source_type: item.source, verification_state: "REVIEW", authority: "SOURCE", confidence_score: item.confidence_score });
+    } else if (unique.length === 1) {
+      merged[field] = field === "full_name" ? givenFirstName(unique[0].value) : unique[0].value;
       evidence.push({ field_key: field, value: unique[0].value, source_type: unique[0].source, verification_state: "MATCHED", authority: "SOURCE", confidence_score: unique[0].confidence_score });
     } else if (unique.length > 1) {
       conflicts.push({ field_key: field, values: unique, type: "SOURCE_CONFLICT" });

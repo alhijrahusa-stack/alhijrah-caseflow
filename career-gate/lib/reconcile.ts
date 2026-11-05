@@ -85,3 +85,50 @@ export function reconcileDob(record: string | null, docRaw: string | null): Reco
 }
 
 export const needsHuman = (rs: Recon[]) => rs.some((r) => r.state !== "MATCH");
+
+function sameNameToken(a: string, b: string) {
+  return a === b || (a.length === 1 && b.startsWith(a)) || (b.length === 1 && a.startsWith(b));
+}
+
+/**
+ * Two written forms of one person's name: the same tokens in any order
+ * ("DOE, JOHN M" and "John M Doe"), or one form missing a middle name or
+ * reducing it to an initial. Both forms need at least two tokens, so a lone
+ * given name never vouches for a full name. Anything else is a different name.
+ */
+export function compatibleNames(left: string, right: string) {
+  const a = nameTokens(left), b = nameTokens(right);
+  if (a.length < 2 || b.length < 2) return a.length > 0 && a.join(" ") === b.join(" ");
+  const [small, large] = a.length <= b.length ? [a, b] : [b, a];
+  const pool = [...large];
+  for (const token of small) {
+    const at = pool.findIndex((candidate) => sameNameToken(token, candidate));
+    if (at < 0) return false;
+    pool.splice(at, 1);
+  }
+  // At least two whole-word matches: initials alone never establish identity.
+  return small.filter((token) => token.length > 1 && large.includes(token)).length >= 2;
+}
+
+/** "DOE, JOHN MICHAEL" (document order) → "JOHN MICHAEL DOE"; other forms are returned trimmed. Letter case is kept as written. */
+export function givenFirstName(value: string) {
+  const match = value.replace(/\s+/g, " ").trim().match(/^([^,]+),\s*([^,]+)$/);
+  return match ? `${match[2].trim()} ${match[1].trim()}` : value.replace(/\s+/g, " ").trim();
+}
+
+/** The most complete of compatible forms (most tokens, then longest whole words), in given-name-first order. */
+export function mostCompleteName(values: readonly string[]) {
+  const score = (value: string) => {
+    const tokens = nameTokens(value);
+    return tokens.length * 1000 + tokens.reduce((sum, token) => sum + token.length, 0);
+  };
+  const best = [...values].sort((x, y) => score(y) - score(x))[0];
+  return best === undefined ? null : givenFirstName(best);
+}
+
+/** "First Middle Last" from separate parts, or null without both first and last. */
+export function composeName(first: string | null | undefined, middle: string | null | undefined, last: string | null | undefined) {
+  const parts = [first, middle, last].map((part) => part?.replace(/\s+/g, " ").trim() ?? "");
+  if (!parts[0] || !parts[2]) return null;
+  return parts.filter(Boolean).join(" ");
+}

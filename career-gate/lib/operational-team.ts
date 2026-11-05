@@ -50,7 +50,6 @@ export type TeamWorkloadData = {
 export const teamWorkload = cache(async (session: StaffSession): Promise<TeamWorkloadData> => {
   const activeCatalogKeys = new Set(options.map((option) => option.key));
   return withStaff(session, async (tx) => {
-    await tx`select set_config('statement_timeout', '6500', true)`;
     const [staffRows, clientGroups, taskRows, appointmentRows, followupRows] = await Promise.all([
       tx`select id,display_name,email,role,active,auth_user_id is not null as linked,staff_code from staff order by active desc,staff_code nulls last,display_name`,
       tx`
@@ -112,5 +111,5 @@ export const teamWorkload = cache(async (session: StaffSession): Promise<TeamWor
       followups_due:members.reduce((s,m)=>s+m.followups_due,0),
       members, unassigned_sites:unassignedSites.sort((a,b)=>b.total-a.total || a.site_code.localeCompare(b.site_code)),
     };
-  });
+  }, { statementTimeoutMs: 6500 });
 });

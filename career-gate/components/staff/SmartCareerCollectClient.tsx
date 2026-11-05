@@ -1,5 +1,6 @@
 "use client";
 
+import { useMinWidth } from "@/components/staff/smart/useMinWidth";
 import { optimizeFilesForUpload } from "@/lib/image-upload-optimizer";
 import Link from "next/link";
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
@@ -140,6 +141,7 @@ export function SmartCareerCollectClient() {
   const [editingField, setEditingField] = useState(false);
   const [reviewChanged, setReviewChanged] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
+  const docked = useMinWidth(1440);
   const [reviewMode, setReviewMode] = useState<ReviewMode>("edit");
   const [sourcePage, setSourcePage] = useState<number | null>(null);
   const [sourceField, setSourceField] = useState<string | null>(null);
@@ -532,6 +534,12 @@ export function SmartCareerCollectClient() {
     const needle = search.trim().toLowerCase(), index = text.toLowerCase().indexOf(needle);
     return !needle || index < 0 ? text : <>{text.slice(0,index)}<mark>{text.slice(index,index+needle.length)}</mark>{text.slice(index+needle.length)}</>;
   };
+  // The source viewer is one element: docked beside the data on wide screens, in a drawer otherwise.
+  const documentViewer = detail ? <div id="smart-document-viewer">
+          <div className="cg-document-controls">{detail.case.status !== "APPROVED_FILE" && <><input ref={reattachRef} className="sr-only" type="file" accept={REATTACH_ACCEPT} multiple onChange={(event) => void reattach(event.target.files)} /><button className="cg-review-button" type="button" disabled={Boolean(actionBusy) || draftDirty || editingField || reviewChanged || offlineSyncing || !offlineDraft.online} onClick={() => reattachRef.current?.click()}>{t("Re-attach","إرفاق وثيقة")}</button></>}<button type="button" aria-label="Zoom out document" disabled={documentZoom <= 50} onClick={() => setDocumentZoom((value) => value-25)}>−</button><span dir="ltr">{documentZoom}%</span><button type="button" aria-label="Zoom in document" disabled={documentZoom >= 250} onClick={() => setDocumentZoom((value) => value+25)}>＋</button><button type="button" onClick={() => setDocumentZoom(100)}>{t("Fit","ملاءمة")}</button></div>
+          {sourceField && <p className="cg-matrix-summary">{t("Source review","مراجعة المصدر")} · {sourceField}</p>}
+          {activeDocument ? <><div className="cg-document-stage">{activeDocument.mime_type.startsWith("image/") ? <img style={{width:`${documentZoom}%`}} src={`/api/staff/smart-client-import/document/${activeDocument.id}`} alt={activeDocument.original_filename} /> : <iframe title={activeDocument.original_filename} style={{width:`${documentZoom}%`}} src={`/api/staff/smart-client-import/document/${activeDocument.id}#page=${sourcePage??1}&zoom=${documentZoom}`} />}</div><div className="cg-document-controls" style={{marginTop:16}}>{detail.documents.map((doc) => <button type="button" key={doc.id} aria-pressed={activeDocument.id===doc.id} onClick={() => {setActiveDocumentId(doc.id);setSourcePage(null);setDocumentZoom(100);}}>{doc.original_filename}</button>)}</div></> : <p className="cg-override-summary">{t("No source document attached. You can approve with a recorded reason, then attach documents to the Client later.","لا توجد وثيقة مرفقة. يمكن الاعتماد بسبب مسجل، ثم استكمال الوثائق في ملف العميل لاحقاً.")}</p>}
+  </div> : null;
   return <div className="ops-page cg-intake space-y-5">
     <header className="ops-hero border border-amber-200/10 bg-gradient-to-br from-[#071525]/95 via-[#0a1c31]/95 to-[#07111f]/95">
       <div><p className="ops-kicker">CAREER GATE · INTELLIGENT OPERATIONS</p><h1>SMART CAREER COLLECT CLIENT</h1><p>{t("Intelligent Intake · Extraction · Verification · Approval","استقبال ذكي · استخراج · تحقق · اعتماد")}</p></div>
@@ -619,7 +627,7 @@ export function SmartCareerCollectClient() {
         </div>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="cg-review-stats grid gap-3 sm:grid-cols-3">
         <Stat label="REQUIRED FIELDS" value={`${readiness.complete} / ${readiness.total}`} tone={readiness.complete === readiness.total ? "emerald" : "amber"} />
         <Stat label="FOLLOW-UP MISMATCHES" value={String(sourceConflicts.length)} tone={sourceConflicts.length ? "amber" : "emerald"} />
         <Stat label="MISSING REPORTED" value={String(detail.case.missing_fields.length)} tone={detail.case.missing_fields.length ? "amber" : "emerald"} />
@@ -627,13 +635,10 @@ export function SmartCareerCollectClient() {
 
       {reviewMode === "audit" && <details className="cg-review-audit-overview" open><summary>Latest recorded evidence <span>{detail.case.field_evidence.length} entries</span></summary><ol>{detail.case.field_evidence.slice(-8).reverse().map((entry, index) => <li key={index}><strong>{SMART_FIELDS.find((field) => field.key === canonicalSmartFieldKey(entry.field_key))?.label ?? entry.field_key}</strong><span>{smartFieldText(entry.normalized_value ?? entry.value) || "Value cleared"}</span><small>{entry.authority === "MANUAL" || entry.source_type === "manual_review" ? "Staff edit" : entry.source_type?.replaceAll("_", " ") || "Source"}</small></li>)}</ol>{detail.case.field_evidence.length === 0 && <p>No evidence has been recorded yet. Field audits remain available below.</p>}<p>Open a field’s Audit to inspect its full history and source readings.</p></details>}
       {reviewChanged && <div role="alert" className="rounded-xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm text-amber-100"><p>Another staff member updated this review. Your changes remain on this screen. Reload the saved review before making further changes.</p><button type="button" className="cg-review-button mt-3" disabled={Boolean(actionBusy)} onClick={async () => { if (await confirmReview(t("Reload review","إعادة تحميل المراجعة"), t("Discard your local edits and load the latest saved review?","هل تريد ترك التعديلات المحلية وتحميل أحدث نسخة؟"))) void openCase(detail.case.id, true); }}>Reload latest review</button></div>}
-      <div className="cg-review-workspace">
+      <div className={`cg-review-workspace${docked ? " is-docked" : ""}`}>
+        {docked ? <aside className="cg-source-dock" aria-label={t("Source documents","وثائق المصدر")}><p className="cg-source-dock-title"><strong>{t("Source documents","وثائق المصدر")}</strong><span>{detail.documents.length} {t("attached","مرفقة")}</span></p>{documentViewer}</aside> : <>
         <div className="cg-source-launch"><div><strong>{t("Source documents","وثائق المصدر")}</strong><p>{detail.documents.length} {t("attached · Preview without leaving this review","مرفقة · معاينة دون مغادرة المراجعة")}</p></div><button type="button" className="cg-review-button" onClick={() => setSourceOpen(true)}>{t("Open documents","فتح الوثائق")} ↗</button></div>
-        {sourceOpen && <GlassReviewDialog title={t("Source documents","وثائق المصدر")} wide drawer onClose={() => setSourceOpen(false)}><div id="smart-document-viewer">
-          <div className="cg-document-controls">{detail.case.status !== "APPROVED_FILE" && <><input ref={reattachRef} className="sr-only" type="file" accept={REATTACH_ACCEPT} multiple onChange={(event) => void reattach(event.target.files)} /><button className="cg-review-button" type="button" disabled={Boolean(actionBusy) || draftDirty || editingField || reviewChanged || offlineSyncing || !offlineDraft.online} onClick={() => reattachRef.current?.click()}>{t("Re-attach","إرفاق وثيقة")}</button></>}<button type="button" aria-label="Zoom out document" disabled={documentZoom <= 50} onClick={() => setDocumentZoom((value) => value-25)}>−</button><span dir="ltr">{documentZoom}%</span><button type="button" aria-label="Zoom in document" disabled={documentZoom >= 250} onClick={() => setDocumentZoom((value) => value+25)}>＋</button><button type="button" onClick={() => setDocumentZoom(100)}>{t("Fit","ملاءمة")}</button></div>
-          {sourceField && <p className="cg-matrix-summary">{t("Source review","مراجعة المصدر")} · {sourceField}</p>}
-          {activeDocument ? <><div className="cg-document-stage">{activeDocument.mime_type.startsWith("image/") ? <img style={{width:`${documentZoom}%`}} src={`/api/staff/smart-client-import/document/${activeDocument.id}`} alt={activeDocument.original_filename} /> : <iframe title={activeDocument.original_filename} style={{width:`${documentZoom}%`}} src={`/api/staff/smart-client-import/document/${activeDocument.id}#page=${sourcePage??1}&zoom=${documentZoom}`} />}</div><div className="cg-document-controls" style={{marginTop:16}}>{detail.documents.map((doc) => <button type="button" key={doc.id} aria-pressed={activeDocument.id===doc.id} onClick={() => {setActiveDocumentId(doc.id);setSourcePage(null);setDocumentZoom(100);}}>{doc.original_filename}</button>)}</div></> : <p className="cg-override-summary">{t("No source document attached. You can approve with a recorded reason, then attach documents to the Client later.","لا توجد وثيقة مرفقة. يمكن الاعتماد بسبب مسجل، ثم استكمال الوثائق في ملف العميل لاحقاً.")}</p>}
-        </div></GlassReviewDialog>}
+        {sourceOpen && <GlassReviewDialog title={t("Source documents","وثائق المصدر")} wide drawer onClose={() => setSourceOpen(false)}>{documentViewer}</GlassReviewDialog>}</>}
 
         <div className="cg-review-data min-w-0 p-4 sm:p-5">
           <div className="flex flex-wrap items-end justify-between gap-2">
@@ -738,7 +743,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone: "eme
     red: "border-red-300/25 text-red-200",
   } as const;
   return (
-    <div className={`rounded-xl border bg-black/15 px-3 py-2.5 ${map[tone]}`}>
+    <div className={`cg-review-stat rounded-xl border bg-black/15 px-3 py-2.5 ${map[tone]}`}>
       <span className="block text-[11px] font-semibold tracking-[.14em] text-slate-400">{label}</span>
       <strong className="mt-1 block font-mono text-[16px] font-semibold">{value}</strong>
     </div>

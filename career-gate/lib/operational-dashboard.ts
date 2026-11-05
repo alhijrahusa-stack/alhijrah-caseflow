@@ -110,7 +110,6 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
   const [team, operational, system] = await Promise.all([
     teamWorkload(session),
     withStaff(session, async (tx) => {
-      await tx`select set_config('statement_timeout', '6500', true)`;
       const [[row], pipelineRows, [lifecycleCounts]] = await Promise.all([
         tx`
         with active as (
@@ -222,7 +221,7 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
         paperwork_pending: Number(lifecycleCounts?.paperwork_pending ?? 0),
       };
       return metrics;
-    }),
+    }, { statementTimeoutMs: 6500 }),
     systemHealth(session),
   ]);
   const exceptions = operational.overdue_tasks + operational.overdue_followups + operational.document_attention + operational.unassigned_clients + operational.readiness.blocked + (system?.queue.dead ?? 0) + (system?.failed_notifications_24h ?? 0) + (system?.open_audit_alerts ?? 0);

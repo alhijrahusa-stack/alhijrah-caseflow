@@ -13,13 +13,17 @@ export type StaffSession = {
 
 export type Tx = postgres.TransactionSql;
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function staffFromAccessToken(token: string | undefined): Promise<StaffSession | null> {
   const claims = await verifyAccessToken(token);
-  if (!claims) return null;
-  const [staff] = await sql()`
-    select id, display_name, email, role from staff where auth_user_id = ${claims.sub} and active`;
+  if (!claims || !UUID.test(claims.sub)) return null;
+  // Runs on every staff request. The verified subject is a UUID, written as a literal so the
+  // lookup is one round trip (a bind parameter costs an extra Describe trip with prepare: false).
+  const [staff] = await sql().unsafe(
+    `select id, display_name, email, role from staff where auth_user_id = '${claims.sub}' and active`);
   if (!staff) return null;
-  return { authUserId: claims.sub, staff: staff as StaffSession["staff"] };
+  return { authUserId: claims.sub, staff: staff as unknown as StaffSession["staff"] };
 }
 
 export const getStaffSession = cache(async (): Promise<StaffSession | null> => {
@@ -27,15 +31,34 @@ export const getStaffSession = cache(async (): Promise<StaffSession | null> => {
   return staffFromAccessToken(jar.get(ACCESS_COOKIE)?.value);
 });
 
+
 /**
- * Runs fn in a transaction as the Supabase `authenticated` role with the
- * caller's JWT subject, so row-level security applies to every statement.
+ * Runs `fn` in one transaction as the signed-in staff member, under RLS.
+ *
+ * The caller's JWT claims and the `authenticated` role (plus an optional statement
+ * timeout) are set by one statement that is executed before `fn` runs, so it travels
+ * pipelined ahead of the transaction's first query. It carries no bind parameters:
+ * with `prepare: false` a parameterised statement costs an extra Describe round trip
+ * and stops pipelining. The only variable in it is the staff member's auth user id,
+ * which comes from a verified token and must be a UUID before it is written as a
+ * literal; the timeout is an integer. The server still runs this statement first; if
+ * it fails, the transaction is aborted and nothing in `fn` runs outside the caller's role.
  */
-export async function withStaff<T>(session: StaffSession, fn: (tx: Tx) => Promise<T>): Promise<T> {
+export async function withStaff<T>(session: StaffSession, fn: (tx: Tx) => Promise<T>, options: { statementTimeoutMs?: number } = {}): Promise<T> {
+  if (!UUID.test(session.authUserId)) throw new Error("Invalid staff session identity");
+  const claims = JSON.stringify({ sub: session.authUserId, role: "authenticated" });
+  const timeout = options.statementTimeoutMs === undefined ? null : Math.trunc(options.statementTimeoutMs);
+  if (timeout !== null && !(timeout > 0 && timeout <= 600_000)) throw new Error("Invalid statement timeout");
+  const scope = `select set_config('request.jwt.claims', '${claims}', true), set_config('role', 'authenticated', true)${timeout === null ? "" : `, set_config('statement_timeout', '${timeout}', true)`}`;
   return sql().begin(async (tx) => {
-    await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: session.authUserId, role: "authenticated" })}, true)`;
-    await tx.unsafe("set local role authenticated");
-    return fn(tx);
+    const scoped = tx.unsafe(scope).execute();
+    // fn runs now so its first query is pipelined behind the scope. A handler is
+    // attached at once: fn may reject before the scope returns, and an unhandled
+    // rejection in that window would crash the process. The caller still gets it.
+    const work = (async () => fn(tx))();
+    work.catch(() => undefined);
+    await scoped;
+    return work;
   }) as Promise<T>;
 }
 

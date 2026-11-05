@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import { useEffect, useRef, useState } from "react";
-import { GlassReviewDialog } from "@/components/staff/smart/GlassReviewDialog";
+import { composeName } from "@/lib/reconcile";
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 import { RoyalCombobox } from "@/components/forms/RoyalCombobox";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
@@ -35,8 +35,9 @@ import {
  * Client Data · Validation Matrix.
  *
  * Presentation for the reviewed fields: a section header once, then one compact
- * row per field. A row is read-only until it is opened for editing, so the matrix is not
- * a wall of input boxes. Committing a row validates that field only, with the same
+ * row per field. A row is read-only until it is opened for editing, and opens in place
+ * (no dialog), so the matrix is not a wall of input boxes. A field that needs attention
+ * offers its recorded source values as one-tap suggestions. Committing a row validates that field only, with the same
  * canonical normalizers the server uses, and hands the value to the existing review-save
  * flow — this component never persists anything itself and never holds a second copy of
  * the draft.
@@ -127,6 +128,9 @@ export function ValidationMatrix({ read, onCommit, evidence, missingFields, conf
   const start = fields.find((field) => field.key === "shift_start_time"), end = fields.find((field) => field.key === "shift_end_time");
   const overnight = start && end ? isOvernightShift(smartFieldText(read(start)), smartFieldText(read(end))) : null;
   function select(key: string | null) { setSelected(key); onEditingChange?.(Boolean(key && !readOnly)); }
+  const byKey = (key: string) => fields.find((field) => field.key === key);
+  const part = (key: string) => { const field = byKey(key); return field ? smartFieldText(read(field)) || null : null; };
+  const composedName = composeName(part("first_name"), part("middle_name"), part("last_name"));
   return <div className="cg-matrix cg-validation-cards min-w-0">
     <div className="cg-review-tools"><input type="search" className="cg-review-search" aria-label="Filter client fields" placeholder={t("Find a field or value…","ابحث عن حقل أو قيمة…")} value={search} onChange={(event) => setSearch(event.target.value)} />
       <div className="cg-review-filters" role="group" aria-label="Review field filters">{([["all", t("All fields","كل الحقول")], ["attention", t("Needs attention","يحتاج مراجعة")], ["edited", t("Edited fields","حقول معدلة")]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div></div>
@@ -134,7 +138,7 @@ export function ValidationMatrix({ read, onCommit, evidence, missingFields, conf
     <div className="cg-validation-group-grid">{groups.map((group) => {
       const visible = fields.filter((field) => group.keys.includes(field.key) && matches(field));
       return visible.length > 0 && <section className="cg-validation-group" key={group.title} aria-label={`${group.title} review fields`}><header><div><h4>{group.title}</h4><p>{group.subtitle}</p></div><span>{visible.length}</span></header>
-        <table className="cg-validation-table"><caption className="sr-only">{group.title} client data validation matrix</caption><thead className="sr-only"><tr><th>Field</th><th>Current value</th><th>Review status</th><th>Review</th></tr></thead><tbody>{visible.map((field) => <MatrixRow key={field.key} field={field} value={read(field)} evidence={evidence} missingFields={missingFields} conflicts={conflicts} readOnly={readOnly} disabled={disabled || Boolean(selected && selected !== field.key)} pending={pendingFields.includes(field.key)} editing={selected === field.key} onEdit={() => select(field.key)} onClose={() => select(null)} onCommit={onCommit} onViewSource={onViewSource} staffNames={staffNames} editHref={editHref} />)}</tbody></table>
+        <table className="cg-validation-table"><caption className="sr-only">{group.title} client data validation matrix</caption><thead className="sr-only"><tr><th>Field</th><th>Current value</th><th>Review status</th><th>Review</th></tr></thead><tbody>{visible.map((field) => <MatrixRow key={field.key} composedName={field.key === "full_name" ? composedName : null} field={field} value={read(field)} evidence={evidence} missingFields={missingFields} conflicts={conflicts} readOnly={readOnly} disabled={disabled || Boolean(selected && selected !== field.key)} pending={pendingFields.includes(field.key)} editing={selected === field.key} onEdit={() => select(field.key)} onClose={() => select(null)} onCommit={onCommit} onViewSource={onViewSource} staffNames={staffNames} editHref={editHref} />)}</tbody></table>
       </section>;
     })}</div>
     {visibleCount === 0 && <p className="cg-matrix-summary">No fields match this view. <button type="button" className="cg-review-button" onClick={() => { setSearch(""); setFilter("all"); }}>Show all fields</button></p>}
@@ -142,8 +146,8 @@ export function ValidationMatrix({ read, onCommit, evidence, missingFields, conf
   </div>;
 }
 
-function MatrixRow({ field, value, evidence, missingFields, conflicts, readOnly, disabled, pending, editing, onEdit, onClose, onCommit, onViewSource, staffNames, editHref }: {
-  field: SmartField; value: unknown; staffNames: Readonly<Record<string, string>>; editHref?: string;
+function MatrixRow({ field, value, evidence, missingFields, conflicts, readOnly, disabled, pending, editing, onEdit, onClose, onCommit, onViewSource, staffNames, editHref, composedName }: {
+  field: SmartField; value: unknown; staffNames: Readonly<Record<string, string>>; editHref?: string; composedName: string | null;
   evidence: readonly SmartEvidence[]; missingFields: readonly unknown[]; conflicts: readonly { field_key?: unknown; field?: unknown }[];
   readOnly: boolean; disabled: boolean; pending: boolean; editing: boolean; onEdit: () => void; onClose: () => void;
   onCommit: (commit: MatrixCommit) => void; onViewSource?: (evidence?: SmartEvidence) => void;
@@ -161,22 +165,48 @@ function MatrixRow({ field, value, evidence, missingFields, conflicts, readOnly,
     if (result.error) { setError(result.error); return; }
     setError(null); onCommit({ field, value: result.value }); onClose();
   }
-  return <tr data-field={field.key} data-authority={status.authority} className={`cg-validation-row ${pending ? "has-edit" : ""}`} onClick={(event) => { if (!(event.target as HTMLElement).closest("button,a") && !disabled) onEdit(); }}>
-    <th scope="row" data-label="Field">{field.label}{field.required && <span title="Required identity field"> *</span>}{pending && <small className="cg-unsaved-change">Unsaved change</small>}</th>
-    <td data-label="Current value"><span dir="ltr" className={text ? "" : "is-missing"}>{text || "Not supplied"}</span></td>
-    <td data-label="Review status"><span data-label="State" data-review-state={status.state} className={`cg-review-state ${smartStateClass(status.state)} ${status.authority === "MANUAL" ? "cg-authority-manual" : ""}`}>{stateLabel}</span><small data-label="Provenance">{status.provenance === "local_text" ? "Captured text" : status.provenance ?? "No source recorded"}</small><small data-label="Authority" className={smartAuthorityClass(status.authority)}>{status.authority}</small></td>
-    <td data-label="Actions"><button type="button" className="cg-review-button" aria-label={`${readOnly ? "Review" : "Edit"} ${field.label}`} disabled={disabled} aria-haspopup="dialog" aria-expanded={editing} onClick={onEdit}>{t("Review","مراجعة")} ↗</button>
-      {editing && <GlassReviewDialog title={`${field.label} · ${t("Review","مراجعة")}`} drawer onClose={() => { setError(null); onClose(); }}>
-        <div className="cg-field-drawer-value"><span data-review-state={status.state} className={`cg-review-state ${smartStateClass(status.state)}`}>{stateLabel}</span><p dir="ltr">{text || "Not supplied"}</p><small>{status.authority === "MANUAL" ? "Last recorded authority: staff review" : "Source reading: verify against the attached evidence"}</small></div>
-        {!readOnly ? <section className="cg-field-editor"><h3>Review value</h3><MatrixEditor field={field} value={text} onCommit={commit} onCancel={onClose} describedBy={error ? errorId : undefined} invalid={Boolean(error)} />{field.hint && <p>{field.hint}</p>}{savedStatus.state === "CONFLICT" && <p>Apply confirms this value and records the resolution when the review is saved.</p>}{error && <p id={errorId} role="alert">{error}</p>}</section> : editHref && <Link className="cg-review-button" href={editHref}>Edit {field.label} in Client</Link>}
-        {onViewSource && <button type="button" className="cg-review-button cg-source-action" onClick={() => { onClose(); onViewSource(status.evidence ?? { field_key: field.key }); }}>View source document</button>}
-        <section role="region" aria-label={`${field.label} evidence history`} className="cg-field-history"><h3>Evidence & audit history</h3><p>{history.length} recorded {history.length === 1 ? "entry" : "entries"}</p>
-          {pending && <p>The current manual change enters the audit history when you save or approve.</p>}
-          {history.length ? <ol>{history.map((entry, index) => <li key={index}><strong>{entry.authority === "MANUAL" || entry.source_type === "manual_review" ? "Staff review" : entry.source_type?.replaceAll("_", " ") || "Source"}{entry.source_page ? ` · Page ${entry.source_page}` : ""}</strong><p dir="ltr">{smartFieldText(entry.normalized_value ?? entry.value) || "Value cleared"}</p>{entry.previous_value !== undefined && <small>Previous value: {smartFieldText(entry.previous_value) || "Empty"}</small>}{entry.resolution && <small>Conflict explicitly resolved by staff</small>}{entry.source_text_reference && <blockquote>{entry.source_text_reference}</blockquote>}{entry.reviewer_id && <small>Reviewer: {staffNames[entry.reviewer_id] ?? entry.reviewer_id}</small>}{entry.actor_id && entry.actor_id !== entry.reviewer_id && <small>Edited by: {staffNames[entry.actor_id] ?? entry.actor_id}</small>}{entry.reviewed_at && <small>{new Date(entry.reviewed_at).toLocaleString("en-US", { timeZone: "America/Detroit" })}</small>}{entry.source_document_id && onViewSource && <button type="button" className="cg-review-button" onClick={() => { onClose(); onViewSource(entry); }}>View document</button>}</li>)}</ol> : <p>No evidence has been recorded for this field.</p>}
-        </section>
-      </GlassReviewDialog>}
-    </td>
-  </tr>;
+  // One-tap suggestions: distinct values the sources recorded for this field (and, for the
+  // full name, the reviewed name parts), excluding the current value. Applying one goes
+  // through the same validation and review-save flow as a typed edit.
+  const suggestions: { value: string; source: string }[] = [];
+  // In the collapsed row only a conflict or a missing value offers suggestions, and not
+  // once an unsaved edit exists; an open editor always lists them.
+  if (!readOnly && (editing || (!pending && (savedStatus.state === "CONFLICT" || savedStatus.state === "MISSING")))) {
+    const seen = new Set([text.trim().toLowerCase()]);
+    const offer = (candidate: string, source: string) => {
+      const key = candidate.trim().toLowerCase();
+      if (!key || seen.has(key) || suggestions.length >= 3) return;
+      if (validateField(field, candidate).error) return;
+      seen.add(key);
+      suggestions.push({ value: candidate.trim(), source });
+    };
+    if (composedName) offer(composedName, "Name parts");
+    for (const entry of history) {
+      if (entry.authority === "MANUAL" || entry.source_type === "manual_review") continue;
+      offer(smartFieldText(entry.normalized_value ?? entry.value), entry.source_type?.replaceAll("_", " ") || "Source");
+    }
+  }
+  const suggestionChips = suggestions.length > 0 && <span className="cg-suggestions" role="group" aria-label={`${field.label} suggestions`}>{suggestions.map((item) => <button key={item.value} type="button" className="cg-suggestion" disabled={disabled} title={`${t("Apply","تطبيق")} · ${item.source}`} onClick={(event) => { event.stopPropagation(); commit(item.value); }}><span aria-hidden="true">✓</span> <bdi dir="ltr">{item.value}</bdi><small>{item.source}</small></button>)}</span>;
+  return <>
+    <tr data-field={field.key} data-authority={status.authority} className={`cg-validation-row ${pending ? "has-edit" : ""} ${editing ? "is-editing" : ""}`} onClick={(event) => { if (!(event.target as HTMLElement).closest("button,a") && !disabled && !editing) onEdit(); }}>
+      <th scope="row" data-label="Field">{field.label}{field.required && <span title="Required identity field"> *</span>}{pending && <small className="cg-unsaved-change">Unsaved change</small>}</th>
+      <td data-label="Current value"><span dir="ltr" className={text ? "" : "is-missing"}>{text || "Not supplied"}</span></td>
+      <td data-label="Review status"><span data-label="State" data-review-state={status.state} className={`cg-review-state ${smartStateClass(status.state)} ${status.authority === "MANUAL" ? "cg-authority-manual" : ""}`}>{stateLabel}</span><small data-label="Provenance">{status.provenance === "local_text" ? "Captured text" : status.provenance ?? "No source recorded"}</small><small data-label="Authority" className={smartAuthorityClass(status.authority)}>{status.authority}</small>{!editing && suggestionChips}</td>
+      <td data-label="Actions"><button type="button" className="cg-review-button" aria-label={editing ? `Close ${field.label} · Review` : `${readOnly ? "Review" : "Edit"} ${field.label}`} disabled={disabled} aria-expanded={editing} aria-controls={`smart-inline-${field.key}`} onClick={editing ? () => { setError(null); onClose(); } : onEdit}>{editing ? t("Close","إغلاق") : readOnly ? t("Review","مراجعة") : t("Edit","تعديل")}</button></td>
+    </tr>
+    {editing && <tr className="cg-inline-review-row" id={`smart-inline-${field.key}`}><td colSpan={4}>
+      <div className="cg-inline-review" role="region" aria-label={`${field.label} · ${t("Review","مراجعة")}`}>
+        {!readOnly ? <section className="cg-field-editor"><MatrixEditor field={field} value={text} onCommit={commit} onCancel={() => { setError(null); onClose(); }} describedBy={error ? errorId : undefined} invalid={Boolean(error)} />{suggestionChips}{field.hint && <p>{field.hint}</p>}{savedStatus.state === "CONFLICT" && <p>Apply confirms this value and records the resolution when the review is saved.</p>}{error && <p id={errorId} role="alert">{error}</p>}</section> : editHref && <Link className="cg-review-button" href={editHref}>Edit {field.label} in Client</Link>}
+        <div className="cg-inline-review-side">
+          {onViewSource && <button type="button" className="cg-review-button cg-source-action" onClick={() => { setError(null); onClose(); onViewSource(status.evidence ?? { field_key: field.key }); }}>View source document</button>}
+          <section className="cg-field-history" role="region" aria-label={`${field.label} evidence history`}>
+            {pending && <p>The current manual change enters the audit history when you save or approve.</p>}
+            {history.length ? <details open={savedStatus.state === "CONFLICT"}><summary>{t("Evidence & audit history","الأدلة وسجل التدقيق")} · {history.length}</summary><ol>{history.map((entry, index) => <li key={index}><strong>{entry.authority === "MANUAL" || entry.source_type === "manual_review" ? "Staff review" : entry.source_type?.replaceAll("_", " ") || "Source"}{entry.source_page ? ` · Page ${entry.source_page}` : ""}</strong><p dir="ltr">{smartFieldText(entry.normalized_value ?? entry.value) || "Value cleared"}</p>{entry.previous_value !== undefined && <small>Previous value: {smartFieldText(entry.previous_value) || "Empty"}</small>}{entry.resolution && <small>Conflict explicitly resolved by staff</small>}{entry.source_text_reference && <blockquote>{entry.source_text_reference}</blockquote>}{entry.reviewer_id && <small>Reviewer: {staffNames[entry.reviewer_id] ?? entry.reviewer_id}</small>}{entry.actor_id && entry.actor_id !== entry.reviewer_id && <small>Edited by: {staffNames[entry.actor_id] ?? entry.actor_id}</small>}{entry.reviewed_at && <small>{new Date(entry.reviewed_at).toLocaleString("en-US", { timeZone: "America/Detroit" })}</small>}{entry.source_document_id && onViewSource && <button type="button" className="cg-review-button" onClick={() => { setError(null); onClose(); onViewSource(entry); }}>View document</button>}</li>)}</ol></details> : <p>No evidence has been recorded for this field.</p>}
+          </section>
+        </div>
+      </div>
+    </td></tr>}
+  </>;
 }
 
 const EDITOR_CLASS =

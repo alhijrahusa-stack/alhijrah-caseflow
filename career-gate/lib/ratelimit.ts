@@ -27,6 +27,17 @@ export async function hit(name: LimitName, keyHash: string): Promise<boolean> {
   return r.ok as boolean;
 }
 
+/**
+ * Records a hit on two limits for one key in a single statement (one database round
+ * trip instead of two); both hits are always recorded, as two separate calls would.
+ */
+export async function hitBoth(first: LimitName, second: LimitName, keyHash: string): Promise<[boolean, boolean]> {
+  const a = LIMITS[first], b = LIMITS[second];
+  const [r] = await sql()`select public.rate_limit_hit(${first}, ${keyHash}, ${a.window}, ${a.limit}) as first_ok,
+    public.rate_limit_hit(${second}, ${keyHash}, ${b.window}, ${b.limit}) as second_ok`;
+  return [r.first_ok as boolean, r.second_ok as boolean];
+}
+
 /** Checks the current count without recording a hit. */
 export async function remaining(name: LimitName, keyHash: string): Promise<number> {
   const { window, limit } = LIMITS[name];
