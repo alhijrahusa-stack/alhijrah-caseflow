@@ -816,6 +816,8 @@ export async function approveImportCase(session: StaffSession, args: {
   expectedUpdatedAt?: string;
   override?: boolean;
   overrideReason?: string;
+  /** Set only by the automatic path (lib/smart-auto-approval); recorded on the case and the activity log. */
+  auto?: { threshold: number; confidence: Record<string, number> };
 }) {
   assertManager(session);
   return sql().begin(async (tx) => {
@@ -827,6 +829,8 @@ export async function approveImportCase(session: StaffSession, args: {
       throw new ActionError("invalid_approved_state", "Approved import is missing its client reference", 500);
     }
     if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
+    // Re-checked under the row lock: once a person opens the file, it is theirs to decide.
+    if (args.auto && (row.review_started_at || row.reviewer_id)) throw new ActionError("review_started", "A person is reviewing this file", 409);
     assertReviewVersion(row.updated_at, args.expectedUpdatedAt);
     assertReviewOwnership(row.reviewer_id, args.reviewerId);
     // The case guard only permits PENDING -> UNDER_REVIEW, so approval performs that
@@ -860,7 +864,8 @@ export async function approveImportCase(session: StaffSession, args: {
       reviewer_id: args.reviewerId, approved_at: new Date().toISOString(),
       outstanding_fields: missingItems.map((warning) => warning.field),
     } : null;
-    const approvalResult = { ...verification.result, override };
+    const autoApproval = args.auto ? { approved_automatically: true, threshold: args.auto.threshold, confidence: args.auto.confidence, at: new Date().toISOString() } : null;
+    const approvalResult = { ...verification.result, override, ...(autoApproval ? { auto_approval: autoApproval } : {}) };
     // Approve the persistable draft: optional values that cannot satisfy their canonical
     // type were cleared and are reported as warnings, with their source evidence intact.
     const draft = verification.draft;
@@ -927,7 +932,7 @@ export async function approveImportCase(session: StaffSession, args: {
       entityId: args.id,
       newValue: {
         approved_from_import: true, source_type: row.source_type, document_count: verification.documentCount,
-        override,
+        override, auto_approval: autoApproval,
         document_match_confirmed: args.documentConfirmed, information_match_confirmed: args.informationConfirmed,
         follow_up_required: verification.assessment.warnings.length > 0,
         outstanding_fields: verification.assessment.warnings.map((warning) => warning.field),
