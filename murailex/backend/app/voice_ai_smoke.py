@@ -50,7 +50,7 @@ def run_groq_smoke() -> None:
                 log.error("GROQ_REAL_SMOKE stage=TTS status=FAILED reason=invalid_wav")
                 return
             tts_ms = round((time.monotonic() - started) * 1000)
-            log.info(
+            log.warning(
                 "GROQ_REAL_SMOKE stage=TTS status=SUCCESS model=canopylabs/orpheus-arabic-saudi "
                 "bytes=%d sha256=%s elapsed_ms=%d",
                 len(wave), hashlib.sha256(wave).hexdigest(), tts_ms,
@@ -71,11 +71,11 @@ def run_groq_smoke() -> None:
             if not isinstance(content, str) or not content.strip():
                 log.error("GROQ_REAL_SMOKE stage=STT status=FAILED reason=empty_transcript")
                 return
-            log.info(
+            log.warning(
                 "GROQ_REAL_SMOKE stage=STT status=SUCCESS model=whisper-large-v3 "
                 "nonempty=true chars=%d elapsed_ms=%d",
                 len(content), round((time.monotonic() - stt_start) * 1000),
             )
-            log.info("GROQ_REAL_SMOKE status=SUCCESS stages=2 elapsed_ms=%d", round((time.monotonic() - started) * 1000))
+            log.warning("GROQ_REAL_SMOKE status=SUCCESS stages=2 elapsed_ms=%d", round((time.monotonic() - started) * 1000))
     except (httpx.HTTPError, ValueError, TypeError) as exc:
         log.error("GROQ_REAL_SMOKE status=FAILED exception=%s", type(exc).__name__)
