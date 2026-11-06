@@ -77,8 +77,8 @@ export function GroqVoiceStudio() {
     if (!file || !consent || !available || sttBusy) return;
     setSttError("");
     setTranscript(null);
-    if (file.size > (status?.max_stt_upload_bytes ?? 25 * 1024 * 1024)) {
-      setSttError(rtl ? "حجم الملف أكبر من الحد المسموح (25 ميغابايت)." : "File exceeds the 25 MiB limit.");
+    if (file.size > (status?.max_stt_upload_bytes ?? 25_000_000)) {
+      setSttError(rtl ? "حجم الملف أكبر من الحد المسموح (25 ميغابايت)." : "File exceeds the 25 MB limit.");
       return;
     }
     setSttBusy(true);
