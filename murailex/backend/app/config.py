@@ -65,6 +65,15 @@ class Settings(BaseSettings):
     deepgram_model: str = "nova-3"
     deepgram_language: str = "ar"
 
+    # Research-preview VibeVoice on a separately secured GPU inference host.
+    # External transmission stays disabled until policy review and explicit user consent.
+    vibevoice_external_processing_approved: bool = False
+    vibevoice_asr_base_url: str | None = None
+    vibevoice_asr_api_key: SecretStr | None = None
+    vibevoice_asr_model: str = "vibevoice"
+    vibevoice_tts_ws_url: str | None = None
+    vibevoice_tts_api_key: SecretStr | None = None
+
     # Legal-audio privacy gates are fail-closed. Set true only after the actual account/project
     # controls and contractual data policy have been reviewed for the intended legal recordings.
     assemblyai_legal_audio_approved: bool = False
