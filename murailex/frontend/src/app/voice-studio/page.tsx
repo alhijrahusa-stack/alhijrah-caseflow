@@ -297,7 +297,7 @@ export default function VoiceStudioPage() {
           <Button disabled={!ttsReady || !consent || !text.trim() || synthBusy} onClick={() => void synthesize()}>
             {synthBusy ? (rtl ? "جارٍ توليد الصوت…" : "Generating…") : (rtl ? "توليد وتشغيل" : "Generate and play")}
           </Button>
-          <Button variant="secondary" disabled={!synthBusy && nodesRef.current.length === 0} onClick={stopSpeech}>{rtl ? "إيقاف" : "Stop"}</Button>
+          <Button variant="secondary" disabled={!synthBusy && !complete} onClick={stopSpeech}>{rtl ? "إيقاف" : "Stop"}</Button>
           <Button variant="outline" disabled={!complete} onClick={saveSpeech}>{rtl ? "حفظ WAV" : "Save WAV"}</Button>
           <span className="text-xs tabular-nums text-fg-muted">{seconds.toFixed(1)} s</span>
         </div>
