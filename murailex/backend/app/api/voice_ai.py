@@ -25,7 +25,7 @@ logger = logging.getLogger("murailex.voice_ai")
 
 GROQ_BASE = "https://api.groq.com/openai/v1"
 STT_MODEL = "whisper-large-v3"
-MAX_AUDIO = 25 * 1024 * 1024
+MAX_AUDIO = 25_000_000
 MAX_PROMPT = 500
 ORPHEUS_MODELS = {
     "ar": "canopylabs/orpheus-arabic-saudi",
@@ -102,7 +102,7 @@ async def transcribe(
     if not raw:
         raise HTTPException(422, "Audio file is empty.")
     if len(raw) > MAX_AUDIO:
-        raise HTTPException(413, "The free-tier audio limit is 25 MiB per file.")
+        raise HTTPException(413, "The free-tier audio limit is 25 MB per file.")
     mime = _audio_mime(raw)
     if not mime:
         raise HTTPException(415, "Unsupported or invalid audio container.")
