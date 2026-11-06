@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections import defaultdict, deque
 
@@ -9,7 +10,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 
 from . import audit
-from .api import auth, exports, forensic_controls, recordings, summaries, system, uploads, vibevoice
+from .api import auth, exports, forensic_controls, recordings, summaries, system, uploads, vibevoice, voice_ai
 from .config import get_settings
 from .db import session_factory
 from .models import User
@@ -86,12 +87,17 @@ def create_app() -> FastAPI:
         exports.router,
         summaries.router,
         vibevoice.router,
+        voice_ai.router,
     ):
         app.include_router(r)
 
     @app.on_event("startup")
     def _startup() -> None:
         bootstrap_admin()
+        if s.environment == "production" and s.groq_api_key and s.groq_api_key.get_secret_value().strip():
+            from .voice_ai_smoke import run_groq_smoke
+
+            threading.Thread(target=run_groq_smoke, name="groq-live-smoke", daemon=True).start()
 
     return app
 

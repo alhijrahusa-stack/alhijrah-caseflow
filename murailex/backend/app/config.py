@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     deepgram_model: str = "nova-3"
     deepgram_language: str = "ar"
 
+    # Groq secret is held server-side; no NEXT_PUBLIC or browser exposure.
+    groq_api_key: SecretStr | None = None
+
     # Research-preview VibeVoice on a separately secured GPU inference host.
     # External transmission stays disabled until policy review and explicit user consent.
     vibevoice_external_processing_approved: bool = False

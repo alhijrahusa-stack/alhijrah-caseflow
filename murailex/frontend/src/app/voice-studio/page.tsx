@@ -8,6 +8,7 @@ import { Notice } from "@/components/ui/notice";
 import { PageHeader } from "@/components/ui/page-header";
 import { api, csrf } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { GroqVoiceStudio } from "@/components/groq-voice-studio";
 
 type Engine = {
   configured: boolean;
@@ -238,6 +239,7 @@ export default function VoiceStudioPage() {
           : "Separate research-preview workspace. Results are not certified forensic transcripts and never modify original evidence or audit records."}
       </Notice>
       {error && <Notice tone="danger" role="alert">{error}</Notice>}
+      <GroqVoiceStudio />
 
       <Card className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
