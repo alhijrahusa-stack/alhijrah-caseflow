@@ -12,7 +12,7 @@ import hashlib
 import json
 import logging
 import re
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import httpx
