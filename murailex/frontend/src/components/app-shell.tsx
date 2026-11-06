@@ -1,6 +1,6 @@
 "use client";
 
-import { FileAudio, Home, ListChecks, Settings, ShieldCheck } from "lucide-react";
+import { FileAudio, Home, ListChecks, Settings, ShieldCheck, Volume2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/", key: "home", icon: Home },
   { href: "/transcriptions", key: "transcriptions", icon: FileAudio },
   { href: "/review", key: "review", icon: ListChecks },
+  { href: "/voice-studio", key: "voiceStudio", icon: Volume2 },
   { href: "/settings", key: "settings", icon: Settings },
 ] as const;
 
@@ -112,7 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur lg:hidden" aria-label="Primary">
-        <div className="mx-auto grid max-w-md grid-cols-4">
+        <div className="mx-auto grid max-w-md grid-cols-5">
           {NAV.map(({ href, key, icon: Icon }) => (
             <Link
               key={href}
