@@ -18,6 +18,7 @@ RUN adduser -S -u 10001 murailex
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
+COPY --from=build /app/test-exec.js ./test-exec.js
 USER murailex
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "if [ \"${MURAILEX_VOICE_LIVE_SMOKE:-0}\" = \"1\" ]; then node test-exec.js || exit 1; fi; exec node server.js"]
