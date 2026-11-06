@@ -2,13 +2,12 @@
  * No mocked calls, synthesized placeholder audio, or user recordings.
  * Run with GROQ_API_KEY present. Writes test-audio.mp3 in the temp directory.
  */
-const { createHash } = require("node:crypto");
-const { writeFile } = require("node:fs/promises");
-const { tmpdir } = require("node:os");
-const { join } = require("node:path");
-const { performance } = require("node:perf_hooks");
 
 async function main() {
+  const [{ createHash }, { writeFile }, { tmpdir }, { join }, { performance }] = await Promise.all([
+    import("node:crypto"), import("node:fs/promises"), import("node:os"),
+    import("node:path"), import("node:perf_hooks"),
+  ]);
   if (!process.env.GROQ_API_KEY?.trim()) {
     throw new Error("[BLOCKER: GROQ_API_KEY unavailable to the test runtime]");
   }
