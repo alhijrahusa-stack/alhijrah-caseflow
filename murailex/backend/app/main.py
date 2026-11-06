@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections import defaultdict, deque
 
@@ -93,6 +94,10 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     def _startup() -> None:
         bootstrap_admin()
+        if s.environment == "production" and s.groq_api_key and s.groq_api_key.get_secret_value().strip():
+            from .voice_ai_smoke import run_groq_smoke
+
+            threading.Thread(target=run_groq_smoke, name="groq-live-smoke", daemon=True).start()
 
     return app
 
