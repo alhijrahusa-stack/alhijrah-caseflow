@@ -56,7 +56,7 @@ describe("direct manual workflow routing", () => {
       expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe(status);
     }
     expect(await db`select id from appointments where client_id=${client.id}`).toHaveLength(0);
-    expect(await db`select id from appointment_outcomes where client_id=${client.id}`).toHaveLength(0);
+    expect(await db`select appointment_id from appointment_outcomes where client_id=${client.id}`).toHaveLength(0);
     expect(await db`select id from payment_transactions where client_id=${client.id}`).toHaveLength(0);
     const logs = await db`select staff_id,new_value from activity_log where client_id=${client.id} and action='status_overridden'`;
     expect(logs).toHaveLength(stages.length);
