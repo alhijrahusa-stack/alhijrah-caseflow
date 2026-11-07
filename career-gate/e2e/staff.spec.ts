@@ -30,7 +30,7 @@ test.describe.serial("office workflow", () => {
   test("dashboard shows real counts and the new application", async () => {
     await page.goto("/staff");
     await expect(page.getByTestId("me")).toContainText("TEST Admin");
-    const [{ n }] = await db()`select count(*)::int as n from clients where current_status in ('new_intake','needs_review') and deleted_at is null`;
+    const [{ n }] = await db()`select count(*)::int as n from clients where operational_location='new_intake'`;
     const newClientsKpi = page.locator(".royal-station.station-intake");
     await expect(newClientsKpi).toContainText(String(n));
     await page.goto("/staff/clients?status=new_intake");
