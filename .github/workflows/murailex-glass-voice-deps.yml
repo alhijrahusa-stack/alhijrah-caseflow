@@ -1,0 +1,49 @@
+name: MURAILEX glass voice dependency and build
+on:
+  push:
+    branches:
+      - feat/murailex-voice-glass-20261107
+    paths:
+      - "murailex/frontend/**"
+      - ".github/workflows/murailex-glass-voice-deps.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: murailex/frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: murailex/frontend/package-lock.json
+      - name: Install framer-motion (lucide-react is already pinned)
+        run: |
+          npm install framer-motion --save-exact --no-audit --no-fund
+          npm ls framer-motion lucide-react --depth=0
+      - name: Production build
+        run: npm run build
+      - name: ESLint
+        run: npm run lint -- --max-warnings 0
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Existing unit tests
+        run: npm test
+      - name: Commit MURAILEX dependency lock only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "MURAILEX_LOCK=UNCHANGED"
+          else
+            git commit -m "build(murailex): lock framer-motion dependency"
+            git push origin HEAD:feat/murailex-voice-glass-20261107
+          fi
