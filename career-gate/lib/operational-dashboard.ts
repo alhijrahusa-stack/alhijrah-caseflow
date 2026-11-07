@@ -113,7 +113,11 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
       const [[row], pipelineRows, [lifecycleCounts]] = await Promise.all([
         tx`
         with active as (
-          select id,assigned_staff from clients
+          select id,assigned_staff,operational_location from clients
+          where operational_location not in ('manager','urgent','completed','cancelled','deleted')
+        ),
+        financial_active as (
+          select id from clients
           where deleted_at is null and current_status not in ('completed','cancelled')
         ),
         -- The latest document of each (client, type) that is in a blocking state.
@@ -146,43 +150,41 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
           from client_readiness r join active a on a.id=r.client_id
         )
         select
-          (select count(*)::int from clients c where c.deleted_at is null and c.current_status='new_intake') as new_clients,
-          (select count(*)::int from appointments a join active c on c.id=a.client_id where a.status=any(${OPEN_APPOINTMENTS}) and a.scheduled_at>=now() and a.scheduled_at<=now()+interval '2 hours') as appointments_2h,
+          (select count(*)::int from clients c where c.operational_location='new_intake' and c.current_status='new_intake') as new_clients,
+          (select count(*)::int from appointments a join active c on c.id=a.client_id where c.operational_location='appointments' and a.status=any(${OPEN_APPOINTMENTS}) and a.scheduled_at>=now() and a.scheduled_at<=now()+interval '2 hours') as appointments_2h,
           (select count(*)::int from tasks t join active c on c.id=t.client_id where t.status=any(${OPEN_TASKS}) and t.due_at is not null and (t.due_at at time zone ${TZ})::date=(now() at time zone ${TZ})::date) as tasks_due,
           (select count(*)::int from tasks t join active c on c.id=t.client_id where t.status=any(${OPEN_TASKS}) and t.due_at is not null and t.due_at<now()) as overdue_tasks,
           (select count(*)::int from followups f join active c on c.id=f.client_id where f.status='open' and f.due_date<(now() at time zone ${TZ})::date) as overdue_followups,
           (select count(distinct d.client_id)::int from attention_docs d) as document_attention,
           (select count(*)::int from active where assigned_staff is null) as unassigned_clients,
-          (select count(*)::int from clients c where c.deleted_at is null and c.current_status='completed' and exists (select 1 from activity_log l where l.client_id=c.id and l.action in ('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now()))) as completed_this_month,
+          (select count(*)::int from clients c where c.operational_location='completed' and exists (select 1 from activity_log l where l.client_id=c.id and l.action in ('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now()))) as completed_this_month,
           (select count(*)::int from health) as active_count,
           (select count(*) filter (where healthy)::int from health) as healthy_count,
           rr.ready_count,
           rr.nearly_ready_count,
           rr.blocked_count,
           rr.missing_requirements,
-          (select coalesce(sum(greatest(b.balance,0)),0)::numeric from client_account_balances b join active a on a.id=b.client_id) as receivables,
-          (select coalesce(sum(t.amount),0)::numeric from payment_transactions t join active a on a.id=t.client_id where t.transaction_type='payment' and t.status='confirmed' and t.created_at>=date_trunc('month',now())) as collected_this_month,
-          (select coalesce(sum(t.amount),0)::numeric from payment_transactions t join active a on a.id=t.client_id where t.transaction_type='refund' and t.status='confirmed' and t.created_at>=date_trunc('month',now())) as refunds_this_month,
-          (select count(*)::int from commissions c join active a on a.id=c.client_id where c.status in ('pending','eligible')) as commissions_attention
+          (select coalesce(sum(greatest(b.balance,0)),0)::numeric from client_account_balances b join financial_active a on a.id=b.client_id) as receivables,
+          (select coalesce(sum(t.amount),0)::numeric from payment_transactions t join financial_active a on a.id=t.client_id where t.transaction_type='payment' and t.status='confirmed' and t.created_at>=date_trunc('month',now())) as collected_this_month,
+          (select coalesce(sum(t.amount),0)::numeric from payment_transactions t join financial_active a on a.id=t.client_id where t.transaction_type='refund' and t.status='confirmed' and t.created_at>=date_trunc('month',now())) as refunds_this_month,
+          (select count(*)::int from commissions c join financial_active a on a.id=c.client_id where c.status in ('pending','eligible')) as commissions_attention
         from readiness_rollup rr`,
         tx`
         select current_status as status,count(*)::int as total
         from clients
-        where deleted_at is null and current_status not in ('cancelled')
+        where operational_location not in ('manager','urgent','cancelled','deleted')
         group by current_status
         order by current_status`,
         tx`
         select
-          count(*) filter (where c.current_status in ('new_intake','needs_review'))::int intake,
-          count(*) filter (where c.current_status in ('ready_to_apply','application_in_progress','assessment_required'))::int account,
-          count(*) filter (where c.current_status in ('shift_selected','appointment_required'))::int job,
-          count(*) filter (where c.current_status='appointment_scheduled')::int appointments,
-          count(*) filter (where c.current_status in ('pre_hire_completed','screening_pending','i9_available','post_hire_tasks','ready_for_first_day') and coalesce(a.payment_status,'pending')<>'paid')::int payment_pending,
-          count(*) filter (where c.current_status in ('pre_hire_completed','screening_pending','i9_available','post_hire_tasks','ready_for_first_day'))::int paperwork_pending,
-          count(*) filter (where c.current_status='completed')::int registry
-        from clients c
-        left join client_accounts a on a.client_id=c.id
-        where c.deleted_at is null`,
+          count(*) filter (where operational_location='new_intake')::int intake,
+          count(*) filter (where operational_location='account_setup')::int account,
+          count(*) filter (where operational_location='job_ready')::int job,
+          count(*) filter (where operational_location='appointments')::int appointments,
+          count(*) filter (where operational_location='payment_required')::int payment_pending,
+          count(*) filter (where operational_location='paperwork_pending')::int paperwork_pending,
+          count(*) filter (where operational_location='completed')::int registry
+        from clients`,
       ]);
       const active = Number(row?.active_count ?? 0);
       const healthy = Number(row?.healthy_count ?? 0);
@@ -214,7 +216,7 @@ export async function dashboardCommandData(session: StaffSession): Promise<Dashb
           account: Number(lifecycleCounts?.account ?? 0),
           job: Number(lifecycleCounts?.job ?? 0),
           appointments: Number(lifecycleCounts?.appointments ?? 0),
-          paperwork: Number(lifecycleCounts?.paperwork_pending ?? 0),
+          paperwork: Number(lifecycleCounts?.payment_pending ?? 0) + Number(lifecycleCounts?.paperwork_pending ?? 0),
           registry: Number(lifecycleCounts?.registry ?? 0),
         },
         payment_pending: Number(lifecycleCounts?.payment_pending ?? 0),

@@ -8,6 +8,7 @@ import { StaffLanguageProvider, StaffLanguageToggle, StaffText } from "@/compone
 import { CommandPalette } from "@/components/staff/CommandPalette";
 import { StaffAppointmentAlerts } from "@/components/staff/StaffAppointmentAlerts";
 import { ExecutiveTactileFX } from "@/components/staff/ExecutiveTactileFX";
+import { StaffPresence } from "@/components/staff/StaffPresence";
 import { ExecutiveTelemetry } from "@/components/staff/ExecutiveTelemetry";
 import { QuickClientSearch } from "@/components/staff/QuickClientSearch";
 import { SignOutButton } from "@/components/staff/SignOutButton";
@@ -26,6 +27,7 @@ import "../executive-design-system.css";
 import "../executive-refinement.css";
 import "../field-ux.css";
 import "../royal-executive.css";
+import "../urgent-glass.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { manifest: "/staff.webmanifest" };
@@ -40,6 +42,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   return (
     <StaffLanguageProvider initialLanguage={initialLanguage}><StaffProvider me={{ id: session.staff.id, display_name: session.staff.display_name, role: session.staff.role, canScheduleAppointment }} staff={staff}>
       <SectionBoundary name="tactile-fx" fallback={null}><ExecutiveTactileFX /></SectionBoundary>
+      <SectionBoundary name="staff-presence" fallback={null}><StaffPresence authUserId={session.authUserId} /></SectionBoundary>
       <ExecutiveShell initial={summary} management={mgmt} header={<>
         <Link href="/staff" className="royal-header-brand" prefetch={false}><Image src="/brand/career-gate.webp" alt="Career Gate" width={48} height={48}/><span>CAREER GATE<small>{OFFICE.location}</small></span></Link>
         <div className="royal-command-bar"><SectionBoundary name="quick-search" fallback={null}><QuickClientSearch /></SectionBoundary><SectionBoundary name="command-palette" fallback={null}><CommandPalette /></SectionBoundary></div>

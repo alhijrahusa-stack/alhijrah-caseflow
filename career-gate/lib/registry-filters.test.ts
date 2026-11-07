@@ -8,6 +8,11 @@ describe("registry filter contract",()=>{
     expect(parseRegistryFilters(new URLSearchParams("assigned=none"),false)).toMatchObject({view:"active",stage:"new_intake",assigned:undefined});
     expect(parseRegistryFilters(new URLSearchParams("view=all&stage=account_setup"),true)).toMatchObject({view:"active",stage:"account_setup"});
   });
+  it("keeps Urgent exclusive through search, saved filters and export parameters",()=>{
+    const params = new URLSearchParams("view=all&stage=urgent&q=Ahmed&page=7&status=screening_pending");
+    expect(parseRegistryFilters(params,false)).toMatchObject({view:"active",stage:"urgent",q:"Ahmed",page:7,status:"screening_pending"});
+    expect(registryFilterValues(params,false)).toEqual({view:"active",stage:"urgent",q:"Ahmed",status:"screening_pending"});
+  });
   it("whitelists saved filter fields, validates owner IDs and removes pagination",()=>{
     expect(registryFilterValues(new URLSearchParams("view=all&assigned=anything&page=4&sql=drop&q=Ahmed&status=bogus"),true)).toEqual({view:"all",q:"Ahmed"});
     expect(parseRegistryFilters(new URLSearchParams("page=NaN"),true).page).toBe(1);

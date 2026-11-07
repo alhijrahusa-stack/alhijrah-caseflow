@@ -38,12 +38,14 @@ export function dbErrorResponse(e: unknown, traceId?: string) {
       traceId,
     );
   }
+  if(pg?.code === "P0001" && pg.message?.includes("manager_review_pending")) return err("manager_review_pending","This file is awaiting a manager decision",409,traceId);
   if (pg?.code === "P0001" && pg.message?.startsWith("invalid_status_transition")) {
     return err("invalid_transition", "That status change is not allowed from the current status", 409, traceId);
   }
   if (pg?.code === "P0001" && pg.message?.startsWith("invalid_initial_status")) {
     return err("invalid_transition", "A new client must start as New Intake, Needs Review or Ready to Apply", 400, traceId);
   }
+  if(pg?.code === "40001") return err("client_changed","The file changed. Refresh and review the latest data before deciding.",409,traceId);
   if (pg?.code === "23P01") return err("client_appointment_overlap", "This client already has an active appointment during the selected time. Different clients may share the same time and location.", 409, traceId);
   if (pg?.code === "23505") return err("conflict", "That record already exists", 409, traceId);
   if (pg?.code === "42501") return err("forbidden", "Not permitted", 403, traceId);

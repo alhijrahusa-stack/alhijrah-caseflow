@@ -157,6 +157,10 @@ async function periodFigures(session: StaffSession, period: ReportPeriod) {
       tx`
         with active as (
           select id,assigned_staff,updated_at from clients
+          where operational_location not in ('manager','urgent','completed','cancelled','deleted')
+        ),
+        financial_active as (
+          select id from clients
           where deleted_at is null and current_status not in ('completed','cancelled')
         ),
         completions as (
@@ -175,14 +179,14 @@ async function periodFigures(session: StaffSession, period: ReportPeriod) {
             where t.transaction_type='payment' and t.status='confirmed' and t.occurred_at>=${current()}) collected_current,
           (select coalesce(sum(t.amount),0) from payment_transactions t
             where t.transaction_type='payment' and t.status='confirmed' and t.occurred_at>=${previous()} and t.occurred_at<${current()}) collected_previous,
-          (select coalesce(sum(greatest(b.balance,0)),0) from client_account_balances b join active a on a.id=b.client_id) receivables,
+          (select coalesce(sum(greatest(b.balance,0)),0) from client_account_balances b join financial_active a on a.id=b.client_id) receivables,
           (select count(*) from active)::int active,
           (select count(*) from active where assigned_staff is null)::int unassigned_active,
           (select count(*) from active where updated_at<now()-make_interval(days => ${STALL_DAYS}))::int stalled,
           (select round(percentile_cont(0.5) within group (order by extract(epoch from (cp.completed_at-c.created_at))/86400)::numeric)
              from completions cp join clients c on c.id=cp.client_id where cp.completed_at>=${current()}) median_days,
           (select count(*) from documents d join clients c on c.id=d.client_id
-            where c.deleted_at is null and d.status='needs_review')::int documents_awaiting_review,
+            where c.operational_location not in ('manager','urgent','completed','cancelled','deleted') and d.status='needs_review')::int documents_awaiting_review,
           (select count(*) from audit_alerts where status='open' and severity in ('high','critical'))::int urgent_alerts`,
       tx`select current_status as key,count(*)::int as n from clients where deleted_at is null group by 1`,
       tx`
@@ -197,9 +201,9 @@ async function periodFigures(session: StaffSession, period: ReportPeriod) {
         order by w.week_start`,
       tx`
         select st.id,st.display_name as name,
-               count(c.id) filter (where c.current_status not in ('completed','cancelled'))::int active,
-               count(c.id) filter (where c.current_status in ('completed','ready_for_first_day'))::int ready_or_done,
-               (select count(*) from tasks t where t.assigned_to=st.id and t.status=any(${OPEN_TASKS}) and t.due_at<now())::int overdue_tasks,
+               count(c.id) filter (where c.operational_location not in ('manager','urgent','completed','cancelled','deleted'))::int active,
+               count(c.id) filter (where c.operational_location='completed' or (c.current_status='ready_for_first_day' and c.operational_location in ('payment_required','paperwork_pending')))::int ready_or_done,
+               (select count(*) from tasks t left join clients tc on tc.id=t.client_id where t.assigned_to=st.id and (t.client_id is null or tc.operational_location not in ('manager','urgent','completed','cancelled','deleted')) and t.status=any(${OPEN_TASKS}) and t.due_at<now())::int overdue_tasks,
                (select count(distinct l.client_id) from activity_log l
                  where l.staff_id=st.id and l.action=any(${COMPLETION_ACTIONS}) and l.new_value->>'status'='completed'
                    and l.created_at>=${current()})::int completed_period
@@ -212,7 +216,7 @@ async function periodFigures(session: StaffSession, period: ReportPeriod) {
         select current_status as status,count(*)::int n,
                floor(extract(epoch from (now()-min(updated_at)))/86400)::int oldest_days
         from clients
-        where deleted_at is null and current_status not in ('completed','cancelled')
+        where operational_location not in ('manager','urgent','completed','cancelled','deleted')
           and updated_at<now()-make_interval(days => ${STALL_DAYS})
         group by 1 order by 2 desc`,
     ]);

@@ -129,7 +129,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await expect(page.getByRole("heading", { name: "Follow-Ups", exact: true })).toBeVisible();
     const [expected] = await db()`select count(*)::int as n from followups f
       join clients c on c.id=f.client_id
-      where c.deleted_at is null and c.current_status not in (\u0027completed\u0027,\u0027cancelled\u0027)
+      where c.operational_location not in (\u0027manager\u0027,\u0027urgent\u0027,\u0027completed\u0027,\u0027cancelled\u0027,\u0027deleted\u0027)
       and f.status=\u0027open\u0027 and f.due_date<(now() at time zone \u0027America/Detroit\u0027)::date`;
     expect(Number(count![0])).toBe(Number(expected.n));
     await expect(page.getByText(`${count![0]} follow-up item`, { exact: false })).toBeVisible();
@@ -196,7 +196,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
   test("task pagination clamps an out-of-range page without losing the total", async () => {
     await page.goto("/staff/tasks?page=99999");
     await expect(page.getByRole("heading", { name: /^Tasks$/ })).toBeVisible();
-    const [expected] = await db()`select count(*)::int as total from tasks t left join clients c on c.id=t.client_id where (c.id is null or c.deleted_at is null) and t.status in ('pending','in_progress')`;
+    const [expected] = await db()`select count(*)::int as total from tasks t left join clients c on c.id=t.client_id where (t.client_id is null or c.operational_location not in ('manager','urgent','completed','cancelled','deleted')) and t.status in ('pending','in_progress')`;
     await expect(page.locator(".ops-hero p").last()).toContainText(`${expected.total} open task`);
     const lastPage = Math.max(1, Math.ceil(expected.total / 50));
     if (lastPage > 1) {
@@ -208,7 +208,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
   test("appointment list reports real totals and clamps invalid page offsets", async () => {
     await page.goto("/staff/appointments?view=all&page=999999");
     await expect(page.getByRole("heading", { name: /Appointments/ })).toBeVisible();
-    const [count] = await db()`select count(*)::int as total from appointments a join clients c on c.id=a.client_id where c.deleted_at is null and c.current_status='appointment_scheduled' and not exists(select 1 from appointment_outcomes o where o.appointment_id=a.id)`;
+    const [count] = await db()`select count(*)::int as total from appointments a join clients c on c.id=a.client_id where c.operational_location='appointments' and not exists(select 1 from appointment_outcomes o where o.appointment_id=a.id)`;
     const total = Number(count.total);
     const pages = Math.max(1, Math.ceil(total / 25));
     await expect(page.locator(".ops-hero p").last()).toContainText(`${total} matching appointment`);

@@ -40,6 +40,8 @@ export function resolveLifecycleRoute(stage: ClientStageFilter, evidence: Routin
     throw new LifecycleRoutingError("closed_case", "Completed, cancelled, or invalid cases cannot be bulk-routed");
   }
 
+  if(stage === "urgent") return {status:current,pipelineStage:"",nextStep:""};
+
   let target: Status = current;
   let pipelineStage: string;
   switch (stage) {
@@ -107,7 +109,7 @@ export function resolveLifecycleRoute(stage: ClientStageFilter, evidence: Routin
 }
 
 /** Manual routing selects a workspace without creating supporting evidence. */
-const OVERRIDE_ENTRY: Record<ClientStageFilter, { status: Status; pipelineStage: string }> = {
+const OVERRIDE_ENTRY: Record<Exclude<ClientStageFilter,"urgent">, { status: Status; pipelineStage: string }> = {
   new_intake: { status: "new_intake", pipelineStage: "portal_intake" },
   account_setup: { status: "ready_to_apply", pipelineStage: "no_amazon_account" },
   job_ready: { status: "shift_selected", pipelineStage: "amazon_account_waiting_job" },
@@ -121,6 +123,7 @@ export function resolveOverrideRoute(stage: ClientStageFilter, currentStatus: st
   if (!(STATUSES as readonly string[]).includes(currentStatus)) {
     throw new LifecycleRoutingError("invalid_status", "The current workflow status is invalid");
   }
+  if(stage === "urgent") return {status:currentStatus as Status,pipelineStage:"",nextStep:""};
   const entry = OVERRIDE_ENTRY[stage];
   return { status: entry.status, pipelineStage: entry.pipelineStage, nextStep: DEFAULT_NEXT_STEP[entry.status] };
 }

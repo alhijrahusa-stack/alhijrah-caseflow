@@ -1,5 +1,4 @@
 import "server-only";
-import { g3StageForStatus } from "@/lib/g3-stages";
 import { ACCOUNT_NET_FEE } from "@/lib/accounting-schema";
 import { withStaff, type StaffSession } from "@/lib/auth";
 import type { PipelineClient, PipelineStage } from "@/lib/operations";
@@ -14,7 +13,7 @@ export async function activePipelineData(session:StaffSession):Promise<{stages:P
     const [stagesRaw,clientsRaw,countsRaw]=await Promise.all([
       tx`select key,position,label_en,label_ar,color,terminal from pipeline_stages order by position`,
       tx`
-      select c.id,c.ref,c.full_name,c.pipeline_stage,c.current_status,c.next_step,c.assigned_staff,
+      select c.id,c.ref,c.full_name,c.pipeline_stage,c.operational_location,c.current_status,c.next_step,c.assigned_staff,
              s.display_name assigned_name,
              p.site_code,p.site_name,p.site_address,p.shift_code,p.shift_name,p.days shift_days,p.hours shift_hours,p.shift_period,p.auto_dispatched_at,
              a.payment_status,${tx.unsafe(ACCOUNT_NET_FEE("a"))} fee_amount
@@ -26,14 +25,14 @@ export async function activePipelineData(session:StaffSession):Promise<{stages:P
         order by case p.rank when 'primary' then 0 else 1 end,p.preference_order limit 1
       ) p on true
       left join client_accounts a on a.client_id=c.id
-      where c.deleted_at is null and c.current_status not in ('completed','cancelled')
+      where c.operational_location not in ('manager','urgent','completed','cancelled','deleted')
       order by c.updated_at desc limit 1000`,
-      tx`select current_status as status,count(*)::int as total from clients where deleted_at is null and current_status<>'cancelled' group by current_status`,
+      tx`select current_status as status,count(*)::int as total from clients where operational_location not in ('manager','urgent','cancelled','deleted') group by current_status`,
     ]);
     const stages=stagesRaw as unknown as PipelineStage[];
     const terminal=new Set(stages.filter((s)=>s.terminal).map((s)=>s.key));
-    const projection:Record<string,string>={intake:"portal_intake",account:"no_amazon_account",job:"amazon_account_waiting_job",appointments:"interview_scheduled",paperwork:"post_interview_completion",registry:"completed_files"};
-    const all=(clientsRaw as unknown as PipelineClient[]).map((c)=>({...c,pipeline_stage:projection[g3StageForStatus(c.current_status)??""]??c.pipeline_stage,fee_amount:c.fee_amount==null?null:Number(c.fee_amount)}));
+    const projection:Record<string,string>={new_intake:"portal_intake",account_setup:"no_amazon_account",job_ready:"amazon_account_waiting_job",appointments:"interview_scheduled",payment_required:"payment_required",paperwork_pending:"post_interview_completion",completed:"completed_files"};
+    const all=(clientsRaw as unknown as (PipelineClient & {operational_location:string})[]).map((c)=>({...c,pipeline_stage:projection[c.operational_location]??c.pipeline_stage,fee_amount:c.fee_amount==null?null:Number(c.fee_amount)}));
     return { stages:stages.filter((s)=>!s.terminal), clients:all.filter((c)=>!terminal.has(c.pipeline_stage)), exceptions:all.filter((c)=>terminal.has(c.pipeline_stage)), statusCounts: countsRaw as unknown as {status:string;total:number}[] };
   });
 }

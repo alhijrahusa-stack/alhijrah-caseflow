@@ -8,5 +8,5 @@ export default async function ManagerInboxPage() {
   const session = await getStaffSession();
   if (!session) redirect("/staff/login");
   if (session.staff.role === "staff") return <p className="ops-error" data-testid="forbidden">403 — Admin or manager only.</p>;
-  return <ManagerTaskCenter initial={await managerInbox(session)} />;
+  return <ManagerTaskCenter initial={await managerInbox(session)} reviewerId={session.staff.id} />;
 }

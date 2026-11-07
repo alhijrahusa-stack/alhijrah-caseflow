@@ -10,7 +10,7 @@ export async function syncPostPaymentLifecycle(
   traceId: string
 ): Promise<{ changed: boolean; paymentReady: boolean }> {
   const [client] = await tx`
-    select id,current_status,pipeline_stage,next_step from clients
+    select id,current_status,pipeline_stage,next_step,manager_review_id from clients
     where id=${clientId} and deleted_at is null for update`;
   if (!client || !POST_HIRE.includes(String(client.current_status))) return { changed: false, paymentReady: false };
 
@@ -19,6 +19,9 @@ export async function syncPostPaymentLifecycle(
   if (!passed) return { changed: false, paymentReady: false };
   const [account] = await tx`select payment_status from client_accounts where client_id=${clientId}`;
   const paymentReady = account?.payment_status === "paid";
+  // Financial evidence may be reconciled while the manager has the file; only
+  // the manager decision may release that hold or change its workflow position.
+  if (client.manager_review_id) return { changed: false, paymentReady };
   const newStatus = paymentReady && client.current_status === "pre_hire_completed"
     ? "screening_pending" : String(client.current_status);
   const newStage = paymentReady ? "post_interview_completion" : "payment_required";

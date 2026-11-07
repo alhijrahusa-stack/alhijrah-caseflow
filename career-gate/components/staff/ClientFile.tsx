@@ -9,6 +9,8 @@ import {
   AddNoteForm, AppointmentForm, AssignForm, ContactedForm, DocumentForm, FollowupForm, NextStepForm, type Panel, StatusForm, TaskForm,
 } from "@/components/staff/ClientActions";
 import { ClientAccountPanel } from "@/components/staff/ClientAccountPanel";
+import { ClientDispatchActions } from "@/components/staff/ClientDispatchActions";
+import { ReviewStamp } from "@/components/staff/ReviewStamp";
 import { ClientWorkflowControl } from "@/components/staff/ClientWorkflowControl";
 import { SendToManagerButton } from "@/components/staff/SendToManagerButton";
 import { InlineField } from "@/components/staff/InlineField";
@@ -117,7 +119,7 @@ export function ClientFile({
   const data = live.data;
   const account = live.account;
   const { client: c } = data;
-  const { isManager, isAdmin, canScheduleAppointment } = useStaff();
+  const { isManager, canScheduleAppointment } = useStaff();
   const isMounted = useHydrated();
   const rescheduleAction = useRowAction("Appointment decision saved");
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
@@ -158,8 +160,8 @@ export function ClientFile({
 
   const quick: [Panel, string, boolean][] = [
     ["document", "Add Document", true], ["appointment", "Add Appointment", canScheduleAppointment], ["note", "Add Note", true], ["task", "Add Task", true],
-    ["contacted", "Mark Contacted", true], ["status", "Change Status", isManager], ["next_step", "Set Next Step", true],
-    ["followup", "Add Follow-Up", true], ["assign", "Assign Staff", isManager],
+    ["contacted", "Mark Contacted", true], ["status", "Change Status", isManager && !c.manager_review_id], ["next_step", "Set Next Step", true],
+    ["followup", "Add Follow-Up", true], ["assign", "Assign Staff", isManager && !c.manager_review_id],
   ];
 
   const actionWeight: Partial<Record<Status, Panel[]>> = {
@@ -215,6 +217,7 @@ export function ClientFile({
               <span className="cg-client-pipeline">{uiLabel(pipelineLabel(c.pipeline_stage))}</span>
               {account?.payment_status === "paid" && <span className="cg-client-paid"><StaffLabel en="Paid · $"/>{account.net_fee.toFixed(2)}</span>}
             </div>
+            <ReviewStamp stamp={c.review_stamp} pending={!!c.manager_review_id} />
             <p className="cg-client-handler"><StaffLabel en="Handled by:"/>{" "}<strong data-testid="assigned-name">{c.assigned_name ?? "Unassigned"}</strong></p>
           </div>
           <div className="cg-client-live-slot"><RealtimeRefresher clientId={c.id} /></div>
@@ -245,8 +248,8 @@ export function ClientFile({
         </div>
       </section>
 
-      <ClientWorkflowControl clientId={String(c.id)} status={String(c.current_status)}  />
-      {!c.deleted_at && <div className="flex justify-end"><SendToManagerButton clientId={String(c.id)} /></div>}
+      {!c.deleted_at && !c.manager_review_id && <ClientWorkflowControl clientId={String(c.id)} status={String(c.current_status)} />}
+      {!c.deleted_at && <div className="flex flex-wrap items-start justify-between gap-3"><ClientDispatchActions clientId={String(c.id)} isUrgent={c.is_urgent === true} managerReviewId={c.manager_review_id} updatedAt={String(c.updated_at)} operationalLocation={c.operational_location} management={isManager}/>{!c.manager_review_id && <SendToManagerButton clientId={String(c.id)} />}</div>}
       <div className="cg-profile-tabs" aria-label={uiLabel("Client file sections")}>
         {tabs.map((item) => (
           <button key={item.id} type="button" className="staff-tab cg-profile-tab whitespace-nowrap" data-active={selectedTab === item.id} aria-busy={selectedTab === item.id && tab !== item.id} onClick={() => replaceTab(item.id)}>
@@ -277,10 +280,10 @@ export function ClientFile({
         {isMounted && panel === "note" && <AddNoteForm clientId={c.id} onDone={close} />}
         {isMounted && panel === "task" && <TaskForm clientId={c.id} onDone={close} />}
         {isMounted && panel === "contacted" && <ContactedForm clientId={c.id} onDone={close} />}
-        {isMounted && panel === "status" && <StatusForm clientId={c.id} current={c.current_status} nextStep={c.next_step} onDone={close} />}
+        {isMounted && !c.manager_review_id && panel === "status" && <StatusForm clientId={c.id} current={c.current_status} nextStep={c.next_step} onDone={close} />}
         {isMounted && panel === "next_step" && <NextStepForm clientId={c.id} nextStep={c.next_step} onDone={close} />}
         {isMounted && panel === "followup" && <FollowupForm clientId={c.id} onDone={close} />}
-        {isMounted && panel === "assign" && <AssignForm clientId={c.id} current={c.assigned_staff} onDone={close} />}
+        {isMounted && !c.manager_review_id && panel === "assign" && <AssignForm clientId={c.id} current={c.assigned_staff} onDone={close} />}
       </div>
 
       {isMounted && rescheduleAppt && <RescheduleModal
@@ -363,7 +366,7 @@ export function ClientFile({
       )}
 
       {tab === "activity" && (
-        <div className="space-y-4"><Activity activity={data.activity} />{isAdmin && !c.deleted_at && <SoftDelete clientId={c.id} />}</div>
+        <div className="space-y-4"><Activity activity={data.activity} />{isManager && !c.deleted_at && !c.manager_review_id && <SoftDelete clientId={c.id} />}</div>
       )}
     </div>
   );

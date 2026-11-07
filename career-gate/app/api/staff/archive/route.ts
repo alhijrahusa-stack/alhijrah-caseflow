@@ -1,15 +1,17 @@
 import { z } from "zod";
-import { getStaffSession } from "@/lib/auth";
+import { getStaffSession, withStaff, type Tx } from "@/lib/auth";
 import { sql } from "@/lib/db";
-import { err, ok } from "@/lib/http";
+import { dbErrorResponse, err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
-import { logActivity } from "@/lib/service";
+import { ActionError, logActivity } from "@/lib/service";
+import { archiveClient } from "@/lib/client-archive";
+import { staffOperation } from "@/lib/staff-operation";
 
 export const runtime = "nodejs";
 
 const ArchiveSchema = z.discriminatedUnion("operation", [
-  z.object({ operation: z.literal("archive"), client_id: z.uuid(), reason: z.string().trim().min(1).max(500) }),
-  z.object({ operation: z.literal("restore"), client_id: z.uuid() }),
+  z.object({ operation: z.literal("archive"), client_id: z.uuid(), reason: z.string().trim().min(1).max(500), operation_id: z.uuid().optional() }),
+  z.object({ operation: z.literal("restore"), client_id: z.uuid(), operation_id: z.uuid().optional() }),
 ]);
 
 export async function POST(req: Request) {
@@ -22,35 +24,18 @@ export async function POST(req: Request) {
 
   const parsed = ArchiveSchema.safeParse(await req.json().catch(() => undefined));
   if (!parsed.success) return err("invalid_input", "Invalid archive request", 400, traceId);
+  const input = parsed.data;
 
   try {
-    const result = await sql().begin(async (tx) => {
+    const updateArchive = (tx: Tx) => staffOperation(tx, session, input.operation_id, `client_${input.operation}`, input, async () => {
+      if (input.operation === "archive") return archiveClient(tx, session, input.client_id, input.reason, traceId);
       const [client] = await tx`
-        select id, deleted_at, deleted_by, delete_reason
+        select id, deleted_at, deleted_by, delete_reason, manager_review_id
         from clients
-        where id = ${parsed.data.client_id}
+        where id = ${input.client_id}
         for update`;
-      if (!client) return null;
-
-      if (parsed.data.operation === "archive") {
-        if (client.deleted_at) return { id: client.id, changed: false, archived: true };
-        await tx`
-          update clients
-          set deleted_at = now(),
-              deleted_by = ${session.staff.id},
-              delete_reason = ${parsed.data.reason},
-              updated_at = now()
-          where id = ${client.id}`;
-        await logActivity(tx, {
-          clientId: client.id,
-          action: "client_deleted",
-          actor: { staffId: session.staff.id, traceId },
-          entityType: "client",
-          entityId: client.id,
-          newValue: { reason: parsed.data.reason, recoverable: true },
-        });
-        return { id: client.id, changed: true, archived: true };
-      }
+      if (!client) throw new ActionError("not_found", "Client not found", 404);
+      if (client.manager_review_id) throw new ActionError("manager_review_pending", "Resolve the manager review before restoring this file", 409);
 
       if (!client.deleted_at) return { id: client.id, changed: false, archived: false };
       await tx`
@@ -75,10 +60,13 @@ export async function POST(req: Request) {
       });
       return { id: client.id, changed: true, archived: false };
     });
+    const result = input.operation === "archive"
+      ? await withStaff(session, updateArchive)
+      : await sql().begin(updateArchive);
 
-    if (!result) return err("not_found", "Client not found", 404, traceId);
     return ok(result, 200, traceId);
-  } catch {
-    return err("archive_failed", "Unable to update archive state", 500, traceId);
+  } catch (error) {
+    if (error instanceof ActionError) return err(error.code, error.message, error.status, traceId);
+    return dbErrorResponse(error, traceId);
   }
 }

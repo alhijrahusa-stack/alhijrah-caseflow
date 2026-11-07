@@ -2,6 +2,7 @@ export const CLIENT_STAGES = [
   { id: "new_intake", label: "New Intake", labelAr: "العملاء الجدد", href: "/staff/clients?stage=new_intake" },
   { id: "account_setup", label: "Account Setup", labelAr: "بلا حساب Amazon جاهز", href: "/staff/clients?stage=account_setup" },
   { id: "job_ready", label: "Job Ready", labelAr: "مؤهل للوظيفة", href: "/staff/clients?stage=job_ready" },
+  { id: "urgent", label: "Urgent", labelAr: "عاجل", href: "/staff/clients?stage=urgent" },
   { id: "appointments", label: "Appointments", labelAr: "المقابلات", href: "/staff/appointments" },
   { id: "payment_required", label: "Payment Required", labelAr: "رسوم المكتب", href: "/staff/clients?stage=payment_required" },
   { id: "paperwork_pending", label: "Paperwork Pending", labelAr: "الوثائق النهائية", href: "/staff/clients?stage=paperwork_pending" },

@@ -4,6 +4,7 @@ import { LifecycleRoutingError } from "@/lib/client-lifecycle-routing";
 import { moveWorkflowClient } from "@/lib/manual-workflow";
 import { withStaff } from "@/lib/auth";
 import { STAFF_ELIGIBLE_PERMISSIONS } from "@/lib/authz";
+import { ActionError } from "@/lib/service";
 import { err, ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
 import { staffGuard } from "@/lib/staff-api";
@@ -249,6 +250,8 @@ export async function POST(req: Request) {
     return ok(result, 200, traceId);
   } catch (error) {
     const message = error instanceof Error ? error.message : "operation_failed";
+    if(message.includes("manager_review_pending"))return err("manager_review_pending","This file is awaiting a manager decision",409,traceId);
+    if (error instanceof ActionError) return err(error.code,error.message,error.status,traceId);
     if (error instanceof LifecycleRoutingError) return err(error.code, error.message, 409, traceId);
     if (message === "FORBIDDEN") return err("forbidden", "This action requires management access", 403, traceId);
     if (message === "CLIENT_NOT_ACCESSIBLE") return err("not_found", "Client not found or not accessible", 404, traceId);
