@@ -39,6 +39,8 @@ test("critical path: sign in → upload → process → review → lock → expo
   await expect.poll(() => page.evaluate(() =>
     JSON.parse(localStorage.getItem("murailex.pendingUploads") || "[]").length,
   )).toBe(0);
+  const recordingUrl = page.url();
+  const recordingId = new URL(recordingUrl).pathname.split("/").pop()!;
   const sha = crypto.createHash("sha256").update(fs.readFileSync(SAMPLE)).digest("hex");
   await expect(page.locator(`button[title="${sha}"]`)).toBeVisible();
 
@@ -102,4 +104,28 @@ test("critical path: sign in → upload → process → review → lock → expo
     if (fmt === "zip" || fmt === "docx") expect(buf.subarray(0, 2).toString()).toBe("PK");
   }
   await expect(page.getByTestId("export-result")).toContainText("SHA-256");
+
+  // A failed forensic preflight must not prevent direct transcription of the
+  // authorized saved original. Simulate the display status, never mutate the DB.
+  await page.route(`**/api/recordings/${recordingId}`, async route => {
+    const response = await route.fetch();
+    const original = await response.json();
+    await route.fulfill({ response, json: {
+      ...original,
+      recording: { ...original.recording, status: "provider_not_configured", status_detail: "Required forensic engine preflight failed." },
+    } });
+  });
+  await page.goto(recordingUrl);
+  await page.getByRole("link", { name: "تفريغ مباشر للتسجيل المحفوظ", exact: true }).click();
+  await page.waitForURL(/\/voice-studio\?recording=/);
+  await expect(page.getByText("التسجيل المحفوظ جاهز للتفريغ المباشر. تم التحقق من بصمة الأصل.", { exact: true })).toBeVisible();
+  await page.route("**/api/stt", route => route.fulfill({ json: {
+    text: "تفريغ مباشر تجريبي", source_sha256: sha, model: "whisper-large-v3",
+  } }));
+  await page.getByRole("button", { name: "رفع الصوت وتفريغه", exact: true }).click();
+  await expect(page.getByText("تفريغ مباشر تجريبي", { exact: true })).toBeVisible();
+  const unchanged = await page.request.get(`/api/recordings/${recordingId}`);
+  const actual = await unchanged.json();
+  expect(actual.recording.status).toBe("locked");
+  expect(actual.recording.sha256).toBe(sha);
 });

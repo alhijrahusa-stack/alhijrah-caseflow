@@ -18,11 +18,13 @@ import {
   WandSparkles,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { TranscriptAnalysisPanel } from "@/components/transcript-analysis-panel";
 import { csrf } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { loadSavedAudio } from "@/lib/saved-audio";
 
 const MAX_AUDIO_BYTES = 25_000_000;
 const MAX_TEXT = 1000;
@@ -73,11 +75,22 @@ function GlassPanel({
 }
 
 export default function VoiceStudioPage() {
+  return <Suspense fallback={<div role="status">…</div>}><VoiceStudioRoute /></Suspense>;
+}
+
+function VoiceStudioRoute() {
+  const recordingId = useSearchParams().get("recording") ?? "";
+  return <VoiceStudioWorkspace key={recordingId} recordingId={recordingId} />;
+}
+
+function VoiceStudioWorkspace({ recordingId }: { recordingId: string }) {
   const { dir } = useI18n();
   const rtl = dir === "rtl";
   const reduceMotion = useReducedMotion();
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [loadingSaved, setLoadingSaved] = useState(!!recordingId);
+  const [savedSha256, setSavedSha256] = useState("");
   const [busy, setBusy] = useState<Processing>(null);
   const [errorTTS, setErrorTTS] = useState("");
   const [errorSTT, setErrorSTT] = useState("");
@@ -96,7 +109,23 @@ export default function VoiceStudioPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!recordingId) return;
+    const controller = new AbortController();
+    void loadSavedAudio(recordingId, controller.signal).then(result => {
+      if (controller.signal.aborted) return;
+      setFile(result.file);
+      setSavedSha256(result.sha256);
+    }).catch(cause => {
+      if (!controller.signal.aborted) setErrorSTT(cause instanceof Error ? cause.message : "Saved audio could not be loaded.");
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoadingSaved(false);
+    });
+    return () => controller.abort();
+  }, [recordingId]);
+
   function setAudioFile(selected: File | null) {
+    setSavedSha256("");
     setErrorSTT("");
     setTranscript("");
     setSourceHash("");
@@ -146,7 +175,7 @@ export default function VoiceStudioPage() {
   }
 
   async function transcribe() {
-    if (!file || busy) return;
+    if (!file || busy || loadingSaved) return;
     setBusy("stt");
     setErrorSTT("");
     setTranscript("");
@@ -171,6 +200,9 @@ export default function VoiceStudioPage() {
         throw new Error("Transcription response is empty or invalid.");
       }
       const response = result as TranscriptResponse;
+      if (savedSha256 && response.source_sha256 !== savedSha256) {
+        throw new Error("Transcription source does not match the saved original.");
+      }
       setTranscript(response.text);
       setSourceHash(typeof response.source_sha256 === "string" ? response.source_sha256 : "");
       setSttElapsed(performance.now() - started);
@@ -347,6 +379,8 @@ export default function VoiceStudioPage() {
                 </span>
               </div>
 
+              {loadingSaved && <p role="status" className="text-sm text-sky-100">{rtl ? "جارٍ تحميل التسجيل المحفوظ والتحقق من بصمته…" : "Loading and verifying the saved recording…"}</p>}
+              {savedSha256 && <p role="status" className="text-sm text-emerald-200">{rtl ? "التسجيل المحفوظ جاهز للتفريغ المباشر. تم التحقق من بصمة الأصل." : "Saved recording ready for direct transcription. Original SHA-256 verified."}</p>}
               <label
                 htmlFor="voice-audio-file"
                 className="group relative flex min-h-56 cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-sky-200/25 bg-gradient-to-b from-sky-300/[0.07] to-transparent p-5 text-center transition hover:border-sky-200/50 hover:from-sky-300/[0.12] focus-within:border-sky-200 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-sky-200"
@@ -357,7 +391,7 @@ export default function VoiceStudioPage() {
                   type="file"
                   accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.webm"
                   className="sr-only"
-                  disabled={busy !== null}
+                  disabled={busy !== null || loadingSaved}
                   onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)}
                 />
                 <span className="grid size-15 place-items-center rounded-2xl border border-sky-200/15 bg-sky-200/10 text-sky-100 shadow-[0_0_32px_-14px_rgba(125,211,252,.4)] transition group-hover:scale-105">
@@ -423,7 +457,7 @@ export default function VoiceStudioPage() {
 
               <button
                 type="button"
-                disabled={!file || busy !== null}
+                disabled={!file || busy !== null || loadingSaved}
                 onClick={() => void transcribe()}
                 className="flex min-h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-[#149BB6] to-[#238FBF] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_35px_-14px_rgba(14,165,233,.75)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300 disabled:cursor-not-allowed disabled:opacity-45"
               >

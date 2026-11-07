@@ -50,7 +50,8 @@ const STEPS = ["queued", "analyzing", "transcribing", "aligning", "verifying", "
 
 export default function TranscriptPage() {
   const { id } = useParams<{ id: string }>();
-  const { t } = useI18n();
+  const { t, dir } = useI18n();
+  const rtl = dir === "rtl";
   const { user } = useSession();
   const isAdmin = user?.role === "admin";
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -105,6 +106,8 @@ export default function TranscriptPage() {
     return <div className="py-20 text-center text-sm text-fg-muted">{error ?? "…"}</div>;
   }
   const rec = detail.recording;
+  const forensicBlocked = rec.status === "provider_not_configured" ||
+    [rec.status_detail, detail.job?.last_error].some(message => message?.includes("Required forensic engine preflight failed."));
   const content = revision?.content;
   const isLatest = revision && revisions.length > 0 && revision.id === revisions[revisions.length - 1].id;
   const editable = !!(revision && revision.status === "draft" && isLatest);
@@ -148,8 +151,14 @@ export default function TranscriptPage() {
         <Card tone="danger" className="space-y-3">
           <p className="text-sm text-fg">{rec.status_detail}</p>
           {detail.job?.last_error && <p className="break-words font-mono text-xs text-fg-muted" dir="ltr">{detail.job.last_error}</p>}
+          {forensicBlocked && <p className="text-sm text-fg-muted">{rtl ? "يمكن تفريغ التسجيل المحفوظ مباشرةً دون تشغيل المحركات الجنائية غير المهيأة." : "Use direct transcription for this saved recording without running the unconfigured forensic engines."}</p>}
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => act(() => api(`/api/recordings/${id}/reprocess`, { method: "POST" }))} disabled={busy}>
+            {forensicBlocked && <Button asChild>
+              <Link href={`/voice-studio?recording=${encodeURIComponent(id)}`}>
+                {rtl ? "تفريغ مباشر للتسجيل المحفوظ" : "Direct transcription of saved recording"}
+              </Link>
+            </Button>}
+            <Button variant="secondary" onClick={() => act(() => api(`/api/recordings/${id}/reprocess`, { method: "POST" }))} disabled={busy}>
               <RefreshCcw /> {t("reprocess")}
             </Button>
             <Button asChild variant="secondary">
