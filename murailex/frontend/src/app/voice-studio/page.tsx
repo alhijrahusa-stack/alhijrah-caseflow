@@ -8,10 +8,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Clipboard,
   CloudUpload,
   FileAudio2,
-  FileText,
   Headphones,
   LoaderCircle,
   Mic2,
@@ -22,6 +20,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { TranscriptAnalysisPanel } from "@/components/transcript-analysis-panel";
 import { csrf } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
@@ -85,7 +84,7 @@ export default function VoiceStudioPage() {
   const [audioUrl, setAudioUrl] = useState("");
   const [transcript, setTranscript] = useState("");
   const [sourceHash, setSourceHash] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [whisperContext, setWhisperContext] = useState("");
   const [ttsElapsed, setTtsElapsed] = useState<number | null>(null);
   const [sttElapsed, setSttElapsed] = useState<number | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -157,6 +156,7 @@ export default function VoiceStudioPage() {
     try {
       const form = new FormData();
       form.set("file", file);
+      if (whisperContext.trim()) form.set("prompt", whisperContext.trim());
       const res = await fetch("/api/stt", {
         method: "POST",
         credentials: "same-origin",
@@ -179,26 +179,6 @@ export default function VoiceStudioPage() {
     } finally {
       setBusy(null);
     }
-  }
-
-  async function copyTranscript() {
-    if (!transcript) return;
-    try {
-      await navigator.clipboard.writeText(transcript);
-      setCopied(true);
-    } catch {
-      setErrorSTT(rtl ? "تعذّر النسخ إلى الحافظة." : "Clipboard access was denied.");
-    }
-  }
-
-  function downloadTranscript() {
-    if (!transcript) return;
-    const url = URL.createObjectURL(new Blob([transcript], { type: "text/plain;charset=utf-8" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "murailex-transcript.txt";
-    anchor.click();
-    URL.revokeObjectURL(url);
   }
 
   const animateUp = reduceMotion ? {} : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } };
@@ -396,6 +376,30 @@ export default function VoiceStudioPage() {
                 </span>
               </label>
 
+              <label className="block space-y-2 rounded-xl border border-white/[0.09] bg-black/[0.13] px-4 py-3">
+                <span className="block text-xs font-semibold text-white/75">
+                  {rtl ? "سياق اللهجة والأسماء (اختياري)" : "Dialect and names context (optional)"}
+                </span>
+                <textarea
+                  rows={2}
+                  maxLength={160}
+                  value={whisperContext}
+                  onChange={(e) => setWhisperContext(e.target.value)}
+                  disabled={busy !== null}
+                  dir="auto"
+                  className="w-full resize-y bg-transparent text-xs leading-6 text-white/80 outline-none placeholder:text-white/35"
+                  placeholder={rtl
+                    ? "مثال: تسجيل مالي. أسماء: عمر، عبدالله، سناء. مبالغ: 15,000، 94,000."
+                    : "Example: Arabic financial conversation; names and terms heard in this recording"}
+                  aria-label={rtl ? "السياق الصوتي الاختياري" : "Optional audio context"}
+                />
+                <span className="block text-[11px] text-white/45">
+                  {rtl
+                    ? "اذكر فقط أسماء ومصطلحات موجودة في التسجيل. الحد 200 بايت UTF-8 لضبط عدد رموز Whisper."
+                    : "Include only terms heard in the recording. 200 UTF-8 byte maximum for Whisper."}
+                </span>
+              </label>
+
               {file && (
                 <div className="flex items-center justify-between gap-2 rounded-xl border border-white/[0.09] bg-black/[0.17] px-3.5 py-3 text-xs text-white/65">
                   <span className="flex min-w-0 items-center gap-2">
@@ -432,39 +436,23 @@ export default function VoiceStudioPage() {
               <AnimatePresence mode="wait">
                 {transcript && (
                   <motion.div
-                    key="transcript"
+                    key={sourceHash || "transcription"}
                     initial={reduceMotion ? false : { opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     className="space-y-3 rounded-2xl border border-sky-200/15 bg-sky-200/[0.045] p-4"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-sky-200">
-                        <FileText className="size-4" aria-hidden="true" />
-                        {rtl ? "النص المستخرج" : "Transcription"}
-                      </span>
-                      {sttElapsed !== null && <span className="text-xs text-white/45">{formatTime(sttElapsed)}</span>}
-                    </div>
-                    <p className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-sm leading-8 text-white/85" dir="auto">{transcript}</p>
-                    {sourceHash && <p className="break-all text-[10px] text-white/35" dir="ltr">SHA-256 {sourceHash}</p>}
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void copyTranscript()}
-                        className="inline-flex items-center gap-2 rounded-lg border border-sky-200/20 bg-sky-200/10 px-3.5 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-200/15"
-                      >
-                        {copied ? <Check className="size-4" aria-hidden="true" /> : <Clipboard className="size-4" aria-hidden="true" />}
-                        {copied ? (rtl ? "تم النسخ" : "Copied") : (rtl ? "نسخ" : "Copy")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={downloadTranscript}
-                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-3.5 py-2 text-xs font-semibold text-white/85 hover:bg-white/10"
-                      >
-                        <ArrowDownToLine className="size-4" aria-hidden="true" />
-                        {rtl ? "تنزيل TXT" : "Download TXT"}
-                      </button>
-                    </div>
+                    {sttElapsed !== null && (
+                      <p className="text-end text-xs text-white/45">
+                        {rtl ? "زمن التفريغ:" : "Transcription time:"} {formatTime(sttElapsed)}
+                      </p>
+                    )}
+                    <TranscriptAnalysisPanel
+                      key={sourceHash || transcript}
+                      rawText={transcript}
+                      sourceSha256={sourceHash}
+                      rtl={rtl}
+                    />
                   </motion.div>
                 )}
               </AnimatePresence>
