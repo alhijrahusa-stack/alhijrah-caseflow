@@ -28,6 +28,8 @@ const securityHeaders = [
 
 const config: NextConfig = {
   output: "standalone",
+  outputFileTracingRoot: process.cwd(),
+  serverExternalPackages: ["msedge-tts", "groq-sdk"],
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
