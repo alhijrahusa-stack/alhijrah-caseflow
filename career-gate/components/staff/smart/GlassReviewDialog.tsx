@@ -3,10 +3,8 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
+import { acquireModalLayer, isTopModalLayer, releaseModalLayer } from "@/lib/modal-layer";
 import "@/components/staff/smart/royal-intake.css";
-
-const dialogStack: symbol[] = [];
-let originalOverflow: string | null = null;
 
 /** A context-preserving dialog with keyboard containment and focus restoration. */
 export function GlassReviewDialog({ title, children, onClose, wide = false, drawer = false, closeLabel }: {
@@ -20,14 +18,12 @@ export function GlassReviewDialog({ title, children, onClose, wide = false, draw
   useEffect(() => { close.current = onClose; }, [onClose]);
   useEffect(() => {
     const id = token.current;
-    if (dialogStack.length === 0) originalOverflow = document.body.style.overflow;
-    dialogStack.push(id);
+    acquireModalLayer(id);
     const prior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    document.body.style.overflow = "hidden";
     const panel = ref.current;
     panel?.focus();
     const keydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || dialogStack.at(-1) !== id) return;
+      if (event.defaultPrevented || !isTopModalLayer(id)) return;
       if (event.key === "Escape") { event.preventDefault(); close.current(); }
       if (event.key !== "Tab" || !panel) return;
       const controls = Array.from(panel.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),[tabindex="0"],iframe')).filter((node) => node.tabIndex >= 0 && !node.closest('[inert],[aria-hidden="true"]') && node.getClientRects().length > 0);
@@ -38,11 +34,9 @@ export function GlassReviewDialog({ title, children, onClose, wide = false, draw
     };
     document.addEventListener("keydown", keydown);
     return () => {
-      const wasTop = dialogStack.at(-1) === id;
-      const position = dialogStack.indexOf(id);
-      if (position !== -1) dialogStack.splice(position, 1);
+      const wasTop = isTopModalLayer(id);
+      releaseModalLayer(id);
       document.removeEventListener("keydown", keydown);
-      if (dialogStack.length === 0) { document.body.style.overflow = originalOverflow ?? ""; originalOverflow = null; }
       if (wasTop && prior?.isConnected) prior.focus();
     };
   }, []);

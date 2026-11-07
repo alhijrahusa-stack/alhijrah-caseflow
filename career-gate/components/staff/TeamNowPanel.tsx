@@ -1,10 +1,13 @@
 "use client";
 
-import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
+import { type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
+import { createStaffRealtimeClient } from "@/lib/staff-realtime-client";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import { dateTime } from "@/lib/format";
+import { acquireModalLayer, isTopModalLayer, releaseModalLayer } from "@/lib/modal-layer";
 import {
   parsePresencePacket, presenceHref, presenceSection, PRESENCE_STALE_MS, safeStaffPresencePath,
   selectCurrentPresence, type StaffPresencePacket, type TeamPresenceClient, type TeamPresenceMember,
@@ -17,7 +20,7 @@ type TeamRow = { member: TeamPresenceMember; packet: StaffPresencePacket | null;
 function initials(name: string) { return name.trim().split(/\s+/).slice(0, 2).map(part => Array.from(part)[0] ?? "").join(""); }
 
 /** Manager-only read surface; each employee's authenticated channel fixes identity. */
-export function TeamNowPanel() {
+export function TeamNowPanel({ compact = false }: { compact?: boolean } = {}) {
   const { t, dir } = useStaffLanguage();
   const [members, setMembers] = useState<TeamPresenceMember[]>([]);
   const [packets, setPackets] = useState<Record<string, StaffPresencePacket[]>>({});
@@ -29,6 +32,37 @@ export function TeamNowPanel() {
   const [clock, setClock] = useState(() => Date.now());
   const [clockOffset, setClockOffset] = useState(0);
   const [retry, setRetry] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const headingId = useId();
+  const modalToken = useRef(Symbol("team-activity"));
+
+  useEffect(() => {
+    if (!compact || !expanded) return;
+    const opener = triggerRef.current;
+    const token = modalToken.current;
+    acquireModalLayer(token);
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]') ?? []);
+    focusable()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !isTopModalLayer(token)) return;
+      if (event.key === "Escape") { event.preventDefault(); setExpanded(false); return; }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      const first = elements[0], last = elements[elements.length - 1];
+      if (!first) { event.preventDefault(); dialogRef.current?.focus(); }
+      else if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      const wasTop = isTopModalLayer(token);
+      releaseModalLayer(token);
+      document.removeEventListener("keydown", onKeyDown);
+      if(wasTop&&opener?.isConnected)opener.focus();
+    };
+  }, [compact, expanded]);
 
   useEffect(() => {
     let disposed = false;
@@ -38,6 +72,7 @@ export function TeamNowPanel() {
     let allowed = false;
     let serverOffset = 0;
     let supabase: SupabaseClient | null = null;
+    let connection: ReturnType<typeof createStaffRealtimeClient> | null = null;
     let currentMembers: TeamPresenceMember[] = [];
     let rosterTimer: ReturnType<typeof setTimeout> | null = null;
     const channels = new Map<string, RealtimeChannel>();
@@ -58,7 +93,7 @@ export function TeamNowPanel() {
       for (const member of currentMembers) {
         const authId = member.auth_user_id;
         if (channels.has(authId)) continue;
-        const channel = supabase.channel(`team-presence:${authId}`, { config: { private: true } });
+        const channel = supabase.channel(`team-presence:${authId}`, { config: { private: true, presence: { enabled: true } } });
         channels.set(authId, channel);
         setChannelStates(previous => ({ ...previous, [authId]: "connecting" }));
         const sync = () => {
@@ -78,6 +113,7 @@ export function TeamNowPanel() {
           if (disposed) return;
           const next = status === "SUBSCRIBED" ? "SUBSCRIBED" : status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED" ? "offline" : "connecting";
           setChannelStates(previous => ({ ...previous, [authId]: next }));
+          if (status === "CLOSED" && channels.get(authId) === channel) channels.delete(authId);
         });
       }
     };
@@ -90,8 +126,8 @@ export function TeamNowPanel() {
         const data = await response.json().catch(() => null);
         if (disposed) return;
         if (!data?.ok) { setError(data?.error?.code === "NOT_CONFIGURED" ? "not_configured" : "unavailable"); return; }
-        if (!supabase) supabase = createClient(data.url, data.anon_key, { auth: { persistSession: false, autoRefreshToken: false } });
-        await supabase.realtime.setAuth(data.token);
+        if (!connection) { connection = createStaffRealtimeClient(data.url, data.anon_key, data.token); supabase = connection.client; }
+        await connection.setToken(data.token);
         if (!disposed) { setError(null); syncChannels(); }
       } catch { if (!disposed) setError("unavailable"); }
       finally { connecting = false; }
@@ -176,9 +212,9 @@ export function TeamNowPanel() {
   const activeCount = rows.filter(row => row.status === "active").length;
   const statusLabel = (status: PresenceStatus) => status === "active" ? t("Active", "نشط") : status === "idle" ? t("Idle", "خامل") : status === "offline" ? t("Offline", "غير متصل") : t("Unverified", "غير متحقق");
 
-  return <section className={styles.panel} dir={dir} aria-labelledby="team-now-heading" data-testid="team-now-panel">
+  const panel = <section className={`${styles.panel} ${compact ? styles.spatialPanel : ""}`} dir={dir} aria-labelledby={headingId} data-testid="team-now-panel">
     <header className={styles.header}>
-      <div><span className={styles.eyebrow}>{t("SHARED WORKSPACE", "مساحة الفريق")}</span><h2 id="team-now-heading">{t("Team now", "الفريق الآن")} <span className={styles.total}>{activeCount}/{members.length}</span></h2></div>
+      <div><span className={styles.eyebrow}>{t("SHARED WORKSPACE", "مساحة الفريق")}</span><h2 id={headingId}>{t("Team now", "الفريق الآن")} <span className={styles.total}>{activeCount}/{members.length}</span></h2></div>
       <div className={styles.tools}><span className={`${styles.connection} ${live ? styles.live : ""}`} role="status"><span aria-hidden="true" />{live ? t("Live", "مباشر") : loading ? t("Connecting…", "جارٍ الاتصال…") : t("Connection unverified", "الاتصال غير متحقق")}</span><button type="button" className={styles.refresh} onClick={() => setRetry(value => value + 1)} aria-label={t("Refresh team presence", "تحديث حالة الفريق")} title={t("Refresh", "تحديث")}>↻</button></div>
     </header>
     <p className={styles.note}>{t("Current viewing activity · idle after 5 minutes", "نشاط المشاهدة الحالي · خمول بعد 5 دقائق")}</p>
@@ -204,4 +240,14 @@ export function TeamNowPanel() {
       })}
     </ul>}
   </section>;
+  if (!compact) return panel;
+  const connected = rows.filter(row => row.status === "active" || row.status === "idle");
+  return <div className={styles.compactRoot} dir={dir}>
+    <button ref={triggerRef} type="button" className={styles.compactTrigger} data-testid="team-now-compact-trigger" aria-label={t("Open team activity", "عرض نشاط الفريق")} aria-expanded={expanded} aria-haspopup="dialog" onClick={() => setExpanded(value => !value)}>
+      <span className={styles.compactAvatars} aria-hidden="true">{connected.length ? connected.slice(0, 5).map(row => <span key={row.member.staff_id} className={styles.compactAvatar} data-state={row.status} title={row.member.display_name}>{initials(row.member.display_name)}<i /></span>) : <span className={styles.compactEmpty}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M21 20v-2a6 6 0 0 0-3-5"/></svg></span>}{connected.length > 5 && <span className={styles.compactMore}>+{connected.length - 5}</span>}</span>
+      <span className={styles.compactLabel}>{t("Team now", "الفريق الآن")}<small><i data-live={live}/>{live ? `${activeCount} ${t("active", "نشط")}` : loading ? t("Connecting", "جارٍ الاتصال") : t("Unverified", "غير متحقق")}</small></span>
+      <svg className={styles.compactChevron} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>
+    </button>
+    {expanded && createPortal(<div className={styles.spatialOverlay} dir={dir} onPointerDown={event => { if (event.target === event.currentTarget) setExpanded(false); }}><div ref={dialogRef} className={styles.spatialDialog} role="dialog" aria-modal="true" aria-labelledby={headingId} tabIndex={-1}><button type="button" className={styles.spatialClose} aria-label={t("Close team activity", "إغلاق نشاط الفريق")} onClick={() => setExpanded(false)}>×</button>{panel}</div></div>, document.body)}
+  </div>;
 }

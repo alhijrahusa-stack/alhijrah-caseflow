@@ -66,6 +66,11 @@ beforeAll(async () => {
     source: "staff_manual", profile: ProfileSchema.parse({ full_name: clientName, phone: "3135558801", employment_history: [] }),
     primary: [], backup: [], status: "new_intake", nextStep: null, assignedStaff: manager.staff.id, createdBy: manager.staff.id, communicationConsent: false,
   }, { staffId: manager.staff.id, traceId: "assistant-chat" }));
+  // document_blockers deliberately returns the first five records by ref.
+  // Give this suite's private fixture an early, schema-valid reference so the
+  // browser-link/model-redaction assertions do not depend on suite execution
+  // order or on how many blockers other integration files created beforehand.
+  await db`update clients set ref='CG-0000-000001' where id=${client.id}`;
   await db`insert into documents(client_id,doc_type,storage_path,file_name,mime_type,size_bytes,status)
     values(${client.id},'photo_id',${`chat/${randomUUID()}.png`},'id.png','image/png',10,'needs_review')`;
 });

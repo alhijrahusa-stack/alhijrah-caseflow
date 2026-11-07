@@ -30,7 +30,7 @@ export async function GET(req: Request) {
   const traceId = traceIdFrom(req);
   const guard = await staffGuard(req, traceId, { mutation: false });
   if (guard.response) return privateResponse(guard.response);
-  try { const p=new URL(req.url).searchParams; const sender=p.get('sender'); if(sender&&!z.uuid().safeParse(sender).success)return privateResponse(err('invalid_input','Invalid sender',400,traceId)); return privateResponse(ok({ inbox: await managerInbox(guard.session, Number(p.get("page") || 1),{status:p.get('status')??undefined,kind:p.get('kind')??undefined,request_type:p.get('request_type')??undefined,urgent:p.get('urgent')==='1',sender:sender??undefined,q:p.get('q')??undefined,sort:p.get('sort')??undefined}) }, 200, traceId)); }
+  try { const p=new URL(req.url).searchParams; const sender=p.get('sender'); if(sender&&!z.uuid().safeParse(sender).success)return privateResponse(err('invalid_input','Invalid sender',400,traceId)); return privateResponse(ok({ inbox: await managerInbox(guard.session, Number(p.get("page") || 1),{status:p.get('status')??undefined,kind:p.get('kind')??undefined,request_type:p.get('request_type')??undefined,urgent:p.get('urgent')==='1',payments:p.get('payments')==='1',sender:sender??undefined,q:p.get('q')??undefined,sort:p.get('sort')??undefined}) }, 200, traceId)); }
   catch (cause) { return privateResponse(failure(cause, traceId)); }
 }
 export async function POST(req: Request) {

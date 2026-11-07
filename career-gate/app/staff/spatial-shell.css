@@ -1,0 +1,13 @@
+/* Manager-only chrome: other staff pages retain the existing navigation. */
+.staff-shell.royal-shell[data-spatial-mode="true"]{--royal-side:0px;background:#0b132b;color:#e8eef8}
+.staff-shell.royal-shell[data-spatial-mode="true"]>.royal-main{margin:0;margin-inline-start:0;width:100%;min-height:100dvh}
+.staff-shell.royal-shell[data-spatial-mode="true"]>.royal-main>.royal-topbar{display:none!important}
+.staff-shell.royal-shell[data-spatial-mode="true"]>.royal-main>.royal-content{padding:0;max-width:none;min-height:100dvh}
+.staff-shell.royal-shell[data-spatial-mode="true"]>.royal-mesh{opacity:.32}
+.staff-shell.royal-shell[data-spatial-mode="true"]>.royal-orb{border-color:#d4af373b;background:#14213bd9;color:#e6cd8e}
+.royal-command-overlay.cg-spatial-command-overlay{background:#050a1db3;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+html:has(.royal-shell[data-spatial-mode="true"]) .royal-command-overlay .cg-spatial-command-panel[data-testid="command-palette"]{background:linear-gradient(145deg,#1c2541f5,#101a35f5);color:#e8eef8;border:1px solid #d4af3747;border-radius:24px;box-shadow:0 28px 90px #02061799,inset 0 1px #ffffff12;backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px)}
+html:has(.royal-shell[data-spatial-mode="true"]) .cg-spatial-command-panel input{color:#f1f5f9;background:#040a181f}
+html:has(.royal-shell[data-spatial-mode="true"]) .cg-spatial-command-panel [role="option"][aria-selected="true"]{color:#f5e4b6;background:#d4af3714;box-shadow:inset 3px 0 #d4af37}
+html:has(.royal-shell[data-spatial-mode="true"]) .cg-spatial-command-panel :focus-visible{outline:2px solid #e3c674;outline-offset:-3px}
+@media(prefers-reduced-motion:reduce){.staff-shell.royal-shell[data-spatial-mode="true"] .royal-orb{transition:none}}

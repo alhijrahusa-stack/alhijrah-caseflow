@@ -46,10 +46,10 @@ export const NEXT_ACTION_SURFACE: SurfaceContract = {
 
 /** Private manager aggregate, refreshed in-place by its own endpoint. */
 export const MANAGER_INBOX_SURFACE: SurfaceContract & { endpoint: string } = {
-  resources: ["manager_inbox", "client_identity", "import_cases"],
+  resources: ["manager_inbox", "client_identity", "import_cases", "finance"],
   payloads: ["inbox"],
   endpoint: "/api/staff/manager-inbox",
-  aggregatePayloads: { manager_inbox: ["inbox"], client_identity: ["inbox"], import_cases: ["inbox"] },
+  aggregatePayloads: { manager_inbox: ["inbox"], client_identity: ["inbox"], import_cases: ["inbox"], finance: ["inbox"] },
 };
 
 export const SURFACES = {
@@ -60,10 +60,7 @@ export const SURFACES = {
 } as const;
 
 /**
- * Resources no per-client surface can own, so they stay on recovery.
- *
- * Both are cross-client dashboard rollups: there is no per-client payload that
- * could refresh them, which is why `RESOURCE_PAYLOADS.attention` is empty and
- * `finance` reduces to one client's account.
+ * Attention has no endpoint-backed aggregate surface. Financial changes now
+ * belong to the manager aggregate as well as the individual client account.
  */
-export const RECOVERY_ONLY_RESOURCES: readonly Resource[] = ["attention", "finance"];
+export const RECOVERY_ONLY_RESOURCES: readonly Resource[] = ["attention"];

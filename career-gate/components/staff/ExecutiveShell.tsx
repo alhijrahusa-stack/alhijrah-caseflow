@@ -46,13 +46,16 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
   const [stale,setStale]=useState(false);
   const [notice,setNotice]=useState("");
   const pathname=usePathname();
+  const spatialMode=management&&pathname==='/staff/manager-inbox';
+  const [navigationPath,setNavigationPath]=useState(pathname);
+  if(navigationPath!==pathname){setNavigationPath(pathname);if(mobile)setMobile(false);}
   const params=useSearchParams();
   const currentStage=params.get("stage");
   const inFlight=useRef<AbortController|null>(null);
   const toastTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   useEffect(()=>()=>{if(toastTimer.current)clearTimeout(toastTimer.current);},[]);
   useEffect(() => {
-    if (!mobile) return;
+    if (!mobile || spatialMode) return;
     const trigger = navigationTrigger.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -69,7 +72,7 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
     };
     window.addEventListener("keydown", onKeyDown);
     return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", onKeyDown); trigger?.focus(); };
-  }, [mobile]);
+  }, [mobile,spatialMode]);
   const router=useRouter();
   useEffect(()=>{
     let disposed=false;let timer:ReturnType<typeof setTimeout>|null=null;let again=false;let financePending=false;
@@ -117,10 +120,10 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
   const ranked = [...data.team].sort((a, b) => b.overdue_tasks - a.overdue_tasks || (b.active_clients + b.open_tasks) - (a.active_clients + a.open_tasks)).slice(0, 3);
   const status = data.health?.status;
   const critical = status && status !== "HEALTHY";
-  return <Context value={data}><div className="staff-shell royal-shell" data-collapsed={collapsed} lang={language} dir={dir} data-testid="executive-shell">
+  return <Context value={data}><div className="staff-shell royal-shell" data-collapsed={collapsed} data-spatial-mode={spatialMode} lang={language} dir={dir} data-testid="executive-shell">
     <span className="royal-mesh" aria-hidden="true" />
     <a className="royal-skip-link" href="#staff-main-content">{t("Skip to workspace", "الانتقال إلى مساحة العمل")}</a>
-    <button ref={navigationTrigger} type="button" className="royal-mobile-toggle" aria-label={t("Open navigation", "فتح قائمة الأقسام")} aria-controls="royal-navigation" aria-expanded={mobile} onClick={() => setMobile(value => !value)}>☰</button>
+    {!spatialMode&&<><button ref={navigationTrigger} type="button" className="royal-mobile-toggle" aria-label={t("Open navigation", "فتح قائمة الأقسام")} aria-controls="royal-navigation" aria-expanded={mobile} onClick={() => setMobile(value => !value)}>☰</button>
     {mobile && <button type="button" className="royal-mobile-backdrop" aria-label={t("Close navigation", "إغلاق قائمة الأقسام")} onClick={() => setMobile(false)} />}
     <aside ref={sidebar} id="royal-navigation" className="royal-sidebar" data-open={mobile} aria-label={t("Executive navigation", "القائمة التنفيذية")}>
       <div className="royal-brand">
@@ -157,8 +160,8 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
           <small>{stale ? t("Update unavailable · retry", "تعذر التحديث · أعد المحاولة") : <><bdi dir="ltr">{data.health ? `DB ${data.health.db_ms} ms · ` : ""}{timeOnly(data.generated_at)}</bdi></>}</small>
         </span>
       </Link>
-    </aside>
-    <div className="royal-main"><header className="royal-topbar">{header}{!pathname.startsWith("/staff/client/") && <RealtimeRefresher />}</header><main id="staff-main-content" className="royal-content" tabIndex={-1}>{children}</main></div>
+    </aside></>}
+    <div className="royal-main"><header className="royal-topbar" hidden={spatialMode} inert={spatialMode} aria-hidden={spatialMode || undefined}>{header}{!pathname.startsWith("/staff/client/") && <RealtimeRefresher />}</header><main id="staff-main-content" className="royal-content" tabIndex={-1}>{children}</main></div>
     <button type="button" className="royal-orb" aria-label={management ? t("Open operational assistant", "فتح مساعد العمليات") : t("Open command assistant", "فتح مساعد الأوامر")} title={management ? t("Operational assistant", "مساعد العمليات") : t("Command assistant · Ctrl+K", "مساعد الأوامر · Ctrl+K")} onClick={() => window.dispatchEvent(new Event(management ? "career-gate:open-assistant" : "career-gate:open-command"))}>✧</button>
     <OperationalAssistant enabled={management}/>
     <SessionDraftBoundary/>

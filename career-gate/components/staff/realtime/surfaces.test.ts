@@ -4,7 +4,7 @@ import { MUTATION_RESOURCES, RESOURCE_PAYLOADS, RESOURCES } from "@/lib/realtime
 
 describe("surface ownership", () => {
   it("owns the private manager aggregate through its independent endpoint payload", () => {
-    expect(MANAGER_INBOX_SURFACE.resources).toEqual(["manager_inbox", "client_identity", "import_cases"]);
+    expect(MANAGER_INBOX_SURFACE.resources).toEqual(["manager_inbox", "client_identity", "import_cases", "finance"]);
     expect(RESOURCE_PAYLOADS.manager_inbox).toEqual([]);
     expect(MANAGER_INBOX_SURFACE.endpoint).toBe("/api/staff/manager-inbox");
     expect(MANAGER_INBOX_SURFACE.aggregatePayloads?.manager_inbox).toEqual(["inbox"]);

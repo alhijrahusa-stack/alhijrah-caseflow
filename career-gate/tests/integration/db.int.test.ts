@@ -702,7 +702,17 @@ describe("event-driven workflow completion",()=>{
       if(stage.id==='registry')continue;
       const filter={intake:'new_intake',account:'account_setup',job:'job_ready',appointments:'appointments',paperwork:'paperwork_pending'}[stage.id] as 'new_intake';
       const list=await operationalClientList(sessions.manager,'active',1,25,{stage:filter});
-      expect(stage.total,stage.id).toBe(list.total);
+      // The legacy station groups two exclusive operational queues. Its total
+      // must equal both drilldowns, even when earlier suites leave an unpaid
+      // file outside the manager center.
+      const paymentList=stage.id==='paperwork'
+        ? await operationalClientList(sessions.manager,'active',1,25,{stage:'payment_required'})
+        : null;
+      if(paymentList){
+        const paymentIds=new Set(paymentList.rows.map(row=>row.id));
+        expect(list.rows.every(row=>!paymentIds.has(row.id))).toBe(true);
+      }
+      expect(stage.total,stage.id).toBe(list.total+(paymentList?.total??0));
     }
     expect(summary.priorities.length).toBeLessThanOrEqual(5);
     expect(summary.team.every(member=>!("email" in member))).toBe(true);

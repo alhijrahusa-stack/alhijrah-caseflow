@@ -8,39 +8,66 @@ import { ActionError } from "@/lib/service";
 import { staffOperation } from "@/lib/staff-operation";
 import { archiveClient } from "@/lib/client-archive";
 
-export type ManagerSummary={smart_client:number;clients:number;urgent:number;awaiting_review:number};
-export type ManagerInboxItem={id:string;kind:"client"|"report";client_id:string|null;title:string;submitted_note:string;source_path:string;snapshot:Record<string,unknown>;submitted_by:string;sender_name:string;submitted_at:string;full_name:string|null;ref:string|null;current_status:string|null;client_version:string|null;request_type:"review"|"duplicate";related_client_id:string|null;related_client?:{id:string;ref:string;full_name:string;phone:string;current_status:string;client_version:string}|null;is_urgent:boolean;operational_location:string;resolved_by_name:string|null;resolved_at:string|null;resolution_note:string|null;resolution_action:"approve"|"return"|"delete"|"not_duplicate";original_location:string|null;status:"open"|"resolved"};
+export type ManagerSummary={smart_client:number;clients:number;urgent:number;payment_issues:number;awaiting_review:number};
+export type ManagerInboxItem={id:string;kind:"client"|"report";client_id:string|null;title:string;submitted_note:string;source_path:string;snapshot:Record<string,unknown>;submitted_by:string;sender_name:string;submitted_at:string;full_name:string|null;ref:string|null;current_status:string|null;client_version:string|null;request_type:"review"|"duplicate";related_client_id:string|null;related_client?:{id:string;ref:string;full_name:string;phone:string;current_status:string;client_version:string}|null;is_urgent:boolean;is_payment_issue:boolean;operational_location:string;resolved_by_name:string|null;resolved_at:string|null;resolution_note:string|null;resolution_action:"approve"|"return"|"delete"|"not_duplicate";original_location:string|null;status:"open"|"resolved"};
 export type ManagerInboxPage={items:ManagerInboxItem[];total:number;page:number;pages:number;summary:ManagerSummary;senders:{id:string;display_name:string}[]};
-export type ManagerInboxFilters={status?:string;kind?:string;request_type?:string;urgent?:boolean;sender?:string;q?:string;sort?:string};
+export type ManagerInboxFilters={status?:string;kind?:string;request_type?:string;urgent?:boolean;payments?:boolean;sender?:string;q?:string;sort?:string};
 export type SubmitManagerReview=({kind:"client";client_id:string;note:string;request_key:string;related_client_id?:string}|{kind:"report";period:ReportPeriod;note:string;request_key:string});
 export type ResolveManagerReview={id:string;destination:ClientStageFilter|"keep_current";note:string;expected_client_version?:string|null;expected_related_client_version?:string;operation_id?:string;assigned_staff_id?:string|null;action?:"approve"|"return"|"delete"|"not_duplicate";delete_client_id?:string;delete_reason?:string};
 function requireManagement(s:StaffSession){if(!['admin','manager'].includes(s.staff.role))throw new ActionError('forbidden','Manager Task Center requires manager or admin access',403);}
+
+/** Financial attention within the manager queue, not a second client location.
+ * Default unpaid intake fees are excluded until a payment/post-interview stage.
+ * EXISTS counts a duplicate-review pair once and reads the actual net ledger.
+ */
+function paymentIssuePredicate(tx:Tx){
+ return tx`i.status='open' and i.kind='client' and exists(
+  select 1 from clients payment_client
+  join client_account_balances payment_balance on payment_balance.client_id=payment_client.id
+  where (payment_client.id=i.client_id or payment_client.id=i.related_client_id)
+    and payment_client.deleted_at is null and payment_client.current_status<>'cancelled'
+    and payment_balance.balance>0
+    and career_gate_private.workflow_location(payment_client.current_status,payment_client.pipeline_stage)
+      in ('payment_required','paperwork_pending','completed')
+ )`;
+}
+
+/** Either attached original may carry urgency while a comparison is held. */
+function urgentReviewPredicate(tx:Tx){
+ return tx`exists(select 1 from clients urgent_client
+  where (urgent_client.id=i.client_id or urgent_client.id=i.related_client_id)
+    and urgent_client.deleted_at is null and urgent_client.is_urgent)`;
+}
 
 export async function managerInbox(s:StaffSession,requestedPage=1,filters:ManagerInboxFilters={}):Promise<ManagerInboxPage>{
  requireManagement(s);
  return withStaff(s,async tx=>{
   const status=filters.status==='resolved'?'resolved':'open';
+  const paymentIssue=paymentIssuePredicate(tx);
+  const urgentReview=urgentReviewPredicate(tx);
   const term=(filters.q??'').trim().slice(0,100);const like=`%${term.replace(/[\\%_]/g,m=>`\\${m}`)}%`;
   const where=tx`i.status=${status}
     ${filters.kind==='client'||filters.kind==='report'?tx`and i.kind=${filters.kind}`:tx``}
     ${filters.request_type==='duplicate'||filters.request_type==='review'?tx`and i.request_type=${filters.request_type}`:tx``}
-    ${filters.urgent?tx`and c.is_urgent`:tx``}
+    ${filters.urgent?tx`and (${urgentReview})`:tx``}
+    ${filters.payments?tx`and (${paymentIssue})`:tx``}
     ${filters.sender?tx`and i.submitted_by=${filters.sender}`:tx``}
     ${term?tx`and (i.title ilike ${like} or c.ref ilike ${like} or c.phone ilike ${like} or c.full_name ilike ${like} or i.submitted_note ilike ${like})`:tx``}`;
   const [count]=await tx`select count(*)::int total from manager_inbox i left join clients c on c.id=i.client_id where ${where}`;
   const total=Number(count.total),pages=Math.max(1,Math.ceil(total/10));const page=Math.min(pages,Math.max(1,Number.isFinite(requestedPage)?Math.floor(requestedPage):1));
   const items=await tx`select i.*,s.display_name sender_name,c.full_name,c.ref,c.current_status,c.updated_at::text client_version,
-    coalesce(c.is_urgent,false) is_urgent,c.operational_location,coalesce(i.resolved_by_name_snapshot,r.display_name) resolved_by_name,
+    (${urgentReview}) is_urgent,(${paymentIssue}) is_payment_issue,c.operational_location,coalesce(i.resolved_by_name_snapshot,r.display_name) resolved_by_name,
     case when related.id is null then null else jsonb_build_object('id',related.id,'ref',related.ref,'full_name',related.full_name,'phone',related.phone,'current_status',related.current_status,'client_version',related.updated_at::text) end related_client,
     i.submitted_at::text submitted_at,i.resolved_at::text resolved_at
     from manager_inbox i join staff s on s.id=i.submitted_by left join clients c on c.id=i.client_id
     left join clients related on related.id=i.related_client_id left join staff r on r.id=i.resolved_by
-    where ${where} order by ${filters.sort==='priority'?tx`coalesce(c.is_urgent,false) desc,`:tx``}
+    where ${where} order by ${filters.sort==='priority'?tx`(${urgentReview}) desc,`:tx``}
       i.submitted_at ${filters.sort==='newest'?tx`desc`:tx`asc`},i.id limit 10 offset ${(page-1)*10}`;
   const [summary]=await tx`select
     career_gate_private.active_smart_client_count() smart_client,
     (select count(*)::int from clients where operational_location in ('new_intake','account_setup','job_ready','appointments','payment_required','paperwork_pending')) clients,
     (select count(*)::int from clients where operational_location='urgent') urgent,
+    (select count(*)::int from manager_inbox i where ${paymentIssue}) payment_issues,
     (select count(*)::int from manager_inbox where status='open') awaiting_review`;
   const senders=await tx`select distinct s.id,s.display_name from manager_inbox i join staff s on s.id=i.submitted_by order by s.display_name`;
   return {items:items as unknown as ManagerInboxItem[],total,page,pages,summary:summary as ManagerSummary,senders:senders as unknown as {id:string;display_name:string}[]};

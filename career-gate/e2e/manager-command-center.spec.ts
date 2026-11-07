@@ -24,9 +24,10 @@ async function capture(page: Page, path: string) {
 }
 async function chooseFile(page: Page, name: string) {
   await page.getByRole("searchbox", { name: "Search reviews" }).fill(name);
-  const row = page.getByRole("complementary", { name: "Incoming reviews" }).getByRole("button").filter({ hasText: name });
+  const row = page.getByRole("region", { name: "Incoming reviews" }).getByRole("button").filter({ hasText: name });
   await expect(row).toBeVisible();
   await row.click();
+  await expect(page.getByRole("dialog", { name: "Review workspace", exact: true })).toBeVisible();
 }
 
 test("manager counts actual sections; draft survives search, reload and version conflict; resolved stamp is read only", async ({ browser, request, baseURL }, testInfo) => {
@@ -50,6 +51,7 @@ test("manager counts actual sections; draft survives search, reload and version 
     await chooseFile(page, name);
     await page.getByLabel("Manager note (optional)").fill("Preserve this manager draft across every navigation");
     await selectChoice(page.getByRole("combobox", { name: "Next workflow section" }), { value: "account_setup" });
+    await page.getByRole("button", { name: "Close review", exact: true }).click();
     await page.getByRole("searchbox", { name: "Search reviews" }).fill(`no-match-${randomUUID()}`);
     await expect(page.getByRole("heading", { name: "No matching reviews" })).toBeVisible();
     await chooseFile(page, name);
@@ -65,12 +67,12 @@ test("manager counts actual sections; draft survives search, reload and version 
     // A concurrent write must reject the stale decision while retaining the draft.
     await db()`update clients set next_step='Changed by a concurrent fixture',updated_at=now() where id=${clientId}`;
     await page.getByRole("button", { name: "Approve & route", exact: true }).click();
-    await expect(page.getByTestId("manager-task-center").getByRole("alert")).toContainText(/changed/i);
+    await expect(page.getByRole("dialog", { name: "Review workspace", exact: true }).getByRole("alert")).toContainText(/changed/i);
     await expect(page.getByLabel("Manager note (optional)")).toHaveValue("Preserve this manager draft across every navigation");
     await page.getByRole("button", { name: "Review latest", exact: true }).click();
     await page.getByRole("button", { name: "Approve & route", exact: true }).click();
     await expect(page.getByRole("status").filter({ hasText: "Approved and routed to" })).toBeVisible();
-    await page.getByRole("button", { name: "Reviewed history", exact: true }).click();
+    await page.getByTestId("manager-segment-resolved").click();
     await chooseFile(page, name);
     await expect(page.getByText("Reviewed by manager", { exact: true })).toBeVisible();
     await expect(page.getByRole("region", { name: "Review workspace" })).toContainText(String(manager.display_name));
@@ -80,7 +82,8 @@ test("manager counts actual sections; draft survives search, reload and version 
     await expect(metrics).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
     await capture(page, testInfo.outputPath("manager-mobile.png"));
-    await page.getByTestId("staff-language-toggle").click();
+    await page.getByRole("button", { name: "Close review", exact: true }).click();
+    await page.locator('[data-testid="staff-language-toggle"]:visible').click();
     await expect(page.getByRole("heading", { name: "مركز مهام المدير", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
     await capture(page, testInfo.outputPath("manager-mobile-ar.png"));

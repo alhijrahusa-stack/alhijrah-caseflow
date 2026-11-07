@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { dateTime } from "@/lib/format";
@@ -51,6 +52,8 @@ function label(action: AppointmentEvent["action"], t: (en: string, ar: string) =
 /** One staff-wide, permission-scoped appointment inbox; sound is an optional enhancement. */
 export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
   const { t, dir } = useStaffLanguage();
+  const pathname = usePathname();
+  const [spatialHost,setSpatialHost] = useState<HTMLElement|null>(null);
   const root = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
@@ -60,6 +63,16 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
   const [readIds, setReadIds] = useState<string[]>([]);
   const [online, setOnline] = useState(true);
   const storageKey = `cg-appointment-alerts-read:${staffId}`;
+
+  useEffect(() => {
+    if(pathname!=="/staff/manager-inbox") return;
+    // Move the existing inbox into the compact header without a second poller.
+    const locate = () => setSpatialHost(document.getElementById("manager-spatial-alerts"));
+    const frame = requestAnimationFrame(locate);
+    const observer = new MutationObserver(locate);
+    observer.observe(document.body,{childList:true,subtree:true});
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+  },[pathname]);
 
   useEffect(() => {
     let active = true;
@@ -130,6 +143,7 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if(event.defaultPrevented)return;
       if (event.key === "Escape") setOpen(false);
     };
     const onPointer = (event: PointerEvent) => {
@@ -149,7 +163,7 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
   const acknowledged = new Set(readIds);
   const unread = events.filter(e => !acknowledged.has(e.id)).length;
 
-  return (
+  const inbox = (
     <div ref={root} className="relative" data-testid="staff-appointment-inbox">
       <button
         type="button"
@@ -206,4 +220,5 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
       )}
     </div>
   );
+  return pathname==="/staff/manager-inbox"&&spatialHost?.isConnected ? createPortal(inbox,spatialHost) : inbox;
 }
