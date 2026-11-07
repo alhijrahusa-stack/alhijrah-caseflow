@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isClientStageFilter } from "@/lib/client-lifecycle-filters";
-import { LifecycleRoutingError, OVERRIDE_REASON_MIN, resolveLifecycleRoute, resolveOverrideRoute } from "@/lib/client-lifecycle-routing";
+import { LifecycleRoutingError } from "@/lib/client-lifecycle-routing";
+import { moveWorkflowClient } from "@/lib/manual-workflow";
 import { withStaff } from "@/lib/auth";
 import { STAFF_ELIGIBLE_PERMISSIONS } from "@/lib/authz";
 import { err, ok } from "@/lib/http";
@@ -26,7 +27,7 @@ const stage = z.enum([
 const Input = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("move_stage"), client_id: id, stage }),
   z.object({ operation: z.literal("request_transfer"), client_id: id, requested_owner: id.nullable().optional(), reason: z.string().trim().max(500).nullable().optional() }),
-  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable().optional(), target_stage: z.string().refine(isClientStageFilter).optional(), reason: z.string().trim().min(3).max(500).optional(), override: z.boolean().optional() }),
+  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable().optional(), target_stage: z.string().refine(isClientStageFilter).optional(), reason: z.string().trim().max(500).optional(), override: z.boolean().optional() }),
   z.object({ operation: z.literal("reconcile_workflow"), client_id: id, reason: z.string().trim().min(3).max(500), complete_only:z.boolean().default(false) }),
   z.object({ operation: z.literal("reassign_client"), client_id: id, staff_id: id.nullable(), task_ids: z.array(id).max(100).default([]), reason: z.string().trim().max(500).nullable().optional() }),
   z.object({ operation: z.literal("confirm_started"), client_id: id, start_date: date }),
@@ -124,102 +125,31 @@ export async function POST(req: Request) {
       }
 
       if (input.operation === "bulk_assign") {
-        if (!management(session.staff.role)) throw new Error("FORBIDDEN");
+        // Staff may route their own scoped files; ownership changes remain management-only.
+        if (!management(session.staff.role) && (session.staff.role !== "staff" || input.staff_id !== undefined || !input.target_stage)) throw new Error("FORBIDDEN");
         if (input.staff_id === undefined && !input.target_stage) throw new Error("TARGET_REQUIRED");
         if (input.staff_id) {
           const [staff] = await tx`select id from staff where id=${input.staff_id} and active`;
           if (!staff) throw new Error("STAFF_NOT_FOUND");
         }
-        if (input.override) {
-          // Authorized skip: one file, an explicit stage, a recorded reason.
-          if (!input.target_stage || !isClientStageFilter(input.target_stage)) throw new Error("TARGET_REQUIRED");
-          if (input.client_ids.length !== 1) throw new Error("OVERRIDE_SINGLE_CLIENT");
-          if ((input.reason ?? "").length < OVERRIDE_REASON_MIN) throw new Error("OVERRIDE_REASON_REQUIRED");
-          const [client] = await tx`
-            select id,current_status,pipeline_stage,next_step,assigned_staff from clients
-            where id=${input.client_ids[0]} and deleted_at is null for update`;
-          if (!client) throw new Error("CLIENT_NOT_ACCESSIBLE");
-          const route = resolveOverrideRoute(input.target_stage, String(client.current_status));
-          const targetStaff = input.staff_id === undefined ? client.assigned_staff : input.staff_id;
-          const statusChanged = client.current_status !== route.status;
-          const stageChanged = client.pipeline_stage !== route.pipelineStage;
-          const staffChanged = client.assigned_staff !== targetStaff;
-          if (!statusChanged && !stageChanged && !staffChanged) return { changed: 0, stage: input.target_stage };
-          await tx`select set_config('cg.status_override', ${input.reason!}, true)`;
-          await tx`update clients set current_status=${route.status},pipeline_stage=${route.pipelineStage},assigned_staff=${targetStaff},
-            next_step=${statusChanged ? route.nextStep : String(client.next_step)} where id=${client.id}`;
-          await tx`select set_config('cg.status_override', '', true)`;
-          await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
-            values(${client.id},'status_overridden',${session.staff.id},'client',${client.id},
-              ${tx.json({ status: client.current_status, pipeline_stage: client.pipeline_stage })},
-              ${tx.json({ status: route.status, pipeline_stage: route.pipelineStage, target_stage: input.target_stage, reason: input.reason!, skipped_prerequisites: true })},${traceId})`;
-          if (staffChanged) {
-            await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
-              values(${client.id},'bulk_staff_assigned',${session.staff.id},'client',${client.id},
-                ${tx.json({ assigned_staff: client.assigned_staff })},${tx.json({ assigned_staff: targetStaff })},${traceId})`;
-          }
-          return { changed: 1, stage: input.target_stage, overridden: true };
-        }
         if (input.target_stage && isClientStageFilter(input.target_stage)) {
-          const locked = await tx`
-            select c.id,c.current_status,c.pipeline_stage,c.next_step,c.assigned_staff,
-              career_gate_private.has_ready_gate_job_account(c.id) account_ready,
-              coalesce((select bool_and(latest.status='verified') from (
-                select distinct on(d.doc_type) d.status from documents d where d.client_id=c.id
-                order by d.doc_type,d.uploaded_at desc,d.id desc
-              ) latest),false)
-                and not exists(select 1 from requirements r where r.client_id=c.id and r.requirement_key not like 'post_hire:%'
-                  and r.status not in ('complete','not_applicable')) documents_ready,
-              exists(select 1 from appointments ap where ap.client_id=c.id and ap.appointment_kind='employment_interview' and ap.status in ('scheduled','confirmed','rescheduled')) interview_scheduled,
-              coalesce((select o.decision='pass' from appointment_outcomes o where o.client_id=c.id order by o.recorded_at desc,o.appointment_id desc limit 1),false) interview_passed,
-              exists(select 1 from client_account_balances a where a.client_id=c.id and a.payment_status='paid') payment_verified,
-              career_gate_private.post_hire_complete(c.id) paperwork_complete
-            from clients c
-            where c.id=any(${input.client_ids}) and c.deleted_at is null
-            order by c.id for update of c`;
+          const locked = await tx`select id,current_status,pipeline_stage,next_step,assigned_staff from clients
+            where id=any(${input.client_ids}) and deleted_at is null order by id for update`;
           if (locked.length !== input.client_ids.length) throw new Error("CLIENT_NOT_ACCESSIBLE");
-          const validated = locked.map(client => ({
-            client,
-            route: resolveLifecycleRoute(input.target_stage!, {
-              current_status: String(client.current_status),
-              account_ready: Boolean(client.account_ready),
-              documents_ready: Boolean(client.documents_ready),
-              interview_scheduled: Boolean(client.interview_scheduled),
-              interview_passed: Boolean(client.interview_passed),
-              payment_verified: Boolean(client.payment_verified),
-              paperwork_complete: Boolean(client.paperwork_complete),
-            }),
-          }));
           let changed = 0;
-          for (const {client,route} of validated) {
+          for (const client of locked) {
+            const routed = await moveWorkflowClient(tx, session, client as { id:string; current_status:string; pipeline_stage:string; next_step:string }, input.target_stage, input.reason, traceId);
             const targetStaff = input.staff_id === undefined ? client.assigned_staff : input.staff_id;
             const staffChanged = client.assigned_staff !== targetStaff;
-            const stageChanged = client.pipeline_stage !== route.pipelineStage;
-            const statusChanged = client.current_status !== route.status;
-            if (!staffChanged && !stageChanged && !statusChanged) continue;
-            const nextStep = statusChanged ? route.nextStep : String(client.next_step);
-            for(const status of route.transitionPath??[route.status]) await tx`update clients set
-              assigned_staff=${targetStaff},pipeline_stage=${route.pipelineStage},
-              current_status=${status},next_step=${nextStep}
-              where id=${client.id}`;
             if (staffChanged) {
+              await tx`update clients set assigned_staff=${targetStaff} where id=${client.id}`;
               await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
                 values(${client.id},'bulk_staff_assigned',${session.staff.id},'client',${client.id},
                   ${tx.json({assigned_staff:client.assigned_staff})},${tx.json({assigned_staff:targetStaff})},${traceId})`;
             }
-            if (stageChanged) {
-              await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
-                values(${client.id},'pipeline_stage_changed',${session.staff.id},'client',${client.id},
-                  ${tx.json({pipeline_stage:client.pipeline_stage})},${tx.json({pipeline_stage:route.pipelineStage,reason:input.reason??"Reviewed lifecycle routing"})},${traceId})`;
-            }
-            if (statusChanged) {
-              await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
-                values(${client.id},'status_changed',${session.staff.id},'client',${client.id},
-                  ${tx.json({status:client.current_status})},${tx.json({status:route.status,reason:input.reason??"Reviewed lifecycle routing",transition_path:route.transitionPath})},${traceId})`;
-            }
-            changed++;
+            if (routed || staffChanged) changed++;
           }
-          return {changed,stage:input.target_stage};
+          return {changed,stage:input.target_stage,overridden:true};
         }
         const legacyStaffId = input.staff_id ?? null;
         const changed = await tx`
@@ -324,8 +254,6 @@ export async function POST(req: Request) {
     if (message === "CLIENT_NOT_ACCESSIBLE") return err("not_found", "Client not found or not accessible", 404, traceId);
     if (message === "STAFF_NOT_FOUND") return err("staff_not_found", "Active staff member not found", 404, traceId);
     if (message === "TARGET_REQUIRED") return err("target_required", "Select a staff member or lifecycle stage", 400, traceId);
-    if (message === "OVERRIDE_SINGLE_CLIENT") return err("override_single_client", "An authorized skip applies to one client at a time", 400, traceId);
-    if (message === "OVERRIDE_REASON_REQUIRED") return err("override_reason_required", `An authorized skip needs a reason of at least ${OVERRIDE_REASON_MIN} characters`, 400, traceId);
     if (message === "INVALID_START_STATE") return err("invalid_start_state", "Client must be Ready for First Day before confirming start", 409, traceId);
     if (message === "ALREADY_COMPLETED") return err("already_completed", "Client is already completed with a different start date", 409, traceId);
     return err("operation_failed", message, 409, traceId);

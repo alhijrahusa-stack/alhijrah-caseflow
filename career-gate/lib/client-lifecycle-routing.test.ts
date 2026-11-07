@@ -63,7 +63,7 @@ describe("safe six-stage assignment and routing", () => {
       .toBe("i9_available");
   });
 
-  it("prohibits bulk stage overrides for finalized or cancelled cases", () => {
+  it("keeps automatic evidence routing gated for finalized or cancelled cases", () => {
     for (const status of ["completed", "cancelled"]) {
       expect(() => resolveLifecycleRoute("new_intake", { ...evidence, current_status: status }))
         .toThrow("cannot be bulk-routed");
@@ -72,7 +72,7 @@ describe("safe six-stage assignment and routing", () => {
 });
 
  describe("completion evidence",()=>{
-  it("requires both a verified ledger and completed paperwork for manual completion",()=>{
+  it("requires both a verified ledger and completed paperwork for evidence-based completion",()=>{
     const candidate={...evidence,current_status:"ready_for_first_day",paperwork_complete:true};
     expect(()=>resolveLifecycleRoute("completed",candidate)).toThrow("Verify payment");
     expect(()=>resolveLifecycleRoute("completed",{...candidate,payment_verified:true,paperwork_complete:false})).toThrow("Verify payment");
@@ -80,18 +80,20 @@ describe("safe six-stage assignment and routing", () => {
   });
  });
 
-describe("authorized skip route", () => {
-  it("maps each skippable stage to its entry status and refuses Appointments, closing and closed cases", async () => {
+describe("direct manual workflow routing", () => {
+  it("allows every stage from every valid status, including completed and cancelled files", async () => {
     const { resolveOverrideRoute } = await import("@/lib/client-lifecycle-routing");
-    expect(resolveOverrideRoute("job_ready", "new_intake")).toMatchObject({ status: "shift_selected", pipelineStage: "amazon_account_waiting_job" });
-    expect(resolveOverrideRoute("account_setup", "new_intake")).toMatchObject({ status: "ready_to_apply", pipelineStage: "no_amazon_account" });
-    expect(resolveOverrideRoute("payment_required", "needs_review")).toMatchObject({ status: "pre_hire_completed", pipelineStage: "payment_required" });
-    expect(resolveOverrideRoute("paperwork_pending", "shift_selected")).toMatchObject({ status: "screening_pending", pipelineStage: "post_interview_completion" });
-    expect(resolveOverrideRoute("new_intake", "shift_selected")).toMatchObject({ status: "new_intake", pipelineStage: "portal_intake" });
-    expect(resolveOverrideRoute("job_ready", "shift_selected").nextStep).toBe("");
-    expect(() => resolveOverrideRoute("appointments", "new_intake")).toThrow(/real interview/);
-    expect(() => resolveOverrideRoute("completed", "ready_for_first_day")).toThrow(/settled ledger/);
-    expect(() => resolveOverrideRoute("job_ready", "completed")).toThrow(/cannot be moved/);
-    expect(() => resolveOverrideRoute("job_ready", "cancelled")).toThrow(/cannot be moved/);
+    const { STATUSES } = await import("@/lib/domain");
+    const { CLIENT_STAGES } = await import("@/lib/client-lifecycle-filters");
+    const expected = [
+      ["new_intake", "portal_intake"], ["ready_to_apply", "no_amazon_account"],
+      ["shift_selected", "amazon_account_waiting_job"], ["appointment_scheduled", "interview_scheduled"],
+      ["pre_hire_completed", "payment_required"], ["screening_pending", "post_interview_completion"],
+      ["completed", "completed_files"],
+    ];
+    for (const status of STATUSES) for (const [index, stage] of CLIENT_STAGES.entries()) {
+      expect(resolveOverrideRoute(stage.id, status)).toMatchObject({ status: expected[index][0], pipelineStage: expected[index][1] });
+    }
+    expect(() => resolveOverrideRoute("job_ready", "unknown")).toThrow("invalid");
   });
 });

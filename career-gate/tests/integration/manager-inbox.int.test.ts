@@ -47,16 +47,15 @@ describe("manager inbox scope and audited routing", () => {
     await expect(db.begin(async tx => { await tx.unsafe("set local role anon"); return tx`select id from manager_inbox`; })).rejects.toMatchObject({ code: "42501" });
   });
 
-  it("blocks unauthorized resolve and missing evidence without closing the review", async () => {
+  it("allows manager routing without prerequisites while preserving manager-only review resolution", async () => {
     const client = await createClient(); const item = await request(client.id);
-    const input = { id: item.id, destination: "job_ready" as const, note: "", expected_client_version: await version(client.id) };
+    const input = { id: item.id, destination: "completed" as const, note: "", expected_client_version: await version(client.id) };
     await expect(resolveManagerReview(sessions.sender, input, "no-access")).rejects.toMatchObject({ code: "forbidden" });
-    await expect(resolveManagerReview(sessions.manager, input, "missing-facts")).rejects.toMatchObject({ code: "requirements_missing" });
-    await expect(resolveManagerReview(sessions.manager, { ...input, destination: "completed" }, "unpaid-completion")).rejects.toMatchObject({ code: "completion_required" });
-    expect((await db`select status from manager_inbox where id=${item.id}`)[0].status).toBe("open");
-    expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe("new_intake");
+    expect(await resolveManagerReview(sessions.manager, input, "direct-completion")).toMatchObject({ already_resolved: false });
+    expect((await db`select status from manager_inbox where id=${item.id}`)[0].status).toBe("resolved");
+    expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe("completed");
     expect((await db`select count(*)::int n from appointment_outcomes where client_id=${client.id}`)[0].n).toBe(0);
-    expect(await withStaff(sessions.sender, tx => tx`update manager_inbox set status='resolved',destination='completed',resolved_by=${sessions.sender.staff.id},resolved_at=now() where id=${item.id} returning id`)).toHaveLength(0);
+    expect((await db`select count(*)::int n from payment_transactions where client_id=${client.id}`)[0].n).toBe(0);
   });
 
   it("rejects stale review evidence before routing", async () => {
@@ -66,7 +65,7 @@ describe("manager inbox scope and audited routing", () => {
     expect((await db`select status from manager_inbox where id=${item.id}`)[0].status).toBe("open");
   });
 
-  it("does not use an old interview pass after a newer failed interview", async () => {
+  it("routes manually without changing an existing failed interview", async () => {
     const client = await createClient();
     await withStaff(sessions.admin, tx => runAction({ tx, actor: { staffId: sessions.admin.staff.id, traceId: "inbox-outcome-fixture" }, role: "admin", semantic: [] },
       ActionSchema.parse({ action: "override_status", client_id: client.id, status: "appointment_scheduled", reason: "Integration fixture for recorded interview history" })));
@@ -77,10 +76,10 @@ describe("manager inbox scope and audited routing", () => {
         values(${appointment.id},${client.id},${decision},${sessions.manager.staff.id},${recorded})`;
     }
     const item = await request(client.id);
-    await expect(resolveManagerReview(sessions.manager, { id: item.id, destination: "payment_required", note: "", expected_client_version: await version(client.id) }, "latest-fail"))
-      .rejects.toMatchObject({ code: "interview_or_payment_required" });
-    expect((await db`select status from manager_inbox where id=${item.id}`)[0].status).toBe("open");
-    expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe("appointment_scheduled");
+    await resolveManagerReview(sessions.manager, { id: item.id, destination: "payment_required", note: "", expected_client_version: await version(client.id) }, "manual-after-fail");
+    expect((await db`select status from manager_inbox where id=${item.id}`)[0].status).toBe("resolved");
+    expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe("pre_hire_completed");
+    expect((await db`select decision from appointment_outcomes where client_id=${client.id} order by recorded_at desc limit 1`)[0].decision).toBe("fail");
   });
 
   it("routes the canonical client once and records the manager, note and transition", async () => {
@@ -96,7 +95,7 @@ describe("manager inbox scope and audited routing", () => {
     expect(record.resolved_at).not.toBeNull();
     const notes = await db`select note,staff_id from notes where client_id=${client.id}`;
     expect(notes).toHaveLength(1); expect(notes[0]).toMatchObject({ note: input.note, staff_id: record.resolved_by });
-    const audit = await db`select new_value from activity_log where client_id=${client.id} and action='status_changed' and new_value->>'operation'='manager_review_routed'`;
+    const audit = await db`select new_value from activity_log where client_id=${client.id} and action='status_overridden' and new_value->>'operation'='manager_review_routed'`;
     expect(audit).toHaveLength(1); expect(audit[0].new_value).toMatchObject({ status: "ready_to_apply", request_id: item.id, reason: input.note });
     await expect(withStaff(sessions.manager, tx => tx`update manager_inbox set resolution_note='rewrite' where id=${item.id}`)).rejects.toMatchObject({ code: "42501" });
     await expect(withStaff(sessions.manager, tx => tx`update manager_inbox set submitted_note='rewrite' where id=${item.id}`)).rejects.toMatchObject({ code: "42501" });

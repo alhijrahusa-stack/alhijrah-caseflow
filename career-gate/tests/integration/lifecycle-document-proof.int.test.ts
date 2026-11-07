@@ -50,28 +50,20 @@ async function document(clientId: string, status: "verified" | "rejected", uploa
   return String(row.id);
 }
 
-describe("current document evidence on both manual lifecycle entry points", () => {
-  it.each(["manager_inbox", "bulk_operations"] as const)("%s rejects a superseding rejected document and accepts its verified replacement without deleting history", async mode => {
+describe("manual workflow preserves document evidence", () => {
+  it.each(["manager_inbox", "bulk_operations"] as const)("%s can move directly while retaining rejected and verified document history", async mode => {
     const client = await preparedAccountClient();
-    const review = mode === "manager_inbox" ? await submitManagerReview(admin, { kind: "client", client_id: client.id, request_key: randomUUID(), note: "Review latest document proof" }, trace) : null;
-    const bulk = () => operate(new Request("http://localhost/api/staff/operations", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ operation: "bulk_assign", client_ids: [client.id], target_stage: "job_ready", reason: "Latest documents reviewed" }) }));
-    const route = async () => resolveManagerReview(admin, { id: review!.id, destination: "job_ready", note: "Latest documents reviewed", expected_client_version: String((await db`select updated_at::text version from clients where id=${client.id}`)[0].version) }, trace);
-    async function expectBlocked() {
-      if (mode === "manager_inbox") await expect(route()).rejects.toMatchObject({ code: "requirements_missing" });
-      else { const response = await bulk(); expect(response.status).toBe(409); expect(await response.json()).toMatchObject({ ok: false, error: { code: "requirements_missing" } }); }
-      expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe("ready_to_apply");
-    }
-    await expectBlocked(); // A READY account with zero document proof is insufficient.
     const oldVerified = await document(client.id, "verified", "2026-10-01T10:00:00Z");
     const rejectedReplacement = await document(client.id, "rejected", "2026-10-01T11:00:00Z");
-    await expectBlocked();
-    if (review) expect((await db`select status from manager_inbox where id=${review.id}`)[0].status).toBe("open");
-    const newVerified = await document(client.id, "verified", "2026-10-01T12:00:00Z");
-    if (mode === "manager_inbox") expect(await route()).toMatchObject({ already_resolved: false, client_id: client.id });
-    else { const response = await bulk(); expect(response.status).toBe(200); expect(await response.json()).toMatchObject({ ok: true, changed: 1, stage: "job_ready" }); }
+    if (mode === "manager_inbox") {
+      const review = await submitManagerReview(admin, { kind: "client", client_id: client.id, request_key: randomUUID(), note: "" }, trace);
+      const version = String((await db`select updated_at::text version from clients where id=${client.id}`)[0].version);
+      expect(await resolveManagerReview(admin, { id: review.id, destination: "job_ready", note: "", expected_client_version: version }, trace)).toMatchObject({ already_resolved: false });
+    } else {
+      const response = await operate(new Request("http://localhost/api/staff/operations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ operation: "bulk_assign", client_ids: [client.id], target_stage: "job_ready" }) }));
+      expect(response.status, await response.clone().text()).toBe(200);
+    }
     expect((await db`select current_status,pipeline_stage from clients where id=${client.id}`)[0]).toMatchObject({ current_status: "shift_selected", pipeline_stage: "amazon_account_waiting_job" });
-    const history = await db`select id,status from documents where client_id=${client.id} order by uploaded_at,id`;
-    expect(history).toEqual([{ id: oldVerified, status: "verified" }, { id: rejectedReplacement, status: "rejected" }, { id: newVerified, status: "verified" }]);
+    expect(await db`select id,status from documents where client_id=${client.id} order by uploaded_at,id`).toEqual([{ id: oldVerified, status: "verified" }, { id: rejectedReplacement, status: "rejected" }]);
   });
 });

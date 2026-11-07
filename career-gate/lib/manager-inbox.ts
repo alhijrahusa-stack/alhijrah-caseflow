@@ -2,7 +2,7 @@ import "server-only";
 import { withStaff, type StaffSession } from "@/lib/auth";
 import { permissionAllows } from "@/lib/authz";
 import { CLIENT_STAGES, type ClientStageFilter } from "@/lib/client-lifecycle-filters";
-import { resolveLifecycleRoute } from "@/lib/client-lifecycle-routing";
+import { moveWorkflowClient } from "@/lib/manual-workflow";
 import { reportIntelligence, type ReportPeriod } from "@/lib/reports";
 import { ActionError } from "@/lib/service";
 
@@ -96,7 +96,7 @@ export async function submitManagerReview(session: StaffSession, input: SubmitMa
   });
 }
 
-/** Resolve, canonical routing and audit commit together; concurrent resolution cannot repeat it. */
+/** Resolve, direct routing and audit commit together; concurrent resolution cannot repeat it. */
 export async function resolveManagerReview(session: StaffSession, input: ResolveManagerReview, traceId: string) {
   requireManagement(session);
   return withStaff(session, async tx => {
@@ -105,39 +105,13 @@ export async function resolveManagerReview(session: StaffSession, input: Resolve
     if (item.status !== "open") return { id: input.id, already_resolved: true, client_id: item.client_id as string | null, task_id: item.routed_task_id as string | null };
     let taskId: string | null = null;
     if (item.client_id) {
-      const [client] = await tx`
-        select c.id,c.current_status,c.pipeline_stage,c.next_step,c.updated_at::text client_version,
-          career_gate_private.has_ready_gate_job_account(c.id) account_ready,
-          coalesce((select bool_and(latest.status='verified') from (
-            select distinct on(d.doc_type) d.status from documents d where d.client_id=c.id
-            order by d.doc_type,d.uploaded_at desc,d.id desc
-          ) latest),false)
-            and not exists(select 1 from requirements r where r.client_id=c.id and r.requirement_key not like 'post_hire:%'
-              and r.status not in ('complete','not_applicable')) documents_ready,
-          exists(select 1 from appointments a where a.client_id=c.id and a.appointment_kind='employment_interview' and a.status in ('scheduled','confirmed','rescheduled')) interview_scheduled,
-          coalesce((select o.decision from appointment_outcomes o where o.client_id=c.id order by o.recorded_at desc,o.appointment_id desc limit 1)='pass',false) interview_passed,
-          exists(select 1 from client_account_balances b where b.client_id=c.id and b.payment_status='paid') payment_verified,
-          career_gate_private.post_hire_complete(c.id) paperwork_complete
-        from clients c where c.id=${item.client_id} and c.deleted_at is null for update of c`;
+      const [client] = await tx`select id,current_status,pipeline_stage,next_step,updated_at::text client_version
+        from clients where id=${item.client_id} and deleted_at is null for update`;
       if (!client) throw new ActionError("not_found", "Client is no longer available", 404);
       if (!input.expected_client_version || client.client_version !== input.expected_client_version)
         throw new ActionError("client_changed", "This client changed during your review. Reopen the item to review the latest data before routing.", 409);
       if (input.destination !== "keep_current") {
-        const route = resolveLifecycleRoute(input.destination, {
-          current_status: String(client.current_status), account_ready: Boolean(client.account_ready),
-          documents_ready: Boolean(client.documents_ready), interview_scheduled: Boolean(client.interview_scheduled),
-          interview_passed: Boolean(client.interview_passed), payment_verified: Boolean(client.payment_verified), paperwork_complete: Boolean(client.paperwork_complete),
-        });
-        const statusChanged = client.current_status !== route.status;
-        for (const status of route.transitionPath ?? [route.status]) await tx`update clients
-          set current_status=${status},pipeline_stage=${route.pipelineStage},next_step=${statusChanged ? route.nextStep : client.next_step}
-          where id=${client.id}`;
-        if (statusChanged) await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
-          values(${client.id},'status_changed',${session.staff.id},'client',${client.id},
-            ${tx.json({ status: client.current_status })},${tx.json({ status: route.status, operation: "manager_review_routed", request_id: input.id, reason: input.note, transition_path: route.transitionPath ?? [route.status] })},${traceId})`;
-        if (client.pipeline_stage !== route.pipelineStage) await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
-          values(${client.id},'pipeline_stage_changed',${session.staff.id},'client',${client.id},
-            ${tx.json({ pipeline_stage: client.pipeline_stage })},${tx.json({ pipeline_stage: route.pipelineStage, operation: "manager_review_routed", request_id: input.id, reason: input.note })},${traceId})`;
+        await moveWorkflowClient(tx, session, client as { id:string; current_status:string; pipeline_stage:string; next_step:string }, input.destination, input.note, traceId, { operation: "manager_review_routed", request_id: input.id });
       }
       if (input.note) await tx`insert into notes(client_id,note,staff_id) values(${client.id},${input.note},${session.staff.id})`;
       await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,new_value,trace_id)

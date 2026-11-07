@@ -5,7 +5,7 @@ import { db, intakeBody, RUN, selectChoice, signIn, submitIntake } from "./helpe
 /**
  * Field operations added for the client page: a large phone photo is resized and
  * re-encoded in the browser before upload, and a manager can move a new file past
- * its prerequisites with a recorded reason while the canonical path stays gated.
+ * its prerequisites with no mandatory note.
  */
 
 async function newClient(request: Parameters<typeof submitIntake>[0], label: string) {
@@ -47,39 +47,30 @@ test("a large document photo is resized and stored as WebP within the upload lim
   expect(Number(doc.size_bytes)).toBeLessThanOrEqual(4 * 1024 * 1024);
 });
 
-test("a manager moves a new file to Job Ready with an authorized skip; the canonical path still refuses it", async ({ page, context, request, baseURL }) => {
+test("a manager moves a new file to Job Ready directly with an optional note", async ({ page, context, request, baseURL }) => {
   const clientId = await newClient(request, "Skip");
   await signIn(context, baseURL!, "admin");
   await page.goto(`/staff/client/${clientId}`);
   const control = page.locator(".cg-workflow-control").first();
-  await control.getByRole("button", { name: /Workflow & manual routing/ }).click();
   await selectChoice(control.getByRole("combobox", { name: "Workflow destination" }), "job_ready");
-  await control.getByLabel("Workflow move reason").fill("Verified in person at the office");
-  await control.getByRole("button", { name: "Check & apply" }).click();
-  await expect(control.getByRole("alert")).toBeVisible();
-  expect((await db()`select current_status from clients where id = ${clientId}`)[0].current_status).toBe("new_intake");
-
-  await control.getByLabel(/Authorized skip/).check();
-  await control.getByRole("button", { name: "Skip & apply" }).click();
-  await expect(control.getByRole("status")).toContainText("authorized skip");
+  await control.getByRole("button", { name: "Move now ↗" }).click();
+  await expect(control.getByRole("status")).toContainText("Moved to Job Ready");
   await expect.poll(async () => (await db()`select current_status, pipeline_stage from clients where id = ${clientId}`)[0])
     .toMatchObject({ current_status: "shift_selected", pipeline_stage: "amazon_account_waiting_job" });
   const [log] = await db()`select new_value from activity_log where client_id = ${clientId} and action = 'status_overridden'`;
-  expect(log.new_value).toMatchObject({ reason: "Verified in person at the office", skipped_prerequisites: true });
+  expect(log.new_value).toMatchObject({ reason: "Direct workflow move", skipped_prerequisites: true });
 });
 
-test("an authorized skip to Appointments opens the interview booking with the Job Ready override", async ({ page, context, request, baseURL }) => {
+test("moving to Appointments requires no booking and keeps the file visible for later booking", async ({ page, context, request, baseURL }) => {
   const clientId = await newClient(request, "Interview");
   await signIn(context, baseURL!, "admin");
   await page.goto(`/staff/client/${clientId}`);
   const control = page.locator(".cg-workflow-control").first();
-  await control.getByRole("button", { name: /Workflow & manual routing/ }).click();
   await selectChoice(control.getByRole("combobox", { name: "Workflow destination" }), "appointments");
-  await control.getByLabel("Workflow move reason").fill("Interview arranged directly with the site");
-  await control.getByLabel(/Authorized skip/).check();
-  await control.getByRole("button", { name: "Book interview with override" }).click();
-  const form = page.getByTestId("form-appointment");
-  await expect(form).toBeVisible();
-  await expect(form.getByRole("checkbox", { name: /Override Job Ready condition/ })).toBeChecked();
-  await expect(form.getByRole("textbox", { name: /Reason for override/ })).toHaveValue("Interview arranged directly with the site");
+  await control.getByRole("button", { name: "Move now ↗" }).click();
+  await expect(control.getByRole("status")).toContainText("Moved to Appointments");
+  expect(await db()`select id from appointments where client_id=${clientId}`).toHaveLength(0);
+  const [client] = await db()`select ref from clients where id=${clientId}`;
+  await page.goto(`/staff/appointments?q=${encodeURIComponent(client.ref)}`);
+  await expect(page.getByRole("region", { name: "Workflow files awaiting booking" }).getByText(client.ref, { exact: false })).toBeVisible();
 });
