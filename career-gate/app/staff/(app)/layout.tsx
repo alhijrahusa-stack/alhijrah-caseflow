@@ -27,6 +27,7 @@ import "../executive-design-system.css";
 import "../executive-refinement.css";
 import "../field-ux.css";
 import "../royal-executive.css";
+import "../urgent-glass.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { manifest: "/staff.webmanifest" };

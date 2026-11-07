@@ -15,7 +15,6 @@ import { ClientRegistryToolbar, RegistryEmptyState, RegistryPaginationSummary } 
 import { StaffText } from "@/components/staff/StaffLanguage";
 import { parseRegistryFilters, REGISTRY_PAGE_SIZE, registryPageNumbers } from "@/lib/registry-filters";
 import "@/app/staff/client-registry.css";
-import "@/app/staff/urgent-glass.css";
 
 const PAGE_SIZE=REGISTRY_PAGE_SIZE;
 

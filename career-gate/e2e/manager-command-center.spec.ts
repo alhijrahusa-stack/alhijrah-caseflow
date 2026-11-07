@@ -12,6 +12,16 @@ async function sendReview(context: BrowserContext, clientId: string, relatedId?:
   const response = await context.request.post("/api/staff/manager-inbox", { data: { kind: "client", client_id: clientId, related_client_id: relatedId, note: "Command center regression review", request_key: randomUUID() } });
   expect(response.status(), await response.text()).toBe(200);
 }
+async function capture(page: Page, path: string) {
+  await page.evaluate(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    document.querySelector(".royal-main")?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    document.querySelector(".royal-content")?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  });
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await page.screenshot({ path, fullPage: true, animations: "disabled" });
+  await page.screenshot({ path: path.replace(/\.png$/, "-viewport.png"), animations: "disabled" });
+}
 async function chooseFile(page: Page, name: string) {
   await page.getByRole("searchbox", { name: "Search reviews" }).fill(name);
   const row = page.getByRole("complementary", { name: "Incoming reviews" }).getByRole("button").filter({ hasText: name });
@@ -22,6 +32,7 @@ async function chooseFile(page: Page, name: string) {
 test("manager counts actual sections; draft survives search, reload and version conflict; resolved stamp is read only", async ({ browser, request, baseURL }, testInfo) => {
   const name = `TEST Manager Draft ${RUN} ${randomUUID().slice(0, 6)}`;
   const clientId = await newFile(request, name);
+  const [manager] = await db()`select display_name from staff where auth_user_id=${STAFF.manager}`;
   const context = await browser.newContext({ baseURL });
   try {
     await signIn(context, baseURL!, "manager");
@@ -49,7 +60,7 @@ test("manager counts actual sections; draft survives search, reload and version 
     await expect(page.getByLabel("Manager note (optional)")).toHaveValue("Preserve this manager draft across every navigation");
     await expect(page.getByRole("combobox", { name: "Next workflow section" })).toHaveText(/Account Setup/);
 
-    await page.screenshot({ path: testInfo.outputPath("manager-desktop.png"), fullPage: true });
+    await capture(page, testInfo.outputPath("manager-desktop.png"));
 
     // A concurrent write must reject the stale decision while retaining the draft.
     await db()`update clients set next_step='Changed by a concurrent fixture',updated_at=now() where id=${clientId}`;
@@ -62,14 +73,20 @@ test("manager counts actual sections; draft survives search, reload and version 
     await page.getByRole("button", { name: "Reviewed history", exact: true }).click();
     await chooseFile(page, name);
     await expect(page.getByText("Reviewed by manager", { exact: true })).toBeVisible();
-    const [manager] = await db()`select display_name from staff where auth_user_id=${STAFF.manager}`;
     await expect(page.getByRole("region", { name: "Review workspace" })).toContainText(String(manager.display_name));
     await expect(page.getByLabel("Manager note (optional)")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Approve & route", exact: true })).toHaveCount(0);
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(metrics).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
-    await page.screenshot({ path: testInfo.outputPath("manager-mobile.png"), fullPage: true });
+    await capture(page, testInfo.outputPath("manager-mobile.png"));
+    await page.getByTestId("staff-language-toggle").click();
+    await expect(page.getByRole("heading", { name: "مركز مهام المدير", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
+    await capture(page, testInfo.outputPath("manager-mobile-ar.png"));
+    await page.setViewportSize({ width: 1440, height: 1024 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
+    await capture(page, testInfo.outputPath("manager-desktop-ar.png"));
   } finally { await context.close(); }
 });
 
@@ -122,7 +139,7 @@ test("duplicate comparison archives only the manager-selected file and requires 
     await page.getByRole("button", { name: "Review deletion", exact: true }).click();
     const remove = page.getByRole("button", { name: "Move selected file to deleted files", exact: true });
     await expect(remove).toBeDisabled();
-    await page.getByLabel("File to delete", { exact: true }).selectOption(relatedId);
+    await page.getByLabel("File to delete").selectOption(relatedId);
     await expect(remove).toBeDisabled();
     await page.getByLabel("Deletion reason (required)").fill("Manager confirmed this is the redundant record; preserve the original file");
     await remove.click();
@@ -156,7 +173,11 @@ test("staff urgent transfer and optional manager handoff preserve one operationa
     await page.goto(`/staff/clients?stage=urgent&q=${query}`);
     await expect(page.getByRole("heading", { name: "Urgent Clients", exact: true })).toBeVisible();
     await expect(page.locator(`a[href="/staff/client/${clientId}"]`).first()).toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath("urgent-desktop.png"), fullPage: true });
+    await capture(page, testInfo.outputPath("urgent-desktop.png"));
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
+    await capture(page, testInfo.outputPath("urgent-mobile.png"));
+    await page.setViewportSize({ width: 1440, height: 1024 });
     const [urgent] = await db()`select operational_location from clients where id=${clientId}`;
     expect(urgent.operational_location).toBe("urgent");
     await page.goto(`/staff/client/${clientId}`);
