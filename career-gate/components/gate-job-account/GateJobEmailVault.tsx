@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GateJobEmailForm } from "@/components/gate-job-account/GateJobEmailForm";
 import { CredentialField } from "@/components/gate-job-account/CredentialField";
 
@@ -91,13 +91,39 @@ export function GateJobEmailVault() {
   const [modal, setModal] = useState<"add"|"bulk"|null>(null);
   const [edit, setEdit] = useState<VaultRow|null>(null);
 
+  const requests = useRef({ generation: 0, controller: null as AbortController | null, active: false });
   const load = useCallback(async () => {
+    if (!requests.current.active) return;
+    const generation = ++requests.current.generation;
+    requests.current.controller?.abort();
+    const controller = new AbortController();
+    requests.current.controller = controller;
+    // Aborting saves work; the generation also rejects a response that already
+    // completed or whose transport cannot honor cancellation.
+    const isCurrent = () => requests.current.active && requests.current.generation === generation && !controller.signal.aborted;
     setLoading(true); setError(null);
-    try { const data=await api(`/api/staff/gate-job-account/emails?status=${status}&q=${encodeURIComponent(search)}`); setRows(data.emails); setCounts(data.counts); }
-    catch(err){ setError(err instanceof Error?err.message:"Unable to load vault"); }
-    finally{ setLoading(false); }
-  },[search,status]);
-  useEffect(()=>{ const t=setTimeout(()=>void load(),220); return()=>clearTimeout(t); },[load]);
+    try {
+      const data = await api(`/api/staff/gate-job-account/emails?status=${status}&q=${encodeURIComponent(search)}`, { cache: "no-store", signal: controller.signal });
+      if (!isCurrent()) return;
+      setRows(data.emails); setCounts(data.counts);
+    } catch (err) {
+      if (isCurrent()) setError(err instanceof Error ? err.message : "Unable to load vault");
+    } finally {
+      if (isCurrent()) { requests.current.controller = null; setLoading(false); }
+    }
+  }, [search, status]);
+  useEffect(() => {
+    const state = requests.current;
+    state.active = true;
+    const timer = setTimeout(() => void load(), 220);
+    return () => {
+      clearTimeout(timer);
+      state.active = false;
+      state.generation++;
+      state.controller?.abort();
+      state.controller = null;
+    };
+  }, [load]);
 
   async function remove(row:VaultRow){ if(!confirm(`Delete ${row.email}?`))return; try{await api("/api/staff/gate-job-account/emails",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:row.id})});await load();}catch(err){setError(err instanceof Error?err.message:"Delete failed");}}
   async function release(row:VaultRow){ try{await api("/api/staff/gate-job-account/accounts/assign",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"release",email_id:row.id})});await load();}catch(err){setError(err instanceof Error?err.message:"Release failed");}}
