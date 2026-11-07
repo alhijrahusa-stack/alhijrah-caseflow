@@ -11,6 +11,9 @@ export const maxDuration = 120;
 
 const MODEL = "whisper-large-v3";
 const MAX_AUDIO_BYTES = 25_000_000;
+// Whisper prompt is byte-bounded below 224 tokens (each BPE token covers at least one UTF-8 byte).
+const MAX_PROMPT_UTF8_BYTES = 200;
+const DEFAULT_DIALECT_CONTEXT = "لهجات عربية. كتابة الأسماء والمبالغ كما سُمعت، دون استنتاج.";
 
 type AudioFormat = { mime: string; extension: string };
 
@@ -50,15 +53,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // The entire inference path is in memory: no /tmp file and no writable volume.
   let file: FormDataEntryValue | null;
+  let dialectPrompt: FormDataEntryValue | null;
   try {
     const form = await request.formData();
     file = form.get("file");
+    dialectPrompt = form.get("prompt");
   } catch {
     return jsonError("Invalid multipart upload.", 400);
   }
   if (!(file instanceof File)) return jsonError("An audio file is required.", 400);
   if (file.size === 0) return jsonError("Audio file is empty.", 422);
   if (file.size > MAX_AUDIO_BYTES) return jsonError("Maximum audio size is 25 MB.", 413);
+
+  if (dialectPrompt !== null && typeof dialectPrompt !== "string") {
+    return jsonError("Whisper context must be text.", 422);
+  }
+  const prompt = typeof dialectPrompt === "string" && dialectPrompt.trim()
+    ? dialectPrompt.trim()
+    : DEFAULT_DIALECT_CONTEXT;
+  if (Buffer.byteLength(prompt, "utf8") > MAX_PROMPT_UTF8_BYTES) {
+    return jsonError("Whisper context exceeds 200 UTF-8 bytes (conservative 224-token limit).", 422);
+  }
 
   let bytes: Buffer;
   try {
@@ -76,6 +91,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       model: MODEL,
       file: inMemoryFile,
       language: "ar",
+      prompt,
       response_format: "json",
       temperature: 0,
     });
