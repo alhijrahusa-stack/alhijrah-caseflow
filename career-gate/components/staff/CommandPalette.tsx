@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import { STATUS_LABELS, type Status } from "@/lib/domain";
 import { useStaff } from "./StaffContext";
+import { acquireModalLayer, isTopModalLayer, releaseModalLayer } from "@/lib/modal-layer";
 
 type Item = { id: string; label: string; hint?: string; href: string };
 
@@ -24,6 +25,7 @@ export function CommandPalette() {
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const opener = useRef<HTMLElement | null>(null);
+  const modalToken = useRef(Symbol("command-palette"));
 
   const pages: Item[] = useMemo(() => [
     { id: "p-dash", label: t("Dashboard", "مركز القيادة"), href: "/staff" },
@@ -57,21 +59,24 @@ export function CommandPalette() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        opener.current = document.activeElement as HTMLElement;
-        setSkySurface(pathname === "/staff/manager-inbox" || !!document.querySelector(".cg-urgent-glass"));
+        if (!open) opener.current = document.activeElement as HTMLElement;
+        setSkySurface(!!document.querySelector(".cg-urgent-glass"));
         setOpen((o) => !o);
       }
     };
-    const onOpen = () => { opener.current = document.activeElement as HTMLElement; setSkySurface(pathname === "/staff/manager-inbox" || !!document.querySelector(".cg-urgent-glass")); setOpen(true); };
+    const onOpen = () => { if (!open) opener.current = document.activeElement as HTMLElement; setSkySurface(!!document.querySelector(".cg-urgent-glass")); setOpen(true); };
     window.addEventListener("keydown", onKey);
     window.addEventListener("career-gate:open-command", onOpen);
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("career-gate:open-command", onOpen); };
-  }, [pathname]);
+  }, [pathname, open]);
 
   useEffect(() => {
-    if (!open) { opener.current?.focus?.(); return; }
+    if (!open) return;
+    const token = modalToken.current;
+    acquireModalLayer(token);
     const timer = window.setTimeout(() => input.current?.focus(), 0);
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !isTopModalLayer(token)) return;
       if (event.key === "Escape") { event.preventDefault(); setOpen(false); }
       if (event.key !== "Tab") return;
       const controls = dialog.current?.querySelectorAll<HTMLElement>('input,button,[tabindex="0"]');
@@ -81,7 +86,7 @@ export function CommandPalette() {
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     };
     document.addEventListener("keydown", onKeyDown);
-    return () => { window.clearTimeout(timer); document.removeEventListener("keydown", onKeyDown); };
+    return () => { const wasTop = isTopModalLayer(token); releaseModalLayer(token); window.clearTimeout(timer); document.removeEventListener("keydown", onKeyDown); if (wasTop && opener.current?.isConnected) opener.current.focus(); };
   }, [open]);
 
   useEffect(() => {
@@ -103,12 +108,12 @@ export function CommandPalette() {
   const items = [...(q.trim().length >= 2 ? clients : []), ...pages.filter((p) => p.label.toLowerCase().includes(q.trim().toLowerCase()))];
   const go = (it: Item | undefined) => { if (!it) return; setOpen(false); setQ(""); router.push(it.href); };
 
-  if (!open) return <button type="button" onClick={() => { opener.current = document.activeElement as HTMLElement; setSkySurface(pathname === "/staff/manager-inbox" || !!document.querySelector(".cg-urgent-glass")); setOpen(true); }} className="hidden rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-500 md:block" aria-label={t("Open command palette", "فتح لوحة الأوامر")}>{t("Search…", "بحث…")} <kbd className="ml-2 rounded bg-slate-100 px-1">⌘K</kbd></button>;
+  if (!open) return <button type="button" onClick={() => { opener.current = document.activeElement as HTMLElement; setSkySurface(!!document.querySelector(".cg-urgent-glass")); setOpen(true); }} className="hidden rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-500 md:block" aria-label={t("Open command palette", "فتح لوحة الأوامر")}>{t("Search…", "بحث…")} <kbd className="ml-2 rounded bg-slate-100 px-1">⌘K</kbd></button>;
 
-  return createPortal(<div className={`royal-command-overlay fixed inset-0 z-[120] flex items-start justify-center bg-slate-950/70 px-4 pt-24 ${skySurface ? "cg-sky-command-overlay" : ""}`} dir={dir} onMouseDown={() => setOpen(false)}>
-    <div ref={dialog} role="dialog" aria-modal="true" aria-label={t("Command palette", "لوحة الأوامر")} data-testid="command-palette" className={`w-full max-w-xl overflow-hidden rounded-2xl border border-amber-300/30 bg-[#101f42]/95 text-slate-100 shadow-xl backdrop-blur-xl ${skySurface ? "cg-sky-command-panel" : ""}`} onMouseDown={(e) => e.stopPropagation()}>
+  return createPortal(<div className={`royal-command-overlay fixed inset-0 z-[300] flex items-start justify-center bg-slate-950/70 px-4 pt-24 ${skySurface ? "cg-sky-command-overlay" : pathname === "/staff/manager-inbox" ? "cg-spatial-command-overlay" : ""}`} dir={dir} onMouseDown={() => setOpen(false)}>
+    <div ref={dialog} role="dialog" aria-modal="true" aria-label={t("Command palette", "لوحة الأوامر")} data-testid="command-palette" className={`w-full max-w-xl overflow-hidden rounded-2xl border border-amber-300/30 bg-[#101f42]/95 text-slate-100 shadow-xl backdrop-blur-xl ${skySurface ? "cg-sky-command-panel" : pathname === "/staff/manager-inbox" ? "cg-spatial-command-panel" : ""}`} onMouseDown={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-between gap-4 border-b border-amber-300/15 px-4 py-3"><span className="text-xs font-semibold text-amber-100">{t("Command palette", "لوحة الأوامر")}</span><button type="button" className="min-h-9 min-w-9 rounded-lg border border-white/10 text-slate-300" aria-label={t("Close command palette", "إغلاق لوحة الأوامر")} onClick={() => setOpen(false)}>×</button></div>
-      <input ref={input} role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-activedescendant={items[active] ? `cmdk-${items[active].id}` : undefined} className="w-full border-b border-amber-300/15 bg-transparent px-4 py-4 text-sm text-slate-100 outline-none placeholder:text-slate-400 focus:bg-white/[.02]" placeholder={t("Search clients or jump to a page…", "ابحث عن عميل أو انتقل إلى قسم…")} aria-label={t("Search commands and clients", "البحث في الأوامر والعملاء")} value={q} onChange={(e) => { setQ(e.target.value); setActive(0); setClients([]);setSearching(e.target.value.trim().length>=2); }} onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, items.length - 1)); } if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); } if (e.key === "Enter") { e.preventDefault(); go(items[active]); } }}/>
+      <input ref={input} role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-activedescendant={items[active] ? `cmdk-${items[active].id}` : undefined} className="w-full border-b border-amber-300/15 bg-transparent px-4 py-4 text-sm text-slate-100 outline-none placeholder:text-slate-400 focus:bg-white/[.02]" placeholder={t("Search clients or jump to a page…", "ابحث عن عميل أو انتقل إلى قسم…")} aria-label={t("Search commands and clients", "البحث في الأوامر والعملاء")} value={q} onChange={(e) => { setQ(e.target.value); setActive(0); setClients([]);setSearching(e.target.value.trim().length>=2); }} onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); return; } if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, items.length - 1)); } if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); } if (e.key === "Enter") { e.preventDefault(); go(items[active]); } }}/>
       <ul id="cmdk-list" role="listbox" className="max-h-80 overflow-y-auto py-1">{items.map((it, i) => <li key={it.id} id={`cmdk-${it.id}`} role="option" aria-selected={i === active} className={`flex cursor-pointer justify-between px-4 py-2 text-sm ${i === active ? "bg-teal-300/10 text-teal-100" : ""}`} onMouseEnter={() => setActive(i)} onClick={() => go(it)}><span>{it.label}</span>{it.hint && <span className="text-xs text-slate-400">{it.hint}</span>}</li>)}{!items.length && <li className="px-4 py-3 text-sm text-slate-500">{searching ? t("Searching…", "جارٍ البحث…") : t("No matches.", "لا نتائج مطابقة.")}</li>}</ul>
     </div>
   </div>, document.body);

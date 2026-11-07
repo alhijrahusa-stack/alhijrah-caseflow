@@ -29,7 +29,7 @@ test("staff hands off a real client; manager reviews and routes the same file wi
     const managerPage = await managerContext.newPage();
     await managerPage.goto("/staff/manager-inbox");
     await expect(managerPage.getByRole("heading", { name: "Manager's Task Center" })).toBeVisible();
-    const inbox = managerPage.getByRole("complementary", { name: "Incoming reviews" });
+    const inbox = managerPage.getByRole("region", { name: "Incoming reviews" });
     await inbox.getByRole("button").filter({ hasText: name }).click();
     await expect(managerPage.getByRole("blockquote").filter({ hasText: "Please prepare the account" })).toBeVisible();
     await managerPage.getByLabel("Manager note (optional)").fill("Reviewed; move to account preparation");

@@ -1,6 +1,7 @@
 "use client";
 
-import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
+import { type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
+import { createStaffRealtimeClient } from "@/lib/staff-realtime-client";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
@@ -27,6 +28,7 @@ export function StaffPresence({ authUserId }: { authUserId: string }) {
     let disposed = false;
     let supabase: SupabaseClient | null = null;
     let channel: RealtimeChannel | null = null;
+    let connection: ReturnType<typeof createStaffRealtimeClient> | null = null;
     let connected = false;
     let initializing = false;
     let publishing = false;
@@ -84,13 +86,14 @@ export function StaffPresence({ authUserId }: { authUserId: string }) {
         const response = await fetch("/api/staff/realtime-token", { credentials: "same-origin", cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
         const data = await response.json().catch(() => null);
         if (disposed || !data?.ok) return;
-        if (!supabase) supabase = createClient(data.url, data.anon_key, { auth: { persistSession: false, autoRefreshToken: false } });
-        await supabase.realtime.setAuth(data.token);
+        if (!connection) { connection = createStaffRealtimeClient(data.url, data.anon_key, data.token); supabase = connection.client; }
+        await connection.setToken(data.token);
         if (disposed || channel) return;
-        channel = supabase.channel(`team-presence:${authUserId}`, { config: { private: true, presence: { key: tabId } } });
+        channel = connection.client.channel(`team-presence:${authUserId}`, { config: { private: true, presence: { key: tabId, enabled: true } } });
         channel.subscribe(status => {
           if (disposed) return;
           connected = status === "SUBSCRIBED";
+          if (status === "CLOSED") channel = null;
           if (connected) schedulePublish();
         });
       } catch { /* A later heartbeat or token refresh retries the connection. */ }

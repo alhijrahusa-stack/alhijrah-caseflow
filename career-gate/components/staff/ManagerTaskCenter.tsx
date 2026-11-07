@@ -11,10 +11,14 @@ import { publishMutation, RECOVERY_EVENT, subscribeResources } from "@/component
 import { MANAGER_INBOX_SURFACE } from "@/components/staff/realtime/surfaces";
 import { CLIENT_STAGES } from "@/lib/client-lifecycle-filters";
 import { dateTime } from "@/lib/format";
-import type { ManagerInboxItem, ManagerInboxPage } from "@/lib/manager-inbox";
+import { FloatingHeader } from "@/components/staff/manager/FloatingHeader";
+import { TaskCanvas } from "@/components/staff/manager/TaskCanvas";
+import { SpatialDrawer } from "@/components/staff/manager/SpatialDrawer";
+import type { ManagerReviewItem, ManagerFilters, ManagerSegment } from "@/components/staff/manager/types";
+import type { ManagerInboxPage } from "@/lib/manager-inbox";
 import styles from "@/components/staff/ManagerTaskCenter.module.css";
 
-type ReviewItem = ManagerInboxItem & { destination?: string | null; related_client?: (NonNullable<ManagerInboxItem["related_client"]> & { client_version?: string | null }) | null };
+type ReviewItem = ManagerReviewItem;
 type InboxPage = ManagerInboxPage;
 type ReviewData = {
   client?: Record<string, unknown>;
@@ -24,11 +28,11 @@ type ReviewData = {
   account?: { payment_status: string; balance: number; amount_paid_visible: boolean } | null;
   nextAction?: { title?: string; next_step?: string } | null;
 };
-type Filters = { status: "open" | "resolved"; kind: string; request_type: string; urgent: string; sender: string; q: string; sort: string };
+type Filters = ManagerFilters;
 type Draft = { note: string; destination: string; assignedStaffId: string; deleteClientId: string; deleteReason: string };
 type Decision = "approve" | "return" | "delete" | "not_duplicate";
 type Intent = { itemId: string; clientId: string | null; operationId: string; body: Record<string, unknown>; action: Decision; createdAt: string };
-const INITIAL_FILTERS: Filters = { status: "open", kind: "", request_type: "", urgent: "", sender: "", q: "", sort: "oldest" };
+const INITIAL_FILTERS: Filters = { status: "open", kind: "", request_type: "", urgent: "", payments: "", sender: "", q: "", sort: "oldest" };
 const EMPTY_DRAFT: Draft = { note: "", destination: "keep_current", assignedStaffId: "", deleteClientId: "", deleteReason: "" };
 const pretty = (value: unknown) => value == null || value === "" ? "—" : String(value).replaceAll("_", " ");
 
@@ -90,31 +94,6 @@ function ReportReview({ item }: { item: ReviewItem }) {
   </div>;
 }
 
-function MetricIcon({ kind }: { kind: string }) {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{kind === "smart" ? <><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z" /><path d="m20 2 .5 1.5L22 4l-1.5.5L20 6l-.5-1.5L18 4l1.5-.5L20 2Z" /></> : kind === "urgent" ? <path d="m13 2-9 12h7l-1 8 10-13h-8l1-7Z" /> : <><circle cx="9" cy="8" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M17 5a3 3 0 0 1 0 6M19 21v-3a6 6 0 0 0-2-4.5" /></>}</svg>;
-}
-
-function AnimatedCount({ value }: { value: number | undefined }) {
-  const [shown, setShown] = useState(value);
-  const previous = useRef(value);
-  useEffect(() => {
-    const from = previous.current; previous.current = value;
-    if (from == null || value == null || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const frame = requestAnimationFrame(() => setShown(value));
-      return () => cancelAnimationFrame(frame);
-    }
-    let frame = 0; const start = performance.now();
-    const tick = (now: number) => {
-      const progress = Math.min(1, (now - start) / 300);
-      setShown(Math.round(from + (value - from) * (1 - (1 - progress) ** 3)));
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [value]);
-  return <span aria-label={value == null ? "—" : String(value)}><span aria-hidden="true">{value == null ? "—" : (shown ?? value).toLocaleString("en-US")}</span></span>;
-}
-
 class DecisionFailure extends Error {
   constructor(message: string, readonly definite: boolean) { super(message); }
 }
@@ -133,7 +112,7 @@ export function ManagerTaskCenter({ initial, reviewerId }: { initial: ManagerInb
   const { t, language } = useStaffLanguage();
   const { activeStaff } = useStaff();
   const [inbox, setInbox] = useState<InboxPage>(initial);
-  const [reviewed, setReviewed] = useState<ReviewItem | null>(initial.items[0] ?? null);
+  const [reviewed, setReviewed] = useState<ReviewItem | null>(null);
   const [draft, setDraft] = useState<Draft>({ ...EMPTY_DRAFT });
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
   const [query, setQuery] = useState("");
@@ -277,15 +256,16 @@ export function ManagerTaskCenter({ initial, reviewerId }: { initial: ManagerInb
   const liveLabel = live ? t("Live", "متصل لحظيًا") : liveState === "connecting" ? t("Connecting", "جارٍ الاتصال") : t("Updates paused", "التحديثات متوقفة");
   const duplicate = reviewed?.request_type === "duplicate";
   const readOnly = filters.status === "resolved" || Boolean(reviewed?.resolved_at);
-  return <div className={styles.center} data-testid="manager-task-center">
-    <header className={styles.hero}><div><p>CAREER GATE · COMMAND CENTER</p><h1>{t("Manager's Task Center", "مركز مهام المدير")}</h1><span>{t("Review, decide and route in one workspace", "مراجعة واعتماد وتوجيه من مساحة واحدة")}</span></div><div className={styles.heroActions}><span className={styles.live} data-live={live}><i aria-hidden="true" />{liveLabel}</span><button type="button" className={styles.commandButton} onClick={() => window.dispatchEvent(new Event("career-gate:open-command"))}>{t("Quick commands", "الأوامر السريعة")} <kbd>⌘ K</kbd></button></div></header>
-    <div className={styles.metrics} aria-label={t("Current operational file counts", "أعداد الملفات التشغيلية الحالية")}>
-      {[{ label: t("Smart Client files", "عملاء Smart Client"), value: inbox.summary?.smart_client, href: "/staff/import", tone: "smart" }, { label: t("Clients files", "عملاء Clients"), value: inbox.summary?.clients, href: "/staff/clients", tone: "clients" }, { label: t("Urgent files", "الملفات العاجلة"), value: inbox.summary?.urgent, href: "/staff/clients?stage=urgent", tone: "urgent" }].map(metric => <Link key={metric.tone} href={metric.href} className={styles.metric} data-tone={metric.tone} prefetch={false}><span className={styles.metricIcon} aria-hidden="true"><MetricIcon kind={metric.tone} /></span><strong><AnimatedCount value={metric.value} /></strong><span className={styles.metricLabel}>{metric.label}<i data-live={live} aria-hidden="true" /></span><small>{t("Files currently in this section", "الملفات الموجودة فعليًا في القسم")}</small><span className={styles.metricArrow} aria-hidden="true">↗</span></Link>)}
-    </div>
-    <TeamNowPanel />
-    <section className={styles.toolbar} aria-label={t("Review filters", "فرز المراجعات")}>
-      <div className={styles.statusTabs}><button type="button" aria-pressed={filters.status === "open"} onClick={() => filter({ status: "open" })} disabled={pending}>{t("Awaiting decision", "بانتظار القرار")}<b>{inbox.summary?.awaiting_review ?? (filters.status === "open" ? inbox.total : "—")}</b></button><button type="button" aria-pressed={filters.status === "resolved"} onClick={() => filter({ status: "resolved" })} disabled={pending}>{t("Reviewed history", "سجل المراجعات")}</button></div>
-      <label className={styles.search}><span aria-hidden="true">⌕</span><input type="search" aria-label={t("Search reviews", "البحث في المراجعات")} placeholder={t("Name, file, phone or note…", "الاسم، الملف، الهاتف أو الملاحظة…")} value={query} onChange={event => setQuery(event.target.value)} disabled={pending} /></label>
+  const segment: ManagerSegment = filters.status === "resolved" ? "resolved" : filters.payments ? "payments" : filters.urgent ? "urgent" : "action";
+  const setSegment = (next: ManagerSegment) => filter({ status: next === "resolved" ? "resolved" : "open", urgent: next === "urgent" ? "1" : "", payments: next === "payments" ? "1" : "" });
+  return <div className={styles.center} data-testid="manager-task-center" data-manager-spatial="true">
+    <FloatingHeader summary={inbox.summary} query={query} onQueryChange={setQuery} onPaymentClick={() => { setQuery(""); filter({ ...INITIAL_FILTERS, payments: "1" }); }} teamNow={<TeamNowPanel compact />} live={live} liveLabel={liveLabel} disabled={pending}/>
+    {stale && <div className={styles.error} role="status">{t("Live inbox could not be refreshed. Displayed figures may be out of date.", "تعذر تحديث الوارد. قد لا تعكس الأرقام آخر التغييرات.")} <button type="button" onClick={() => { void refresh(); }}>{t("Retry", "إعادة المحاولة")}</button></div>}
+    {uncertain && !pending && <div className={styles.pendingNotice} role="status"><p>{t("A previous save is awaiting confirmation. Your draft and request identity are preserved.", "يوجد حفظ ينتظر تأكيد النتيجة. ملاحظاتك ومعرّف الطلب محفوظان.")}</p><div><button type="button" onClick={() => { pendingRef.current = true; setPending(true); void checkIntent(uncertain).then(async confirmed => { await refresh(page.current, true); if (!confirmed) setError(t("Result not yet confirmed. Retry uses the same request and cannot create a second decision.", "لم تتأكد النتيجة بعد. تستخدم إعادة المحاولة الطلب نفسه لمنع تكرار القرار.")); }).finally(() => { pendingRef.current = false; setPending(false); }); }}>{t("Check result", "تحقق من النتيجة")}</button><button type="button" onClick={() => { void execute(uncertain, false); }}>{t("Retry same request", "إعادة الطلب نفسه")}</button></div></div>}
+    {error && !reviewed && <p role="alert" className={styles.error}>{error}</p>}
+    <TaskCanvas items={inbox.items} selectedId={reviewed?.id} segment={segment} onSegmentChange={setSegment} onSelect={select} page={inbox.page} pages={inbox.pages} total={inbox.total} awaitingReview={inbox.summary.awaiting_review} loading={loading} pending={pending} emptyFiltered={Boolean(query || filters.kind || filters.request_type || filters.urgent || filters.payments || filters.sender || filters.status === "resolved")} onRefresh={() => { void refresh(); }} onPageChange={next => { setReviewed(null); void refresh(next); }} filters={
+      <details className={styles.toolbar}>
+        <summary><span>{t("Filter & sort", "الفرز والتصفية")}</span><span className={styles.filterSummary}>{t("Type · Employee · Priority", "النوع · الموظف · الأولوية")} <span aria-hidden="true">⌄</span></span></summary>
       <div className={styles.filterGrid}>
         <label>{t("Type", "النوع")}<select value={filters.kind} onChange={event => filter({ kind: event.target.value })} disabled={pending}><option value="">{t("All types", "جميع الأنواع")}</option><option value="client">{t("Client files", "ملفات العملاء")}</option><option value="report">{t("Reports", "التقارير")}</option></select></label>
         <label>{t("Intervention", "طبيعة التدخل")}<select value={filters.request_type} onChange={event => filter({ request_type: event.target.value })} disabled={pending}><option value="">{t("All requests", "جميع الطلبات")}</option><option value="review">{t("Operational review", "مراجعة تشغيلية")}</option><option value="duplicate">{t("Duplicate review", "مراجعة التشابه")}</option></select></label>
@@ -293,21 +273,11 @@ export function ManagerTaskCenter({ initial, reviewerId }: { initial: ManagerInb
         <label>{t("Submitted by", "المرسل")}<select value={filters.sender} onChange={event => filter({ sender: event.target.value })} disabled={pending}><option value="">{t("All employees", "جميع الموظفين")}</option>{(inbox.senders ?? activeStaff).map(member => <option key={member.id} value={member.id}>{member.display_name}</option>)}</select></label>
         <label>{t("Sort", "الترتيب")}<select value={filters.sort} onChange={event => filter({ sort: event.target.value })} disabled={pending}><option value="oldest">{t("Oldest first", "الأقدم أولًا")}</option><option value="newest">{t("Newest first", "الأحدث أولًا")}</option><option value="priority">{t("Urgent first", "العاجل أولًا")}</option></select></label>
       </div>
-      <div className={styles.filterFooter}><span role="status">{loading ? t("Updating…", "جارٍ التحديث…") : `${inbox.total} ${t("matching reviews", "مراجعة مطابقة")}`}</span><button type="button" onClick={() => { setQuery(""); filter(INITIAL_FILTERS); }} disabled={pending}>{t("Reset filters", "إعادة ضبط الفرز")}</button></div>
-    </section>
-    {stale && <div className={styles.error} role="status">{t("Live inbox could not be refreshed. Displayed figures may be out of date.", "تعذر تحديث الوارد. قد لا تعكس الأرقام آخر التغييرات.")} <button type="button" onClick={() => { void refresh(); }}>{t("Retry", "إعادة المحاولة")}</button></div>}
-    {uncertain && !pending && <div className={styles.pendingNotice} role="status"><p>{t("A previous save is awaiting confirmation. Your draft and request identity are preserved.", "يوجد حفظ ينتظر تأكيد النتيجة. ملاحظاتك ومعرّف الطلب محفوظان.")}</p><div><button type="button" onClick={() => { pendingRef.current = true; setPending(true); void checkIntent(uncertain).then(async confirmed => { await refresh(page.current, true); if (!confirmed) setError(t("Result not yet confirmed. Retry uses the same request and cannot create a second decision.", "لم تتأكد النتيجة بعد. تستخدم إعادة المحاولة الطلب نفسه لمنع تكرار القرار.")); }).finally(() => { pendingRef.current = false; setPending(false); }); }}>{t("Check result", "تحقق من النتيجة")}</button><button type="button" onClick={() => { void execute(uncertain, false); }}>{t("Retry same request", "إعادة الطلب نفسه")}</button></div></div>}
-    {error && <p role="alert" className={styles.error}>{error}</p>}
-    <div className={styles.split} aria-busy={loading || pending}>
-      <aside className={styles.inbox} aria-label={t("Incoming reviews", "المراجعات الواردة")}>
-        <div className={styles.inboxHeading}><div><p>{readOnly ? t("REVIEW HISTORY", "سجل المراجعات") : t("DECISION QUEUE", "قائمة القرارات")}</p><h2>{filters.status === "open" ? t("Inbox", "الوارد") : t("Resolved", "المراجعات المكتملة")}</h2></div><button type="button" className={styles.refresh} disabled={pending || loading} onClick={() => { void refresh(); }} aria-label={t("Refresh inbox", "تحديث الوارد")}>↻</button></div>
-        {!inbox.items.length ? <div className={styles.empty}><span aria-hidden="true">✓</span><h3>{loading ? t("Updating reviews", "جارٍ تحديث المراجعات") : filters.status === "open" && !query && !filters.kind && !filters.request_type && !filters.urgent && !filters.sender ? t("You're up to date", "اكتملت المراجعات") : t("No matching reviews", "لا توجد مراجعات مطابقة")}</h3><p>{t("Files and reports sent by staff appear here. Try adjusting the filters.", "تظهر هنا الملفات والتقارير المرسلة للمراجعة. يمكنك تعديل خيارات الفرز.")}</p></div> : <ul className={styles.inboxList}>{inbox.items.map(item => <li key={item.id}><button type="button" aria-pressed={reviewed?.id === item.id} onClick={() => select(item)} disabled={pending} className={styles.item} data-urgent={item.is_urgent}>
-          <span className={styles.kind}>{item.request_type === "duplicate" ? t("Duplicate review", "مراجعة تشابه") : item.kind === "client" ? t("Client file", "ملف عميل") : t("Report", "تقرير")}<span aria-hidden="true">↗</span></span><strong dir="auto">{item.title}</strong><span className={styles.itemTags}>{item.is_urgent && <b>{t("Urgent", "عاجل")}</b>}{item.resolved_at && <em>{t("Reviewed", "تمت المراجعة")}</em>}</span><span className={styles.sender} dir="auto">{item.sender_name}</span><time>{dateTime(item.submitted_at)}</time>
-        </button></li>)}</ul>}
-        <nav className={styles.pager} aria-label={t("Inbox pages", "صفحات الوارد")}><button type="button" disabled={inbox.page <= 1 || pending || loading} onClick={() => { setReviewed(null); void refresh(inbox.page - 1); }}>{t("Previous", "السابق")}</button><span>{inbox.page} / {inbox.pages}</span><button type="button" disabled={inbox.page >= inbox.pages || pending || loading} onClick={() => { setReviewed(null); void refresh(inbox.page + 1); }}>{t("Next", "التالي")}</button></nav>
-      </aside>
-      <section className={styles.review} aria-label={t("Review workspace", "مساحة المراجعة")}>
-        {!reviewed ? <div className={styles.empty}><span aria-hidden="true">✧</span><h2>{pending ? t("Saving decision…", "جارٍ حفظ القرار…") : t("Choose a review", "اختر مراجعة")}</h2><p>{t("Select an incoming item to inspect its details and choose the next action. Drafts remain saved when you switch items.", "اختر ملفًا لمراجعة التفاصيل واتخاذ القرار. تبقى المسودات محفوظة عند التنقل.")}</p></div> : <>
+      <div className={styles.filterFooter}><span>{t("Filter within the selected review category", "الفرز داخل تصنيف المراجعة المحدد")}</span><button type="button" onClick={() => { setQuery(""); filter(INITIAL_FILTERS); }} disabled={pending}>{t("Reset filters", "إعادة ضبط الفرز")}</button></div>
+      </details>
+    }/>
+    {reviewed && <SpatialDrawer onClose={() => setReviewed(null)}><section className={styles.review} aria-label={t("Review workspace", "مساحة المراجعة")}>
+      {error && <p role="alert" className={styles.error}>{error}</p>}
           <header className={styles.reviewHeading}><div><p>{reviewed.ref || t("MANAGEMENT REPORT", "تقرير إداري")}</p><h2 dir="auto">{reviewed.full_name || reviewed.title}</h2>{duplicate && <span className={styles.duplicateTag}>{t("Similarity reported · manager decision required", "تشابه مُبلّغ عنه · يتطلب قرار المدير")}</span>}</div><Link href={reviewed.source_path} prefetch={false} className={styles.secondary}>{t("Full record", "السجل الكامل")} ↗</Link></header>
           <div className={styles.reviewBody}>
             {reviewed.submitted_note && <blockquote className={styles.submission}><span>{t("Sender's note", "ملاحظة المرسل")}</span><p dir="auto">{reviewed.submitted_note}</p></blockquote>}
@@ -328,9 +298,7 @@ export function ManagerTaskCenter({ initial, reviewerId }: { initial: ManagerInb
             {deleteOpen && <fieldset className={styles.deletion}><legend>{t("Move one file to deleted files", "نقل ملف واحد إلى المحذوفات")}</legend><label>{t("File to delete", "الملف المطلوب حذفه")}<select value={draft.deleteClientId} onChange={event => updateDraft({ deleteClientId: event.target.value })} disabled={blocked}><option value="">{t("Choose a file explicitly", "حدد الملف صراحةً")}</option><option value={reviewed.client_id!}>{reviewed.ref} · {reviewed.full_name ?? reviewed.title}</option>{duplicate && reviewed.related_client_id && <option value={reviewed.related_client_id}>{reviewed.related_client?.ref} · {reviewed.related_client?.full_name ?? t("Related file", "الملف المرتبط")}</option>}</select></label><label>{t("Deletion reason (required)", "سبب الحذف (مطلوب)")}<textarea value={draft.deleteReason} onChange={event => updateDraft({ deleteReason: event.target.value })} maxLength={500} rows={2} disabled={blocked} dir="auto" /></label><button type="button" className={styles.danger} disabled={blocked || !draft.deleteClientId || !draft.deleteReason.trim()} onClick={() => decide("delete")}>{t("Move selected file to deleted files", "نقل الملف المحدد إلى المحذوفات")}</button></fieldset>}
             <p className={styles.guardHint}>{t("Move directly to any workflow section. Your decision and manager review stamp are recorded together.", "انتقل مباشرة إلى أي مرحلة. يُحفظ القرار وختم مراجعة المدير معًا.")}</p>
           </form>}
-        </>}
-      </section>
-    </div>
+    </section></SpatialDrawer>}
     {notice && <p className={styles.toast} role="status">✓ {notice}</p>}
   </div>;
 }

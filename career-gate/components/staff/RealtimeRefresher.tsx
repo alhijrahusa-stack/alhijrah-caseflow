@@ -1,6 +1,7 @@
 "use client";
 
-import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
+import { type RealtimeChannel } from "@supabase/supabase-js";
+import { createStaffRealtimeClient } from "@/lib/staff-realtime-client";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState } from "react";
 import { publishPayload, RECOVERY_EVENT, requestRecovery, type RecoveryReason } from "@/components/staff/realtime/update-bus";
@@ -38,6 +39,7 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
     let channel: RealtimeChannel | null = null;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let tokenTimer: ReturnType<typeof setInterval> | null = null;
     const controller = new AbortController();
     let disposeRealtime: (() => void) | null = null;
     let recoveryPending = false;
@@ -86,7 +88,7 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
     publishRealtimeState("connecting");
 
     (async () => {
-      const res = await fetch("/api/staff/realtime-token", { signal: controller.signal }).catch(() => null);
+      const res = await fetch("/api/staff/realtime-token", { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) }).catch(() => null);
       const data = await res?.json().catch(() => null);
       if (cancelled) return;
       if (!data?.ok) {
@@ -94,9 +96,21 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
         return;
       }
 
-      const supabase = createClient(data.url, data.anon_key, { auth: { persistSession: false, autoRefreshToken: false } });
+      const connection = createStaffRealtimeClient(data.url, data.anon_key, data.token);
+      const supabase = connection.client;
       disposeRealtime = () => { void supabase.removeAllChannels(); };
-      await supabase.realtime.setAuth(data.token);
+      await connection.setToken(data.token);
+      if (cancelled) return;
+      tokenTimer = setInterval(() => {
+        void (async () => {
+          const response = await fetch("/api/staff/realtime-token", { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+          const refreshed = await response.json().catch(() => null);
+          if (cancelled) return;
+          if (!response.ok || !refreshed?.ok) { updateState("offline"); return; }
+          await connection.setToken(refreshed.token);
+          if (!cancelled && channel?.state === "joined") updateState("live");
+        })().catch(() => { if (!cancelled) updateState("offline"); });
+      }, 4 * 60_000);
       if (cancelled) return;
       channel = supabase.channel(`staff-${clientId ?? "operations"}`);
       const tables = clientId ? CLIENT_REALTIME_ENTITIES : DASHBOARD_REALTIME_ENTITIES;
@@ -141,6 +155,7 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener(RECOVERY_EVENT, handleRecoveryRequest);
       if (timer) clearTimeout(timer);
+      if (tokenTimer) clearInterval(tokenTimer);
       disposeRealtime?.();
     };
   }, [clientId, router]);
