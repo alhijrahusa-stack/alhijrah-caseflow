@@ -1,70 +1,146 @@
 "use client";
 
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import {
+  Activity,
+  ArrowDownToLine,
+  AudioLines,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clipboard,
+  CloudUpload,
+  FileAudio2,
+  FileText,
+  Headphones,
+  LoaderCircle,
+  Mic2,
+  ShieldCheck,
+  Sparkles,
+  WandSparkles,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Notice } from "@/components/ui/notice";
-import { PageHeader } from "@/components/ui/page-header";
 import { csrf } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
-function errorText(value: unknown): string {
-  return value instanceof Error ? value.message : "Request failed.";
+const MAX_AUDIO_BYTES = 25_000_000;
+const MAX_TEXT = 1000;
+const BARS = [17, 32, 25, 48, 36, 62, 46, 78, 56, 39, 65, 50, 30, 58, 43, 70, 52, 29, 47, 23, 37, 19];
+
+type Processing = "tts" | "stt" | null;
+type TranscriptResponse = {
+  text: string;
+  model?: string;
+  source_sha256?: string;
+};
+
+function formatBytes(bytes: number): string {
+  return bytes < 1_000_000 ? (bytes / 1_000).toFixed(0) + " KB" : (bytes / 1_000_000).toFixed(2) + " MB";
 }
 
-async function readError(response: Response): Promise<string> {
-  const payload: unknown = await response.json().catch(() => null);
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const value = (payload as { error: unknown }).error;
-    if (typeof value === "string") return value;
+function formatTime(ms: number): string {
+  return ms < 1000 ? Math.round(ms) + " ms" : (ms / 1000).toFixed(2) + " s";
+}
+
+async function responseError(res: Response): Promise<string> {
+  const result: unknown = await res.json().catch(() => null);
+  if (result && typeof result === "object" && "error" in result) {
+    const text = (result as { error: unknown }).error;
+    if (typeof text === "string") return text;
   }
-  return "Request failed (HTTP " + response.status + ").";
+  return "Request failed (HTTP " + res.status + ").";
+}
+
+function GlassPanel({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={
+        "relative overflow-hidden rounded-[28px] border border-white/[0.11] bg-white/[0.045] " +
+        "shadow-[0_25px_90px_-36px_rgba(0,0,0,0.85)] backdrop-blur-2xl " + className
+      }
+    >
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" aria-hidden="true" />
+      {children}
+    </div>
+  );
 }
 
 export default function VoiceStudioPage() {
   const { dir } = useI18n();
   const rtl = dir === "rtl";
+  const reduceMotion = useReducedMotion();
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState<"tts" | "stt" | null>(null);
-  const [error, setError] = useState("");
-  const [transcript, setTranscript] = useState("");
+  const [busy, setBusy] = useState<Processing>(null);
+  const [errorTTS, setErrorTTS] = useState("");
+  const [errorSTT, setErrorSTT] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
-  const urlRef = useRef<string | null>(null);
+  const [transcript, setTranscript] = useState("");
+  const [sourceHash, setSourceHash] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [ttsElapsed, setTtsElapsed] = useState<number | null>(null);
+  const [sttElapsed, setSttElapsed] = useState<number | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => () => {
-    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+  useEffect(() => {
+    return () => {
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    };
   }, []);
 
-  async function generate() {
+  function setAudioFile(selected: File | null) {
+    setErrorSTT("");
+    setTranscript("");
+    setSourceHash("");
+    setSttElapsed(null);
+    if (selected && selected.size > MAX_AUDIO_BYTES) {
+      setFile(null);
+      setErrorSTT(rtl ? "الحد الأقصى للملف الصوتي 25 ميغابايت." : "Audio file limit is 25 MB.");
+      return;
+    }
+    setFile(selected);
+  }
+
+  async function synthesize() {
     if (!text.trim() || busy) return;
     setBusy("tts");
-    setError("");
+    setErrorTTS("");
+    setTtsElapsed(null);
     setAudioUrl("");
-    if (urlRef.current) {
-      URL.revokeObjectURL(urlRef.current);
-      urlRef.current = null;
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
     }
+    const started = performance.now();
     try {
       const res = await fetch("/api/tts", {
         method: "POST",
         credentials: "same-origin",
-        headers: { "content-type": "application/json", "x-csrf-token": csrf() },
-        body: JSON.stringify({ text }),
         cache: "no-store",
+        headers: { "content-type": "application/json", "x-csrf-token": csrf() },
+        body: JSON.stringify({ text: text.trim() }),
       });
-      if (!res.ok) throw new Error(await readError(res));
-      if (!(res.headers.get("content-type") || "").includes("audio/mpeg")) {
+      if (!res.ok) throw new Error(await responseError(res));
+      if (!(res.headers.get("content-type") ?? "").includes("audio/mpeg")) {
         throw new Error("Unexpected response format.");
       }
-      const mp3 = await res.blob();
-      if (mp3.size < 64) throw new Error("Provider returned empty audio.");
-      const url = URL.createObjectURL(mp3);
-      urlRef.current = url;
+      const audio = await res.blob();
+      if (audio.size < 64) throw new Error("Empty MP3 response.");
+      const url = URL.createObjectURL(audio);
+      audioUrlRef.current = url;
       setAudioUrl(url);
-    } catch (e) {
-      setError(errorText(e));
+      setTtsElapsed(performance.now() - started);
+    } catch (error) {
+      setErrorTTS(error instanceof Error ? error.message : "Audio generation failed.");
     } finally {
       setBusy(null);
     }
@@ -73,89 +149,339 @@ export default function VoiceStudioPage() {
   async function transcribe() {
     if (!file || busy) return;
     setBusy("stt");
-    setError("");
+    setErrorSTT("");
     setTranscript("");
+    setSourceHash("");
+    setSttElapsed(null);
+    const started = performance.now();
     try {
       const form = new FormData();
-      form.append("file", file);
+      form.set("file", file);
       const res = await fetch("/api/stt", {
         method: "POST",
         credentials: "same-origin",
+        cache: "no-store",
         headers: { "x-csrf-token": csrf() },
         body: form,
-        cache: "no-store",
       });
-      if (!res.ok) throw new Error(await readError(res));
+      if (!res.ok) throw new Error(await responseError(res));
       const result: unknown = await res.json();
-      if (!result || typeof result !== "object" || !("text" in result) || typeof result.text !== "string") {
-        throw new Error("Invalid transcription response.");
+      if (!result || typeof result !== "object" || !("text" in result) ||
+          typeof result.text !== "string" || !result.text.trim()) {
+        throw new Error("Transcription response is empty or invalid.");
       }
-      setTranscript(result.text);
-    } catch (e) {
-      setError(errorText(e));
+      const response = result as TranscriptResponse;
+      setTranscript(response.text);
+      setSourceHash(typeof response.source_sha256 === "string" ? response.source_sha256 : "");
+      setSttElapsed(performance.now() - started);
+    } catch (error) {
+      setErrorSTT(error instanceof Error ? error.message : "Audio transcription failed.");
     } finally {
       setBusy(null);
     }
   }
 
+  async function copyTranscript() {
+    if (!transcript) return;
+    try {
+      await navigator.clipboard.writeText(transcript);
+      setCopied(true);
+    } catch {
+      setErrorSTT(rtl ? "تعذّر النسخ إلى الحافظة." : "Clipboard access was denied.");
+    }
+  }
+
+  function downloadTranscript() {
+    if (!transcript) return;
+    const url = URL.createObjectURL(new Blob([transcript], { type: "text/plain;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "murailex-transcript.txt";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const animateUp = reduceMotion ? {} : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } };
+  const NextArrow = rtl ? ChevronLeft : ChevronRight;
+
   return (
-    <div className="space-y-6 fade-in">
-      <PageHeader title={rtl ? "مختبر الصوت — MURAILEX" : "MURAILEX Voice Studio"} />
-      <Notice tone="info">
-        {rtl
-          ? "معالجة صوتية مستقلة. المخرجات تجريبية ولا تُعد محضرًا جنائيًا معتمدًا، ولن تغيّر التسجيلات الأصلية."
-          : "Independent voice processing. Output is not a certified forensic transcript and never modifies source evidence."}
-      </Notice>
-      {error && <Notice tone="danger" role="alert">{error}</Notice>}
-      <Card className="space-y-4">
-        <CardTitle>{rtl ? "تحويل النص إلى صوت" : "Text to Speech"}</CardTitle>
-        <p className="text-sm text-fg-muted">{rtl ? "الصوت العربي: شاكر — Microsoft Edge Neural" : "Arabic voice: Shakir — Microsoft Edge Neural"}</p>
-        <label className="block space-y-2 text-sm">
-          <span>{rtl ? "النص" : "Text"}</span>
-          <textarea
-            className="w-full rounded-lg border border-line bg-surface-2 p-3 text-fg"
-            rows={5}
-            maxLength={1000}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={rtl ? "اكتب النص الذي تريد سماعه" : "Type the text you want to hear"}
-            dir="auto"
-          />
-          <span className="block text-end text-xs text-fg-subtle" dir="ltr">{text.length}/1000</span>
-        </label>
-        <Button disabled={!text.trim() || busy !== null} onClick={() => void generate()}>
-          {busy === "tts" ? (rtl ? "جارٍ التوليد…" : "Generating…") : (rtl ? "توليد الصوت" : "Generate Speech")}
-        </Button>
-        {audioUrl && (
-          <div className="space-y-3">
-            <audio controls src={audioUrl} className="w-full" aria-label={rtl ? "الصوت الناتج" : "Generated speech"} />
-            <a href={audioUrl} download="audio.mp3" className="inline-flex rounded-lg border border-line px-4 py-2 text-sm text-fg hover:bg-surface-2">
-              {rtl ? "تنزيل MP3" : "Download MP3"}
-            </a>
-          </div>
-        )}
-      </Card>
-      <Card className="space-y-4">
-        <CardTitle>{rtl ? "تحويل الصوت إلى نص" : "Speech to Text"}</CardTitle>
-        <p className="text-sm text-fg-muted" dir="ltr">Groq Whisper Large V3 · Arabic</p>
-        <label className="block space-y-2 text-sm">
-          <span>{rtl ? "الملف الصوتي" : "Audio file"}</span>
-          <input
-            type="file"
-            accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.webm"
-            className="w-full text-sm"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </label>
-        <Button disabled={!file || busy !== null} onClick={() => void transcribe()}>
-          {busy === "stt" ? (rtl ? "جارٍ التفريغ…" : "Transcribing…") : (rtl ? "رفع الصوت وتفريغه" : "Upload Audio for STT")}
-        </Button>
-        {transcript && (
-          <div className="rounded-xl border border-line bg-surface-2 p-4">
-            <p className="whitespace-pre-wrap text-sm text-fg" dir="auto">{transcript}</p>
-          </div>
-        )}
-      </Card>
+    <div className="relative isolate mx-auto max-w-6xl space-y-7 overflow-hidden pb-8 text-white">
+      <div aria-hidden="true" className="pointer-events-none absolute -top-28 right-[-20%] -z-10 h-[32rem] w-[38rem] rounded-full bg-[radial-gradient(ellipse,rgba(89,91,242,0.22)_0%,transparent_68%)] blur-2xl" />
+      <div aria-hidden="true" className="pointer-events-none absolute left-[-25%] top-[20rem] -z-10 h-[32rem] w-[34rem] rounded-full bg-[radial-gradient(ellipse,rgba(24,187,214,0.13)_0%,transparent_68%)] blur-2xl" />
+
+      <motion.header {...animateUp} transition={{ duration: 0.42 }} className="relative space-y-5 pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 rounded-full border border-indigo-300/20 bg-indigo-300/[0.08] px-3.5 py-1.5 text-[11px] font-bold tracking-[0.15em] text-indigo-200" dir="ltr">
+            <Sparkles className="size-3.5" aria-hidden="true" /> MURAILEX / VOICE INTELLIGENCE
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/15 bg-emerald-300/[0.05] px-3 py-1.5 text-xs font-medium text-emerald-100/80">
+            <ShieldCheck className="size-3.5" aria-hidden="true" />
+            {rtl ? "مساحة عمل مستقلة" : "Private workspace"}
+          </span>
+        </div>
+        <div className="max-w-3xl space-y-3">
+          <h1 className="text-[clamp(2rem,5vw,3.6rem)] font-bold leading-[1.17] tracking-tight">
+            {rtl ? "صوتك. نصك." : "Your voice. Your words."}
+            <span className="block bg-gradient-to-r from-[#B5BCFF] via-[#82D7F2] to-[#D1B9FF] bg-clip-text text-transparent">
+              {rtl ? "بذكاء أكثر." : "Elevated by intelligence."}
+            </span>
+          </h1>
+          <p className="max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
+            {rtl
+              ? "حوّل النص العربي إلى صوت طبيعي، أو استخرج نصًا من تسجيلك عبر واجهة واحدة. النتائج قابلة للتشغيل والنسخ والتنزيل."
+              : "Create natural Arabic speech from text or transcribe your recording in one focused studio. Listen, copy and download directly."}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2.5 text-xs text-white/65">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3.5 py-2 backdrop-blur-xl" dir="ltr">
+            <AudioLines className="size-3.5 text-sky-300" aria-hidden="true" /> Neural TTS · MP3
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3.5 py-2 backdrop-blur-xl" dir="ltr">
+            <Mic2 className="size-3.5 text-indigo-300" aria-hidden="true" /> Whisper Large V3
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3.5 py-2 backdrop-blur-xl">
+            <ShieldCheck className="size-3.5 text-emerald-300" aria-hidden="true" />
+            {rtl ? "ملفات الأدلة الأصلية دون تغيير" : "Original evidence remains unchanged"}
+          </span>
+        </div>
+      </motion.header>
+
+      <div className="grid items-start gap-5 xl:grid-cols-2">
+        <motion.section {...animateUp} transition={{ duration: 0.45, delay: 0.06 }} aria-label={rtl ? "تحويل النص إلى صوت" : "Text to speech"}>
+          <GlassPanel>
+            <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-28 size-72 rounded-full bg-indigo-400/[0.12] blur-3xl" />
+            <div className="relative space-y-6 p-5 sm:p-7">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-3">
+                  <span className="flex size-12 items-center justify-center rounded-2xl border border-indigo-200/20 bg-indigo-300/10 shadow-[0_0_40px_-12px_rgba(129,140,248,.5)]">
+                    <Headphones className="size-6 text-indigo-200" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-widest text-indigo-200/85" dir="ltr">01 / TEXT TO SPEECH</div>
+                    <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{rtl ? "امنح كلماتك صوتًا" : "Bring words to life"}</h2>
+                    <p className="mt-1 text-sm leading-6 text-white/55">
+                      {rtl ? "صوت شاكر العربي العصبي — ملف MP3" : "Arabic Neural Voice — Shakir · MP3"}
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-lg border border-white/10 bg-white/[0.035] p-2.5 text-indigo-200" aria-hidden="true">
+                  <WandSparkles className="size-4" />
+                </span>
+              </div>
+
+              <div className="rounded-2xl border border-white/[0.095] bg-black/[0.22] p-4 shadow-inner sm:p-5">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <label htmlFor="voice-text" className="text-xs font-semibold text-white/80">
+                    {rtl ? "النص المطلوب تحويله" : "Your script"}
+                  </label>
+                  <span className="text-xs tabular-nums text-white/40" dir="ltr">{text.length} / {MAX_TEXT}</span>
+                </div>
+                <textarea
+                  id="voice-text"
+                  className="min-h-40 w-full resize-y bg-transparent text-sm leading-8 text-white outline-none placeholder:text-white/30"
+                  rows={5}
+                  maxLength={MAX_TEXT}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  disabled={busy !== null}
+                  placeholder={rtl ? "اكتب هنا ما تريد سماعه بصوت طبيعي…" : "Write your Arabic script here…"}
+                  dir="auto"
+                />
+              </div>
+
+              <div className="flex h-14 items-center justify-center gap-1.5 rounded-xl border border-indigo-200/[0.09] bg-indigo-300/[0.045]" aria-label={rtl ? "مؤشر معالجة الصوت" : "Voice processing indicator"}>
+                {BARS.map((height, index) => (
+                  <motion.span
+                    key={index}
+                    className="w-1.5 rounded-full bg-gradient-to-t from-indigo-500/65 via-indigo-300 to-sky-200"
+                    style={{ height: height * 0.53 }}
+                    animate={busy === "tts" && !reduceMotion ? { scaleY: [0.6, 1.35, 0.55] } : { scaleY: 1 }}
+                    transition={{ duration: 0.8, repeat: busy === "tts" && !reduceMotion ? Infinity : 0, delay: index * 0.04 }}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                disabled={!text.trim() || busy !== null}
+                onClick={() => void synthesize()}
+                className="flex min-h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-[#626CE7] to-[#7672E9] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_35px_-14px_rgba(99,102,241,.9)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {busy === "tts" ? <LoaderCircle className="size-[18px] animate-spin" aria-hidden="true" /> : <WandSparkles className="size-[18px]" aria-hidden="true" />}
+                {busy === "tts" ? (rtl ? "جارٍ توليد الصوت…" : "Generating speech…") : (rtl ? "توليد الصوت" : "Generate speech")}
+                {busy !== "tts" && <NextArrow className="size-4" aria-hidden="true" />}
+              </button>
+              {errorTTS && <p className="rounded-xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm text-red-200" role="alert">{errorTTS}</p>}
+
+              <AnimatePresence mode="wait">
+                {audioUrl && (
+                  <motion.div
+                    key={audioUrl}
+                    initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="space-y-3 rounded-2xl border border-emerald-200/15 bg-emerald-200/[0.055] p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className="inline-flex items-center gap-2 font-semibold text-emerald-200">
+                        <Check className="size-4" aria-hidden="true" />
+                        {rtl ? "تم استلام ملف الصوت" : "Audio received"}
+                      </span>
+                      {ttsElapsed !== null && <span className="text-white/45">{rtl ? "زمن الطلب:" : "Request time:"} {formatTime(ttsElapsed)}</span>}
+                    </div>
+                    <audio controls preload="metadata" src={audioUrl} className="w-full" aria-label={rtl ? "الصوت الناتج" : "Generated audio"} />
+                    <a
+                      className="inline-flex items-center gap-2 rounded-lg border border-emerald-200/20 bg-emerald-200/10 px-3.5 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-200/15"
+                      href={audioUrl}
+                      download="murailex-voice.mp3"
+                    >
+                      <ArrowDownToLine className="size-4" aria-hidden="true" />
+                      {rtl ? "تنزيل MP3" : "Download MP3"}
+                    </a>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </GlassPanel>
+        </motion.section>
+
+        <motion.section {...animateUp} transition={{ duration: 0.45, delay: 0.12 }} aria-label={rtl ? "تحويل الصوت إلى نص" : "Speech to text"}>
+          <GlassPanel>
+            <div aria-hidden="true" className="pointer-events-none absolute -left-20 -top-28 size-72 rounded-full bg-sky-400/[0.10] blur-3xl" />
+            <div className="relative space-y-6 p-5 sm:p-7">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-3">
+                  <span className="flex size-12 items-center justify-center rounded-2xl border border-sky-200/20 bg-sky-300/10 shadow-[0_0_40px_-12px_rgba(56,189,248,.45)]">
+                    <Mic2 className="size-6 text-sky-200" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-widest text-sky-200/85" dir="ltr">02 / SPEECH TO TEXT</div>
+                    <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{rtl ? "كل كلمة تصبح نصًا" : "Every word, captured"}</h2>
+                    <p className="mt-1 text-sm leading-6 text-white/55">
+                      {rtl ? "Groq Whisper Large V3 — التفريغ باللغة العربية" : "Groq Whisper Large V3 · Arabic recognition"}
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-lg border border-white/10 bg-white/[0.035] p-2.5 text-sky-200" aria-hidden="true">
+                  <Activity className="size-4" />
+                </span>
+              </div>
+
+              <label
+                htmlFor="voice-audio-file"
+                className="group relative flex min-h-56 cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-sky-200/25 bg-gradient-to-b from-sky-300/[0.07] to-transparent p-5 text-center transition hover:border-sky-200/50 hover:from-sky-300/[0.12] focus-within:border-sky-200 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-sky-200"
+              >
+                <input
+                  ref={fileRef}
+                  id="voice-audio-file"
+                  type="file"
+                  accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.webm"
+                  className="sr-only"
+                  disabled={busy !== null}
+                  onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)}
+                />
+                <span className="grid size-15 place-items-center rounded-2xl border border-sky-200/15 bg-sky-200/10 text-sky-100 shadow-[0_0_32px_-14px_rgba(125,211,252,.4)] transition group-hover:scale-105">
+                  {file ? <FileAudio2 className="size-7" aria-hidden="true" /> : <CloudUpload className="size-7" aria-hidden="true" />}
+                </span>
+                <span className="space-y-1.5">
+                  <span className="block max-w-[18rem] truncate text-sm font-semibold text-white/90" dir="auto">
+                    {file ? file.name : rtl ? "اختر تسجيلًا صوتيًا" : "Choose your audio file"}
+                  </span>
+                  <span className="block text-xs text-white/45">
+                    {file ? formatBytes(file.size) : rtl ? "MP3, WAV, M4A, FLAC, OGG, WEBM" : "MP3, WAV, M4A, FLAC, OGG, WEBM"}
+                  </span>
+                  <span className="block text-xs text-sky-200/65">
+                    {rtl ? "حتى 25 ميغابايت" : "Up to 25 MB"}
+                  </span>
+                </span>
+              </label>
+
+              {file && (
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-white/[0.09] bg-black/[0.17] px-3.5 py-3 text-xs text-white/65">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <FileAudio2 className="size-4 shrink-0 text-sky-300" aria-hidden="true" />
+                    <span className="truncate" dir="auto">{file.name}</span>
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={rtl ? "إزالة الملف" : "Remove file"}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setAudioFile(null);
+                      if (fileRef.current) fileRef.current.value = "";
+                    }}
+                    className="rounded-lg p-1.5 text-white/60 hover:bg-white/10 hover:text-white"
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                disabled={!file || busy !== null}
+                onClick={() => void transcribe()}
+                className="flex min-h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-[#149BB6] to-[#238FBF] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_35px_-14px_rgba(14,165,233,.75)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {busy === "stt" ? <LoaderCircle className="size-[18px] animate-spin" aria-hidden="true" /> : <AudioLines className="size-[18px]" aria-hidden="true" />}
+                {busy === "stt" ? (rtl ? "جارٍ تحليل التسجيل…" : "Transcribing audio…") : (rtl ? "رفع الصوت وتفريغه" : "Upload and transcribe")}
+                {busy !== "stt" && <NextArrow className="size-4" aria-hidden="true" />}
+              </button>
+              {errorSTT && <p className="rounded-xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm text-red-200" role="alert">{errorSTT}</p>}
+
+              <AnimatePresence mode="wait">
+                {transcript && (
+                  <motion.div
+                    key="transcript"
+                    initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="space-y-3 rounded-2xl border border-sky-200/15 bg-sky-200/[0.045] p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-sky-200">
+                        <FileText className="size-4" aria-hidden="true" />
+                        {rtl ? "النص المستخرج" : "Transcription"}
+                      </span>
+                      {sttElapsed !== null && <span className="text-xs text-white/45">{formatTime(sttElapsed)}</span>}
+                    </div>
+                    <p className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-sm leading-8 text-white/85" dir="auto">{transcript}</p>
+                    {sourceHash && <p className="break-all text-[10px] text-white/35" dir="ltr">SHA-256 {sourceHash}</p>}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void copyTranscript()}
+                        className="inline-flex items-center gap-2 rounded-lg border border-sky-200/20 bg-sky-200/10 px-3.5 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-200/15"
+                      >
+                        {copied ? <Check className="size-4" aria-hidden="true" /> : <Clipboard className="size-4" aria-hidden="true" />}
+                        {copied ? (rtl ? "تم النسخ" : "Copied") : (rtl ? "نسخ" : "Copy")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={downloadTranscript}
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-3.5 py-2 text-xs font-semibold text-white/85 hover:bg-white/10"
+                      >
+                        <ArrowDownToLine className="size-4" aria-hidden="true" />
+                        {rtl ? "تنزيل TXT" : "Download TXT"}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </GlassPanel>
+        </motion.section>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.075] bg-white/[0.025] px-5 py-4 text-xs leading-6 text-white/45 backdrop-blur-xl">
+        <span className="inline-flex items-center gap-2">
+          <ShieldCheck className="size-4 shrink-0 text-emerald-200/75" aria-hidden="true" />
+          {rtl
+            ? "هذا المختبر مستقل؛ مخرجاته ليست محاضر قضائية معتمدة، والتسجيلات الأصلية لا تُعدّل."
+            : "Independent preview. Results are not certified forensic transcripts; original recordings remain unchanged."}
+        </span>
+        <span className="font-medium tracking-[0.16em] text-white/40" dir="ltr">MURAILEX © 2026</span>
+      </div>
     </div>
   );
 }
