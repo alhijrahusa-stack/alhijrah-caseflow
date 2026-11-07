@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MobileAppointmentCards } from "@/components/staff/MobileAppointmentCards";
 import { StaffEmptyState, StaffInput, StaffNav } from "@/components/staff/StaffPageLabels";
-import { getStaffSession } from "@/lib/auth";
+import { getStaffSession, withStaff } from "@/lib/auth";
 import { appointmentPage } from "@/lib/queries";
 
 const VIEWS = [["active", "Active Cases", "الملفات النشطة"], ["upcoming", "Upcoming", "القادمة"], ["next_2h", "Next 2 Hours", "خلال ساعتين"], ["today", "Today", "اليوم"], ["past", "Past", "السابقة"], ["all", "All", "الكل"]] as const;
@@ -16,7 +16,16 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const view = VIEWS.some(([key]) => key === params.view) ? params.view! : "active";
   const requestedPage = Number(params.page ?? "1");
   const q = params.q?.trim().slice(0, 100) ?? "";
-  const result = await appointmentPage(session, view, requestedPage, PAGE_SIZE, q);
+  const [result, waiting] = await Promise.all([
+    appointmentPage(session, view, requestedPage, PAGE_SIZE, q),
+    view === "active" ? withStaff(session, tx => tx`select c.id,c.ref,c.full_name from clients c
+      where c.deleted_at is null and c.current_status='appointment_scheduled'
+        and not exists(select 1 from appointments a where a.client_id=c.id and a.appointment_kind='employment_interview'
+          and a.status in ('scheduled','confirmed','rescheduled','attended')
+          and not exists(select 1 from appointment_outcomes o where o.appointment_id=a.id))
+        and (${q}='' or strpos(lower(c.full_name),lower(${q}))>0 or strpos(lower(c.ref),lower(${q}))>0 or strpos(c.phone,${q})>0)
+      order by c.updated_at desc,c.id limit 20`) : Promise.resolve([]),
+  ]);
   const { page, pages, total } = result;
   const rows = JSON.parse(JSON.stringify(result.rows));
   const href = (nextView: string, nextPage = 1) =>
@@ -52,6 +61,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           </Link>
         ))}
       </StaffNav>
+      {waiting.length > 0 && <section className="ops-glass-card space-y-3" aria-label="Workflow files awaiting booking">
+        <h2 className="font-semibold text-amber-100"><StaffText en="Awaiting interview booking" ar="بانتظار حجز المقابلة"/></h2>
+        <div className="grid gap-2 sm:grid-cols-2">{waiting.map(client => <Link key={String(client.id)} href={`/staff/client/${client.id}`} className="cg-command-button flex justify-between gap-3"><bdi>{String(client.full_name)}</bdi><span className="font-mono text-xs">{String(client.ref)} ↗</span></Link>)}</div>
+        <Link href="/staff/clients?stage=appointments" className="text-sm text-cyan-200"><StaffText en="View all files in Appointments ↗" ar="عرض جميع ملفات مرحلة المقابلات ↗"/></Link>
+      </section>}
       {rows.length === 0 ? (
         <StaffEmptyState title="No appointments in this view" titleAr="لا توجد مواعيد في هذا العرض" text="Search another name or book an available slot from the client file." textAr="ابحث باسم آخر أو احجز موعداً متاحاً من ملف العميل." action={<Link href="/staff/clients" className="text-sm text-amber-200 hover:underline"><StaffText en="Find a client" ar="البحث عن عميل"/></Link>} />
       ) : <MobileAppointmentCards appointments={rows} />}

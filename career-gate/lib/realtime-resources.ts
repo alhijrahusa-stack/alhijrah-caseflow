@@ -115,7 +115,7 @@ export const MUTATION_RESOURCES: Record<string, readonly Resource[]> = {
   restore: ["client_identity", "pipeline", "attention", "next_action", "activity"],
   move_stage: ["client_identity", "pipeline", "placement", "next_action", "activity"],
   reassign_client: ["client_identity", "pipeline", "tasks", "attention", "activity"],
-  bulk_assign: ["client_identity", "pipeline", "attention", "activity"],
+  bulk_assign: ["client_identity", "pipeline", "attention", "next_action", "activity"],
 
   // Preferences
   add_preference: ["preferences", "next_action", "activity"],

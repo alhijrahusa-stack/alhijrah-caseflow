@@ -15,11 +15,11 @@
 
 ## Completion events and recovery
 
-Post-hire updates and payment projection changes invoke `career_gate_private.reconcile_client_completion` in the same transaction. A fully prepared but unpaid file moves to post-hire work; settlement completes it. Reopening a required item or reversing settlement reopens active post-hire work. The completion guard rejects a new `completed` status without evidence, including through an admin override.
+Post-hire updates and payment projection changes invoke `career_gate_private.reconcile_client_completion` in the same transaction. A fully prepared but unpaid file moves to post-hire work; settlement completes it. Reopening a required item or reversing settlement reopens active post-hire work. Automatic completion and ordinary status changes retain their evidence checks. An explicit manual workflow move may enter Completed Files without changing payment, checklist, interview or appointment records.
 
 The migration repairs existing fully prepared files from their existing ledger/checklist records. It does not invent interview decisions, payments, staff approvals, appointments or replacement client IDs. Original appointments remain in history.
 
-Manual controls on client cards and the full client file call the existing routing command, require a reason and retain authorization/RLS. Routing, assignment and reconciliation write audit records. The completed destination rechecks evidence rather than overriding it.
+Manual controls on client cards, the full client file, bulk stage routing and Manager Task Center use the same direct routing helper. Staff can route their assigned files; managers and admins can route accessible live files to any of the seven destinations, including reopening completed or cancelled files. Notes are optional, audit records are automatic, and ownership changes remain management-only. Moving to Appointments without a booking places the file in the awaiting-booking section; it creates no appointment. Completion is a workflow decision and does not settle the ledger. Automatic evidence-based reconciliation remains available.
 
 ## Aggregated dashboard
 

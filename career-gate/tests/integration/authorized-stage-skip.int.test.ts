@@ -42,43 +42,40 @@ beforeAll(async () => {
 });
 afterAll(async () => { await db.end(); });
 
-describe("authorized stage skip", () => {
-  it("keeps the canonical path gated and moves a new file to Job Ready only through a recorded skip", async () => {
-    const client = await newClient(manager.staff.id);
-    const gated = await call(manager, { operation: "bulk_assign", client_ids: [client.id], target_stage: "job_ready", reason: "Move forward" });
-    expect(gated.status).toBe(409);
-    expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe("new_intake");
-
-    const shortReason = await call(manager, { operation: "bulk_assign", client_ids: [client.id], target_stage: "job_ready", reason: "too short", override: true });
-    expect(shortReason.status).toBe(400);
-
-    const res = await call(manager, { operation: "bulk_assign", client_ids: [client.id], target_stage: "job_ready", reason: "Documents verified in person at the office", override: true });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, changed: 1, overridden: true });
-    const [row] = await db`select current_status,pipeline_stage from clients where id=${client.id}`;
-    expect(row).toEqual({ current_status: "shift_selected", pipeline_stage: "amazon_account_waiting_job" });
-    const [log] = await db`select staff_id,old_value,new_value from activity_log where client_id=${client.id} and action='status_overridden'`;
-    expect(log.staff_id).toBe(manager.staff.id);
-    expect(log.old_value).toMatchObject({ status: "new_intake" });
-    expect(log.new_value).toMatchObject({ status: "shift_selected", target_stage: "job_ready", reason: "Documents verified in person at the office", skipped_prerequisites: true });
-    // The override flag is transaction-scoped: a later plain illegal transition is still rejected.
+describe("direct manual workflow routing", () => {
+  it("routes every stage without a required reason or supporting evidence and permits reopening", async () => {
+    const client = await newClient(staffOnly.staff.id);
+    const stages = [
+      ["job_ready", "shift_selected"], ["appointments", "appointment_scheduled"],
+      ["paperwork_pending", "screening_pending"], ["payment_required", "pre_hire_completed"],
+      ["completed", "completed"], ["account_setup", "ready_to_apply"], ["new_intake", "new_intake"],
+    ];
+    for (const [target_stage, status] of stages) {
+      const response = await call(staffOnly, { operation: "bulk_assign", client_ids: [client.id], target_stage });
+      expect(response.status, await response.clone().text()).toBe(200);
+      expect((await db`select current_status from clients where id=${client.id}`)[0].current_status).toBe(status);
+    }
+    expect(await db`select id from appointments where client_id=${client.id}`).toHaveLength(0);
+    expect(await db`select id from appointment_outcomes where client_id=${client.id}`).toHaveLength(0);
+    expect(await db`select id from payment_transactions where client_id=${client.id}`).toHaveLength(0);
+    const logs = await db`select staff_id,new_value from activity_log where client_id=${client.id} and action='status_overridden'`;
+    expect(logs).toHaveLength(stages.length);
+    expect(logs.every(log => log.staff_id === staffOnly.staff.id && log.new_value.reason === "Direct workflow move")).toBe(true);
     await expect(db`update clients set current_status='i9_available' where id=${client.id}`).rejects.toThrow(/invalid_status_transition/);
   });
 
-  it("refuses staff without management, more than one file, Appointments without a booking, and closing a file", async () => {
-    const a = await newClient(manager.staff.id);
-    const b = await newClient(manager.staff.id);
-    const reason = "Manager decision recorded for audit";
-    expect((await call(staffOnly, { operation: "bulk_assign", client_ids: [a.id], target_stage: "job_ready", reason, override: true })).status).toBe(403);
-    expect((await call(manager, { operation: "bulk_assign", client_ids: [a.id, b.id], target_stage: "job_ready", reason, override: true })).status).toBe(400);
-    const appointments = await call(manager, { operation: "bulk_assign", client_ids: [a.id], target_stage: "appointments", reason, override: true });
-    expect(appointments.status).toBe(409);
-    expect((await appointments.json()).error.code).toBe("override_requires_booking");
-    const completed = await call(manager, { operation: "bulk_assign", client_ids: [a.id], target_stage: "completed", reason, override: true });
-    expect(completed.status).toBe(409);
-    expect((await completed.json()).error.code).toBe("completion_not_overridable");
-    const rows = await db`select current_status from clients where id = any(${[a.id, b.id]})`;
-    expect(rows.every(r => r.current_status === "new_intake")).toBe(true);
-    expect(await db`select id from activity_log where client_id = any(${[a.id, b.id]}) and action='status_overridden'`).toHaveLength(0);
+  it("keeps staff within their assigned files and prevents ownership changes", async () => {
+    const owned = await newClient(staffOnly.staff.id);
+    const other = await newClient(manager.staff.id);
+    expect((await call(staffOnly, { operation: "bulk_assign", client_ids: [other.id], target_stage: "job_ready" })).status).toBe(404);
+    expect((await call(staffOnly, { operation: "bulk_assign", client_ids: [owned.id], target_stage: "job_ready", staff_id: null })).status).toBe(403);
+    // A mixed inaccessible batch commits no partial moves.
+    expect((await call(staffOnly, { operation: "bulk_assign", client_ids: [owned.id, other.id], target_stage: "completed" })).status).toBe(404);
+    expect((await db`select current_status from clients where id=${owned.id}`)[0].current_status).toBe("new_intake");
+    const response = await call(manager, { operation: "bulk_assign", client_ids: [owned.id, other.id], target_stage: "completed", reason: "" });
+    expect(response.status, await response.clone().text()).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, changed: 2 });
+    const repeated = await call(manager, { operation: "bulk_assign", client_ids: [owned.id, other.id], target_stage: "completed" });
+    expect(await repeated.json()).toMatchObject({ ok: true, changed: 0 });
   });
 });

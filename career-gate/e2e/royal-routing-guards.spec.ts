@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { accessToken, db, intakeBody, passedInterviewFixture, STAFF, submitIntake, uniqueIp } from "./helpers";
 
-test("a historical pass cannot route a client to payment after a newer failed interview", async ({ request }) => {
+test("manual routing to payment preserves a newer failed interview", async ({ request }) => {
   const intake = await submitIntake(request, intakeBody(`TEST Latest Interview Guard ${Date.now()}`));
   expect(intake.res.status(), JSON.stringify(intake.json)).toBe(201);
   const [client] = await db()`select id from clients where ref=${intake.json.ref}`;
@@ -15,7 +15,8 @@ test("a historical pass cannot route a client to payment after a newer failed in
     headers: { cookie: `cg_at=${await accessToken("admin")}`, "x-forwarded-for": uniqueIp() },
     data: { operation: "move_stage", client_id: client.id, stage: "payment_required" },
   });
-  expect(response.status(), await response.text()).toBe(409);
+  expect(response.status(), await response.text()).toBe(200);
   const [after] = await db()`select current_status from clients where id=${client.id}`;
   expect(after.current_status).toBe("pre_hire_completed");
+  expect((await db()`select decision from appointment_outcomes where appointment_id=${appointment.id}`)[0].decision).toBe("fail");
 });

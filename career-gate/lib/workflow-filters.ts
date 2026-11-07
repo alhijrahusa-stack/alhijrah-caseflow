@@ -4,7 +4,7 @@ import type { ClientStageFilter } from "@/lib/client-lifecycle-filters";
 
 export function workflowFilter(tx: Tx, stage: ClientStageFilter) {
   if (stage === "payment_required") return tx`c.current_status=any(${[...G3_STAGES[4].statuses]})
-    and not exists(select 1 from client_account_balances b where b.client_id=c.id and b.payment_status='paid')`;
+    and (c.pipeline_stage='payment_required' or not exists(select 1 from client_account_balances b where b.client_id=c.id and b.payment_status='paid'))`;
   if (stage === "paperwork_pending") return tx`c.current_status=any(${[...G3_STAGES[4].statuses]})`;
   const statuses = stage === "new_intake" ? G3_STAGES[0].statuses
     : stage === "account_setup" ? G3_STAGES[1].statuses

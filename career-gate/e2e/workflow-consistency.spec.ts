@@ -42,7 +42,7 @@ test('paid, completed legacy intake leaves active queues and retains its origina
   expect(intake.res.status(),JSON.stringify(intake.json)).toBe(201);
   const [client]=await db()`select id from clients where ref=${intake.json.ref}`;
   const unsafe=await request.post('/api/staff/operations',{headers:{cookie:`cg_at=${await accessToken('admin')}`,'x-forwarded-for':uniqueIp()},data:{operation:'move_stage',client_id:client.id,stage:'interview_passed'}});
-  expect(unsafe.status()).toBe(409);
+  expect(unsafe.status()).toBe(200);
   const [actor]=await db()`select id from staff where auth_user_id=${STAFF.admin}`;
   const [appointment]=await db()`insert into appointments(client_id,appointment_type,scheduled_at,ends_at,resource_key,created_by_staff,status)
     values(${client.id},'Pre-hire appointment',now()-interval '4 days',now()-interval '4 days'+interval '30 minutes','office',${actor.id},'scheduled') returning id`;
@@ -50,7 +50,6 @@ test('paid, completed legacy intake leaves active queues and retains its origina
   await signIn(context,baseURL!,'admin');
   const page=await context.newPage();
   await page.goto(`/staff/client/${client.id}`);
-  await page.getByRole('button',{name:/Workflow & manual routing/}).click();
   await expect(page.getByLabel('Workflow destination')).toBeVisible();
   const forbidden=await staffAction(request,'admin',{action:'override_status',client_id:client.id,status:'completed',reason:'E2E completion must reject missing evidence'});
   expect(forbidden.status).toBeGreaterThanOrEqual(400);

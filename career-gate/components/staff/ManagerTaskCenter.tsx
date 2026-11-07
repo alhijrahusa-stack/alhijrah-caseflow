@@ -163,7 +163,7 @@ export function ManagerTaskCenter({ initial }: { initial: ManagerInboxPage }) {
             <div className={styles.routingActions}><label>{t("Next workflow section", "القسم التالي")}<RoyalSelect aria-label={t("Next workflow section", "القسم التالي")} value={destination} onChange={event => setDestination(String(event.target.value))} className="input" disabled={pending}>
               <RoyalOption value="keep_current">{t("Approve without moving", "اعتماد دون نقل")}</RoyalOption>{CLIENT_STAGES.map(stage => <RoyalOption key={stage.id} value={stage.id}>{language === "ar" ? stage.labelAr : stage.label}</RoyalOption>)}
             </RoyalSelect></label><button className="ops-primary-button" disabled={pending || Boolean(changed)}>{pending ? t("Completing…", "جارٍ الإكمال…") : destination === "keep_current" ? t("Complete review", "إكمال المراجعة") : t("Approve & route", "اعتماد وتوجيه")} <span aria-hidden="true">↗</span></button></div>
-            <p className={styles.guardHint}>{t("Routing checks actual account, interview, document and payment evidence before changing the client state.", "يتحقق التوجيه من أدلة الحساب والمقابلة والوثائق والسداد قبل تغيير حالة العميل.")}</p>
+            <p className={styles.guardHint}>{t("Move directly to any workflow section. Your action is recorded automatically.", "انتقل مباشرة إلى أي مرحلة. تُسجَّل العملية تلقائيًا.")}</p>
           </form>
         </>}
       </section>
