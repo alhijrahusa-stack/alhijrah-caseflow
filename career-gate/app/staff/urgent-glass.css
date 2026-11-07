@@ -100,16 +100,18 @@ body:has(.cg-urgent-glass) .royal-select-radio{border-color:#64748b99}
 body:has(.cg-urgent-glass) .royal-select-empty{color:#475569}
 @media(prefers-reduced-motion:reduce){.staff-shell.royal-shell .cg-urgent-glass *{transition:none!important;animation:none!important;scroll-behavior:auto!important}.staff-shell.royal-shell .cg-urgent-glass .cg-registry-card:hover{transform:none}}
 @media(max-width:640px){.staff-shell.royal-shell .cg-urgent-glass{padding:.8rem;border-radius:20px}.staff-shell.royal-shell .cg-urgent-glass .ops-hero{padding:1rem}.staff-shell.royal-shell .cg-urgent-glass .ops-glass-card{padding:1rem}.staff-shell.royal-shell .cg-urgent-glass .cg-registry-card{border-radius:18px}}
-/* The shared keyboard palette adopts Sky Glass only while opened in these surfaces. */
-.royal-command-overlay.cg-sky-command-overlay{background:#1e40af1f;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-.royal-command-overlay .cg-sky-command-panel{border:1px solid #ffffffb3;background:linear-gradient(140deg,#f0f9ffdd,#dbeafed9,#e0e7ffdd);color:#1e3a8a;box-shadow:0 24px 80px #1e40af26,inset 0 1px #fff;border-radius:24px;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
-.royal-command-overlay .cg-sky-command-panel>div,.royal-command-overlay .cg-sky-command-panel>input{border-color:#93c5fd66}
-.royal-command-overlay .cg-sky-command-panel input{color:#1e3a8a;background:#ffffff30}
-.royal-command-overlay .cg-sky-command-panel input::placeholder{color:#64748b}
-.royal-command-overlay .cg-sky-command-panel [class*="text-amber-"],.royal-command-overlay .cg-sky-command-panel [class*="text-slate-"]{color:#475569}
-.royal-command-overlay .cg-sky-command-panel [role="option"]{color:#1e3a8a}
-.royal-command-overlay .cg-sky-command-panel [role="option"][aria-selected="true"]{color:#1e40af;background:#ffffff80;box-shadow:inset 3px 0 #0284c7}
-.royal-command-overlay .cg-sky-command-panel button{color:#1e40af;border-color:#93c5fd80;background:#ffffff60}
-.royal-command-overlay .cg-sky-command-panel :focus-visible{outline:2px solid #0284c7;outline-offset:-3px}
+/* The portal is outside .royal-shell. Qualify the actual Sky classes so the
+   legacy html:has(.royal-shell) palette rules cannot restore its dark surface. */
+.royal-command-overlay.cg-sky-command-overlay{background:#1e40af1f!important;backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important}
+.royal-command-overlay.cg-sky-command-overlay [data-testid="command-palette"].cg-sky-command-panel{border:1px solid #ffffffb3!important;background:linear-gradient(140deg,#f0f9ffdd,#dbeafed9,#e0e7ffdd)!important;color:#1e3a8a!important;box-shadow:0 24px 80px #1e40af26,inset 0 1px #fff!important;border-radius:24px!important;backdrop-filter:blur(24px)!important;-webkit-backdrop-filter:blur(24px)!important}
+.royal-command-overlay.cg-sky-command-overlay .cg-sky-command-panel>div,.royal-command-overlay.cg-sky-command-overlay .cg-sky-command-panel>input{border-color:#93c5fd66!important}
+.royal-command-overlay.cg-sky-command-overlay .cg-sky-command-panel input{color:#1e3a8a!important;background:#ffffff30!important}
+.royal-command-overlay.cg-sky-command-overlay .cg-sky-command-panel input::placeholder{color:#64748b!important;opacity:1}
+.royal-command-overlay.cg-sky-command-overlay .cg-sky-command-panel [class*="text-amber-"],.royal-command-overlay.cg-sky-command-overlay .cg-sky-command-panel [class*="text-slate-"]{color:#475569!important}
+.royal-command-overlay.cg-sky-command-overlay .cg-sky-command-panel input[class*="text-slate-"]{color:#1e3a8a!important}
+.royal-command-overlay.cg-sky-command-overlay .cg-sky-command-panel [role="option"]{color:#1e3a8a!important}
+.royal-command-overlay.cg-sky-command-overlay .cg-sky-command-panel [role="option"][aria-selected="true"]{color:#1e40af!important;background:#ffffff80!important;box-shadow:inset 3px 0 #0284c7}
+.royal-command-overlay.cg-sky-command-overlay .cg-sky-command-panel button{color:#1e40af!important;border-color:#93c5fd80!important;background:#ffffff60!important}
+.royal-command-overlay.cg-sky-command-overlay .cg-sky-command-panel :focus-visible{outline:2px solid #0284c7!important;outline-offset:-3px}
 
 .royal-shell .cg-urgent-glass .cg-workflow-control>.cg-command-button{white-space:normal;flex-wrap:wrap;gap:.25rem .45rem;line-height:1.4;max-width:100%}
