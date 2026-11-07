@@ -30,15 +30,15 @@ test("critical path: sign in → upload → process → review → lock → expo
   await expect(page.getByTestId("provider-row").first()).toBeAttached();
   await page.goto("/");
 
-  // Recording locale and type are mandatory before evidence bytes can enter the pipeline.
-  const metadataSelects = page.locator("select");
-  await expect(metadataSelects).toHaveCount(2);
-  await metadataSelects.nth(0).selectOption("ar-YE");
-  await metadataSelects.nth(1).selectOption("meeting");
+  // Arabic intake is automatic; no metadata dropdown blocks recording/upload.
+  await expect(page.locator("select")).toHaveCount(0);
 
   // Upload real audio bytes through the resumable uploader
   await page.getByTestId("file-input").setInputFiles(SAMPLE);
   await page.waitForURL(/\/transcriptions\/[0-9a-f-]+$/, { timeout: 60_000 });
+  await expect.poll(() => page.evaluate(() =>
+    JSON.parse(localStorage.getItem("murailex.pendingUploads") || "[]").length,
+  )).toBe(0);
   const sha = crypto.createHash("sha256").update(fs.readFileSync(SAMPLE)).digest("hex");
   await expect(page.locator(`button[title="${sha}"]`)).toBeVisible();
 

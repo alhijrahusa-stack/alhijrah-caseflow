@@ -284,6 +284,34 @@ def sha256_of_object(key: str, version_id: str | None = None) -> tuple[str, int]
     return h.hexdigest(), size
 
 
+def verify_object_parts(
+    key: str, parts: list[tuple[int, str]], version_id: str | None = None,
+) -> tuple[str, int]:
+    """Recover a completed multipart object only when every stored part matches."""
+    body = get_stream(key, version_id)["Body"]
+    digest = hashlib.sha256()
+    size = 0
+    try:
+        for expected_size, expected_sha in parts:
+            part_digest = hashlib.sha256()
+            remaining = expected_size
+            while remaining:
+                data = body.read(min(remaining, 1024 * 1024))
+                if not data:
+                    raise ValueError("Stored audio is shorter than its uploaded parts.")
+                digest.update(data)
+                part_digest.update(data)
+                size += len(data)
+                remaining -= len(data)
+            if part_digest.hexdigest() != expected_sha:
+                raise ValueError("Stored audio does not match an uploaded part checksum.")
+        if body.read(1):
+            raise ValueError("Stored audio is longer than its uploaded parts.")
+    finally:
+        body.close()
+    return digest.hexdigest(), size
+
+
 def download_to(key: str, path: str, version_id: str | None = None) -> None:
     with open(path, "wb") as fh:
         fh.writelines(iter_object(key, version_id))

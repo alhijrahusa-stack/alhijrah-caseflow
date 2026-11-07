@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import Groq, { toFile } from "groq-sdk";
 import { NextRequest, NextResponse } from "next/server";
 
+import { providerErrorCode } from "@/lib/server-provider-error";
 import { authorizeVoiceRequest } from "@/lib/server-voice-auth";
 
 export const runtime = "nodejs";
@@ -114,8 +115,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         : 502;
     console.error("MURAILEX_STT_FAILED", {
       providerStatus,
+      model: MODEL,
+      providerCode: providerErrorCode(error),
       category: error instanceof Error ? error.name : "Unknown",
     });
+    if (providerStatus === 400 || providerStatus === 422) {
+      return jsonError("The provider could not decode this audio. Re-export it as M4A, MP3 or WAV and retry.", 422);
+    }
+    if (providerStatus === 413) return jsonError("The audio exceeds the provider upload limit.", 413);
+    if (providerStatus === 404) return jsonError("The configured transcription model is unavailable for this Groq account.", 503);
     if (providerStatus === 429) return jsonError("Groq rate limit reached. Retry after the quota resets.", 429);
     if (providerStatus === 401 || providerStatus === 403) return jsonError("Groq credentials were rejected.", 503);
     return jsonError("Transcription service unavailable.", 502);

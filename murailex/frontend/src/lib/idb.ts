@@ -25,8 +25,9 @@ async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBReq
   return new Promise((resolve, reject) => {
     const t = db.transaction(STORE, mode);
     const req = fn(t.objectStore(STORE));
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    t.oncomplete = () => { db.close(); resolve(req.result); };
+    t.onerror = () => { db.close(); reject(t.error ?? req.error); };
+    t.onabort = () => { db.close(); reject(t.error ?? new Error("Recording storage transaction aborted.")); };
   });
 }
 

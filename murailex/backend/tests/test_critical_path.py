@@ -619,3 +619,90 @@ def test_provider_self_test_does_not_change_recording_processing_status(app_clie
         assert after.derived and after.derived.get("analysis_wav")
         assert (after.status, after.status_detail) == status_before
     drain_jobs()
+
+
+def _multipart_recovery_fixture(client, csrf, fingerprint):
+    from app import storage
+    from app.db import session_factory
+    from app.models import UploadSession
+
+    data = open(os.path.join(FIXTURES, "sample.m4a"), "rb").read()
+    body = {"filename": "recovery.m4a", "mime_type": "audio/mp4", "size": len(data),
+            "fingerprint": fingerprint}
+    created = client.post("/api/uploads", json=body, headers={"x-csrf-token": csrf})
+    assert created.status_code == 200, created.text
+    session = created.json()
+    for number in range(1, session["total_parts"] + 1):
+        start = (number - 1) * session["chunk_size"]
+        response = client.put(f"/api/uploads/{session['id']}/parts/{number}",
+                              content=data[start:start + session["chunk_size"]],
+                              headers={"x-csrf-token": csrf})
+        assert response.status_code == 200, response.text
+    with session_factory()() as db:
+        import uuid
+        row = db.get(UploadSession, uuid.UUID(session["id"]))
+        assert row is not None
+        key, upload_id = row.storage_key, row.s3_upload_id
+        parts = [(int(n), v["etag"]) for n, v in row.parts.items()]
+    return storage, data, body, session, key, upload_id, parts
+
+
+def _no_such_upload(*args, **kwargs):
+    from botocore.exceptions import ClientError
+    raise ClientError({"Error": {"Code": "NoSuchUpload", "Message": "Test expired upload"}},
+                      "CompleteMultipartUpload")
+
+
+def test_m4a_recovers_already_completed_object_and_defaults_metadata(app_client, users, monkeypatch):
+    csrf = login(app_client, "owner@example.com")
+    storage, data, _, session, key, upload_id, parts = _multipart_recovery_fixture(
+        app_client, csrf, "recover-completed-m4a")
+    storage.complete_multipart(key, upload_id, parts)
+    with monkeypatch.context() as patch:
+        patch.setattr(storage, "complete_multipart", _no_such_upload)
+        response = app_client.post(f"/api/uploads/{session['id']}/complete",
+                                   headers={"x-csrf-token": csrf})
+    assert response.status_code == 200, response.text
+    recording = response.json()["recording"]
+    assert recording["sha256"] == hashlib.sha256(data).hexdigest()
+    assert recording["language_locale"] == "ar"
+    assert recording["recording_type"] == "other"
+    repeated = app_client.post(f"/api/uploads/{session['id']}/complete",
+                               headers={"x-csrf-token": csrf})
+    assert repeated.status_code == 200
+    assert repeated.json()["recording"]["id"] == recording["id"]
+    assert storage.get_bytes(key) == data
+
+
+def test_expired_multipart_returns_restart_code_and_a_new_session(app_client, users, monkeypatch):
+    csrf = login(app_client, "owner@example.com")
+    storage, _, body, session, key, upload_id, _ = _multipart_recovery_fixture(
+        app_client, csrf, "recover-expired-m4a")
+    storage.abort_multipart(key, upload_id)
+    with monkeypatch.context() as patch:
+        patch.setattr(storage, "complete_multipart", _no_such_upload)
+        response = app_client.post(f"/api/uploads/{session['id']}/complete",
+                                   headers={"x-csrf-token": csrf})
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["code"] == "UPLOAD_SESSION_EXPIRED"
+    assert app_client.get(f"/api/uploads/{session['id']}").json()["status"] == "expired"
+    replacement = app_client.post("/api/uploads", json=body, headers={"x-csrf-token": csrf})
+    assert replacement.status_code == 200
+    assert replacement.json()["id"] != session["id"]
+    assert replacement.json()["received_parts"] == []
+
+
+def test_recovered_object_checksum_mismatch_is_not_accepted_or_overwritten(app_client, users, monkeypatch):
+    csrf = login(app_client, "owner@example.com")
+    storage, data, _, session, key, _, _ = _multipart_recovery_fixture(
+        app_client, csrf, "recover-mismatched-m4a")
+    altered = data[::-1]
+    storage.put_bytes(key, altered, "audio/mp4")
+    with monkeypatch.context() as patch:
+        patch.setattr(storage, "complete_multipart", _no_such_upload)
+        response = app_client.post(f"/api/uploads/{session['id']}/complete",
+                                   headers={"x-csrf-token": csrf})
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["code"] == "UPLOAD_INTEGRITY_ERROR"
+    assert storage.get_bytes(key) == altered
+    assert app_client.get(f"/api/uploads/{session['id']}").json()["recording_id"] is None

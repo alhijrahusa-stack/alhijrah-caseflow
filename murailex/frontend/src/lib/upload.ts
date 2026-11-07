@@ -1,4 +1,5 @@
 import { ApiError, api } from "./api";
+import { recordingsStore } from "./idb";
 import type { Recording } from "./types";
 
 export type ArabicLocale = "ar" | "ar-YE" | "ar-EG" | "ar-SY" | "ar-LB" | "ar-IQ";
@@ -41,7 +42,13 @@ export function fingerprintOf(file: File | Blob, name: string): string {
 
 export function pendingUploads(): PendingUpload[] {
   try {
-    return JSON.parse(localStorage.getItem(PENDING_KEY) || "[]") as PendingUpload[];
+    const parsed: unknown = JSON.parse(localStorage.getItem(PENDING_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is PendingUpload =>
+      !!item && typeof item === "object" && typeof item.fingerprint === "string" &&
+      typeof item.uploadId === "string" && typeof item.name === "string" &&
+      typeof item.size === "number" && typeof item.title === "string",
+    );
   } catch {
     return [];
   }
@@ -55,8 +62,8 @@ function savePending(list: PendingUpload[]) {
   }
 }
 
-export function forgetPending(fingerprint: string) {
-  savePending(pendingUploads().filter((p) => p.fingerprint !== fingerprint));
+export function forgetPending(fingerprint: string, uploadId?: string) {
+  savePending(pendingUploads().filter((p) => p.fingerprint !== fingerprint || (uploadId !== undefined && p.uploadId !== uploadId)));
 }
 
 async function sha256Hex(buf: ArrayBuffer): Promise<string | null> {
@@ -69,21 +76,48 @@ async function sha256Hex(buf: ArrayBuffer): Promise<string | null> {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function resumableUpload(
-  blob: Blob,
-  opts: {
-    name: string;
-    title: string;
-    source: "upload" | "recording";
-    storedRecordingId?: string;
-    languageLocale: ArabicLocale;
-    recordingType: RecordingType;
-    expectedTerms?: string[];
-    expectedSpeakers?: number;
-    onProgress?: (fraction: number) => void;
-    signal?: AbortSignal;
-  },
-): Promise<Recording> {
+type UploadOptions = {
+  name: string;
+  title: string;
+  source: "upload" | "recording";
+  storedRecordingId?: string;
+  languageLocale?: ArabicLocale;
+  recordingType?: RecordingType;
+  expectedTerms?: string[];
+  expectedSpeakers?: number;
+  onProgress?: (fraction: number) => void;
+  signal?: AbortSignal;
+};
+
+async function clearCompletedUpload(pending: PendingUpload): Promise<void> {
+  if (pending.storedRecordingId) await recordingsStore.remove(pending.storedRecordingId);
+  forgetPending(pending.fingerprint, pending.uploadId);
+}
+
+/** Remove only uploads the authenticated server confirms are already complete. */
+export async function reconcilePendingUploads(): Promise<void> {
+  await Promise.allSettled(pendingUploads().map(async (pending) => {
+    const session = await api<UploadSessionInfo>(`/api/uploads/${pending.uploadId}`);
+    if (session.status === "complete" && session.recording_id) await clearCompletedUpload(pending);
+  }));
+}
+
+export async function resumableUpload(blob: Blob, opts: UploadOptions): Promise<Recording> {
+  for (let restart = 0; restart < 2; restart++) {
+    try {
+      return await uploadOnce(blob, opts);
+    } catch (error) {
+      const expired = error instanceof ApiError && error.status === 409 &&
+        !!error.detail && typeof error.detail === "object" && "code" in error.detail &&
+        error.detail.code === "UPLOAD_SESSION_EXPIRED";
+      if (!expired || restart > 0) throw error;
+      forgetPending(fingerprintOf(blob, opts.name));
+    }
+  }
+  throw new Error("Unable to restart the expired upload.");
+}
+
+async function uploadOnce(blob: Blob, opts: UploadOptions): Promise<Recording> {
   const fingerprint = fingerprintOf(blob, opts.name);
   const mime = blob.type || "application/octet-stream";
   const session = await api<UploadSessionInfo>("/api/uploads", {
@@ -95,8 +129,8 @@ export async function resumableUpload(
       fingerprint,
       title: opts.title,
       source: opts.source,
-      language_locale: opts.languageLocale,
-      recording_type: opts.recordingType,
+      language_locale: opts.languageLocale ?? "ar",
+      recording_type: opts.recordingType ?? "other",
       expected_terms: opts.expectedTerms?.length ? opts.expectedTerms : null,
       expected_speakers: opts.expectedSpeakers ?? null,
     },
@@ -150,6 +184,14 @@ export async function resumableUpload(
   const result = await api<{ recording: Recording }>(`/api/uploads/${session.id}/complete`, {
     method: "POST",
   });
-  forgetPending(fingerprint);
+  try {
+    await clearCompletedUpload({
+      fingerprint, name: opts.name, size: blob.size, uploadId: session.id,
+      title: opts.title, storedRecordingId: opts.storedRecordingId,
+    });
+  } catch {
+    // The server accepted the audio. Retain the local entry for later cleanup;
+    // never report a failed upload or upload the same audio again for an IDB error.
+  }
   return result.recording;
 }

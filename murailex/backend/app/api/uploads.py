@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import os
 from datetime import datetime, timezone
+from typing import NoReturn
 
+from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -32,8 +34,8 @@ class UploadIn(BaseModel):
     fingerprint: str = Field(min_length=1, max_length=200)
     title: str = Field(default="", max_length=300)
     source: str = Field(default="upload", pattern="^(upload|recording)$")
-    language_locale: str = Field(pattern=LOCALE_PATTERN)
-    recording_type: str = Field(pattern=RECORDING_TYPE_PATTERN)
+    language_locale: str = Field(default="ar", pattern=LOCALE_PATTERN)
+    recording_type: str = Field(default="other", pattern=RECORDING_TYPE_PATTERN)
     expected_terms: list[str] | None = Field(default=None, max_length=50)
     expected_speakers: int | None = Field(default=None, ge=1, le=20)
 
@@ -127,6 +129,16 @@ def _own_session(
     return session
 
 
+def _expire_upload(session: UploadSession, db: Session) -> NoReturn:
+    # Keep the old session and any original object; the next attempt gets a new key.
+    session.status = "expired"
+    db.commit()
+    raise HTTPException(409, {
+        "code": "UPLOAD_SESSION_EXPIRED",
+        "message": "The upload session expired. Retry the same audio file to restart safely.",
+    })
+
+
 @router.get("/{upload_id}")
 def get_upload(
     upload_id: str,
@@ -165,7 +177,12 @@ async def put_part(
     if part_number == 1 and audio.sniff_mime(data[:64]) is None:
         raise HTTPException(415, "File content is not a recognised audio container.")
 
-    etag = storage.upload_part(session.storage_key, session.s3_upload_id, part_number, data)
+    try:
+        etag = storage.upload_part(session.storage_key, session.s3_upload_id, part_number, data)
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "NoSuchUpload":
+            _expire_upload(session, db)
+        raise
     session = _own_session(db, p, upload_id, lock=True)
     parts = dict(session.parts)
     parts[str(part_number)] = {"etag": etag, "size": len(data), "sha256": digest}
@@ -187,19 +204,49 @@ def complete_upload(
         recording = db.get(Recording, session.recording_id)
         assert recording is not None
         return {"recording": recording_out(recording)}
+    if session.status != "open":
+        _expire_upload(session, db)
 
     total = -(-session.total_size // session.chunk_size)
     missing = [number for number in range(1, total + 1) if str(number) not in session.parts]
     if missing:
         raise HTTPException(409, {"message": "Upload incomplete.", "missing_parts": missing[:50]})
 
-    result = storage.complete_multipart(
-        session.storage_key,
-        session.s3_upload_id,
-        [(int(number), value["etag"]) for number, value in session.parts.items()],
-    )
+    recovered = False
+    try:
+        result = storage.complete_multipart(
+            session.storage_key,
+            session.s3_upload_id,
+            [(int(number), value["etag"]) for number, value in session.parts.items()],
+        )
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") != "NoSuchUpload":
+            raise
+        # S3 may have completed before the response/DB commit was lost. Do not
+        # overwrite that object or mistake an expired multipart ID for bad audio.
+        try:
+            result = storage.head(session.storage_key)
+        except ClientError as missing_object:
+            if missing_object.response.get("Error", {}).get("Code") in {"404", "NoSuchKey", "NotFound"}:
+                _expire_upload(session, db)
+            raise
+        recovered = True
     version_id = result.get("VersionId")
-    digest, size = storage.sha256_of_object(session.storage_key, version_id)
+    if recovered:
+        try:
+            digest, size = storage.verify_object_parts(
+                session.storage_key,
+                [(int(session.parts[str(n)]["size"]), session.parts[str(n)]["sha256"])
+                 for n in range(1, total + 1)],
+                version_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(409, {
+                "code": "UPLOAD_INTEGRITY_ERROR",
+                "message": "Stored audio does not match the uploaded parts; the original was preserved.",
+            }) from exc
+    else:
+        digest, size = storage.sha256_of_object(session.storage_key, version_id)
     if size != session.total_size:
         raise HTTPException(500, "Stored size does not match the declared size.")
 
