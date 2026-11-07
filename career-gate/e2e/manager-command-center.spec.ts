@@ -54,7 +54,7 @@ test("manager counts actual sections; draft survives search, reload and version 
     // A concurrent write must reject the stale decision while retaining the draft.
     await db()`update clients set next_step='Changed by a concurrent fixture',updated_at=now() where id=${clientId}`;
     await page.getByRole("button", { name: "Approve & route", exact: true }).click();
-    await expect(page.getByRole("alert")).toContainText(/changed/i);
+    await expect(page.getByTestId("manager-task-center").getByRole("alert")).toContainText(/changed/i);
     await expect(page.getByLabel("Manager note (optional)")).toHaveValue("Preserve this manager draft across every navigation");
     await page.getByRole("button", { name: "Review latest", exact: true }).click();
     await page.getByRole("button", { name: "Approve & route", exact: true }).click();

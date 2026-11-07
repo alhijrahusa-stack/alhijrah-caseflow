@@ -51,7 +51,7 @@ function ClientReview({ clientId, version }: { clientId: string; version: string
       }).catch(cause => { if (!disposed && !current.signal.aborted) setError(cause instanceof Error ? cause.message : "Review is unavailable"); });
     };
     load();
-    const unsubscribe = subscribeResources({ clientId, resources: ["client_identity", "documents", "account", "appointments", "next_action"], onUpdate: load });
+    const unsubscribe = subscribeResources({ clientId, resources: ["client_identity", "documents", "account", "appointments", "next_action", "activity"], onUpdate: load });
     const visible = () => { if (document.visibilityState === "visible") load(); };
     window.addEventListener("focus", visible); document.addEventListener("visibilitychange", visible);
     return () => { disposed = true; controller?.abort(); unsubscribe(); window.removeEventListener("focus", visible); document.removeEventListener("visibilitychange", visible); };

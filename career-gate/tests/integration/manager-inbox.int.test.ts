@@ -63,7 +63,9 @@ describe("manager inbox scope and audited routing", () => {
   it("rejects stale review evidence before routing", async () => {
     const client = await createClient(); const item = await request(client.id); const previous = await version(client.id);
     await db`update clients set next_step='Changed by another employee' where id=${client.id}`;
-    await expect(resolveManagerReview(sessions.manager, { id: item.id, destination: "account_setup", note: "", expected_client_version: previous }, "stale")).rejects.toMatchObject({ code: "client_changed", status: 409 });
+    // The database enforces stale evidence before the service can mutate a row;
+    // the HTTP boundary maps this serialization conflict to a 409 response.
+    await expect(resolveManagerReview(sessions.manager, { id: item.id, destination: "account_setup", note: "", expected_client_version: previous }, "stale")).rejects.toMatchObject({ code: "40001" });
     expect((await db`select status from manager_inbox where id=${item.id}`)[0].status).toBe("open");
   });
 
