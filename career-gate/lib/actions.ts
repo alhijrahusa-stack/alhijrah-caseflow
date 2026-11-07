@@ -24,6 +24,7 @@ import {
 } from "@/lib/domain";
 import { enqueue } from "@/lib/jobs";
 import { syncPostPaymentLifecycle } from "@/lib/post-payment-lifecycle";
+import { archiveClient } from "@/lib/client-archive";
 import { channelConfigured } from "@/lib/notify";
 import { inviteUser } from "@/lib/providers/supabase-auth";
 import { sendEmail, sendSms } from "@/lib/providers/messaging";
@@ -273,6 +274,7 @@ type Result = Record<string, unknown>;
 async function setStatus(ctx: Ctx, clientId: string, to: Status, nextStep: string | null, override: string | null) {
   const { tx, actor } = ctx;
   const c = await requireClient(tx, clientId);
+  if (c.manager_review_id) throw new ActionError("manager_review_pending", "Resolve the manager review before changing this file's workflow", 409);
   const from = c.current_status as Status;
   const step = nextStep ?? c.next_step;
   if (from === to && step === c.next_step) return { changed: false };
@@ -441,7 +443,8 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
     case "book_slot": {
       const lifecycleInterview=a.lifecycle_interview||isEmploymentInterview(a.appointment_type);
       const scheduledClient = await requireClient(tx, a.client_id);
-      const lifecycleDecision = lifecycleInterview
+      const lifecycleDeferred = Boolean(scheduledClient.manager_review_id);
+      const lifecycleDecision = lifecycleInterview && !lifecycleDeferred
         ? appointmentLifecycleDecision(String(scheduledClient.current_status), a.lifecycle_override_reason)
         : "normal";
       if (lifecycleDecision === "reason_required") {
@@ -461,7 +464,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
         insert into appointments (client_id, appointment_type, appointment_kind, scheduled_at, ends_at, resource_key, assigned_staff, location, notes, created_by_staff, status)
         values (${a.client_id}, ${a.appointment_type}, ${lifecycleInterview ? 'employment_interview' : 'general'}, ${start}, ${end}, ${a.resource_key}, ${staffResource}, ${a.location}, ${a.notes}, ${by}, ${a.approve_booking ? "confirmed" : "scheduled"})
         returning id`;
-      if (lifecycleInterview && scheduledClient.current_status !== "appointment_scheduled") {
+      if (lifecycleInterview && !lifecycleDeferred && scheduledClient.current_status !== "appointment_scheduled") {
         if (lifecycleDecision === "override") await tx`select set_config('cg.status_override', ${a.lifecycle_override_reason!}, true)`;
         await tx`update clients
           set current_status = 'appointment_scheduled', pipeline_stage = 'interview_scheduled',
@@ -477,11 +480,11 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       await touchClient(tx, a.client_id);
       await logActivity(tx, { clientId: a.client_id, action: "appointment_created", actor, entityType: "appointment", entityId: appt.id, newValue: { type: a.appointment_type, scheduled_at: start.toISOString(), ends_at: end.toISOString(), resource: a.resource_key, location: a.location } });
       if (a.approve_booking) await queueAppointmentEmails(tx, { id:String(appt.id), client_id:a.client_id, scheduled_at:start, location:a.location, appointment_type:a.appointment_type, resource_key:a.resource_key }, "scheduled", actor.traceId);
-      return { appointment_id: appt.id, status: a.approve_booking ? "confirmed" : "scheduled" };
+      return { appointment_id: appt.id, status: a.approve_booking ? "confirmed" : "scheduled", lifecycle_deferred: lifecycleDeferred };
     }
 
     case "record_appointment_attendance": {
-      const [appt] = await tx`select a.id,a.client_id,a.status,a.appointment_kind,c.current_status
+      const [appt] = await tx`select a.id,a.client_id,a.status,a.appointment_kind,c.current_status,c.manager_review_id
         from appointments a join clients c on c.id=a.client_id
         where a.id=${a.appointment_id} and c.deleted_at is null for update of a,c`;
       if (!appt) throw new ActionError("not_found", "Appointment not found", 404);
@@ -491,7 +494,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       if (appt.status === "attended") return { changed: false, client_id: appt.client_id };
       if (!["scheduled","confirmed","rescheduled"].includes(String(appt.status)))
         throw new ActionError("appointment_closed", "Attendance cannot be recorded for a closed appointment", 409);
-      if (appt.current_status !== "appointment_scheduled")
+      if (appt.current_status !== "appointment_scheduled" && !appt.manager_review_id)
         throw new ActionError("lifecycle_conflict", "Client must be in Appointment Scheduled", 409);
       await tx`update appointments set status='attended',updated_at=now() where id=${a.appointment_id}`;
       await touchClient(tx, String(appt.client_id));
@@ -505,7 +508,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
 
     case "appointment_decision": {
       const [appt] = await tx`
-        select a.id, a.client_id, a.status, a.appointment_kind, c.current_status, c.pipeline_stage
+        select a.id, a.client_id, a.status, a.appointment_kind, c.current_status, c.pipeline_stage, c.manager_review_id
         from appointments a join clients c on c.id=a.client_id
         where a.id=${a.appointment_id} and c.deleted_at is null
         for update of a,c`;
@@ -525,7 +528,8 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       if (["missed", "cancelled_interested", "cancelled_not_interested"].includes(a.decision) && appt.status === "attended") {
         throw new ActionError("already_attended", "An attended interview cannot be marked missed or cancelled", 409);
       }
-      if (appt.current_status !== "appointment_scheduled") {
+      const lifecycleDeferred = Boolean(appt.manager_review_id);
+      if (appt.current_status !== "appointment_scheduled" && !lifecycleDeferred) {
         throw new ActionError("lifecycle_conflict", "Client must be in Appointment Scheduled", 409);
       }
       const appointmentStatus = a.decision === "missed" ? "missed"
@@ -545,20 +549,20 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
       await tx`insert into appointment_outcomes (appointment_id,client_id,decision,note,recorded_by)
         values (${a.appointment_id},${appt.client_id},${a.decision},${a.note},${by})
         on conflict (appointment_id) do nothing`;
-      await tx`update clients set current_status=${status},pipeline_stage=${stage},next_step=${nextStep} where id=${appt.client_id}`;
+      if (!lifecycleDeferred) await tx`update clients set current_status=${status},pipeline_stage=${stage},next_step=${nextStep} where id=${appt.client_id}`;
       await logActivity(tx, {
         clientId: appt.client_id, action: "appointment_completed", actor,
         entityType: "appointment", entityId: a.appointment_id,
         oldValue: { status: appt.status, stage: appt.pipeline_stage },
-        newValue: { status: appointmentStatus, decision: a.decision, stage, note: a.note },
+        newValue: { status: appointmentStatus, decision: a.decision, stage: lifecycleDeferred ? appt.pipeline_stage : stage, note: a.note, lifecycle_deferred: lifecycleDeferred },
       });
-      await logActivity(tx, {
+      if (!lifecycleDeferred) await logActivity(tx, {
         clientId: appt.client_id, action: "status_changed", actor,
         entityType: "client", entityId: appt.client_id,
         oldValue: { status: appt.current_status }, newValue: { status },
       });
-      if (a.decision === "pass") await syncPostPaymentLifecycle(tx, String(appt.client_id), String(actor.staffId), actor.traceId);
-      return { changed: true, decision: a.decision, client_id: appt.client_id };
+      if (a.decision === "pass" && !lifecycleDeferred) await syncPostPaymentLifecycle(tx, String(appt.client_id), String(actor.staffId), actor.traceId);
+      return { changed: true, decision: a.decision, client_id: appt.client_id, lifecycle_deferred: lifecycleDeferred };
     }
 
     case "update_appointment": {
@@ -650,6 +654,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
 
     case "assign_staff": {
       const c = await requireClient(tx, a.client_id);
+      if (c.manager_review_id) throw new ActionError("manager_review_pending", "Resolve the manager review before assigning this file", 409);
       await requireStaffMember(tx, a.staff_id);
       if (c.assigned_staff === a.staff_id) return { changed: false };
       await tx`update clients set assigned_staff = ${a.staff_id} where id = ${a.client_id}`;
@@ -814,11 +819,7 @@ export async function runAction(ctx: Ctx, a: ActionInput): Promise<Result> {
     }
 
     case "soft_delete_client": {
-      const c = await requireClient(tx, a.client_id);
-      if (c.deleted_at) throw new ActionError("already_deleted", "Client is already deleted", 409);
-      await tx`update clients set deleted_at = now(), deleted_by = ${by}, delete_reason = ${a.reason} where id = ${a.client_id}`;
-      await logActivity(tx, { clientId: a.client_id, action: "client_deleted", actor, entityType: "client", entityId: a.client_id, newValue: { reason: a.reason } });
-      return {};
+      return archiveClient(tx, { staff: { id: by, role: ctx.role } }, a.client_id, a.reason, actor.traceId);
     }
 
     case "create_staff": {

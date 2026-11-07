@@ -35,12 +35,15 @@ export async function dashboardCounts(s: StaffSession) {
         count(*) filter (where current_status = 'i9_available')::int as i9_available,
         count(*) filter (where current_status = 'ready_for_first_day')::int as ready_for_first_day,
         (select count(*)::int from appointments a
-          where a.status = any(${OPEN_APPT})
+          join clients c on c.id=a.client_id
+          where c.operational_location='appointments' and a.status = any(${OPEN_APPT})
             and (a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date) as appointments_today,
         (select count(*)::int from followups f
-          where f.status = 'open' and f.due_date <= (now() at time zone ${TZ})::date) as followups_due,
+          join clients c on c.id=f.client_id
+          where c.operational_location not in ('manager','urgent','completed','cancelled','deleted')
+            and f.status = 'open' and f.due_date <= (now() at time zone ${TZ})::date) as followups_due,
         (select count(*)::int from audit_alerts al where al.status = 'open') as audit_alerts
-      from clients where deleted_at is null`;
+      from clients where operational_location not in ('manager','urgent','completed','cancelled','deleted')`;
     return r as Record<string, number>;
   });
 }
@@ -62,7 +65,7 @@ export async function clientList(s: StaffSession, f: ClientListFilters) {
     const digits = term.replace(/\D/g, "");
     const like = `%${term.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
     const where = tx`
-      c.deleted_at is null
+      c.operational_location not in ('manager','urgent','completed','cancelled','deleted')
       ${term ? tx`and (c.ref ilike ${like} or c.full_name ilike ${like} or c.email ilike ${like}
                    ${digits.length >= 3 ? tx`or c.phone like ${`%${digits}%`}` : tx``})` : tx``}
       ${f.status ? tx`and c.current_status = ${f.status}` : tx``}
@@ -107,7 +110,7 @@ export async function clientCities(s: StaffSession) {
  */
 const CLIENT_FILE_SLICE_READERS = {
   client: (tx: Tx, id: string) => tx`
-      select c.*, s.display_name as assigned_name, cb.display_name as created_by_name
+      select c.*, c.updated_at::text as updated_at, s.display_name as assigned_name, cb.display_name as created_by_name, career_gate_private.client_review_stamp(c.id) as review_stamp
       from clients c left join staff s on s.id = c.assigned_staff left join staff cb on cb.id = c.created_by where c.id = ${id}`,
   employment: (tx: Tx, id: string) =>
     tx`select * from employment_history where client_id = ${id} order by from_date desc nulls last, created_at`,
@@ -232,11 +235,13 @@ export async function appointmentList(s: StaffSession, view: string, limit = 300
   return withStaff(s, (tx) => tx`
     select a.*, c.full_name, c.ref, s.display_name as created_by_name
     from appointments a join clients c on c.id = a.client_id left join staff s on s.id = a.created_by_staff
-    where c.deleted_at is null and ${
+    where c.deleted_at is null
+      ${view !== "past" ? tx`and c.operational_location='appointments' and not exists(select 1 from appointment_outcomes final where final.appointment_id=a.id)` : tx``}
+      and ${
       view === "active"
         ? tx`a.status in ('scheduled','confirmed','rescheduled','attended')`
         : view === "next_2h"
-        ? tx`a.status = any(${OPEN_APPT}) and a.scheduled_at >= now() and a.scheduled_at <= now() + interval '2 hours' and c.current_status not in ('completed','cancelled')`
+        ? tx`a.status = any(${OPEN_APPT}) and a.scheduled_at >= now() and a.scheduled_at <= now() + interval '2 hours'`
         : view === "today"
           ? tx`(a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date`
         : view === "past"
@@ -255,11 +260,11 @@ export async function appointmentPage(s: StaffSession, view: string, requestedPa
     const q = search.trim().slice(0,100);
     const like = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
     const filter = tx`c.deleted_at is null
-      ${view !== "past" ? tx`and c.current_status='appointment_scheduled' and not exists(select 1 from appointment_outcomes final where final.appointment_id=a.id)` : tx``}
+      ${view !== "past" ? tx`and c.operational_location='appointments' and not exists(select 1 from appointment_outcomes final where final.appointment_id=a.id)` : tx``}
       ${q ? tx`and (c.full_name ilike ${like} or c.ref ilike ${like} or c.phone like ${like})` : tx``}
       and ${
       view === "next_2h"
-        ? tx`a.status = any(${OPEN_APPT}) and a.scheduled_at >= now() and a.scheduled_at <= now() + interval '2 hours' and c.current_status not in ('completed','cancelled')`
+        ? tx`a.status = any(${OPEN_APPT}) and a.scheduled_at >= now() and a.scheduled_at <= now() + interval '2 hours'`
         : view === "today"
           ? tx`a.status = any(${OPEN_APPT}) and (a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date`
           : view === "past"
@@ -294,10 +299,10 @@ export async function taskList(s: StaffSession, view: string, assignee?: string,
            count(*) over ()::int as total_count
     from tasks t left join clients c on c.id = t.client_id
     left join staff a on a.id = t.assigned_to left join staff d on d.id = t.completed_by
-    where (c.id is null or c.deleted_at is null)
+    where ${view === "closed" ? tx`(c.id is null or c.deleted_at is null)` : tx`(t.client_id is null or c.operational_location not in ('manager','urgent','completed','cancelled','deleted'))`}
       and ${view === "closed" ? tx`t.status in ('completed','cancelled')` : tx`t.status in ('pending','in_progress')`}
       ${view === "overdue" ? tx`and t.due_at < now()` : view === "due_today" ? tx`and (t.due_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date` : tx``}
-      ${view === "overdue" || view === "due_today" ? tx`and c.id is not null and c.current_status not in ('completed','cancelled')` : tx``}
+      ${view === "overdue" || view === "due_today" ? tx`and c.id is not null` : tx``}
       ${assignee ? tx`and t.assigned_to = ${assignee}` : tx``}
     order by ${view === "closed" ? tx`t.updated_at desc, t.id` : tx`t.due_at asc nulls last, t.created_at, t.id`}
     limit ${pageLimit} offset ${pageOffset}`);
@@ -307,10 +312,10 @@ export async function taskList(s: StaffSession, view: string, assignee?: string,
 export async function taskPage(s: StaffSession, view: string, assignee?: string, requestedPage = 1, pageSize = 50) {
   const size = Number.isSafeInteger(pageSize) ? Math.min(Math.max(pageSize, 1), 100) : 50;
   return withStaff(s, async (tx) => {
-    const filter = tx`(c.id is null or c.deleted_at is null)
+    const filter = tx`${view === "closed" ? tx`(c.id is null or c.deleted_at is null)` : tx`(t.client_id is null or c.operational_location not in ('manager','urgent','completed','cancelled','deleted'))`}
       and ${view === "closed" ? tx`t.status in ('completed','cancelled')` : tx`t.status in ('pending','in_progress')`}
       ${view === "overdue" ? tx`and t.due_at < now()` : view === "due_today" ? tx`and (t.due_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date` : tx``}
-      ${view === "overdue" || view === "due_today" ? tx`and c.id is not null and c.current_status not in ('completed','cancelled')` : tx``}
+      ${view === "overdue" || view === "due_today" ? tx`and c.id is not null` : tx``}
       ${assignee ? tx`and t.assigned_to = ${assignee}` : tx``}`;
     const [count] = await tx`select count(*)::int as total from tasks t left join clients c on c.id=t.client_id where ${filter}`;
     const total = Number(count?.total ?? 0);
@@ -335,7 +340,7 @@ export async function followupList(s: StaffSession, view: string) {
       select f.*, c.full_name, c.ref, c.phone, s.display_name as created_by_name, d.display_name as completed_by_name
       from followups f join clients c on c.id = f.client_id
       left join staff s on s.id = f.created_by left join staff d on d.id = f.completed_by
-      where c.deleted_at is null ${view === "completed" ? tx`` : tx`and c.current_status not in ('completed','cancelled')`} and ${
+      where c.deleted_at is null ${view === "completed" ? tx`` : tx`and c.operational_location not in ('manager','urgent','completed','cancelled','deleted')`} and ${
         view === "completed"
           ? tx`f.status = 'completed'`
           : view === "upcoming"
@@ -353,7 +358,7 @@ export async function followupPage(s: StaffSession, view: string, requestedPage 
   const size = Number.isSafeInteger(pageSize) ? Math.min(Math.max(pageSize, 1), 100) : 50;
   return withStaff(s, async (tx) => {
     const today = tx`(now() at time zone ${TZ})::date`;
-    const filter = tx`c.deleted_at is null ${view === "completed" ? tx`` : tx`and c.current_status not in ('completed','cancelled')`} and ${
+    const filter = tx`c.deleted_at is null ${view === "completed" ? tx`` : tx`and c.operational_location not in ('manager','urgent','completed','cancelled','deleted')`} and ${
       view === "completed"
         ? tx`f.status = 'completed'`
         : view === "upcoming"

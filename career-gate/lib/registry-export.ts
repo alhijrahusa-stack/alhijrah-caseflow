@@ -11,9 +11,9 @@ export function escapeRegistryXml(value: unknown) {
   return validXml.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
 }
 
-const HEADERS = ["Reference", "Client", "Phone", "Email", "City", "Current status", "Assigned specialist", "Site", "Shift", "Payment", "Start date", "Received", "Updated"];
+const HEADERS = ["Reference", "Client", "Phone", "Email", "City", "Current status", "Assigned specialist", "Site", "Shift", "Payment", "Start date", "Received", "Updated", "Operational section", "Urgent", "Reviewed by manager", "Review time", "Review pending"];
 export function registryExportValues(row: OperationalClientRow) {
-  return [row.ref,row.full_name,row.phone,row.email,row.city,row.current_status,row.assigned_name,row.site_name,row.shift_name,row.payment_status,dateOnly(row.start_date),dateTime(row.created_at),dateTime(row.updated_at)];
+  return [row.ref,row.full_name,row.phone,row.email,row.city,row.current_status,row.assigned_name,row.site_name,row.shift_name,row.payment_status,dateOnly(row.start_date),dateTime(row.created_at),dateTime(row.updated_at),row.operational_location ?? "",row.is_urgent ? "Yes" : "No",row.review_stamp?.reviewed_by_name ?? "",row.review_stamp?.reviewed_at ? dateTime(row.review_stamp.reviewed_at) : "",row.manager_review_id || row.review_stamp?.review_pending ? "Yes" : "No"];
 }
 function column(index:number) { let n=index+1,out="";while(n>0){const r=(n-1)%26;out=String.fromCharCode(65+r)+out;n=Math.floor((n-1)/26);}return out;}
 
@@ -89,7 +89,7 @@ export function buildRegistryWorkbook(rows: OperationalClientRow[]) {
     {name:"xl/workbook.xml",content:`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Career Gate Registry" sheetId="1" r:id="rId1"/></sheets></workbook>`},
     {name:"xl/_rels/workbook.xml.rels",content:`<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
     {name:"xl/styles.xml",content:styles},
-    {name:"xl/worksheets/sheet1.xml",content:`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="23" customWidth="1"/><col min="2" max="2" width="42" customWidth="1"/><col min="3" max="13" width="25" customWidth="1"/></cols><sheetData>${body}</sheetData><autoFilter ref="A1:M${rows.length+1}"/><pageSetup orientation="landscape" paperSize="9"/></worksheet>`},
+    {name:"xl/worksheets/sheet1.xml",content:`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="23" customWidth="1"/><col min="2" max="2" width="42" customWidth="1"/><col min="3" max="${HEADERS.length}" width="25" customWidth="1"/></cols><sheetData>${body}</sheetData><autoFilter ref="A1:${column(HEADERS.length-1)}${rows.length+1}"/><pageSetup orientation="landscape" paperSize="9"/></worksheet>`},
   ]);
 }
 

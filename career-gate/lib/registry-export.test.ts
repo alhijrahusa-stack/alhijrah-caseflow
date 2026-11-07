@@ -18,6 +18,14 @@ describe("authorized registry export formatting",()=>{
     expect(parsed).toHaveLength(1);
     expect(parsed[0]).toMatchObject({Reference:row.ref,Client:row.full_name,Email:row.email,"Start date":"Nov 9, 2026"});
   });
+  it("retains exclusive operational location and the server review stamp in an exported original record",()=>{
+    const reviewed = {...row,is_urgent:true,operational_location:"urgent",review_stamp:{reviewed_by_name:"Manager عبد الله",reviewed_at:"2026-11-01T12:00:00Z",review_id:"review-1",review_pending:false}};
+    const parsed=parseXlsx(buildRegistryWorkbook([reviewed]));
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]).toMatchObject({Reference:row.ref,"Operational section":"urgent",Urgent:"Yes","Reviewed by manager":"Manager عبد الله","Review pending":"No"});
+    const pending=parseXlsx(buildRegistryWorkbook([{...reviewed,manager_review_id:"review-2",operational_location:"manager"}]))[0];
+    expect(pending).toMatchObject({"Operational section":"manager","Review pending":"Yes","Reviewed by manager":"Manager عبد الله"});
+  });
   it("escapes untrusted printable markup and preserves Arabic for the browser PDF renderer",()=>{
     const html=buildRegistryPrint([{...row,full_name:"أحمد <script>alert(1)</script>"}],"active","nonce123","2026-10-31T12:00:00Z");
     expect(html).toContain("أحمد &lt;script&gt;alert(1)&lt;/script&gt;");

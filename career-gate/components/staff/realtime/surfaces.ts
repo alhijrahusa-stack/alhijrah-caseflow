@@ -46,10 +46,10 @@ export const NEXT_ACTION_SURFACE: SurfaceContract = {
 
 /** Private manager aggregate, refreshed in-place by its own endpoint. */
 export const MANAGER_INBOX_SURFACE: SurfaceContract & { endpoint: string } = {
-  resources: ["manager_inbox"],
+  resources: ["manager_inbox", "client_identity", "import_cases"],
   payloads: ["inbox"],
   endpoint: "/api/staff/manager-inbox",
-  aggregatePayloads: { manager_inbox: ["inbox"] },
+  aggregatePayloads: { manager_inbox: ["inbox"], client_identity: ["inbox"], import_cases: ["inbox"] },
 };
 
 export const SURFACES = {

@@ -146,7 +146,7 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
   }, [clientId, router]);
 
   return (
-    <span className="text-xs text-slate-400" data-testid="realtime-state" data-recovery={recovery ?? ""} title="Live updates">
+    <span className="text-xs text-slate-400" data-testid="realtime-state" data-state={state} data-recovery={recovery ?? ""} title="Live updates">
       {state === "live" ? "● Live" : state === "NOT_CONFIGURED" ? "Live updates NOT_CONFIGURED" : state === "offline" ? "Live updates offline" : "Connecting…"}
     </span>
   );

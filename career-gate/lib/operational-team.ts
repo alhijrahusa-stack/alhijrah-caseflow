@@ -57,16 +57,16 @@ export const teamWorkload = cache(async (session: StaffSession): Promise<TeamWor
         select distinct on (p.client_id) p.client_id,p.site_code,p.site_name,p.job_id,p.shift_code,p.shift_name
         from client_preferences p
         join clients c on c.id=p.client_id
-        where c.deleted_at is null and c.current_status not in ('completed','cancelled') and p.rank='primary'
+        where c.operational_location not in ('manager','urgent','completed','cancelled','deleted') and p.rank='primary'
         order by p.client_id,p.preference_order
       )
       select c.assigned_staff as staff_id,p.site_code,p.site_name,p.job_id,p.shift_code,p.shift_name,count(*)::int as n
       from clients c left join primary_pref p on p.client_id=c.id
-      where c.deleted_at is null and c.current_status not in ('completed','cancelled')
+      where c.operational_location not in ('manager','urgent','completed','cancelled','deleted')
       group by c.assigned_staff,p.site_code,p.site_name,p.job_id,p.shift_code,p.shift_name`,
-      tx`select assigned_to as staff_id,count(*) filter (where status=any(${OPEN_TASKS}))::int as open_tasks,count(*) filter (where status=any(${OPEN_TASKS}) and due_at is not null and due_at<now())::int as overdue_tasks from tasks where assigned_to is not null group by assigned_to`,
-      tx`select c.assigned_staff as staff_id,count(distinct a.id)::int as appointments_today from appointments a join clients c on c.id=a.client_id where c.deleted_at is null and c.current_status not in ('completed','cancelled') and a.status=any(${OPEN_APPOINTMENTS}) and (a.scheduled_at at time zone ${TZ})::date=(now() at time zone ${TZ})::date group by c.assigned_staff`,
-      tx`select c.assigned_staff as staff_id,count(distinct f.id)::int as followups_due from followups f join clients c on c.id=f.client_id where c.deleted_at is null and c.current_status not in ('completed','cancelled') and f.status='open' and f.due_date<=(now() at time zone ${TZ})::date group by c.assigned_staff`,
+      tx`select t.assigned_to as staff_id,count(*) filter (where t.status=any(${OPEN_TASKS}))::int as open_tasks,count(*) filter (where t.status=any(${OPEN_TASKS}) and t.due_at is not null and t.due_at<now())::int as overdue_tasks from tasks t left join clients c on c.id=t.client_id where t.assigned_to is not null and (t.client_id is null or c.operational_location not in ('manager','urgent','completed','cancelled','deleted')) group by t.assigned_to`,
+      tx`select c.assigned_staff as staff_id,count(distinct a.id)::int as appointments_today from appointments a join clients c on c.id=a.client_id where c.operational_location='appointments' and a.status=any(${OPEN_APPOINTMENTS}) and (a.scheduled_at at time zone ${TZ})::date=(now() at time zone ${TZ})::date group by c.assigned_staff`,
+      tx`select c.assigned_staff as staff_id,count(distinct f.id)::int as followups_due from followups f join clients c on c.id=f.client_id where c.operational_location not in ('manager','urgent','completed','cancelled','deleted') and f.status='open' and f.due_date<=(now() at time zone ${TZ})::date group by c.assigned_staff`,
     ]);
 
     const tasks = new Map(taskRows.map((r) => [String(r.staff_id), r]));

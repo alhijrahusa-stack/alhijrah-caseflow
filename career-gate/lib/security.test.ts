@@ -46,12 +46,12 @@ describe("staff JWT verification", () => {
 
 describe("RBAC matrix", () => {
   it("restricts team management to admin and review to admin/manager", () => {
-    for (const a of ["create_staff", "update_staff_role", "disable_staff", "soft_delete_client", "override_status"] as const) {
+    for (const a of ["create_staff", "update_staff_role", "disable_staff", "override_status"] as const) {
       expect(roleAllows("admin", a)).toBe(true);
       expect(roleAllows("manager", a)).toBe(false);
       expect(roleAllows("staff", a)).toBe(false);
     }
-    for (const a of ["verify_document", "reject_document", "assign_staff", "update_status", "create_client"] as const) {
+    for (const a of ["soft_delete_client", "verify_document", "reject_document", "assign_staff", "update_status", "create_client"] as const) {
       expect(roleAllows("manager", a)).toBe(true);
       expect(roleAllows("staff", a)).toBe(false);
     }

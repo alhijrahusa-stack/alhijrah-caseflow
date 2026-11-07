@@ -91,8 +91,9 @@ describe("direct manual workflow routing", () => {
       ["pre_hire_completed", "payment_required"], ["screening_pending", "post_interview_completion"],
       ["completed", "completed_files"],
     ];
-    for (const status of STATUSES) for (const [index, stage] of CLIENT_STAGES.entries()) {
+    for (const status of STATUSES) for (const [index, stage] of CLIENT_STAGES.filter(s=>s.id!=="urgent").entries()) {
       expect(resolveOverrideRoute(stage.id, status)).toMatchObject({ status: expected[index][0], pipelineStage: expected[index][1] });
+      expect(resolveOverrideRoute("urgent",status)).toMatchObject({status,pipelineStage:""});
     }
     expect(() => resolveOverrideRoute("job_ready", "unknown")).toThrow("invalid");
   });

@@ -5,6 +5,7 @@ import { ArchiveRestoreButton } from "@/components/staff/ArchiveRestoreButton";
 import { getStaffSession } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import { dateTime } from "@/lib/format";
+import { ReviewStamp, type ReviewStampData } from "@/components/staff/ReviewStamp";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ type ArchivedClient = {
   delete_reason: string | null;
   deleted_by_name: string | null;
   retained_documents: number;
+  review_stamp: ReviewStampData | null;
 };
 
 export default async function ArchivePage() {
@@ -35,6 +37,11 @@ export default async function ArchivePage() {
       c.deleted_at,
       c.delete_reason,
       s.display_name as deleted_by_name,
+      (select jsonb_build_object('review_id',i.id,'reviewed_by_name',coalesce(i.resolved_by_name_snapshot,reviewer.display_name),
+          'reviewed_at',i.resolved_at,'review_pending',false)
+        from manager_inbox i join staff reviewer on reviewer.id=i.resolved_by
+        where i.status='resolved' and (i.client_id=c.id or i.related_client_id=c.id)
+        order by i.resolved_at desc,i.id desc limit 1) as review_stamp,
       count(d.id)::int as retained_documents
     from clients c
     left join staff s on s.id = c.deleted_by
@@ -74,7 +81,7 @@ export default async function ArchivePage() {
                 {rows.map((row) => (
                   <tr key={row.id}>
                     <td className="font-mono text-cyan-300">{row.ref}</td>
-                    <td><strong className="block text-slate-100">{row.full_name}</strong><span className="text-xs text-slate-500">{row.email ?? row.phone}</span></td>
+                    <td><strong className="block text-slate-100">{row.full_name}</strong><span className="text-xs text-slate-500">{row.email ?? row.phone}</span><ReviewStamp stamp={row.review_stamp}/></td>
                     <td className="whitespace-nowrap">{dateTime(row.deleted_at)}</td>
                     <td className="max-w-xs text-slate-400">{row.delete_reason ?? "—"}</td>
                     <td><span className="archive-document-count">{row.retained_documents}</span></td>

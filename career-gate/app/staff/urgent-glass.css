@@ -1,0 +1,70 @@
+/* The new visual surface is confined to Clients → Urgent. */
+.cg-urgent-badge{display:inline-flex;align-items:center;gap:.3rem;margin:.2rem .35rem .35rem 0;padding:.3rem .65rem;border:1px solid #fb923c66;border-radius:999px;background:#fb923c18;color:#fdba74;font-size:.72rem;font-weight:800;letter-spacing:.02em}
+.cg-urgent-glass{--urgent-ink:#1e40af;isolation:isolate;position:relative;min-height:75vh;padding:clamp(1rem,2vw,2rem);border:1px solid #ffffff80;border-radius:28px;background:radial-gradient(ellipse at 98% 0%,#e0e7ffb3,transparent 48%),linear-gradient(140deg,#f0f9ff 0%,#e0f2fe 45%,#dbeafe 75%,#f8fafc 100%);color:#334155;box-shadow:0 18px 56px #0284c714,inset 0 1px #ffffffc0}
+.cg-urgent-glass .ops-hero{padding:1.25rem 0 1.5rem;border:0;background:transparent;box-shadow:none}
+.cg-urgent-glass h1,.cg-urgent-glass h2,.cg-urgent-glass .registry-name-link,.cg-urgent-glass .registry-ref-link{color:#1e40af}
+.cg-urgent-glass .ops-kicker{color:#0369a1}
+.cg-urgent-glass .ops-hero p,.cg-urgent-glass .registry-column-label,.cg-urgent-glass .registry-client-contact,.cg-urgent-glass .registry-client-details,.cg-urgent-glass .registry-next-step{color:#475569}
+.cg-urgent-glass .ops-glass-card,.cg-urgent-glass .cg-registry-card,.cg-urgent-glass .registry-stage-tab,.cg-urgent-glass .ops-segmented,.cg-urgent-glass .registry-pagination{border:1px solid #ffffffb3;background:#ffffff59;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 10px 28px #0284c714,inset 0 1px 0 #ffffffb3;border-radius:24px;color:#334155}
+.cg-urgent-glass .cg-registry-card{border-inline-start:3px solid #f97316;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.cg-urgent-glass .cg-registry-card:hover{transform:translateY(-3px);box-shadow:0 16px 32px #0284c721,inset 0 1px #fff;border-color:#93c5fd}
+.cg-urgent-glass .registry-stage-tab{border-radius:16px;color:#1e40af}
+.cg-urgent-glass .registry-stage-tab:hover,.cg-urgent-glass .registry-stage-tab[aria-current="page"]{background:#ffffffa6;border-color:#60a5fa;box-shadow:0 5px 20px #0284c71c}
+.cg-urgent-glass .cg-urgent-tab[aria-current="page"]{border-color:#f9731670;background:#fff7edb3;color:#9a3412}
+.cg-urgent-glass .cg-urgent-badge{border-color:#ea580c55;background:#ffedd5b3;color:#9a3412}
+.cg-urgent-glass .cg-urgent-intro{padding:1rem 1.25rem;border:1px solid #fb923c44;border-radius:18px;background:#fff7ed80;font-size:.85rem;color:#9a3412}
+.cg-urgent-glass .registry-client-avatar{border-color:#93c5fd88;background:linear-gradient(145deg,#ffffffa6,#bfdbfe80);color:#1e40af;box-shadow:inset 0 1px #ffffffcc}
+.cg-urgent-glass .registry-owner{color:#1e40af;background:#dbeafe80;border-color:#93c5fd66}
+.cg-urgent-glass .registry-owner.is-unassigned{color:#92400e;background:#fef3c780}
+.cg-urgent-glass .cg-command-button,.cg-urgent-glass .archive-link-button,.cg-urgent-glass .ops-secondary-button{border-color:#93c5fd80;background:#ffffff73;color:#1e40af;box-shadow:inset 0 1px #fff;transition:background .18s ease,transform .18s ease}
+.cg-urgent-glass .cg-command-button:hover,.cg-urgent-glass .ops-secondary-button:hover{border-color:#60a5fa;background:#ffffffc4;transform:translateY(-1px)}
+.cg-urgent-glass .registry-open,.cg-urgent-glass .ops-primary-button{border-color:#1e40af;background:#1e40af;color:#fff;box-shadow:0 5px 15px #1e40af20}
+.cg-urgent-glass .cg-urgent-action{border-color:#fdba7480;color:#9a3412;background:#fff7ed99}
+.cg-urgent-glass .registry-next-step{border-color:#93c5fd4d}
+.cg-urgent-glass .input,.cg-urgent-glass select,.cg-urgent-glass input[type="search"],.cg-urgent-glass input[type="text"]{border-color:#93c5fd80;background:#ffffff80;color:#1e3a8a}
+.cg-urgent-glass input::placeholder{color:#64748b}
+.cg-urgent-glass .ops-segmented a{color:#475569}
+.cg-urgent-glass .ops-segmented a[data-active="true"]{background:#1e40af;color:#fff}
+.cg-urgent-glass [class*="text-slate-"],.cg-urgent-glass [class*="text-white"]{color:#334155}
+.cg-urgent-glass [class*="text-amber-"],.cg-urgent-glass [class*="text-orange-"]{color:#92400e}
+.cg-urgent-glass [class*="text-cyan-"],.cg-urgent-glass [class*="text-lime-"]{color:#0369a1}
+.cg-urgent-glass [class*="text-emerald-"]{color:#047857}
+.cg-urgent-glass [class*="text-red-"]{color:#b91c1c}
+.cg-urgent-glass .registry-open,.cg-urgent-glass .ops-primary-button{color:#fff}
+.cg-urgent-glass .cg-review-stamp{border-color:#05966955;background:#d1fae599;color:#065f46}
+.cg-urgent-glass .cg-review-pending{border-color:#d9770655;background:#fef3c799;color:#92400e}
+.cg-urgent-glass .registry-pagination a{color:#1e40af}
+.cg-urgent-glass .registry-pagination a[aria-current="page"]{background:#1e40af;color:#fff}
+.cg-urgent-glass .table th{color:#1e40af;background:#ffffff66;border-color:#93c5fd66}
+.cg-urgent-glass .table td{border-color:#93c5fd44;color:#334155}
+.cg-urgent-glass :focus-visible{outline:3px solid #0284c7;outline-offset:3px}
+.cg-urgent-glass button:disabled{opacity:.5;transform:none}
+@media(prefers-reduced-motion:reduce){.cg-urgent-glass *{transition:none!important;animation:none!important;scroll-behavior:auto!important}.cg-urgent-glass .cg-registry-card:hover{transform:none}}
+@media(max-width:640px){.cg-urgent-glass{padding:.8rem;border-radius:20px}.cg-urgent-glass .ops-glass-card{padding:1rem}.cg-urgent-glass .cg-registry-card{border-radius:18px}}
+/* Match the existing shell's selector weight without changing its other pages. */
+.royal-shell .cg-urgent-glass .registry-toolbar,.royal-shell .cg-urgent-glass .registry-fluid-row{background:#ffffff59;border-color:#ffffffb3}
+.royal-shell .cg-urgent-glass .registry-fluid-row{border-inline-start:3px solid #f97316;border-radius:24px}
+.royal-shell .cg-urgent-glass .registry-name-link{color:#1e40af;text-shadow:none}
+.royal-shell .cg-urgent-glass .registry-ref-link{color:#0369a1;background:#e0f2fe80;border-color:#93c5fd66}
+.royal-shell .cg-urgent-glass .registry-client-contact,.royal-shell .cg-urgent-glass .registry-column-label,.royal-shell .cg-urgent-glass .registry-client-details>span,.royal-shell .cg-urgent-glass .registry-client-details time,.royal-shell .cg-urgent-glass .registry-client-details p{color:#475569}
+.royal-shell .cg-urgent-glass .registry-client-stage>.registry-owner{color:#1e40af;background:#dbeafe80;border-color:#93c5fd66}
+.royal-shell .cg-urgent-glass .registry-client-stage>.registry-owner.is-unassigned{color:#92400e;background:#fef3c780}
+.royal-shell .cg-urgent-glass .registry-client-stage>.cg-urgent-badge{color:#9a3412;background:#ffedd5b3;border-color:#ea580c55}
+.royal-shell .cg-urgent-glass .registry-query-box{background:#ffffff80;border-color:#93c5fd80}
+.royal-shell .cg-urgent-glass .registry-query-box input{color:#1e3a8a;background:transparent}
+.cg-urgent-glass .registry-query>span:first-child,.cg-urgent-glass .registry-filter>span,.cg-urgent-glass .registry-toolbar-meta>p,.cg-urgent-glass .registry-pagination>div:first-child,.cg-urgent-glass .registry-pagination small{color:#475569}
+.royal-shell .cg-urgent-glass .registry-open{background:#1e40af!important;border-color:#1e40af!important;color:#fff!important}
+.cg-urgent-glass .registry-search-match{background:#bae6fd;color:#075985}
+.cg-urgent-glass .registry-save-form{background:#ffffff59;border-color:#93c5fd66}
+.cg-urgent-glass .registry-saved-filter{background:#e0f2fe80;border-color:#93c5fd66;color:#1e40af}
+/* The shared keyboard palette adopts Sky Glass only while opened in these surfaces. */
+.royal-command-overlay.cg-sky-command-overlay{background:#1e40af1f;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.royal-command-overlay .cg-sky-command-panel{border:1px solid #ffffffb3;background:linear-gradient(140deg,#f0f9ffdd,#dbeafed9,#e0e7ffdd);color:#1e3a8a;box-shadow:0 24px 80px #1e40af26,inset 0 1px #fff;border-radius:24px;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+.royal-command-overlay .cg-sky-command-panel>div,.royal-command-overlay .cg-sky-command-panel>input{border-color:#93c5fd66}
+.royal-command-overlay .cg-sky-command-panel input{color:#1e3a8a;background:#ffffff30}
+.royal-command-overlay .cg-sky-command-panel input::placeholder{color:#64748b}
+.royal-command-overlay .cg-sky-command-panel [class*="text-amber-"],.royal-command-overlay .cg-sky-command-panel [class*="text-slate-"]{color:#475569}
+.royal-command-overlay .cg-sky-command-panel [role="option"]{color:#1e3a8a}
+.royal-command-overlay .cg-sky-command-panel [role="option"][aria-selected="true"]{color:#1e40af;background:#ffffff80;box-shadow:inset 3px 0 #0284c7}
+.royal-command-overlay .cg-sky-command-panel button{color:#1e40af;border-color:#93c5fd80;background:#ffffff60}
+.royal-command-overlay .cg-sky-command-panel :focus-visible{outline:2px solid #0284c7;outline-offset:-3px}

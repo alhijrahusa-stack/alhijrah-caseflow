@@ -19,7 +19,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const [result, waiting] = await Promise.all([
     appointmentPage(session, view, requestedPage, PAGE_SIZE, q),
     view === "active" ? withStaff(session, tx => tx`select c.id,c.ref,c.full_name from clients c
-      where c.deleted_at is null and c.current_status='appointment_scheduled'
+      where c.operational_location='appointments'
         and not exists(select 1 from appointments a where a.client_id=c.id and a.appointment_kind='employment_interview'
           and a.status in ('scheduled','confirmed','rescheduled','attended')
           and not exists(select 1 from appointment_outcomes o where o.appointment_id=a.id))

@@ -1,4 +1,5 @@
 import "server-only";
+import type { ReviewStampData } from "@/components/staff/ReviewStamp";
 import { ACCOUNT_NET_FEE } from "@/lib/accounting-schema";
 import { type ClientStageFilter } from "@/lib/client-lifecycle-filters";
 import { workflowFilter } from "@/lib/workflow-filters";
@@ -12,15 +13,16 @@ export type OperationalClientRow = {
   assigned_staff:string|null; assigned_name:string|null; site_code:string|null; site_name:string|null;
   job_id:string|null; job_title:string|null; shift_code:string|null; shift_name:string|null;
   payment_status:string|null; fee_amount:number|null; amazon_account_ready:boolean;
+  is_urgent?:boolean; manager_review_id?:string|null; operational_location?:string; review_stamp?:ReviewStampData|null;
 };
 export type OperationalClientExtraFilters={q?:string;status?:string;stage?:ClientStageFilter;assigned?:string;attention?:"documents";completedThisMonth?:boolean};
 
 export async function operationalClientList(session:StaffSession, view:ClientView, page:number, pageSize:number, extra:OperationalClientExtraFilters={}){
   return withStaff(session, async(tx)=>{
     const lifecycle = view === "active"
-      ? tx`c.current_status not in ('completed','cancelled')`
+      ? extra.stage === "urgent" ? tx`c.operational_location = 'urgent'` : tx`c.operational_location not in ('completed','cancelled','manager','urgent','deleted')`
       : view === "completed"
-        ? tx`c.current_status = 'completed'`
+        ? tx`c.operational_location = 'completed'`
         : tx`true`;
     const stageFilter = extra.stage ? workflowFilter(tx, extra.stage) : tx`true`;
     const term=extra.q?.trim().slice(0,100)??"";
@@ -44,7 +46,7 @@ export async function operationalClientList(session:StaffSession, view:ClientVie
     const maxPage = Math.max(1, Math.ceil(Number(total ?? 0) / pageSize));
     const safePage = Number.isSafeInteger(page) && page > 0 ? Math.min(page, maxPage) : 1;
     const rows = await tx`
-      select c.id,c.ref,c.full_name,c.phone,c.email,c.city,c.current_status,c.next_step,c.start_date,c.created_at,c.updated_at,c.assigned_staff,
+      select c.id,c.ref,c.full_name,c.phone,c.email,c.city,c.current_status,c.next_step,c.start_date,c.created_at,c.updated_at::text as updated_at,c.assigned_staff,c.is_urgent,c.manager_review_id,c.operational_location,career_gate_private.client_review_stamp(c.id) as review_stamp,
              s.display_name as assigned_name,p.site_code,p.site_name,p.job_id,p.job_title,p.shift_code,p.shift_name,a.payment_status,${tx.unsafe(ACCOUNT_NET_FEE("a"))} fee_amount, career_gate_private.has_ready_gate_job_account(c.id) as amazon_account_ready
       from clients c
       left join staff s on s.id=c.assigned_staff

@@ -81,7 +81,7 @@ export const ENTITY_RESOURCES: Record<RealtimeEntity, readonly Resource[]> = {
   documents: ["documents", "readiness", "next_action", "activity"],
   audit_alerts: ["alerts", "attention"],
   client_import_cases: ["import_cases", "activity"],
-  manager_inbox: ["manager_inbox", "activity"],
+  manager_inbox: ["manager_inbox", "client_identity", "pipeline", "attention", "activity"],
 };
 
 function isEntity(table: string): table is RealtimeEntity {
@@ -100,7 +100,8 @@ export function resourcesForEntity(table: string): readonly Resource[] {
  * same resources.
  */
 export const MUTATION_RESOURCES: Record<string, readonly Resource[]> = {
-  manager_review_requested: ["manager_inbox", "activity"],
+  manager_review_requested: ["manager_inbox", "client_identity", "pipeline", "attention", "activity"],
+  client_dispatch: ["manager_inbox", "client_identity", "pipeline", "attention", "activity"],
   manager_review_resolved: ["manager_inbox", "client_identity", "pipeline", "notes", "tasks", "next_action", "attention", "activity"],
   // Client record and workflow position
   create_client: ["client_identity", "pipeline", "attention", "next_action", "activity"],

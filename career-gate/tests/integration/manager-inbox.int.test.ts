@@ -35,13 +35,15 @@ describe("manager inbox scope and audited routing", () => {
     const key = randomUUID();
     const [first, repeated] = await Promise.all([request(client.id, key), request(client.id, key)]);
     expect(first.id).toBe(repeated.id);
-    expect([first.created, repeated.created].sort()).toEqual([false, true]);
+    // Retrying one actor/key replays its committed response, including created.
+    expect(first.created).toBe(true);
+    expect(repeated).toEqual(first);
     const another = await request(client.id);
-    expect(another).toEqual({ id: first.id, created: false });
+    expect(another).toMatchObject({ id: first.id, created: false });
     await expect(submitManagerReview(sessions.other, { kind: "client", client_id: client.id, request_key: randomUUID(), note: "" }, "forbidden")).rejects.toMatchObject({ code: "not_found" });
     expect(await withStaff(sessions.other, tx => tx`select id from manager_inbox where id=${first.id}`)).toHaveLength(0);
     expect(await withStaff(sessions.sender, tx => tx`select id from manager_inbox where id=${first.id}`)).toHaveLength(1);
-    const inbox = await managerInbox(sessions.manager);
+    const inbox = await managerInbox(sessions.manager, 1, { q: client.ref });
     expect(inbox.items.find(item => item.id === first.id)).toMatchObject({ client_id: client.id, sender_name: "TEST Inbox sender", submitted_note: "Please review this file" });
     await expect(managerInbox(sessions.sender)).rejects.toMatchObject({ code: "forbidden" });
     await expect(db.begin(async tx => { await tx.unsafe("set local role anon"); return tx`select id from manager_inbox`; })).rejects.toMatchObject({ code: "42501" });
