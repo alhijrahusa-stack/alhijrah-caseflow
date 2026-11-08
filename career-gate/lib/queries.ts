@@ -43,10 +43,10 @@ export async function dashboardCounts(s: StaffSession) {
             and (a.scheduled_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date) as appointments_today,
         (select count(*)::int from followups f
           join clients c on c.id=f.client_id
-          where c.operational_location not in ('manager','urgent','completed','cancelled','deleted')
+          where c.operational_location not in ('manager','urgent','completed','cancelled','deleted','worksite_change')
             and f.status = 'open' and f.due_date <= (now() at time zone ${TZ})::date) as followups_due,
         (select count(*)::int from audit_alerts al where al.status = 'open') as audit_alerts
-      from clients where operational_location not in ('manager','urgent','completed','cancelled','deleted')`;
+      from clients where operational_location not in ('manager','urgent','completed','cancelled','deleted','worksite_change')`;
     return r as Record<string, number>;
   });
 }
@@ -68,7 +68,7 @@ export async function clientList(s: StaffSession, f: ClientListFilters) {
     const digits = term.replace(/\D/g, "");
     const like = `%${term.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
     const where = tx`
-      c.operational_location not in ('manager','urgent','completed','cancelled','deleted')
+      c.operational_location not in ('manager','urgent','completed','cancelled','deleted','worksite_change')
       ${term ? tx`and (c.ref ilike ${like} or c.full_name ilike ${like} or c.email ilike ${like}
                    ${digits.length >= 3 ? tx`or c.phone like ${`%${digits}%`}` : tx``})` : tx``}
       ${f.status ? tx`and c.current_status = ${f.status}` : tx``}
@@ -159,6 +159,9 @@ const CLIENT_FILE_SLICE_READERS = {
            from client_authorizations where client_id = ${id}`,
   notifications: (tx: Tx, id: string) =>
     tx`select channel, template, status, provider, error, sent_at, delivered_at, created_at from notifications where client_id = ${id} order by created_at desc`,
+  worksiteChanges: (tx: Tx, id: string) => tx`select w.*,n.status notification_status,n.sent_at,n.error notification_error
+    from worksite_changes w left join notifications n on n.id=w.notification_id
+    where w.client_id=${id} order by w.created_at desc,w.id desc limit 50`,
   alerts: (tx: Tx, id: string, s: StaffSession) =>
     s.staff.role === "staff"
       ? Promise.resolve([])
@@ -302,7 +305,7 @@ export async function taskList(s: StaffSession, view: string, assignee?: string,
            count(*) over ()::int as total_count
     from tasks t left join clients c on c.id = t.client_id
     left join staff a on a.id = t.assigned_to left join staff d on d.id = t.completed_by
-    where ${view === "closed" ? tx`(c.id is null or c.deleted_at is null)` : tx`(t.client_id is null or c.operational_location not in ('manager','urgent','completed','cancelled','deleted'))`}
+    where ${view === "closed" ? tx`(c.id is null or c.deleted_at is null)` : tx`(t.client_id is null or c.operational_location not in ('manager','urgent','completed','cancelled','deleted','worksite_change'))`}
       and ${view === "closed" ? tx`t.status in ('completed','cancelled')` : tx`t.status in ('pending','in_progress')`}
       ${view === "overdue" ? tx`and t.due_at < now()` : view === "due_today" ? tx`and (t.due_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date` : tx``}
       ${view === "overdue" || view === "due_today" ? tx`and c.id is not null` : tx``}
@@ -315,7 +318,7 @@ export async function taskList(s: StaffSession, view: string, assignee?: string,
 export async function taskPage(s: StaffSession, view: string, assignee?: string, requestedPage = 1, pageSize = 50) {
   const size = Number.isSafeInteger(pageSize) ? Math.min(Math.max(pageSize, 1), 100) : 50;
   return withStaff(s, async (tx) => {
-    const filter = tx`${view === "closed" ? tx`(c.id is null or c.deleted_at is null)` : tx`(t.client_id is null or c.operational_location not in ('manager','urgent','completed','cancelled','deleted'))`}
+    const filter = tx`${view === "closed" ? tx`(c.id is null or c.deleted_at is null)` : tx`(t.client_id is null or c.operational_location not in ('manager','urgent','completed','cancelled','deleted','worksite_change'))`}
       and ${view === "closed" ? tx`t.status in ('completed','cancelled')` : tx`t.status in ('pending','in_progress')`}
       ${view === "overdue" ? tx`and t.due_at < now()` : view === "due_today" ? tx`and (t.due_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date` : tx``}
       ${view === "overdue" || view === "due_today" ? tx`and c.id is not null` : tx``}
@@ -343,7 +346,7 @@ export async function followupList(s: StaffSession, view: string) {
       select f.*, c.full_name, c.ref, c.phone, s.display_name as created_by_name, d.display_name as completed_by_name
       from followups f join clients c on c.id = f.client_id
       left join staff s on s.id = f.created_by left join staff d on d.id = f.completed_by
-      where c.deleted_at is null ${view === "completed" ? tx`` : tx`and c.operational_location not in ('manager','urgent','completed','cancelled','deleted')`} and ${
+      where c.deleted_at is null ${view === "completed" ? tx`` : tx`and c.operational_location not in ('manager','urgent','completed','cancelled','deleted','worksite_change')`} and ${
         view === "completed"
           ? tx`f.status = 'completed'`
           : view === "upcoming"
@@ -361,7 +364,7 @@ export async function followupPage(s: StaffSession, view: string, requestedPage 
   const size = Number.isSafeInteger(pageSize) ? Math.min(Math.max(pageSize, 1), 100) : 50;
   return withStaff(s, async (tx) => {
     const today = tx`(now() at time zone ${TZ})::date`;
-    const filter = tx`c.deleted_at is null ${view === "completed" ? tx`` : tx`and c.operational_location not in ('manager','urgent','completed','cancelled','deleted')`} and ${
+    const filter = tx`c.deleted_at is null ${view === "completed" ? tx`` : tx`and c.operational_location not in ('manager','urgent','completed','cancelled','deleted','worksite_change')`} and ${
       view === "completed"
         ? tx`f.status = 'completed'`
         : view === "upcoming"

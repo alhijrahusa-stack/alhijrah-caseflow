@@ -12,6 +12,7 @@ import { ClientAccountPanel } from "@/components/staff/ClientAccountPanel";
 import { ClientDispatchActions } from "@/components/staff/ClientDispatchActions";
 import { ReviewStamp } from "@/components/staff/ReviewStamp";
 import { ClientWorkflowControl } from "@/components/staff/ClientWorkflowControl";
+import { WorksiteChangeHistory } from "@/components/staff/WorksiteChangeHistory";
 import { SendToManagerButton } from "@/components/staff/SendToManagerButton";
 import { InlineField } from "@/components/staff/InlineField";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
@@ -34,7 +35,7 @@ import type { Status } from "@/lib/domain";
 export type ClientFileData = {
   client: Row; employment: Row[]; preferences: Row[]; documents: Row[]; extractions: Row[]; appointments: Row[]; notes: Row[];
   tasks: Row[]; contacts: Row[]; followups: Row[]; postHire: Row[]; assessments: Row[]; activity: Row[]; authorization: Row | null;
-  notifications: Row[]; alerts: Row[]; agentRun: Row | null; references: Row[];
+  notifications: Row[]; alerts: Row[]; agentRun: Row | null; references: Row[]; worksiteChanges?: Row[];
 };
 export type ClientPanel = Panel;
 export type ClientTab = "profile" | "preferences" | "documents" | "appointments" | "work" | "activity";
@@ -55,7 +56,7 @@ const panelTab: Record<Panel, ClientTab> = {
 const LIST_SLICES = [
   "employment", "preferences", "documents", "extractions", "appointments", "notes",
   "tasks", "contacts", "followups", "postHire", "assessments", "activity",
-  "notifications", "alerts", "references",
+  "notifications", "alerts", "references", "worksiteChanges",
 ] as const;
 
 type LiveState = { data: ClientFileData; account: ClientAccountSummary };
@@ -337,6 +338,7 @@ export function ClientFile({
               <Link href={`/staff/client/${c.id}?tab=work`} className="relative mt-4 inline-flex rounded-xl border border-amber-300/40 px-4 py-2 text-xs font-semibold text-amber-200 transition-all duration-300 hover:bg-amber-300/10"><StaffLabel en="View all notifications / عرض جميع الإشعارات"/></Link>
             </section>
             <EmploymentHistory rows={data.employment} editHref={`/staff/client/${c.id}/edit`} />
+            <WorksiteChangeHistory rows={data.worksiteChanges ?? []} />
           </div>
           <div className="space-y-4"><ClientInfo c={c} authorization={data.authorization} preferences={data.preferences} /><AmazonHistory c={c} /></div>
         </div>

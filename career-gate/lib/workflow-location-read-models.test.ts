@@ -79,7 +79,7 @@ describe("exclusive workflow read membership", () => {
     await taskPage(session, view);
     const statements = state.statements.filter(({ text }) => text.includes("from tasks t left join clients c"));
     expect(statements).toHaveLength(3);
-    expect(statements.every(({ text }) => text.includes("t.client_id is null or c.operational_location not in ('manager','urgent','completed','cancelled','deleted')"))).toBe(true);
+    expect(statements.every(({ text }) => text.includes("t.client_id is null or c.operational_location not in ('manager','urgent','completed','cancelled','deleted','worksite_change')"))).toBe(true);
   });
 
   it("keeps completed task history independent of the client's current queue", async () => {
@@ -96,7 +96,7 @@ describe("exclusive workflow read membership", () => {
     await followupPage(session, view);
     const statements = state.statements.filter(({ text }) => text.includes("from followups f join clients c"));
     expect(statements).toHaveLength(3);
-    expect(statements.every(({ text }) => text.includes("c.operational_location not in ('manager','urgent','completed','cancelled','deleted')"))).toBe(true);
+    expect(statements.every(({ text }) => text.includes("c.operational_location not in ('manager','urgent','completed','cancelled','deleted','worksite_change')"))).toBe(true);
   });
 
   it("retains completed follow-up history after a file is transferred", async () => {

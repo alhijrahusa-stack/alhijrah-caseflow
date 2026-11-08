@@ -146,6 +146,7 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
         {management && nav("Manager's Inbox", "صندوق وارد المدير", "/staff/manager-inbox", "↳")}
         <div className="royal-group-heading"><p className="royal-group-label">{t("Live workflow", "مسار العمل الحي")}</p><Link href="/staff/pipeline" prefetch={false} aria-label={t("Pipeline", "مسار العمل")}>↗</Link></div>
         {data.stages.map((stage, index) => nav(index === 0 ? "Clients" : stage.label, stage.labelAr, index === 0 ? "/staff/clients" : stage.href, String(index + 1).padStart(2, "0"), stage.total, index === 0 || index === 3))}
+        {nav("Worksite Changes · Salah Almoraisy", "تغيير موقع العمل · قسم صلاح المريسي", "/staff/worksite-changes", "⇄")}
         <p className="royal-group-label">{t("Operations", "العمليات")}</p>
         {nav("Staff", "حمل الفريق", "/staff/staff?tab=team", "♧")}
         {nav("Tasks", "المهام والمتابعات", "/staff/tasks", "☷")}

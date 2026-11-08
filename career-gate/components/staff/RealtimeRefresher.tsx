@@ -2,8 +2,8 @@
 
 import { type RealtimeChannel } from "@supabase/supabase-js";
 import { createStaffRealtimeClient } from "@/lib/staff-realtime-client";
-import { useRouter } from "next/navigation";
-import { startTransition, useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { publishPayload, RECOVERY_EVENT, requestRecovery, type RecoveryReason } from "@/components/staff/realtime/update-bus";
 import { CLIENT_REALTIME_ENTITIES, DASHBOARD_REALTIME_ENTITIES, type ChangePayload } from "@/lib/realtime-resources";
 
@@ -31,6 +31,9 @@ function publishRealtimeState(state: RealtimeState) {
 
 export function RealtimeRefresher({ clientId }: { clientId?: string }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const workspacePath = useRef(pathname);
+  useEffect(() => { workspacePath.current = pathname; }, [pathname]);
   const [state, setState] = useState<RealtimeState>("connecting");
   // Why the fallback last ran, or null while every update stayed targeted.
   const [recovery, setRecovery] = useState<RecoveryReason | null>(null);
@@ -122,6 +125,11 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
           { event: "*", schema: "public", table, ...(filter ? { filter } : {}) },
           (payload) => {
             if (cancelled) return;
+            // These new tables only feed the worksite desk or client history.
+            // Other queues already receive the original client's update; they
+            // must not refresh an entire route for each email delivery status.
+            if (!clientId && (payload.table === "notifications" || payload.table === "worksite_changes")
+              && workspacePath.current !== "/staff/worksite-changes") return;
             // Targeted path. A reason back means granularity was unavailable.
             const reason = publishPayload(payload as ChangePayload);
             if (reason) scheduleRecovery(reason);

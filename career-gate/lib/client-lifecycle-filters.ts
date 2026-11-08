@@ -7,6 +7,7 @@ export const CLIENT_STAGES = [
   { id: "payment_required", label: "Payment Required", labelAr: "رسوم المكتب", href: "/staff/clients?stage=payment_required" },
   { id: "paperwork_pending", label: "Paperwork Pending", labelAr: "الوثائق النهائية", href: "/staff/clients?stage=paperwork_pending" },
   { id: "completed", label: "Completed Files", labelAr: "الملفات المكتملة", href: "/staff/clients?view=completed" },
+  { id: "worksite_change", label: "Worksite Changes", labelAr: "تغيير موقع العمل · قسم صلاح المريسي", href: "/staff/worksite-changes" },
 ] as const;
 
 export type ClientStageFilter = (typeof CLIENT_STAGES)[number]["id"];

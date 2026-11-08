@@ -11,7 +11,7 @@ import type { PipelineClient, PipelineStage } from "@/lib/operations";
 export async function activePipelineData(session:StaffSession):Promise<{stages:PipelineStage[];clients:PipelineClient[];exceptions:PipelineClient[];statusCounts:{status:string;total:number}[]}>{
   return withStaff(session,async(tx)=>{
     const [stagesRaw,clientsRaw,countsRaw]=await Promise.all([
-      tx`select key,position,label_en,label_ar,color,terminal from pipeline_stages order by position`,
+      tx`select key,position,label_en,label_ar,color,terminal from pipeline_stages where key<>'worksite_change' order by position`,
       tx`
       select c.id,c.ref,c.full_name,c.pipeline_stage,c.operational_location,c.current_status,c.next_step,c.assigned_staff,
              s.display_name assigned_name,
@@ -25,9 +25,9 @@ export async function activePipelineData(session:StaffSession):Promise<{stages:P
         order by case p.rank when 'primary' then 0 else 1 end,p.preference_order limit 1
       ) p on true
       left join client_accounts a on a.client_id=c.id
-      where c.operational_location not in ('manager','urgent','completed','cancelled','deleted')
+      where c.operational_location not in ('manager','urgent','completed','cancelled','deleted','worksite_change')
       order by c.updated_at desc limit 1000`,
-      tx`select current_status as status,count(*)::int as total from clients where operational_location not in ('manager','urgent','cancelled','deleted') group by current_status`,
+      tx`select current_status as status,count(*)::int as total from clients where operational_location not in ('manager','urgent','cancelled','deleted','worksite_change') group by current_status`,
     ]);
     const stages=stagesRaw as unknown as PipelineStage[];
     const terminal=new Set(stages.filter((s)=>s.terminal).map((s)=>s.key));
