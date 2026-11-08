@@ -12,6 +12,24 @@ async function expectPhoneBounds(page: Page, width: number) {
     expect(box!.x).toBeGreaterThanOrEqual(-1);
     expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
   }
+  for (const button of await page.locator(".registry-page .cg-workflow-control>button:visible").all()) {
+    expect(await button.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect(await button.evaluate(element => {
+      const card = element.closest("article")!.getBoundingClientRect();
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        if (!node.textContent?.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const bounds of range.getClientRects()) if (bounds.left < card.left - 1 || bounds.right > card.right + 1) return false;
+      }
+      return true;
+    })).toBe(true);
+  }
+  const bulkControls = page.locator('.registry-bulk-controls [role="combobox"]:visible');
+  await expect(bulkControls).toHaveCount(2);
+  for (const control of await bulkControls.all()) expect((await control.boundingBox())!.width).toBeGreaterThanOrEqual(150);
 }
 
 test("compact registry keeps eight real stage counts, pointer spotlight, filters and mobile controls usable", async ({ browser, request, baseURL }, testInfo) => {

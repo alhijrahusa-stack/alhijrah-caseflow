@@ -90,7 +90,7 @@ export function ClientCommandTable({clients,staff,management,query=""}:{clients:
  return <section className="ops-glass-card registry-results-panel space-y-4">
   <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="ops-kicker">{t("EXECUTIVE OPERATIONS · COMMAND BAR","العمليات التنفيذية · شريط الأوامر")}</p><h2 className="text-lg font-bold text-white">{t("Candidate Registry","سجل المرشحين")}</h2></div><div className="flex gap-2"><button type="button" aria-pressed={view==="table"} onClick={()=>setView("table")} className="cg-command-button">{t("Table","جدول")}</button><button type="button" aria-pressed={view==="grid"} onClick={()=>setView("grid")} className="cg-command-button">{t("Grid","بطاقات")}</button></div></div>
 
-  {management&&<div className="flex flex-wrap items-end gap-2 border-t border-amber-200/15 pt-3">
+  {management&&<div className="registry-bulk-controls flex flex-wrap items-end gap-2 border-t border-amber-200/15 pt-3">
     <span className="self-center text-sm font-medium text-amber-100">{selected.length} {t("selected","محدد")}</span>
     <label className="min-w-0 flex-1 text-xs text-slate-300 sm:min-w-44">{t("Assigned Specialist","الموظف المختص")}
       <RoyalSelect className="input mt-1 w-full" aria-label="Assign selected cases to" value={owner} onChange={e=>setOwner(e.target.value)}>
