@@ -4,6 +4,7 @@ import { GET as readInbox } from "@/app/api/staff/manager-inbox/route";
 import { withStaff, type StaffSession } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import { applyAccountDiscount } from "@/lib/accounting-ledger";
+import { ActionSchema, runAction } from "@/lib/actions";
 import type { ClientStageFilter } from "@/lib/client-lifecycle-filters";
 import { managerInbox, resolveManagerReview, submitManagerReview } from "@/lib/manager-inbox";
 import { moveWorkflowClient } from "@/lib/manual-workflow";
@@ -33,11 +34,24 @@ async function file(group: string, stage: ClientStageFilter = "new_intake") {
     primary: [], backup: [], status: "new_intake", nextStep: null,
     assignedStaff: owner.staff.id, createdBy: manager.staff.id, communicationConsent: false,
   }, { staffId: manager.staff.id, traceId: trace }));
-  if (stage !== "new_intake") await withStaff(manager, async tx => {
-    const [current] = await tx`select id,current_status,pipeline_stage,next_step from clients where id=${item.id} for update`;
-    await moveWorkflowClient(tx, manager, current as { id: string; current_status: string; pipeline_stage: string; next_step: string }, stage, "Payment issue fixture", trace);
-  });
+  if (stage !== "new_intake") await move(item.id, stage);
   return item;
+}
+async function move(clientId: string, stage: ClientStageFilter, actor = manager) {
+  return withStaff(actor, async tx => {
+    const [current] = await tx`select id,current_status,pipeline_stage,next_step from clients where id=${clientId} for update`;
+    return moveWorkflowClient(tx, actor, current as { id: string; current_status: string; pipeline_stage: string; next_step: string }, stage, "Payment Required fixture", trace);
+  });
+}
+async function interview(clientId: string, decision: "pass" | "fail") {
+  const act = (payload: Record<string, unknown>) => withStaff(manager, tx => runAction({
+    tx, actor: { staffId: manager.staff.id, traceId: trace }, role: manager.staff.role, semantic: [],
+  }, ActionSchema.parse(payload)));
+  const booked = await act({ action: "schedule_appointment", client_id: clientId, appointment_type: "Employment Interview", lifecycle_interview: true,
+    scheduled_at: new Date(Date.now() + 7 * 86400000 + serial++ * 3600000).toISOString(), duration_minutes: 30,
+    resource_key: `staff:${manager.staff.id}`, location: "Office", notes: null });
+  await act({ action: "record_appointment_attendance", appointment_id: booked.appointment_id });
+  await act({ action: "appointment_decision", appointment_id: booked.appointment_id, decision, note: "Recorded interview result" });
 }
 async function review(clientId: string, relatedId?: string) {
   return submitManagerReview(owner, { kind: "client", client_id: clientId, related_client_id: relatedId, request_key: randomUUID(), note: "Payment issue regression" }, trace);
@@ -55,8 +69,8 @@ const issueCount = async () => (await managerInbox(manager)).summary.payment_iss
 beforeAll(async () => { manager = await member("manager"); owner = await member("staff"); });
 afterAll(async () => { await db.end(); });
 
-describe("manager Payment Issues uses pending review cases and actual balances", () => {
-  it("excludes default intake fees, settled and fully discounted accounts; includes actual outstanding post-interview balances", async () => {
+describe("manager Payment Required uses payment-eligible review cases and actual balances", () => {
+  it("excludes default intake fees, unqualified paperwork/completed moves and settled accounts", async () => {
     const group = randomUUID();
     const before = await issueCount();
     const intake = await file(group);
@@ -73,16 +87,66 @@ describe("manager Payment Issues uses pending review cases and actual balances",
     await withStaff(manager, tx => applyAccountDiscount(tx, { clientId: waived.id, discountType: "percentage", discountValue: 100, reason: "Full fee waiver fixture", staffId: manager.staff.id, traceId: trace }));
     const items = [intake, due, paperwork, completed, paid, partial, unconfirmed, waived];
     const reviews = await Promise.all(items.map(item => review(item.id)));
-    const expected = [reviews[1].id, reviews[2].id, reviews[3].id, reviews[5].id, reviews[6].id].sort();
+    const expected = [reviews[1].id, reviews[5].id, reviews[6].id].sort();
     const filtered = await managerInbox(manager, 1, { payments: true, q: group });
-    expect(filtered.total).toBe(5);
+    expect(filtered.total).toBe(3);
     expect(filtered.items.map(item => item.id).sort()).toEqual(expected);
     expect(filtered.items.every(item => item.is_payment_issue)).toBe(true);
-    expect(filtered.summary.payment_issues).toBe(before + 5);
+    expect(filtered.summary.payment_issues).toBe(before + 3);
     const all = await managerInbox(manager, 1, { q: group });
     expect(all.total).toBe(8);
     expect(all.items.filter(item => item.is_payment_issue).map(item => item.id).sort()).toEqual(expected);
     expect((await db`select operational_location from clients where id=${due.id}`)[0].operational_location).toBe("manager");
+  });
+
+  it("includes a recorded Pass after an unpaid file advances to paperwork or completion", async () => {
+    const group = randomUUID();
+    const before = await issueCount();
+    const clients = await Promise.all([file(group, "appointments"), file(group, "appointments")]);
+    for (let index = 0; index < clients.length; index++) {
+      await interview(clients[index].id, "pass");
+      await move(clients[index].id, index === 0 ? "paperwork_pending" : "completed");
+    }
+    const reviews = await Promise.all(clients.map(client => review(client.id)));
+    const filtered = await managerInbox(manager, 1, { payments: true, q: group });
+    expect(filtered.items.map(item => item.id).sort()).toEqual(reviews.map(item => item.id).sort());
+    expect(filtered.summary.payment_issues).toBe(before + 2);
+  });
+
+  it.each(["manager", "staff"] as const)("retains an explicit %s payment transfer after a later paperwork move without inventing Pass", async role => {
+    const group = randomUUID();
+    const client = await file(group);
+    const actor = role === "manager" ? manager : owner;
+    await move(client.id, "payment_required", actor);
+    await move(client.id, "paperwork_pending", actor);
+    expect(await db`select 1 from appointment_outcomes where client_id=${client.id}`).toHaveLength(0);
+    const item = await review(client.id);
+    const filtered = await managerInbox(manager, 1, { payments: true, q: group });
+    expect(filtered.total).toBe(1);
+    expect(filtered.items[0]).toMatchObject({ id: item.id, is_payment_issue: true });
+  });
+
+  it("does not let an old Pass override a newer failed interview", async () => {
+    const group = randomUUID();
+    const client = await file(group, "appointments");
+    await interview(client.id, "pass");
+    await move(client.id, "appointments");
+    await interview(client.id, "fail");
+    await move(client.id, "paperwork_pending");
+    await review(client.id);
+    expect((await managerInbox(manager, 1, { payments: true, q: group })).total).toBe(0);
+  });
+
+  it("excludes a default fee in every early workspace despite a previous explicit payment transfer", async () => {
+    const group = randomUUID();
+    const clients = await Promise.all([file(group), file(group), file(group), file(group)]);
+    const earlyStages: ClientStageFilter[] = ["new_intake", "account_setup", "job_ready", "appointments"];
+    for (let index = 0; index < clients.length; index++) {
+      await move(clients[index].id, "payment_required");
+      await move(clients[index].id, earlyStages[index]);
+      await review(clients[index].id);
+    }
+    expect((await managerInbox(manager, 1, { payments: true, q: group })).total).toBe(0);
   });
 
   it("counts one duplicate-review case even when both attached files have unpaid balances", async () => {

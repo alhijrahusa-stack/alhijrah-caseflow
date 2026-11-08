@@ -16,11 +16,12 @@ export type SubmitManagerReview=({kind:"client";client_id:string;note:string;req
 export type ResolveManagerReview={id:string;destination:ClientStageFilter|"keep_current";note:string;expected_client_version?:string|null;expected_related_client_version?:string;operation_id?:string;assigned_staff_id?:string|null;action?:"approve"|"return"|"delete"|"not_duplicate";delete_client_id?:string;delete_reason?:string};
 function requireManagement(s:StaffSession){if(!['admin','manager'].includes(s.staff.role))throw new ActionError('forbidden','Manager Task Center requires manager or admin access',403);}
 
-/** Financial attention within the manager queue, not a second client location.
- * Default unpaid intake fees are excluded until a payment/post-interview stage.
+/** Payment Required is a financial view of held reviews, not a second location.
+ * An unpaid intake fee or a manual paperwork/completed move is insufficient:
+ * use the payment workspace, latest recorded Pass, or a real payment-route audit.
  * EXISTS counts a duplicate-review pair once and reads the actual net ledger.
  */
-function paymentIssuePredicate(tx:Tx){
+function paymentRequiredPredicate(tx:Tx){
  return tx`i.status='open' and i.kind='client' and exists(
   select 1 from clients payment_client
   join client_account_balances payment_balance on payment_balance.client_id=payment_client.id
@@ -29,6 +30,17 @@ function paymentIssuePredicate(tx:Tx){
     and payment_balance.balance>0
     and career_gate_private.workflow_location(payment_client.current_status,payment_client.pipeline_stage)
       in ('payment_required','paperwork_pending','completed')
+    and (
+      career_gate_private.workflow_location(payment_client.current_status,payment_client.pipeline_stage)='payment_required'
+      or (select payment_outcome.decision from appointment_outcomes payment_outcome
+        where payment_outcome.client_id=payment_client.id
+        order by payment_outcome.recorded_at desc,payment_outcome.appointment_id desc limit 1)='pass'
+      or exists(select 1 from activity_log payment_route join staff payment_actor on payment_actor.id=payment_route.staff_id
+        where payment_route.client_id=payment_client.id and payment_route.action='status_overridden'
+          and payment_actor.role in ('staff','manager','admin')
+          and payment_route.new_value->>'target_stage'='payment_required'
+          and payment_route.new_value->>'operation' in ('manual_workflow_routed','manager_review_routed'))
+    )
  )`;
 }
 
@@ -43,20 +55,20 @@ export async function managerInbox(s:StaffSession,requestedPage=1,filters:Manage
  requireManagement(s);
  return withStaff(s,async tx=>{
   const status=filters.status==='resolved'?'resolved':'open';
-  const paymentIssue=paymentIssuePredicate(tx);
+  const paymentRequired=paymentRequiredPredicate(tx);
   const urgentReview=urgentReviewPredicate(tx);
   const term=(filters.q??'').trim().slice(0,100);const like=`%${term.replace(/[\\%_]/g,m=>`\\${m}`)}%`;
   const where=tx`i.status=${status}
     ${filters.kind==='client'||filters.kind==='report'?tx`and i.kind=${filters.kind}`:tx``}
     ${filters.request_type==='duplicate'||filters.request_type==='review'?tx`and i.request_type=${filters.request_type}`:tx``}
     ${filters.urgent?tx`and (${urgentReview})`:tx``}
-    ${filters.payments?tx`and (${paymentIssue})`:tx``}
+    ${filters.payments?tx`and (${paymentRequired})`:tx``}
     ${filters.sender?tx`and i.submitted_by=${filters.sender}`:tx``}
     ${term?tx`and (i.title ilike ${like} or c.ref ilike ${like} or c.phone ilike ${like} or c.full_name ilike ${like} or i.submitted_note ilike ${like})`:tx``}`;
   const [count]=await tx`select count(*)::int total from manager_inbox i left join clients c on c.id=i.client_id where ${where}`;
   const total=Number(count.total),pages=Math.max(1,Math.ceil(total/10));const page=Math.min(pages,Math.max(1,Number.isFinite(requestedPage)?Math.floor(requestedPage):1));
   const items=await tx`select i.*,s.display_name sender_name,c.full_name,c.ref,c.current_status,c.updated_at::text client_version,
-    (${urgentReview}) is_urgent,(${paymentIssue}) is_payment_issue,c.operational_location,coalesce(i.resolved_by_name_snapshot,r.display_name) resolved_by_name,
+    (${urgentReview}) is_urgent,(${paymentRequired}) is_payment_issue,c.operational_location,coalesce(i.resolved_by_name_snapshot,r.display_name) resolved_by_name,
     case when related.id is null then null else jsonb_build_object('id',related.id,'ref',related.ref,'full_name',related.full_name,'phone',related.phone,'current_status',related.current_status,'client_version',related.updated_at::text) end related_client,
     i.submitted_at::text submitted_at,i.resolved_at::text resolved_at
     from manager_inbox i join staff s on s.id=i.submitted_by left join clients c on c.id=i.client_id
@@ -67,7 +79,7 @@ export async function managerInbox(s:StaffSession,requestedPage=1,filters:Manage
     career_gate_private.active_smart_client_count() smart_client,
     (select count(*)::int from clients where operational_location in ('new_intake','account_setup','job_ready','appointments','payment_required','paperwork_pending')) clients,
     (select count(*)::int from clients where operational_location='urgent') urgent,
-    (select count(*)::int from manager_inbox i where ${paymentIssue}) payment_issues,
+    (select count(*)::int from manager_inbox i where ${paymentRequired}) payment_issues,
     (select count(*)::int from manager_inbox where status='open') awaiting_review`;
   const senders=await tx`select distinct s.id,s.display_name from manager_inbox i join staff s on s.id=i.submitted_by order by s.display_name`;
   return {items:items as unknown as ManagerInboxItem[],total,page,pages,summary:summary as ManagerSummary,senders:senders as unknown as {id:string;display_name:string}[]};

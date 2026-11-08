@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type APIRequestContext, type BrowserContext } from "@playwright/test";
+import { expect, test, type APIRequestContext, type BrowserContext, type Page } from "@playwright/test";
 import { db, intakeBody, RUN, signIn, STAFF, staffAction } from "./helpers";
 
 async function createFile(request: APIRequestContext, name: string) {
@@ -13,7 +13,35 @@ async function review(context: BrowserContext, clientId: string) {
   expect(response.status(), await response.text()).toBe(200);
 }
 
-test("spatial dock uses real payment cases, keeps filters precise and restores modal focus and notes", async ({ browser, request, baseURL }, testInfo) => {
+async function expectDesktopRail(page: Page) {
+  const rail = page.getByTestId("manager-section-rail");
+  const canvas = page.getByTestId("manager-task-canvas");
+  await expect(rail).toBeVisible();
+  const railBox = await rail.boundingBox();
+  const canvasBox = await canvas.boundingBox();
+  expect(railBox).not.toBeNull();
+  expect(canvasBox).not.toBeNull();
+  expect(railBox!.x + railBox!.width).toBeLessThanOrEqual(canvasBox!.x);
+  const first = await rail.getByTestId("manager-segment-action").boundingBox();
+  const second = await rail.getByTestId("manager-segment-urgent").boundingBox();
+  expect(first).not.toBeNull();
+  expect(second).not.toBeNull();
+  expect(first!.y + first!.height).toBeLessThanOrEqual(second!.y);
+}
+
+async function expectPhoneLayout(page: Page, width: number) {
+  await page.setViewportSize({ width, height: 844 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  const controls = page.getByRole("banner").locator("a:visible,button:visible,summary:visible,input:visible");
+  for (const control of await controls.all()) {
+    const box = await control.boundingBox();
+    expect(box, "Visible header control must have layout bounds").not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(-1);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
+  }
+}
+
+test("Payment Required uses existing routed files, keeps filters precise and restores spatial modal focus and notes", async ({ browser, request, baseURL }, testInfo) => {
   const token = `${RUN}-${randomUUID().slice(0, 6)}`;
   const normalName = `TEST Spatial Normal ${token}`;
   const urgentName = `TEST Spatial Urgent ${token}`;
@@ -34,13 +62,16 @@ test("spatial dock uses real payment cases, keeps filters precise and restores m
     await expect(page.locator(".royal-sidebar")).not.toBeVisible();
     await expect(page.locator(".royal-topbar")).not.toBeVisible();
     await expect(page.getByRole("dialog", { name: "Review workspace", exact: true })).toHaveCount(0);
+    await expectDesktopRail(page);
     const metrics = page.getByLabel("Current operational file counts");
     await expect(metrics.getByRole("link")).toHaveCount(3);
-    const paymentCard = metrics.getByRole("button", { name: /Payment issues/i });
+    const paymentCard = metrics.getByRole("button", { name: /Payment Required/i });
     await expect(paymentCard).toBeVisible();
-    const result = await context.request.get("/api/staff/manager-inbox");
+    const result = await context.request.get(`/api/staff/manager-inbox?q=${encodeURIComponent(token)}`);
     const { inbox } = await result.json();
     await expect(paymentCard.locator("strong")).toHaveText(Number(inbox.summary.payment_issues).toLocaleString("en-US"));
+    expect(inbox.items.find((item: { client_id: string }) => item.client_id === normalId)?.is_payment_issue).toBe(false);
+    expect(inbox.items.find((item: { client_id: string }) => item.client_id === paymentId)?.is_payment_issue).toBe(true);
 
     await page.getByRole("searchbox", { name: "Search reviews" }).fill(token);
     const canvas = page.getByTestId("manager-task-canvas");
@@ -105,22 +136,29 @@ test("spatial dock uses real payment cases, keeps filters precise and restores m
     await expect(page.getByTestId("command-palette")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("command-palette")).toHaveCount(0);
-    await page.setViewportSize({ width: 390, height: 844 });
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await expectPhoneLayout(page, 390);
     await page.screenshot({ path: testInfo.outputPath("spatial-canvas-mobile.png"), fullPage: true, animations: "disabled" });
     await page.screenshot({ path: testInfo.outputPath("spatial-canvas-mobile-viewport.png"), animations: "disabled" });
+    await expectPhoneLayout(page, 320);
+    await page.screenshot({ path: testInfo.outputPath("spatial-canvas-phone320.png"), animations: "disabled" });
+    await expectPhoneLayout(page, 390);
     await page.locator('[data-testid="staff-language-toggle"]:visible').click();
     await expect(page.getByRole("heading", { name: "مركز مهام المدير", exact: true })).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("spatial-canvas-mobile-ar.png"), fullPage: true, animations: "disabled" });
     await page.screenshot({ path: testInfo.outputPath("spatial-canvas-mobile-ar-viewport.png"), animations: "disabled" });
+    await expectPhoneLayout(page, 320);
+    await page.screenshot({ path: testInfo.outputPath("spatial-canvas-phone320-ar.png"), animations: "disabled" });
     await card.click();
     await expect(page.getByRole("dialog", { name: "مساحة المراجعة", exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("spatial-review-mobile-ar.png"), animations: "disabled" });
     await page.getByRole("button", { name: "إغلاق المراجعة", exact: true }).click();
 
-    // Route isolation: Clients keeps its established executive navigation.
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await expectDesktopRail(page);
+    await page.screenshot({ path: testInfo.outputPath("spatial-canvas-desktop-ar.png"), fullPage: true, animations: "disabled" });
+
+    // Route isolation: Clients keeps its established executive navigation.
     await page.goto("/staff/clients");
     await expect(page.locator(".royal-sidebar")).toBeVisible();
     await expect(page.locator(".royal-topbar")).toBeVisible();
