@@ -155,7 +155,35 @@ for each row execute function career_gate_private.guard_worksite_change();
 create function career_gate_private.guard_worksite_notification_receipt() returns trigger
 language plpgsql security invoker set search_path='' as $$
 begin
-  if old.template='worksite_change_confirmed' and old.sent_at is not null then
+  if tg_op='INSERT' then
+    if new.template<>'worksite_change_confirmed' then return new; end if;
+  elsif old.template<>'worksite_change_confirmed' and new.template<>'worksite_change_confirmed' then
+    return new;
+  end if;
+  -- Authenticated callers may enqueue or retry only through a verified server
+  -- command. Provider receipts and attempt counters belong to the worker.
+  if current_user in ('authenticated','anon') then
+    if current_setting('cg.worksite_change',true) is distinct from 'write' then
+      raise exception 'worksite_email_requires_verified_command' using errcode='42501';
+    end if;
+    if new.status is null or new.status not in ('queued','not_configured') then
+      raise exception 'worksite_email_receipt_is_server_owned' using errcode='42501';
+    end if;
+    if tg_op='INSERT' then
+      if new.sent_at is not null or new.delivered_at is not null or new.provider is not null
+        or new.provider_id is not null or new.attempts is distinct from 0 then
+        raise exception 'worksite_email_receipt_is_server_owned' using errcode='42501';
+      end if;
+    else
+      if row(new.provider,new.provider_id,new.sent_at,new.delivered_at,new.attempts)
+        is distinct from row(old.provider,old.provider_id,old.sent_at,old.delivered_at,old.attempts)
+        or row(new.id,new.client_id,new.channel,new.template,new.idempotency_key)
+          is distinct from row(old.id,old.client_id,old.channel,old.template,old.idempotency_key) then
+        raise exception 'worksite_email_receipt_is_server_owned' using errcode='42501';
+      end if;
+    end if;
+  end if;
+  if tg_op='UPDATE' and old.template='worksite_change_confirmed' and old.sent_at is not null then
     if row(new.id,new.client_id,new.channel,new.template,new.payload,new.idempotency_key,new.provider,new.provider_id,new.sent_at,new.attempts)
       is distinct from row(old.id,old.client_id,old.channel,old.template,old.payload,old.idempotency_key,old.provider,old.provider_id,old.sent_at,old.attempts)
       or new.status in ('queued','sending','not_configured') then
@@ -166,7 +194,7 @@ begin
 end $$;
 revoke all on function career_gate_private.guard_worksite_notification_receipt() from public,anon;
 grant execute on function career_gate_private.guard_worksite_notification_receipt() to authenticated,service_role;
-create trigger worksite_notification_receipt_guard before update on public.notifications
+create trigger worksite_notification_receipt_guard before insert or update on public.notifications
 for each row execute function career_gate_private.guard_worksite_notification_receipt();
 alter table public.worksite_changes replica identity full;
 do $$ begin

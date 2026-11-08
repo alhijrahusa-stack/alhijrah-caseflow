@@ -89,6 +89,7 @@ export async function executeWorksiteChange(session: StaffSession, input: Worksi
         currentSiteName:String(record.current_site_name),finalSiteName:String(record.final_site_name),finalSiteAddress:String(record.final_site_address),
         shiftDays:String(record.shift_days),shiftStart:String(record.shift_start),shiftEnd:String(record.shift_end),newStartDate:String(record.new_start_date),
         confirmedAt:new Date(record.confirmed_at).toISOString(),timezone:WORKSITE_TIMEZONE};
+      await tx`select set_config('cg.worksite_change','write',true)`;
       await tx`update notifications set status=${configured ? 'queued' : 'not_configured'},error=null,
         payload=${tx.json(payload)} where id=${notification.id}`;
       if (configured) await enqueue(tx,{type:'notification_send',entityId:String(notification.id),dedupeKey:`notify:${notification.id}:retry:${input.operation_id}`,traceId});

@@ -115,7 +115,32 @@ describe('one original client through worksite change and ordinary workflow',()=
     const c=await client();await move(owner,c.id,'worksite_change');
     const result=await executeWorksiteChange(manager,await confirmation(c.id),trace);
     const notificationId=result.row!.notification_id!;
+    const [initial]=await db`select payload,idempotency_key from notifications where id=${notificationId}`;
+    // An owned client and ordinary notification table grants do not authorize
+    // fabricating the first receipt, even inside an otherwise verified command.
+    for(const commandFlag of [false,true]) {
+      await expect(withStaff(owner,async tx=>{
+        if(commandFlag)await tx`select set_config('cg.worksite_change','write',true)`;
+        await tx`insert into notifications(client_id,channel,template,payload,status,idempotency_key,provider,provider_id,sent_at)
+          values(${c.id},'email','worksite_change_confirmed',${tx.json(initial.payload)},'sent',${`fake-first-receipt:${randomUUID()}`},'resend','forged-provider-id',now())`;
+      })).rejects.toMatchObject({code:'42501'});
+      await expect(withStaff(owner,async tx=>{
+        if(commandFlag)await tx`select set_config('cg.worksite_change','write',true)`;
+        await tx`update notifications set status='sent',provider='resend',provider_id='forged-provider-id',sent_at=now(),attempts=1 where id=${notificationId}`;
+      })).rejects.toMatchObject({code:'42501'});
+    }
+    expect((await db`select status,sent_at,provider_id,attempts from notifications where id=${notificationId}`)[0])
+      .toMatchObject({status:'queued',sent_at:null,provider_id:null,attempts:0});
+    expect(fetchMock).not.toHaveBeenCalled();
+    // The legitimate retry repairs payload from the immutable decision and is
+    // allowed to requeue; only the mocked provider worker records the receipt.
+    await db`update notifications set status='failed',error='Retryable provider failure',
+      payload=${db.json({...initial.payload,recipient:'forged-recipient@test.invalid'})} where id=${notificationId}`;
+    const queued=await executeWorksiteChange(owner,{operation:'retry_email',client_id:c.id,change_id:result.row!.id!,operation_id:randomUUID(),expected_updated_at:await version(c.id)},trace);
+    expect(queued.changed).toBe(true);
     const [notification]=await db`select payload,idempotency_key from notifications where id=${notificationId}`;
+    expect(notification.idempotency_key).toBe(initial.idempotency_key);
+    expect(notification.payload.recipient).toBe(result.row!.email);
     const before=Date.now();
     expect(await deliverWorksiteChangeEmail(notificationId,notification.payload)).toMatchObject({status:'sent'});
     const [delivered]=await db`select status,sent_at from notifications where id=${notificationId}`;
