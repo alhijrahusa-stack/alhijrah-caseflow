@@ -1,6 +1,5 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 
@@ -17,7 +16,6 @@ function Feature({ icon, title, arabic }: { icon: ReactNode; title: string; arab
 }
 
 function LoginForm() {
-  const params = useSearchParams();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
@@ -48,8 +46,8 @@ function LoginForm() {
     event.preventDefault();
     const data = await post("/api/staff/auth/verify", { email, code });
     if (!data) return;
-    const next = params.get("next");
-    window.location.href = next && next.startsWith("/staff") && !next.startsWith("//") ? next : "/staff";
+    // A fresh staff sign-in always starts at the operations dashboard.
+    window.location.replace("/staff");
   }
 
   return (

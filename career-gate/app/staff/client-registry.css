@@ -18,3 +18,81 @@
 .royal-shell .registry-client-stage>.registry-owner{display:inline-flex;align-items:center;padding:3px 10px;border:1px solid #37d6cb33;border-radius:999px;background:#37d6cb0b;color:#bfeee8;font-size:12px}
 .royal-shell .registry-client-stage>.registry-owner.is-unassigned{border-color:#f0b35b55;background:#f0b35b10;color:#f6cf93}
 .royal-shell .registry-client-avatar{width:48px;height:48px;font-size:16px}
+
+/* Compact registry command surface; the manager workspace and its chrome stay independent. */
+.royal-shell .registry-page{--registry-gold:rgba(251,191,36,.4);--registry-emerald:rgba(52,211,153,.48);min-width:0}
+.royal-shell .registry-page>.ops-hero{padding:17px 20px;margin-bottom:0;border-color:var(--registry-gold)!important;border-radius:20px;box-shadow:0 12px 35px #03091420,inset 0 1px #fff1}
+.registry-page>.ops-hero h1{font-size:clamp(23px,2vw,29px);line-height:1.3;margin-block:4px}
+.registry-page>.ops-hero p:not(.ops-kicker){font-size:11px;line-height:1.6}
+.registry-page>.ops-hero .ops-primary-button,.registry-page>.ops-hero .archive-link-button{min-height:38px;padding:8px 12px;font-size:11px}
+.registry-stage-dock{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;min-width:0;padding:6px;border:1px solid var(--registry-gold);border-radius:19px;background:linear-gradient(120deg,#18294670,#10213d60);box-shadow:0 10px 30px #02081718,inset 0 1px #fff1;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+.royal-shell .registry-page .registry-stage-tab{position:relative;isolation:isolate;display:flex;flex-direction:column;justify-content:space-between;gap:3px;min-width:0;min-height:66px;padding:6px 9px;border:1px solid #d4af375c;border-radius:13px;background:linear-gradient(130deg,#ffffff07,#ffffff02);color:#e1e9f7;box-shadow:inset 0 1px #ffffff07;transform:none;transition:border-color .2s,box-shadow .2s}
+.royal-shell .registry-page .registry-stage-tab::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;background:radial-gradient(140px circle at var(--registry-spot-x,50%) var(--registry-spot-y,35%),#efc56a2c,transparent 75%);opacity:0;transition:opacity .2s}
+.royal-shell .registry-page .registry-stage-tab:hover,.royal-shell .registry-page .registry-stage-tab:focus-visible{border-color:#e6c77ba6;box-shadow:inset 0 1px #ffffff18,0 0 22px #d4af370d;transform:none}
+.royal-shell .registry-page .registry-stage-tab:hover::before,.royal-shell .registry-page .registry-stage-tab:focus-visible::before{opacity:1}
+.royal-shell .registry-page .registry-stage-tab[aria-current=page]{border-color:#e4c379a6;background:linear-gradient(130deg,#d4af371c,#163b5821);color:#fff1cb;box-shadow:inset 0 1px #ffdf9d24,inset 2px 0 #d4af37,0 0 20px #d4af370b}
+.registry-stage-top{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:22px}
+.registry-stage-icon{display:grid;place-items:center;width:21px;height:21px;flex:none;color:#e1c27d}
+.registry-stage-icon svg{width:18px;height:18px}
+.registry-stage-count{font-size:22px;line-height:1;font-weight:800;letter-spacing:-.04em;font-variant-numeric:tabular-nums;color:#f3f7ff}
+.registry-stage-label{display:block;min-width:0;font-size:10px;font-weight:650;line-height:1.3;overflow-wrap:normal}
+.registry-stage-detail{position:absolute;inset-inline:0;top:calc(100% + 7px);z-index:4;pointer-events:none;display:block;width:max-content;max-width:190px;padding:7px 9px;border:1px solid #d4af3766;border-radius:9px;background:#14223ff5;backdrop-filter:blur(20px);box-shadow:0 8px 22px #0208174d;color:#e5d6af;font-size:9px;line-height:1.5;opacity:0;visibility:hidden;transform:translateY(-3px);transition:opacity .18s,transform .18s,visibility .18s}
+.registry-stage-tab:last-child .registry-stage-detail{inset-inline-start:auto;inset-inline-end:0}
+.registry-stage-tab:hover .registry-stage-detail,.registry-stage-tab:focus-visible .registry-stage-detail{opacity:1;visibility:visible;transform:translateY(0)}
+.registry-stage-tab[data-stage=urgent] .registry-stage-icon{color:#f2a9b9}
+.registry-stage-tab[data-alert=true] .registry-stage-count{color:#f7b0bf}
+.registry-stage-tab[data-alert=true] .registry-stage-icon::after{content:"";position:absolute;width:4px;height:4px;margin:0 0 19px 18px;border-radius:50%;background:#f37591;box-shadow:0 0 0 3px #f375910b;animation:registry-priority-pulse 3s ease-in-out infinite}
+.royal-shell .registry-page .registry-command-deck{padding:12px 14px;border:1px solid var(--registry-gold)!important;border-radius:18px;min-width:0}
+.registry-toolbar-top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;margin-bottom:12px;padding-bottom:11px;border-bottom:1px solid #d4af3738}
+.royal-shell .registry-page .registry-view-tabs{display:flex;flex-wrap:nowrap;gap:3px;padding:3px;border-radius:12px;min-width:0;border-color:#d4af374f;background:#0c1a3261}
+.registry-page .registry-view-tabs>a{display:flex;align-items:center;justify-content:center;min-height:33px;padding:7px 11px;min-width:0;border-radius:9px;font-size:10px;line-height:1.4;white-space:nowrap}
+.registry-page .registry-toolbar-actions{gap:6px;flex-wrap:nowrap;min-width:0}
+.registry-page .registry-toolbar-actions .cg-command-button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:34px;padding:7px 10px;border-color:#d4af3766;white-space:nowrap;font-size:10px;line-height:1.4}
+.registry-page .registry-search-form{display:grid;grid-template-columns:minmax(200px,2fr) minmax(135px,1fr) minmax(135px,1fr) auto auto;gap:10px;min-width:0}
+.registry-page .registry-toolbar[data-management=false] .registry-search-form{grid-template-columns:minmax(220px,2fr) minmax(160px,1fr) auto auto}
+.registry-page .registry-query,.registry-page .registry-filter{min-width:0;flex:none}
+.registry-page .registry-query>span:first-child,.registry-page .registry-filter>span{font-size:10px;color:#b9cbe0;margin-bottom:5px;line-height:1.4}
+.registry-page .registry-query-box{min-height:40px;padding-inline:11px;border-color:#69d7e75c;border-radius:11px;background:linear-gradient(115deg,#08466126,#132c504d);gap:8px}
+.registry-page .registry-query-box>span{font-size:22px;line-height:1;color:#8ae8ee}
+.royal-shell .registry-page .registry-query-box input{font-size:12px;min-height:38px;padding-block:8px;color:#eef8ff}
+.registry-page .registry-filter .input,.registry-page .registry-filter .royal-select-trigger{min-height:40px;font-size:11px;border-radius:11px}
+.registry-page .registry-search-form>.ops-primary-button{min-height:40px;padding:8px 13px;font-size:11px;border-radius:11px}
+.registry-page .registry-clear{display:flex;align-items:center;justify-content:center;min-height:40px;padding:8px 6px;font-size:11px}
+.registry-page .registry-toolbar-meta{margin-top:7px;min-height:13px;display:block}
+.registry-page .registry-toolbar-meta>p{font-size:9px;line-height:1.5;max-width:none;color:#9eb4ce;margin:0}
+.registry-page .registry-save-form{padding:12px;margin-top:12px;gap:8px}
+.registry-page .registry-saved-filters{padding-top:9px;gap:6px}
+.registry-page .registry-saved-filter{font-size:10px}
+.registry-page .registry-saved-filter a{padding:6px 9px}
+.registry-page .registry-saved-filter button{min-height:29px}
+.royal-shell .registry-page>.registry-results-panel,.royal-shell .registry-page>.ops-glass-card{border-color:var(--registry-gold)!important}
+.royal-shell .registry-page:not(.cg-urgent-glass) .cg-registry-card{border:1px solid var(--registry-emerald)!important;background:linear-gradient(120deg,#17423a18,#1c25418c);box-shadow:0 8px 24px #02081720,inset 0 1px #a4f4d50c;color:#e0eaf7;transform:none;transition:border-color .22s,box-shadow .22s}
+.royal-shell .registry-page:not(.cg-urgent-glass) .cg-registry-card:hover,.royal-shell .registry-page:not(.cg-urgent-glass) .cg-registry-card:focus-within{border-color:#61dcb7b3!important;box-shadow:0 10px 28px #0208172b,0 0 24px #34d3990b,inset 0 1px #bafbe512;transform:none}
+.registry-page:not(.cg-urgent-glass) .registry-name-link{font-size:18px;line-height:1.5;font-weight:750;color:#f5fbff;text-shadow:0 1px 2px #02081766}
+.registry-page:not(.cg-urgent-glass) .registry-client-contact{color:#bfd0e3;font-size:12px}
+.registry-page:not(.cg-urgent-glass) .registry-client-details p,.registry-page:not(.cg-urgent-glass) .registry-client-details time{color:#b4c8df}
+.registry-page:not(.cg-urgent-glass) .registry-client-stage .registry-column-label{color:#b1c6df}
+.registry-page .registry-client-avatar{border-color:#5bd6b95c;background:linear-gradient(135deg,#36cfae15,#152d4d);color:#a5efda;box-shadow:inset 0 1px #c2ffee0c}
+.registry-page .registry-next-step{border-top-color:#d4af3747;color:#b1c7de}
+.registry-page .table{border-collapse:separate;border-spacing:0;font-size:12px}
+.registry-page .table thead{background:#d4af370a}
+.registry-page .table th{border-bottom:1px solid #d4af375c;color:#d8c796;font-size:10px;line-height:1.6}
+.registry-page .table tbody td{border-bottom:1px solid #34d39938;color:#ccdaec}
+.registry-page .table tbody tr:hover td{background:#34d39906}
+.registry-page .table tbody tr td:first-child{border-inline-start:1px solid #34d39940}
+.registry-page .table tbody tr td:last-child{border-inline-end:1px solid #34d39940}
+.registry-page .table tbody tr:last-child td{border-bottom-color:#34d39966}
+.staff-shell.royal-shell .registry-page.cg-urgent-glass .registry-stage-dock{background:#ffffff4d;border-color:#d4af3766}
+.staff-shell.royal-shell .registry-page.cg-urgent-glass .registry-stage-count{color:#1e40af}
+.staff-shell.royal-shell .registry-page.cg-urgent-glass .registry-stage-icon{color:#9d6b17}
+.staff-shell.royal-shell .registry-page.cg-urgent-glass .registry-stage-detail{background:#f0f9fff5;color:#334155;border-color:#d4af377a}
+.staff-shell.royal-shell .registry-page.cg-urgent-glass .registry-toolbar-actions .cg-command-button{border-color:#c8984266}
+.staff-shell.royal-shell .registry-page.cg-urgent-glass .registry-query-box input{color:#1e3a8a}
+@keyframes registry-priority-pulse{0%,100%{box-shadow:0 0 0 3px #f375910b}50%{box-shadow:0 0 0 5px #f3759105}}
+@media(min-width:1181px) and (max-width:1380px){.registry-stage-label{font-size:9px}.royal-shell .registry-page .registry-stage-tab{padding-inline:8px}.registry-page .registry-view-tabs>a{padding-inline:8px}.registry-page .registry-toolbar-actions .cg-command-button{padding-inline:8px}}
+@media(max-width:1180px){.registry-stage-dock{grid-template-columns:repeat(4,minmax(0,1fr))}.registry-toolbar-top{flex-wrap:wrap;gap:9px}.registry-page .registry-search-form,.registry-page .registry-toolbar[data-management=false] .registry-search-form{grid-template-columns:minmax(150px,1.5fr) minmax(130px,1fr) minmax(130px,1fr) auto auto}.registry-page .registry-toolbar[data-management=false] .registry-search-form{grid-template-columns:minmax(190px,2fr) minmax(140px,1fr) auto auto}.registry-page .registry-view-tabs{flex:1}.registry-page .registry-view-tabs>a{flex:1}.registry-page .registry-toolbar-actions{margin-inline-start:auto}.registry-stage-label{font-size:11px}}
+@media(max-width:800px){.registry-page .registry-search-form,.registry-page .registry-toolbar[data-management=false] .registry-search-form{grid-template-columns:repeat(2,minmax(0,1fr))}.registry-page .registry-query{grid-column:1/-1}.registry-page .registry-search-form>.ops-primary-button,.registry-page .registry-clear{width:100%}.registry-page .registry-toolbar-actions{margin:0}.registry-page .registry-toolbar-top{align-items:stretch}.registry-page .registry-view-tabs{flex-basis:100%}.registry-page .registry-toolbar-actions{width:100%}.registry-page .registry-toolbar-actions>*{flex:1}.registry-page .registry-toolbar-meta>p{font-size:9px}}
+@media(max-width:570px){.registry-stage-dock{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:6px;border-radius:17px}.royal-shell .registry-page .registry-stage-tab{min-height:75px;padding:9px 11px}.registry-stage-label{font-size:11px}.registry-stage-count{font-size:24px}.royal-shell .registry-page>.ops-hero{padding:14px;border-radius:17px;gap:12px}.registry-page>.ops-hero h1{font-size:24px}.registry-page>.ops-hero p:not(.ops-kicker){font-size:10px}.royal-shell .registry-page .registry-command-deck{padding:10px;border-radius:16px}.registry-toolbar-top{margin-bottom:10px;padding-bottom:9px}.registry-page .registry-view-tabs>a{font-size:9px;white-space:normal;min-height:36px;padding:6px 5px;text-align:center}.registry-page .registry-toolbar-actions .cg-command-button{font-size:9px;white-space:normal;padding:7px 5px;text-align:center;min-height:36px}.registry-page .registry-query>span:first-child,.registry-page .registry-filter>span{font-size:9px}.royal-shell .registry-page .registry-query-box input{font-size:11px}.registry-page .registry-filter .royal-select-trigger{padding-inline:8px;font-size:10px}.registry-page .registry-search-form{gap:9px 7px}.registry-page .registry-query-box{padding-inline:9px;gap:6px}.registry-page .registry-query-box>span{font-size:19px}.registry-page:not(.cg-urgent-glass) .registry-name-link{font-size:17px}.registry-page .registry-stage-detail{display:none}}
+@media(hover:none){.registry-stage-detail{display:none}}
+@media(prefers-reduced-motion:reduce){.registry-page *,.registry-page *::before,.registry-page *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.registry-stage-tab::before{background:linear-gradient(135deg,#d4af3712,transparent)!important}}
+html:has(.registry-page) .royal-topbar{border-bottom-color:#d4af3766;box-shadow:0 6px 24px #0208171a,inset 0 1px #ffffff05}

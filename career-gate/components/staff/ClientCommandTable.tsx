@@ -87,7 +87,7 @@ export function ClientCommandTable({clients,staff,management,query=""}:{clients:
      <div className="registry-next-step"><p>{c.next_step}</p><ReviewStamp stamp={c.review_stamp} pending={!!c.manager_review_id}/></div>
    </article>)}
  </div>;
- return <section className="ops-glass-card space-y-4">
+ return <section className="ops-glass-card registry-results-panel space-y-4">
   <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="ops-kicker">{t("EXECUTIVE OPERATIONS · COMMAND BAR","العمليات التنفيذية · شريط الأوامر")}</p><h2 className="text-lg font-bold text-white">{t("Candidate Registry","سجل المرشحين")}</h2></div><div className="flex gap-2"><button type="button" aria-pressed={view==="table"} onClick={()=>setView("table")} className="cg-command-button">{t("Table","جدول")}</button><button type="button" aria-pressed={view==="grid"} onClick={()=>setView("grid")} className="cg-command-button">{t("Grid","بطاقات")}</button></div></div>
 
   {management&&<div className="flex flex-wrap items-end gap-2 border-t border-amber-200/15 pt-3">

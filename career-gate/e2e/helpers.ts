@@ -76,6 +76,13 @@ export async function accessToken(role: Role) {
 }
 
 export async function signIn(context: BrowserContext, baseURL: string, role: Role) {
+  // Each browser case starts a fresh fixture session. Fast catalog runs share
+  // these three reserved staff identities, so isolate only their mutation
+  // windows; public, OTP and assistant rate-limit coverage remains unchanged.
+  await db()`delete from rate_limits limits using staff fixture
+    where fixture.auth_user_id=${STAFF[role]} and fixture.email=${`${role}@test.invalid`}
+      and limits.key_hash='staff:' || fixture.id::text
+      and limits.bucket in ('staff_action_minute','staff_action_hour')`;
   await context.clearCookies();
   await context.addCookies([{ name: "cg_at", value: await accessToken(role), url: baseURL, httpOnly: true, sameSite: "Lax" }]);
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClientCommandTable } from "@/components/staff/ClientCommandTable";
+import { ClientStageDock } from "@/components/staff/ClientStageDock";
 import { ReviewStamp } from "@/components/staff/ReviewStamp";
 import { ClientArchiveCards } from "@/components/staff/ClientArchiveCards";
 import { ClientLocationShiftCard } from "@/components/staff/ClientLocationShiftCard";
@@ -25,23 +26,20 @@ export default async function ClientsPage({searchParams}:{searchParams:Promise<R
   const sp=await searchParams;
   const params = new URLSearchParams(Object.entries(sp).filter((entry):entry is [string,string]=>entry[1]!==undefined));
   const { view,page:requestedPage,status,q,stage,attention,assigned,completedThisMonth } = parseRegistryFilters(params,management);
-  const [{rows,total,page},staffRoster]=await Promise.all([
+  const [{rows,total,page},staffRoster,stageOccupancy]=await Promise.all([
     operationalClientList(session,view,requestedPage,PAGE_SIZE,{q,status,stage,attention,completedThisMonth,assigned}),
     withStaff(session,tx=>tx`select id,display_name from staff where active order by display_name`),
+    withStaff(session,tx=>tx`select operational_location,count(*)::int total from clients where operational_location=any(${CLIENT_STAGES.map(station=>station.id)}) group by operational_location`),
   ]);
+  const stageCounts=Object.fromEntries(CLIENT_STAGES.map(station=>[station.id,Number(stageOccupancy.find(row=>row.operational_location===station.id)?.total??0)]));
   const pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
   const href=(nextView:ClientView,nextPage=1,retainStage=false)=>`/staff/clients?view=${nextView}&page=${nextPage}${retainStage&&stage?`&stage=${stage}`:""}${q?`&q=${encodeURIComponent(q)}`:""}${status?`&status=${status}`:""}${attention?`&attention=${attention}`:""}${assigned?`&assigned=${assigned}`:""}${completedThisMonth?"&completed_this_month=1":""}`;
 
-  return <div className={`ops-page space-y-4 ${stage === "urgent" ? "cg-urgent-glass" : ""}`} data-operational-section={stage}>
+  return <div className={`ops-page registry-page space-y-4 ${stage === "urgent" ? "cg-urgent-glass" : ""}`} data-operational-section={stage}>
     <header className="ops-hero"><div><p className="ops-kicker">CAREER GATE · MASTER REGISTRY</p><h1 className="tracking-tight"><StaffText en={stage === "urgent" ? "Urgent Clients" : "Clients"} ar={stage === "urgent" ? "العملاء العاجلون" : "سجل العملاء"}/></h1><p><StaffText en={`${total} file${total===1?"":"s"} in ${view} view · one original client record throughout the lifecycle`} ar={`${total} ملف في العرض الحالي · سجل عميل واحد طوال مسار العمل`}/></p></div>{management&&<div className="flex flex-wrap gap-2"><Link prefetch={false} href="/staff/archive" className="archive-link-button"><StaffText en="Archive" ar="الأرشيف"/></Link><Link prefetch={false} href="/staff/new-client" className="ops-primary-button"><StaffText en="+ New Client" ar="+ إضافة عميل"/></Link></div>}</header>
 
     {management&&view==="active"&&(!stage||stage==="job_ready")&&<ClientLocationShiftCard clients={rows.map(c=>({id:c.id,full_name:c.full_name,ref:c.ref}))}/>}
-    <nav aria-label="Operational client lifecycle stages" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
-      {CLIENT_STAGES.map((station)=><Link prefetch={false} key={station.id} href={station.href} aria-current={stage===station.id?"page":undefined}
-        className={`cg-stage-tab registry-stage-tab ${station.id === "urgent" ? "cg-urgent-tab" : ""}`}>
-        <span className="block text-sm font-semibold leading-5"><StaffText en={station.label} ar={station.labelAr}/></span>
-      </Link>)}
-    </nav>
+    <ClientStageDock stage={view==="completed"?"completed":stage} counts={stageCounts}/>
     {stage==="urgent" && <p className="cg-urgent-intro" role="status"><StaffText en="Priority files · each file stays in one operational section. Sending it for manager review moves it out of Urgent until a decision." ar="ملفات الأولوية · يبقى كل ملف في قسم تشغيلي واحد. إرساله للمراجعة ينقله من Urgent إلى المدير حتى حسم القرار."/></p>}
     {stage==="account_setup"&&management&&<Link prefetch={false} href="/staff/gate-job-account" className="cg-command-button inline-flex w-fit"><StaffText en="Open Amazon Account Setup ↗" ar="فتح تجهيز حساب Amazon ↗"/></Link>}
     {stage==="payment_required"&&management&&<Link prefetch={false} href="/staff/accounting" className="cg-command-button inline-flex w-fit"><StaffText en="Open verified payment ledger ↗" ar="فتح سجل المدفوعات الموثق ↗"/></Link>}
@@ -51,9 +49,11 @@ export default async function ClientsPage({searchParams}:{searchParams:Promise<R
     {completedThisMonth&&<p role="status" className="text-sm text-amber-200"><StaffText en="Completed this month · showing currently completed client files with recorded completion this calendar month." ar="المكتمل هذا الشهر · ملفات العملاء المكتملة والمسجل إكمالها خلال الشهر الحالي."/></p>}
     {attention==="documents"&&<p role="status" className="text-sm text-amber-200"><StaffText en="Documents needing action · showing active client files with unresolved latest document reviews." ar="وثائق تحتاج إجراء · ملفات نشطة ما زالت أحدث مراجعات وثائقها غير محسومة."/></p>}
 
-    <div className="ops-segmented max-w-full flex-wrap" role="tablist" aria-label="Client lifecycle views"><Link prefetch={false} href={href("active")} data-active={view==="active"}><StaffText en="Active Candidates" ar="العملاء النشطون"/></Link><Link prefetch={false} href={href("completed")} data-active={view==="completed"}><StaffText en="Completed Files" ar="الملفات المكتملة"/></Link><Link prefetch={false} href={href("all")} data-active={view==="all"}><StaffText en="All Records" ar="جميع السجلات"/></Link></div>
-
-    <ClientRegistryToolbar management={management} staff={staffRoster as unknown as {id:string;display_name:string}[]}/>
+    <ClientRegistryToolbar management={management} staff={staffRoster as unknown as {id:string;display_name:string}[]} views={[
+      {href:href("active"),en:"Active Candidates",ar:"العملاء النشطون",active:view==="active"},
+      {href:href("completed"),en:"Completed Files",ar:"الملفات المكتملة",active:view==="completed"},
+      {href:href("all"),en:"All Records",ar:"جميع السجلات",active:view==="all"},
+    ]}/>
 
     {view!=="completed"&&rows.length>0&&<ClientCommandTable clients={rows.map(c=>({id:c.id,ref:c.ref,full_name:c.full_name,phone:c.phone,email:c.email,city:c.city,current_status:c.current_status,next_step:c.next_step,amazon_account_ready:c.amazon_account_ready,payment_status:c.payment_status,assigned_staff:c.assigned_staff,assigned_name:c.assigned_name,created_at:c.created_at,updated_at:c.updated_at,site_name:c.site_name,shift_name:c.shift_name,is_urgent:c.is_urgent,manager_review_id:c.manager_review_id,operational_location:c.operational_location,review_stamp:c.review_stamp}))} staff={staffRoster as unknown as {id:string;display_name:string}[]} management={management} query={q??""}/>}
     {view!=="completed"&&rows.length===0&&<RegistryEmptyState completed={false}/>}
