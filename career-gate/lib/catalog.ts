@@ -1,5 +1,6 @@
 import { z } from "zod";
 import raw from "@/data/job-catalog.json";
+import { catalogDisplayOptions } from "@/lib/catalog-option-model";
 
 // Canonical job catalog (data/job-catalog.json, schema v2).
 //   facilities      FACILITY MASTER — a site can exist with no current opening.
@@ -128,47 +129,10 @@ export type Selection = { site_code: string; job_id: string; shift_code: string 
 export const optionKey = (s: Selection) => `${s.site_code}|${s.job_id}|${s.shift_code}`;
 export const jobKey = (site_code: string, job_id: string) => `${site_code}|${job_id}`;
 
-function hours(shift: { start_time: string | null; end_time: string | null }) {
-  if (shift.start_time && shift.end_time) return `${shift.start_time} – ${shift.end_time}`;
-  return shift.start_time ?? shift.end_time ?? null;
-}
-
-/** Selectable options: AVAILABLE official openings at a known facility with a city. */
+/** Selectable options from the server-validated catalog, sharing the same
+ * pure display projection used by browser selection controls. */
 export function activeOptions(catalog: Catalog): Option[] {
-  const facilities = new Map(catalog.facilities.map((f) => [f.site_code, f]));
-  const out: Option[] = [];
-  const seen = new Set<string>();
-  for (const o of catalog.openings) {
-    if (o.status !== "AVAILABLE") continue;
-    const f = facilities.get(o.site_code);
-    if (!f || !f.city) continue;
-    for (const sh of o.shifts) {
-      const key = optionKey({ site_code: o.site_code, job_id: o.job_id, shift_code: sh.shift_code });
-      if (seen.has(key)) throw new Error(`Duplicate catalog entry ${key}`);
-      seen.add(key);
-      out.push({
-        key,
-        city: f.city,
-        site_code: o.site_code,
-        site_name: f.facility_name ?? o.site_code,
-        site_address: f.address,
-        job_id: o.job_id,
-        job_title: o.title,
-        employment_type: o.employment_type,
-        shift_code: sh.shift_code,
-        shift_name: sh.shift_name,
-        days: sh.days,
-        hours: hours(sh),
-        pay: sh.pay.pay_status === "PUBLISHED" ? sh.pay.display_pay : null,
-        pay_detail: sh.pay,
-        availability: sh.availability,
-        source: o.source,
-        source_url: o.source_url,
-        last_verified_at: o.last_verified_at,
-      });
-    }
-  }
-  return out;
+  return catalogDisplayOptions(catalog);
 }
 
 export const parseCatalog = (input: unknown) => CatalogSchema.safeParse(input);

@@ -125,6 +125,24 @@ test("assigned employee moves one complete file, confirms the actual site and sc
     expect(confirmed.confirmed_by).toBe(owner.id);
 
     await expect(workspace.getByRole("heading", { name: /Recorded worksite change/ })).toBeVisible();
+    // The confirmed drawer is outside the pending filter. Focus/visibility
+    // refresh its current detail and the filtered page with one HTTP request.
+    const focusReads: string[] = [];
+    const trackFocusRead = (outgoing: import("@playwright/test").Request) => {
+      const url = new URL(outgoing.url());
+      if (url.pathname === "/api/staff/worksite-changes" && outgoing.method() === "GET" && url.searchParams.get("selected_id") === String(confirmed.id)) focusReads.push(outgoing.url());
+    };
+    page.on("request", trackFocusRead);
+    const focused = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return response.request().method() === "GET" && url.pathname === "/api/staff/worksite-changes" && url.searchParams.get("selected_id") === String(confirmed.id);
+    });
+    await page.evaluate(() => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); });
+    const focusedData = await (await focused).json();
+    expect(focusReads).toHaveLength(1);
+    expect(focusedData.data.rows).toEqual([]);
+    expect(focusedData.data.selected).toMatchObject({id:confirmed.id,status:"confirmed"});
+    page.off("request", trackFocusRead);
     await page.setViewportSize({ width: 390, height: 844 });
     await workspace.locator(".cg-glass-dialog-body").evaluate(element => { element.scrollTop = 0; });
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
@@ -137,7 +155,7 @@ test("assigned employee moves one complete file, confirms the actual site and sc
     const delayedRead = new Promise<void>(resolve => { releaseDelayedRead = resolve; });
     await page.route("**/api/staff/worksite-changes?**", async route => {
       const url = new URL(route.request().url());
-      if (url.searchParams.get("tab") !== "confirmed" || url.searchParams.get("q") !== file.ref) { await route.continue(); return; }
+      if (url.searchParams.get("selected_id") !== String(confirmed.id)) { await route.continue(); return; }
       const response = await route.fetch();
       detailReadHeld = true;
       await delayedRead;
@@ -154,7 +172,7 @@ test("assigned employee moves one complete file, confirms the actual site and sc
     await expect(workspace).toHaveCount(0);
     const readFinished = page.waitForResponse(response => {
       const url = new URL(response.url());
-      return url.pathname === "/api/staff/worksite-changes" && url.searchParams.get("tab") === "confirmed" && url.searchParams.get("q") === file.ref;
+      return url.pathname === "/api/staff/worksite-changes" && url.searchParams.get("selected_id") === String(confirmed.id);
     });
     releaseDelayedRead!();
     await readFinished;
@@ -237,10 +255,11 @@ test("manager can process an assigned file while an unrelated employee cannot re
     const managerData = await managerResponse.json();
     const row = managerData.data.rows.find((item: { client_id: string }) => item.client_id === file.clientId);
     expect(row).toBeTruthy();
-    const staffResponse = await staffContext.request.get(`/api/staff/worksite-changes?q=${encodeURIComponent(file.name)}`);
+    const staffResponse = await staffContext.request.get(`/api/staff/worksite-changes?q=${encodeURIComponent(file.name)}&selected_id=${row.id}`);
     expect(staffResponse.status()).toBe(200);
     const staffData = await staffResponse.json();
     expect(staffData.data.rows.some((item: { client_id: string }) => item.client_id === file.clientId)).toBe(false);
+    expect(staffData.data.selected).toBeNull();
     const denied = await staffContext.request.post("/api/staff/worksite-changes", { data: {
       operation: "save_request", operation_id: randomUUID(), client_id: file.clientId, expected_updated_at: row.client_version,
       current_site_code: currentSite.code, requested_site_code: requestedSite.code,

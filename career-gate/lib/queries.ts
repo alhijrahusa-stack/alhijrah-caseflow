@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { withStaff, type StaffSession, type Tx } from "@/lib/auth";
+import { sqlUuidLiteral, type SqlUuidLiteral } from "@/lib/sql-uuid-literal";
 
 // Every staff read runs under RLS as the signed-in staff member.
 export const TZ = "America/Detroit";
@@ -112,64 +113,64 @@ export async function clientCities(s: StaffSession) {
  * reader is client-scoped and runs under RLS through `withStaff`.
  */
 const CLIENT_FILE_SLICE_READERS = {
-  client: (tx: Tx, id: string) => tx`
+  client: (tx: Tx, id: SqlUuidLiteral) => tx`
       select c.*, c.updated_at::text as updated_at, s.display_name as assigned_name, cb.display_name as created_by_name, career_gate_private.client_review_stamp(c.id) as review_stamp
-      from clients c left join staff s on s.id = c.assigned_staff left join staff cb on cb.id = c.created_by where c.id = ${id}`,
-  employment: (tx: Tx, id: string) =>
-    tx`select * from employment_history where client_id = ${id} order by from_date desc nulls last, created_at`,
-  preferences: (tx: Tx, id: string) =>
-    tx`select * from client_preferences where client_id = ${id} order by preference_order`,
-  documents: (tx: Tx, id: string) => tx`
+      from clients c left join staff s on s.id = c.assigned_staff left join staff cb on cb.id = c.created_by where c.id = ${tx.unsafe(id)}`,
+  employment: (tx: Tx, id: SqlUuidLiteral) =>
+    tx`select * from employment_history where client_id = ${tx.unsafe(id)} order by from_date desc nulls last, created_at`,
+  preferences: (tx: Tx, id: SqlUuidLiteral) =>
+    tx`select * from client_preferences where client_id = ${tx.unsafe(id)} order by preference_order`,
+  documents: (tx: Tx, id: SqlUuidLiteral) => tx`
         select d.id, d.doc_type, d.file_name, d.mime_type, d.size_bytes, d.sha256, d.status, d.quality, d.page_count, d.width, d.height,
                   d.thumbnail_path is not null as has_thumbnail, d.reviewed_at, d.rejection_reason, d.review_note, d.uploaded_at,
                   r.display_name as reviewed_by_name, u.display_name as uploaded_by_name,
                   (select count(*)::int from document_access_log l where l.document_id = d.id and l.access_type <> 'thumbnail') as open_count
            from documents d left join staff r on r.id = d.reviewed_by left join staff u on u.id = d.uploaded_by
-           where d.client_id = ${id} order by d.uploaded_at desc`,
-  extractions: (tx: Tx, id: string) => tx`
+           where d.client_id = ${tx.unsafe(id)} order by d.uploaded_at desc`,
+  extractions: (tx: Tx, id: SqlUuidLiteral) => tx`
         select document_id, provider, model, status, escalated, document_class, fields, reconciliation, error, created_at
-           from document_extractions where client_id = ${id} order by created_at desc`,
-  appointments: (tx: Tx, id: string) => tx`
+           from document_extractions where client_id = ${tx.unsafe(id)} order by created_at desc`,
+  appointments: (tx: Tx, id: SqlUuidLiteral) => tx`
         select a.*, s.display_name as created_by_name, o.decision as outcome, o.recorded_at as decision_at from appointments a
         left join staff s on s.id = a.created_by_staff
         left join appointment_outcomes o on o.appointment_id = a.id
-           where a.client_id = ${id} order by a.scheduled_at desc`,
-  notes: (tx: Tx, id: string) =>
-    tx`select n.*, s.display_name as staff_name from notes n join staff s on s.id = n.staff_id where n.client_id = ${id} order by n.created_at desc`,
-  tasks: (tx: Tx, id: string) => tx`
+           where a.client_id = ${tx.unsafe(id)} order by a.scheduled_at desc`,
+  notes: (tx: Tx, id: SqlUuidLiteral) =>
+    tx`select n.*, s.display_name as staff_name from notes n join staff s on s.id = n.staff_id where n.client_id = ${tx.unsafe(id)} order by n.created_at desc`,
+  tasks: (tx: Tx, id: SqlUuidLiteral) => tx`
         select t.*, a.display_name as assigned_to_name, c.display_name as completed_by_name from tasks t
            left join staff a on a.id = t.assigned_to left join staff c on c.id = t.completed_by
-           where t.client_id = ${id} order by (t.status in ('completed','cancelled')), t.due_at nulls last, t.created_at desc`,
-  contacts: (tx: Tx, id: string) =>
-    tx`select k.*, s.display_name as staff_name from contacts k join staff s on s.id = k.staff_id where k.client_id = ${id} order by k.created_at desc`,
-  followups: (tx: Tx, id: string) => tx`
+           where t.client_id = ${tx.unsafe(id)} order by (t.status in ('completed','cancelled')), t.due_at nulls last, t.created_at desc`,
+  contacts: (tx: Tx, id: SqlUuidLiteral) =>
+    tx`select k.*, s.display_name as staff_name from contacts k join staff s on s.id = k.staff_id where k.client_id = ${tx.unsafe(id)} order by k.created_at desc`,
+  followups: (tx: Tx, id: SqlUuidLiteral) => tx`
         select f.*, s.display_name as created_by_name, c.display_name as completed_by_name from followups f
            left join staff s on s.id = f.created_by left join staff c on c.id = f.completed_by
-           where f.client_id = ${id} order by (f.status <> 'open'), f.due_date`,
-  postHire: (tx: Tx, id: string) =>
-    tx`select p.*, s.display_name as staff_name from post_hire_items p left join staff s on s.id = p.staff_id where p.client_id = ${id}`,
-  assessments: (tx: Tx, id: string) => tx`
+           where f.client_id = ${tx.unsafe(id)} order by (f.status <> 'open'), f.due_date`,
+  postHire: (tx: Tx, id: SqlUuidLiteral) =>
+    tx`select p.*, s.display_name as staff_name from post_hire_items p left join staff s on s.id = p.staff_id where p.client_id = ${tx.unsafe(id)}`,
+  assessments: (tx: Tx, id: SqlUuidLiteral) => tx`
         select a.*, s.display_name as updated_by_name from assessments a left join staff s on s.id = a.updated_by
-           where a.client_id = ${id} order by a.assessment_type, a.item_key`,
-  activity: (tx: Tx, id: string) => tx`
+           where a.client_id = ${tx.unsafe(id)} order by a.assessment_type, a.item_key`,
+  activity: (tx: Tx, id: SqlUuidLiteral) => tx`
         select l.*, s.display_name as staff_name from activity_log l left join staff s on s.id = l.staff_id
-           where l.client_id = ${id} order by l.created_at desc, l.id desc limit 500`,
-  authorization: (tx: Tx, id: string) => tx`
+           where l.client_id = ${tx.unsafe(id)} order by l.created_at desc, l.id desc limit 500`,
+  authorization: (tx: Tx, id: SqlUuidLiteral) => tx`
         select authorization_version, authorization_sha256, printed_name, signature, signed_at, communication_consent
-           from client_authorizations where client_id = ${id}`,
-  notifications: (tx: Tx, id: string) =>
-    tx`select channel, template, status, provider, error, sent_at, delivered_at, created_at from notifications where client_id = ${id} order by created_at desc`,
-  worksiteChanges: (tx: Tx, id: string) => tx`select w.*,n.status notification_status,n.sent_at,n.error notification_error
+           from client_authorizations where client_id = ${tx.unsafe(id)}`,
+  notifications: (tx: Tx, id: SqlUuidLiteral) =>
+    tx`select channel, template, status, provider, error, sent_at, delivered_at, created_at from notifications where client_id = ${tx.unsafe(id)} order by created_at desc`,
+  worksiteChanges: (tx: Tx, id: SqlUuidLiteral) => tx`select w.*,n.status notification_status,n.sent_at,n.error notification_error
     from worksite_changes w left join notifications n on n.id=w.notification_id
-    where w.client_id=${id} order by w.created_at desc,w.id desc limit 50`,
-  alerts: (tx: Tx, id: string, s: StaffSession) =>
+    where w.client_id=${tx.unsafe(id)} order by w.created_at desc,w.id desc limit 50`,
+  alerts: (tx: Tx, id: SqlUuidLiteral, s: StaffSession) =>
     s.staff.role === "staff"
       ? Promise.resolve([])
-      : tx`select * from audit_alerts where client_id = ${id} and status = 'open' order by created_at desc`,
-  agentRun: (tx: Tx, id: string) =>
-    tx`select output, status, model, created_at from agent_runs where client_id = ${id} and agent = 'intake' order by created_at desc limit 1`,
+      : tx`select * from audit_alerts where client_id = ${tx.unsafe(id)} and status = 'open' order by created_at desc`,
+  agentRun: (tx: Tx, id: SqlUuidLiteral) =>
+    tx`select output, status, model, created_at from agent_runs where client_id = ${tx.unsafe(id)} and agent = 'intake' order by created_at desc limit 1`,
   references: (tx: Tx) => tx`select key, category, title, body from reference_materials order by category, title`,
-} satisfies Record<string, (tx: Tx, id: string, s: StaffSession) => Promise<unknown>>;
+} satisfies Record<string, (tx: Tx, id: SqlUuidLiteral, s: StaffSession) => Promise<unknown>>;
 
 export type ClientFileSlice = keyof typeof CLIENT_FILE_SLICE_READERS;
 export const CLIENT_FILE_SLICES = Object.keys(CLIENT_FILE_SLICE_READERS) as ClientFileSlice[];
@@ -178,7 +179,7 @@ export const CLIENT_FILE_SLICES = Object.keys(CLIENT_FILE_SLICE_READERS) as Clie
 const SINGLE_ROW_SLICES = new Set<ClientFileSlice>(["client", "authorization", "agentRun"]);
 
 function isSlice(key: string): key is ClientFileSlice {
-  return key in CLIENT_FILE_SLICE_READERS;
+  return Object.hasOwn(CLIENT_FILE_SLICE_READERS, key);
 }
 
 /** Narrows a caller-supplied list to the known slice keys, order preserved. */
@@ -195,7 +196,7 @@ export type ClientFileSliceData<K extends ClientFileSlice = ClientFileSlice> = {
     : Record<string, unknown>[];
 };
 
-async function readSlices<K extends ClientFileSlice>(s: StaffSession, id: string, keys: readonly K[]) {
+async function readSlices<K extends ClientFileSlice>(s: StaffSession, id: SqlUuidLiteral, keys: readonly K[]) {
   return withStaff(s, async (tx) => {
     const rows = await Promise.all(keys.map((key) => CLIENT_FILE_SLICE_READERS[key](tx, id, s)));
     const out: Record<string, unknown> = {};
@@ -217,14 +218,15 @@ export async function clientFileSlices<K extends ClientFileSlice>(
   keys: readonly K[],
 ): Promise<ClientFileSliceData<K> | null> {
   if (keys.length === 0) return {} as ClientFileSliceData<K>;
+  const readId = sqlUuidLiteral(id);
   const wantsClient = (keys as readonly string[]).includes("client");
   if (!wantsClient) {
     // Without the client row there is nothing to prove the client exists, so
     // probe it: a missing client must read as not found, never as empty slices.
-    const probe = await withStaff(s, (tx) => tx`select 1 from clients where id = ${id}`);
+    const probe = await withStaff(s, (tx) => tx`select 1 from clients where id = ${tx.unsafe(readId)}`);
     if (probe.length === 0) return null;
   }
-  const out = await readSlices(s, id, keys);
+  const out = await readSlices(s, readId, keys);
   if (wantsClient && (out as ClientFileSliceData<"client">).client === null) return null;
   return out;
 }

@@ -13,7 +13,7 @@ import { QuickLocationEdit } from "@/components/staff/QuickLocationEdit";
 import { useStaff } from "@/components/staff/StaffContext";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { options } from "@/lib/catalog";
+import { options } from "@/lib/catalog-display";
 import { ENGLISH_PROFICIENCY_VALUES, LANGUAGES } from "@/lib/domain";
 import { dateOnly, dateTime, formatPhone } from "@/lib/format";
 import { Card, SmallBtn, useRowAction, yn, type Row } from "./common";

@@ -18,7 +18,7 @@ import { StaffPicker } from "@/components/staff/StaffPicker";
 import { useStaff } from "@/components/staff/StaffContext";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
-import { options } from "@/lib/catalog";
+import { options } from "@/lib/catalog-display";
 import { DEFAULT_NEXT_STEP, DOC_LABELS, DOC_MAX_BYTES, DOC_TYPES, ENTRY_STATUSES, STATUS_LABELS, type Status } from "@/lib/domain";
 
 type PendingDoc = { id: string; doc_type: (typeof DOC_TYPES)[number]; file: File };

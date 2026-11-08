@@ -17,9 +17,9 @@ export async function GET(req: Request) {
   const trace=traceIdFrom(req),guard=await staffGuard(req,trace,{mutation:false});
   if (guard.response) return privateResponse(guard.response);
   const params=new URL(req.url).searchParams;
-  const parsed=z.object({tab:z.enum(['pending','confirmed']).default('pending'),q:z.string().trim().max(100).default(''),page:z.coerce.number().int().min(1).max(100000).default(1)}).safeParse(Object.fromEntries(params));
+  const parsed=z.object({tab:z.enum(['pending','confirmed']).default('pending'),q:z.string().trim().max(100).default(''),page:z.coerce.number().int().min(1).max(100000).default(1),selected_id:z.uuid().optional()}).safeParse(Object.fromEntries(params));
   if (!parsed.success) return privateResponse(err('invalid_input','Invalid worksite filters',400,trace));
-  try {return privateResponse(ok({data:await getWorksiteChanges(guard.session,parsed.data)},200,trace));}
+  try {return privateResponse(ok({data:await getWorksiteChanges(guard.session,{...parsed.data,selectedId:parsed.data.selected_id})},200,trace));}
   catch(error) {return privateResponse(failure(error,trace));}
 }
 export async function POST(req: Request) {

@@ -33,7 +33,7 @@ function fields(tx: Tx) {
     n.sent_at,n.error notification_error,c.operational_location,c.current_status,c.updated_at::text client_version`;
 }
 function rowDTO(row: Record<string, unknown>): WorksiteChangeRow {
-  const date = (value: unknown) => value instanceof Date ? value.toISOString() : value == null ? null : String(value);
+  const date = (value: unknown) => value instanceof Date ? value.toISOString() : value == null ? null : new Date(String(value)).toISOString();
   return { ...row, confirmed_at: date(row.confirmed_at), recorded_at: date(row.recorded_at), sent_at: date(row.sent_at) } as WorksiteChangeRow;
 }
 export async function worksiteChangeRow(tx: Tx, id: string) {
@@ -42,27 +42,51 @@ export async function worksiteChangeRow(tx: Tx, id: string) {
   return row ? rowDTO(row) : null;
 }
 
-export async function getWorksiteChanges(session: StaffSession, input: {tab?: "pending" | "confirmed";q?: string;page?: number} = {}): Promise<WorksiteChangeData> {
+export async function getWorksiteChanges(session: StaffSession, input: {tab?: "pending" | "confirmed";q?: string;page?: number;selectedId?: string} = {}): Promise<WorksiteChangeData> {
   return withStaff(session, async tx => {
     const tab = input.tab === "confirmed" ? "confirmed" : "pending";
     const q = input.q?.trim().slice(0, 100) ?? "";
     const like = `%${q.replace(/[\\%_]/g, value => `\\${value}`)}%`;
     const search = q ? tx`(c.ref ilike ${like} or c.full_name ilike ${like} or c.phone ilike ${like} or c.email ilike ${like})` : tx`true`;
     const base = tab === "confirmed"
-      ? tx`from worksite_changes w join clients c on c.id=w.client_id left join notifications n on n.id=w.notification_id
+      ? tx`from worksite_changes w join clients c on c.id=w.client_id
           where c.deleted_at is null and w.status='confirmed' and ${search}`
       : tx`from clients c left join lateral(select * from worksite_changes change where change.client_id=c.id order by change.created_at desc,change.id desc limit 1) w on true
-          left join notifications n on n.id=w.notification_id
           where c.deleted_at is null and c.operational_location='worksite_change' and coalesce(w.status,'pending')='pending' and ${search}`;
-    const [counts] = await tx`select
-      (select count(*)::int from clients c where c.deleted_at is null and c.operational_location='worksite_change'
-        and coalesce((select w.status from worksite_changes w where w.client_id=c.id order by w.created_at desc,w.id desc limit 1),'pending')='pending') pending,
-      (select count(*)::int from worksite_changes w join clients c on c.id=w.client_id where c.deleted_at is null and w.status='confirmed') confirmed`;
-    const [result] = await tx`select count(*)::int total ${base}`;
     const pageSize = 20;
-    const page = Math.max(1, Math.min(Math.max(1, Math.ceil(Number(result.total) / pageSize)), Math.trunc(input.page ?? 1) || 1));
-    const rows = await tx`select ${fields(tx)} ${base} order by coalesce(w.recorded_at,w.created_at,c.updated_at) desc,c.id limit ${pageSize} offset ${(page - 1) * pageSize}`;
-    return {rows: rows.map(rowDTO), counts: {pending: Number(counts.pending), confirmed: Number(counts.confirmed)}, total: Number(result.total), page, page_size: pageSize};
+    const requestedPage = Math.max(1, Math.trunc(Number.isFinite(input.page) ? input.page! : 1) || 1);
+    const selectedId = input.selectedId ?? null;
+    // Only narrow IDs are materialized for pagination. Full row/notification
+    // joins run for the displayed page and, if necessary, its selected detail.
+    // All counts and records are read from the same RLS-scoped SQL snapshot.
+    const [result] = await tx`with filtered as materialized (
+        select w.id,c.id client_id,coalesce(w.recorded_at,w.created_at,c.updated_at) sort_at ${base}
+      ), tally as (select count(*)::int total from filtered), pagination as (
+        select total,least(${requestedPage},greatest(1,ceil(total::numeric/${pageSize})::int)) page from tally
+      ), page_ids as materialized (
+        select * from filtered order by sort_at desc,client_id
+        limit ${pageSize} offset (select (page-1)*${pageSize} from pagination)
+      ), page_rows as materialized (
+        select ${fields(tx)},p.sort_at from page_ids p join clients c on c.id=p.client_id
+        left join worksite_changes w on w.id=p.id left join notifications n on n.id=w.notification_id
+      ), selected as (
+        select to_jsonb(p)-'sort_at' value from page_rows p where p.id=${selectedId}::uuid
+        union all
+        select to_jsonb(detail) value from (
+          select ${fields(tx)} from worksite_changes w join clients c on c.id=w.client_id
+          left join notifications n on n.id=w.notification_id
+          where ${selectedId}::uuid is not null and w.id=${selectedId}::uuid and c.deleted_at is null
+            and not exists(select 1 from page_ids p where p.id=${selectedId}::uuid)
+        ) detail
+      ) select pagination.total,pagination.page,
+        (select count(*)::int from clients c where c.deleted_at is null and c.operational_location='worksite_change'
+          and coalesce((select w.status from worksite_changes w where w.client_id=c.id order by w.created_at desc,w.id desc limit 1),'pending')='pending') pending,
+        (select count(*)::int from worksite_changes w join clients c on c.id=w.client_id where c.deleted_at is null and w.status='confirmed') confirmed,
+        coalesce((select jsonb_agg(to_jsonb(p)-'sort_at' order by p.sort_at desc,p.client_id) from page_rows p),'[]'::jsonb) rows,
+        (select value from selected limit 1) selected
+      from pagination`;
+    return {rows: (result.rows as Record<string,unknown>[]).map(rowDTO), selected: result.selected ? rowDTO(result.selected) : null,
+      counts: {pending: Number(result.pending), confirmed: Number(result.confirmed)}, total: Number(result.total), page: Number(result.page), page_size: pageSize};
   });
 }
 
@@ -98,9 +122,11 @@ export async function executeWorksiteChange(session: StaffSession, input: Worksi
     }
 
     if (client.manager_review_id || client.operational_location !== 'worksite_change') throw new ActionError('worksite_file_not_active','Move the file into Worksite Changes before editing it.',409);
-    const [latest] = await tx`select status from worksite_changes where client_id=${input.client_id} order by created_at desc,id desc limit 1`;
+    // Keep this as a fresh statement after the awaited client lock. A joined
+    // subquery's pre-lock snapshot could otherwise retain stale history.
+    const [latest] = await tx`select id,status from worksite_changes where client_id=${input.client_id} order by created_at desc,id desc limit 1`;
     if(latest?.status==='confirmed') throw new ActionError('already_confirmed','This worksite change is already confirmed. Use Workflow to continue the file.',409);
-    const id = await ensurePendingWorksiteChange(tx,session,input.client_id);
+    const id = latest ? String(latest.id) : await ensurePendingWorksiteChange(tx,session,input.client_id);
     const current = findWorksite(input.current_site_code)!;
     const requested = findWorksite(input.requested_site_code)!;
     await tx`select set_config('cg.worksite_change','write',true)`;

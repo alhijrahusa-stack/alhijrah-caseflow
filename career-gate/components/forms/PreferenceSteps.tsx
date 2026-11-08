@@ -1,6 +1,6 @@
 "use client";
 
-import { jobKey, type Option } from "@/lib/catalog";
+import { jobKey, type Option } from "@/lib/catalog-display";
 import { MultiSelect } from "./MultiSelect";
 import { allCities, jobsFor, optionByKey, prune, shiftsFor, sitesFor, type PrefState } from "./preferences";
 

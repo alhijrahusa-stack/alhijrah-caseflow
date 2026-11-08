@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
+import { createClientResourceReader } from "@/components/staff/realtime/client-resource-reader";
 
 export type StaffMember = {
   id: string;
@@ -15,10 +16,13 @@ export type StaffMember = {
 };
 export type Me = { id: string; display_name: string; role: "admin" | "manager" | "staff"; canScheduleAppointment?: boolean };
 
-const Ctx = createContext<{ me: Me; staff: StaffMember[] } | null>(null);
+const Ctx = createContext<{ me: Me; staff: StaffMember[]; readClientResources: ReturnType<typeof createClientResourceReader> } | null>(null);
 
 export function StaffProvider({ me, staff, children }: { me: Me; staff: StaffMember[]; children: React.ReactNode }) {
-  return <Ctx.Provider value={{ me, staff }}>{children}</Ctx.Provider>;
+  // A different staff identity gets its own pending batch; no data or request
+  // promise is shared across staff-provider lifetimes.
+  const requests = useMemo(() => ({ staffId: me.id, read: createClientResourceReader() }), [me.id]);
+  return <Ctx.Provider value={{ me, staff, readClientResources: requests.read }}>{children}</Ctx.Provider>;
 }
 
 export function useStaff() {
