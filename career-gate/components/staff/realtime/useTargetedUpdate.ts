@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { requestRecovery, subscribeResources } from "@/components/staff/realtime/update-bus";
 import { payloadsForResources, type Resource } from "@/lib/realtime-resources";
+import { useStaff } from "@/components/staff/StaffContext";
 
 /**
  * Subscribes a surface to the resources it renders and refetches only the
@@ -25,6 +26,7 @@ export function useTargetedPayloads<T>(opts: {
   apply: (current: T, payloads: Record<string, unknown>) => T;
 }): T {
   const { resources, clientId, initial, apply } = opts;
+  const { readClientResources } = useStaff();
   const [patched, setPatched] = useState<T | null>(null);
   const [seed, setSeed] = useState(initial);
 
@@ -73,19 +75,17 @@ export function useTargetedPayloads<T>(opts: {
         }
         const requestSeed = seedRef.current;
         void (async () => {
-          const url = `/api/staff/client-resource?client_id=${encodeURIComponent(clientId)}&payloads=${payloads.join(",")}`;
-          const res = await fetch(url).catch(() => null);
-          const body = (await res?.json().catch(() => null)) as { ok?: boolean; payloads?: Record<string, unknown> } | null;
+          const body = await readClientResources(clientId, payloads).catch(() => null);
           if (cancelled || requestSeed !== seedRef.current) return;
           if (!payloads.some(payload => latestRequest.get(payload) === requestId)) return;
-          if (!body?.ok || !body.payloads) {
+          if (!body) {
             requestRecovery("targeted_fetch_failed");
             return;
           }
           // Different changes can finish their reads in a different order.
           // An older snapshot may update unrelated slices, but must never
           // replace a slice for which a newer read has already started.
-          const next = Object.fromEntries(Object.entries(body.payloads).filter(
+          const next = Object.fromEntries(Object.entries(body).filter(
             ([payload]) => latestRequest.get(payload) === requestId,
           ));
           if (Object.keys(next).length === 0) return;
@@ -98,7 +98,7 @@ export function useTargetedPayloads<T>(opts: {
       cancelled = true;
       off();
     };
-  }, [clientId, key]);
+  }, [clientId, key, readClientResources]);
 
   return patched ?? initial;
 }

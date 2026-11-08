@@ -21,10 +21,10 @@ async function member(role:"staff"|"manager") {
   const [staff]=await db`insert into staff(display_name,email,role,auth_user_id) values(${`TEST Worksite ${role} ${authUserId}`},${email},${role},${authUserId}) returning id,display_name,email,role`;
   return {authUserId,staff:staff as StaffSession['staff']};
 }
-async function client(consent=true) {
+async function client(consent=true,label='TEST Worksite Applicant') {
   serial++;
   return db.begin(tx=>insertClient(tx,{
-    source:'staff_manual',profile:ProfileSchema.parse({full_name:`TEST Worksite Applicant ${serial}`,phone:`313555${serial}`,email:`worksite-applicant-${serial}@test.invalid`,employment_history:[]}),
+    source:'staff_manual',profile:ProfileSchema.parse({full_name:`${label} ${serial}`,phone:`313555${serial}`,email:`worksite-applicant-${serial}@test.invalid`,employment_history:[]}),
     primary:[],backup:[],status:'new_intake',nextStep:null,assignedStaff:owner.staff.id,createdBy:manager.staff.id,communicationConsent:consent,
   },{staffId:manager.staff.id,traceId:trace}));
 }
@@ -55,7 +55,14 @@ describe('one original client through worksite change and ordinary workflow',()=
     expect((await operationalClientList(owner,'active',1,20,{q:c.ref})).total).toBe(0);
     const own=await getWorksiteChanges(owner,{q:c.ref});
     expect(own.rows).toHaveLength(1);expect(own.rows[0]).toMatchObject({client_id:c.id,status:'pending'});
+    const selectedId=own.rows[0].id!;
+    const selectedPage=await getWorksiteChanges(owner,{q:c.ref,selectedId});
+    expect(selectedPage.selected).toEqual(selectedPage.rows[0]);
+    const offPage=await getWorksiteChanges(owner,{q:`unmatched-${randomUUID()}`,page:999,selectedId});
+    expect(offPage).toMatchObject({rows:[],total:0,page:1,selected:{id:selectedId,client_id:c.id}});
     expect((await getWorksiteChanges(outsider,{q:c.ref})).rows).toEqual([]);
+    expect((await getWorksiteChanges(outsider,{q:c.ref,selectedId})).selected).toBeNull();
+    expect((await getWorksiteChanges(owner,{selectedId:randomUUID()})).selected).toBeNull();
     await expect(executeWorksiteChange(outsider,await confirmation(c.id),trace)).rejects.toMatchObject({code:'not_found'});
     expect(Number((await db`select count(*) n from clients where id=${c.id}`)[0].n)).toBe(1);
     expect(Number((await db`select count(*) n from appointment_outcomes where client_id=${c.id}`)[0].n)).toBe(0);
@@ -81,6 +88,9 @@ describe('one original client through worksite change and ordinary workflow',()=
     expect((await getWorksiteChanges(owner,{q:c.ref})).rows).toHaveLength(0);
     const history=await getWorksiteChanges(owner,{q:c.ref,tab:'confirmed'});
     expect(history.rows).toHaveLength(1);expect(history.rows[0].operational_location).toBe('completed');
+    const historyOffPage=await getWorksiteChanges(owner,{q:'no matching pending file',selectedId:history.rows[0].id!});
+    expect(historyOffPage.rows).toEqual([]);
+    expect(historyOffPage.selected).toMatchObject({id:history.rows[0].id,status:'confirmed',operational_location:'completed',confirmed_at:'2026-11-07T19:30:00.000Z'});
     expect((await operationalClientList(owner,'completed',1,20,{q:c.ref})).total).toBe(1);
     expect(Number((await db`select count(*) n from clients where id=${c.id}`)[0].n)).toBe(1);
   });
@@ -156,5 +166,20 @@ describe('one original client through worksite change and ordinary workflow',()=
       values(${c.id},'email','worksite_change_confirmed',${db.json(notification.payload)},'queued',${`forged:${randomUUID()}`}) returning id`;
     expect(await deliverWorksiteChangeEmail(String(forged.id),notification.payload)).toMatchObject({status:'failed',retryable:false});
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('clamps filtered pages and returns an off-page selection without changing the page or leaking another employee’s record',async()=>{
+    const label=`TEST Worksite Page ${randomUUID().slice(0,8)}`;
+    for(let index=0;index<21;index++){const c=await client(true,label);await move(owner,c.id,'worksite_change');}
+    const first=await getWorksiteChanges(owner,{q:label,page:1});
+    expect(first.rows).toHaveLength(20);expect(first.total).toBe(21);expect(first.page).toBe(1);
+    const selectedId=first.rows[0].id!;
+    const last=await getWorksiteChanges(owner,{q:label,page:999,selectedId});
+    expect(last.rows).toHaveLength(1);expect(last.total).toBe(21);expect(last.page).toBe(2);
+    expect(last.rows.some(row=>row.id===selectedId)).toBe(false);
+    expect(last.selected).toEqual(first.rows[0]);
+    expect((await getWorksiteChanges(owner,{q:`${label}%`})).total).toBe(0);
+    const denied=await getWorksiteChanges(outsider,{q:label,page:999,selectedId});
+    expect(denied).toMatchObject({rows:[],total:0,page:1,selected:null});
   });
 });

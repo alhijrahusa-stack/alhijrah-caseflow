@@ -9,7 +9,8 @@ import { GlassReviewDialog } from "@/components/staff/smart/GlassReviewDialog";
 import { publishMutation, RECOVERY_EVENT, subscribeResources } from "@/components/staff/realtime/update-bus";
 import { dateOnly, dateTime, fromLocalInput, toLocalInput } from "@/lib/format";
 import { CLIENT_STAGES } from "@/lib/client-lifecycle-filters";
-import { WORKSITE_OPTIONS, type WorksiteChangeData, type WorksiteChangeRow } from "@/lib/worksite-change-schema";
+import { WORKSITE_OPTIONS } from "@/lib/worksite-options";
+import type { WorksiteChangeData, WorksiteChangeRow } from "@/lib/worksite-change-schema";
 
 type Tab = "pending" | "confirmed";
 type Operation = "save_request" | "confirm" | "retry_email";
@@ -108,13 +109,16 @@ export function WorksiteChangeCenter({ initial, viewerId }: { initial: WorksiteC
     return () => { if (frame !== null) cancelAnimationFrame(frame); };
   }, [storageKey, intentKey]);
 
-  const refresh = useCallback(async (nextPage = controls.current.page) => {
-    if (busyRef.current) return null;
+  const refresh = useCallback(async (nextPage = controls.current.page, allowBusy = false) => {
+    if (busyRef.current && !allowBusy) return null;
     request.current?.abort();
     const controller = new AbortController(); request.current = controller;
     const sequence = ++fetchSequence.current;
+    const selectionSequence = selectedSequence.current;
+    const requestedSelection = selectedRef.current;
     const requestedTab = controls.current.tab;
     const params = new URLSearchParams({ tab: requestedTab, q: controls.current.q, page: String(nextPage) });
+    if (requestedSelection?.id) params.set("selected_id", requestedSelection.id);
     setLoading(true);
     try {
       const response = await fetch(`/api/staff/worksite-changes?${params}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) });
@@ -124,26 +128,25 @@ export function WorksiteChangeCenter({ initial, viewerId }: { initial: WorksiteC
       const next = result.data as WorksiteChangeData;
       controls.current.page = next.page; setData(next); setDataTab(requestedTab); setStale(false);
       const current = selectedRef.current;
-      if (current && current.status !== "confirmed") {
-        const updated = next.rows.find(row => current.id ? row.id === current.id : row.client_id === current.client_id);
-        if (updated) setSelected(updated);
+      // One snapshot refreshes both the page and the open drawer. A late result
+      // may update the list, but cannot reopen or replace another workspace.
+      if (requestedSelection && selectionSequence === selectedSequence.current && current?.client_id === requestedSelection.client_id && current.id === requestedSelection.id) {
+        const updated = next.selected ?? next.rows.find(row => current.id ? row.id === current.id : row.client_id === current.client_id);
+        if (updated) { setSelected(updated); selectedRef.current = updated; }
       }
       return next;
     } catch { if (!controller.signal.aborted) setStale(true); return null; }
     finally { if (sequence === fetchSequence.current) setLoading(false); }
   }, []);
 
-  const reloadSelected = useCallback(async (row: WorksiteChangeRow, kind: Tab = row.status === "confirmed" ? "confirmed" : "pending") => {
-    const sequence = ++selectedSequence.current;
-    const params = new URLSearchParams({ tab: kind, q: row.ref, page: "1" });
-    const response = await fetch(`/api/staff/worksite-changes?${params}`, { cache: "no-store", signal: AbortSignal.timeout(20000) });
-    const result = await response.json();
-    if (!response.ok || !result.ok) throw new Error(result.error?.message ?? "The latest file is unavailable");
-    const next = (result.data as WorksiteChangeData).rows.find(item => row.id ? item.id === row.id : item.client_id === row.client_id);
+  const reloadSelected = useCallback(async (row: WorksiteChangeRow) => {
+    const sequence = selectedSequence.current;
+    const next = await refresh(controls.current.page, true);
+    if (!next) throw new Error("The latest file is unavailable");
     const current = selectedRef.current;
-    if (next && sequence === selectedSequence.current && current?.client_id === row.client_id && current.id === row.id) { setSelected(next); selectedRef.current = next; }
-    return next ?? null;
-  }, []);
+    if (sequence !== selectedSequence.current || current?.client_id !== row.client_id || current.id !== row.id) return null;
+    return next.selected ?? next.rows.find(item => row.id ? item.id === row.id : item.client_id === row.client_id) ?? null;
+  }, [refresh]);
 
   const scheduleRefresh = useCallback(() => {
     refreshQueued.current = true;
@@ -155,10 +158,8 @@ export function WorksiteChangeCenter({ initial, viewerId }: { initial: WorksiteC
       if (busyRef.current || !refreshQueued.current) return;
       refreshQueued.current = false;
       void refresh();
-      const row = selectedRef.current;
-      if (row?.status === "confirmed") void reloadSelected(row).catch(() => setStale(true));
     }, 100);
-  }, [refresh, reloadSelected]);
+  }, [refresh]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -240,7 +241,7 @@ export function WorksiteChangeCenter({ initial, viewerId }: { initial: WorksiteC
         const nextDraft = { ...draft, expected_updated_at: returnedRow.client_version }; setDraft(nextDraft);
         if (nextIntent.operation !== "confirm") { draftStore.current[selected.client_id] = nextDraft; persistDraft(); }
       }
-      else await reloadSelected(selected, nextIntent.operation === "confirm" ? "confirmed" : undefined);
+      else await reloadSelected(selected);
       published = publishMutation("worksite_change", selected.client_id) === null;
     } catch (cause) { setError(cause instanceof Error ? cause.message : t("Connection interrupted. Retry to verify the same operation.", "انقطع الاتصال. أعد المحاولة للتحقق من العملية نفسها.")); }
     finally {
@@ -260,7 +261,7 @@ export function WorksiteChangeCenter({ initial, viewerId }: { initial: WorksiteC
       setConflict(false);
       if (draft) { const next = { ...draft, expected_updated_at: current.client_version }; setDraft(next); draftStore.current[current.client_id] = next; persistDraft(); }
     } catch (cause) { setError(cause instanceof Error ? cause.message : t("The latest record is unavailable.", "تعذر تحميل السجل الأحدث.")); }
-    finally { busyRef.current = false; setBusy(false); setLoading(false); scheduleRefresh(); }
+    finally { busyRef.current = false; setBusy(false); setLoading(false); if (refreshQueued.current) scheduleRefresh(); }
   }
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));

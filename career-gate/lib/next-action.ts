@@ -1,5 +1,6 @@
 import "server-only";
 import { withStaff, type StaffSession } from "@/lib/auth";
+import { sqlUuidLiteral } from "@/lib/sql-uuid-literal";
 import { DEFAULT_NEXT_STEP, type Status } from "@/lib/domain";
 
 export type NextActionOwner = "staff" | "client" | "system" | "none";
@@ -145,6 +146,7 @@ export function deriveNextAction(s: NextActionSnapshot): ClientNextAction {
 }
 
 export async function clientNextAction(session: StaffSession, clientId: string): Promise<ClientNextAction | null> {
+  const readId = sqlUuidLiteral(clientId);
   return withStaff(session, async (tx) => {
     const [row] = await tx`
       select
@@ -200,7 +202,7 @@ export async function clientNextAction(session: StaffSession, clientId: string):
         order by a.scheduled_at
         limit 1
       ) appt on true
-      where c.id=${clientId} and c.deleted_at is null`;
+      where c.id=${tx.unsafe(readId)} and c.deleted_at is null`;
     if (!row) return null;
     return deriveNextAction({
       current_status: row.current_status as Status,

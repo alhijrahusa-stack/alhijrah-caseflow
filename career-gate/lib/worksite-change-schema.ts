@@ -1,13 +1,9 @@
 import { z } from "zod";
 import { catalog } from "@/lib/catalog";
-import { LOCATION_DIRECTORY } from "@/lib/location-shift-options";
+import { buildWorksiteOptions, WORKSITE_TIMEZONE } from "@/lib/worksite-options";
 
-export const WORKSITE_OPTIONS: { code: string; name: string; address: string | null }[] = [
-  ...LOCATION_DIRECTORY.map(site => ({ code: site.code, name: site.name, address: site.address })),
-  ...catalog.facilities.filter(site => !LOCATION_DIRECTORY.some(item => item.code === site.site_code))
-    .map(site => ({ code: site.site_code, name: site.facility_name ?? site.site_code, address: site.address })),
-];
-export const WORKSITE_TIMEZONE = "America/Detroit" as const;
+export const WORKSITE_OPTIONS = buildWorksiteOptions(catalog.facilities);
+export { WORKSITE_TIMEZONE };
 export const findWorksite = (code: string) => WORKSITE_OPTIONS.find(site => site.code === code);
 const weekdays = [
   ['SUN','Sunday','الأحد','الاحد'],['MON','Monday','الاثنين','الإثنين'],['TUE','Tuesday','الثلاثاء'],
@@ -56,4 +52,6 @@ export type WorksiteChangeRow = {
 };
 export type WorksiteChangeData = {
   rows: WorksiteChangeRow[]; counts: { pending: number; confirmed: number }; total: number; page: number; page_size: number;
+  /** Same-snapshot detail requested by an open drawer, including off-page history. */
+  selected?: WorksiteChangeRow | null;
 };

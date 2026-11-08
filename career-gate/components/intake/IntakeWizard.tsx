@@ -17,7 +17,7 @@ import {
 } from "@/components/forms/ProfileFields";
 import { DuplicateNotice } from "@/components/public/DuplicateNotice";
 import { Button } from "@/components/ui/Button";
-import { options } from "@/lib/catalog";
+import { options } from "@/lib/catalog-display";
 import { DOC_LABELS, DOC_MAX_BYTES, DOC_TYPES } from "@/lib/domain";
 import { ACCURACY_DISCLAIMER, AUTHORIZATION_TEXT, AUTHORIZATION_VERSION, OFFICE } from "@/lib/office";
 

@@ -1,4 +1,4 @@
-import { jobKey, options, type Option, type Selection } from "@/lib/catalog";
+import { jobKey, options, type Option, type Selection } from "@/lib/catalog-display";
 
 export type PrefState = {
   cities: string[];

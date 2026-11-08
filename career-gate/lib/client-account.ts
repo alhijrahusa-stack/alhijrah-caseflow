@@ -1,5 +1,6 @@
 import "server-only";
 import { withStaff, type StaffSession } from "@/lib/auth";
+import { sqlUuidLiteral } from "@/lib/sql-uuid-literal";
 import { LEDGER_JSON, normalizeLedger, type PaymentTransactionRow } from "@/lib/accounting-ledger-read";
 import { BALANCE_NET_FEE, CLIENT_FIELD, DISCOUNT_AMOUNT } from "@/lib/accounting-schema";
 
@@ -32,6 +33,7 @@ export type ClientAccountSummary = {
 } | null;
 
 export async function clientAccountSummary(session: StaffSession, clientId: string): Promise<ClientAccountSummary> {
+  const readId = sqlUuidLiteral(clientId);
   return withStaff(session, async (tx) => {
     const [row] = await tx`
       select b.fee_amount,${tx.unsafe(DISCOUNT_AMOUNT("b"))} discount_amount,${tx.unsafe(BALANCE_NET_FEE("b"))} net_fee,
@@ -63,7 +65,7 @@ export async function clientAccountSummary(session: StaffSession, clientId: stri
       -- where no commission exists would name the wrong earner.
       left join staff owner on owner.id=cm.employee_id
       left join staff completer on completer.id=${tx.unsafe(CLIENT_FIELD("c", "application_completed_by"))}::uuid
-      where a.client_id=${clientId}`;
+      where a.client_id=${tx.unsafe(readId)}`;
     if (!row) return null;
     // Commission is compensation data and the Accounting screen is management-only,
     // so the ledger detail is withheld from a non-management session rather than
