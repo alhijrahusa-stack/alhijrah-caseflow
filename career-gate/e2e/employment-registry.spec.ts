@@ -81,6 +81,7 @@ test("legacy records remain unconfirmed until an assigned employee confirms the 
     await page.getByRole("button", { name: "Move now ↗", exact: true }).click();
     await expect.poll(async () => (await db()`select operational_location from clients where id=${file.id}`)[0].operational_location).toBe("account_setup");
     await page.goto(`/staff/clients?view=completed&q=${encodeURIComponent(file.ref)}`);
+    await expect(page.getByRole("heading", { name: "Confirmed Employment & Records", exact: true })).toBeVisible();
     await expect(page.locator(`a[href="/staff/client/${file.id}"]`)).toHaveCount(0);
     await page.goto(`/staff/clients?stage=account_setup&q=${encodeURIComponent(file.ref)}`);
     await expect(page.getByRole("link", { name: file.name, exact: true })).toBeVisible();
@@ -128,6 +129,7 @@ test("actual-start confirmation enforces scope, past calendar dates, exact versi
     expect(managerDecision.status(), await managerDecision.text()).toBe(200);
     expect((await managerDecision.json()).confirmation.confirmed_by_name).toBe("TEST Manager");
     const privateRegistry = await staffContext.request.get(`/staff/clients?view=completed&q=${hidden.ref}`);
+    expect(privateRegistry.status()).toBe(200);
     expect(await privateRegistry.text()).not.toContain(hidden.name);
   } finally { await Promise.allSettled([staffContext.close(), managerContext.close()]); }
 });
@@ -149,7 +151,7 @@ test("year and confirmation filters export the same server view, while global se
     await page.goto(`/staff/clients?view=completed&q=${encodeURIComponent(marker)}`);
     await expect(page.locator("article.cg-registry-card")).toHaveCount(3);
     await expect(page.getByRole("link", { name: "New Client", exact: true })).toHaveCount(1);
-    await expect(page.locator(".staff-quick-search input:visible")).toHaveCount(1);
+    await expect(page.locator('.staff-quick-search input[type="search"]:visible')).toHaveCount(1);
     await expect(page.locator('input[name="q"]:visible')).toHaveCount(0);
     await page.getByTestId("registry-filters").locator("summary").click();
     await selectChoice(page.getByRole("combobox", { name: "Employment year", exact: true }), { value: "2026" });
@@ -204,6 +206,7 @@ test("changing a worksite updates the planned start without rewriting confirmed 
     expect(new Date(history.confirmed_at).toISOString()).toBe(prior.confirmed_at);
     const page = await context.newPage();
     await page.goto(`/staff/clients?view=completed&q=${file.ref}`);
+    await expect(page.getByRole("heading", { name: "Confirmed Employment & Records", exact: true })).toBeVisible();
     await expect(page.locator(`a[href="/staff/client/${file.id}"]`)).toHaveCount(0);
     await move(context, file.id, "completed");
     await page.goto(`/staff/clients?view=completed&q=${file.ref}`);
