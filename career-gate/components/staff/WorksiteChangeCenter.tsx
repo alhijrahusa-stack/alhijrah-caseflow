@@ -140,7 +140,8 @@ export function WorksiteChangeCenter({ initial, viewerId }: { initial: WorksiteC
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error?.message ?? "The latest file is unavailable");
     const next = (result.data as WorksiteChangeData).rows.find(item => row.id ? item.id === row.id : item.client_id === row.client_id);
-    if (next && sequence === selectedSequence.current) { setSelected(next); selectedRef.current = next; }
+    const current = selectedRef.current;
+    if (next && sequence === selectedSequence.current && current?.client_id === row.client_id && current.id === row.id) { setSelected(next); selectedRef.current = next; }
     return next ?? null;
   }, []);
 
@@ -195,7 +196,7 @@ export function WorksiteChangeCenter({ initial, viewerId }: { initial: WorksiteC
     if (!selected || !draft || busyRef.current || intentRef.current?.client_id === selected.client_id) return;
     const next = { ...draft, ...patch }; setDraft(next); draftStore.current[selected.client_id] = next; persistDraft();
   };
-  const close = () => { if (!busyRef.current) { setSelected(null); selectedRef.current = null; setError(""); setConflict(false); } };
+  const close = () => { if (!busyRef.current) { selectedSequence.current++; setSelected(null); selectedRef.current = null; setError(""); setConflict(false); } };
 
   async function submit(operation: Operation) {
     if (!selected || !draft || busyRef.current || conflict) return;

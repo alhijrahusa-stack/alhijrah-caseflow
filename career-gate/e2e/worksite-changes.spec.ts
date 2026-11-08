@@ -41,6 +41,7 @@ async function openFile(page: Page, ref: string, name: string) {
 test("assigned employee moves one complete file, confirms the actual site and schedule, then routes it to Completed Files", async ({ browser, request, baseURL }, testInfo) => {
   const file = await newPassedFile(request, "Worksite lifecycle");
   const context = await browser.newContext({ baseURL, viewport: { width: 1440, height: 1000 } });
+  let releaseDelayedRead: (() => void) | undefined;
   try {
     await signIn(context, baseURL!, "staff");
     const page = await context.newPage();
@@ -130,13 +131,35 @@ test("assigned employee moves one complete file, confirms the actual site and sc
     await page.screenshot({ path: process.env.WORKSITE_QA_SCREENSHOTS ? join(process.env.WORKSITE_QA_SCREENSHOTS, "worksite-mobile.png") : testInfo.outputPath("worksite-confirmation-mobile.png"), animations: "disabled" });
     await page.setViewportSize({ width: 1440, height: 1000 });
     await expect(workspace.getByRole("combobox", { name: "Workflow destination", exact: true })).toBeVisible();
+    // A late live read must refresh data without reopening a workspace the
+    // employee closed. Delay the real detail response to make the race certain.
+    let detailReadHeld = false;
+    const delayedRead = new Promise<void>(resolve => { releaseDelayedRead = resolve; });
+    await page.route("**/api/staff/worksite-changes?**", async route => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.get("tab") !== "confirmed" || url.searchParams.get("q") !== file.ref) { await route.continue(); return; }
+      const response = await route.fetch();
+      detailReadHeld = true;
+      await delayedRead;
+      await route.fulfill({ response });
+    });
     await selectChoice(workspace.getByRole("combobox", { name: "Workflow destination", exact: true }), { value: "completed" });
     await workspace.getByRole("button", { name: "Move now ↗", exact: true }).click();
     await expect.poll(async () => {
       const [row] = await db()`select operational_location from clients where id=${file.clientId}`;
       return row.operational_location;
     }).toBe("completed");
+    await expect.poll(() => detailReadHeld).toBe(true);
     await workspace.getByRole("button", { name: "Close worksite change", exact: true }).click();
+    await expect(workspace).toHaveCount(0);
+    const readFinished = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname === "/api/staff/worksite-changes" && url.searchParams.get("tab") === "confirmed" && url.searchParams.get("q") === file.ref;
+    });
+    releaseDelayedRead!();
+    await readFinished;
+    await expect(workspace).toHaveCount(0);
+    await page.unroute("**/api/staff/worksite-changes?**");
     await page.getByTestId("worksite-tab-pending").click();
     await expect(page.getByRole("button", { name: `Review worksite change ${file.ref}`, exact: true })).toHaveCount(0);
     await page.getByTestId("worksite-tab-confirmed").click();
@@ -150,7 +173,7 @@ test("assigned employee moves one complete file, confirms the actual site and sc
     expect(retained.count).toBe(1);
     expect(historyCount.count).toBe(1);
     expect(errors).toEqual([]);
-  } finally { await context.close(); }
+  } finally { releaseDelayedRead?.(); await context.close(); }
 });
 
 test("manager drafts survive filtering, reload and a rejected stale save on a usable mobile drawer", async ({ browser, request, baseURL }, testInfo) => {
