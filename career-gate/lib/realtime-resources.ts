@@ -85,7 +85,7 @@ export const ENTITY_RESOURCES: Record<RealtimeEntity, readonly Resource[]> = {
   client_import_cases: ["import_cases", "activity"],
   manager_inbox: ["manager_inbox", "client_identity", "pipeline", "attention", "activity"],
   worksite_changes: ["placement", "activity", "client_identity"],
-  notifications: ["activity"],
+  notifications: ["activity", "placement"],
 };
 
 function isEntity(table: string): table is RealtimeEntity {
@@ -281,7 +281,7 @@ export const RESOURCE_PAYLOADS: Record<Resource, readonly string[]> = {
   next_action: ["nextAction"],
   // The client file's insight timeline: the log, the last agent run and the
   // notification record all move together.
-  activity: ["activity", "agentRun", "notifications", "worksiteChanges"],
+  activity: ["activity", "agentRun", "notifications"],
   attention: [],
   finance: ["account"],
   placement: ["client", "worksiteChanges"],
