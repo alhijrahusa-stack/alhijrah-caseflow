@@ -45,7 +45,7 @@ test("manager hydration reuses its server snapshot and foreground events share o
   const resumed = page.waitForResponse(response => new URL(response.url()).pathname === "/api/staff/dashboard-summary");
   await page.getByTestId("manager-section-rail").getByRole("link", { name: "Clients", exact: true }).click();
   await resumed;
-  await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Clients Registry", exact: true })).toBeVisible();
   expect(reads.filter(path => path === "/api/staff/dashboard-summary")).toHaveLength(1);
   expect(errors).toEqual([]);
 });

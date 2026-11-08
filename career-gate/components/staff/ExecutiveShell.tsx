@@ -6,10 +6,12 @@ import { createContext,useContext,useEffect,useRef,useState,type ReactNode } fro
 import type { ExecutiveSummary } from "@/lib/executive-summary";
 import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { RECOVERY_EVENT,subscribeResources } from "@/components/staff/realtime/update-bus";
-import { timeOnly } from "@/lib/format";
+import { timeOnly, toLocalInput } from "@/lib/format";
+import { WORKFLOW_GROUPS, SPECIAL_WORKFLOW_DESTINATIONS, PRIORITY_VIEW } from "@/lib/workflow-registry";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import { DeferredOperationalAssistant } from "@/components/staff/DeferredOperationalAssistant";
 import { SessionDraftBoundary } from "@/components/staff/SessionDraftBoundary";
+import { useWorkspaceSearch } from "@/components/staff/WorkspaceSearchProvider";
 
 const Context=createContext<ExecutiveSummary|null>(null);
 export function useExecutiveSummary(){const value=useContext(Context);if(!value)throw new Error("Executive summary provider missing");return value;}
@@ -34,8 +36,19 @@ function NavigationIcon({ icon }: { icon: string }) {
   return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">{NAVIGATION_PATHS[icon] ?? <path d="M4 12h16"/>}</svg>;
 }
 
+function NavigationCount({ value, urgent = false }: { value: number | undefined; urgent?: boolean }) {
+  const [seen, setSeen] = useState(value);
+  const [revision, setRevision] = useState(0);
+  if (seen !== value) { setSeen(value); setRevision(current => current + 1); }
+  return <b className={`royal-nav-badge${urgent ? " royal-urgent-micro-badge" : ""}`} dir="ltr" aria-label={urgent ? `${value ?? 0} urgent files` : undefined}>
+    {urgent && <span aria-hidden="true">✦</span>}<span key={revision} className={revision ? "royal-counter-changed" : undefined}>{value == null ? "—" : value.toLocaleString("en-US")}</span>
+    {revision > 0 && <i key={`pulse-${revision}`} className="royal-counter-confirmed-pulse" aria-hidden="true"/>}
+  </b>;
+}
+
 export function ExecutiveShell({initial,management,header,children}:{initial:ExecutiveSummary;management:boolean;header:ReactNode;children:ReactNode}){
   const { language, dir, t } = useStaffLanguage();
+  const { prepareNavigation } = useWorkspaceSearch();
   const [data,setData]=useState(initial);
   const [seed,setSeed]=useState(initial);
   if(seed!==initial){setSeed(initial);setData(initial);}
@@ -106,20 +119,21 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
       window.removeEventListener('career-gate:executive-refresh',onExecutiveChange);window.removeEventListener(RECOVERY_EVENT,queue);
       window.removeEventListener('focus',visible);document.removeEventListener('visibilitychange',visible);};
   },[pathname,spatialMode]);
-  const active=(href:string)=>{
-    if(href==='/staff')return pathname==='/staff';
-    if(href==='/staff/clients')return pathname==='/staff/clients'&&(currentStage==='new_intake'||(!currentStage&&!params.get('view')));
-    const [path,query]=href.split('?');
-    if(path!==pathname)return false;
-    if(!query)return true;
-    return [...new URLSearchParams(query)].every(([key,value])=>params.get(key)===value);
+  const active = (href: string) => {
+    if (href === "/staff") return pathname === "/staff";
+    const [path, query] = href.split("?");
+    if (path !== pathname) return false;
+    if (href === WORKFLOW_GROUPS[0].href && pathname === "/staff/clients" && !currentStage && !params.get("view") && !params.get("group") && params.get("urgent") !== "1") return true;
+    if (href === WORKFLOW_GROUPS.find(group => group.id === "paperwork")?.href && ["payment_required", "paperwork_pending"].includes(currentStage ?? "")) return true;
+    if (!query) return true;
+    return [...new URLSearchParams(query)].every(([key, value]) => params.get(key) === value);
   };
-  const nav = (label: string, arabic: string, href: string, icon: string, count?: number, attention = false) => (
+  const nav = (label: string, arabic: string, href: string, icon: string, count?: number, urgentCount?: number, registry = false) => (
     <Link key={href} href={href} prefetch={false} aria-label={t(label, arabic)} aria-current={active(href) ? "page" : undefined}
-      title={t(label, arabic)} onClick={() => setMobile(false)} className="royal-nav-item staff-nav-link">
+      title={t(label, arabic)} onClick={() => setMobile(false)} onNavigate={() => prepareNavigation(href)} className={`royal-nav-item staff-nav-link${registry ? " royal-final-registry-link" : ""}`}>
       <span className="royal-nav-icon" aria-hidden="true"><NavigationIcon icon={icon}/></span>
-      <span className="royal-nav-copy"><span>{t(label, arabic)}</span><small lang={language === "en" ? "ar" : "en"}>{t(arabic, label)}</small></span>
-      {count != null && <b className={`royal-nav-badge${attention && count > 0 ? " is-attention" : ""}`} dir="ltr">{count}</b>}
+      <span className="royal-nav-copy"><span>{t(label, arabic)}</span><small lang={language === "en" ? "ar" : "en"}>{t(arabic, label)}</small>{registry && <small className="royal-registry-year" title={t("Office year · choose a year inside the registry", "سنة المكتب · يمكن اختيار السنة داخل السجل")}>{/^\d{4}$/.test(params.get("year") ?? "") && (params.get("view") === "completed" || currentStage === "completed") ? params.get("year") : toLocalInput(data.generated_at).slice(0, 4)}</small>}</span>
+      <span className="royal-nav-counts">{count != null && <NavigationCount value={count}/>}{urgentCount != null && urgentCount > 0 && <NavigationCount value={urgentCount} urgent/>}</span>
     </Link>
   );
   const ranked = [...data.team].sort((a, b) => b.overdue_tasks - a.overdue_tasks || (b.active_clients + b.open_tasks) - (a.active_clients + a.open_tasks)).slice(0, 3);
@@ -143,10 +157,13 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
         <p className="royal-group-label">{t("Executive", "القيادة التنفيذية")}</p>
         {nav("Dashboard", "مركز القيادة", "/staff", "◈")}
         {management && nav("Reports", "التقارير الاستراتيجية", "/staff/reports", "▥")}
-        {management && nav("Manager's Inbox", "صندوق وارد المدير", "/staff/manager-inbox", "↳")}
-        <div className="royal-group-heading"><p className="royal-group-label">{t("Live workflow", "مسار العمل الحي")}</p><Link href="/staff/pipeline" prefetch={false} aria-label={t("Pipeline", "مسار العمل")}>↗</Link></div>
-        {data.stages.map((stage, index) => nav(index === 0 ? "Clients" : stage.label, stage.labelAr, index === 0 ? "/staff/clients" : stage.href, String(index + 1).padStart(2, "0"), stage.total, index === 0 || index === 3))}
-        {nav("Worksite Changes · Salah Almoraisy", "تغيير موقع العمل · قسم صلاح المريسي", "/staff/worksite-changes", "⇄")}
+        {management && nav("Manager's Inbox", "صندوق وارد المدير", "/staff/manager-inbox", "↳", undefined, data.manager_urgent)}
+        <div className="royal-group-heading"><p className="royal-group-label">{t("Live workflow", "مسار العمل الحي")}</p><Link href={PRIORITY_VIEW.href} prefetch={false} className="royal-priority-quick-view" data-active={params.get("urgent") === "1" || currentStage === "urgent"} onClick={() => setMobile(false)} onNavigate={() => prepareNavigation(PRIORITY_VIEW.href)} aria-label={t("Urgent priority filter", "فلتر ملفات الأولوية القصوى")} title={t("Urgent priority · all active sections", "الأولوية القصوى · جميع الأقسام النشطة")}><span aria-hidden="true">✦</span><NavigationCount value={data.urgent_total}/></Link><Link href="/staff/pipeline" prefetch={false} aria-label={t("Pipeline", "مسار العمل")}>↗</Link></div>
+        {WORKFLOW_GROUPS.map((group, index) => {
+          const live = data.stages.find(stage => stage.id === group.id);
+          return nav(group.label, group.labelAr, group.href, String(index + 1).padStart(2, "0"), live?.total, live?.urgent_count, group.sidebarOnly);
+        })}
+        {SPECIAL_WORKFLOW_DESTINATIONS.map(destination => nav(destination.label, destination.labelAr, destination.href, "⇄", data.worksite_total, data.worksite_urgent))}
         <p className="royal-group-label">{t("Operations", "العمليات")}</p>
         {nav("Staff", "حمل الفريق", "/staff/staff?tab=team", "♧")}
         {nav("Tasks", "المهام والمتابعات", "/staff/tasks", "☷")}

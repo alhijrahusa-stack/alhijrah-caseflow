@@ -100,3 +100,72 @@ html:has(.registry-page) .royal-topbar{border-bottom-color:#d4af3766;box-shadow:
 .registry-page .registry-client-actions .cg-workflow-control>button{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px 6px;min-width:0;max-width:100%;width:100%;white-space:normal!important;overflow-wrap:anywhere;line-height:1.6;padding:8px 10px}
 .registry-page .registry-client-actions .cg-workflow-control>button>span{min-width:0;max-width:100%;overflow-wrap:anywhere;white-space:normal}
 @media(max-width:570px){.registry-page .registry-bulk-controls{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;gap:11px}.registry-page .registry-bulk-controls>span{font-size:11px}.registry-page .registry-bulk-controls>label{display:flex;flex-direction:column;gap:5px;min-width:0;width:100%;font-size:11px;line-height:1.5}.registry-page .registry-bulk-controls>label .royal-select-trigger{width:100%;min-width:0;min-height:41px}.registry-page .registry-bulk-controls>button{width:100%;min-width:0;min-height:40px;font-size:11px}.registry-page .registry-client-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.registry-page .registry-client-actions>*{min-width:0;max-width:100%;width:100%}.registry-page .registry-client-actions .cg-workflow-control{padding:10px}.registry-page .registry-client-actions .cg-workflow-control>button{padding:8px;font-size:11px}}
+
+/* Unified workflow groups and sidebar-only employment registry. */
+.registry-clean-page .registry-short-header{display:flex;align-items:center;min-height:0;padding-block:12px!important}
+.registry-clean-page .registry-short-header h1{font-size:clamp(22px,2vw,30px);line-height:1.35;margin:0}
+.registry-title-context{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:6px}
+.registry-count-tag,.registry-stage-tag,.registry-year-badge{display:inline-flex;align-items:center;gap:5px;border:1px solid #d4af3738;border-radius:999px;padding:4px 9px;font-size:10px;line-height:1.4;background:#10264464;color:#cbd9eb}
+.registry-count-tag b{font-variant-numeric:tabular-nums;color:#fff;font-weight:800}
+.registry-year-badge{color:#e7ce93;text-decoration:none;background:#d4af370a}
+.registry-year-badge[data-active=true]{background:#d4af3726;border-color:#d4af3780}
+.registry-clean-page .registry-active-stage-dock{grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;gap:7px}
+.registry-stage-group{position:relative;min-width:0;display:flex;flex-direction:column;gap:3px}
+.registry-stage-group>.registry-stage-tab{flex:1;min-height:68px!important;position:relative;gap:6px!important}
+.registry-stage-group .registry-stage-label{font-size:11px;line-height:1.5}
+.registry-payment-leaves{display:flex;align-items:center;gap:3px;min-width:0}
+.registry-payment-leaves a{flex:1;display:flex;align-items:center;justify-content:space-between;gap:3px;padding:4px;border:1px solid #d4af3730;border-radius:7px;background:#13264170;font-size:8px;color:#cedcf0;line-height:1.4;min-width:0}
+.registry-payment-leaves a[aria-current=page]{color:#f5dfaa;border-color:#d4af3780;background:#d4af3715}
+.registry-payment-leaves a span{font-weight:800;font-variant-numeric:tabular-nums}
+.registry-stage-urgent{display:inline-flex;align-items:center;gap:3px;color:#e8cb88;font-size:9px;line-height:1.2}
+.registry-live-count{display:inline-flex;position:relative;align-items:center;gap:6px}
+.registry-count-pulse{width:4px;height:4px;border-radius:50%;background:#34d399;animation:registry-count-change .4s ease-out 2}
+@keyframes registry-count-change{0%,100%{opacity:.25}50%{opacity:1}}
+.registry-clean-page .registry-unified-toolbar{position:relative;z-index:20;padding-block:9px!important}
+.registry-clean-page .registry-unified-toolbar .registry-toolbar-top{margin:0;padding:0;border:0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.registry-scope-label{font-size:11px;font-weight:650;color:#c7d8ee;min-width:0;overflow-wrap:anywhere}
+.registry-compact-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-inline-start:auto}
+.registry-compact-tools summary{list-style:none;cursor:pointer;user-select:none;min-height:36px;display:inline-flex;align-items:center;gap:6px;font-size:11px}
+.registry-compact-tools summary::-webkit-details-marker{display:none}
+.registry-priority-filter[data-active=true]{background:#d4af3724;border-color:#d4af378a;color:#f5d993}
+.registry-actions{position:relative}
+.registry-actions-popover{position:absolute;inset-inline-end:0;top:calc(100% + 8px);z-index:50;display:grid;gap:5px;width:min(245px,calc(100vw - 70px));padding:8px;border:1px solid #d4af3750;border-radius:13px;background:#10213cf7;box-shadow:0 12px 32px #02081770}
+.registry-actions-popover .cg-command-button{display:block;text-align:start;width:100%;padding:10px;font-size:11px;min-height:38px}
+.registry-filter-popover{position:absolute;inset-inline:0;top:calc(100% + 7px);z-index:45;padding:14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:12px;border:1px solid #d4af3750;border-radius:15px;background:#10213cf7;box-shadow:0 14px 32px #02081770}
+.registry-filter-popover .registry-filter{display:flex;flex-direction:column;gap:4px;min-width:0}
+.registry-filter-note{grid-column:1/-1;color:#b7c7db;font-size:10px;line-height:1.6;margin:0}
+.registry-clean-page .registry-context-note{font-size:11px;line-height:1.7;color:#b2c7dd;margin:0;padding-inline:3px}
+.registry-unified-toolbar>.registry-toolbar-meta{font-size:10px;line-height:1.6;margin-top:7px;color:#b9ccdf}
+.employment-registry-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;min-width:0}
+.employment-registry-card{padding:17px;min-width:0;border-radius:19px;display:flex;flex-direction:column;gap:13px}
+.employment-record-identity{display:flex;align-items:flex-start;gap:10px;min-width:0;flex-wrap:wrap}
+.employment-record-identity>div{flex:1;min-width:150px}
+.employment-record-identity .registry-name-link{display:block;font-weight:750;font-size:17px;line-height:1.5;overflow-wrap:anywhere;color:#f1f8ff}
+.employment-record-identity .registry-ref-link{display:block;font-family:monospace;font-size:11px;margin-top:3px;color:#8fdbe8}
+.employment-record-identity p{margin:4px 0 0;color:#b5c9dc;font-size:11px;overflow-wrap:anywhere}
+.employment-confirmation-badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;line-height:1.6;font-size:10px;font-weight:650;max-width:100%;border:1px solid #d4af3740;background:#d4af3710;color:#e7ca8c}
+.employment-confirmation-badge.is-confirmed{background:#34d39910;border-color:#34d39940;color:#a5ebd4}
+.employment-record-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 15px;border-top:1px solid #d4af3738;padding-top:12px;margin:0}
+.employment-record-facts>div{min-width:0}
+.employment-record-facts dt{color:#a9bfd5;font-size:10px;line-height:1.6}
+.employment-record-facts dd{color:#ecf4ff;font-size:12px;font-weight:600;line-height:1.7;margin:3px 0 0;overflow-wrap:anywhere}
+.employment-record-address{font-size:11px;line-height:1.7;color:#b6c9de;margin:0;overflow-wrap:anywhere}
+.employment-record-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto}
+.employment-record-actions .cg-command-button{font-size:10px;padding:8px 10px;min-height:36px}
+.employment-registry-card .cg-workflow-control{margin-top:0;padding-top:9px;border-top:1px solid #d4af3738;min-width:0}
+.employment-confirmation-form{display:grid;gap:17px;padding-block:5px}
+.employment-confirmation-form>p{font-size:12px;color:#bdd0e6;line-height:1.8;margin:0}
+.employment-confirmation-form>label{display:grid;gap:6px;color:#dbe8f7;font-size:12px;min-width:0}
+.employment-confirmation-form>label.employment-attestation{display:flex;align-items:flex-start;gap:9px;line-height:1.8}
+.employment-attestation input{margin-top:5px;flex:none;width:17px;height:17px;accent-color:#34d399}
+.employment-confirmation-form .input{min-height:42px;min-width:0;width:100%}
+.registry-clean-page summary:focus-visible,.registry-clean-page a:focus-visible,.registry-clean-page button:focus-visible{outline:2px solid #e8c97b;outline-offset:3px}
+@media(max-width:1180px){.registry-clean-page .registry-active-stage-dock{grid-template-columns:repeat(5,minmax(0,1fr))}.registry-stage-group .registry-stage-label{font-size:10px}.registry-payment-leaves{flex-direction:column;align-items:stretch}.registry-payment-leaves a{font-size:8px}}
+@media(max-width:800px){.registry-filter-popover{grid-template-columns:repeat(2,minmax(0,1fr))}.employment-registry-cards{grid-template-columns:minmax(0,1fr)}.registry-clean-page .registry-active-stage-dock{grid-template-columns:repeat(3,minmax(0,1fr))}.registry-stage-group .registry-stage-label{font-size:11px}}
+@media(max-width:570px){.registry-clean-page .registry-active-stage-dock{grid-template-columns:repeat(2,minmax(0,1fr))}.registry-clean-page .registry-short-header h1{font-size:23px}.registry-clean-page .registry-stage-group>.registry-stage-tab{min-height:66px!important}.registry-compact-tools{margin:0;gap:5px;width:100%}.registry-compact-tools>.cg-command-button,.registry-compact-tools>details>summary{font-size:10px;padding:8px;min-height:37px}.registry-filter-popover{grid-template-columns:minmax(0,1fr);max-height:65vh;overflow:auto;padding:12px}.employment-registry-card{padding:13px}.employment-record-identity>div{min-width:120px}.employment-confirmation-badge{font-size:9px}.employment-record-facts{gap:12px 8px}.employment-record-facts dd{font-size:11px}.employment-record-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.employment-record-actions .employment-confirm-button{grid-column:1/-1}.employment-record-actions .cg-command-button{font-size:10px;padding:8px 6px;white-space:normal;text-align:center}.registry-title-context{gap:5px}.registry-count-tag,.registry-stage-tag,.registry-year-badge{font-size:9px}}
+@media(prefers-reduced-motion:reduce){.registry-count-pulse{animation:none}.registry-stage-tab::before{transition:none}}
+
+@media(max-width:570px){.registry-clean-page .registry-active-stage-dock>.registry-stage-group:last-child{grid-column:1/-1}.registry-clean-page .registry-active-stage-dock .registry-payment-leaves{flex-direction:row}}
+
+.employment-record-delete{min-width:0}.employment-record-delete .archive-client-button{font-size:10px;min-height:36px}.employment-record-delete:has(form){flex-basis:100%;grid-column:1/-1}.employment-record-delete .archive-delete-form{display:flex;flex-wrap:wrap;gap:8px;min-width:0}.employment-record-delete .archive-delete-form .input{min-width:0;width:100%}
+.employment-record-secondary{border-top:1px solid #d4af3738;padding-top:9px}.employment-record-secondary>summary{color:#c8d8e9;font-size:11px;cursor:pointer;line-height:1.7}.employment-record-secondary .employment-record-facts{margin-top:10px;border:0;padding-top:0}

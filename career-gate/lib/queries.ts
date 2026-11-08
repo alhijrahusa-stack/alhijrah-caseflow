@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { withStaff, type StaffSession, type Tx } from "@/lib/auth";
+import { CURRENT_EMPLOYMENT_CONFIRMATION_SQL } from "@/lib/employment-registry-read";
 import { sqlUuidLiteral, type SqlUuidLiteral } from "@/lib/sql-uuid-literal";
 
 // Every staff read runs under RLS as the signed-in staff member.
@@ -114,8 +115,10 @@ export async function clientCities(s: StaffSession) {
  */
 const CLIENT_FILE_SLICE_READERS = {
   client: (tx: Tx, id: SqlUuidLiteral) => tx`
-      select c.*, c.updated_at::text as updated_at, s.display_name as assigned_name, cb.display_name as created_by_name, career_gate_private.client_review_stamp(c.id) as review_stamp
-      from clients c left join staff s on s.id = c.assigned_staff left join staff cb on cb.id = c.created_by where c.id = ${tx.unsafe(id)}`,
+      select c.*, c.updated_at::text as updated_at, s.display_name as assigned_name, cb.display_name as created_by_name, career_gate_private.client_review_stamp(c.id) as review_stamp,
+        (employment.id is not null) employment_confirmed,employment.actual_start_date::text actual_start_date,
+        employment.confirmed_at employment_confirmed_at,employment.confirmed_by_name employment_confirmed_by_name
+      from clients c left join staff s on s.id = c.assigned_staff left join staff cb on cb.id = c.created_by left join lateral (${tx.unsafe(CURRENT_EMPLOYMENT_CONFIRMATION_SQL)}) employment on true where c.id = ${tx.unsafe(id)}`,
   employment: (tx: Tx, id: SqlUuidLiteral) =>
     tx`select * from employment_history where client_id = ${tx.unsafe(id)} order by from_date desc nulls last, created_at`,
   preferences: (tx: Tx, id: SqlUuidLiteral) =>
@@ -160,6 +163,7 @@ const CLIENT_FILE_SLICE_READERS = {
            from client_authorizations where client_id = ${tx.unsafe(id)}`,
   notifications: (tx: Tx, id: SqlUuidLiteral) =>
     tx`select channel, template, status, provider, error, sent_at, delivered_at, created_at from notifications where client_id = ${tx.unsafe(id)} order by created_at desc`,
+  employmentConfirmations: (tx: Tx, id: SqlUuidLiteral) => tx`select * from employment_confirmations where client_id=${tx.unsafe(id)} order by confirmed_at desc,id desc limit 100`,
   worksiteChanges: (tx: Tx, id: SqlUuidLiteral) => tx`select w.*,n.status notification_status,n.sent_at,n.error notification_error
     from worksite_changes w left join notifications n on n.id=w.notification_id
     where w.client_id=${tx.unsafe(id)} order by w.created_at desc,w.id desc limit 50`,

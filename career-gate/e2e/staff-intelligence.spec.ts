@@ -116,7 +116,9 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await kpi.click();
     await expect(page).toHaveURL(/completed_this_month=1/);
     await expect(page.getByTestId("client-total")).toContainText(`${count![0]} client`);
-    await page.getByRole("button", { name: "Apply" }).click();
+    await page.getByTestId("registry-filters").locator("summary").click();
+    await expect(page.getByRole("combobox", { name: "Status", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
     await expect(page).toHaveURL(/completed_this_month=1/);
   });
   test("overdue follow-up dashboard KPI matches the actionable queue", async () => {
@@ -142,7 +144,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
     if (await pipeline.count()) {
       await pipeline.click();
       await expect(page).toHaveURL(/view=completed&status=completed/);
-      await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Confirmed Employment & Records", exact: true })).toBeVisible();
     }
   });
 
@@ -166,7 +168,7 @@ test.describe.serial("Staff intelligence surfaces", () => {
     const match = pagination.match(/page ([0-9]+) of ([0-9]+)/);
     expect(match).not.toBeNull();
     expect(match![1]).toBe(match![2]);
-    await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Clients Registry", exact: true })).toBeVisible();
     await page.goto("/staff/clients?view=all&page=garbage");
     await expect(page.getByTestId("client-total")).toContainText("page 1 of");
   });
@@ -179,7 +181,9 @@ test.describe.serial("Staff intelligence surfaces", () => {
     await kpi.click();
     await expect(page).toHaveURL(/assigned=none/);
     await expect(page.getByTestId("client-total")).toContainText(`${count![0]} client`);
-    await page.getByRole("button", { name: "Apply" }).click();
+    await page.getByTestId("registry-filters").locator("summary").click();
+    await expect(page.getByRole("combobox", { name: "Filter by specialist", exact: true })).toHaveAttribute("data-value", "none");
+    await page.keyboard.press("Escape");
     await expect(page).toHaveURL(/assigned=none/);
   });
 

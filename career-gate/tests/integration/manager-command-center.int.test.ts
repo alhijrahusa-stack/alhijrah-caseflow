@@ -88,18 +88,18 @@ beforeAll(async () => {
 });
 afterAll(async () => { await db.end(); });
 
-describe("one operational location across urgent and manager review", () => {
-  it("moves an owned file into Urgent and restores its underlying workflow without duplicating records", async () => {
+describe("independent priority and one operational location across manager review", () => {
+  it("flags an owned file in place and removes priority without changing its workflow or duplicating records", async () => {
     const item = await client();
     expect(await visible(owner, "new_intake", item.ref)).toContain(item.ref);
     await successful(await invoke(owner, dispatch, "/api/staff/client-dispatch", {
       operation: "urgent", client_id: item.id, urgent: true, operation_id: randomUUID(), expected_updated_at: await version(item.id),
     }));
-    expect(await state(item.id)).toMatchObject({ current_status: "new_intake", is_urgent: true, operational_location: "urgent" });
+    expect(await state(item.id)).toMatchObject({ current_status: "new_intake", is_urgent: true, operational_location: "new_intake", assigned_staff: owner.staff.id });
     expect(await visible(owner, "urgent", item.ref)).toEqual([item.ref]);
-    expect(await visible(owner, "new_intake", item.ref)).toEqual([]);
+    expect(await visible(owner, "new_intake", item.ref)).toEqual([item.ref]);
     const general = await operationalClientList(owner, "active", 1, 10, { q: item.ref });
-    expect(general.rows).toHaveLength(0);
+    expect(general.rows.map(row => row.ref)).toEqual([item.ref]);
 
     await successful(await invoke(owner, dispatch, "/api/staff/client-dispatch", {
       operation: "urgent", client_id: item.id, urgent: false, operation_id: randomUUID(), expected_updated_at: await version(item.id),
@@ -125,39 +125,52 @@ describe("one operational location across urgent and manager review", () => {
     expect(await visible(owner, "new_intake", item.ref)).toEqual([item.ref]);
   });
 
-  it("restores an Urgent file after approval without moving and keeps normal stage destinations exclusive", async () => {
+  it("keeps priority through a manager hold and normal routing while the aggregate remains read-only during review", async () => {
     const item = await client();
     await successful(await invoke(owner, dispatch, "/api/staff/client-dispatch", { operation: "urgent", client_id: item.id, urgent: true, operation_id: randomUUID() }));
     const pending = await review(item.id);
-    expect(await visible(owner, "urgent", item.ref)).toEqual([]);
+    expect(await state(item.id)).toMatchObject({ is_urgent: true, operational_location: "manager", manager_review_id: pending.id });
+    expect(await visible(owner, "new_intake", item.ref)).toEqual([]);
+    const aggregate = await operationalClientList(owner, "active", 1, 10, { stage: "urgent", q: item.ref });
+    expect(aggregate.rows).toHaveLength(1);
+    expect(aggregate.rows[0]).toMatchObject({ ref: item.ref, manager_review_id: pending.id, operational_location: "manager", is_urgent: true });
+    for (const actor of [owner, manager]) {
+      const bypass = await invoke(actor, dispatch, "/api/staff/client-dispatch", {
+        operation: "urgent", client_id: item.id, urgent: false, operation_id: randomUUID(), expected_updated_at: await version(item.id),
+      });
+      expect(bypass.status, await bypass.clone().text()).toBe(409);
+      expect(await state(item.id)).toMatchObject({ is_urgent: true, operational_location: "manager", manager_review_id: pending.id });
+    }
     await successful(await decision(pending.id, item.id));
-    expect(await state(item.id)).toMatchObject({ is_urgent: true, operational_location: "urgent" });
+    expect(await state(item.id)).toMatchObject({ is_urgent: true, operational_location: "new_intake", manager_review_id: null });
     await successful(await invoke(manager, operate, "/api/staff/operations", { operation: "bulk_assign", client_ids: [item.id], target_stage: "payment_required" }));
-    expect(await state(item.id)).toMatchObject({ is_urgent: false, operational_location: "payment_required" });
+    expect(await state(item.id)).toMatchObject({ is_urgent: true, operational_location: "payment_required" });
     expect(await visible(owner, "payment_required", item.ref)).toEqual([item.ref]);
     expect(await visible(owner, "paperwork_pending", item.ref)).toEqual([]);
-    expect(await visible(owner, "urgent", item.ref)).toEqual([]);
+    expect(await visible(owner, "urgent", item.ref)).toEqual([item.ref]);
   });
 
-  it("counts actual normal, Urgent and manager locations after every committed transition", async () => {
+  it("counts operational locations and overlapping priority without double-counting originals", async () => {
     const baseline = (await managerInbox(manager)).summary;
     const item = await client();
     expect((await managerInbox(manager)).summary).toEqual({ ...baseline, clients: baseline.clients + 1 });
     await successful(await invoke(owner, dispatch, "/api/staff/client-dispatch", { operation: "urgent", client_id: item.id, urgent: true, operation_id: randomUUID() }));
-    expect((await managerInbox(manager)).summary).toEqual({ ...baseline, urgent: baseline.urgent + 1 });
+    expect((await managerInbox(manager)).summary).toEqual({ ...baseline, clients: baseline.clients + 1, urgent: baseline.urgent + 1 });
     const pending = await review(item.id);
-    expect((await managerInbox(manager)).summary).toEqual({ ...baseline, awaiting_review: baseline.awaiting_review + 1 });
+    expect((await managerInbox(manager)).summary).toEqual({ ...baseline, urgent: baseline.urgent + 1, awaiting_review: baseline.awaiting_review + 1 });
     await successful(await decision(pending.id, item.id, { destination: "completed" }));
     expect((await managerInbox(manager)).summary).toEqual(baseline);
-    expect(await state(item.id)).toMatchObject({ operational_location: "completed", manager_review_id: null });
+    expect(await state(item.id)).toMatchObject({ operational_location: "completed", is_urgent: true, manager_review_id: null });
+    expect(await visible(owner, "urgent", item.ref)).toEqual([]);
+    expect((await db`select count(*)::int n from clients where id=${item.id}`)[0].n).toBe(1);
   });
 
-  it("rejects an Urgent destination for terminal files instead of reporting a move that never occurred", async () => {
-    for (const status of ["completed", "cancelled"] as const) {
+  it("rejects Urgent as a destination for active and terminal files without resolving the review", async () => {
+    for (const status of ["new_intake", "completed", "cancelled"] as const) {
       const item = await client();
       if (status === "completed") {
         await successful(await invoke(manager, operate, "/api/staff/operations", { operation: "bulk_assign", client_ids: [item.id], target_stage: "completed" }));
-      } else {
+      } else if (status === "cancelled") {
         await withStaff(manager, async tx => {
           await tx`select set_config('cg.status_override','Integration fixture for an already cancelled file',true)`;
           await tx`update clients set current_status='cancelled' where id=${item.id}`;
@@ -165,7 +178,7 @@ describe("one operational location across urgent and manager review", () => {
       }
       const pending = await review(item.id);
       const refused = await decision(pending.id, item.id, { destination: "urgent" });
-      expect(refused.status, await refused.clone().text()).toBe(409);
+      expect(refused.status, await refused.clone().text()).toBe(400);
       expect(await state(item.id)).toMatchObject({ current_status: status, operational_location: "manager", manager_review_id: pending.id });
       expect((await db`select status from manager_inbox where id=${pending.id}`)[0].status).toBe("open");
       await successful(await decision(pending.id, item.id));
@@ -243,7 +256,7 @@ describe("dispatch authorization, concurrency and ambiguous-request recovery", (
     expect((await db`select count(*)::int n from activity_log where client_id=${item.id}`)[0].n).toBe(activity);
     const conflict = await invoke(owner, dispatch, "/api/staff/client-dispatch", { ...body, urgent: false });
     expect(conflict.status, await conflict.clone().text()).toBe(409);
-    expect(await state(item.id)).toMatchObject({ operational_location: "urgent" });
+    expect(await state(item.id)).toMatchObject({ operational_location: "new_intake", is_urgent: true });
   });
 
   it("does not accept a stale state-changing dispatch or a non-manager review decision", async () => {
@@ -324,8 +337,9 @@ describe("duplicate review and recoverable removal", () => {
     const reviewId = String(submitted.review_id ?? submitted.id);
     await successful(await decision(reviewId, first.id, { action: "not_duplicate" }));
     expect(await state(first.id)).toMatchObject({ operational_location: "new_intake", manager_review_id: null, deleted_at: null });
-    expect(await state(second.id)).toMatchObject({ operational_location: "urgent", manager_review_id: null, deleted_at: null });
+    expect(await state(second.id)).toMatchObject({ operational_location: "new_intake", is_urgent: true, manager_review_id: null, deleted_at: null });
     expect(await visible(owner, "new_intake", first.ref)).toEqual([first.ref]);
+    expect(await visible(owner, "new_intake", second.ref)).toEqual([second.ref]);
     expect(await visible(owner, "urgent", second.ref)).toEqual([second.ref]);
   });
 

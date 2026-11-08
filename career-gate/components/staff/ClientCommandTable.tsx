@@ -14,6 +14,7 @@ import { STATUS_LABELS, type Status } from "@/lib/domain";
 import { arabicStaffLabel } from "@/lib/staff-ui-labels";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTargetedMutationBatch } from "@/components/staff/realtime/useTargetedMutation";
+import { ClientStageMarker } from "@/components/staff/ClientStageMarker";
 
 const Client360Drawer = dynamic(() => import("@/components/staff/Client360Drawer").then(module => module.Client360Drawer), {
  ssr: false,
@@ -75,7 +76,7 @@ export function ClientCommandTable({clients,staff,management,query=""}:{clients:
  const statusLabel=(s:string)=>{const en=STATUS_LABELS[s as Status]??s.replaceAll("_"," ");return t(en,arabicStaffLabel(en));};
  const badge=(s:string)=>{const fresh=s==="new_intake",progress=s==="application_in_progress";return <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold capitalize shadow-[inset_0_1px_rgba(255,255,255,.08)] ${fresh?"border-cyan-300/35 bg-cyan-400/10 text-cyan-200":progress?"border-amber-300/35 bg-gradient-to-r from-orange-400/15 to-amber-300/10 text-amber-200":"border-amber-300/20 bg-amber-200/10 text-amber-100"}`}>{fresh&&<span className="cg-status-dot"/>}{statusLabel(s)}{progress&&<span className="ml-1 h-0.5 w-6 rounded-full bg-gradient-to-r from-orange-300 to-amber-100/30"/>}</span>};
  const cards=<div className="royal-client-rows grid min-w-0 gap-3" data-testid="client-registry-responsive-cards" aria-busy={typing}>
-   {matching.map(c=><article key={c.id} className={`cg-registry-card registry-fluid-row ${c.is_urgent ? "is-urgent" : ""}`}>
+   {matching.map(c=><article key={c.id} className={`cg-registry-card registry-fluid-row ${c.is_urgent ? "is-urgent" : ""}`} data-priority={c.is_urgent ? "urgent" : "normal"}>
      <div className="registry-client-identity" dir="ltr">
        {management&&<input type="checkbox" aria-label={`Select ${c.full_name}`} checked={selected.includes(c.id)} onChange={()=>toggle(c.id)} disabled={!!c.manager_review_id || ["completed","cancelled"].includes(c.current_status)} className="registry-row-checkbox"/>}
        <span aria-hidden="true" className="registry-client-avatar">{c.full_name.trim().split(/\s+/).slice(0,2).map(x=>x.charAt(0)).join("").toUpperCase()}</span>
@@ -84,7 +85,7 @@ export function ClientCommandTable({clients,staff,management,query=""}:{clients:
      <div className="registry-client-stage"><p className="registry-column-label">{t("Stage · Owner","المرحلة · المسؤول")}</p>{c.is_urgent && <span className="cg-urgent-badge">⚡ Urgent</span>}{badge(c.current_status)}<span className={c.assigned_name?"registry-owner":"registry-owner is-unassigned"}><bdi>{c.assigned_name??t("Unassigned","غير معيّن")}</bdi></span><div>{c.amazon_account_ready&&<small className="text-emerald-300">{t("Amazon ready","حساب Amazon جاهز")}</small>}{!c.amazon_account_ready&&["shift_selected","appointment_required"].includes(c.current_status)&&<small className="text-amber-200">{t("Account needs verification","الحساب يحتاج التحقق")}</small>}{c.payment_status==="paid"&&<small className="text-emerald-300">{t("Paid","مدفوع")}</small>}</div></div>
      <div className="registry-client-details"><span>{t("Received","تاريخ الاستلام")}</span><time dateTime={new Date(c.created_at).toISOString()} dir="ltr">{dateTime(c.created_at)}</time><p dir="ltr">{c.site_name??"—"} · {c.shift_name??"—"}</p></div>
      <div className="registry-client-actions"><Link href={`/staff/client/${c.id}`} prefetch={false} className="cg-command-button registry-open">{t("Open Client ↗","فتح الملف ↗")}</Link><button type="button" className="cg-command-button registry-secondary-action" onClick={()=>setDrawer(c)}>{t("Quick view · Client 360","معاينة سريعة · Client 360")}</button>{!c.manager_review_id && <ClientWorkflowControl clientId={c.id} status={c.current_status} compact/>}<ClientDispatchActions clientId={c.id} isUrgent={c.is_urgent} managerReviewId={c.manager_review_id} updatedAt={c.updated_at} operationalLocation={c.operational_location} management={management} compact/></div>
-     <div className="registry-next-step"><p>{c.next_step}</p><ReviewStamp stamp={c.review_stamp} pending={!!c.manager_review_id}/></div>
+     <ClientStageMarker location={c.operational_location} status={c.current_status}/><div className="registry-next-step"><p>{c.next_step}</p><ReviewStamp stamp={c.review_stamp} pending={!!c.manager_review_id}/></div>
    </article>)}
  </div>;
  return <section className="ops-glass-card registry-results-panel space-y-4">

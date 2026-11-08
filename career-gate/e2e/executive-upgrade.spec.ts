@@ -16,7 +16,7 @@ test.describe("executive staff upgrade acceptance", () => {
 
     const routes: Array<[string, RegExp]> = [
       ["/staff", /CAREER GATE/i],
-      ["/staff/clients", /^Clients$/i],
+      ["/staff/clients", /^Clients Registry$/i],
       ["/staff/appointments", /^Appointments$/i],
       ["/staff/tasks", /^Tasks$/i],
       ["/staff/follow-ups", /^Follow-Ups$/i],
@@ -49,7 +49,7 @@ test.describe("executive staff upgrade acceptance", () => {
     expect(pipelineResponse?.status()).toBeLessThan(400);
     await expect(page.getByRole("heading", { name: "Candidate Pipeline" })).toBeVisible();
     await expect(page.getByTestId("g3-smart-lifecycle")).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Six-stage lifecycle" }).getByRole("button")).toHaveCount(6);
+    await expect(page.getByRole("navigation", { name: "Active workflow" }).getByRole("button")).toHaveCount(5);
     await page.getByRole("button", { name: "Detailed Pipeline" }).click();
     await expect(page.getByTestId("pipeline-board")).toBeVisible();
     await page.getByRole("button", { name: "Location & Shift" }).click();
@@ -65,7 +65,7 @@ test.describe("executive staff upgrade acceptance", () => {
 
     await page.goto("/staff/clients");
     const current = page.locator('.staff-nav-link[aria-current="page"]');
-    await expect(current).toHaveAttribute("aria-label", "Clients");
+    await expect(current).toHaveAttribute("aria-label", "New Intake");
     await expect(current).toHaveCSS("font-weight", "600");
     const navMetrics = await current.evaluate((el) => {
       const s = getComputedStyle(el);

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isClientStageFilter } from "@/lib/client-lifecycle-filters";
+import { isWorkflowDestination } from "@/lib/client-lifecycle-filters";
 import { LifecycleRoutingError } from "@/lib/client-lifecycle-routing";
 import { moveWorkflowClient } from "@/lib/manual-workflow";
 import { withStaff } from "@/lib/auth";
@@ -29,7 +29,7 @@ const stage = z.enum([
 const Input = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("move_stage"), client_id: id, stage }),
   z.object({ operation: z.literal("request_transfer"), client_id: id, requested_owner: id.nullable().optional(), reason: z.string().trim().max(500).nullable().optional() }),
-  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable().optional(), target_stage: z.string().refine(isClientStageFilter).optional(), reason: z.string().trim().max(500).optional(), override: z.boolean().optional() }),
+  z.object({ operation: z.literal("bulk_assign"), client_ids: z.array(id).min(1).max(250).refine(ids => new Set(ids).size === ids.length), staff_id: id.nullable().optional(), target_stage: z.string().refine(isWorkflowDestination).optional(), reason: z.string().trim().max(500).optional(), override: z.boolean().optional() }),
   z.object({ operation: z.literal("reconcile_workflow"), client_id: id, reason: z.string().trim().min(3).max(500), complete_only:z.boolean().default(false) }),
   z.object({ operation: z.literal("reassign_client"), client_id: id, staff_id: id.nullable(), task_ids: z.array(id).max(100).default([]), reason: z.string().trim().max(500).nullable().optional() }),
   z.object({ operation: z.literal("confirm_started"), client_id: id, start_date: date }),
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
           const [staff] = await tx`select id from staff where id=${input.staff_id} and active`;
           if (!staff) throw new Error("STAFF_NOT_FOUND");
         }
-        if (input.target_stage && isClientStageFilter(input.target_stage)) {
+        if (input.target_stage && isWorkflowDestination(input.target_stage)) {
           const locked = await tx`select id,current_status,pipeline_stage,next_step,assigned_staff from clients
             where id=any(${input.client_ids}) and deleted_at is null order by id for update`;
           if (locked.length !== input.client_ids.length) throw new Error("CLIENT_NOT_ACCESSIBLE");

@@ -3,13 +3,15 @@ import { STATUSES, type Status } from "@/lib/domain";
 import { G3_STAGES, g3Counts, g3StageForStatus } from "@/lib/g3-stages";
 
 describe("canonical six-stage G3 lifecycle", () => {
-  it("classifies all fifteen statuses in exactly one operational station", () => {
+  it("classifies non-cancelled statuses once and keeps cancellation outside confirmed records", () => {
     expect(G3_STAGES).toHaveLength(6);
     const statuses = G3_STAGES.flatMap(stage => [...stage.statuses]);
-    expect(statuses).toHaveLength(STATUSES.length);
-    expect(new Set(statuses).size).toBe(STATUSES.length);
-    expect([...statuses].sort()).toEqual([...STATUSES].sort());
-    for (const status of STATUSES) expect(g3StageForStatus(status)).not.toBeNull();
+    const operating = STATUSES.filter(status => status !== "cancelled");
+    expect(statuses).toHaveLength(operating.length);
+    expect(new Set(statuses).size).toBe(operating.length);
+    expect([...statuses].sort()).toEqual([...operating].sort());
+    for (const status of operating) expect(g3StageForStatus(status)).not.toBeNull();
+    expect(g3StageForStatus("cancelled")).toBeNull();
     expect(g3StageForStatus("invalid_status")).toBeNull();
   });
 
@@ -17,7 +19,7 @@ describe("canonical six-stage G3 lifecycle", () => {
     const values = STATUSES.map((status: Status, index) => ({ status, total: index + 1 }));
     const buckets = g3Counts(values);
     expect(buckets.reduce((sum, stage) => sum + stage.total, 0))
-      .toBe(values.reduce((sum, row) => sum + row.total, 0));
+      .toBe(values.filter(row => row.status !== "cancelled").reduce((sum, row) => sum + row.total, 0));
     expect(buckets.find(stage => stage.id === "appointments")?.total).toBe(
       values.find(item => item.status === "appointment_scheduled")?.total,
     );

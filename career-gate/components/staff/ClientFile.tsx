@@ -12,6 +12,9 @@ import { ClientAccountPanel } from "@/components/staff/ClientAccountPanel";
 import { ClientDispatchActions } from "@/components/staff/ClientDispatchActions";
 import { ReviewStamp } from "@/components/staff/ReviewStamp";
 import { ClientWorkflowControl } from "@/components/staff/ClientWorkflowControl";
+import { ConfirmStartedControl } from "@/components/staff/ConfirmStartedControl";
+import { ClientStageMarker } from "@/components/staff/ClientStageMarker";
+import { EmploymentConfirmationHistory } from "@/components/staff/EmploymentConfirmationHistory";
 import { WorksiteChangeHistory } from "@/components/staff/WorksiteChangeHistory";
 import { SendToManagerButton } from "@/components/staff/SendToManagerButton";
 import { InlineField } from "@/components/staff/InlineField";
@@ -35,7 +38,7 @@ import type { Status } from "@/lib/domain";
 export type ClientFileData = {
   client: Row; employment: Row[]; preferences: Row[]; documents: Row[]; extractions: Row[]; appointments: Row[]; notes: Row[];
   tasks: Row[]; contacts: Row[]; followups: Row[]; postHire: Row[]; assessments: Row[]; activity: Row[]; authorization: Row | null;
-  notifications: Row[]; alerts: Row[]; agentRun: Row | null; references: Row[]; worksiteChanges?: Row[];
+  notifications: Row[]; alerts: Row[]; agentRun: Row | null; references: Row[]; worksiteChanges?: Row[]; employmentConfirmations?: Row[];
 };
 export type ClientPanel = Panel;
 export type ClientTab = "profile" | "preferences" | "documents" | "appointments" | "work" | "activity";
@@ -56,7 +59,7 @@ const panelTab: Record<Panel, ClientTab> = {
 const LIST_SLICES = [
   "employment", "preferences", "documents", "extractions", "appointments", "notes",
   "tasks", "contacts", "followups", "postHire", "assessments", "activity",
-  "notifications", "alerts", "references", "worksiteChanges",
+  "notifications", "alerts", "references", "worksiteChanges", "employmentConfirmations",
 ] as const;
 
 type LiveState = { data: ClientFileData; account: ClientAccountSummary };
@@ -249,6 +252,9 @@ export function ClientFile({
         </div>
       </section>
 
+      <ClientStageMarker location={typeof c.operational_location === "string" ? c.operational_location : undefined} status={String(c.current_status)}/>
+      {!c.deleted_at && !c.manager_review_id && c.current_status !== "cancelled" && <ConfirmStartedControl clientId={String(c.id)} updatedAt={String(c.updated_at)} siteCode={data.preferences.find(row=>row.rank==="primary")?.site_code ? String(data.preferences.find(row=>row.rank==="primary")?.site_code) : undefined}/>}
+      <EmploymentConfirmationHistory rows={data.employmentConfirmations ?? []}/>
       {!c.deleted_at && !c.manager_review_id && <ClientWorkflowControl clientId={String(c.id)} status={String(c.current_status)} />}
       {!c.deleted_at && <div className="flex flex-wrap items-start justify-between gap-3"><ClientDispatchActions clientId={String(c.id)} isUrgent={c.is_urgent === true} managerReviewId={c.manager_review_id} updatedAt={String(c.updated_at)} operationalLocation={c.operational_location} management={isManager}/>{!c.manager_review_id && <SendToManagerButton clientId={String(c.id)} />}</div>}
       <div className="cg-profile-tabs" aria-label={uiLabel("Client file sections")}>

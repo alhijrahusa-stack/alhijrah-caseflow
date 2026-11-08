@@ -155,7 +155,7 @@ test("duplicate comparison archives only the manager-selected file and requires 
   } finally { await context.close(); }
 });
 
-test("staff urgent transfer and optional manager handoff preserve one operational location and review stamp", async ({ browser, request, baseURL }, testInfo) => {
+test("staff priority stays on its real workflow stage through manager handoff and approval", async ({ browser, request, baseURL }, testInfo) => {
   const name = `TEST Urgent Handoff ${RUN} ${randomUUID().slice(0, 6)}`;
   const clientId = await newFile(request, name);
   const staffContext = await browser.newContext({ baseURL });
@@ -169,33 +169,41 @@ test("staff urgent transfer and optional manager handoff preserve one operationa
     await page.goto(`/staff/clients?stage=new_intake&q=${query}`);
     await expect(page.locator(`a[href="/staff/client/${clientId}"]`).first()).toBeVisible();
     await page.goto(`/staff/client/${clientId}`);
-    await page.getByRole("button", { name: "Move to Urgent", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Moved to Urgent" })).toBeVisible();
+    await page.getByTestId("priority-toggle").click();
+    await expect(page.getByRole("status").filter({ hasText: "Urgent priority enabled" })).toBeVisible();
     await page.goto(`/staff/clients?stage=new_intake&q=${query}`);
-    await expect(page.locator(`a[href="/staff/client/${clientId}"]`)).toHaveCount(0);
+    await expect(page.locator(`a[href="/staff/client/${clientId}"]`).first()).toBeVisible();
     await page.goto(`/staff/clients?stage=urgent&q=${query}`);
-    await expect(page.getByRole("heading", { name: "Urgent Clients", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Clients Registry", exact: true })).toBeVisible();
     await expect(page.locator(`a[href="/staff/client/${clientId}"]`).first()).toBeVisible();
     await capture(page, testInfo.outputPath("urgent-desktop.png"));
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
     await capture(page, testInfo.outputPath("urgent-mobile.png"));
     await page.setViewportSize({ width: 1440, height: 1024 });
-    const [urgent] = await db()`select operational_location from clients where id=${clientId}`;
-    expect(urgent.operational_location).toBe("urgent");
+    const [urgent] = await db()`select operational_location,current_status,pipeline_stage,is_urgent from clients where id=${clientId}`;
+    expect(urgent).toMatchObject({ operational_location: "new_intake", current_status: "new_intake", pipeline_stage: "portal_intake", is_urgent: true });
     await page.goto(`/staff/client/${clientId}`);
     await page.getByRole("button", { name: "Send to manager", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Send for manager review" });
     await dialog.getByLabel("Review note (optional)").fill("Urgent client needs manager routing");
     await dialog.getByRole("button", { name: "Send review", exact: true }).click();
     await expect(page.getByRole("status").filter({ hasText: "Sent to the manager" })).toBeVisible();
-    for (const stage of ["urgent", "new_intake", "account_setup"]) {
+    for (const stage of ["new_intake", "account_setup"]) {
       await page.goto(`/staff/clients?stage=${stage}&q=${query}`);
       await expect(page.locator(`a[href="/staff/client/${clientId}"]`)).toHaveCount(0);
     }
     const [held] = await db()`select operational_location,manager_review_id from clients where id=${clientId}`;
     expect(held.operational_location).toBe("manager");
     expect(held.manager_review_id).not.toBeNull();
+    await page.goto(`/staff/clients?urgent=1&q=${query}`);
+    const reference = page.locator("article.cg-registry-card").filter({ has: page.getByRole("link", { name, exact: true }) });
+    await expect(reference).toBeVisible();
+    await expect(reference).toContainText("Awaiting manager review");
+    await expect(reference.getByTestId("priority-toggle")).toHaveCount(0);
+    const [heldVersion] = await db()`select updated_at::text version from clients where id=${clientId}`;
+    const blockedPriority = await staffContext.request.post("/api/staff/client-priority", { data: { client_id: clientId, is_urgent: false, operation_id: randomUUID(), expected_updated_at: heldVersion.version } });
+    expect(blockedPriority.status()).toBe(409);
     const managerPage = await managerContext.newPage();
     await managerPage.goto("/staff/manager-inbox");
     await chooseFile(managerPage, name);
@@ -206,8 +214,44 @@ test("staff urgent transfer and optional manager handoff preserve one operationa
     await expect(page.locator(`a[href="/staff/client/${clientId}"]`).first()).toBeVisible();
     await expect(page.getByText(/Reviewed by manager/).first()).toBeVisible();
     await page.goto(`/staff/clients?stage=urgent&q=${query}`);
-    await expect(page.locator(`a[href="/staff/client/${clientId}"]`)).toHaveCount(0);
-    const [released] = await db()`select operational_location,manager_review_id from clients where id=${clientId}`;
-    expect(released).toMatchObject({ operational_location: "account_setup", manager_review_id: null });
+    await expect(page.locator(`a[href="/staff/client/${clientId}"]`).first()).toBeVisible();
+    const [released] = await db()`select operational_location,manager_review_id,is_urgent from clients where id=${clientId}`;
+    expect(released).toMatchObject({ operational_location: "account_setup", manager_review_id: null, is_urgent: true });
+    expect((await db()`select count(*)::int count from clients where id=${clientId}`)[0].count).toBe(1);
   } finally { await Promise.allSettled([staffContext.close(), managerContext.close()]); }
+});
+
+test("a rejected priority save rolls its visual state back and Urgent is never a routing destination", async ({ browser, request, baseURL }) => {
+  const name = `TEST Priority Rollback ${RUN} ${randomUUID().slice(0, 6)}`;
+  const clientId = await newFile(request, name);
+  const context = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
+  try {
+    await signIn(context, baseURL!, "staff");
+    const page = await context.newPage();
+    await page.goto(`/staff/client/${clientId}`);
+    const toggle = page.getByTestId("priority-toggle");
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await page.route("**/api/staff/client-dispatch", async route => {
+      if (route.request().method() !== "POST") { await route.continue(); return; }
+      await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ ok: false, error: { code: "client_changed", message: "File changed by another employee." } }) });
+    });
+    await toggle.focus(); await toggle.press("Enter");
+    await expect(page.getByRole("alert").filter({ hasText: "File changed by another employee." })).toBeVisible();
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect((await db()`select is_urgent from clients where id=${clientId}`)[0].is_urgent).toBe(false);
+    await page.unroute("**/api/staff/client-dispatch");
+    const destination = page.getByRole("combobox", { name: "Workflow destination", exact: true });
+    await destination.click();
+    const listId = await destination.getAttribute("aria-controls");
+    expect(listId).toBeTruthy();
+    await expect(page.locator(`[id=${JSON.stringify(listId)}]`).getByRole("option", { name: "Urgent", exact: true })).toHaveCount(0);
+    await destination.press("Escape");
+    const rejected = await context.request.post("/api/staff/operations", { data: { operation: "bulk_assign", client_ids: [clientId], target_stage: "urgent", reason: "E2E forbidden old destination" } });
+    expect(rejected.status()).toBe(400);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("status").filter({ hasText: "Urgent priority enabled" })).toBeVisible();
+    const [enabled] = await db()`select current_status,pipeline_stage,operational_location,is_urgent from clients where id=${clientId}`;
+    expect(enabled).toMatchObject({ current_status: "new_intake", pipeline_stage: "portal_intake", operational_location: "new_intake", is_urgent: true });
+  } finally { await context.close(); }
 });

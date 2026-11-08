@@ -26,6 +26,12 @@ describe("authorized registry export formatting",()=>{
     const pending=parseXlsx(buildRegistryWorkbook([{...reviewed,manager_review_id:"review-2",operational_location:"manager"}]))[0];
     expect(pending).toMatchObject({"Operational section":"manager","Review pending":"Yes","Reviewed by manager":"Manager عبد الله"});
   });
+  it("never exports a scheduled date as proof of actual work",()=>{
+    const legacy=parseXlsx(buildRegistryWorkbook([row]))[0];
+    expect(legacy).toMatchObject({"Start date":"Nov 9, 2026","Actual employment start":null,"Employment confirmation":"Actual start not confirmed"});
+    const confirmed=parseXlsx(buildRegistryWorkbook([{...row,employment_confirmation_id:"confirmation",actual_start_date:"2026-11-02",employment_site_name:"Recorded worksite",employment_confirmed_by_name:"Recorded staff",employment_confirmed_at:"2026-11-08T12:00:00Z"}]))[0];
+    expect(confirmed).toMatchObject({"Start date":"Nov 9, 2026","Actual employment start":"Nov 2, 2026","Employment confirmation":"Actual start confirmed","Confirmed worksite":"Recorded worksite","Confirmed by":"Recorded staff"});
+  });
   it("escapes untrusted printable markup and preserves Arabic for the browser PDF renderer",()=>{
     const html=buildRegistryPrint([{...row,full_name:"أحمد <script>alert(1)</script>"}],"active","nonce123","2026-10-31T12:00:00Z");
     expect(html).toContain("أحمد &lt;script&gt;alert(1)&lt;/script&gt;");

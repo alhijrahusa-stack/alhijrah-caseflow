@@ -189,7 +189,7 @@ describe("resource payloads", () => {
   it("deduplicates payloads across resources", () => {
     const payloads = payloadsForResources(["client_identity", "pipeline", "placement"]);
     expect(payloads.filter((p) => p === "client").length).toBe(1);
-    expect(payloads).toEqual(["client", "employment", "authorization", "worksiteChanges"]);
+    expect(payloads).toEqual(["client", "employment", "authorization", "worksiteChanges", "employmentConfirmations"]);
   });
 
   it("asks for nothing when a resource has no scoped payload", () => {

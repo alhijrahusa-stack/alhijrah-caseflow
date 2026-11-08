@@ -17,7 +17,7 @@ test("field appointment and client workspaces remain usable at laptop and phone 
         const bounds = card?.getBoundingClientRect();
         return {
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-          headerColor: nav ? getComputedStyle(nav).backgroundColor : "",
+          headerBackground: nav ? getComputedStyle(nav).backgroundImage : "",
           headerHeight: nav?.getBoundingClientRect().height ?? 0,
           mainWidth: main?.getBoundingClientRect().width ?? 0,
           cardLeft: bounds?.left ?? null,
@@ -25,7 +25,8 @@ test("field appointment and client workspaces remain usable at laptop and phone 
         };
       });
       expect(report.overflow, `${path} at ${width}px`).toBeLessThanOrEqual(1);
-      expect(report.headerColor).toBe("rgba(8, 17, 37, 0.6)");
+      expect(report.headerBackground).toContain("linear-gradient");
+      expect(report.headerBackground).toContain("rgba(20, 68, 110, 0.84)");
       expect(report.headerHeight).toBeGreaterThan(60);
       expect(report.mainWidth).toBeGreaterThan(200);
       expect(report.mainWidth).toBeLessThanOrEqual(width+1);
@@ -36,7 +37,7 @@ test("field appointment and client workspaces remain usable at laptop and phone 
     }
     await page.goto("/staff/pipeline");
     await expect(page.getByTestId("g3-smart-lifecycle")).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Six-stage lifecycle" }).getByRole("button")).toHaveCount(6);
+    await expect(page.getByRole("navigation", { name: "Active workflow" }).getByRole("button")).toHaveCount(5);
   }
 
   await page.setViewportSize({ width: 390, height: 844 });

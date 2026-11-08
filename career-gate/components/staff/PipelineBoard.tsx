@@ -183,7 +183,7 @@ export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, 
   const [statusFilter, setStatusFilter] = useState<Status | null>(null);
   const [activeClient, setActiveClient] = useState<PipelineClient | null>(null);
   const [lifecycleLimit, setLifecycleLimit] = useState(COLUMN_BATCH);
-  const lifecycleStages = useMemo(() => g3Counts(statusCounts), [statusCounts]);
+  const lifecycleStages = useMemo(() => g3Counts(statusCounts).filter(stage=>!stage.sidebarOnly), [statusCounts]);
   const stageDefinition = lifecycleStages.find(stage => stage.id === activeStage) ?? lifecycleStages[0];
   const visibleLifecycle = [...rows, ...exceptions].filter(client =>
     g3StageForStatus(client.current_status) === activeStage &&
@@ -282,7 +282,7 @@ export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, 
 
       {view === "lifecycle" ? (
         <section className="space-y-4" data-testid="g3-smart-lifecycle">
-          <nav aria-label={uiLabel("Six-stage lifecycle")} className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+          <nav aria-label={uiLabel("Active workflow")} className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
             {lifecycleStages.map((stage,index)=><button key={stage.id} type="button"
               aria-pressed={activeStage === stage.id}
               onClick={()=>{setActiveStage(stage.id);setStatusFilter(null);setLifecycleLimit(COLUMN_BATCH);}}
@@ -321,7 +321,7 @@ export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, 
             </article>)}
           </div>
           {visibleLifecycle.length > lifecycleLimit && <ShowMore hidden={visibleLifecycle.length-lifecycleLimit} step={COLUMN_BATCH} onMore={()=>setLifecycleLimit(x=>x+COLUMN_BATCH)} testId="lifecycle-show-more"/>}
-          {!visibleLifecycle.length && <div className="ops-glass-card text-sm text-slate-300">{activeStage === "registry" ? "Completed and closed files are available in the Master Registry." : "No matching active files in this lifecycle station."} <Link className="ml-2 text-amber-200 underline" href={stageDefinition.href}><StaffLabel en="Open station"/></Link></div>}
+          {!visibleLifecycle.length && <div className="ops-glass-card text-sm text-slate-300">{activeStage === "registry" ? "Final files are available in Confirmed Employment & Records." : "No matching active files in this lifecycle station."} <Link className="ml-2 text-amber-200 underline" href={stageDefinition.href}><StaffLabel en="Open station"/></Link></div>}
           {activeClient && <Client360Drawer client={{id:activeClient.id,ref:activeClient.ref,full_name:activeClient.full_name}} onClose={()=>setActiveClient(null)}/>}
         </section>
       ) : view === "pipeline" ? (

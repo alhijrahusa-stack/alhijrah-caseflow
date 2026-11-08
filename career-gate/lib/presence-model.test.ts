@@ -52,9 +52,9 @@ describe("private staff viewing metadata", () => {
     expect(presenceWorkspaceSection("/staff/clients", new URLSearchParams("view=completed"))).toBe("completed");
     expect(presenceWorkspaceSection("/staff/clients", new URLSearchParams("view=all"))).toBe("all");
     expect(presenceWorkspaceSection(`/staff/client/${client}`, new URLSearchParams("stage=urgent"))).toBeNull();
-    expect(presenceHref("/staff/clients", "urgent")).toBe("/staff/clients?stage=urgent");
+    expect(presenceHref("/staff/clients", "urgent")).toBe("/staff/clients?urgent=1");
     expect(presenceHref("/staff/clients", "completed")).toBe("/staff/clients?view=completed");
-    expect(presenceSection("/staff/clients", "urgent").ar).toBe("العملاء · عاجل");
+    expect(presenceSection("/staff/clients", "urgent").ar).toBe("عرض ملفات الأولوية");
     expect(parsePresencePacket({ ...packet(), workspace_section: "<script>" })?.workspace_section).toBeNull();
     expect(parsePresencePacket({ ...packet(), path: "/staff/import", workspace_section: "urgent" })?.workspace_section).toBeNull();
   });
