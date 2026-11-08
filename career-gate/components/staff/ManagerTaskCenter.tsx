@@ -44,6 +44,7 @@ function ClientReview({ clientId, version }: { clientId: string; version: string
   useEffect(() => {
     let controller: AbortController | null = null;
     let disposed = false;
+    let focusTimer: ReturnType<typeof setTimeout> | null = null;
     const params = new URLSearchParams({ client_id: clientId, payloads: "client,documents,appointments,account,nextAction,activity" });
     const load = () => {
       controller?.abort();
@@ -56,9 +57,13 @@ function ClientReview({ clientId, version }: { clientId: string; version: string
     };
     load();
     const unsubscribe = subscribeResources({ clientId, resources: ["client_identity", "documents", "account", "appointments", "next_action", "activity"], onUpdate: load });
-    const visible = () => { if (document.visibilityState === "visible") load(); };
+    const visible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (focusTimer) clearTimeout(focusTimer);
+      focusTimer = setTimeout(() => { focusTimer = null; if (document.visibilityState === "visible") load(); }, 50);
+    };
     window.addEventListener("focus", visible); document.addEventListener("visibilitychange", visible);
-    return () => { disposed = true; controller?.abort(); unsubscribe(); window.removeEventListener("focus", visible); document.removeEventListener("visibilitychange", visible); };
+    return () => { disposed = true; if (focusTimer) clearTimeout(focusTimer); controller?.abort(); unsubscribe(); window.removeEventListener("focus", visible); document.removeEventListener("visibilitychange", visible); };
   }, [clientId, version]);
   if (error) return <p role="alert" className={styles.error}>{error}</p>;
   if (!data) return <p role="status" className={styles.empty}>{t("Loading authorized client details…", "جارٍ تحميل بيانات العميل المصرح بها…")}</p>;
@@ -128,6 +133,7 @@ export function ManagerTaskCenter({ initial, reviewerId }: { initial: ManagerInb
   const restoredIntent = useRef<Intent | null>(null);
   const page = useRef(initial.page);
   const filtersRef = useRef(filters);
+  const fetchedFilters = useRef(filters);
   const inboxRef = useRef(inbox);
   const reviewedRef = useRef(reviewed);
   useEffect(() => { filtersRef.current = filters; }, [filters]);
@@ -171,10 +177,21 @@ export function ManagerTaskCenter({ initial, reviewerId }: { initial: ManagerInb
     } catch { /* Ignore malformed browser-local drafts. */ }
   }, [storageKey, operationKey]);
   useEffect(() => { const timer = window.setTimeout(() => setFilters(current => current.q === query.trim() ? current : { ...current, q: query.trim() }), 250); return () => window.clearTimeout(timer); }, [query]);
-  useEffect(() => { page.current = 1; void refresh(1); }, [filters, refresh]);
+  useEffect(() => {
+    // The first unfiltered page was fetched on the server. Only an actual
+    // filter change needs another read; mutation and reconnect reads remain independent.
+    if (fetchedFilters.current === filters) return;
+    fetchedFilters.current = filters;
+    page.current = 1; void refresh(1);
+  }, [filters, refresh]);
   useEffect(() => {
     const unsubscribe = subscribeResources({ clientId: null, resources: MANAGER_INBOX_SURFACE.resources, onUpdate: () => { void refresh(); } });
-    const visible = () => { if (document.visibilityState === "visible") void refresh(); };
+    let focusTimer: ReturnType<typeof setTimeout> | null = null;
+    const visible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (focusTimer) clearTimeout(focusTimer);
+      focusTimer = setTimeout(() => { focusTimer = null; if (document.visibilityState === "visible") void refresh(); }, 50);
+    };
     const stateChanged = (event: Event) => { const next = (event as CustomEvent<{ state?: string }>).detail?.state; if (next) setLiveState(next); };
     const stateFrame = requestAnimationFrame(() => {
       const observed = document.querySelector("[data-testid=\"realtime-state\"]")?.getAttribute("data-state");
@@ -182,7 +199,7 @@ export function ManagerTaskCenter({ initial, reviewerId }: { initial: ManagerInb
     });
     window.addEventListener("career-gate:realtime-state", stateChanged);
     window.addEventListener("focus", visible); window.addEventListener(RECOVERY_EVENT, visible); document.addEventListener("visibilitychange", visible);
-    return () => { cancelAnimationFrame(stateFrame); unsubscribe(); controllerRef.current?.abort(); window.removeEventListener("career-gate:realtime-state", stateChanged); window.removeEventListener("focus", visible); window.removeEventListener(RECOVERY_EVENT, visible); document.removeEventListener("visibilitychange", visible); };
+    return () => { if (focusTimer) clearTimeout(focusTimer); cancelAnimationFrame(stateFrame); unsubscribe(); controllerRef.current?.abort(); window.removeEventListener("career-gate:realtime-state", stateChanged); window.removeEventListener("focus", visible); window.removeEventListener(RECOVERY_EVENT, visible); document.removeEventListener("visibilitychange", visible); };
   }, [refresh]);
   useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(""), 6500); return () => window.clearTimeout(timer); }, [notice]);
   const updateDraft = (patch: Partial<Draft>) => {

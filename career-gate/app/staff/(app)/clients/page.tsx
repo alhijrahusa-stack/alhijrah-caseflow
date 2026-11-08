@@ -12,6 +12,7 @@ import { getStaffSession, withStaff } from "@/lib/auth";
 import { CLIENT_STAGES } from "@/lib/client-lifecycle-filters";
 import { dateOnly, dateTime, formatPhone } from "@/lib/format";
 import { operationalClientList, type ClientView } from "@/lib/operational-clients";
+import { staffDirectory } from "@/lib/queries";
 import { ClientRegistryToolbar, RegistryEmptyState, RegistryPaginationSummary } from "@/components/staff/ClientRegistryToolbar";
 import { StaffText } from "@/components/staff/StaffLanguage";
 import { parseRegistryFilters, REGISTRY_PAGE_SIZE, registryPageNumbers } from "@/lib/registry-filters";
@@ -26,11 +27,12 @@ export default async function ClientsPage({searchParams}:{searchParams:Promise<R
   const sp=await searchParams;
   const params = new URLSearchParams(Object.entries(sp).filter((entry):entry is [string,string]=>entry[1]!==undefined));
   const { view,page:requestedPage,status,q,stage,attention,assigned,completedThisMonth } = parseRegistryFilters(params,management);
-  const [{rows,total,page},staffRoster,stageOccupancy]=await Promise.all([
+  const [{rows,total,page},staffRows,stageOccupancy]=await Promise.all([
     operationalClientList(session,view,requestedPage,PAGE_SIZE,{q,status,stage,attention,completedThisMonth,assigned}),
-    withStaff(session,tx=>tx`select id,display_name from staff where active order by display_name`),
+    staffDirectory(session),
     withStaff(session,tx=>tx`select operational_location,count(*)::int total from clients where operational_location=any(${CLIENT_STAGES.map(station=>station.id)}) group by operational_location`),
   ]);
+  const staffRoster=staffRows.filter(member=>member.active).sort((a,b)=>a.display_name.localeCompare(b.display_name)).map(member=>({id:member.id,display_name:member.display_name}));
   const stageCounts=Object.fromEntries(CLIENT_STAGES.map(station=>[station.id,Number(stageOccupancy.find(row=>row.operational_location===station.id)?.total??0)]));
   const pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
   const href=(nextView:ClientView,nextPage=1,retainStage=false)=>`/staff/clients?view=${nextView}&page=${nextPage}${retainStage&&stage?`&stage=${stage}`:""}${q?`&q=${encodeURIComponent(q)}`:""}${status?`&status=${status}`:""}${attention?`&attention=${attention}`:""}${assigned?`&assigned=${assigned}`:""}${completedThisMonth?"&completed_this_month=1":""}`;

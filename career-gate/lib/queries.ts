@@ -1,11 +1,14 @@
 import "server-only";
+import { cache } from "react";
 import { withStaff, type StaffSession, type Tx } from "@/lib/auth";
 
 // Every staff read runs under RLS as the signed-in staff member.
 export const TZ = "America/Detroit";
 const OPEN_APPT = ["scheduled", "confirmed", "rescheduled"];
 
-export async function staffDirectory(s: StaffSession) {
+// Layout and page share this read during one server render. React cache is
+// request-scoped: it never keeps another staff member's directory across requests.
+export const staffDirectory = cache(async (s: StaffSession) => {
   return withStaff(s, async (tx) =>
     (await tx`select id, display_name, email, role, active, auth_user_id is not null as linked,
                      staff_code, commission_type, commission_value, eligible_for_round_robin
@@ -21,7 +24,7 @@ export async function staffDirectory(s: StaffSession) {
       commission_value: number;
       eligible_for_round_robin: boolean;
     }[]);
-}
+});
 
 export async function dashboardCounts(s: StaffSession) {
   return withStaff(s, async (tx) => {

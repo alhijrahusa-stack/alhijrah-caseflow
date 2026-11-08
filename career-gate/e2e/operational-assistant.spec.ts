@@ -82,6 +82,18 @@ test.describe("operational assistant", () => {
     await expect.poll(() => history.evaluate((el) => ({ scrolls: el.scrollHeight > el.clientHeight, atBottom: Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 4 })))
       .toEqual({ scrolls: true, atBottom: true });
 
+    // Deferring the assistant must preserve the first click and keep the same
+    // chat session, including an unsent draft, after closing or navigating.
+    await composer.fill("Keep this unsent follow-up");
+    await dialog.getByRole("button", { name: "Close assistant", exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    await page.locator('.royal-nav a[href="/staff/clients"]').click();
+    await expect(page).toHaveURL(/\/staff\/clients$/);
+    await opener.click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("assistant-reply")).toHaveCount(2);
+    await expect(composer).toHaveValue("Keep this unsent follow-up");
+
     await dialog.getByRole("button", { name: "New chat" }).click();
     await expect(dialog.getByTestId("assistant-reply")).toHaveCount(0);
     await page.keyboard.press("Escape");

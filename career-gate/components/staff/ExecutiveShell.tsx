@@ -8,7 +8,7 @@ import { RealtimeRefresher } from "@/components/staff/RealtimeRefresher";
 import { RECOVERY_EVENT,subscribeResources } from "@/components/staff/realtime/update-bus";
 import { timeOnly } from "@/lib/format";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
-import { OperationalAssistant } from "@/components/staff/OperationalAssistant";
+import { DeferredOperationalAssistant } from "@/components/staff/DeferredOperationalAssistant";
 import { SessionDraftBoundary } from "@/components/staff/SessionDraftBoundary";
 
 const Context=createContext<ExecutiveSummary|null>(null);
@@ -47,6 +47,7 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
   const [notice,setNotice]=useState("");
   const pathname=usePathname();
   const spatialMode=management&&pathname==='/staff/manager-inbox';
+  const summaryPaused=useRef(spatialMode);
   const [navigationPath,setNavigationPath]=useState(pathname);
   if(navigationPath!==pathname){setNavigationPath(pathname);if(mobile)setMobile(false);}
   const params=useSearchParams();
@@ -75,6 +76,9 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
   }, [mobile,spatialMode]);
   const router=useRouter();
   useEffect(()=>{
+    // The spatial manager view renders its own live aggregate and hides the
+    // executive sidebar. Its focus/recovery events must not fetch that hidden summary.
+    if(spatialMode){summaryPaused.current=true;return;}
     let disposed=false;let timer:ReturnType<typeof setTimeout>|null=null;let again=false;let financePending=false;
     const refresh=async()=>{
       if(document.visibilityState==='hidden'){again=true;return;}
@@ -84,7 +88,7 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
         const response=await fetch('/api/staff/dashboard-summary',{cache:'no-store',signal:controller.signal});
         const result=await response.json().catch(()=>null);
         if(!response.ok||!result?.ok||!result.summary)throw new Error('summary_unavailable');
-        if(!disposed){setData(result.summary);setStale(false);if(financeChanged){setNotice("finance_synced");if(toastTimer.current)clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setNotice(""),4500);}}
+        if(!disposed){summaryPaused.current=false;setData(result.summary);setStale(false);if(financeChanged){setNotice("finance_synced");if(toastTimer.current)clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setNotice(""),4500);}}
       }catch{if(!disposed)setStale(true);}
       finally{inFlight.current=null;if(again&&!disposed){again=false;queue();}}
     };
@@ -97,10 +101,11 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
     window.addEventListener(RECOVERY_EVENT,queue);
     window.addEventListener('focus',visible);
     document.addEventListener('visibilitychange',visible);
+    if(summaryPaused.current)queue();
     return()=>{disposed=true;unsubscribe();if(timer)clearTimeout(timer);inFlight.current?.abort();inFlight.current=null;
       window.removeEventListener('career-gate:executive-refresh',onExecutiveChange);window.removeEventListener(RECOVERY_EVENT,queue);
       window.removeEventListener('focus',visible);document.removeEventListener('visibilitychange',visible);};
-  },[pathname]);
+  },[pathname,spatialMode]);
   const active=(href:string)=>{
     if(href==='/staff')return pathname==='/staff';
     if(href==='/staff/clients')return pathname==='/staff/clients'&&(currentStage==='new_intake'||(!currentStage&&!params.get('view')));
@@ -163,7 +168,7 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
     </aside></>}
     <div className="royal-main"><header className="royal-topbar" hidden={spatialMode} inert={spatialMode} aria-hidden={spatialMode || undefined}>{header}{!pathname.startsWith("/staff/client/") && <RealtimeRefresher />}</header><main id="staff-main-content" className="royal-content" tabIndex={-1}>{children}</main></div>
     <button type="button" className="royal-orb" aria-label={management ? t("Open operational assistant", "فتح مساعد العمليات") : t("Open command assistant", "فتح مساعد الأوامر")} title={management ? t("Operational assistant", "مساعد العمليات") : t("Command assistant · Ctrl+K", "مساعد الأوامر · Ctrl+K")} onClick={() => window.dispatchEvent(new Event(management ? "career-gate:open-assistant" : "career-gate:open-command"))}>✧</button>
-    <OperationalAssistant enabled={management}/>
+    <DeferredOperationalAssistant enabled={management}/>
     <SessionDraftBoundary/>
     {notice && <p role="status" className="royal-sync-toast">◈ {t("Finance and dashboard figures are up to date", "تمت مزامنة المالية ومؤشرات لوحة القيادة")}</p>}
     {stale && <button className="royal-stale" type="button" onClick={() => router.refresh()}>{t("Could not update summary · Retry", "تعذر تحديث المؤشرات · إعادة المحاولة")}</button>}
