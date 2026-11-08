@@ -161,9 +161,10 @@ describe("canonical client lifecycle station filters", () => {
 
   it("keeps every authoritative Job Ready file visible for prerequisite verification", async () => {
     const list = await operationalClientList(admin, "active", 1, 25, { stage: "job_ready" });
-    const [{total}]=await db`select count(*)::int total from clients where deleted_at is null and current_status in ('shift_selected','appointment_required')`;
+    const [{total}]=await db`select count(*)::int total from clients where operational_location='job_ready'`;
     expect(list.total).toBe(total);
     expect(list.rows.every(row => ["shift_selected","appointment_required"].includes(row.current_status))).toBe(true);
+    expect(list.rows.every(row => row.operational_location === "job_ready")).toBe(true);
   });
 });
 
