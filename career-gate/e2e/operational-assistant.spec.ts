@@ -5,11 +5,11 @@ test.describe("operational assistant", () => {
   test("capacity watch shows at most three supported projections and keeps low samples out of warnings", async ({ page, baseURL }) => {
     await signIn(page.context(), baseURL!, "manager");
     const forecast = [
-      { stage: "intake", label: "New Intake", labelAr: "الاستقبال", queued: 50, exits_28d: 10, exits_7d: 2, estimated_clearance_days: 140, beyond_week_capacity: 48, sample: "sufficient", href: "/staff/clients" },
+      { stage: "intake", label: "New Intake", labelAr: "الاستقبال", queued: 50, exits_28d: 10, exits_7d: 2, estimated_clearance_days: 140, beyond_week_capacity: 48, sample: "sufficient", href: "/staff/clients?stage=new_intake" },
       { stage: "account", label: "Account Setup", labelAr: "تجهيز الحساب", queued: 20, exits_28d: 10, exits_7d: 2, estimated_clearance_days: 56, beyond_week_capacity: 18, sample: "sufficient", href: "/staff/clients?stage=account_setup" },
       { stage: "job", label: "Job Ready", labelAr: "جاهز للوظيفة", queued: 10, exits_28d: 14, exits_7d: 4, estimated_clearance_days: 20, beyond_week_capacity: 7, sample: "sufficient", href: "/staff/clients?stage=job_ready" },
       { stage: "appointments", label: "Appointments", labelAr: "المواعيد", queued: 8, exits_28d: 14, exits_7d: 4, estimated_clearance_days: 16, beyond_week_capacity: 5, sample: "sufficient", href: "/staff/appointments" },
-      { stage: "paperwork", label: "Payment & Paperwork", labelAr: "الدفع والوثائق", queued: 90, exits_28d: 2, exits_7d: 2, estimated_clearance_days: null, beyond_week_capacity: null, sample: "insufficient", href: "/staff/clients?stage=paperwork_pending" },
+      { stage: "paperwork", label: "Payment & Paperwork", labelAr: "الدفع والوثائق", queued: 90, exits_28d: 2, exits_7d: 2, estimated_clearance_days: null, beyond_week_capacity: null, sample: "insufficient", href: "/staff/clients?group=paperwork" },
     ];
     await page.route("**/api/staff/operational-assistant?q=capacity%20forecast", (route) => route.fulfill({ json: { ok: true, answer: { forecast } } }));
     await page.goto("/staff");
@@ -87,8 +87,8 @@ test.describe("operational assistant", () => {
     await composer.fill("Keep this unsent follow-up");
     await dialog.getByRole("button", { name: "Close assistant", exact: true }).click();
     await expect(dialog).not.toBeVisible();
-    await page.locator('.royal-nav a[href="/staff/clients"]').click();
-    await expect(page).toHaveURL(/\/staff\/clients$/);
+    await page.locator('.royal-nav a[href="/staff/clients?stage=new_intake"]').click();
+    await expect(page).toHaveURL(/\/staff\/clients\?stage=new_intake$/);
     await opener.click();
     await expect(dialog).toBeVisible();
     await expect(dialog.getByTestId("assistant-reply")).toHaveCount(2);

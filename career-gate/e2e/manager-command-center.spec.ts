@@ -221,16 +221,16 @@ test("staff priority stays on its real workflow stage through manager handoff an
   } finally { await Promise.allSettled([staffContext.close(), managerContext.close()]); }
 });
 
-test("a rejected priority save rolls its visual state back and Urgent is never a routing destination", async ({ browser, request, baseURL }) => {
+test("a rejected priority save rolls back without Realtime configuration and Urgent is never a routing destination", async ({ browser, request, baseURL }) => {
   const name = `TEST Priority Rollback ${RUN} ${randomUUID().slice(0, 6)}`;
   const clientId = await newFile(request, name);
   const context = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
   try {
     await signIn(context, baseURL!, "staff");
     const page = await context.newPage();
-    const hydrated = page.waitForResponse(response => new URL(response.url()).pathname === "/api/staff/realtime-token" && response.ok());
+    await page.route("**/api/staff/realtime-token", route => route.fulfill({ status: 503, json: { ok: false, error: { code: "NOT_CONFIGURED", message: "Realtime is NOT_CONFIGURED" } } }));
     await page.goto(`/staff/client/${clientId}`);
-    await hydrated;
+    await expect(page.getByTestId("realtime-state").first()).toHaveAttribute("data-state", "NOT_CONFIGURED");
     const toggle = page.getByTestId("priority-toggle");
     await expect(toggle).toHaveAttribute("aria-pressed", "false");
     await page.route("**/api/staff/client-dispatch", async route => {

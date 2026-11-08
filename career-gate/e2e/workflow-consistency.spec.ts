@@ -73,7 +73,8 @@ test('paid, completed legacy intake leaves active queues and retains its origina
   expect(await db()`select id from payment_transactions where client_id=${client.id}`).toHaveLength(1);
   expect(await db()`select appointment_id from appointment_outcomes where client_id=${client.id}`).toHaveLength(0);
   await page.goto('/staff');
-  await expect(page.locator('.royal-station')).toHaveCount(6);
+  await expect(page.locator('.royal-station')).toHaveCount(5);
+  await expect(page.locator('.royal-nav a[href="/staff/clients?view=completed"]')).toBeVisible();
   await page.keyboard.press("Control+k");
   await expect(page.getByTestId('command-palette')).toBeVisible();
   await context.close();

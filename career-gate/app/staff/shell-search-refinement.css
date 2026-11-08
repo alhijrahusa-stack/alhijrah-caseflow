@@ -92,13 +92,13 @@
   .staff-shell.royal-shell .unified-workspace-search .workspace-search-scope { min-width: 82px; max-width: 100px; }
 }
 @media (max-width: 800px) {
-  .staff-shell.royal-shell .royal-topbar { grid-template-columns: minmax(0, 1fr) auto; min-height: 122px; gap: 10px; padding: 12px 14px 12px 58px; }
+  .staff-shell.royal-shell .royal-topbar { grid-template-columns: auto minmax(0, 1fr) auto; min-height: 122px; gap: 10px; padding: 12px 14px; padding-inline-start: 58px; }
   .staff-shell.royal-shell .royal-header-brand { display: flex; font-size: 12px; gap: 8px; }
   .staff-shell.royal-shell .royal-header-brand img { width: 33px; height: 33px; }
   .staff-shell.royal-shell .royal-header-brand small { font-size: 8px; }
-  .staff-shell.royal-shell .royal-session { grid-column: 2; grid-row: 1; gap: 5px; }
-  .staff-shell.royal-shell .royal-header-tools { position: absolute; inset-block-start: 14px; inset-inline-end: 14px; }
-  .staff-shell.royal-shell .royal-topbar:has(.royal-header-tools) .royal-session { margin-inline-end: 112px; }
+  .staff-shell.royal-shell .royal-header-brand { grid-column: 1; grid-row: 1; }
+  .staff-shell.royal-shell .royal-session { grid-column: 2; grid-row: 1; gap: 5px; justify-self: end; margin-inline-end: 0; }
+  .staff-shell.royal-shell .royal-header-tools { position: static; grid-column: 3; grid-row: 1; }
   .staff-shell.royal-shell .royal-header-tools .royal-tool:not(.royal-tool-primary) { display: none; }
   .staff-shell.royal-shell .royal-header-tools .royal-tool-primary { min-height: 34px; padding-inline: 10px; }
   .staff-shell.royal-shell .royal-header-tools .royal-tool-primary .royal-tool-label { display: inline; font-size: 10px; }
@@ -128,6 +128,11 @@
   .staff-shell.royal-shell .royal-header-tools .royal-tool-menu > .royal-tool { display: inline-flex; min-width: 32px; padding-inline: 8px; }
   .staff-shell.royal-shell .royal-header-tools .royal-tool-menu .royal-tool-label { display: none; }
   .staff-shell.royal-shell .royal-topbar:has(.royal-header-tools) .royal-header-brand > span { display: none; }
+}
+@media (max-width: 380px) {
+  .staff-shell.royal-shell .royal-header-brand > span { display: none; }
+  .staff-shell.royal-shell .royal-header-tools .royal-tool-primary { min-width: 34px; padding-inline: 8px; justify-content: center; }
+  .staff-shell.royal-shell .royal-header-tools .royal-tool-primary .royal-tool-label { display: none; }
 }
 .staff-shell.royal-shell .staff-search-result-head > span:first-child { border: 0; background: none; padding: 0; color: inherit; font-size: inherit; }
 .staff-shell.royal-shell .staff-search-result-head strong { font-size: 12px; }
