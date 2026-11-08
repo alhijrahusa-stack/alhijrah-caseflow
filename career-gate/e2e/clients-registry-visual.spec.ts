@@ -48,7 +48,7 @@ test("compact registry keeps eight real stage counts, pointer spotlight, filters
     await expect(links).toHaveCount(8);
     const occupancy = await db()`select operational_location,count(*)::int total from clients group by operational_location`;
     const counts = new Map(occupancy.map(row => [String(row.operational_location), Number(row.total)]));
-    for (const station of CLIENT_STAGES) {
+    for (const station of CLIENT_STAGES.filter(station => station.id !== "worksite_change")) {
       const link = dock.locator(`a[data-stage="${station.id}"]`);
       await expect(link).toHaveAttribute("href", station.href);
       await expect(link.locator(".registry-stage-count")).toHaveText((counts.get(station.id) ?? 0).toLocaleString("en-US"));

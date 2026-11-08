@@ -32,6 +32,7 @@ export function CommandPalette() {
     { id: "p-pipeline", label: t("Pipeline", "مسار العمل"), href: "/staff/pipeline" },
     { id: "p-clients", label: t("Clients", "الاستقبال والتدقيق"), href: "/staff/clients" },
     { id: "p-urgent", label: t("Urgent clients", "العملاء العاجلون"), href: "/staff/clients?stage=urgent" },
+    { id: "p-worksite", label: t("Worksite Changes · Salah Almoraisy", "تغيير موقع العمل · قسم صلاح المريسي"), href: "/staff/worksite-changes" },
     { id: "p-completed", label: t("Completed clients", "السجل المكتمل"), href: "/staff/clients?view=completed" },
     { id: "p-appt", label: t("Appointments", "المواعيد والمقابلات"), href: "/staff/appointments" },
     { id: "p-tasks", label: t("Tasks · overdue", "المهام والمتأخرات"), href: "/staff/tasks?view=overdue" },

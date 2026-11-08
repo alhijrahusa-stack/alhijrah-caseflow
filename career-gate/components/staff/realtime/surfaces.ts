@@ -29,6 +29,7 @@ export const CLIENT_FILE_SURFACE: SurfaceContract = {
     "client", "employment", "authorization", "preferences", "account", "appointments",
     "tasks", "followups", "contacts", "notes", "documents", "extractions", "alerts",
     "assessments", "activity", "agentRun", "notifications",
+    "worksiteChanges",
   ],
 };
 

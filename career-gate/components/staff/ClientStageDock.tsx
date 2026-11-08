@@ -18,7 +18,10 @@ function StageIcon({ stage }: { stage: ClientStageFilter }) {
   </svg>;
 }
 
-const descriptions: Record<ClientStageFilter, readonly [string, string]> = {
+// Specialized desks remain available in navigation and every routing control;
+// this compact dock keeps the eight primary lifecycle stations.
+const dockStages = CLIENT_STAGES.filter(station => station.id !== "worksite_change");
+const descriptions: Record<Exclude<ClientStageFilter, "worksite_change">, readonly [string, string]> = {
   new_intake: ["Review incoming files", "مراجعة الملفات الواردة"],
   account_setup: ["Prepare client accounts", "تجهيز حسابات العملاء"],
   job_ready: ["View job-ready files", "عرض الملفات الجاهزة للوظيفة"],
@@ -45,7 +48,7 @@ function resetSpotlight(event: PointerEvent<HTMLAnchorElement>) {
 export function ClientStageDock({ stage, counts }: { stage?: string; counts?: Record<string, number> }) {
   const { t } = useStaffLanguage();
   return <nav aria-label={t("Operational client lifecycle stages", "أقسام مسار عمل العملاء")} className="registry-stage-dock" data-testid="client-stage-dock">
-    {CLIENT_STAGES.map(station => {
+    {dockStages.map(station => {
       const count = counts?.[station.id];
       const description = descriptions[station.id];
       return <Link key={station.id} prefetch={false} href={station.href} aria-current={stage === station.id ? "page" : undefined}

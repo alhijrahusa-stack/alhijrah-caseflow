@@ -41,6 +41,7 @@ export function resolveLifecycleRoute(stage: ClientStageFilter, evidence: Routin
   }
 
   if(stage === "urgent") return {status:current,pipelineStage:"",nextStep:""};
+  if(stage === "worksite_change") return {status:current,pipelineStage:"worksite_change",nextStep:"Confirm the requested worksite and new employment schedule."};
 
   let target: Status = current;
   let pipelineStage: string;
@@ -117,6 +118,7 @@ const OVERRIDE_ENTRY: Record<Exclude<ClientStageFilter,"urgent">, { status: Stat
   payment_required: { status: "pre_hire_completed", pipelineStage: "payment_required" },
   paperwork_pending: { status: "screening_pending", pipelineStage: "post_interview_completion" },
   completed: { status: "completed", pipelineStage: "completed_files" },
+  worksite_change: { status: "pre_hire_completed", pipelineStage: "worksite_change" },
 };
 
 export function resolveOverrideRoute(stage: ClientStageFilter, currentStatus: string): RoutingDecision {
@@ -125,5 +127,5 @@ export function resolveOverrideRoute(stage: ClientStageFilter, currentStatus: st
   }
   if(stage === "urgent") return {status:currentStatus as Status,pipelineStage:"",nextStep:""};
   const entry = OVERRIDE_ENTRY[stage];
-  return { status: entry.status, pipelineStage: entry.pipelineStage, nextStep: DEFAULT_NEXT_STEP[entry.status] };
+  return { status: entry.status, pipelineStage: entry.pipelineStage, nextStep: stage === "worksite_change" ? "Confirm the requested worksite and new employment schedule." : DEFAULT_NEXT_STEP[entry.status] };
 }

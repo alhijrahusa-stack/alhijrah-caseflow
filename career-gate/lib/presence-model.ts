@@ -66,6 +66,7 @@ export function presenceSection(path: string | null, workspaceSection?: Presence
     "": ["Dashboard", "لوحة القيادة"], client: ["Client file", "ملف العميل"], clients: ["Clients", "العملاء"],
     appointments: ["Appointments", "المواعيد"], import: ["Smart Client", "Smart Client"],
     "smart-client-import": ["Smart Client", "Smart Client"], "manager-inbox": ["Manager's Task Center", "مركز مهام المدير"],
+    "worksite-changes": ["Worksite Changes · Salah Almoraisy", "تغيير موقع العمل · قسم صلاح المريسي"],
     accounting: ["Accounting", "المحاسبة"], documents: ["Documents", "الوثائق"], tasks: ["Tasks", "المهام"],
     "follow-ups": ["Follow-ups", "المتابعات"], staff: ["Team", "الفريق"], reports: ["Reports", "التقارير"],
     archive: ["Deleted files", "المحذوفات"], pipeline: ["Workflow", "مسار العمل"], settings: ["Settings", "الإعدادات"],

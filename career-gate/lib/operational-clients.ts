@@ -20,7 +20,7 @@ export type OperationalClientExtraFilters={q?:string;status?:string;stage?:Clien
 export async function operationalClientList(session:StaffSession, view:ClientView, page:number, pageSize:number, extra:OperationalClientExtraFilters={}){
   return withStaff(session, async(tx)=>{
     const lifecycle = view === "active"
-      ? extra.stage === "urgent" ? tx`c.operational_location = 'urgent'` : tx`c.operational_location not in ('completed','cancelled','manager','urgent','deleted')`
+      ? extra.stage === "urgent" || extra.stage === "worksite_change" ? tx`c.operational_location = ${extra.stage}` : tx`c.operational_location not in ('completed','cancelled','manager','urgent','deleted','worksite_change')`
       : view === "completed"
         ? tx`c.operational_location = 'completed'`
         : tx`true`;

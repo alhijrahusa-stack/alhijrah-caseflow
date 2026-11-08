@@ -171,6 +171,17 @@ describe("mutation graph", () => {
 });
 
 describe("resource payloads", () => {
+  it("keeps note updates scoped to notes and the activity timeline", () => {
+    expect(payloadsForResources(resourcesForMutation("add_note")).sort()).toEqual(["activity", "agentRun", "notes", "notifications"]);
+  });
+
+  it("refreshes worksite history when its notification receipt changes", () => {
+    const payloads = payloadsForResources(resourcesForEntity("notifications"));
+    expect(payloads).toContain("notifications");
+    expect(payloads).toContain("worksiteChanges");
+    expect(payloads).not.toContain("notes");
+  });
+
   it("declares a payload set for every resource", () => {
     for (const resource of RESOURCES) expect(RESOURCE_PAYLOADS[resource], resource).toBeDefined();
   });
@@ -178,7 +189,7 @@ describe("resource payloads", () => {
   it("deduplicates payloads across resources", () => {
     const payloads = payloadsForResources(["client_identity", "pipeline", "placement"]);
     expect(payloads.filter((p) => p === "client").length).toBe(1);
-    expect(payloads).toEqual(["client", "employment", "authorization"]);
+    expect(payloads).toEqual(["client", "employment", "authorization", "worksiteChanges"]);
   });
 
   it("asks for nothing when a resource has no scoped payload", () => {

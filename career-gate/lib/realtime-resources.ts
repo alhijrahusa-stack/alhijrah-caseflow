@@ -24,6 +24,8 @@ export const REALTIME_ENTITIES = [
   "audit_alerts",
   "client_import_cases",
   "manager_inbox",
+  "worksite_changes",
+  "notifications",
 ] as const;
 export type RealtimeEntity = (typeof REALTIME_ENTITIES)[number];
 
@@ -82,6 +84,8 @@ export const ENTITY_RESOURCES: Record<RealtimeEntity, readonly Resource[]> = {
   audit_alerts: ["alerts", "attention"],
   client_import_cases: ["import_cases", "activity"],
   manager_inbox: ["manager_inbox", "client_identity", "pipeline", "attention", "activity"],
+  worksite_changes: ["placement", "activity", "client_identity"],
+  notifications: ["activity", "placement"],
 };
 
 function isEntity(table: string): table is RealtimeEntity {
@@ -100,6 +104,7 @@ export function resourcesForEntity(table: string): readonly Resource[] {
  * same resources.
  */
 export const MUTATION_RESOURCES: Record<string, readonly Resource[]> = {
+  worksite_change: ["client_identity", "placement", "pipeline", "preferences", "activity"],
   manager_review_requested: ["manager_inbox", "client_identity", "pipeline", "attention", "activity"],
   client_dispatch: ["manager_inbox", "client_identity", "pipeline", "attention", "activity"],
   manager_review_resolved: ["manager_inbox", "client_identity", "pipeline", "notes", "tasks", "next_action", "attention", "activity"],
@@ -279,7 +284,7 @@ export const RESOURCE_PAYLOADS: Record<Resource, readonly string[]> = {
   activity: ["activity", "agentRun", "notifications"],
   attention: [],
   finance: ["account"],
-  placement: ["client"],
+  placement: ["client", "worksiteChanges"],
   pipeline: ["client"],
   manager_inbox: [], // Private aggregate owns an independent endpoint, never a client-file slice.
 };

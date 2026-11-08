@@ -30,7 +30,7 @@ export const executiveSummary=cache(async(session:StaffSession):Promise<Executiv
               and l.action in ('status_changed','status_overridden')
               and m.mapping->>(l.new_value->>'status')=m.mapping->>c.current_status
               and m.mapping->>(l.old_value->>'status') is distinct from m.mapping->>(l.new_value->>'status')
-          ) last_entry on true where c.operational_location not in ('manager','urgent','cancelled','deleted'))
+          ) last_entry on true where c.operational_location not in ('manager','urgent','worksite_change','cancelled','deleted'))
           select current_status status,count(*)::int total,count(entered_at)::int age_count,
             sum(extract(epoch from(now()-entered_at))/3600)::numeric age_hours
           from ages group by current_status`,

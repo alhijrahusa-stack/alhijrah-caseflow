@@ -90,6 +90,7 @@ describe("direct manual workflow routing", () => {
       ["shift_selected", "amazon_account_waiting_job"], ["appointment_scheduled", "interview_scheduled"],
       ["pre_hire_completed", "payment_required"], ["screening_pending", "post_interview_completion"],
       ["completed", "completed_files"],
+      ["pre_hire_completed", "worksite_change"],
     ];
     for (const status of STATUSES) for (const [index, stage] of CLIENT_STAGES.filter(s=>s.id!=="urgent").entries()) {
       expect(resolveOverrideRoute(stage.id, status)).toMatchObject({ status: expected[index][0], pipelineStage: expected[index][1] });
