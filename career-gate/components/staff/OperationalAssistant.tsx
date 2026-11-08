@@ -44,14 +44,14 @@ function errorText(error: Error | undefined, fallback: string) {
   return error.message && error.message.length < 300 ? error.message : fallback;
 }
 
-export function OperationalAssistant({ enabled }: { enabled: boolean }) {
+export function OperationalAssistant({ enabled, initialOpen = false }: { enabled: boolean; initialOpen?: boolean }) {
   const { me } = useStaff();
-  return <OperationalAssistantSession key={me.id} enabled={enabled}/>;
+  return <OperationalAssistantSession key={me.id} enabled={enabled} initialOpen={initialOpen}/>;
 }
 
-function OperationalAssistantSession({ enabled }: { enabled: boolean }) {
+function OperationalAssistantSession({ enabled, initialOpen }: { enabled: boolean; initialOpen: boolean }) {
   const { t, dir } = useStaffLanguage();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [draft, setDraft] = useState("");
   const [stale, setStale] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);

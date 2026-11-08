@@ -66,12 +66,15 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
 
   useEffect(() => {
     if(pathname!=="/staff/manager-inbox") return;
-    // Move the existing inbox into the compact header without a second poller.
-    const locate = () => setSpatialHost(document.getElementById("manager-spatial-alerts"));
+    // Move the same inbox only after the workspace has hydrated its empty
+    // outlet. Finding its server HTML alone can race selective hydration.
+    const locate = () => {
+      const host = document.getElementById("manager-spatial-alerts");
+      setSpatialHost(host?.getAttribute("data-manager-alerts-ready") === "true" ? host : null);
+    };
     const frame = requestAnimationFrame(locate);
-    const observer = new MutationObserver(locate);
-    observer.observe(document.body,{childList:true,subtree:true});
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+    window.addEventListener("career-gate:manager-alerts-host-ready", locate);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("career-gate:manager-alerts-host-ready", locate); };
   },[pathname]);
 
   useEffect(() => {

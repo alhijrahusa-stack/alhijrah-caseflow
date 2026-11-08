@@ -318,21 +318,31 @@ export async function getGateJobAccounts(session: StaffSession, q: string, statu
 }
 
 export async function getGateJobAccountForClient(session: StaffSession, clientId: string) {
-  return sql().begin(async (tx) => {
-    const client = await lockClient(tx, clientId);
-    assertClientAccess(session, client);
-    const account = await activeAccountForClient(tx, clientId);
-    if (!account) return null;
-    return {
-      id: account.id,
-      assigned_to_client_id: account.assigned_to_client_id,
-      email_snapshot: account.email_snapshot,
-      status: account.status,
-      assigned_at: account.assigned_at,
-      ready_at: account.ready_at,
-      updated_at: account.updated_at,
-    };
-  });
+  // The client card is a read, so it must not take the row locks used by
+  // assignment mutations. One statement reads ownership and public account
+  // metadata from the same snapshot; credential ciphertext is never selected.
+  const [row] = await sql()`
+    select c.id as client_id,c.assigned_staff,c.deleted_at,
+      a.id,a.assigned_to_client_id,a.email_snapshot,a.status,a.assigned_at,a.ready_at,a.updated_at
+    from clients c
+    left join lateral (
+      select id,assigned_to_client_id,email_snapshot,status,assigned_at,ready_at,updated_at
+      from gate_job_accounts
+      where assigned_to_client_id=c.id and status in ('PENDING','READY') and disabled_at is null
+      order by assigned_at desc limit 1
+    ) a on true
+    where c.id=${clientId}`;
+  assertClientAccess(session, row ?? null);
+  if (!row.id) return null;
+  return {
+    id: row.id as string,
+    assigned_to_client_id: row.assigned_to_client_id as string,
+    email_snapshot: row.email_snapshot as string,
+    status: row.status as GateJobAccountSecretRow["status"],
+    assigned_at: row.assigned_at as Date,
+    ready_at: row.ready_at as Date | null,
+    updated_at: row.updated_at as Date,
+  };
 }
 
 export async function markGateJobAccountReady(session: StaffSession, accountId: string, traceId: string) {

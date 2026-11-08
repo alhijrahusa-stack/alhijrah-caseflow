@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
 import { withStaff, type StaffSession } from "@/lib/auth";
+import { archiveClient } from "@/lib/client-archive";
 import {
   addGateJobEmail,
   confirmGateJobAssignment,
@@ -106,5 +107,66 @@ describe("Gate Job Account Workspace domain", () => {
     expect(await releaseGateJobEmail(admin, source.id, trace)).toMatchObject({ status: "AVAILABLE" });
     await expect(db.begin(async (tx)=>{await tx.unsafe("set local role authenticated");return tx`select * from gate_job_emails limit 1`;})).rejects.toMatchObject({ code:"42501" });
     await expect(db.begin(async (tx)=>{await tx.unsafe("set local role anon");return tx`select * from gate_job_accounts limit 1`;})).rejects.toMatchObject({ code:"42501" });
+  });
+
+  it("returns only the public card fields and keeps assignment and deletion access checks", async () => {
+    const ownerAuth = randomUUID();
+    const outsiderAuth = randomUUID();
+    const members: StaffSession[] = [];
+    for (const authId of [ownerAuth, outsiderAuth]) {
+      const email = `gate-read-${authId}@test.invalid`;
+      await db`insert into auth.users(id,email) values(${authId},${email})`;
+      const [staff] = await db`insert into staff(display_name,email,role,auth_user_id)
+        values(${`TEST Gate Read Staff ${authId}`},${email},'staff',${authId}) returning id,display_name,email,role`;
+      members.push({authUserId:authId,staff:staff as StaffSession["staff"]});
+    }
+    const [owner, outsider] = members;
+    const client = await makeClient("TEST Gate Read Scope");
+    await db`update clients set assigned_staff=${owner.staff.id} where id=${client.id}`;
+    const source = await addGateJobEmail(admin, {email:`gate-card-${randomUUID()}@test.invalid`,password:"Private-Read-Secret-123",pin:"654321"},trace);
+    await reserveGateJobEmail(admin,source.id,client.id,trace);
+    const account = await confirmGateJobAssignment(admin,source.id,client.id,trace);
+
+    const card = await getGateJobAccountForClient(owner,client.id);
+    expect(Object.keys(card ?? {}).sort()).toEqual([
+      "id","assigned_to_client_id","email_snapshot","status","assigned_at","ready_at","updated_at",
+    ].sort());
+    expect(card).toMatchObject({id:account.id,assigned_to_client_id:client.id,status:"PENDING"});
+    expect(JSON.stringify(card)).not.toContain("Private-Read-Secret-123");
+    await expect(getGateJobAccountForClient(outsider,client.id)).rejects.toMatchObject({code:"forbidden",status:403});
+    await withStaff(admin,tx=>archiveClient(tx,admin,client.id,"Read-card access regression",trace));
+    await expect(getGateJobAccountForClient(owner,client.id)).rejects.toMatchObject({code:"client_not_found",status:404});
+    await expect(getGateJobAccountForClient(admin,client.id)).rejects.toMatchObject({code:"client_not_found",status:404});
+  });
+
+  it("distinguishes a live client without an account from a missing client", async () => {
+    const client = await makeClient("TEST Gate Read Empty");
+    expect(await getGateJobAccountForClient(admin,client.id)).toBeNull();
+    await expect(getGateJobAccountForClient(admin,randomUUID())).rejects.toMatchObject({code:"client_not_found",status:404});
+  });
+
+  it("reads the client card while another transaction holds the client write lock", async context => {
+    const [server] = await db`select version() as version`;
+    // The local Wasm harness shares one underlying PostgreSQL session and cannot
+    // establish lock contention. This regression runs against native PG in CI.
+    if (String(server.version).includes("PGlite")) context.skip("Native PostgreSQL row-lock concurrency required");
+    const client = await makeClient("TEST Gate Read Concurrent");
+    let read: ReturnType<typeof getGateJobAccountForClient> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await db.begin(async tx => {
+        await tx`select id from clients where id=${client.id} for update`;
+        read = getGateJobAccountForClient(admin,client.id);
+        const result = await Promise.race([
+          read.then(value=>({finished:true as const,value})),
+          new Promise<{finished:false}>(resolve=>{timer=setTimeout(()=>resolve({finished:false}),2000);}),
+        ]);
+        expect(result.finished).toBe(true);
+        if(result.finished)expect(result.value).toBeNull();
+      });
+    } finally {
+      if(timer)clearTimeout(timer);
+      await read?.catch(()=>undefined);
+    }
   });
 });
