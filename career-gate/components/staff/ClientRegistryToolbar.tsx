@@ -122,7 +122,7 @@ export function ClientRegistryToolbar({management,staff,views,employmentYears=[]
         <details className="registry-actions" data-testid="registry-actions" onKeyDown={event=>{if(event.key==="Escape"){event.currentTarget.open=false;event.currentTarget.querySelector("summary")?.focus();}}}>
           <summary className="cg-command-button">{t("Actions","إجراءات")} ▾</summary>
           <div className="registry-actions-popover">
-            <button type="button" className="cg-command-button" onClick={event=>{setSaveOpen(value=>!value);event.currentTarget.closest("details")?.removeAttribute("open");}}>☆ {t("Save filter","حفظ الفلتر")}</button>
+            <button type="button" className="cg-command-button" onClick={event=>{setSaveOpen(value=>!value);event.currentTarget.closest("details")?.removeAttribute("open");}}><span aria-hidden="true">☆</span> {t("Save filter","حفظ الفلتر")}</button>
             <a className="cg-command-button" href={`/api/staff/clients/export?${exportParams}&format=xlsx`}>↓ Excel</a>
             <a className="cg-command-button" href={`/api/staff/clients/export?${exportParams}&format=print`} target="_blank" rel="noopener noreferrer">↗ {t("Print / Save PDF","طباعة / حفظ PDF")}</a>
             {management&&<Link href="/staff/archive" prefetch={false} className="cg-command-button">{t("Deleted records","المحذوفات")}</Link>}

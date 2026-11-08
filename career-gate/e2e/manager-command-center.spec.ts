@@ -174,7 +174,7 @@ test("staff priority stays on its real workflow stage through manager handoff an
     await page.goto(`/staff/clients?stage=new_intake&q=${query}`);
     await expect(page.locator(`a[href="/staff/client/${clientId}"]`).first()).toBeVisible();
     await page.goto(`/staff/clients?stage=urgent&q=${query}`);
-    await expect(page.getByRole("heading", { name: "Clients Registry", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Urgent Priority", exact: true })).toBeVisible();
     await expect(page.locator(`a[href="/staff/client/${clientId}"]`).first()).toBeVisible();
     await capture(page, testInfo.outputPath("urgent-desktop.png"));
     await page.setViewportSize({ width: 390, height: 844 });
@@ -228,7 +228,9 @@ test("a rejected priority save rolls its visual state back and Urgent is never a
   try {
     await signIn(context, baseURL!, "staff");
     const page = await context.newPage();
+    const hydrated = page.waitForResponse(response => new URL(response.url()).pathname === "/api/staff/realtime-token" && response.ok());
     await page.goto(`/staff/client/${clientId}`);
+    await hydrated;
     const toggle = page.getByTestId("priority-toggle");
     await expect(toggle).toHaveAttribute("aria-pressed", "false");
     await page.route("**/api/staff/client-dispatch", async route => {
