@@ -1,5 +1,6 @@
 "use client";
 
+import { ImportManagerReview } from "@/components/staff/ImportManagerReview";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RoyalOption, RoyalSelect } from "@/components/forms/RoyalSelect";
@@ -284,7 +285,7 @@ export function ManagerTaskCenter({ initial, reviewerId }: { initial: ManagerInb
       <details className={styles.toolbar}>
         <summary><span>{t("Filter & sort", "الفرز والتصفية")}</span><span className={styles.filterSummary}>{t("Type · Employee · Priority", "النوع · الموظف · الأولوية")} <span aria-hidden="true">⌄</span></span></summary>
       <div className={styles.filterGrid}>
-        <label>{t("Type", "النوع")}<select value={filters.kind} onChange={event => filter({ kind: event.target.value })} disabled={pending}><option value="">{t("All types", "جميع الأنواع")}</option><option value="client">{t("Client files", "ملفات العملاء")}</option><option value="report">{t("Reports", "التقارير")}</option></select></label>
+        <label>{t("Type", "النوع")}<select value={filters.kind} onChange={event => filter({ kind: event.target.value })} disabled={pending}><option value="">{t("All types", "جميع الأنواع")}</option><option value="client">{t("Client files", "ملفات العملاء")}</option><option value="report">{t("Reports", "التقارير")}</option><option value="import">{t("Import files", "ملفات الاستيراد")}</option></select></label>
         <label>{t("Intervention", "طبيعة التدخل")}<select value={filters.request_type} onChange={event => filter({ request_type: event.target.value })} disabled={pending}><option value="">{t("All requests", "جميع الطلبات")}</option><option value="review">{t("Operational review", "مراجعة تشغيلية")}</option><option value="duplicate">{t("Duplicate review", "مراجعة التشابه")}</option></select></label>
         <label>{t("Priority", "الأولوية")}<select value={filters.urgent} onChange={event => filter({ urgent: event.target.value })} disabled={pending}><option value="">{t("All priorities", "جميع الأولويات")}</option><option value="1">{t("Urgent only", "العاجل فقط")}</option></select></label>
         <label>{t("Submitted by", "المرسل")}<select value={filters.sender} onChange={event => filter({ sender: event.target.value })} disabled={pending}><option value="">{t("All employees", "جميع الموظفين")}</option>{(inbox.senders ?? activeStaff).map(member => <option key={member.id} value={member.id}>{member.display_name}</option>)}</select></label>
@@ -293,7 +294,7 @@ export function ManagerTaskCenter({ initial, reviewerId }: { initial: ManagerInb
       <div className={styles.filterFooter}><span>{t("Filter within the selected review category", "الفرز داخل تصنيف المراجعة المحدد")}</span><button type="button" onClick={() => { setQuery(""); filter(INITIAL_FILTERS); }} disabled={pending}>{t("Reset filters", "إعادة ضبط الفرز")}</button></div>
       </details>
     }/>
-    {reviewed && <SpatialDrawer onClose={() => setReviewed(null)}><section className={styles.review} aria-label={t("Review workspace", "مساحة المراجعة")}>
+    {reviewed && <SpatialDrawer onClose={() => setReviewed(null)}>{reviewed.kind === "import" ? <ImportManagerReview key={reviewed.id} item={reviewed} onResolved={() => { setReviewed(null); setNotice(t("Manager decision saved", "تم حفظ قرار المدير")); }} /> : <section className={styles.review} aria-label={t("Review workspace", "مساحة المراجعة")}>
       {error && <p role="alert" className={styles.error}>{error}</p>}
           <header className={styles.reviewHeading}><div><p>{reviewed.ref || t("MANAGEMENT REPORT", "تقرير إداري")}</p><h2 dir="auto">{reviewed.full_name || reviewed.title}</h2>{duplicate && <span className={styles.duplicateTag}>{t("Similarity reported · manager decision required", "تشابه مُبلّغ عنه · يتطلب قرار المدير")}</span>}</div><Link href={reviewed.source_path} prefetch={false} className={styles.secondary}>{t("Full record", "السجل الكامل")} ↗</Link></header>
           <div className={styles.reviewBody}>
@@ -315,7 +316,7 @@ export function ManagerTaskCenter({ initial, reviewerId }: { initial: ManagerInb
             {deleteOpen && <fieldset className={styles.deletion}><legend>{t("Move one file to deleted files", "نقل ملف واحد إلى المحذوفات")}</legend><label>{t("File to delete", "الملف المطلوب حذفه")}<select value={draft.deleteClientId} onChange={event => updateDraft({ deleteClientId: event.target.value })} disabled={blocked}><option value="">{t("Choose a file explicitly", "حدد الملف صراحةً")}</option><option value={reviewed.client_id!}>{reviewed.ref} · {reviewed.full_name ?? reviewed.title}</option>{duplicate && reviewed.related_client_id && <option value={reviewed.related_client_id}>{reviewed.related_client?.ref} · {reviewed.related_client?.full_name ?? t("Related file", "الملف المرتبط")}</option>}</select></label><label>{t("Deletion reason (required)", "سبب الحذف (مطلوب)")}<textarea value={draft.deleteReason} onChange={event => updateDraft({ deleteReason: event.target.value })} maxLength={500} rows={2} disabled={blocked} dir="auto" /></label><button type="button" className={styles.danger} disabled={blocked || !draft.deleteClientId || !draft.deleteReason.trim()} onClick={() => decide("delete")}>{t("Move selected file to deleted files", "نقل الملف المحدد إلى المحذوفات")}</button></fieldset>}
             <p className={styles.guardHint}>{t("Move directly to any workflow section. Your decision and manager review stamp are recorded together.", "انتقل مباشرة إلى أي مرحلة. يُحفظ القرار وختم مراجعة المدير معًا.")}</p>
           </form>}
-    </section></SpatialDrawer>}
+    </section>}</SpatialDrawer>}
     {notice && <p className={styles.toast} role="status">✓ {notice}</p>}
   </div>;
 }

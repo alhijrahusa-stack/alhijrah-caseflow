@@ -6,14 +6,15 @@ import { moveWorkflowClient } from "@/lib/manual-workflow";
 import { reportIntelligence, type ReportPeriod } from "@/lib/reports";
 import { ActionError } from "@/lib/service";
 import { staffOperation } from "@/lib/staff-operation";
+import { importReviewCommand } from "@/lib/import-duplicate-review";
 import { archiveClient } from "@/lib/client-archive";
 
 export type ManagerSummary={smart_client:number;clients:number;urgent:number;payment_issues:number;awaiting_review:number};
-export type ManagerInboxItem={id:string;kind:"client"|"report";client_id:string|null;title:string;submitted_note:string;source_path:string;snapshot:Record<string,unknown>;submitted_by:string;sender_name:string;submitted_at:string;full_name:string|null;ref:string|null;current_status:string|null;client_version:string|null;request_type:"review"|"duplicate";related_client_id:string|null;related_client?:{id:string;ref:string;full_name:string;phone:string;current_status:string;client_version:string}|null;is_urgent:boolean;is_payment_issue:boolean;operational_location:string;resolved_by_name:string|null;resolved_at:string|null;resolution_note:string|null;resolution_action:"approve"|"return"|"delete"|"not_duplicate";original_location:string|null;status:"open"|"resolved"};
+export type ManagerInboxItem={id:string;kind:"client"|"report"|"import";import_case_id?:string|null;resolution_target?:{kind:string;id:string}|null;client_id:string|null;title:string;submitted_note:string;source_path:string;snapshot:Record<string,unknown>;submitted_by:string;sender_name:string;submitted_at:string;full_name:string|null;ref:string|null;current_status:string|null;client_version:string|null;request_type:"review"|"duplicate";related_client_id:string|null;related_client?:{id:string;ref:string;full_name:string;phone:string;current_status:string;client_version:string}|null;is_urgent:boolean;is_payment_issue:boolean;operational_location:string;resolved_by_name:string|null;resolved_at:string|null;resolution_note:string|null;resolution_action:"approve"|"return"|"delete"|"not_duplicate";original_location:string|null;status:"open"|"resolved"};
 export type ManagerInboxPage={items:ManagerInboxItem[];total:number;page:number;pages:number;summary:ManagerSummary;senders:{id:string;display_name:string}[]};
 export type ManagerInboxFilters={status?:string;kind?:string;request_type?:string;urgent?:boolean;payments?:boolean;sender?:string;q?:string;sort?:string};
 export type SubmitManagerReview=({kind:"client";client_id:string;note:string;request_key:string;related_client_id?:string}|{kind:"report";period:ReportPeriod;note:string;request_key:string});
-export type ResolveManagerReview={id:string;destination:ClientStageFilter|"keep_current";note:string;expected_client_version?:string|null;expected_related_client_version?:string;operation_id?:string;assigned_staff_id?:string|null;action?:"approve"|"return"|"delete"|"not_duplicate";delete_client_id?:string;delete_reason?:string};
+export type ResolveManagerReview={id:string;destination:ClientStageFilter|"keep_current";note:string;expected_client_version?:string|null;expected_related_client_version?:string;operation_id?:string;assigned_staff_id?:string|null;action?:"approve"|"return"|"delete"|"not_duplicate";delete_client_id?:string;delete_reason?:string;delete_record_kind?:"client"|"import";delete_record_id?:string};
 function requireManagement(s:StaffSession){if(!['admin','manager'].includes(s.staff.role))throw new ActionError('forbidden','Manager Task Center requires manager or admin access',403);}
 
 /** Payment Required is a financial view of held reviews, not a second location.
@@ -59,16 +60,16 @@ export async function managerInbox(s:StaffSession,requestedPage=1,filters:Manage
   const urgentReview=urgentReviewPredicate(tx);
   const term=(filters.q??'').trim().slice(0,100);const like=`%${term.replace(/[\\%_]/g,m=>`\\${m}`)}%`;
   const where=tx`i.status=${status}
-    ${filters.kind==='client'||filters.kind==='report'?tx`and i.kind=${filters.kind}`:tx``}
+    ${filters.kind==='client'||filters.kind==='report'||filters.kind==='import'?tx`and i.kind=${filters.kind}`:tx``}
     ${filters.request_type==='duplicate'||filters.request_type==='review'?tx`and i.request_type=${filters.request_type}`:tx``}
     ${filters.urgent?tx`and (${urgentReview})`:tx``}
     ${filters.payments?tx`and (${paymentRequired})`:tx``}
     ${filters.sender?tx`and i.submitted_by=${filters.sender}`:tx``}
-    ${term?tx`and (i.title ilike ${like} or c.ref ilike ${like} or c.phone ilike ${like} or c.full_name ilike ${like} or i.submitted_note ilike ${like})`:tx``}`;
+    ${term?tx`and (i.title ilike ${like} or i.snapshot#>>'{source,phone}' ilike ${like} or c.ref ilike ${like} or c.phone ilike ${like} or c.full_name ilike ${like} or i.submitted_note ilike ${like})`:tx``}`;
   const [count]=await tx`select count(*)::int total from manager_inbox i left join clients c on c.id=i.client_id where ${where}`;
   const total=Number(count.total),pages=Math.max(1,Math.ceil(total/10));const page=Math.min(pages,Math.max(1,Number.isFinite(requestedPage)?Math.floor(requestedPage):1));
-  const items=await tx`select i.*,s.display_name sender_name,c.full_name,c.ref,c.current_status,c.updated_at::text client_version,
-    (${urgentReview}) is_urgent,(${paymentRequired}) is_payment_issue,c.operational_location,coalesce(i.resolved_by_name_snapshot,r.display_name) resolved_by_name,
+  const items=await tx`select i.*,s.display_name sender_name,coalesce(c.full_name,i.snapshot#>>'{source,full_name}') full_name,coalesce(c.ref,i.snapshot#>>'{source,ref}') ref,c.current_status,c.updated_at::text client_version,
+    (${urgentReview}) is_urgent,(${paymentRequired}) is_payment_issue,case when i.kind='import' then 'manager' else c.operational_location end operational_location,coalesce(i.resolved_by_name_snapshot,r.display_name) resolved_by_name,
     case when related.id is null then null else jsonb_build_object('id',related.id,'ref',related.ref,'full_name',related.full_name,'phone',related.phone,'current_status',related.current_status,'client_version',related.updated_at::text) end related_client,
     i.submitted_at::text submitted_at,i.resolved_at::text resolved_at
     from manager_inbox i join staff s on s.id=i.submitted_by left join clients c on c.id=i.client_id
@@ -131,6 +132,10 @@ export async function resolveManagerReview(s:StaffSession,input:ResolveManagerRe
   const [item]=await tx`select * from manager_inbox where id=${input.id} for update`;
   if(!item)throw new ActionError('not_found','Review request is unavailable',404);
   if(item.status!=='open')return {id:input.id,already_resolved:true,client_id:item.client_id as string|null,task_id:item.routed_task_id as string|null};
+  if(item.kind==='import') {
+   if(input.destination!=='keep_current'||input.assigned_staff_id!==undefined)throw new ActionError('invalid_destination','Import reviews return to Import Queue after the decision',400);
+   return importReviewCommand<{id:string;already_resolved:boolean;client_id:null;task_id:null}>(tx,'resolve',{...input,trace_id:traceId});
+  }
   await tx`select career_gate_private.prepare_manager_resolution(${input.id},${input.expected_client_version??null},${input.expected_related_client_version??null})`;
   const action=input.action??'approve';if(action==='not_duplicate'&&item.request_type!=='duplicate')throw new ActionError('invalid_decision','This request is not a duplicate review',400);let taskId:string|null=null;
   const ids=[item.client_id,item.related_client_id].filter(Boolean).map(String).sort();
