@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 
 import { useState } from "react";
@@ -59,9 +61,9 @@ export function ClientLocationShiftCard({clients}:{clients:{id:string;full_name:
    <label className="grid gap-1 text-sm font-semibold text-white/80">Preferred Hours (compatible schedule options)
     <RoyalSelect className="input min-h-14 rounded-xl border-orange-300/30 bg-[#121824]/85 text-white shadow-[inset_0_1px_2px_rgba(255,255,255,.06)] backdrop-blur-xl transition-all duration-200 hover:border-orange-200/50 focus:border-orange-300 focus:ring-2 focus:ring-orange-400/25" value={hours} onChange={e=>setHours(e.target.value)}><RoyalOption value={SHIFT_DEFAULT_HOURS[shift]}>{SHIFT_DEFAULT_HOURS[shift]}</RoyalOption>{shift==="front_half"||shift==="back_half"?<RoyalOption value="06:30 PM – 05:00 AM">06:30 PM – 05:00 AM</RoyalOption>:null}{shift==="morning"||shift==="mid"?<RoyalOption value="08:00 AM – 04:30 PM">08:00 AM – 04:30 PM</RoyalOption>:null}{shift==="night"?<RoyalOption value="10:00 PM – 06:30 AM">10:00 PM – 06:30 AM</RoyalOption>:null}</RoyalSelect>
    </label>
-   <button type="button" disabled={busy||!client||!location||!shift||!days||!hours.trim()} onClick={save} className="self-end rounded-xl bg-orange-500 px-6 py-3 font-bold text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-40">
+   <ActionButton type="button" disabled={busy||!client||!location||!shift||!days||!hours.trim()} onClick={save} className="self-end rounded-xl bg-orange-500 px-6 py-3 font-bold text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-40">
      {busy?"Saving…":"Save Location & Shift"}
-   </button></div>}
+   </ActionButton></div>}
   <p className="relative mt-3 text-xs text-white/55">Selections are preferences, not confirmed Amazon openings or guaranteed schedules.</p>
   {message&&<p role="status" className="relative mt-3 rounded-xl border border-orange-300/20 bg-black/35 p-3 text-sm text-orange-100">{message}</p>}
   </div>

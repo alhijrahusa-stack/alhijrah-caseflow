@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { GateJobAccounts } from "@/components/gate-job-account/GateJobAccounts";
@@ -27,8 +29,8 @@ export function GateJobAccountWorkspace() {
       <div className="relative"><p className="text-[9px] font-semibold tracking-[.24em] text-amber-300/70">CAREER GATE · SECURE OPERATIONS</p><h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-50">GATE JOB ACCOUNT</h1><p className="mt-1 text-sm text-slate-500">Secure Credential &amp; Assignment Operations</p></div>
     </header>
     <div className="flex gap-1 rounded-2xl border border-white/[.07] bg-[#09101e]/75 p-1.5 backdrop-blur-md" role="tablist" aria-label="Gate Job Account workspace">
-      <button type="button" role="tab" aria-selected={tab==="vault"} onClick={()=>select("vault")} className={`min-h-10 flex-1 rounded-xl px-4 text-xs font-semibold transition ${tab==="vault"?"border border-amber-300/20 bg-amber-300/[.08] text-amber-100 shadow-[inset_0_1px_rgba(255,255,255,.04)]":"text-slate-500 hover:bg-white/[.03] hover:text-slate-300"}`}>GATE JOB EMAIL VAULT</button>
-      <button type="button" role="tab" aria-selected={tab==="accounts"} onClick={()=>select("accounts")} className={`min-h-10 flex-1 rounded-xl px-4 text-xs font-semibold transition ${tab==="accounts"?"border border-cyan-300/20 bg-cyan-300/[.06] text-cyan-100 shadow-[inset_0_1px_rgba(255,255,255,.04)]":"text-slate-500 hover:bg-white/[.03] hover:text-slate-300"}`}>GATE JOB ACCOUNTS</button>
+      <ActionButton type="button" role="tab" aria-selected={tab==="vault"} onClick={()=>select("vault")} className={`min-h-10 flex-1 rounded-xl px-4 text-xs font-semibold transition ${tab==="vault"?"border border-amber-300/20 bg-amber-300/[.08] text-amber-100 shadow-[inset_0_1px_rgba(255,255,255,.04)]":"text-slate-500 hover:bg-white/[.03] hover:text-slate-300"}`}>GATE JOB EMAIL VAULT</ActionButton>
+      <ActionButton type="button" role="tab" aria-selected={tab==="accounts"} onClick={()=>select("accounts")} className={`min-h-10 flex-1 rounded-xl px-4 text-xs font-semibold transition ${tab==="accounts"?"border border-cyan-300/20 bg-cyan-300/[.06] text-cyan-100 shadow-[inset_0_1px_rgba(255,255,255,.04)]":"text-slate-500 hover:bg-white/[.03] hover:text-slate-300"}`}>GATE JOB ACCOUNTS</ActionButton>
     </div>
     <div role="tabpanel" hidden={tab!=="vault"}>{visited.vault&&<GateJobEmailVault />}</div>
     <div role="tabpanel" hidden={tab!=="accounts"}>{visited.accounts&&<GateJobAccounts />}</div>

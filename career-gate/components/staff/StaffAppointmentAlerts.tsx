@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -168,7 +170,7 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
 
   const inbox = (
     <div ref={root} className="relative" data-testid="staff-appointment-inbox">
-      <button
+      <ActionButton
         type="button"
         aria-label={t(`Appointment alerts, ${unread} unread`, `تنبيهات المواعيد، ${unread} غير مقروء`)}
         aria-expanded={open}
@@ -180,7 +182,7 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" />
         </svg>
         {unread > 0 && <span data-testid="staff-appointment-unread" className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-300 px-1 text-[11px] font-extrabold text-slate-950">{unread > 9 ? "9+" : unread}</span>}
-      </button>
+      </ActionButton>
       {open && createPortal(
         <section ref={panel} dir={dir}
           id="staff-appointment-alert-panel"
@@ -193,15 +195,15 @@ export function StaffAppointmentAlerts({ staffId }: { staffId: string }) {
               <h2 className="mt-1 text-base font-bold">{t("Appointment alerts", "تنبيهات المواعيد")}</h2>
               <p className="mt-1 text-xs text-slate-300">{t("Last 24 hours", "آخر 24 ساعة")} · {unread} {t("unread", "غير مقروء")}</p>
             </div>
-            <button type="button" aria-label={t("Close appointment alerts", "إغلاق تنبيهات المواعيد")} onClick={() => setOpen(false)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/20 text-xl">×</button>
+            <ActionButton type="button" aria-label={t("Close appointment alerts", "إغلاق تنبيهات المواعيد")} onClick={() => setOpen(false)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/20 text-xl">×</ActionButton>
           </div>
           <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-            <button type="button" onClick={() => markRead(events.map(e => e.id))} disabled={unread === 0} className="min-h-10 rounded-lg border border-white/20 px-3 py-2 text-xs font-semibold text-slate-100 disabled:opacity-50">{t("Mark all read", "تحديد الكل كمقروء")}</button>
-            <button type="button" aria-pressed={soundEnabled} onClick={() => {
+            <ActionButton type="button" onClick={() => markRead(events.map(e => e.id))} disabled={unread === 0} className="min-h-10 rounded-lg border border-white/20 px-3 py-2 text-xs font-semibold text-slate-100 disabled:opacity-50">{t("Mark all read", "تحديد الكل كمقروء")}</ActionButton>
+            <ActionButton type="button" aria-pressed={soundEnabled} onClick={() => {
               const next = !soundEnabled;
               soundRef.current = next;
               setSoundEnabled(next);
-            }} className="min-h-10 rounded-lg border border-amber-300/30 px-3 py-2 text-xs text-amber-200">{soundEnabled ? t("Sound on", "الصوت مفعّل") : t("Enable sound", "تفعيل الصوت")}</button>
+            }} className="min-h-10 rounded-lg border border-amber-300/30 px-3 py-2 text-xs text-amber-200">{soundEnabled ? t("Sound on", "الصوت مفعّل") : t("Enable sound", "تفعيل الصوت")}</ActionButton>
           </div>
           {!online && <p role="status" className="mb-3 rounded-lg bg-rose-400/10 p-2 text-xs text-rose-200">{t("Connection interrupted. Retrying…", "انقطع الاتصال. تجري إعادة المحاولة…")}</p>}
           {events.length === 0 ? (

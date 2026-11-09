@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useEffect, useState } from "react";
 
 type States = Record<string, string>;
@@ -17,12 +19,12 @@ export function Integrations() {
     <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-4" data-testid="integrations">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">Integrations</h2>
-        <button type="button" className="rounded border border-slate-300 px-3 py-1 text-sm" disabled={checking} onClick={async () => {
+        <ActionButton type="button" className="rounded border border-slate-300 px-3 py-1 text-sm" disabled={checking} onClick={async () => {
           setChecking(true);
           const d = await (await fetch("/api/staff/providers?live=1")).json().catch(() => null);
           setChecking(false);
           if (d?.ok) setModels(d.models);
-        }}>{checking ? "Checking…" : "Check model availability"}</button>
+        }}>{checking ? "Checking…" : "Check model availability"}</ActionButton>
       </div>
       {states && (
         <table className="table">

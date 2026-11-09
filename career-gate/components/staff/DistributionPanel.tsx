@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 
 
@@ -142,9 +144,9 @@ export function DistributionPanel({
             <RoyalOption value="">Unassigned</RoyalOption>
             {staff.filter((s) => s.active).map((s) => <RoyalOption key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</RoyalOption>)}
           </RoyalSelect>
-          <button type="button" className="ops-primary-button" disabled={busy || selected.size === 0} onClick={() => void assign()}>
+          <ActionButton type="button" className="ops-primary-button" disabled={busy || selected.size === 0} onClick={() => assign()}>
             Assign {selected.size ? `(${selected.size})` : "selected"}
-          </button>
+          </ActionButton>
         </div>
 
         <div className="ops-distribution-table-wrap">

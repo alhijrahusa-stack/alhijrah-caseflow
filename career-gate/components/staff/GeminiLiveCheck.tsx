@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useState } from "react";
 
 type Probe = { model: string | null; status: "AVAILABLE" | "UNAVAILABLE" | "NOT_CONFIGURED"; reason?: string; http?: number };
@@ -34,9 +36,9 @@ export function GeminiLiveCheck() {
   }
   return <div className="mt-4 space-y-3" data-testid="gemini-live-check">
     <div className="flex flex-wrap items-center gap-3">
-      <button type="button" className="ops-primary-button" disabled={checking} onClick={check}>
+      <ActionButton type="button" className="ops-primary-button" disabled={checking} onClick={check}>
         {checking ? "Checking Gemini…" : "Test actual Gemini API connection"}
-      </button>
+      </ActionButton>
       <p className="text-xs text-slate-400">Sends two minimal test requests to Google. No client documents are sent.</p>
     </div>
     {error && <p role="alert" className="text-sm text-red-300">{error}</p>}

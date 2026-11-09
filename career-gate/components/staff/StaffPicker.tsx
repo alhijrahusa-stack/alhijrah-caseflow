@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useEffect, useRef, useState } from "react";
 import type { StaffMember } from "@/components/staff/StaffContext";
 
@@ -28,7 +30,7 @@ export function StaffPicker({
 
   return (
     <div className="staff-picker" ref={root}>
-      <button
+      <ActionButton
         type="button"
         className="staff-picker-trigger"
         aria-haspopup="listbox"
@@ -42,17 +44,17 @@ export function StaffPicker({
           <small>{selected?.staff_code ?? "No owner assigned"}</small>
         </span>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
-      </button>
+      </ActionButton>
 
       {open && !disabled && (
         <div className="staff-picker-menu" role="listbox">
-          <button type="button" role="option" aria-selected={!value} className="staff-picker-option" onClick={() => { onChange(""); setOpen(false); }}>
+          <ActionButton type="button" role="option" aria-selected={!value} className="staff-picker-option" onClick={() => { onChange(""); setOpen(false); }}>
             <span className="staff-picker-avatar muted">—</span>
             <span><strong>Unassigned</strong><small>No owner assigned</small></span>
             {!value && <b>✓</b>}
-          </button>
+          </ActionButton>
           {staff.map((member) => (
-            <button
+            <ActionButton
               key={member.id}
               type="button"
               role="option"
@@ -63,7 +65,7 @@ export function StaffPicker({
               <span className="staff-picker-avatar">{member.display_name.trim().slice(0, 1).toUpperCase()}</span>
               <span><strong>{member.display_name}</strong><small>{member.staff_code ?? member.role}</small></span>
               {member.id === value && <b>✓</b>}
-            </button>
+            </ActionButton>
           ))}
         </div>
       )}

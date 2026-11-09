@@ -1,5 +1,8 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
+import { NavigationFeedback } from "@/components/ui/NavigationFeedback";
 import Link from "next/link";
 import { usePathname,useRouter,useSearchParams } from "next/navigation";
 import { createContext,useContext,useEffect,useRef,useState,type ReactNode } from "react";
@@ -131,7 +134,7 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
   const nav = (label: string, arabic: string, href: string, icon: string, count?: number, urgentCount?: number, registry = false) => (
     <Link key={href} href={href} prefetch={false} aria-label={t(label, arabic)} aria-current={active(href) ? "page" : undefined}
       title={t(label, arabic)} onClick={() => setMobile(false)} onNavigate={() => prepareNavigation(href)} className={`royal-nav-item staff-nav-link${registry ? " royal-final-registry-link" : ""}`}>
-      <span className="royal-nav-icon" aria-hidden="true"><NavigationIcon icon={icon}/></span>
+      <NavigationFeedback /><span className="royal-nav-icon" aria-hidden="true"><NavigationIcon icon={icon}/></span>
       <span className="royal-nav-copy"><span>{t(label, arabic)}</span><small lang={language === "en" ? "ar" : "en"}>{t(arabic, label)}</small>{registry && <small className="royal-registry-year" title={t("Office year · choose a year inside the registry", "سنة المكتب · يمكن اختيار السنة داخل السجل")}>{/^\d{4}$/.test(params.get("year") ?? "") && (params.get("view") === "completed" || currentStage === "completed") ? params.get("year") : toLocalInput(data.generated_at).slice(0, 4)}</small>}</span>
       <span className="royal-nav-counts">{count != null && <NavigationCount value={count}/>}{urgentCount != null && urgentCount > 0 && <NavigationCount value={urgentCount} urgent/>}</span>
     </Link>
@@ -142,16 +145,16 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
   return <Context value={data}><div className="staff-shell royal-shell" data-collapsed={collapsed} data-spatial-mode={spatialMode} lang={language} dir={dir} data-testid="executive-shell">
     <span className="royal-mesh" aria-hidden="true" />
     <a className="royal-skip-link" href="#staff-main-content">{t("Skip to workspace", "الانتقال إلى مساحة العمل")}</a>
-    {!spatialMode&&<><button ref={navigationTrigger} type="button" className="royal-mobile-toggle" aria-label={t("Open navigation", "فتح قائمة الأقسام")} aria-controls="royal-navigation" aria-expanded={mobile} onClick={() => setMobile(value => !value)}>☰</button>
-    {mobile && <button type="button" className="royal-mobile-backdrop" aria-label={t("Close navigation", "إغلاق قائمة الأقسام")} onClick={() => setMobile(false)} />}
+    {!spatialMode&&<><ActionButton ref={navigationTrigger} type="button" className="royal-mobile-toggle" aria-label={t("Open navigation", "فتح قائمة الأقسام")} aria-controls="royal-navigation" aria-expanded={mobile} onClick={() => setMobile(value => !value)}>☰</ActionButton>
+    {mobile && <ActionButton type="button" className="royal-mobile-backdrop" aria-label={t("Close navigation", "إغلاق قائمة الأقسام")} onClick={() => setMobile(false)} />}
     <aside ref={sidebar} id="royal-navigation" className="royal-sidebar" data-open={mobile} aria-label={t("Executive navigation", "القائمة التنفيذية")}>
       <div className="royal-brand">
         <Link href="/staff" prefetch={false} aria-label="Career Gate">
           <span className="royal-crown" aria-hidden="true"><svg viewBox="0 0 36 36" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="m5 10 7 6 6-10 6 10 7-6-3 17H8L5 10Z"/><path d="M10 31h16M10 23h16"/><circle cx="5" cy="9" r="1.5"/><circle cx="18" cy="5" r="1.5"/><circle cx="31" cy="9" r="1.5"/></svg></span>
           <span className="royal-nav-copy" dir="ltr"><strong>CAREER GATE</strong><small>EXECUTIVE COMMAND</small></span>
         </Link>
-        <button type="button" className="royal-mobile-close" aria-label={t("Close navigation", "إغلاق قائمة الأقسام")} onClick={() => setMobile(false)}>×</button>
-        <button type="button" className="royal-collapse" aria-label={collapsed ? t("Expand sidebar", "توسيع الشريط الجانبي") : t("Collapse sidebar", "طي الشريط الجانبي")} aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}>⇆</button>
+        <ActionButton type="button" className="royal-mobile-close" aria-label={t("Close navigation", "إغلاق قائمة الأقسام")} onClick={() => setMobile(false)}>×</ActionButton>
+        <ActionButton type="button" className="royal-collapse" aria-label={collapsed ? t("Expand sidebar", "توسيع الشريط الجانبي") : t("Collapse sidebar", "طي الشريط الجانبي")} aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}>⇆</ActionButton>
       </div>
       <nav aria-label={t("Staff operations", "أقسام العمل")} className="royal-nav">
         <p className="royal-group-label">{t("Executive", "القيادة التنفيذية")}</p>
@@ -186,10 +189,10 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
       </Link>
     </aside></>}
     <div className="royal-main"><header className="royal-topbar" hidden={spatialMode} inert={spatialMode} aria-hidden={spatialMode || undefined}>{header}{!pathname.startsWith("/staff/client/") && <RealtimeRefresher />}</header><main id="staff-main-content" className="royal-content" tabIndex={-1}>{children}</main></div>
-    <button type="button" className="royal-orb" aria-label={management ? t("Open operational assistant", "فتح مساعد العمليات") : t("Open command assistant", "فتح مساعد الأوامر")} title={management ? t("Operational assistant", "مساعد العمليات") : t("Command assistant · Ctrl+K", "مساعد الأوامر · Ctrl+K")} onClick={() => window.dispatchEvent(new Event(management ? "career-gate:open-assistant" : "career-gate:open-command"))}>✧</button>
+    <ActionButton type="button" className="royal-orb" aria-label={management ? t("Open operational assistant", "فتح مساعد العمليات") : t("Open command assistant", "فتح مساعد الأوامر")} title={management ? t("Operational assistant", "مساعد العمليات") : t("Command assistant · Ctrl+K", "مساعد الأوامر · Ctrl+K")} onClick={() => window.dispatchEvent(new Event(management ? "career-gate:open-assistant" : "career-gate:open-command"))}>✧</ActionButton>
     <DeferredOperationalAssistant enabled={management}/>
     <SessionDraftBoundary/>
     {notice && <p role="status" className="royal-sync-toast">◈ {t("Finance and dashboard figures are up to date", "تمت مزامنة المالية ومؤشرات لوحة القيادة")}</p>}
-    {stale && <button className="royal-stale" type="button" onClick={() => router.refresh()}>{t("Could not update summary · Retry", "تعذر تحديث المؤشرات · إعادة المحاولة")}</button>}
+    {stale && <ActionButton className="royal-stale" type="button" onClick={() => router.refresh()}>{t("Could not update summary · Retry", "تعذر تحديث المؤشرات · إعادة المحاولة")}</ActionButton>}
   </div></Context>;
 }

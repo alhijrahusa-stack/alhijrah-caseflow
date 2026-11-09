@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useRouter } from "next/navigation";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import { useToast } from "@/components/ui/Toast";
@@ -9,7 +11,7 @@ export function SignOutButton() {
   const { t } = useStaffLanguage();
   const toast = useToast();
   return (
-    <button type="button" className="staff-sign-out text-slate-500 hover:text-slate-900" aria-label={t("Sign out", "تسجيل الخروج")} title={t("Sign out", "تسجيل الخروج")}
+    <ActionButton type="button" className="staff-sign-out text-slate-500 hover:text-slate-900" aria-label={t("Sign out", "تسجيل الخروج")} title={t("Sign out", "تسجيل الخروج")}
       onClick={async () => {
         try {
           const response = await fetch("/api/staff/auth/logout", { method: "POST" });
@@ -23,6 +25,6 @@ export function SignOutButton() {
         router.refresh();
       }}>
       {t("Sign out", "تسجيل الخروج")}
-    </button>
+    </ActionButton>
   );
 }

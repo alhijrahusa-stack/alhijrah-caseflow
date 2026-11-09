@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 import { useState } from "react";
 
@@ -30,9 +32,9 @@ export function ArchiveRestoreButton({ clientId }: { clientId: string }) {
 
   return (
     <div className="inline-flex flex-col items-end gap-1">
-      <button type="button" onClick={() => void restore()} disabled={pending} className="archive-restore-button" data-executive-tactile="true">
+      <ActionButton type="button" onClick={() => restore()} disabled={pending} className="archive-restore-button" data-executive-tactile="true">
         {pending ? "Restoring…" : "Restore"}
-      </button>
+      </ActionButton>
       {error && <span className="text-xs text-red-300" role="alert">{error}</span>}
     </div>
   );

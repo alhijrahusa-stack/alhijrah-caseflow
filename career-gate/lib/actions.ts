@@ -231,7 +231,7 @@ export const ActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("resolve_alert"), alert_id: id, note: optText(1000) }),
   z.object({ action: z.literal("ignore_alert"), alert_id: id, reason: text(1000) }),
   z.object({ action: z.literal("run_audit_scan"), client_id: id.nullable().optional() }),
-]);
+]).and(z.object({ operation_id: id.optional() }));
 export type ActionInput = z.infer<typeof ActionSchema>;
 
 /** Client (if any) an action targets, for scope checks. */

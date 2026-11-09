@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useAction } from "@/components/forms/useAction";
@@ -58,11 +60,11 @@ export function QuickLocationEdit({ clientId, label, siteCode }: Props) {
     <span className="cg-qle" dir={dir}>
       <span className="cg-qle-value" data-testid="preferred-location-value" data-pending={action.pending || undefined}>{shown ?? "—"}</span>
       {isManager && (
-        <button ref={trigger} type="button" className="cg-qle-trigger" aria-haspopup="dialog" aria-expanded={open}
+        <ActionButton ref={trigger} type="button" className="cg-qle-trigger" aria-haspopup="dialog" aria-expanded={open}
           aria-label={t("Change preferred location", "تغيير الموقع المفضل")} title={t("Change preferred location", "تغيير الموقع المفضل")}
           aria-disabled={action.pending || undefined} onClick={() => { if (!action.pending) setOpen((value) => !value); }}>
           <span aria-hidden="true" className="cg-qle-icon" />
-        </button>
+        </ActionButton>
       )}
       {open && (
         <LocationPicker anchor={trigger} currentIndex={locationIndexForCode(currentCode)} needsShift={currentCode === null}
@@ -146,7 +148,7 @@ function LocationPicker({ anchor, currentIndex, needsShift, onCancel, onSave }: 
       style={position ? { left: position.left, top: position.top, bottom: position.bottom } : { opacity: 0, pointerEvents: "none" }} onKeyDown={onKeyDown}>
       <header>
         <h3 id={titleId}>{t("Preferred location", "الموقع المفضل")}</h3>
-        <button type="button" className="cg-qle-close" aria-label={t("Close", "إغلاق")} onClick={onCancel}>×</button>
+        <ActionButton type="button" className="cg-qle-close" aria-label={t("Close", "إغلاق")} onClick={onCancel}>×</ActionButton>
       </header>
       <input ref={input} type="search" role="combobox" aria-expanded="true" aria-controls={listId} aria-autocomplete="list"
         aria-activedescendant={results[activeIndex] ? `${ids}-opt-${results[activeIndex].index}` : undefined}
@@ -179,8 +181,8 @@ function LocationPicker({ anchor, currentIndex, needsShift, onCancel, onSave }: 
       )}
       <footer>
         <span className="cg-qle-hint">{t("Updates the pipeline and activity log", "يُحدِّث المسار وسجل النشاط")}</span>
-        <button type="button" className="cg-qle-cancel" onClick={onCancel}>{t("Cancel", "إلغاء")}</button>
-        <button type="button" className="cg-qle-save" disabled={!canSave} onClick={() => onSave(selected, needsShift ? shift : null)}>{t("Save", "حفظ")}</button>
+        <ActionButton type="button" className="cg-qle-cancel" onClick={onCancel}>{t("Cancel", "إلغاء")}</ActionButton>
+        <ActionButton type="button" className="cg-qle-save" disabled={!canSave} onClick={() => onSave(selected, needsShift ? shift : null)}>{t("Save", "حفظ")}</ActionButton>
       </footer>
     </div>,
     document.body,

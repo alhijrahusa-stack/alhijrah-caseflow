@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useEffect, useState } from "react";
 import { GlassReviewDialog } from "@/components/staff/smart/GlassReviewDialog";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
@@ -30,13 +32,13 @@ export function SecureDocumentDrawer({ documentId, name, mimeType, onClose }: {
       <div className="cg-document-toolbar">
         <div><strong dir="ltr">{name}</strong><p>{t("Private original · access recorded · temporary link", "الوثيقة الأصلية الخاصة · تم تسجيل الوصول · رابط مؤقت")}</p></div>
         <div className="cg-document-zoom" role="group" aria-label={t("Document zoom", "تكبير الوثيقة")} dir="ltr">
-          <button type="button" aria-label={t("Zoom out", "تصغير")} disabled={zoom <= 50} onClick={() => setZoom(value => Math.max(50, value - 25))}>−</button>
+          <ActionButton type="button" aria-label={t("Zoom out", "تصغير")} disabled={zoom <= 50} onClick={() => setZoom(value => Math.max(50, value - 25))}>−</ActionButton>
           <output aria-live="polite">{zoom}%</output>
-          <button type="button" aria-label={t("Zoom in", "تكبير")} disabled={zoom >= 250} onClick={() => setZoom(value => Math.min(250, value + 25))}>+</button>
-          <button type="button" onClick={() => setZoom(100)}>{t("Reset", "إعادة ضبط")}</button>
+          <ActionButton type="button" aria-label={t("Zoom in", "تكبير")} disabled={zoom >= 250} onClick={() => setZoom(value => Math.min(250, value + 25))}>+</ActionButton>
+          <ActionButton type="button" onClick={() => setZoom(100)}>{t("Reset", "إعادة ضبط")}</ActionButton>
         </div>
       </div>
-      {error ? <div role="alert" className="cg-document-error"><p>{error}</p><button type="button" onClick={() => { setUrl(null); setError(""); setAttempt(value => value + 1); }}>{t("Retry preview", "إعادة المحاولة")}</button></div>
+      {error ? <div role="alert" className="cg-document-error"><p>{error}</p><ActionButton type="button" onClick={() => { setUrl(null); setError(""); setAttempt(value => value + 1); }}>{t("Retry preview", "إعادة المحاولة")}</ActionButton></div>
         : !url ? <p role="status">{t("Opening secured document…", "جارٍ فتح الوثيقة بأمان…")}</p>
           : <div className="cg-document-canvas" tabIndex={0} aria-label={t("Document contents", "محتوى الوثيقة")}>
             {image ? <div className="cg-document-image" style={{ width: `${zoom}%` }}>

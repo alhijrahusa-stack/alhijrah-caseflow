@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import Link from "next/link";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import type { ManagerSegment } from "@/components/staff/manager/types";
@@ -29,9 +31,9 @@ export function ManagerSectionRail({ segment, onSegmentChange, awaitingReview, d
     <div className={styles.railHeading}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="m12 2 9 10-9 10L3 12 12 2Z"/><path d="m12 7 4.5 5-4.5 5L7.5 12 12 7Z"/></svg><div><small>{t("EXECUTIVE WORKSPACE", "مساحة القيادة")}</small><strong>{t("Your command center", "مركز التحكم")}</strong></div></div>
     <nav aria-label={t("Manager review queues", "قوائم مراجعة المدير")} className={`${styles.railGroup} ${styles.railQueues}`}>
       <p>{t("DECISIONS", "القرارات")}</p>
-      {queues.map(queue => <button key={queue.id} type="button" aria-pressed={segment === queue.id} disabled={disabled} onClick={() => onSegmentChange(queue.id)} data-testid={`manager-segment-${queue.id}`} data-tone={queue.id}>
+      {queues.map(queue => <ActionButton key={queue.id} type="button" aria-pressed={segment === queue.id} disabled={disabled} onClick={() => onSegmentChange(queue.id)} data-testid={`manager-segment-${queue.id}`} data-tone={queue.id}>
         <QueueIcon kind={queue.id} /><span>{queue.label}</span>{queue.id === "action" && <b>{awaitingReview}</b>}
-      </button>)}
+      </ActionButton>)}
     </nav>
     <nav aria-label={t("Workflow sections", "أقسام مسار العمل")} className={styles.railGroup}>
       <p>{t("WORKFLOW", "مسار العمل")}</p>

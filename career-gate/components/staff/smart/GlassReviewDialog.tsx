@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
@@ -44,7 +46,7 @@ export function GlassReviewDialog({ title, children, onClose, wide = false, draw
   if (typeof document === "undefined") return null;
   return createPortal(<div className={`cg-glass-dialog-layer ${drawer ? "is-drawer" : ""}`} onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section ref={ref} className={`cg-glass-dialog ${wide ? "is-wide" : ""} ${className}`} data-entering={entering} onAnimationEnd={event => { if (event.target === event.currentTarget) setEntering(false); }} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
-      <header><div><span className="cg-dialog-kicker">CAREER GATE · REVIEW</span><h2 id={titleId}>{title}</h2></div><button type="button" className="cg-review-button" aria-label={closeLabel ?? `${t("Close","إغلاق")} ${title}`} onClick={onClose}>✕</button></header>
+      <header><div><span className="cg-dialog-kicker">CAREER GATE · REVIEW</span><h2 id={titleId}>{title}</h2></div><ActionButton type="button" className="cg-review-button" aria-label={closeLabel ?? `${t("Close","إغلاق")} ${title}`} onClick={onClose}>✕</ActionButton></header>
       <div className="cg-glass-dialog-body">{children}</div>
     </section>
   </div>, document.body);

@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useAction } from "@/components/forms/useAction";
 import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
 
@@ -34,7 +36,7 @@ export function Dl({ rows }: { rows: [string, React.ReactNode][] }) {
 
 export function SmallBtn(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const uiLabel = useStaffLabel();
-  return <button type="button" {...props} className={`cg-mini-glass-button ${props.className ?? ""}`}>{typeof props.children === "string" ? uiLabel(props.children) : props.children}</button>;
+  return <ActionButton type="button" {...props} className={`cg-mini-glass-button ${props.className ?? ""}`}>{typeof props.children === "string" ? uiLabel(props.children) : props.children}</ActionButton>;
 }
 
 export const yn = (v: boolean | null | undefined) => <StaffLabel en={v === true ? "Yes" : v === false ? "No" : "UNKNOWN / NOT PROVIDED"}/>;

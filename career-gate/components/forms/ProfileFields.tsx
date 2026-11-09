@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
 
 
@@ -220,13 +222,13 @@ export function ProfileFields({ value: v, onChange, section = "all" }: Props) {
                   <input id={`emp_to_${i}`} type="date" className="input" value={e.to_date} onChange={(x) => setJob(i, { to_date: x.target.value })} />
                 </Field>
               </div>
-              <button type="button" className="text-sm text-red-600 hover:underline"
-                onClick={() => set({ employment_history: v.employment_history.filter((_, j) => j !== i) })}><StaffLabel en="Remove"/>{" "}</button>
+              <ActionButton type="button" className="text-sm text-red-600 hover:underline"
+                onClick={() => set({ employment_history: v.employment_history.filter((_, j) => j !== i) })}><StaffLabel en="Remove"/>{" "}</ActionButton>
             </div>
           ))}
           {v.employment_history.length < 10 && (
-            <button type="button" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
-              onClick={() => set({ employment_history: [...v.employment_history, { company: "", job_title: "", from_date: "", to_date: "", self_employed: false }] })}><StaffLabel en="+ Add employment"/>{" "}</button>
+            <ActionButton type="button" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+              onClick={() => set({ employment_history: [...v.employment_history, { company: "", job_title: "", from_date: "", to_date: "", self_employed: false }] })}><StaffLabel en="+ Add employment"/>{" "}</ActionButton>
           )}
         </section>
       )}

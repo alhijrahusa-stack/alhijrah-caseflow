@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
 
 
@@ -122,10 +124,10 @@ function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: (opera
             </dd>
           </dl>
           <div className="ops-action-bar">
-            <button type="button" className="ops-primary-button" disabled={busy} onClick={() => void change(pending)} data-testid="commission-confirm">
+            <ActionButton type="button" className="ops-primary-button" disabled={busy} onClick={() => change(pending)} data-testid="commission-confirm">
               {busy ? "Working…" : `Confirm ${pending}`}
-            </button>
-            <button type="button" className="ops-secondary-button" disabled={busy} onClick={() => setPending(null)}><StaffLabel en="Cancel"/></button>
+            </ActionButton>
+            <ActionButton type="button" className="ops-secondary-button" disabled={busy} onClick={() => setPending(null)}><StaffLabel en="Cancel"/></ActionButton>
           </div>
         </div>
       )}
@@ -133,16 +135,16 @@ function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: (opera
       {!pending && (
         <div className="ops-action-bar">
           {row.commission_status === "eligible" && (
-            <button type="button" className="ops-primary-button" disabled={busy} onClick={() => request("approved")} data-testid="commission-approve"><StaffLabel en="Approve"/></button>
+            <ActionButton type="button" className="ops-primary-button" disabled={busy} onClick={() => request("approved")} data-testid="commission-approve"><StaffLabel en="Approve"/></ActionButton>
           )}
           {row.commission_status === "approved" && (
-            <button type="button" className="ops-primary-button" disabled={busy || !reference.trim()} onClick={() => request("paid")} data-testid="commission-pay"><StaffLabel en="Mark paid"/></button>
+            <ActionButton type="button" className="ops-primary-button" disabled={busy || !reference.trim()} onClick={() => request("paid")} data-testid="commission-pay"><StaffLabel en="Mark paid"/></ActionButton>
           )}
           {(row.commission_status === "eligible" || row.commission_status === "approved") && (
-            <button type="button" className="ops-secondary-button" disabled={busy || !reason.trim()} onClick={() => request("cancelled")} data-testid="commission-cancel"><StaffLabel en="Cancel"/></button>
+            <ActionButton type="button" className="ops-secondary-button" disabled={busy || !reason.trim()} onClick={() => request("cancelled")} data-testid="commission-cancel"><StaffLabel en="Cancel"/></ActionButton>
           )}
           {row.commission_status === "paid" && (
-            <button type="button" className="ops-secondary-button" disabled={busy || !reason.trim()} onClick={() => request("reversed")} data-testid="commission-reverse"><StaffLabel en="Reverse"/></button>
+            <ActionButton type="button" className="ops-secondary-button" disabled={busy || !reason.trim()} onClick={() => request("reversed")} data-testid="commission-reverse"><StaffLabel en="Reverse"/></ActionButton>
           )}
         </div>
       )}
@@ -150,7 +152,7 @@ function CommissionControl({ row, onDone }: { row: AccountingRow; onDone: (opera
       {outcome.state === "failed" && <p className="ops-inline-error" role="alert">{outcome.message}</p>}
       {outcome.state === "unknown" && (
         <p className="ops-inline-error" role="alert" data-testid="commission-unknown">
-          {outcome.message} <button type="button" className="ops-secondary-button" onClick={() => { reset(); onDone("update_commission"); }}><StaffLabel en="Reload"/></button>
+          {outcome.message} <ActionButton type="button" className="ops-secondary-button" onClick={() => { reset(); onDone("update_commission"); }}><StaffLabel en="Reload"/></ActionButton>
         </p>
       )}
     </div>
@@ -200,18 +202,18 @@ function AccountRow({ row, onDone }: { row: AccountingRow; onDone: (operation: s
       </div>
 
       <div className="ops-action-bar">
-        <button type="button" className="ops-primary-button" onClick={openAction("payment")} data-testid="row-record-payment"><StaffLabel en="Record Payment"/></button>
+        <ActionButton type="button" className="ops-primary-button" onClick={openAction("payment")} data-testid="row-record-payment"><StaffLabel en="Record Payment"/></ActionButton>
         <Link href={`/staff/client/${row.client_id}`} className="ops-secondary-button" data-testid="row-view-client"><StaffLabel en="View Client"/></Link>
         <span className="ops-more">
-          <button type="button" className="ops-secondary-button" aria-expanded={moreOpen} onClick={() => setMoreOpen((v) => !v)} data-testid="row-more"><StaffLabel en="More"/></button>
+          <ActionButton type="button" className="ops-secondary-button" aria-expanded={moreOpen} onClick={() => setMoreOpen((v) => !v)} data-testid="row-more"><StaffLabel en="More"/></ActionButton>
           {moreOpen && (
             <span className="ops-more-menu" role="menu">
-              <button type="button" role="menuitem" onClick={openAction("discount")} data-testid="row-discount-action"><StaffLabel en="Apply Discount"/></button>
-              <button type="button" role="menuitem" onClick={openAction("refund")} data-testid="row-refund"><StaffLabel en="Refund"/></button>
-              <button type="button" role="menuitem" onClick={openAction("adjustment")} data-testid="row-adjustment"><StaffLabel en="Adjustment"/></button>
-              <button type="button" role="menuitem" onClick={openAction("waiver")} data-testid="row-waiver"><StaffLabel en="Waiver"/></button>
-              <button type="button" role="menuitem" onClick={toggle({ kind: "commission" })} data-testid="row-commission"><StaffLabel en="Commission"/></button>
-              <button type="button" role="menuitem" onClick={toggle({ kind: "ledger" })} data-testid="row-ledger"><StaffLabel en="Ledger ·"/>{" "}{row.transactions.length}</button>
+              <ActionButton type="button" role="menuitem" onClick={openAction("discount")} data-testid="row-discount-action"><StaffLabel en="Apply Discount"/></ActionButton>
+              <ActionButton type="button" role="menuitem" onClick={openAction("refund")} data-testid="row-refund"><StaffLabel en="Refund"/></ActionButton>
+              <ActionButton type="button" role="menuitem" onClick={openAction("adjustment")} data-testid="row-adjustment"><StaffLabel en="Adjustment"/></ActionButton>
+              <ActionButton type="button" role="menuitem" onClick={openAction("waiver")} data-testid="row-waiver"><StaffLabel en="Waiver"/></ActionButton>
+              <ActionButton type="button" role="menuitem" onClick={toggle({ kind: "commission" })} data-testid="row-commission"><StaffLabel en="Commission"/></ActionButton>
+              <ActionButton type="button" role="menuitem" onClick={toggle({ kind: "ledger" })} data-testid="row-ledger"><StaffLabel en="Ledger ·"/>{" "}{row.transactions.length}</ActionButton>
             </span>
           )}
         </span>
@@ -302,7 +304,7 @@ export function AccountingBoard({ data, filters, staff }: { data: AccountingPage
           <RoyalSelect className="ops-select" value={filters.status} onChange={(e) => go({ status: e.target.value as AccountingFilters["status"] })} data-testid="accounting-status"><RoyalOption labelAr="جميع الحسابات" value="all">All accounts</RoyalOption><RoyalOption labelAr="غير مسدد" value="unpaid">Unpaid</RoyalOption><RoyalOption labelAr="مسدد جزئياً" value="partially_paid">Partially paid</RoyalOption><RoyalOption labelAr="مسدد" value="paid">Paid</RoyalOption><RoyalOption labelAr="مسترد" value="refunded">Refunded</RoyalOption></RoyalSelect>
           <RoyalSelect className="ops-select" value={filters.staffId ?? "all"} onChange={(e) => go({ staffId: e.target.value === "all" ? null : e.target.value })} data-testid="accounting-staff"><RoyalOption labelAr="جميع الموظفين" value="all">All staff</RoyalOption>{activeStaff.map((s) => <RoyalOption key={s.id} value={s.id}>{s.staff_code ?? "—"} · {s.display_name}</RoyalOption>)}</RoyalSelect>
           {filters.clientId && (
-            <button type="button" className="ops-secondary-button" data-testid="clear-client-focus" onClick={() => go({ clientId: null })}><StaffLabel en="Showing one client · show all"/>{" "}</button>
+            <ActionButton type="button" className="ops-secondary-button" data-testid="clear-client-focus" onClick={() => go({ clientId: null })}><StaffLabel en="Showing one client · show all"/>{" "}</ActionButton>
           )}
           <span className="ops-note" data-testid="accounting-count">{totals.count}{" "}<StaffLabel en="account"/>{totals.count === 1 ? "" : "s"}</span>
         </div>
@@ -314,9 +316,9 @@ export function AccountingBoard({ data, filters, staff }: { data: AccountingPage
 
         {pageCount > 1 && (
           <nav aria-label={uiLabel("Account pages")} className="mt-4 flex items-center justify-between gap-3" data-testid="accounting-pager">
-            <button type="button" className="ops-secondary-button" disabled={page <= 1 || navigating} onClick={() => go({ page: page - 1 })}><StaffLabel en="Previous"/></button>
+            <ActionButton type="button" className="ops-secondary-button" disabled={page <= 1 || navigating} onClick={() => go({ page: page - 1 })}><StaffLabel en="Previous"/></ActionButton>
             <span className="ops-note"><StaffLabel en="Page"/>{" "}{page}{" "}<StaffLabel en="of"/>{" "}{pageCount}</span>
-            <button type="button" className="ops-primary-button" disabled={page >= pageCount || navigating} onClick={() => go({ page: page + 1 })}><StaffLabel en="Next"/></button>
+            <ActionButton type="button" className="ops-primary-button" disabled={page >= pageCount || navigating} onClick={() => go({ page: page + 1 })}><StaffLabel en="Next"/></ActionButton>
           </nav>
         )}
       </section>

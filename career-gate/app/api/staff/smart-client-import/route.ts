@@ -9,6 +9,7 @@ import { staffGuard } from "@/lib/staff-api";
 import {
   approveImportCase,
   getImportCase,
+  openImportReview,
   saveImportReview,
   startImportReview,
   verifyImportCase,
@@ -74,6 +75,7 @@ export async function GET(req: Request) {
 }
 
 const ActionBody = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("open_review"), id: z.uuid() }),
   z.object({ action: z.literal("start_review"), id: z.uuid(), reviewer_id: z.uuid() }),
   z.object({
     action: z.literal("save"), id: z.uuid(), reviewer_id: z.uuid(), draft: z.record(z.string(), z.unknown()),
@@ -98,6 +100,7 @@ export async function POST(req: Request) {
   if (guard.session.staff.role === "staff") return err("forbidden", "Smart client import requires manager or admin access", 403, traceId);
   try {
     const body = ActionBody.parse(await req.json());
+    if (body.action === "open_review") return ok(await openImportReview(guard.session, body.id), 200, traceId);
     if (body.action === "archive") return ok(await archiveImportCase(guard.session, body.id), 200, traceId);
     await assertImportNotArchived(body.id);
     if (body.action === "start_review") return ok(await startImportReview(guard.session, body.id, body.reviewer_id), 200, traceId);

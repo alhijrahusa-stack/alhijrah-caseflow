@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { StaffText } from "@/components/staff/StaffLanguage";
 
 
@@ -25,7 +27,7 @@ export default function StaffRouteError({ error, reset }: { error: Error & { dig
         <p className="text-sm text-slate-300"><StaffText en="No data was changed. Navigation and the rest of the workspace remain available." ar="لم تتغير أي بيانات. يمكنك متابعة التنقل والعمل في بقية الأقسام."/></p>
         {error.digest && <p className="font-mono text-xs text-slate-500"><StaffText en="Reference:" ar="المرجع:"/> {error.digest}</p>}
         <div className="flex flex-wrap justify-center gap-2">
-          <button type="button" className="ops-primary-button" onClick={reset}><StaffText en="Try again" ar="إعادة المحاولة"/></button>
+          <ActionButton type="button" className="ops-primary-button" onClick={reset}><StaffText en="Try again" ar="إعادة المحاولة"/></ActionButton>
           <Link href="/staff" className="ops-secondary-button"><StaffText en="Dashboard" ar="مركز القيادة"/></Link>
         </div>
       </div>

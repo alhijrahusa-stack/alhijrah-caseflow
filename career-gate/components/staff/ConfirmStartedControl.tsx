@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RoyalOption, RoyalSelect } from "@/components/forms/RoyalSelect";
@@ -69,7 +71,7 @@ export function ConfirmStartedControl({ clientId, updatedAt, siteCode, disabled=
     finally { submitting.current=false;setBusy(false); }
   }
   return <>
-    <button type="button" className="cg-command-button employment-confirm-button" disabled={disabled || !updatedAt} onClick={show}>{t("Confirm actual start","تأكيد المباشرة الفعلية")}</button>
+    <ActionButton type="button" className="cg-command-button employment-confirm-button" disabled={disabled || !updatedAt} onClick={show}>{t("Confirm actual start","تأكيد المباشرة الفعلية")}</ActionButton>
     {open && <GlassReviewDialog title={t("Confirm actual start","تأكيد المباشرة الفعلية")} closeLabel={t("Close actual start confirmation","إغلاق تأكيد المباشرة")} onClose={()=>{if(!submitting.current)setOpen(false);}}>
       <form className="employment-confirmation-form" data-testid="employment-confirmation-form" onSubmit={event=>{event.preventDefault();void run();}}>
         <p>{t("Record work that actually began. Scheduled start dates remain separate.","سجّل المباشرة التي حدثت فعليًا. يبقى موعد البداية المخطط منفصلًا عنها.")}</p>
@@ -79,8 +81,8 @@ export function ConfirmStartedControl({ clientId, updatedAt, siteCode, disabled=
           {WORKSITE_OPTIONS.map(option=><RoyalOption key={option.code} value={option.code}>{option.name} · {option.code}</RoyalOption>)}
         </RoyalSelect></label>
         <label className="employment-attestation"><input type="checkbox" required checked={attested} disabled={busy} onChange={event=>setAttested(event.target.checked)}/><span>{t("I confirm the client actually started work","أؤكد أن العميل باشر العمل فعليًا")}</span></label>
-        {error && <div className="registry-error" role="alert"><p>{error}</p><button type="button" className="cg-command-button" disabled={busy} onClick={()=>router.refresh()}>{t("Refresh record","تحديث الملف")}</button></div>}
-        <button type="submit" className="ops-primary-button" disabled={busy || !attested || !date || !site}>{busy ? t("Saving…","جارٍ الحفظ…") : t("Confirm actual start & save record","تأكيد المباشرة وحفظ السجل النهائي")}</button>
+        {error && <div className="registry-error" role="alert"><p>{error}</p><ActionButton type="button" className="cg-command-button" disabled={busy} onClick={()=>router.refresh()}>{t("Refresh record","تحديث الملف")}</ActionButton></div>}
+        <ActionButton type="submit" className="ops-primary-button" disabled={busy || !attested || !date || !site}>{busy ? t("Saving…","جارٍ الحفظ…") : t("Confirm actual start & save record","تأكيد المباشرة وحفظ السجل النهائي")}</ActionButton>
       </form>
     </GlassReviewDialog>}
   </>;

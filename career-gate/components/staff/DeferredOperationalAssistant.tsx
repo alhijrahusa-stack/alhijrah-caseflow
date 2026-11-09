@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStaff } from "@/components/staff/StaffContext";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
@@ -50,6 +52,6 @@ function AssistantLauncher({ enabled }: { enabled: boolean }) {
   if (!loading && !failed) return null;
   return <div role={failed ? "alert" : "status"} className="royal-sync-toast">
     {failed ? t("The assistant could not load. Your workspace is still available.", "تعذر تحميل المساعد. مساحة العمل ما زالت متاحة.") : t("Opening assistant…", "جارٍ فتح المساعد…")}
-    {failed && <button type="button" className="cg-command-button" onClick={load}>{t("Retry", "إعادة المحاولة")}</button>}
+    {failed && <ActionButton type="button" className="cg-command-button" onClick={load}>{t("Retry", "إعادة المحاولة")}</ActionButton>}
   </div>;
 }

@@ -18,5 +18,7 @@ export async function GET(req: Request) {
   const s = registry.supabase();
   if (!s.url || !s.anonKey) return err("NOT_CONFIGURED", "Realtime is NOT_CONFIGURED", 503, traceId);
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
-  return ok({ token, url: s.url, anon_key: s.anonKey }, 200, traceId);
+  const response = ok({ staff_id: g.session.staff.id, token, url: s.url, anon_key: s.anonKey }, 200, traceId);
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
 }

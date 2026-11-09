@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import {
   Children, Fragment, forwardRef, isValidElement, useCallback, useEffect,
   useId, useImperativeHandle, useMemo, useRef, useState,
@@ -224,7 +226,7 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
   return <span className="royal-select-root" data-disabled={disabled || undefined}>
     {/* The trigger must be the first labelable child: a wrapping label then
         names/focuses the visible combobox rather than its form-value input. */}
-    <button {...triggerProps as React.ButtonHTMLAttributes<HTMLButtonElement>} ref={trigger} id={triggerId} type="button"
+    <ActionButton {...triggerProps as React.ButtonHTMLAttributes<HTMLButtonElement>} ref={trigger} id={triggerId} type="button"
       role="combobox" aria-haspopup="listbox" aria-expanded={open && !disabled} aria-controls={open ? listId : undefined}
       aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
       aria-label={accessibleLabel} aria-labelledby={labelledBy} aria-describedby={describedBy}
@@ -236,7 +238,7 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
       onKeyDown={event => { keys(event); if (!event.defaultPrevented) onKeyDown?.(event); }}>
       <span className="royal-select-value">{chosen?.label || "—"}</span>
       <span className="royal-select-chevron" aria-hidden="true">⌄</span>
-    </button>
+    </ActionButton>
     <input ref={field} className="royal-select-form-value" type="text" name={name} form={form}
       value={currentValue} readOnly={false} required={required} disabled={disabled} tabIndex={-1} aria-hidden="true"
       autoComplete="off" onChange={() => {}} onInvalid={event => {

@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import Link from "next/link";
 import { Client360Drawer, preloadClient360 } from "@/components/staff/Client360Drawer";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -43,7 +45,7 @@ const EmploymentRegistryCard=memo(function EmploymentRegistryCard({record,isMana
           </dl></details>
           <div className="employment-record-actions">
             <Link href={`/staff/client/${record.id}`} prefetch={false} className="cg-command-button">{t("Open Client ↗","فتح الملف ↗")}</Link>
-            <button type="button" onClick={()=>onOpen(record)} onPointerEnter={preloadClient360} onFocus={preloadClient360} className="cg-command-button">{t("Quick view · Client 360","معاينة سريعة · Client 360")}</button>
+            <ActionButton type="button" onClick={()=>onOpen(record)} onPointerEnter={preloadClient360} onFocus={preloadClient360} className="cg-command-button">{t("Quick view · Client 360","معاينة سريعة · Client 360")}</ActionButton>
             {!confirmed&&<ConfirmStartedControl clientId={record.id} updatedAt={record.updated_at} siteCode={record.site_code} disabled={!!record.manager_review_id}/> }
             {isManager&&!record.manager_review_id&&<div className="employment-record-delete"><SoftDelete clientId={record.id} compact stayInView actionLabel={t("Move to deleted records","نقل إلى المحذوفات")}/></div>}
           </div>

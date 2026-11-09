@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
 
 
@@ -48,8 +50,8 @@ const LANE_BATCH = 24;
 function ShowMore({ hidden, step, onMore, testId }: { hidden: number; step: number; onMore: () => void; testId: string }) {
   if (hidden <= 0) return null;
   return (
-    <button type="button" onClick={onMore} data-testid={testId}
-      className="w-full rounded-xl border border-amber-300/30 bg-amber-300/[.06] px-3 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/10"><StaffLabel en="Show"/>{" "}{Math.min(step, hidden)}{" "}<StaffLabel en="more ·"/>{" "}{hidden}{" "}<StaffLabel en="hidden"/>{" "}</button>
+    <ActionButton type="button" onClick={onMore} data-testid={testId}
+      className="w-full rounded-xl border border-amber-300/30 bg-amber-300/[.06] px-3 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/10"><StaffLabel en="Show"/>{" "}{Math.min(step, hidden)}{" "}<StaffLabel en="more ·"/>{" "}{hidden}{" "}<StaffLabel en="hidden"/>{" "}</ActionButton>
   );
 }
 
@@ -270,9 +272,9 @@ export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, 
           <p>ملف واحد لكل عميل · نقل مرحلي بدون إنشاء نسخ مكررة</p>
         </div>
         <div className="ops-segmented flex-wrap" role="tablist" aria-label={uiLabel("Pipeline views")}>
-          <button type="button" data-active={view === "lifecycle"} onClick={() => setView("lifecycle")}><StaffLabel en="Smart Lifecycle"/></button>
-          <button type="button" data-active={view === "pipeline"} onClick={() => setView("pipeline")}><StaffLabel en="Detailed Pipeline"/></button>
-          <button type="button" data-active={view === "location"} onClick={() => setView("location")}><StaffLabel en="Location & Shift"/></button>
+          <ActionButton type="button" data-active={view === "lifecycle"} onClick={() => setView("lifecycle")}><StaffLabel en="Smart Lifecycle"/></ActionButton>
+          <ActionButton type="button" data-active={view === "pipeline"} onClick={() => setView("pipeline")}><StaffLabel en="Detailed Pipeline"/></ActionButton>
+          <ActionButton type="button" data-active={view === "location"} onClick={() => setView("location")}><StaffLabel en="Location & Shift"/></ActionButton>
         </div>
       </header>
 
@@ -283,22 +285,22 @@ export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, 
       {view === "lifecycle" ? (
         <section className="space-y-4" data-testid="g3-smart-lifecycle">
           <nav aria-label={uiLabel("Active workflow")} className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-            {lifecycleStages.map((stage,index)=><button key={stage.id} type="button"
+            {lifecycleStages.map((stage,index)=><ActionButton key={stage.id} type="button"
               aria-pressed={activeStage === stage.id}
               onClick={()=>{setActiveStage(stage.id);setStatusFilter(null);setLifecycleLimit(COLUMN_BATCH);}}
               className={`min-w-0 rounded-2xl border p-3 text-left transition-colors ${activeStage === stage.id ? "border-amber-300/60 bg-amber-300/15 text-white" : "border-white/10 bg-white/[.04] text-slate-200 hover:border-amber-300/35 hover:bg-white/[.08]"}`}>
               <span className="text-xs text-amber-200">{String(index+1).padStart(2,"0")} · {uiLabel(stage.label)}</span>
               <strong className="mt-2 block text-2xl font-semibold tabular-nums">{stage.total}</strong>
               <span className="mt-1 block text-xs text-slate-300" lang="ar" dir="rtl">{stage.labelAr}</span>
-            </button>)}
+            </ActionButton>)}
           </nav>
           <div className="ops-glass-card flex min-w-0 flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="ops-kicker"><StaffLabel en="SMART ACTION RIBBON"/></p>
               <h2 className="text-lg font-semibold">{stageDefinition.label} <span dir="rtl" className="text-sm text-amber-200">{stageDefinition.labelAr}</span></h2>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" onClick={()=>setStatusFilter(null)} aria-pressed={!statusFilter} className={`cg-command-button ${!statusFilter?"border-amber-300 bg-amber-300/15":""}`}><StaffLabel en="All states"/></button>
-                {stageDefinition.statuses.map(status=><button key={status} type="button" onClick={()=>setStatusFilter(status)} aria-pressed={statusFilter===status} className={`cg-command-button ${statusFilter===status?"border-amber-300 bg-amber-300/15":""}`}>{uiLabel(STATUS_LABELS[status])}</button>)}
+                <ActionButton type="button" onClick={()=>setStatusFilter(null)} aria-pressed={!statusFilter} className={`cg-command-button ${!statusFilter?"border-amber-300 bg-amber-300/15":""}`}><StaffLabel en="All states"/></ActionButton>
+                {stageDefinition.statuses.map(status=><ActionButton key={status} type="button" onClick={()=>setStatusFilter(status)} aria-pressed={statusFilter===status} className={`cg-command-button ${statusFilter===status?"border-amber-300 bg-amber-300/15":""}`}>{uiLabel(STATUS_LABELS[status])}</ActionButton>)}
               </div>
             </div>
             {(canAssign || !["intake","paperwork"].includes(stageDefinition.id)) &&
@@ -308,7 +310,7 @@ export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, 
             {visibleLifecycle.slice(0,lifecycleLimit).map(client=><article key={client.id} className="cg-registry-card">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <button type="button" className="break-words text-left text-base font-semibold text-white hover:text-amber-200" onClick={()=>setActiveClient(client)}>{client.full_name}</button>
+                  <ActionButton type="button" className="break-words text-left text-base font-semibold text-white hover:text-amber-200" onClick={()=>setActiveClient(client)}>{client.full_name}</ActionButton>
                   <p className="mt-1 font-mono text-xs text-cyan-200">{client.ref}</p>
                 </div>
                 <span className="shrink-0 rounded-full border border-amber-200/25 px-2 py-1 text-[11px] text-amber-100">{uiLabel(STATUS_LABELS[client.current_status as Status] ?? client.current_status)}</span>
@@ -316,7 +318,7 @@ export function PipelineBoard({ stages, clients, exceptions = [], statusCounts, 
               <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-300">{client.next_step}</p>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
                 <span className="truncate text-xs text-slate-400">{client.assigned_name ?? "Unassigned"}</span>
-                <button type="button" className="cg-command-button" onClick={()=>setActiveClient(client)}><StaffLabel en="Client 360 ↗"/></button>
+                <ActionButton type="button" className="cg-command-button" onClick={()=>setActiveClient(client)}><StaffLabel en="Client 360 ↗"/></ActionButton>
               </div>
             </article>)}
           </div>

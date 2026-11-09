@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useState, type FormEvent } from "react";
 
 export function GateJobEmailForm({ endpoint = "/api/staff/gate-job-account/emails", onSuccess, submitLabel = "SAVE ✦" }: {
@@ -46,9 +48,9 @@ export function GateJobEmailForm({ endpoint = "/api/staff/gate-job-account/email
         <input className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-amber-300/40" type="password" inputMode="numeric" pattern="\d{4,12}" autoComplete="off" required value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 12))} />
       </label>
       {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
-      <button type="submit" disabled={pending} className="w-full rounded-xl border border-amber-200/30 bg-gradient-to-r from-amber-500/90 to-yellow-300/85 px-4 py-2.5 text-sm font-bold text-[#171006] shadow-[0_0_22px_rgba(251,191,36,.12)] transition hover:-translate-y-px active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50">
+      <ActionButton type="submit" disabled={pending} className="w-full rounded-xl border border-amber-200/30 bg-gradient-to-r from-amber-500/90 to-yellow-300/85 px-4 py-2.5 text-sm font-bold text-[#171006] shadow-[0_0_22px_rgba(251,191,36,.12)] transition hover:-translate-y-px active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50">
         {pending ? "SAVING…" : submitLabel}
-      </button>
+      </ActionButton>
     </form>
   );
 }

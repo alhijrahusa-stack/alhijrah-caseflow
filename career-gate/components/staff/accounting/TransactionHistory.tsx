@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useState } from "react";
 import type { PaymentTransactionRow } from "@/lib/accounting-ledger-read";
 import { formatMoney, methodLabel, transactionLabel } from "@/components/staff/accounting/money";
@@ -84,7 +86,7 @@ export function TransactionHistory({
           const open = openId === row.id;
           return (
             <li key={row.id} className="ops-ledger-item" data-testid="ledger-transaction">
-              <button
+              <ActionButton
                 type="button"
                 className="ops-ledger-row"
                 aria-expanded={open}
@@ -98,16 +100,16 @@ export function TransactionHistory({
                 <span className="ops-ledger-ref">{row.transaction_reference ?? "—"}</span>
                 <span className="ops-ledger-receipt">{row.receipt_document_id ? "Receipt" : "—"}</span>
                 <span className="ops-ledger-by">{row.recorded_by_name ?? "—"}</span>
-              </button>
+              </ActionButton>
               {open && <TransactionDetail clientId={clientId} row={row} related={row.related_transaction_id ? byId.get(row.related_transaction_id) : undefined} />}
             </li>
           );
         })}
       </ul>
       {transactions.length > PREVIEW_COUNT && (
-        <button type="button" className="ops-secondary-button" onClick={() => setShowAll((v) => !v)} data-testid="ledger-toggle">
+        <ActionButton type="button" className="ops-secondary-button" onClick={() => setShowAll((v) => !v)} data-testid="ledger-toggle">
           {showAll ? "Show recent only" : `Show all ${transactions.length}`}
-        </button>
+        </ActionButton>
       )}
     </div>
   );

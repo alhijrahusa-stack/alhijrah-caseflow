@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { optimizeImageForUpload } from "@/lib/image-upload-optimizer";
 import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
 import { arabicStaffLabel } from "@/lib/staff-ui-labels";
@@ -177,7 +179,7 @@ export function NewClientForm() {
           {docs.map((d) => (
             <p key={d.id} className="flex justify-between text-sm text-slate-300">
               <span>{DOC_LABELS[d.doc_type]} — {d.file.name}</span>
-              <button type="button" className="text-red-400" onClick={() => setDocs((x) => x.filter((y) => y.id !== d.id))}><StaffLabel en="Remove"/></button>
+              <ActionButton type="button" className="text-red-400" onClick={() => setDocs((x) => x.filter((y) => y.id !== d.id))}><StaffLabel en="Remove"/></ActionButton>
             </p>
           ))}
         </Section>

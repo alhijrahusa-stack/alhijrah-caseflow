@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { startTransition, useState } from "react";
+import { startTransition, useRef, useState } from "react";
 import { publishMutation } from "@/components/staff/realtime/update-bus";
 import { useToast } from "@/components/ui/Toast";
 
@@ -23,7 +23,20 @@ export function useAction(opts: { successMessage?: string | null } = {}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function run(payload: Record<string, unknown>, success = opts.successMessage): Promise<Ok | null> {
+  const flight = useRef<{ signature: string; promise: Promise<Ok | null> } | null>(null);
+  const retry = useRef<{ signature: string; operationId: string } | null>(null);
+
+  function run(payload: Record<string, unknown>, success = opts.successMessage): Promise<Ok | null> {
+    const signature = JSON.stringify(payload);
+    if (flight.current) return flight.current.signature === signature ? flight.current.promise : Promise.resolve(null);
+    if (retry.current?.signature !== signature) retry.current = { signature, operationId: typeof payload.operation_id === "string" ? payload.operation_id : crypto.randomUUID() };
+    const promise = execute({ ...payload, operation_id: retry.current.operationId }, success);
+    flight.current = { signature, promise };
+    void promise.finally(() => { if (flight.current?.promise === promise) flight.current = null; });
+    return promise;
+  }
+
+  async function execute(payload: Record<string, unknown>, success = opts.successMessage): Promise<Ok | null> {
     setPending(true);
     setError(null);
     try {
@@ -35,6 +48,7 @@ export function useAction(opts: { successMessage?: string | null } = {}) {
       const data = (await res.json().catch(() => null)) as Ok | Fail | null;
       if (!data) throw new Error(`Request failed (${res.status})`);
       if (!data.ok) throw new Error(data.error.message);
+      retry.current = null;
       if (success !== null) toast("success", success ?? "Saved");
       const clientId = typeof data.client_id === "string"
         ? data.client_id

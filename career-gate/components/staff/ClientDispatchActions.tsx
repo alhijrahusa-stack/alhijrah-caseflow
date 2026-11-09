@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { GlassReviewDialog } from "@/components/staff/smart/GlassReviewDialog";
@@ -121,12 +123,12 @@ export function ClientDispatchActions({ clientId, isUrgent = false, managerRevie
   return <div className={`cg-dispatch-actions ${compact ? "text-xs" : "text-sm"}`}>
     <div className="flex flex-wrap items-center gap-2">
       {held ? management ? <Link href="/staff/manager-inbox" className="cg-command-button">{t("Awaiting manager review", "بانتظار مراجعة المدير")}</Link> : <span role="status" className="text-xs">{t("Awaiting manager review", "بانتظار مراجعة المدير")}</span> : <>
-        <button type="button" data-testid="priority-toggle" className="cg-command-button cg-urgent-action" aria-pressed={urgent} disabled={held || operationalLocation === "deleted" || (unavailable && !urgent) || pending || uncertain} onClick={() => void send({ operation: "urgent", client_id: clientId, urgent: !urgent, operation_id: crypto.randomUUID(), ...(updatedAt ? { expected_updated_at: updatedAt } : {}) })}>
+        <ActionButton type="button" data-testid="priority-toggle" className="cg-command-button cg-urgent-action" aria-pressed={urgent} disabled={held || operationalLocation === "deleted" || (unavailable && !urgent) || pending || uncertain} onClick={() => send({ operation: "urgent", client_id: clientId, urgent: !urgent, operation_id: crypto.randomUUID(), ...(updatedAt ? { expected_updated_at: updatedAt } : {}) })}>
           <span aria-hidden="true">⚡</span> {pending && activeOperation === "urgent" ? t("Saving…", "جارٍ الحفظ…") : urgent ? t("Remove Urgent", "إلغاء الأولوية") : t("Mark Urgent", "تفعيل الأولوية")}
-        </button>
-        <button type="button" className="cg-command-button" disabled={unavailable || pending || uncertain} onClick={() => void findDuplicates()}>{t("Review similar files", "مراجعة الملفات المتشابهة")}</button>
+        </ActionButton>
+        <ActionButton type="button" className="cg-command-button" disabled={unavailable || pending || uncertain} onClick={() => findDuplicates()}>{t("Review similar files", "مراجعة الملفات المتشابهة")}</ActionButton>
       </>}
-      {uncertain && <button type="button" disabled={pending} className="cg-command-button" onClick={() => { if (request.current) void send(request.current); }}>{pending ? t("Verifying…", "جارٍ التحقق…") : t("Retry same request", "إعادة محاولة الطلب نفسه")}</button>}
+      {uncertain && <ActionButton type="button" disabled={pending} className="cg-command-button" onClick={() => { if (request.current) void send(request.current); }}>{pending ? t("Verifying…", "جارٍ التحقق…") : t("Retry same request", "إعادة محاولة الطلب نفسه")}</ActionButton>}
     </div>
     {error && !open && <p role="alert" className="mt-2 text-xs text-red-300">{error}</p>}
     {open && <GlassReviewDialog title={t("Possible duplicate · manager review", "تشابه محتمل · مراجعة المدير")} onClose={() => { if (!pending) setOpen(false); }}>
@@ -135,7 +137,7 @@ export function ClientDispatchActions({ clientId, isUrgent = false, managerRevie
         {loading ? <p role="status">{t("Checking similar records…", "جارٍ فحص السجلات المتشابهة…")}</p> : duplicates.length ? <fieldset className="space-y-2" disabled={pending || uncertain}><legend className="mb-2 text-sm font-semibold">{t("Compare with", "المقارنة مع")}</legend>{duplicates.map(record => <label key={record.id} className="flex gap-3 rounded-xl border border-sky-300/25 bg-sky-300/5 p-3"><input type="radio" name={`duplicate-${clientId}`} value={record.id} checked={related === record.id} onChange={() => { setRelated(record.id); saveDraft(note, record.id); }} className="mt-1"/><span className="min-w-0"><strong className="block"><bdi>{record.full_name}</bdi></strong><span className="block text-xs">{record.ref} · <bdi>{record.phone}</bdi></span><span className="block text-xs">{record.assigned_name ?? t("Unassigned", "غير معيّن")}</span></span></label>)}</fieldset> : <p role="status">{t("No similar records were found within your access.", "لم تُوجد سجلات متشابهة ضمن صلاحية وصولك.")}</p>}
         {!!duplicates.length && <label className="block text-sm">{t("Review note (optional)", "ملاحظة المراجعة (اختياري)")}<textarea className="input mt-2 w-full" rows={3} maxLength={2000} value={note} disabled={pending || uncertain} onChange={event => { setNote(event.target.value); saveDraft(event.target.value, related); }} dir="auto"/></label>}
         {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
-        <div className="flex flex-wrap justify-end gap-2"><button type="button" className="cg-command-button" disabled={pending} onClick={() => setOpen(false)}>{t("Close", "إغلاق")}</button><button type="button" className="ops-primary-button" disabled={pending || loading || !related} onClick={() => void send({ operation: "duplicate_review", client_id: clientId, related_client_id: related, note, operation_id: crypto.randomUUID() })}>{pending ? t("Sending…", "جارٍ الإرسال…") : uncertain ? t("Retry same request", "إعادة محاولة الطلب نفسه") : t("Send for manager review", "إرسال لمراجعة المدير")}</button></div>
+        <div className="flex flex-wrap justify-end gap-2"><ActionButton type="button" className="cg-command-button" disabled={pending} onClick={() => setOpen(false)}>{t("Close", "إغلاق")}</ActionButton><ActionButton type="button" className="ops-primary-button" disabled={pending || loading || !related} onClick={() => send({ operation: "duplicate_review", client_id: clientId, related_client_id: related, note, operation_id: crypto.randomUUID() })}>{pending ? t("Sending…", "جارٍ الإرسال…") : uncertain ? t("Retry same request", "إعادة محاولة الطلب نفسه") : t("Send for manager review", "إرسال لمراجعة المدير")}</ActionButton></div>
       </div>
     </GlassReviewDialog>}
   </div>;

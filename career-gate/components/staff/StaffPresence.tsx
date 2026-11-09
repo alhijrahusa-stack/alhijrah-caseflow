@@ -1,7 +1,8 @@
 "use client";
 
-import { type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
-import { createStaffRealtimeClient } from "@/lib/staff-realtime-client";
+import { type RealtimeChannel } from "@supabase/supabase-js";
+import { useStaff } from "@/components/staff/StaffContext";
+import type { StaffRealtimeLease } from "@/lib/shared-staff-realtime";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
@@ -11,6 +12,7 @@ import {
 
 /** Viewing presence only. It neither claims a file nor locks workflow actions. */
 export function StaffPresence({ authUserId }: { authUserId: string }) {
+  const { realtime } = useStaff();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const workspaceSection = presenceWorkspaceSection(pathname, new URLSearchParams(searchParams.toString()));
@@ -26,9 +28,8 @@ export function StaffPresence({ authUserId }: { authUserId: string }) {
 
   useEffect(() => {
     let disposed = false;
-    let supabase: SupabaseClient | null = null;
     let channel: RealtimeChannel | null = null;
-    let connection: ReturnType<typeof createStaffRealtimeClient> | null = null;
+    let lease: StaffRealtimeLease | null = null;
     let connected = false;
     let initializing = false;
     let publishing = false;
@@ -38,7 +39,7 @@ export function StaffPresence({ authUserId }: { authUserId: string }) {
     let lastState: StaffPresenceState = "active";
     let scheduled: ReturnType<typeof setTimeout> | null = null;
     const controller = new AbortController();
-    const tabId = crypto.randomUUID();
+    const tabId = realtime.presenceKey();
     const stateNow = (): StaffPresenceState => document.visibilityState === "visible" && Date.now() - lastActivity < PRESENCE_IDLE_MS ? "active" : "idle";
 
     const publish = async () => {
@@ -83,17 +84,15 @@ export function StaffPresence({ authUserId }: { authUserId: string }) {
       if (disposed || initializing) return;
       initializing = true;
       try {
-        const response = await fetch("/api/staff/realtime-token", { credentials: "same-origin", cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
-        const data = await response.json().catch(() => null);
-        if (disposed || !data?.ok) return;
-        if (!connection) { connection = createStaffRealtimeClient(data.url, data.anon_key, data.token); supabase = connection.client; }
-        await connection.setToken(data.token);
+        await realtime.connect();
         if (disposed || channel) return;
-        channel = connection.client.channel(`team-presence:${authUserId}`, { config: { private: true, presence: { key: tabId, enabled: true } } });
-        channel.subscribe(status => {
+        lease = realtime.lease(`team-presence:${authUserId}`, true);
+        channel = lease.channel;
+        lease.subscribe(status => {
+
           if (disposed) return;
           connected = status === "SUBSCRIBED";
-          if (status === "CLOSED") channel = null;
+          if (status === "CLOSED") { channel = null; lease?.release(); lease = null; }
           if (connected) schedulePublish();
         });
       } catch { /* A later heartbeat or token refresh retries the connection. */ }
@@ -137,9 +136,10 @@ export function StaffPresence({ authUserId }: { authUserId: string }) {
       window.removeEventListener("focus", onActivity);
       window.removeEventListener("online", onOnline);
       document.removeEventListener("visibilitychange", onVisibility);
-      if (channel) { void channel.untrack(); void supabase?.removeChannel(channel); }
+      if (channel) void channel.untrack();
+      lease?.release();
     };
-  }, [authUserId]);
+  }, [authUserId, realtime]);
 
   return null;
 }

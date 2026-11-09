@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 
 
@@ -258,7 +260,7 @@ export function FinancialActionForm({
       <div className="ops-action-body" data-testid={`result-${action}`}>
         <CanonicalConfirmation result={outcome.result} />
         <div className="ops-action-bar">
-          <button type="button" className="ops-primary-button" onClick={() => { reset(); onClose(); }}>Close</button>
+          <ActionButton type="button" className="ops-primary-button" onClick={() => { reset(); onClose(); }}>Close</ActionButton>
         </div>
       </div>
     );
@@ -272,7 +274,7 @@ export function FinancialActionForm({
           This operation may already have been applied. Reload the account and check the ledger before recording it again.
         </p>
         <div className="ops-action-bar">
-          <button type="button" className="ops-primary-button" onClick={() => { reset(); onDone(); onClose(); }}>Reload the account</button>
+          <ActionButton type="button" className="ops-primary-button" onClick={() => { reset(); onDone(); onClose(); }}>Reload the account</ActionButton>
         </div>
       </div>
     );
@@ -431,10 +433,10 @@ export function FinancialActionForm({
       {outcome.state === "failed" && <p className="ops-inline-error" role="alert" data-testid="server-error">{outcome.message}</p>}
 
       <div className="ops-action-bar">
-        <button type="button" className="ops-primary-button" onClick={() => void submit()} disabled={busy || uploading} data-testid={`submit-${action}`}>
+        <ActionButton type="button" className="ops-primary-button" onClick={() => submit()} disabled={busy || uploading} data-testid={`submit-${action}`}>
           {busy ? "Recording…" : confirming ? `Confirm ${transactionLabel(action)}` : action === "completion" ? "Record completion" : action === "discount" ? "Apply discount" : `Record ${transactionLabel(action)}`}
-        </button>
-        <button type="button" className="ops-secondary-button" onClick={() => { setConfirming(false); onClose(); }} disabled={busy}>Cancel</button>
+        </ActionButton>
+        <ActionButton type="button" className="ops-secondary-button" onClick={() => { setConfirming(false); onClose(); }} disabled={busy}>Cancel</ActionButton>
       </div>
     </div>
   );

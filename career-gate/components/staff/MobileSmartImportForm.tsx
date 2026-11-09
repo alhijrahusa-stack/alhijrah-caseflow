@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { optimizeFilesForUpload } from "@/lib/image-upload-optimizer";
 import Link from "next/link";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
@@ -623,7 +625,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
               </div>
               <div className="flex min-h-[52px] min-w-0 flex-col justify-between rounded-xl border border-[#b8934a]/25 bg-[#03101f]/60 px-2.5 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,.045)] sm:px-3">
                 <span className="text-[11px] font-semibold tracking-[.14em] text-slate-400">AUDIO</span>
-                <button
+                <ActionButton
                   type="button"
                   aria-pressed={audioEnabled}
                   aria-label={audioEnabled ? "Audio cues on. Turn audio off" : "Audio cues off. Turn audio on"}
@@ -632,7 +634,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                 >
                   {audioEnabled ? <VolumeOnIcon /> : <VolumeOffIcon />}
                   <span>{audioEnabled ? "ON" : "OFF"}</span>
-                </button>
+                </ActionButton>
               </div>
             </div>
           </div>
@@ -663,7 +665,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
             <section className={`${PANEL} ${documents.length ? PANEL_ACTIVE : ""} p-4 sm:p-5`} aria-labelledby="smart-source-capture">
               <PanelTitle id="smart-source-capture" number="01" title="SOURCE CAPTURE" meta={`${totals.count} of ${SMART_DOCUMENT_POLICY.maxFiles} files · ${totals.label} · ${submitted ? "STORED" : documents.length ? "READY TO UPLOAD" : "AWAITING FILES"}`} />
               <input ref={inputRef} id="smart-files" className="sr-only" type="file" accept={SMART_DOCUMENT_ACCEPT} multiple disabled={busy || submitted || preExtracting} onChange={(e) => { const picked = Array.from(e.target.files ?? []); void optimizeFilesForUpload(picked).then((ready) => addFiles(ready.map((item) => item.file))); }} />
-              <button
+              <ActionButton
                 type="button"
                 disabled={busy || submitted || preExtracting}
                 onClick={() => inputRef.current?.click()}
@@ -675,7 +677,7 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                   <span className="mt-1 block text-xs text-slate-500">Checked in this browser before anything is uploaded.</span>
                 </span>
                 <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#d4b06a]/40 bg-[#b8934a]/[.09] text-xl text-[#f0d99d]">＋</span>
-              </button>
+              </ActionButton>
 
               {/* Reserved geometry: the file list area keeps its shape so adding a file does not jump the layout. */}
               <DocumentCards documents={documents} submitted={submitted} onRemove={dropFile} />
@@ -683,8 +685,8 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                 <div role="status" aria-live="polite" className="mt-2 rounded-xl border border-cyan-300/25 bg-cyan-300/[.07] px-3 py-2 text-xs text-cyan-100">
                   {previewMessage}
                   {!preExtracting && documents.some((item) => item.processingState === "FAILED") && (
-                    <button type="button" onClick={() => void extractSelected(documents.filter((item) => item.processingState === "FAILED"))}
-                      className="ml-3 min-h-11 rounded-lg border border-cyan-300/35 px-3 font-semibold">RETRY EXTRACTION</button>
+                    <ActionButton type="button" onClick={() => extractSelected(documents.filter((item) => item.processingState === "FAILED"))}
+                      className="ml-3 min-h-11 rounded-lg border border-cyan-300/35 px-3 font-semibold">RETRY EXTRACTION</ActionButton>
                   )}
                 </div>
               )}
@@ -802,12 +804,12 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
                         <p className="mt-1 text-[14px] leading-6 text-slate-100">{issue.problem}</p>
                         <p className="mt-1 text-xs leading-5 text-slate-400">{issue.action}</p>
                         {issue.actionLabel && issue.actionKind && (
-                          <button
+                          <ActionButton
                             type="button"
                             onClick={() => runIssueAction(issue.actionKind!)}
                             disabled={stage === "ENRICHING"}
                             className="mt-2 inline-flex min-h-11 items-center rounded-xl border border-amber-300/35 bg-amber-300/[.06] px-3 text-[13px] font-semibold tracking-[.06em] text-amber-100 transition hover:bg-amber-300/[.12] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 active:translate-y-px active:scale-[.985] disabled:opacity-40"
-                          >{stage === "ENRICHING" ? "RETRYING…" : issue.actionLabel}</button>
+                          >{stage === "ENRICHING" ? "RETRYING…" : issue.actionLabel}</ActionButton>
                         )}
                       </li>
                     ))}
@@ -836,22 +838,22 @@ export function MobileSmartImportForm({ staff }: { staff: { display_name: string
             <div className="flex flex-wrap gap-2">
               {submitted ? (
                 <>
-                  <button type="button" onClick={reset} className="min-h-11 rounded-xl border border-white/12 bg-white/[.03] px-4 text-[13px] font-semibold tracking-[.1em] text-slate-200 transition hover:bg-white/[.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 active:translate-y-px active:scale-[.985]">START ANOTHER</button>
+                  <ActionButton type="button" onClick={reset} className="min-h-11 rounded-xl border border-white/12 bg-white/[.03] px-4 text-[13px] font-semibold tracking-[.1em] text-slate-200 transition hover:bg-white/[.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 active:translate-y-px active:scale-[.985]">START ANOTHER</ActionButton>
                   <Link className="inline-flex min-h-11 items-center rounded-xl border border-[#d4b06a]/55 bg-[linear-gradient(180deg,rgba(184,147,74,.22),rgba(184,147,74,.1))] px-4 text-[13px] font-semibold tracking-[.1em] text-[#f0d99d] shadow-[0_10px_26px_-16px_rgba(184,147,74,.6)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e3c884]" href="/staff/import">OPEN SMART CAREER COLLECT CLIENT</Link>
                 </>
               ) : (
                 <>
-                  <button type="button" onClick={reset} disabled={busy || !hasSource} className="min-h-11 rounded-xl border border-white/12 bg-white/[.02] px-4 text-[13px] font-semibold tracking-[.1em] text-slate-300 transition hover:bg-white/[.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 active:translate-y-px active:scale-[.985] disabled:opacity-40">CLEAR</button>
-                  <button
+                  <ActionButton type="button" onClick={reset} disabled={busy || !hasSource} className="min-h-11 rounded-xl border border-white/12 bg-white/[.02] px-4 text-[13px] font-semibold tracking-[.1em] text-slate-300 transition hover:bg-white/[.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 active:translate-y-px active:scale-[.985] disabled:opacity-40">CLEAR</ActionButton>
+                  <ActionButton
                     type="button"
-                    onClick={() => void submit()}
+                    onClick={() => submit()}
                     aria-describedby={missingRequired.length ? "smart-submit-gate" : undefined}
                     disabled={busy}
                     className="inline-flex min-h-11 min-w-[9.5rem] items-center justify-center gap-2 rounded-xl border border-[#d4b06a]/65 bg-[linear-gradient(180deg,rgba(184,147,74,.26),rgba(184,147,74,.12))] px-5 text-[14px] font-semibold tracking-[.12em] text-[#f3dda4] shadow-[0_12px_30px_-18px_rgba(184,147,74,.75)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e3c884] active:translate-y-px active:scale-[.985] disabled:opacity-40"
                   >
                     {stage === "CAPTURING" && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#f3dda4] motion-safe:animate-pulse" />}
                     {stage === "CAPTURING" ? "SUBMITTING" : "SUBMIT"}
-                  </button>
+                  </ActionButton>
                   {(missingRequired.length > 0 || !hasSource) && (
                     <p id="smart-submit-gate" className="w-full text-[12px] leading-5 text-amber-200">
                       {!hasSource
@@ -909,12 +911,12 @@ const DocumentCards = memo(function DocumentCards({ documents, submitted, onRemo
                         ><PreviewIcon /></a>
                       )}
                       {!submitted && (
-                        <button
+                        <ActionButton
                           type="button"
                           aria-label={`Remove ${entry.name}`}
                           onClick={() => onRemove(entry.id)}
                           className="grid h-11 w-11 place-items-center rounded-lg border border-red-300/20 text-red-300 transition hover:bg-red-300/[.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300"
-                        ><RemoveIcon /></button>
+                        ><RemoveIcon /></ActionButton>
                       )}
                     </span>
                   </li>

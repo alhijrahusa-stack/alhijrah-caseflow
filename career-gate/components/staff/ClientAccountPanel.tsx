@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import Link from "next/link";
 import { useState } from "react";
 import { FinancialActionForm, type FinancialAction, operationFor } from "@/components/staff/accounting/FinancialActions";
@@ -96,7 +98,7 @@ export function ClientAccountPanel({ clientId, account }: { clientId: string; ac
               Accounting
             </Link>
           )}
-          <button
+          <ActionButton
             type="button"
             className="cg-account-toggle"
             aria-expanded={expanded}
@@ -107,7 +109,7 @@ export function ClientAccountPanel({ clientId, account }: { clientId: string; ac
             <svg viewBox="0 0 20 20" aria-hidden="true" className={expanded ? "rotate-180" : ""}>
               <path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          </button>
+          </ActionButton>
         </div>
       </div>
 
@@ -149,28 +151,28 @@ export function ClientAccountPanel({ clientId, account }: { clientId: string; ac
 
         <div className="ops-action-bar">
           {isManager && (
-            <button type="button" className="ops-primary-button" data-testid="action-record-payment" onClick={open("payment")}>
+            <ActionButton type="button" className="ops-primary-button" data-testid="action-record-payment" onClick={open("payment")}>
               Record Payment
-            </button>
+            </ActionButton>
           )}
-          <button type="button" className="ops-secondary-button" data-testid="action-record-completion" onClick={open("completion")}>
+          <ActionButton type="button" className="ops-secondary-button" data-testid="action-record-completion" onClick={open("completion")}>
             Record Application Completion
-          </button>
+          </ActionButton>
           {isManager && (
-            <button type="button" className="ops-secondary-button" data-testid="action-apply-discount" onClick={open("discount")}>
+            <ActionButton type="button" className="ops-secondary-button" data-testid="action-apply-discount" onClick={open("discount")}>
               Apply Discount
-            </button>
+            </ActionButton>
           )}
           {isManager && (
             <span className="ops-more">
-              <button type="button" className="ops-secondary-button" aria-expanded={moreOpen} data-testid="action-more" onClick={() => setMoreOpen((v) => !v)}>
+              <ActionButton type="button" className="ops-secondary-button" aria-expanded={moreOpen} data-testid="action-more" onClick={() => setMoreOpen((v) => !v)}>
                 More
-              </button>
+              </ActionButton>
               {moreOpen && (
                 <span className="ops-more-menu" role="menu">
-                  <button type="button" role="menuitem" data-testid="action-refund" onClick={open("refund")}>Refund</button>
-                  <button type="button" role="menuitem" data-testid="action-adjustment" onClick={open("adjustment")}>Adjustment</button>
-                  <button type="button" role="menuitem" data-testid="action-waiver" onClick={open("waiver")}>Waiver</button>
+                  <ActionButton type="button" role="menuitem" data-testid="action-refund" onClick={open("refund")}>Refund</ActionButton>
+                  <ActionButton type="button" role="menuitem" data-testid="action-adjustment" onClick={open("adjustment")}>Adjustment</ActionButton>
+                  <ActionButton type="button" role="menuitem" data-testid="action-waiver" onClick={open("waiver")}>Waiver</ActionButton>
                 </span>
               )}
             </span>

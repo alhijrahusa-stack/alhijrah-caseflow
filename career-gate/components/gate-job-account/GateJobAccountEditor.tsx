@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useState, type FormEvent } from "react";
 
 export function GateJobAccountEditor({ account, onDone, onCancel }: {
@@ -47,8 +49,8 @@ export function GateJobAccountEditor({ account, onDone, onCancel }: {
       </label>
       {error && <p className="text-xs text-red-300" role="alert">{error}</p>}
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={onCancel} disabled={pending} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300">Cancel</button>
-        <button type="submit" disabled={pending} className="rounded-xl border border-amber-200/30 bg-gradient-to-r from-amber-500/90 to-yellow-300/85 px-4 py-2 text-xs font-bold text-[#171006] disabled:opacity-50">{pending ? "UPDATING…" : "UPDATE ACCOUNT ✦"}</button>
+        <ActionButton type="button" onClick={onCancel} disabled={pending} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300">Cancel</ActionButton>
+        <ActionButton type="submit" disabled={pending} className="rounded-xl border border-amber-200/30 bg-gradient-to-r from-amber-500/90 to-yellow-300/85 px-4 py-2 text-xs font-bold text-[#171006] disabled:opacity-50">{pending ? "UPDATING…" : "UPDATE ACCOUNT ✦"}</ActionButton>
       </div>
     </form>
   );
