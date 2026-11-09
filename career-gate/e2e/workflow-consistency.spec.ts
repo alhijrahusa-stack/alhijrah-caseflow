@@ -100,7 +100,12 @@ test("staff navigation respects the existing management-only finance and audit b
     await page.goto(path);
     await expect(page.getByRole('heading',{name:'Operations Command Center',exact:true})).toBeVisible();
     const links=await page.getByRole('link').evaluateAll(elements=>elements.map(element=>element.getAttribute('href')??''));
-    expect(links.filter(href=>/^\/staff\/(accounting|reports|audit-alerts|import)(?:[/?]|$)/.test(href))).toEqual([]);
+    expect(links.filter(href=>/^\/staff\/(accounting|reports|audit-alerts)(?:[/?]|$)/.test(href))).toEqual([]);
+    expect(links).toContain('/staff/import');
   }
+  await page.goto('/staff/import');
+  await expect(page.getByTestId('import-duplicate-launcher')).toBeVisible();
+  expect((await context.request.get('/api/staff/smart-client-import')).status()).toBe(403);
+  expect((await context.request.get('/api/staff/import-duplicate-review?mode=queue')).status()).toBe(200);
   await context.close();
 });

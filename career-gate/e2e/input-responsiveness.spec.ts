@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import { db, intakeBody, RUN, signIn, STAFF, staffAction } from "./helpers";
+import { accessToken, db, intakeBody, RUN, signIn, STAFF, staffAction } from "./helpers";
 
 const baseline = process.env.PERF_BASELINE === "1";
 for (const width of [1440, 390]) test(`one-click import opening paints before slow data and uses one read at ${width}px`, async ({ browser, baseURL }, testInfo) => {
@@ -80,6 +80,11 @@ test("staff shell shares one realtime bootstrap and acknowledges a slow navigati
   const context = await browser.newContext({ baseURL });
   try {
     await signIn(context, baseURL!, "manager"); const page = await context.newPage();
+    const [actor] = await db()`select id from staff where auth_user_id=${STAFF.manager}`;
+    const token = await accessToken("manager");
+    // The default harness deliberately leaves Auth/Realtime unconfigured.
+    // Supply a signed loopback transport only for this connection-count check.
+    await page.route("**/api/staff/realtime-token", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, staff_id: actor.id, token, url: process.env.NEXT_PUBLIC_SUPABASE_URL, anon_key: "e2e-public-key" }) }));
     let tokenReads = 0;
     page.on("request", request => { if (new URL(request.url()).pathname === "/api/staff/realtime-token") tokenReads++; });
     await page.goto("/staff/manager-inbox");
