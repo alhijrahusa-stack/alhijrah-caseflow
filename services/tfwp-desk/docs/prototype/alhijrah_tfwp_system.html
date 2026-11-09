@@ -1,0 +1,1183 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نظام ملفات العمل في كندا — مكتب الهجرة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg1:#E9EFFA; --bg2:#D9E4F6; --glass:rgba(255,255,255,.66); --glass-2:rgba(255,255,255,.86); --stroke:rgba(11,42,107,.14);
+  --ink:#0A1A33; --muted:#4A5B78; --royal:#0B2A6B; --royal-2:#173F96; --cyan:#0891B2; --emerald:#059669; --gold:#A8843F; --gold-soft:rgba(168,132,63,.5);
+  --danger:#E11D48; --shadow:0 10px 30px rgba(11,42,107,.12); --glow:0 0 0 3px rgba(8,145,178,.22); color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg1:#050E24; --bg2:#0A1F4A; --glass:rgba(255,255,255,.06); --glass-2:rgba(255,255,255,.10); --stroke:rgba(255,255,255,.13);
+    --ink:#EAF1FF; --muted:#9FB3D6; --cyan:#22D3EE; --emerald:#34D399; --gold:#D4B47A; --gold-soft:rgba(212,180,122,.45);
+    --danger:#FB7185; --shadow:0 14px 40px rgba(0,0,0,.38); --glow:0 0 0 3px rgba(34,211,238,.25); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg1:#050E24; --bg2:#0A1F4A; --glass:rgba(255,255,255,.06); --glass-2:rgba(255,255,255,.10); --stroke:rgba(255,255,255,.13);
+  --ink:#EAF1FF; --muted:#9FB3D6; --cyan:#22D3EE; --emerald:#34D399; --gold:#D4B47A; --gold-soft:rgba(212,180,122,.45);
+  --danger:#FB7185; --shadow:0 14px 40px rgba(0,0,0,.38); --glow:0 0 0 3px rgba(34,211,238,.25); color-scheme:dark;
+}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+body{margin:0;min-height:100%;color:var(--ink);font-family:"IBM Plex Sans Arabic","Noto Sans Arabic","Segoe UI",Tahoma,sans-serif;font-size:15px;line-height:1.65;
+  background:radial-gradient(1200px 600px at 100% -10%,rgba(34,211,238,.16),transparent 60%),radial-gradient(900px 500px at -10% 110%,rgba(52,211,153,.13),transparent 60%),linear-gradient(160deg,var(--bg1),var(--bg2));background-attachment:fixed}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:inherit}
+:focus-visible{outline:none;box-shadow:var(--glow);border-radius:10px}
+.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+/* sidebar */
+.side{position:sticky;top:0;height:100vh;overflow:auto;padding:22px 16px;color:#EAF1FF;
+  background:linear-gradient(180deg,rgba(11,42,107,.96),rgba(5,14,36,.97));border-inline-start:1px solid rgba(212,180,122,.25)}
+.brand{display:flex;gap:10px;align-items:center}
+.brand svg{width:38px;height:38px;flex:none;filter:drop-shadow(0 0 8px rgba(212,180,122,.45))}
+.brand b{display:block;font-size:18px;letter-spacing:.06em;line-height:1.1}
+.brand span{display:block;font-size:12.5px;color:#D4B47A;letter-spacing:.12em}
+.brand-sub{margin:10px 0 0;font-size:11.5px;color:#9FB3D6}
+.hair{height:1px;margin:14px 0 16px;background:linear-gradient(90deg,transparent,#D4B47A,transparent)}
+nav a{display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:#DCE6F7;padding:10px 12px;border-radius:12px;margin-bottom:3px;font-weight:500;border:1px solid transparent}
+nav a:hover{background:rgba(255,255,255,.06)}
+nav a[aria-current="page"]{background:rgba(212,180,122,.12);border-color:rgba(212,180,122,.35);color:#fff}
+nav .count{font-size:12px;min-width:22px;text-align:center;padding:0 6px;border-radius:99px;background:rgba(34,211,238,.16);color:#7DE8F8}
+.who{margin-top:22px;padding:12px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);font-size:13px;color:#C9D6EC}
+.who strong{display:block;color:#fff}
+.mode{display:inline-block;margin-top:6px;font-size:11.5px;padding:2px 9px;border-radius:99px;border:1px solid rgba(212,180,122,.5);color:#D4B47A}
+.who select{width:100%;margin-top:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:6px 8px;color:#fff}
+/* content */
+.content{min-width:0;display:flex;flex-direction:column}
+main{padding:26px 30px 32px;flex:1}
+.reveal{animation:reveal .35s ease-out both}
+@keyframes reveal{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+h1{font-size:26px;line-height:1.3;margin:0 0 4px;font-weight:700}
+h2{font-size:17.5px;margin:26px 0 10px;font-weight:600}
+h3{font-size:15px;margin:16px 0 8px;font-weight:600}
+.lead{color:var(--muted);margin:0 0 18px;max-width:72ch}
+.note{font-size:13px;color:var(--muted)}
+.panel,.card,.kpi{background:var(--glass);-webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%);border:1px solid var(--stroke);border-radius:16px;box-shadow:var(--shadow)}
+.panel{padding:18px 20px;margin-bottom:16px}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))} .g3{grid-template-columns:repeat(3,minmax(0,1fr))} .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.card{display:block;text-decoration:none;padding:14px 16px;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;position:relative}
+a.card:hover{transform:translateY(-2px);border-color:var(--gold-soft);box-shadow:var(--shadow),0 0 0 1px var(--gold-soft)}
+.card .t{font-weight:600;font-size:15.5px;line-height:1.35}
+.card .meta{font-size:12.5px;color:var(--muted);margin-top:4px}
+.card .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.kpi{padding:14px 16px}
+.kpi b{display:block;font-size:28px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
+.kpi span{color:var(--muted);font-size:13.5px}
+label{display:block;font-size:13.5px;color:var(--muted);margin-bottom:4px}
+input[type=text],input[type=email],input[type=tel],input[type=date],input[type=month],input[type=number],select,textarea{width:100%;background:var(--glass-2);border:1px solid var(--stroke);border-radius:12px;padding:9px 12px;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--cyan);box-shadow:var(--glow);outline:none}
+textarea{min-height:90px;resize:vertical}
+.req::after{content:" *";color:var(--danger)}
+.check{display:flex;gap:10px;align-items:flex-start;color:var(--ink);font-size:14.5px;margin:6px 0}
+.check input{margin-top:5px;accent-color:var(--royal-2)}
+.btn{text-decoration:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--stroke);background:var(--glass-2);border-radius:12px;padding:9px 16px;cursor:pointer;font-weight:500;transition:transform .12s,box-shadow .15s,border-color .15s}
+.btn:hover{border-color:var(--gold-soft)}
+.btn:active{transform:scale(.98)}
+.btn.primary{color:#fff;border-color:rgba(212,180,122,.55);background:linear-gradient(135deg,var(--royal-2),var(--royal));box-shadow:0 6px 18px rgba(11,42,107,.3)}
+.btn.primary:hover{box-shadow:0 6px 22px rgba(34,211,238,.25),0 0 0 1px rgba(212,180,122,.7)}
+.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 50%,transparent)}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.spacer{flex:1}
+/* pills */
+.pill{--c:#64748B;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:3px 10px;border-radius:99px;white-space:nowrap;color:var(--ink);
+  background:color-mix(in srgb,var(--c) 16%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.pill::before{content:"";width:7px;height:7px;border-radius:99px;background:var(--c);box-shadow:0 0 8px var(--c)}
+.pill.plain::before{display:none}
+.st-triage{--c:#64748B}.st-docs_pending{--c:#F59E0B}.st-referred{--c:#F43F5E}.st-drafting{--c:#3B82F6}.st-review{--c:#8B5CF6}.st-approved{--c:#10B981}
+.st-job_search{--c:#06B6D4}.st-offer{--c:#D4B47A}.st-lmia{--c:#6366F1}.st-permit{--c:#14B8A6}.st-closed{--c:#22C55E}.st-withdrawn{--c:#94A3B8}
+.v-green{--c:#10B981}.v-amber{--c:#F59E0B}.v-red{--c:#F43F5E}
+.tag{display:inline-block;font-size:12.5px;padding:2px 9px;border-radius:99px;border:1px solid var(--stroke);white-space:nowrap}
+.tag.ok{--c:#10B981}.tag.warn{--c:#F59E0B}.tag.bad{--c:#F43F5E}.tag.gold{--c:#D4B47A}
+.tag.ok,.tag.warn,.tag.bad,.tag.gold{background:color-mix(in srgb,var(--c) 16%,transparent);border-color:color-mix(in srgb,var(--c) 45%,transparent)}
+/* pipeline hero */
+.pipe{display:flex;overflow-x:auto;padding:20px 12px 16px;border-radius:18px;background:linear-gradient(135deg,rgba(11,42,107,.92),rgba(5,14,36,.92));border:1px solid rgba(212,180,122,.3);box-shadow:var(--shadow)}
+.station{flex:1 0 78px;display:flex;flex-direction:column;align-items:center;text-align:center;color:#DCE6F7;position:relative;padding:0 4px;cursor:pointer;border:none;background:none}
+.station::before{content:"";position:absolute;top:14px;right:50%;left:-50%;height:2px;background:linear-gradient(90deg,rgba(34,211,238,.5),rgba(212,180,122,.5))}
+.station:last-child::before{display:none}
+.dot{position:relative;z-index:1;display:inline-grid;place-items:center;min-width:30px;height:30px;padding:0 6px;border-radius:99px;background:#071A3C;border:2px solid #D4B47A;color:#F3E3BF;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;box-shadow:0 0 12px rgba(212,180,122,.35)}
+.station.empty .dot{border-color:rgba(212,180,122,.3);color:rgba(220,230,247,.5);box-shadow:none}
+.station small{display:block;margin-top:6px;font-size:11.5px;line-height:1.35;color:#C9D6EC}
+/* stepper on case */
+.stepper{display:flex;gap:4px;overflow-x:auto;margin:12px 0 4px}
+.stepper span{flex:1 0 70px;text-align:center;font-size:11.5px;color:var(--muted);padding-top:10px;position:relative}
+.stepper span::before{content:"";position:absolute;top:0;left:2px;right:2px;height:5px;border-radius:99px;background:var(--stroke)}
+.stepper span.done::before{background:linear-gradient(90deg,var(--emerald),var(--cyan))}
+.stepper span.now{color:var(--ink);font-weight:600}
+.stepper span.now::before{background:linear-gradient(90deg,var(--gold),#F3E3BF);box-shadow:0 0 10px var(--gold-soft)}
+.bar{height:6px;background:var(--stroke);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--emerald))}
+.tabs{display:flex;gap:4px;margin:14px 0 16px;overflow-x:auto;padding:4px;border-radius:14px;background:var(--glass);border:1px solid var(--stroke)}
+.tabs a{padding:7px 12px;text-decoration:none;color:var(--muted);border-radius:10px;white-space:nowrap;font-size:14px}
+.tabs a[aria-current="true"]{color:var(--ink);background:var(--glass-2);box-shadow:inset 0 0 0 1px var(--gold-soft);font-weight:600}
+.finding{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--stroke)}
+.finding:last-child{border-bottom:none}
+.timeline{list-style:none;margin:0;padding:0}
+.timeline li{position:relative;padding:0 22px 14px 0;border-inline-start:2px solid var(--stroke);margin-inline-start:6px}
+.timeline li::before{content:"";position:absolute;inset-inline-start:-7px;top:6px;width:12px;height:12px;border-radius:99px;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+.timeline small{color:var(--muted)}
+/* intake */
+.welcome{position:relative;overflow:hidden}
+.welcome::after{content:"";position:absolute;inset-inline:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.welcome p{margin:0 0 8px;max-width:70ch}
+.sign{font-size:13px;color:var(--gold)}
+.progress{height:6px;border-radius:99px;background:var(--stroke);overflow:hidden;margin:12px 0 6px}
+.progress i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--emerald),var(--gold));transition:width .3s}
+.steps{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px}
+.steps button{flex:none;border:1px solid var(--stroke);background:var(--glass);border-radius:99px;padding:5px 13px;font-size:13px;cursor:pointer;color:var(--muted)}
+.steps button[aria-current="step"]{color:var(--ink);border-color:var(--gold);box-shadow:0 0 0 1px var(--gold-soft) inset;font-weight:600}
+.steps button.filled::after{content:" ✓";color:var(--emerald)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--stroke);background:var(--glass-2);border-radius:99px;padding:6px 13px;cursor:pointer;font-size:13.5px;transition:border-color .15s,background .15s}
+.chip[aria-pressed="true"]{border-color:var(--gold);background:color-mix(in srgb,var(--gold) 18%,transparent);box-shadow:0 0 10px var(--gold-soft)}
+.chip.en{direction:ltr}
+.hint{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:99px;border:1px solid var(--stroke);background:var(--glass-2);font-size:12px;cursor:pointer;margin-inline-start:6px;vertical-align:middle}
+.hintbox{display:none;font-size:12.5px;color:var(--muted);background:var(--glass-2);border:1px dashed var(--stroke);border-radius:10px;padding:6px 10px;margin-top:6px}
+.hintbox.open{display:block}
+.drop{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;min-height:120px;border:1.5px dashed var(--gold-soft);border-radius:16px;background:var(--glass-2);cursor:pointer;padding:16px;transition:border-color .15s,box-shadow .15s}
+.drop:hover{border-color:var(--cyan);box-shadow:var(--glow)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop strong{font-size:15px}
+.job{border:1px solid var(--stroke);border-radius:16px;padding:14px;margin-bottom:12px;background:var(--glass)}
+.save-state{font-size:12.5px;color:var(--emerald)}
+.stickybar{position:sticky;bottom:0;z-index:5;margin-top:14px;padding:10px 12px;border-radius:16px;background:var(--glass);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--stroke);box-shadow:var(--shadow)}
+.shake{animation:shake .4s}
+@keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+.receipt{text-align:center;padding:26px 20px;border:1px solid var(--gold-soft);box-shadow:var(--shadow),0 0 30px var(--gold-soft)}
+.fileno{font-size:30px;font-weight:700;letter-spacing:.08em;color:var(--gold);direction:ltr;font-variant-numeric:tabular-nums}
+.toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:16px;z-index:30;padding:10px 14px;border-radius:12px;font-size:14px;color:#fff;background:rgba(11,42,107,.95);border:1px solid rgba(212,180,122,.5);box-shadow:var(--shadow)}
+.empty{padding:26px;text-align:center;color:var(--muted)}
+/* footer */
+.foot-main{margin:0 30px 24px;padding:16px 18px;border-radius:16px;background:var(--glass);border:1px solid var(--stroke);font-size:12.5px;color:var(--muted);position:relative}
+.foot-main::before{content:"";position:absolute;top:0;inset-inline:20%;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.foot-main strong{color:var(--ink)}
+.foot-main a{text-decoration:none;color:var(--ink)}
+.foot-main .row{gap:14px}
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .side{position:static;height:auto;padding:14px}
+  nav{display:flex;gap:4px;overflow-x:auto} nav a{white-space:nowrap}
+  .who,.brand-sub{display:none}
+  .g3,.g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  main{padding:18px 14px 96px}
+  .foot-main{margin:0 14px 18px}
+  .stickybar{position:fixed;bottom:0;left:0;right:0;z-index:20;margin:0;border-radius:16px 16px 0 0;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));flex-wrap:nowrap}
+  .stickybar .save-state{display:none}
+}
+@media (max-width:560px){.g2,.g3,.g4{grid-template-columns:1fr} h1{font-size:22px}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><path fill="#D4B47A" d="M20 3l3 6 4-2-1 8 5-4 1 4 5-1-3 6 3 2-9 6 1 4-7-1v7h-2v-7l-7 1 1-4-9-6 3-2-3-6 5 1 1-4 5 4-1-8 4 2z"/></svg>
+      <div><b>ALHIJRAH</b><span>CANADA DESK</span></div>
+    </div>
+    <p class="brand-sub">ALHIJRAH SERVICES LLC</p>
+    <div class="hair"></div>
+    <nav id="nav">
+      <a href="#dashboard" data-r="dashboard">لوحة القيادة</a>
+      <a href="#intake" data-r="intake">طلب جديد</a>
+      <a href="#cases" data-r="cases">الملفات <span class="count" id="c-cases"></span></a>
+      <a href="#review" data-r="review">المراجعة <span class="count" id="c-review"></span></a>
+      <a href="#followup" data-r="followup">المتابعة <span class="count" id="c-follow"></span></a>
+      <a href="#team" data-r="team">الأقسام والموظفون</a>
+      <a href="#performance" data-r="performance">الأداء والامتثال</a>
+    </nav>
+    <div class="who" id="who"></div>
+  </aside>
+  <div class="content">
+    <main id="main"><div class="empty">جارٍ التحميل…</div></main>
+    <footer class="foot-main">
+      <div class="row"><strong>ALHIJRAH SERVICES LLC</strong><span>خدمات إدارية وتجهيز ملفات ومستندات</span></div>
+      <div class="row" style="margin-top:6px">
+        <a href="mailto:Alhijrahusa@gmail.com"><bdi dir="ltr">Alhijrahusa@gmail.com</bdi></a>
+        <a href="tel:+13134140904"><bdi dir="ltr">313-414-0904</bdi></a>
+        <a href="https://wa.me/13139194272" target="_blank" rel="noopener"><bdi dir="ltr">313-919-4272</bdi> (واتساب)</a>
+        <a href="https://www.alhijrahvisa.com" target="_blank" rel="noopener"><bdi dir="ltr">www.alhijrahvisa.com</bdi></a>
+      </div>
+      <p style="margin:8px 0 0">الاستشارة والتمثيل في شؤون الهجرة الكندية يقدّمها ممثل مرخّص فقط. <bdi dir="ltr">© 2026 ALHIJRAH SERVICES LLC</bdi></p>
+    </footer>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+/* ============ Reference data ============ */
+const DEPTS = {
+  intake:'الاستقبال', editing:'التحرير', review:'المراجعة والجودة', followup:'المتابعة والتوظيف',
+  compliance:'الامتثال', partner:'الشريك المرخّص (RCIC/محامٍ)', management:'الإدارة'
+};
+const STATUSES = [
+  ['triage','فرز آلي','intake'], ['docs_pending','نواقص مستندات','intake'], ['referred','محوّل للشريك','partner'],
+  ['drafting','تحرير','editing'], ['review','مراجعة','review'], ['approved','معتمد','review'],
+  ['job_search','بحث وتقديم','followup'], ['offer','عرض عمل','followup'], ['lmia','LMIA لدى صاحب العمل','followup'],
+  ['permit','تصريح العمل','partner'], ['closed','مغلق','management'], ['withdrawn','منسحب','management']
+];
+const ST = Object.fromEntries(STATUSES.map(s=>[s[0],{label:s[1],dept:s[2]}]));
+const PIPE = ['triage','docs_pending','referred','drafting','review','approved','job_search','offer','lmia','permit','closed'];
+const SECTORS = {dairy:'مزارع الألبان والمواشي',crops:'المحاصيل والحصاد',food:'تصنيع الأغذية والمشروبات',line:'خطوط الإنتاج والتعبئة',handling:'الرافعة ومناولة المواد'};
+const DOCS = {passport:'الجواز الحالي',oldpass:'الجوازات السابقة',cv:'سيرة العميل الخام',edu:'الشهادات الدراسية',lang:'نتيجة اختبار لغة'};
+/* NOC starter list: verify titles against the NOC 2021 V1.0 CSV before production use */
+const NOC = [
+ {code:'84120',title:'Specialized livestock workers and farm machinery operators',common:'Dairy Herdsperson',teer:4,groups:[['milked','milking','milk cows','حلب','parlour'],['insemination','breeding','heat','تلقيح','شبق'],['calving','calf','ولادة','عجول'],['mastitis','udder','herd health','ضرع','صحة القطيع'],['feed','tmr','feed mixer','علف','تعليف'],['records','سجل']]},
+ {code:'85100',title:'Livestock labourers',common:'Livestock Labourer / Dairy Farm Worker',teer:5,groups:[['feed','tmr','علف','تعليف'],['clean','barn','stall','pen','تنظيف','حظيرة','حظائر'],['milked','milking','milk cows','حلب'],['handle','cattle','cows','animals','أبقار','مواشي']]},
+ {code:'85101',title:'Harvesting labourers',common:'Farm Worker / Harvester',teer:5,groups:[['harvest','حصاد'],['plant','planting','زراعة','غرس'],['pick','picking','قطف'],['irrigation','irrigate','ري']]},
+ {code:'85103',title:'Nursery and greenhouse labourers',common:'Greenhouse Worker',teer:5,groups:[['greenhouse','بيوت محمية','دفيئة'],['nursery','مشتل','مشاتل'],['seedling','شتلات']]},
+ {code:'82030',title:'Agricultural service contractors and farm supervisors',common:'Farm Supervisor',teer:2,groups:[['supervise','supervised','supervisor','إشراف','مشرف'],['coordinate','schedule','تنسيق'],['farm','barn','مزرعة','حظيرة']]},
+ {code:'95106',title:'Labourers in food and beverage processing',common:'Food Processing Labourer',teer:5,groups:[['pack','packing','packaging','تعبئة','تغليف'],['label','labels','ملصق','ملصقات'],['clean','sanitiz','steriliz','تنظيف','تعقيم'],['load','unload','تحميل','تفريغ']]},
+ {code:'94140',title:'Process control and machine operators, food and beverage processing',common:'Machine Operator, Food Processing',teer:4,groups:[['operate','machine','filling','تشغيل','ماكينة','ماكينات'],['milk','juice','dairy','حليب','عصير','ألبان'],['haccp','gmp','quality','جودة']]},
+ {code:'92012',title:'Supervisors, food and beverage processing',common:'Production Supervisor',teer:2,groups:[['supervise','led','team','إشراف','فريق','قيادة'],['production line','line','خط الإنتاج','خط'],['train','training','تدريب']]},
+ {code:'95104',title:'Labourers in rubber and plastic products manufacturing',common:'Plastic Production Worker',teer:5,groups:[['plastic','بلاستيك'],['mould','mold','قالب','قوالب'],['inspect','defect','فحص','عيوب']]},
+ {code:'75101',title:'Material handlers',common:'Forklift Operator / Material Handler',teer:5,groups:[['forklift','رافعة'],['pallet','pallets','منصات'],['load','unload','تحميل','تفريغ']]},
+ {code:'94141',title:'Industrial butchers and meat cutters, poultry preparers and related workers',common:'Industrial Butcher',teer:4,groups:[['butcher','slaughter','ذبح','جزارة'],['cut meat','meat','تقطيع لحوم','لحوم'],['poultry','دواجن']]}
+];
+
+/* ============ State & store ============ */
+const S = {cases:[], staff:{}, incidents:[], me:{id:null,name:''}, canEdit:false, mode:'local', names:{}, actAs:null, ready:false};
+let db=null, user=null;
+const LS_KEY='tfwp-local-v1';
+function lsLoad(){try{return JSON.parse(localStorage.getItem(LS_KEY))||{cases:{},staff:{},incidents:{}}}catch(e){return {cases:{},staff:{},incidents:{}}}}
+function lsSave(d){try{localStorage.setItem(LS_KEY,JSON.stringify(d))}catch(e){}}
+const writing = {};
+async function put(col,id,data){
+  if(S.mode==='db'){
+    while(writing[col+'/'+id]) await writing[col+'/'+id];
+    const p = db.collection(col).doc(id).set(data).finally(()=>{delete writing[col+'/'+id]});
+    writing[col+'/'+id]=p;
+    try{await p}catch(e){toast(e && e.code==='invalid_argument' ? 'لا تملك صلاحية التعديل على هذه البيانات' : 'تعذّر الحفظ، أعد المحاولة'); throw e}
+  } else {
+    const d=lsLoad(); d[col]=d[col]||{}; d[col][id]=data; lsSave(d); localPull();
+  }
+}
+function localPull(){
+  const d=lsLoad();
+  S.cases=Object.entries(d.cases||{}).map(([id,v])=>({...v,id}));
+  S.staff=d.staff||{};
+  S.incidents=Object.entries(d.incidents||{}).map(([id,v])=>({...v,id}));
+  render();
+}
+function uid(){return (Date.now().toString(36)+Math.random().toString(36).slice(2,7))}
+function me(){return S.mode==='local' && S.actAs ? S.actAs : S.me.id}
+function nameOf(id){ if(!id) return '—'; if(S.mode==='local'){const st=S.staff[id]; return (st&&st.label)||id} return S.names[id]||'موظف' }
+async function resolveNames(){
+  if(S.mode!=='db'||!user||!user.profiles) return;
+  const ids=new Set(Object.keys(S.staff));
+  S.cases.forEach(c=>{['draftedBy','reviewedBy','assignee','createdBy'].forEach(k=>c[k]&&ids.add(c[k]))});
+  const list=[...ids].filter(i=>!(i in S.names)); if(!list.length) return;
+  try{const ps=await user.profiles(list); for(const id of list){S.names[id]=(ps[id]&&ps[id].name)||'موظف'} render()}catch(e){}
+}
+
+async function boot(){
+  try{
+    if(window.claude && window.claude.use){
+      [db,user,sampleCap,dlCap]=await Promise.all([window.claude.use('db'),window.claude.use('user'),window.claude.use('sample'),window.claude.use('downloads')]);
+    }
+  }catch(e){db=null}
+  if(db && user){
+    const myId=await user.id();
+    if(myId){
+      S.mode='db'; S.me.id=myId;
+      try{const m=await user.me(); S.me.name=m.name||''; S.canEdit=!!m.canEdit}catch(e){}
+      let first=false; const t=setTimeout(()=>{if(!first) toast('البيانات لم تصل بعد، تحقق من الاتصال')},10000);
+      db.collection('cases').onSnapshot(qs=>{first=true;clearTimeout(t);S.cases=qs.docs.map(d=>({...d.data(),id:d.id}));S.ready=true;render();resolveNames()},err=>{toast('انقطع الاتصال بقاعدة البيانات')});
+      db.collection('staff').onSnapshot(qs=>{const o={};qs.docs.forEach(d=>o[d.id]=d.data());S.staff=o;render();resolveNames()},()=>{});
+      db.collection('incidents').onSnapshot(qs=>{S.incidents=qs.docs.map(d=>({...d.data(),id:d.id}));render()},()=>{});
+    }
+  }
+  if(S.mode==='local'){
+    S.me={id:'local-1',name:'أنت'}; S.canEdit=true;
+    const d=lsLoad();
+    if(!Object.keys(d.staff||{}).length){
+      d.staff={'local-1':{dept:'management',role:'مدير',label:'المدير (أنت)'},'local-2':{dept:'editing',role:'محرر',label:'محرر تجريبي'},'local-3':{dept:'review',role:'مراجع',label:'مراجع تجريبي'}};
+      lsSave(d);
+    }
+    S.actAs='local-1'; S.ready=true; localPull();
+  }
+  window.addEventListener('hashchange',render);
+  render();
+}
+
+/* ============ Engine: deterministic evaluation ============ */
+function ym(s){ if(!s) return null; const [y,m]=s.split('-').map(Number); return y*12+(m-1) }
+function nowYM(){const d=new Date(); return d.getFullYear()*12+d.getMonth()}
+function jobEnd(j){return j.present? nowYM() : ym(j.end)}
+function evaluate(c){
+  const F=[]; const add=(sev,gate,text)=>F.push({sev,gate,text});
+  const jobs=(c.jobs||[]).filter(j=>j.employer);
+  // Gate A identity
+  if(!c.docs || c.docs.passport!=='yes') add('high','A','الجواز الحالي غير مرفوع');
+  if(c.passportExpiry){
+    const left=(new Date(c.passportExpiry)-new Date())/86400000/30.4;
+    if(left<0) add('high','A','الجواز منتهي الصلاحية');
+    else if(left<24) add('med','A','صلاحية الجواز أقل من 24 شهرًا؛ مدة تصريح العمل لا تتجاوز عادة صلاحية الجواز');
+  } else add('med','A','تاريخ انتهاء الجواز غير مُدخل');
+  jobs.forEach(j=>{ if(j.letter==='yes' && j.nameMatch==='no') add('high','A',`الاسم في خطاب «${j.employer}» لا يطابق الجواز`) });
+  // Gate B evidence & timeline
+  let evidenced=0;
+  jobs.forEach(j=>{
+    const ev=(j.letter==='yes')+(j.secondary==='yes');
+    if(!ev) add('high','B',`«${j.employer}» بلا أي إثبات؛ لا تدخل السيرة`); else evidenced++;
+    if(j.letter==='yes' && j.secondary!=='yes') add('low','B',`«${j.employer}»: خطاب فقط بلا إثبات ثانوي`);
+    if(j.relative==='yes') add('med','B',`موقّع خطاب «${j.employer}» من الأقارب؛ يُصرَّح بالقرابة ويُدعم بإثبات مستقل`);
+    if(!j.start || (!j.end && !j.present)) add('med','B',`«${j.employer}»: تواريخ ناقصة (شهر وسنة)`);
+  });
+  const ft=jobs.filter(j=>j.fullTime!=='no' && j.start).sort((a,b)=>ym(a.start)-ym(b.start));
+  for(let i=0;i<ft.length;i++) for(let k=i+1;k<ft.length;k++){
+    const ov=Math.min(jobEnd(ft[i]),jobEnd(ft[k]))-Math.max(ym(ft[i].start),ym(ft[k].start));
+    if(ov>=1) add('high','B',`تداخل ${ov} شهرًا بين «${ft[i].employer}» و«${ft[k].employer}» بدوام كامل`);
+  }
+  for(let i=1;i<ft.length;i++){
+    const gap=ym(ft[i].start)-jobEnd(ft[i-1]);
+    if(gap>6) add('low','B',`فجوة ${gap} شهرًا قبل «${ft[i].employer}»؛ يلزم تفسير`);
+  }
+  const totalM=ft.reduce((s,j)=>s+Math.max(0,jobEnd(j)-ym(j.start)),0);
+  const years=Math.round(totalM/12*10)/10;
+  if(c.declaredYears && Math.abs(Number(c.declaredYears)-years)>1) add('med','B',`سنوات الخبرة المصرّح بها (${c.declaredYears}) تختلف عن المحسوبة (${years})`);
+  const YR={lt1:[0,1],'1-3':[1,3],'3-5':[3,5],'5-10':[5,10],'10+':[10,99]};
+  if(c.yearsRange && YR[c.yearsRange] && ft.length){const [lo,hi]=YR[c.yearsRange]; if(years<lo-1||years>hi+1) add('med','B',`فئة الخبرة المصرّح بها تختلف عن المحسوبة من الوظائف (${years} سنة)`)}
+  if(!evidenced) add('high','B','لا توجد وظيفة واحدة مثبتة');
+  // Gate C admissibility risks — never assessed by the office
+  const r=c.risk||{};
+  const riskLabels={refusal:'رفض تأشيرة أو طلب سابق',overstay:'تجاوز مدة إقامة',criminal:'سجل جنائي',medical:'مسألة طبية'};
+  Object.keys(riskLabels).forEach(k=>{ if(r[k]==='yes') add('high','C',`${riskLabels[k]}: تحويل إلزامي للشريك المرخّص`) });
+  // Gate D market
+  const noc=matchNOC(c);
+  const top=noc.find(n=>n.code!=='94141' && n.coverage>=50);
+  if(!top) add('med','D','لا يوجد كود NOC بتغطية مهام 50% أو أكثر');
+  // Docs
+  if(!c.docs || c.docs.cv!=='yes') add('low','A','سيرة العميل الخام غير مرفوعة');
+  const highs=F.filter(f=>f.sev==='high');
+  let verdict='green';
+  if(F.some(f=>f.gate==='C')) verdict='red';
+  else if(highs.length || !top) verdict='amber';
+  const dutyAll=jobs.flatMap(j=>[...(j.dutiesDoc||'').split('\n'),...(j.dutiesStated||'').split('\n')]).filter(s=>s.trim());
+  const dutyDoc=jobs.flatMap(j=>(j.dutiesDoc||'').split('\n')).filter(s=>s.trim());
+  const coverage=dutyAll.length? Math.round(dutyDoc.length/dutyAll.length*100):0;
+  return {findings:F,verdict,years,noc,coverage};
+}
+function matchNOC(c){
+  const jobs=(c.jobs||[]);
+  const docText=jobs.map(j=>(j.title||'')+'\n'+(j.dutiesDoc||'')).join('\n').toLowerCase();
+  const statedText=jobs.map(j=>(j.dutiesStated||'')).join('\n').toLowerCase();
+  return NOC.map(n=>{
+    let hitDoc=0,hitAny=0;
+    n.groups.forEach(g=>{const d=g.some(w=>docText.includes(w.toLowerCase())); const s=g.some(w=>statedText.includes(w.toLowerCase())); if(d){hitDoc++;hitAny++} else if(s) hitAny++});
+    const coverage=Math.round(hitAny/n.groups.length*100);
+    const evidence=hitAny? hitDoc/hitAny : 0;
+    const score=Math.round(0.6*coverage+0.4*evidence*100);
+    return {...n,coverage,evidence:Math.round(evidence*100),score};
+  }).sort((a,b)=>b.score-a.score);
+}
+
+/* ============ Helpers ============ */
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today=()=>new Date().toISOString().slice(0,10);
+const fmtDate=s=>s? new Date(s).toLocaleDateString('ar',{year:'numeric',month:'short',day:'numeric'}):'—';
+function toast(t){const el=document.createElement('div');el.className='toast';el.textContent=t;document.body.appendChild(el);setTimeout(()=>el.remove(),3200)}
+function vTag(v){const l={green:'أخضر',amber:'كهرماني',red:'أحمر'}[v]; return l?`<span class="pill v-${v}">${l}</span>`:'<span class="pill plain">—</span>'}
+function sTag(s){const st=ST[s]; return `<span class="pill st-${esc(s)}">${esc(st?st.label:s)}</span>`}
+function sevTag(s){return s==='high'?'<span class="tag bad">مرتفع</span>':s==='med'?'<span class="tag warn">متوسط</span>':'<span class="tag">منخفض</span>'}
+function logEntry(c,action){c.log=(c.log||[]).concat([{at:new Date().toISOString(),by:me(),action}]).slice(-200)}
+async function saveCase(c,action){ if(action) logEntry(c,action); c.updatedAt=new Date().toISOString(); const {id,...body}=c; await put('cases',id,JSON.parse(JSON.stringify(body))); }
+function route(){const h=(location.hash||'#dashboard').slice(1); return h||'dashboard'}
+function myStaff(){return S.staff[me()]||null}
+function allPostings(){return S.cases.flatMap(c=>(c.postings||[]).map(p=>({...p,caseId:c.id,client:c.fullName,status:c.status})))}
+
+/* ============ Render ============ */
+let lastRoute='';
+const TRACK=['triage','drafting','review','approved','job_search','offer','lmia','permit','closed'];
+const TRACK_LABEL={triage:'فرز',drafting:'تحرير',review:'مراجعة',approved:'معتمد',job_search:'تقديم',offer:'عرض',lmia:'LMIA',permit:'تصريح',closed:'مغلق'};
+function trackIdx(s){return s==='docs_pending'||s==='referred'?0:Math.max(0,TRACK.indexOf(s))}
+function render(){
+  if(!S.ready) return;
+  const r=route();
+  document.querySelectorAll('#nav a').forEach(a=>a.setAttribute('aria-current', (r===a.dataset.r || (r.startsWith('case-')&&a.dataset.r==='cases'))?'page':'false'));
+  const active=S.cases.filter(c=>!['closed','withdrawn'].includes(c.status));
+  document.getElementById('c-cases').textContent=active.length||'';
+  document.getElementById('c-review').textContent=S.cases.filter(c=>c.status==='review').length||'';
+  const due=allPostings().filter(p=>p.followUp && p.followUp<=today() && p.state!=='closed').length;
+  document.getElementById('c-follow').textContent=due||'';
+  renderWho();
+  const m=document.getElementById('main');
+  if(r==='dashboard') { m.innerHTML=vDashboard(); m.querySelectorAll('[data-pipe]').forEach(b=>b.onclick=()=>{filt.status=b.dataset.pipe;location.hash='#cases'}); }
+  else if(r==='intake') { m.innerHTML=vIntake(); bindIntake(); }
+  else if(r==='cases') { m.innerHTML=vCases(); bindCases(); }
+  else if(r==='review') m.innerHTML=vReview();
+  else if(r==='followup') m.innerHTML=vFollowup();
+  else if(r==='team') { m.innerHTML=vTeam(); bindTeam(); }
+  else if(r==='performance') { m.innerHTML=vPerformance(); bindPerformance(); }
+  else if(r.startsWith('case-')) { m.innerHTML=vCase(r.slice(5)); bindCase(r.slice(5)); }
+  else m.innerHTML=vDashboard();
+  if(r!==lastRoute){m.classList.remove('reveal');void m.offsetWidth;m.classList.add('reveal');lastRoute=r;window.scrollTo(0,0)}
+}
+function renderWho(){
+  const w=document.getElementById('who'); const st=myStaff();
+  let h=`<strong>${esc(S.mode==='db'?(S.me.name||'أنت'):'وضع محلي')}</strong>${st?esc(DEPTS[st.dept]||'')+' — '+esc(st.role||''):'غير مسجّل في قسم'}`;
+  h+=`<div><span class="mode">${S.mode==='db'?'متصل — بيانات مشتركة':'محلي — هذا الجهاز فقط'}</span></div>`;
+  if(S.mode==='local'){
+    h+=`<label style="margin-top:12px;color:#9FB0C3">التصرف باسم</label><select id="actas" style="background:#0D2338;border-color:#22324A;color:#E9EEF4">${Object.entries(S.staff).map(([id,s])=>`<option value="${esc(id)}" ${id===S.actAs?'selected':''}>${esc(s.label||id)}</option>`).join('')}</select>`;
+  }
+  w.innerHTML=h;
+  const a=document.getElementById('actas'); if(a) a.onchange=()=>{S.actAs=a.value;render()};
+}
+
+/* ---- Dashboard ---- */
+function vDashboard(){
+  const counts=Object.fromEntries(PIPE.map(s=>[s,S.cases.filter(c=>c.status===s).length]));
+  const active=S.cases.filter(c=>!['closed','withdrawn'].includes(c.status));
+  const ps=allPostings();
+  const due=ps.filter(p=>p.followUp && p.followUp<=today() && p.state!=='closed');
+  const soon=ps.filter(p=>p.deadline && p.deadline>=today() && (new Date(p.deadline)-new Date())/86400000<=3 && p.state==='to_apply');
+  const mine=S.cases.filter(c=>c.assignee===me() && !['closed','withdrawn'].includes(c.status));
+  return `<h1>لوحة القيادة</h1><p class="lead">أين يقف كل ملف الآن، وما الذي ينتظر قرارًا اليوم.</p>
+  <div class="pipe" role="list" aria-label="مسار الملفات">${PIPE.map(s=>`<button class="station ${counts[s]?'':'empty'}" role="listitem" data-pipe="${s}"><span class="dot">${counts[s]}</span><small>${esc(ST[s].label)}</small></button>`).join('')}</div>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="kpi"><b>${active.length}</b><span>ملف نشط</span></div>
+    <div class="kpi"><b>${counts.review}</b><span>بانتظار المراجعة</span></div>
+    <div class="kpi"><b>${due.length}</b><span>متابعة مستحقة اليوم</span></div>
+    <div class="kpi"><b>${counts.referred}</b><span>عند الشريك المرخّص</span></div>
+  </div>
+  <h2>ملفاتي المسندة</h2>${caseTable(mine,'لا توجد ملفات مسندة إليك. استلم ملفًا من صفحة الملفات.')}
+  <h2>مواعيد نهائية خلال 3 أيام</h2>${postTable(soon,'لا توجد إعلانات قريبة الإغلاق لم يُقدَّم عليها.')}
+  ${S.cases.length?'':`<div class="panel"><p style="margin:0 0 10px">لا توجد ملفات بعد. ابدأ بطلب جديد، أو حمّل ملفًا تجريبيًا لرؤية النظام يعمل.</p><div class="row"><a class="btn primary" href="#intake">طلب جديد</a><button class="btn" onclick="loadDemo()">تحميل ملف تجريبي</button></div></div>`}`;
+}
+function caseTable(list,emptyMsg){
+  if(!list.length) return `<div class="panel empty">${esc(emptyMsg)}</div>`;
+  return `<div class="cards">${list.map(c=>{const pct=Math.round(trackIdx(c.status)/(TRACK.length-1)*100); return `<a class="card" href="#case-${esc(c.id)}">
+    <div class="row"><span class="t">${esc(c.fullName)}</span><span class="spacer"></span>${vTag(c.verdict)}</div>
+    <div class="meta">${c.fileNo?'<bdi dir="ltr">'+esc(c.fileNo)+'</bdi> · ':''}${esc(DEPTS[(ST[c.status]||{}).dept]||'')}</div>
+    <div class="row" style="margin-top:8px">${sTag(c.status)}</div>
+    <div class="bar" style="margin-top:10px"><i style="width:${pct}%"></i></div>
+    <div class="foot"><span>المسؤول: ${esc(nameOf(c.assignee))}</span><span>${fmtDate(c.updatedAt)}</span></div></a>`}).join('')}</div>`;
+}
+function postTable(list,emptyMsg){
+  if(!list.length) return `<div class="panel empty">${esc(emptyMsg)}</div>`;
+  const left=d=>{if(!d) return 'بلا موعد'; const n=Math.ceil((new Date(d)-new Date(today()))/86400000); return n<0?'انتهى':n===0?'يغلق اليوم':`يغلق خلال ${n} ${n===1?'يوم':'أيام'}`};
+  return `<div class="cards">${list.map(p=>`<a class="card" href="#case-${esc(p.caseId)}">
+    <div class="row"><span class="t" dir="ltr">${esc(p.employer)}</span><span class="spacer"></span><span class="pill plain">${esc(POST_STATES[p.state]||p.state)}</span></div>
+    <div class="meta" dir="ltr" style="text-align:right">${esc(p.title)}${p.jobBankId?' · #'+esc(p.jobBankId):''}</div>
+    <div class="meta">العميل: ${esc(p.client)}</div>
+    <div class="foot"><span>${left(p.deadline)}</span><span>${p.followUp?'متابعة '+fmtDate(p.followUp):''}</span></div></a>`).join('')}</div>`;
+}
+const POST_STATES={to_apply:'للتقديم',applied:'قُدّم',interview:'مقابلة',offer:'عرض',rejected:'مرفوض',closed:'مغلق'};
+
+/* ---- Intake wizard ---- */
+let F=null, step=0, X=null, RECEIPT=null, DRAFT_NOTE=false, saveTimer=null;
+const DRAFT_KEY='tfwp-intake-draft-v2';
+const STEP_NAMES=['البداية','عنك','خبرتك','التعليم واللغة','المستندات وأسئلة مهمة','المراجعة والإرسال'];
+const LAST=STEP_NAMES.length-1;
+const COUNTRIES=[['Yemen','اليمن'],['Egypt','مصر'],['Saudi Arabia','السعودية'],['United Arab Emirates','الإمارات'],['Oman','عُمان'],['Qatar','قطر'],['Kuwait','الكويت'],['Bahrain','البحرين'],['Jordan','الأردن'],['Lebanon','لبنان'],['Syria','سوريا'],['Iraq','العراق'],['Sudan','السودان'],['Morocco','المغرب'],['Algeria','الجزائر'],['Tunisia','تونس'],['Libya','ليبيا'],['Malaysia','ماليزيا'],['Turkey','تركيا'],['United States','الولايات المتحدة'],['Canada','كندا'],['Other','أخرى']];
+const TITLES=['Dairy Farm Worker','Dairy Herdsperson','Livestock Labourer','General Farm Worker','Harvesting Labourer','Greenhouse Worker','Farm Supervisor','Food Processing Labourer','Production Line Worker','Machine Operator','Production Supervisor','Packer','Forklift Operator','Warehouse Worker','Plastic Production Worker'];
+const DUTY_CHIPS={'الألبان والمواشي':['Milked cows by hand and by machine','Fed and tended livestock','Prepared TMR feed with the feed mixer','Checked udders and reported signs of mastitis','Detected heat and assisted with insemination','Assisted with calving and cared for calves','Cleaned barns, stalls and pens'],
+  'المحاصيل':['Planted and harvested crops','Prepared soil for planting','Operated irrigation systems','Picked and sorted produce','Drove a tractor on the farm'],
+  'تصنيع الأغذية':['Received raw materials and loaded machines','Operated filling and packaging machines','Packed and labelled finished products','Moved products to cold rooms','Cleaned and sanitized equipment and work areas','Followed HACCP and GMP procedures'],
+  'خطوط الإنتاج والمناولة':['Inspected products for defects','Moved pallets by forklift','Loaded and unloaded trucks','Supervised a production team']};
+const EVIDENCE={letter:'خطاب خبرة',contract:'عقد عمل',payslip:'كشف راتب',permit:'تصريح عمل',none:'لا يوجد حاليًا'};
+const YEARS={lt1:'أقل من سنة','1-3':'1 إلى 3','3-5':'3 إلى 5','5-10':'5 إلى 10','10+':'أكثر من 10'};
+const EDU={primary:'ابتدائي/متوسط',secondary:'ثانوية',diploma:'دبلوم',uni_inc:'جامعي غير مكتمل',bachelor:'بكالوريوس فأعلى'};
+const FAMILY={alone:'أسافر وحدي',spouse:'مع الزوج/الزوجة',spouse_kids:'مع الزوج/الزوجة والأطفال',kids:'مع الأطفال'};
+function blankForm(){return {fullName:'',nationality:'',city:'',country:'',whatsapp:'',email:'',passportLast4:'',passportExpiry:'',declaredYears:'',yearsRange:'',family:'',kids:'',eduLevel:'',sectors:{},consent:{data:false,noAdvice:false,fees:false},docs:{passport:'no',oldpass:'no',cv:'no',edu:'no',lang:'no'},jobs:[blankJob()],education:'',langTest:'none',langScore:'',english:'',nativeLang:'Arabic',certs:[],refs:[],targetTitles:'',proofLine:'',conditions:'',risk:{refusal:'no',overstay:'no',criminal:'no',medical:'no'}}}
+function blankJob(){return {employer:'',title:'',city:'',country:'',start:'',end:'',present:false,fullTime:'yes',evidence:[],letter:'no',secondary:'no',nameMatch:'yes',relative:'no',dutiesDoc:'',dutiesStated:'',inCV:true}}
+const emailOK=s=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s||'').trim());
+const phoneOK=s=>((s||'').replace(/\D/g,'')).length>=7;
+function reqMissing(f){const m=[]; if(!(f.fullName||'').trim()) m.push('الاسم'); if(!phoneOK(f.whatsapp)) m.push('رقم الهاتف'); if(!emailOK(f.email)) m.push('البريد الإلكتروني'); if(!f.consent.data) m.push('الموافقة'); return m}
+function stepFilled(i){const f=F; if(i===0) return !reqMissing(f).length; if(i===1) return !!(f.country||f.nationality||f.yearsRange); if(i===2) return f.jobs.some(j=>j.employer||j.title); if(i===3) return !!(f.eduLevel||f.english); if(i===4) return Object.values(f.docs).some(v=>v==='yes'); return false}
+function chip(attrs,label,on,en){return `<button type="button" class="chip${en?' en':''}" ${attrs} aria-pressed="${on?'true':'false'}">${esc(label)}</button>`}
+function hint(t){return `<button type="button" class="hint" data-hint aria-label="توضيح">؟</button><span class="hintbox">${esc(t)}</span>`}
+function sel(k,list,ph){return `<select data-f="${k}"><option value="">${esc(ph)}</option>${list.map(([v,l])=>`<option value="${esc(v)}" ${F[k]===v?'selected':''}>${esc(l)}</option>`).join('')}</select>`}
+function fld(k,l,t='text',extra=''){return `<div><label for="f-${k}" ${extra.includes('req')?'class="req"':''}>${esc(l)}</label><input id="f-${k}" type="${t}" data-f="${k}" value="${esc(F[k])}" ${t==='email'||t==='tel'?'dir="ltr"':''}></div>`}
+function saveDraft(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{localStorage.setItem(DRAFT_KEY,JSON.stringify({F,step}));const s=document.getElementById('saveState');if(s)s.textContent='✓ حُفظت المسودة على هذا الجهاز'}catch(e){}},500)}
+function vIntake(){
+  if(RECEIPT) return vReceipt();
+  if(!F){ try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null'); if(d&&d.F){F={...blankForm(),...d.F};step=d.step||0;DRAFT_NOTE=true}}catch(e){} if(!F) F=blankForm(); }
+  const filled=STEP_NAMES.map((_,i)=>stepFilled(i)); const pct=Math.round(filled.filter(Boolean).length/(STEP_NAMES.length-1)*100);
+  const steps=`<div class="steps" role="tablist">${STEP_NAMES.map((n,i)=>`<button type="button" data-step="${i}" class="${filled[i]?'filled':''}" aria-current="${i===step?'step':'false'}">${i+1}. ${esc(n)}</button>`).join('')}</div>`;
+  let body='';
+  if(step===0) body=`<div class="grid g3">${fld('fullName','الاسم الكامل كما في الجواز','text','req')}${fld('whatsapp','الهاتف أو واتساب مع رمز الدولة','tel','req')}${fld('email','البريد الإلكتروني','email','req')}</div>
+    <label class="check" style="margin-top:12px"><input type="checkbox" data-consent-all ${F.consent.data?'checked':''}> <span class="req">أوافق على معالجة بياناتي وقراءة سيرتي آليًا ومشاركتها مع الشريك المرخّص عند الحاجة، وأعلم أن المكتب يقدّم خدمات إدارية ولا يضمن وظيفة أو LMIA، وأنه لا يحق لأي صاحب عمل أو مجنّد تحصيل رسوم توظيف مني.</span></label>
+    <h3>سيرتك الذاتية (اختياري — تملأ باقي الحقول تلقائيًا)</h3>${vUploadBox('intake')}`;
+  if(step===1) body=`<div class="grid g3">
+    <div><label>الجنسية</label>${sel('nationality',COUNTRIES,'اختر')}</div>
+    <div><label>دولة الإقامة الحالية</label>${sel('country',COUNTRIES,'اختر')}</div>
+    ${fld('city','مدينة الإقامة')}
+    <div><label>تاريخ انتهاء الجواز ${hint('مدة تصريح العمل الكندي لا تتجاوز عادة صلاحية الجواز. إذا بقي أقل من سنتين يُفضّل التجديد مبكرًا.')}</label><input type="date" data-f="passportExpiry" value="${esc(F.passportExpiry)}"></div>
+    ${fld('passportLast4','آخر 4 أرقام من الجواز')}</div>
+    <h3>سنوات خبرتك العملية</h3><div class="chips">${Object.entries(YEARS).map(([v,l])=>chip(`data-chip-f="yearsRange" data-v="${v}"`,l,F.yearsRange===v)).join('')}</div>
+    <h3>العائلة المرافقة ${hint('معلومة للتخطيط فقط. أهلية أفراد العائلة لتصاريح مرافقة يقيّمها الممثل المرخّص.')}</h3><div class="chips">${Object.entries(FAMILY).map(([v,l])=>chip(`data-chip-f="family" data-v="${v}"`,l,F.family===v)).join('')}</div>
+    ${F.family==='spouse_kids'||F.family==='kids'?`<div style="max-width:200px;margin-top:8px"><label>عدد الأطفال</label><select data-f="kids">${['','1','2','3','4','5+'].map(v=>`<option value="${v}" ${F.kids===v?'selected':''}>${v||'اختر'}</option>`).join('')}</select></div>`:''}
+    <h3>المجالات التي تريد العمل فيها</h3><div class="chips">${Object.entries(SECTORS).map(([k,v])=>chip(`data-chip-m="sectors" data-v="${k}"`,v,!!F.sectors[k])).join('')}</div>`;
+  if(step===2) body=`<p class="note">اختر من القوائم الجاهزة قدر الإمكان. المسمى والمهام تظهر في السيرة الكندية بالإنجليزية.</p><datalist id="titles">${TITLES.map(t=>`<option value="${esc(t)}">`).join('')}</datalist>`+F.jobs.map((j,i)=>`<div class="job">
+    <div class="row"><strong>الوظيفة ${i+1}</strong>${j.fromCV?'<span class="pill st-offer">من السيرة</span>':''}<span class="spacer"></span>${F.jobs.length>1?`<button type="button" class="btn danger" data-deljob="${i}">حذف</button>`:''}</div>
+    <div class="grid g2" style="margin-top:8px">
+      <div><label>المسمى الوظيفي</label><input type="text" dir="ltr" list="titles" data-jf="${i}" data-k="title" value="${esc(j.title)}" placeholder="Dairy Farm Worker"></div>
+      <div><label>اسم الشركة أو المزرعة</label><input type="text" dir="ltr" data-jf="${i}" data-k="employer" value="${esc(j.employer)}"></div>
+      <div><label>الدولة</label><select data-jf="${i}" data-k="country"><option value="">اختر</option>${COUNTRIES.map(([v,l])=>`<option value="${esc(v)}" ${j.country===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+      <div><label>المدينة (بالإنجليزية)</label><input type="text" dir="ltr" data-jf="${i}" data-k="city" value="${esc(j.city)}"></div>
+      <div><label>من (شهر وسنة)</label><input type="month" data-jf="${i}" data-k="start" value="${esc(j.start)}"></div>
+      <div><label>إلى (شهر وسنة)</label><input type="month" data-jf="${i}" data-k="end" value="${esc(j.end)}" ${j.present?'disabled':''}></div>
+    </div>
+    <div class="chips" style="margin-top:10px">${chip(`data-present="${i}"`,'ما زلت أعمل هنا',j.present)}${chip(`data-chip-j="${i}" data-k="fullTime" data-v="yes"`,'دوام كامل',j.fullTime!=='no')}${chip(`data-chip-j="${i}" data-k="fullTime" data-v="no"`,'دوام جزئي',j.fullTime==='no')}</div>
+    <h3>ما الذي يثبت هذه الخبرة؟ ${hint('صاحب العمل الكندي وموظف الهجرة يطلبان خطاب خبرة على ورق الشركة، ويفضّل معه إثبات ثانٍ مثل عقد أو كشف راتب.')}</h3>
+    <div class="chips">${Object.entries(EVIDENCE).map(([k,l])=>chip(`data-ev="${i}" data-v="${k}"`,l,(j.evidence||[]).includes(k))).join('')}</div>
+    ${(j.evidence||[]).includes('letter')?`<div class="grid g2" style="margin-top:10px"><div><label>الاسم في الخطاب يطابق الجواز؟</label><div class="chips">${chip(`data-chip-j="${i}" data-k="nameMatch" data-v="yes"`,'نعم',j.nameMatch!=='no')}${chip(`data-chip-j="${i}" data-k="nameMatch" data-v="no"`,'لا',j.nameMatch==='no')}</div></div><div><label>موقّع الخطاب من أقاربك؟</label><div class="chips">${chip(`data-chip-j="${i}" data-k="relative" data-v="no"`,'لا',j.relative!=='yes')}${chip(`data-chip-j="${i}" data-k="relative" data-v="yes"`,'نعم',j.relative==='yes')}</div></div></div>`:''}
+    <h3>مهامك في هذه الوظيفة — اختر فقط ما قمت به فعلًا</h3>
+    ${Object.entries(DUTY_CHIPS).map(([g,list])=>`<p class="note" style="margin:8px 0 6px">${esc(g)}</p><div class="chips">${list.map(d=>chip(`data-duty="${i}" data-v="${esc(d)}"`,d,(j.dutiesStated||'').split('\n').includes(d),true)).join('')}</div>`).join('')}
+    <div class="grid g2" style="margin-top:10px"><div><label>مهام أخرى (سطر لكل مهمة)</label><textarea dir="ltr" data-jt="${i}" data-k="dutiesStated">${esc(j.dutiesStated)}</textarea></div>
+    <div><label>مهام مذكورة نصًا في خطاب الخبرة ${hint('تُسجّل هنا فقط المهام المكتوبة في مستند رسمي. تُحسب في السيرة كمهام مثبتة.')}</label><textarea dir="ltr" data-jt="${i}" data-k="dutiesDoc">${esc(j.dutiesDoc)}</textarea></div></div>
+  </div>`).join('')+`<button type="button" class="btn" id="addjob">إضافة وظيفة</button>`;
+  if(step===3) body=`<h3>أعلى مستوى تعليمي</h3><div class="chips">${Object.entries(EDU).map(([v,l])=>chip(`data-chip-f="eduLevel" data-v="${v}"`,l,F.eduLevel===v)).join('')}</div>
+    <div style="margin-top:10px"><label>تفاصيل التعليم بالإنجليزية (اختياري)</label><textarea dir="ltr" data-f="education" placeholder="High School Diploma - School name, Country">${esc(F.education)}</textarea></div>
+    <h3>مستوى الإنجليزية</h3><div class="chips">${[['basic','أساسي'],['intermediate','متوسط'],['advanced','متقدم']].map(([v,l])=>chip(`data-chip-f="english" data-v="${v}"`,l,F.english===v)).join('')}</div>
+    <div class="grid g3" style="margin-top:10px"><div><label>اختبار لغة معتمد ${hint('IELTS General أو CELPIP للإنجليزية، وTEF للفرنسية. النتيجة تقوّي الملف كثيرًا.')}</label><select data-f="langTest">${[['none','لا يوجد'],['IELTS General','IELTS General'],['CELPIP','CELPIP'],['TEF','TEF Canada']].map(([v,t])=>`<option value="${v}" ${F.langTest===v?'selected':''}>${t}</option>`).join('')}</select></div>${fld('langScore','الدرجات')}${fld('nativeLang','اللغة الأم (بالإنجليزية)')}</div>
+    ${vRows('certs','الشهادات المهنية',[['name','اسم الشهادة'],['issuer','الجهة'],['date','الشهر/السنة','month'],['evidence','الشهادة متوفرة؟','yn']])}
+    ${vRows('refs','المراجع (يُفضّل من خارج العائلة)',[['name','الاسم'],['title','الصفة'],['employer','الجهة'],['country','الدولة'],['phone','الهاتف'],['consent','وافق على الاتصال؟','yn']])}`;
+  if(step===4) body=`<h3>المستندات المتوفرة لديك الآن</h3><div class="chips">${Object.entries(DOCS).map(([k,v])=>chip(`data-chip-m="docs" data-v="${k}"`,v,F.docs[k]==='yes')).join('')}</div>
+    <h3>أسئلة مهمة ${hint('لا يقيّمها المكتب. أي إجابة «نعم» تُحال إلى ممثل مرخّص ليرشدك.')}</h3>
+    <div class="grid g2">${[['refusal','رُفض لك طلب تأشيرة أو هجرة سابقًا؟'],['overstay','تجاوزت مدة إقامة مسموحة في أي دولة؟'],['criminal','لديك أي سجل جنائي أو قضية؟'],['medical','لديك مسألة طبية قد تحتاج فحصًا خاصًا؟']].map(([k,q])=>`<div><label>${esc(q)}</label><div class="chips">${chip(`data-chip-r="${k}" data-v="no"`,'لا',F.risk[k]!=='yes')}${chip(`data-chip-r="${k}" data-v="yes"`,'نعم',F.risk[k]==='yes')}</div></div>`).join('')}</div>`;
+  if(step===LAST){
+    const ev=evaluate(F); const miss=reqMissing(F);
+    body=`<div class="row"><strong>نتيجة الفرز المتوقعة</strong>${vTag(ev.verdict)}<span class="spacer"></span><span class="note">خبرة محسوبة ${ev.years} سنة · مهام مثبتة ${ev.coverage}%</span></div>
+      ${ev.findings.length?ev.findings.map(f=>`<div class="finding">${sevTag(f.sev)}<span class="tag">البوابة ${f.gate}</span><span>${esc(f.text)}</span></div>`).join(''):'<p class="note">لا توجد ملاحظات.</p>'}
+      <div style="margin-top:12px">${vGaps(F)}</div>
+      ${miss.length?`<p class="tag bad">مطلوب للإرسال: ${esc(miss.join('، '))}</p>`:'<p class="note">يمكن الإرسال الآن، والنواقص تُستكمل لاحقًا من داخل الملف.</p>'}`;
+  }
+  return `<div class="panel welcome"><p>نرافقك في تنظيم ملفك وتجهيز سيرتك الذاتية ومستنداتك لمسارات العمل في كندا، بدقة ووفق المعايير الكندية المعتمدة. تقييم الأهلية والاستشارة في الهجرة يقدّمهما ممثل مرخّص.</p><span class="sign">مكتب الهجرة — عبدالله المريسي</span></div>
+  <h1>طلب جديد</h1><p class="lead">المطلوب للإرسال: الاسم والهاتف والبريد والموافقة فقط. باقي الأسئلة اختيارية وتُستكمل لاحقًا.</p>
+  ${DRAFT_NOTE?`<div class="panel row"><span>استُعيدت مسودة محفوظة على هذا الجهاز.</span><span class="spacer"></span><button class="btn" id="newDraft">بدء طلب جديد</button></div>`:''}
+  <div class="progress" aria-label="اكتمال الطلب"><i style="width:${pct}%"></i></div><p class="note" style="margin:0 0 10px">اكتمال الطلب ${pct}%</p>
+  ${steps}<div class="panel" id="intakePanel">${body}</div>
+  <div class="stickybar row"><button class="btn" id="prev" ${step===0?'disabled':''}>السابق</button>${step<LAST?'<button class="btn" id="next">التالي</button>':''}<span class="save-state" id="saveState"></span><span class="spacer"></span><button class="btn primary" id="submitIntake">إرسال الطلب</button></div>`;
+}
+function vRows(key,title,cols){
+  const rows=F[key]||[];
+  return `<h3>${esc(title)}</h3>${rows.map((r,i)=>`<div class="grid g3" style="margin-bottom:8px;align-items:end">${cols.map(([k,l,t])=>t==='yn'?`<div><label>${esc(l)}</label><div class="chips">${chip(`data-rowc="${key}" data-i="${i}" data-k="${k}" data-v="yes"`,'نعم',r[k]==='yes')}${chip(`data-rowc="${key}" data-i="${i}" data-k="${k}" data-v="no"`,'لا',r[k]!=='yes')}</div></div>`:`<div><label>${esc(l)}</label><input type="${t||'text'}" dir="ltr" data-row="${key}" data-i="${i}" data-k="${k}" value="${esc(r[k]||'')}"></div>`).join('')}<div><button type="button" class="btn danger" data-delrow="${key}" data-i="${i}">حذف</button></div></div>`).join('')}<button type="button" class="btn" data-addrow="${key}">إضافة</button>`;
+}
+function syncEvidence(j,soft){const e=j.evidence||[]; if(soft&&!e.length) return; j.letter=e.includes('letter')?'yes':'no'; j.secondary=['contract','payslip','permit'].some(k=>e.includes(k))?'yes':'no'}
+function bindIntake(){
+  const m=document.getElementById('main'); if(RECEIPT){bindReceipt();return}
+  const upd=(fn,rerender)=>{fn();saveDraft();if(rerender)render()};
+  m.querySelectorAll('[data-f]').forEach(el=>el.addEventListener(el.tagName==='SELECT'?'change':'input',()=>upd(()=>{F[el.dataset.f]=el.value},el.tagName==='SELECT'&&el.dataset.f==='kids'?false:false)));
+  m.querySelectorAll('[data-consent-all]').forEach(el=>el.addEventListener('change',()=>upd(()=>{F.consent={data:el.checked,noAdvice:el.checked,fees:el.checked}})));
+  m.querySelectorAll('[data-chip-f]').forEach(el=>el.addEventListener('click',()=>upd(()=>{const k=el.dataset.chipF;F[k]=F[k]===el.dataset.v?'':el.dataset.v},true)));
+  m.querySelectorAll('[data-chip-m]').forEach(el=>el.addEventListener('click',()=>upd(()=>{const k=el.dataset.chipM,v=el.dataset.v; if(k==='docs') F.docs[v]=F.docs[v]==='yes'?'no':'yes'; else F[k][v]=!F[k][v]},true)));
+  m.querySelectorAll('[data-chip-r]').forEach(el=>el.addEventListener('click',()=>upd(()=>{F.risk[el.dataset.chipR]=el.dataset.v},true)));
+  m.querySelectorAll('[data-chip-j]').forEach(el=>el.addEventListener('click',()=>upd(()=>{F.jobs[+el.dataset.chipJ][el.dataset.k]=el.dataset.v},true)));
+  m.querySelectorAll('[data-present]').forEach(el=>el.addEventListener('click',()=>upd(()=>{const j=F.jobs[+el.dataset.present]; j.present=!j.present; if(j.present) j.end=''},true)));
+  m.querySelectorAll('[data-ev]').forEach(el=>el.addEventListener('click',()=>upd(()=>{const j=F.jobs[+el.dataset.ev],v=el.dataset.v; let e=j.evidence||[]; if(v==='none') e=e.includes('none')?[]:['none']; else {e=e.filter(x=>x!=='none'); e=e.includes(v)?e.filter(x=>x!==v):e.concat(v)} j.evidence=e; syncEvidence(j)},true)));
+  m.querySelectorAll('[data-duty]').forEach(el=>el.addEventListener('click',()=>upd(()=>{const j=F.jobs[+el.dataset.duty],d=el.dataset.v; let L=(j.dutiesStated||'').split('\n').filter(s=>s.trim()); L=L.includes(d)?L.filter(x=>x!==d):L.concat(d); j.dutiesStated=L.join('\n')},true)));
+  m.querySelectorAll('[data-jf]').forEach(el=>el.addEventListener(el.tagName==='SELECT'?'change':'input',()=>upd(()=>{F.jobs[+el.dataset.jf][el.dataset.k]=el.value})));
+  m.querySelectorAll('[data-jt]').forEach(el=>el.addEventListener('input',()=>upd(()=>{F.jobs[+el.dataset.jt][el.dataset.k]=el.value})));
+  m.querySelectorAll('[data-deljob]').forEach(el=>el.addEventListener('click',()=>upd(()=>{F.jobs.splice(+el.dataset.deljob,1)},true)));
+  m.querySelectorAll('[data-row]').forEach(el=>el.addEventListener('input',()=>upd(()=>{F[el.dataset.row][+el.dataset.i][el.dataset.k]=el.value})));
+  m.querySelectorAll('[data-rowc]').forEach(el=>el.addEventListener('click',()=>upd(()=>{F[el.dataset.rowc][+el.dataset.i][el.dataset.k]=el.dataset.v},true)));
+  m.querySelectorAll('[data-addrow]').forEach(el=>el.addEventListener('click',()=>upd(()=>{(F[el.dataset.addrow]=F[el.dataset.addrow]||[]).push({})},true)));
+  m.querySelectorAll('[data-delrow]').forEach(el=>el.addEventListener('click',()=>upd(()=>{F[el.dataset.delrow].splice(+el.dataset.i,1)},true)));
+  m.querySelectorAll('[data-hint]').forEach(el=>el.addEventListener('click',()=>el.nextElementSibling.classList.toggle('open')));
+  m.querySelectorAll('[data-step]').forEach(el=>el.addEventListener('click',()=>{step=+el.dataset.step;saveDraft();render()}));
+  const add=document.getElementById('addjob'); if(add) add.onclick=()=>upd(()=>{F.jobs.push(blankJob())},true);
+  const p=document.getElementById('prev'); if(p) p.onclick=()=>{step=Math.max(0,step-1);saveDraft();render()};
+  const n=document.getElementById('next'); if(n) n.onclick=()=>{step=Math.min(LAST,step+1);saveDraft();render()};
+  const nd=document.getElementById('newDraft'); if(nd) nd.onclick=()=>{if(confirm('حذف المسودة المحفوظة وبدء طلب جديد؟')){try{localStorage.removeItem(DRAFT_KEY)}catch(e){} F=blankForm();step=0;X=null;DRAFT_NOTE=false;render()}};
+  document.getElementById('submitIntake').onclick=submitIntake;
+  bindUpload('intake');
+  bindGapCopy(F);
+}
+async function submitIntake(){
+  const miss=reqMissing(F);
+  if(miss.length){ step=0; render(); const pn=document.getElementById('intakePanel'); if(pn){pn.classList.add('shake');setTimeout(()=>pn.classList.remove('shake'),450)} toast('مطلوب للإرسال: '+miss.join('، ')); return }
+  const id=uid(); F.jobs.forEach(j=>syncEvidence(j,true)); const ev=evaluate(F);
+  const c={...JSON.parse(JSON.stringify(F)),status:'triage',verdict:ev.verdict,years:ev.years,coverage:ev.coverage,createdAt:new Date().toISOString(),createdBy:me(),assignee:null,postings:[],notes:[],returns:0,log:[]};
+  c.id=id; c.fileNo='AH-'+String(new Date().getFullYear()).slice(2)+'-'+id.slice(-5).toUpperCase();
+  c.jobs=c.jobs.filter(j=>j.employer||j.title||j.dutiesStated||j.dutiesDoc);
+  logEntry(c,'فتح الملف من نموذج الاستقبال، والفرز الآلي: '+({green:'أخضر',amber:'كهرماني',red:'أحمر'}[ev.verdict]));
+  if(c.cvExtract) logEntry(c,'استُخرجت بيانات من السيرة: '+c.cvExtract.fileName);
+  try{await saveCase(c);}catch(e){return}
+  try{localStorage.removeItem(DRAFT_KEY)}catch(e){}
+  RECEIPT={id,fileNo:c.fileNo,name:c.fullName,at:new Date().toISOString(),missing:gaps(c).filter(g=>g.client).length,caseCopy:c};
+  F=null; X=null; step=0; DRAFT_NOTE=false; render();
+}
+function vReceipt(){
+  const r=RECEIPT;
+  return `<div class="panel receipt"><p class="note" style="margin:0">رقم الملف</p><div class="fileno">${esc(r.fileNo)}</div>
+    <h1 style="margin-top:10px">${esc(r.name)}</h1><p class="lead" style="margin:6px auto 14px">استُلم الطلب في ${fmtDate(r.at)}. ${r.missing?`ينقص الملف ${r.missing} ${r.missing===1?'بند':'بنود'} تُستكمل لاحقًا.`:'الملف مكتمل الحقول.'}</p>
+    <div class="row" style="justify-content:center"><a class="btn primary" href="#case-${esc(r.id)}">فتح الملف</a>${r.missing?'<button class="btn" data-gapcopy="1">نسخ رسالة النواقص للعميل</button>':''}<button class="btn" id="newIntake">طلب جديد</button></div>
+    <textarea id="gapMsg" readonly style="display:none;margin-top:12px"></textarea></div>`;
+}
+function bindReceipt(){
+  const b=document.getElementById('newIntake'); if(b) b.onclick=()=>{RECEIPT=null;render()};
+  const o=document.querySelector('a.btn.primary[href^="#case-"]'); if(o) o.addEventListener('click',()=>{RECEIPT=null});
+  bindGapCopy(RECEIPT.caseCopy);
+}
+
+/* ---- Cases list ---- */
+let filt={status:'',dept:'',q:'',mine:false};
+function vCases(){
+  let list=S.cases.slice().sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
+  if(filt.status) list=list.filter(c=>c.status===filt.status);
+  if(filt.dept) list=list.filter(c=>(ST[c.status]||{}).dept===filt.dept);
+  if(filt.mine) list=list.filter(c=>c.assignee===me());
+  if(filt.q) list=list.filter(c=>(c.fullName||'').includes(filt.q)||(c.email||'').includes(filt.q));
+  return `<h1>الملفات</h1><p class="lead">كل ملف في مرحلة واحدة، والمرحلة تحدد القسم المسؤول عنه.</p>
+  <div class="panel"><div class="grid g4">
+    <div><label for="f-status">المرحلة</label><select id="f-status"><option value="">الكل</option>${STATUSES.map(([k,l])=>`<option value="${k}" ${filt.status===k?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+    <div><label for="f-dept">القسم</label><select id="f-dept"><option value="">الكل</option>${Object.entries(DEPTS).map(([k,l])=>`<option value="${k}" ${filt.dept===k?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+    <div><label for="f-q">بحث بالاسم أو البريد</label><input id="f-q" type="text" value="${esc(filt.q)}"></div>
+    <div><label>&nbsp;</label><label class="check"><input type="checkbox" id="f-mine" ${filt.mine?'checked':''}> ملفاتي فقط</label></div>
+  </div></div>${caseTable(list,'لا توجد ملفات تطابق هذا الفلتر.')}`;
+}
+function bindCases(){
+  const g=id=>document.getElementById(id);
+  g('f-status').onchange=e=>{filt.status=e.target.value;render()};
+  g('f-dept').onchange=e=>{filt.dept=e.target.value;render()};
+  g('f-mine').onchange=e=>{filt.mine=e.target.checked;render()};
+  let t; g('f-q').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{filt.q=e.target.value;render();const q=g('f-q');q.focus();q.setSelectionRange(q.value.length,q.value.length)},300)};
+}
+
+/* ---- Case detail ---- */
+let caseTab='summary';
+const NEXT={triage:['applyTriage','تطبيق نتيجة الفرز'],docs_pending:['retriage','اكتملت المستندات — أعد الفرز'],referred:['backToFlow','أعاده الشريك — أعد الفرز'],drafting:['toReview','إرسال للمراجعة'],review:['approve','اعتماد الملف'],approved:['startSearch','بدء البحث والتقديم'],job_search:['gotOffer','تسجيل عرض عمل مكتوب'],offer:['lmiaFiled','صاحب العمل قدّم LMIA'],lmia:['lmiaPositive','LMIA إيجابي — تحويل للشريك'],permit:['permitIssued','صدر تصريح العمل — إغلاق']};
+function vCase(id){
+  const c=S.cases.find(x=>x.id===id);
+  if(!c) return `<div class="panel empty">الملف غير موجود أو لم يُحمَّل بعد. <a href="#cases">العودة إلى الملفات</a></div>`;
+  const ev=evaluate(c); const ti=trackIdx(c.status); const nx=NEXT[c.status];
+  const tabs=[['summary','الملخص'],['gaps','النواقص والسيرة المرفوعة'],['docs','السيرة والخطاب'],['eval','التقييم والبوابات'],['noc','مطابقة NOC'],['flow','سير العمل'],['postings','المتابعة والتقديم'],['log','السجل']];
+  let body='';
+  if(caseTab==='summary') body=vCaseSummary(c,ev);
+  if(caseTab==='gaps') body=vGapsTab(c);
+  if(caseTab==='docs') body=vDocsTab(c);
+  if(caseTab==='eval') body=`<div class="panel"><div class="row"><strong>نتيجة الفرز الحالية</strong>${vTag(ev.verdict)}<span class="spacer"></span><span class="note">خبرة محسوبة ${ev.years} سنة · مهام مثبتة ${ev.coverage}%</span></div>
+      ${['A','B','C','D'].map(g=>{const fs=ev.findings.filter(f=>f.gate===g); const names={A:'A — الهوية',B:'B — الخبرة القابلة للإثبات',C:'C — مخاطر عدم القبول',D:'D — ملاءمة السوق'}; return `<h3>${names[g]} ${fs.some(f=>f.sev==='high')?'<span class="pill v-red">لم تجتز</span>':'<span class="pill v-green">مجتازة</span>'}</h3>${fs.length?fs.map(f=>`<div class="finding">${sevTag(f.sev)}<span>${esc(f.text)}</span></div>`).join(''):'<p class="note">لا توجد ملاحظات.</p>'}`}).join('')}</div>
+    <div class="panel"><h3 style="margin-top:0">المستندات المتوفرة</h3><div class="grid g3">${Object.entries(DOCS).map(([k,v])=>`<div><label>${esc(v)}</label><select data-cdoc="${k}"><option value="yes" ${(c.docs||{})[k]==='yes'?'selected':''}>متوفر</option><option value="no" ${(c.docs||{})[k]!=='yes'?'selected':''}>غير متوفر</option></select></div>`).join('')}</div></div>`;
+  if(caseTab==='noc') body=vNOC(c,ev);
+  if(caseTab==='flow') body=vFlow(c,ev);
+  if(caseTab==='postings') body=vPostings(c);
+  if(caseTab==='log') body=`<div class="panel"><ul class="timeline">${(c.log||[]).slice().reverse().map(l=>`<li><strong>${esc(l.action)}</strong><br><small>${new Date(l.at).toLocaleString('ar')} · ${esc(nameOf(l.by))}</small></li>`).join('')||'<li>لا توجد إجراءات.</li>'}</ul></div>`;
+  return `<p class="note"><a href="#cases">الملفات</a></p>
+  <div class="panel"><div class="row"><h1 style="margin:0">${esc(c.fullName)}</h1>${c.fileNo?`<span class="pill plain"><bdi dir="ltr">${esc(c.fileNo)}</bdi></span>`:''}${sTag(c.status)}${vTag(c.verdict)}<span class="spacer"></span><span class="note">المسؤول: ${esc(nameOf(c.assignee))}</span>${c.assignee!==me()?`<button class="btn" id="takeCase">استلام الملف</button>`:''}</div>
+    <div class="stepper">${TRACK.map((s,i)=>`<span class="${i<ti||c.status==='closed'?'done':i===ti?'now':''}">${TRACK_LABEL[s]}</span>`).join('')}</div>
+    ${c.status==='docs_pending'?'<p class="note">الملف متوقف عند الفرز بانتظار مستندات من العميل.</p>':''}${c.status==='referred'?'<p class="note">الملف عند الشريك المرخّص بسبب مخاطر عدم القبول.</p>':''}
+    <div class="row" style="margin-top:10px">${nx?`<button class="btn primary" data-act="${nx[0]}">${esc(nx[1])}</button>`:''}<span class="note">الإجراء التالي حسب المرحلة. الإجراءات الأخرى في تبويب «سير العمل».</span></div></div>
+  <nav class="tabs">${tabs.map(([k,l])=>`<a href="#case-${esc(c.id)}" data-tab="${k}" aria-current="${caseTab===k}">${l}</a>`).join('')}</nav>${body}`;
+}
+function vCaseSummary(c,ev){
+  const jobs=(c.jobs||[]).filter(j=>j.employer).slice().sort((a,b)=>(ym(b.start)||0)-(ym(a.start)||0));
+  return `<div class="grid g3">
+    <div class="kpi"><b>${ev.years}</b><span>سنوات خبرة محسوبة</span></div>
+    <div class="kpi"><b>${ev.coverage}%</b><span>مهام مثبتة بمستند</span></div>
+    <div class="kpi"><b>${(c.postings||[]).length}</b><span>إعلانات متابَعة</span></div></div>
+  <div class="panel" style="margin-top:12px"><div class="grid g3">
+    <div><label>الجنسية</label>${esc(c.nationality)||'—'}</div><div><label>الإقامة</label>${esc([c.city,c.country].filter(Boolean).join('، '))||'—'}</div><div><label>واتساب</label>${c.whatsapp?'<bdi dir="ltr">'+esc(c.whatsapp)+'</bdi>':'—'}</div>
+    <div><label>البريد</label>${esc(c.email)||'—'}</div><div><label>الجواز</label>${c.passportLast4?'••••'+esc(c.passportLast4):'—'} · ينتهي ${fmtDate(c.passportExpiry)}</div>
+    <div><label>اللغة</label>${esc(c.langTest==='none'?'لا يوجد اختبار':c.langTest+' '+(c.langScore||''))} · ${esc({basic:'أساسي',intermediate:'متوسط',advanced:'متقدم'}[c.english]||'')}</div>
+    <div style="grid-column:1/-1"><label>القطاعات المستهدفة</label>${Object.entries(c.sectors||{}).filter(([,v])=>v).map(([k])=>`<span class="tag">${esc(SECTORS[k])}</span>`).join(' ')||'—'}</div></div></div>
+  <h2>الخبرات (من الأحدث)</h2>${jobs.length?jobs.map(j=>`<div class="panel"><div class="row"><strong>${esc(j.title)}</strong><span class="note">${esc(j.employer)}، ${esc(j.city)}، ${esc(j.country)}</span><span class="spacer"></span><span class="note">${esc(j.start||'؟')} – ${j.present?'الآن':esc(j.end||'؟')}</span></div>
+    <div class="row" style="margin:6px 0">${j.letter==='yes'?'<span class="tag ok">خطاب</span>':'<span class="tag bad">بلا خطاب</span>'}${j.secondary==='yes'?'<span class="tag ok">إثبات ثانوي</span>':''}${j.relative==='yes'?'<span class="tag warn">موقّع قريب</span>':''}${j.nameMatch==='no'?'<span class="tag bad">اسم غير مطابق</span>':''}</div>
+    ${(j.dutiesDoc||'').trim()?`<ul>${j.dutiesDoc.split('\n').filter(s=>s.trim()).map(s=>`<li>${esc(s)} <span class="tag ok">مستند</span></li>`).join('')}</ul>`:''}
+    ${(j.dutiesStated||'').trim()?`<ul>${j.dutiesStated.split('\n').filter(s=>s.trim()).map(s=>`<li>${esc(s)} <span class="tag">إفادة</span></li>`).join('')}</ul>`:''}</div>`).join(''):'<div class="panel empty">لا توجد خبرات مسجلة.</div>'}
+  <h2>ملاحظات الفريق</h2><div class="panel">${(c.notes||[]).map(n=>`<div class="finding"><span class="tag">${esc(nameOf(n.by))}</span><span>${esc(n.text)}</span><span class="spacer"></span><span class="note">${fmtDate(n.at)}</span></div>`).join('')||'<p class="note">لا توجد ملاحظات.</p>'}
+  <div class="row" style="margin-top:10px"><input type="text" id="noteText" placeholder="ملاحظة داخلية للفريق" style="flex:1;min-width:200px"><button class="btn" id="addNote">إضافة</button></div></div>`;
+}
+function vNOC(c,ev){
+  return `<p class="lead">الترتيب من المهام المثبتة. لا يُعتمد كود قبل موافقة المحرر، ولا يُكتب الكود في السيرة.</p>
+  <div class="cards">${ev.noc.map(n=>{const ap=(c.approvedNOC||[]).includes(n.code); return `<div class="card">
+    <div class="row"><strong dir="ltr">${n.code}</strong><span class="pill plain">TEER ${n.teer}</span><span class="spacer"></span>${ap?'<span class="pill v-green">معتمد</span>':''}</div>
+    <div class="t" dir="ltr" style="text-align:right;margin-top:6px">${esc(n.common)}</div><div class="meta" dir="ltr" style="text-align:right">${esc(n.title)}</div>
+    <div class="bar" style="margin-top:10px"><i style="width:${n.coverage}%"></i></div>
+    <div class="foot"><span>تغطية ${n.coverage}% · أدلة ${n.evidence}%</span>${ap?`<button class="btn" data-unnoc="${n.code}">إلغاء</button>`:`<button class="btn" data-noc="${n.code}" ${n.coverage<50?'disabled':''}>${n.coverage<50?'دون الحد':'اعتماد'}</button>`}</div></div>`}).join('')}</div>
+  <p class="note" style="margin-top:10px">قائمة ابتدائية تُستبدل باستيراد ملف NOC 2021 V1.0 الرسمي في النظام الإنتاجي.</p>`;
+}
+function vFlow(c,ev){
+  const myId=me(); const A=[];
+  const btn=(id,label,cls='')=>`<button class="btn ${cls}" data-act="${id}">${esc(label)}</button>`;
+  switch(c.status){
+    case 'triage': A.push(btn('applyTriage','تطبيق نتيجة الفرز ('+({green:'إلى التحرير',amber:'إلى النواقص',red:'إلى الشريك'}[ev.verdict])+')','primary')); break;
+    case 'docs_pending': A.push(btn('retriage','اكتملت المستندات — إعادة الفرز','primary')); break;
+    case 'referred': A.push(btn('backToFlow','أعاده الشريك للمسار — إعادة الفرز'),btn('close','إغلاق بقرار الشريك')); break;
+    case 'drafting': A.push(btn('toReview','إرسال للمراجعة','primary')); break;
+    case 'review': A.push(btn('approve','اعتماد الملف','primary'),btn('returnFix','إعادة للتصحيح','danger')); break;
+    case 'approved': A.push(btn('startSearch','بدء البحث والتقديم','primary')); break;
+    case 'job_search': A.push(btn('gotOffer','تسجيل عرض عمل مكتوب','primary')); break;
+    case 'offer': A.push(btn('lmiaFiled','صاحب العمل قدّم LMIA','primary'),btn('offerLost','العرض لم يكتمل — العودة للبحث')); break;
+    case 'lmia': A.push(btn('lmiaPositive','LMIA إيجابي — تحويل للشريك','primary'),btn('lmiaNegative','LMIA سلبي — العودة للبحث')); break;
+    case 'permit': A.push(btn('permitIssued','صدر تصريح العمل — إغلاق','primary'),btn('close','إغلاق بقرار IRCC')); break;
+  }
+  if(!['closed','withdrawn'].includes(c.status)) A.push(btn('withdraw','انسحاب العميل','danger'));
+  let warn='';
+  if(c.status==='review' && c.draftedBy===myId) warn=`<p class="tag warn">أعددت هذا الملف بنفسك. الاعتماد يتم من مراجع آخر (مبدأ المُعِدّ والمراجِع).</p>`;
+  if(c.status==='drafting' && !(c.approvedNOC||[]).length) warn=`<p class="tag warn">اعتمد كود NOC واحدًا على الأقل قبل الإرسال للمراجعة.</p>`;
+  return `<div class="panel"><div class="row"><strong>المرحلة الحالية:</strong>${sTag(c.status)}<span class="note">القسم: ${esc(DEPTS[(ST[c.status]||{}).dept]||'')}</span></div>
+    <div class="grid g3" style="margin-top:10px"><div><label>أعدّه</label>${esc(nameOf(c.draftedBy))}</div><div><label>راجعه</label>${esc(nameOf(c.reviewedBy))}</div><div><label>مرات الإعادة للتصحيح</label>${c.returns||0}</div></div>
+    ${warn}<div><label for="flowNote" style="margin-top:10px">سبب الإجراء أو ملاحظة (تُحفظ في السجل)</label><input type="text" id="flowNote"></div>
+    <div class="row" style="margin-top:10px">${A.join('')}</div></div>`;
+}
+function vPostings(c){
+  return `<p class="lead">يتم التقديم من بريد العميل أو حسابه. النظام يتابع الحالة والمواعيد فقط.</p>
+  ${postTable((c.postings||[]).map(p=>({...p,client:c.fullName,caseId:c.id})),'لا توجد إعلانات مسجلة لهذا الملف.')}
+  ${(c.postings||[]).length?`<div class="panel" style="margin-top:12px"><h3 style="margin-top:0">تحديث إعلان</h3><div class="grid g4"><div><label>الإعلان</label><select id="pSel">${c.postings.map((p,i)=>`<option value="${i}">${esc(p.employer)} — ${esc(p.jobBankId)}</option>`).join('')}</select></div><div><label>الحالة</label><select id="pState">${Object.entries(POST_STATES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div><div><label>تاريخ المتابعة القادمة</label><input type="date" id="pFollow"></div><div><label>&nbsp;</label><button class="btn" id="pUpdate">حفظ التحديث</button></div></div></div>`:''}
+  <div class="panel" style="margin-top:12px"><h3 style="margin-top:0">إضافة إعلان مؤهل</h3>
+  <p class="note">يُضاف فقط إذا تحققت الشروط الثلاثة: يقبل «other candidates with or without a valid Canadian work permit»، وتاريخ «Advertised until» لم ينتهِ، وطريقة التقديم بريد أو موقع.</p>
+  <div class="grid g3"><div><label>المسمى</label><input type="text" id="nTitle"></div><div><label>صاحب العمل</label><input type="text" id="nEmp"></div><div><label>رقم Job Bank</label><input type="text" id="nJB"></div>
+  <div><label>طريقة التقديم (بريد/موقع)</label><input type="text" id="nMethod"></div><div><label>آخر موعد (Advertised until)</label><input type="date" id="nDead"></div><div><label>نسخة السيرة</label><select id="nVar"><option>المزارع والألبان</option><option>المصانع وخطوط الإنتاج</option></select></div></div>
+  <label class="check"><input type="checkbox" id="nOpen"> تحققت أن الإعلان مفتوح للمرشحين من خارج كندا</label>
+  <div class="row" style="margin-top:8px"><button class="btn primary" id="nAdd">إضافة الإعلان</button></div></div>`;
+}
+function bindCase(id){
+  const c=S.cases.find(x=>x.id===id); if(!c) return;
+  const m=document.getElementById('main');
+  m.querySelectorAll('[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();caseTab=a.dataset.tab;render()}));
+  const take=document.getElementById('takeCase'); if(take) take.onclick=async()=>{const x=clone(c);x.assignee=me();await saveCase(x,'استلم الملف');};
+  const an=document.getElementById('addNote'); if(an) an.onclick=async()=>{const t=document.getElementById('noteText').value.trim(); if(!t) return; const x=clone(c); x.notes=(x.notes||[]).concat([{by:me(),at:new Date().toISOString(),text:t}]); await saveCase(x,'أضاف ملاحظة');};
+  m.querySelectorAll('[data-cdoc]').forEach(el=>el.addEventListener('change',async()=>{const x=clone(c);x.docs=x.docs||{};x.docs[el.dataset.cdoc]=el.value;const ev=evaluate(x);x.verdict=ev.verdict;x.years=ev.years;x.coverage=ev.coverage;await saveCase(x,`حدّث حالة مستند: ${DOCS[el.dataset.cdoc]}`)}));
+  m.querySelectorAll('[data-noc]').forEach(el=>el.addEventListener('click',async()=>{const x=clone(c);x.approvedNOC=[...new Set([...(x.approvedNOC||[]),el.dataset.noc])];await saveCase(x,'اعتمد كود NOC '+el.dataset.noc)}));
+  m.querySelectorAll('[data-unnoc]').forEach(el=>el.addEventListener('click',async()=>{const x=clone(c);x.approvedNOC=(x.approvedNOC||[]).filter(k=>k!==el.dataset.unnoc);await saveCase(x,'ألغى اعتماد NOC '+el.dataset.unnoc)}));
+  m.querySelectorAll('[data-act]').forEach(el=>el.addEventListener('click',()=>act(c,el.dataset.act)));
+  if(caseTab==='gaps'){bindUpload('case:'+c.id,c);bindGapCopy(c)}
+  if(caseTab==='docs') bindDocsTab(c);
+  const nAdd=document.getElementById('nAdd'); if(nAdd) nAdd.onclick=async()=>{
+    const g=i=>document.getElementById(i).value.trim();
+    if(!document.getElementById('nOpen').checked){toast('تحقق أولًا أن الإعلان مفتوح للمرشحين من خارج كندا');return}
+    if(!g('nEmp')||!g('nDead')){toast('أدخل صاحب العمل وآخر موعد');return}
+    if(g('nDead')<today()){toast('الإعلان منتهٍ؛ لا يُضاف');return}
+    const x=clone(c); x.postings=(x.postings||[]).concat([{title:g('nTitle'),employer:g('nEmp'),jobBankId:g('nJB'),method:g('nMethod'),deadline:g('nDead'),variant:g('nVar'),state:'to_apply',followUp:null,addedBy:me(),addedAt:today()}]);
+    await saveCase(x,'أضاف إعلانًا: '+g('nEmp'));
+  };
+  const pu=document.getElementById('pUpdate'); if(pu) pu.onclick=async()=>{
+    const x=clone(c); const i=+document.getElementById('pSel').value; const p=x.postings[i];
+    p.state=document.getElementById('pState').value; p.followUp=document.getElementById('pFollow').value||p.followUp;
+    if(p.state==='applied' && !p.appliedAt){p.appliedAt=today(); if(!document.getElementById('pFollow').value){const d=new Date();d.setDate(d.getDate()+8);p.followUp=d.toISOString().slice(0,10)}}
+    await saveCase(x,`حدّث إعلان ${p.employer}: ${POST_STATES[p.state]}`);
+  };
+}
+function clone(o){return JSON.parse(JSON.stringify(o))}
+async function act(c,a){
+  const note=(document.getElementById('flowNote')||{}).value||''; const x=clone(c); const ev=evaluate(x); const myId=me();
+  const go=async(s,label)=>{x.status=s; await saveCase(x,label+(note?' — '+note:'')); toast(label)};
+  if(a==='applyTriage'||a==='retriage'||a==='backToFlow'){x.verdict=ev.verdict;x.years=ev.years;x.coverage=ev.coverage; return go(ev.verdict==='green'?'drafting':ev.verdict==='amber'?'docs_pending':'referred','نتيجة الفرز: '+({green:'إلى التحرير',amber:'إلى النواقص',red:'إلى الشريك المرخّص'}[ev.verdict]))}
+  if(a==='toReview'){ if(!(x.approvedNOC||[]).length){toast('اعتمد كود NOC أولًا');return} x.draftedBy=myId; return go('review','أُرسل للمراجعة') }
+  if(a==='approve'){ if(x.draftedBy===myId){toast('لا يعتمد المُعِدّ ملفه');return} x.reviewedBy=myId; x.approvedAt=new Date().toISOString(); return go('approved','اعتُمد الملف') }
+  if(a==='returnFix'){ if(!note){toast('اكتب سبب الإعادة');return} if(x.draftedBy===myId){toast('لا يراجع المُعِدّ ملفه');return} x.returns=(x.returns||0)+1; x.reviewedBy=myId; return go('drafting','أُعيد للتصحيح') }
+  if(a==='startSearch') return go('job_search','بدأ البحث والتقديم');
+  if(a==='gotOffer') return go('offer','سُجّل عرض عمل مكتوب');
+  if(a==='offerLost'||a==='lmiaNegative') return go('job_search', a==='offerLost'?'العرض لم يكتمل':'LMIA سلبي');
+  if(a==='lmiaFiled') return go('lmia','قدّم صاحب العمل LMIA');
+  if(a==='lmiaPositive') return go('permit','LMIA إيجابي — حُوّل للشريك');
+  if(a==='permitIssued') return go('closed','صدر تصريح العمل');
+  if(a==='close') return go('closed','أُغلق الملف');
+  if(a==='withdraw'){ if(!confirm('تسجيل انسحاب العميل وإغلاق الملف؟')) return; return go('withdrawn','انسحب العميل') }
+}
+
+/* ---- Review queue ---- */
+function vReview(){
+  const q=S.cases.filter(c=>c.status==='review'); const myId=me();
+  return `<h1>المراجعة</h1><p class="lead">كل ملف يعتمده مراجع غير الذي أعدّه.</p>
+  ${q.length?`<div class="cards">${q.map(c=>`<a class="card" href="#case-${esc(c.id)}"><div class="row"><span class="t">${esc(c.fullName)}</span><span class="spacer"></span>${c.draftedBy===myId?'<span class="pill v-amber">أنت المُعِدّ</span>':'<span class="pill v-green">تستطيع المراجعة</span>'}</div>
+    <div class="meta">أعدّه: ${esc(nameOf(c.draftedBy))} · NOC: <bdi dir="ltr">${esc((c.approvedNOC||[]).join(', ')||'—')}</bdi></div>
+    <div class="bar" style="margin-top:10px"><i style="width:${c.coverage||0}%"></i></div><div class="foot"><span>مهام مثبتة ${c.coverage||0}%</span><span>إعادات ${c.returns||0}</span></div></a>`).join('')}</div>`:'<div class="panel empty">لا توجد ملفات بانتظار المراجعة.</div>'}`;
+}
+/* ---- Follow-up ---- */
+function vFollowup(){
+  const ps=allPostings().filter(p=>p.state!=='closed' && p.state!=='rejected');
+  const due=ps.filter(p=>p.followUp && p.followUp<=today());
+  const toApply=ps.filter(p=>p.state==='to_apply').sort((a,b)=>(a.deadline||'').localeCompare(b.deadline||''));
+  const stuck=S.cases.filter(c=>!['closed','withdrawn'].includes(c.status) && c.updatedAt && (Date.now()-new Date(c.updatedAt))/86400000>7);
+  return `<h1>المتابعة</h1><p class="lead">ما يجب فعله اليوم: متابعات مستحقة، وإعلانات لم يُقدَّم عليها، وملفات لم تتحرك منذ أسبوع.</p>
+  <h2>متابعات مستحقة</h2>${postTable(due,'لا توجد متابعات مستحقة اليوم.')}
+  <h2>إعلانات للتقديم، الأقرب إغلاقًا أولًا</h2>${postTable(toApply,'لا توجد إعلانات بانتظار التقديم.')}
+  <h2>ملفات بلا حركة منذ أكثر من 7 أيام</h2>${caseTable(stuck,'كل الملفات النشطة تحركت خلال الأسبوع.')}`;
+}
+
+/* ---- Team ---- */
+function vTeam(){
+  const st=myStaff(); const ids=Object.keys(S.staff);
+  return `<h1>الأقسام والموظفون</h1><p class="lead">كل موظف في قسم واحد بدور واضح. المرحلة تحدد القسم المسؤول عن الملف.</p>
+  ${S.mode==='db'?`<div class="panel"><h3 style="margin-top:0">تسجيلي في قسم</h3><div class="grid g3"><div><label>القسم</label><select id="myDept">${Object.entries(DEPTS).map(([k,v])=>`<option value="${k}" ${st&&st.dept===k?'selected':''}>${esc(v)}</option>`).join('')}</select></div><div><label>الدور</label><input type="text" id="myRole" value="${esc(st?st.role:'')}" placeholder="مثال: محرر سير ذاتية"></div><div><label>&nbsp;</label><button class="btn primary" id="saveMe">حفظ</button></div></div></div>`:
+  `<div class="panel"><h3 style="margin-top:0">إضافة موظف (وضع محلي)</h3><div class="grid g3"><div><label>الاسم</label><input type="text" id="lName"></div><div><label>القسم</label><select id="lDept">${Object.entries(DEPTS).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('')}</select></div><div><label>الدور</label><input type="text" id="lRole"></div></div><div class="row" style="margin-top:8px"><button class="btn primary" id="lAdd">إضافة</button></div></div>`}
+  ${Object.entries(DEPTS).map(([k,v])=>{const members=ids.filter(i=>S.staff[i].dept===k); const open=S.cases.filter(c=>(ST[c.status]||{}).dept===k).length; return `<div class="panel"><div class="row"><h3 style="margin:0">${esc(v)}</h3><span class="spacer"></span><span class="tag">${open} ملف في مرحلته</span></div>${members.length?`<ul>${members.map(i=>`<li>${esc(nameOf(i))} — ${esc(S.staff[i].role||'')}</li>`).join('')}</ul>`:'<p class="note">لا يوجد موظفون في هذا القسم.</p>'}</div>`}).join('')}`;
+}
+function bindTeam(){
+  const s=document.getElementById('saveMe'); if(s) s.onclick=async()=>{await put('staff',S.me.id,{dept:document.getElementById('myDept').value,role:document.getElementById('myRole').value.trim(),since:today()});toast('حُفظ تسجيلك')};
+  const l=document.getElementById('lAdd'); if(l) l.onclick=async()=>{const n=document.getElementById('lName').value.trim(); if(!n) return; await put('staff','local-'+uid(),{label:n,dept:document.getElementById('lDept').value,role:document.getElementById('lRole').value.trim()});toast('أُضيف الموظف')};
+}
+
+/* ---- Performance & compliance ---- */
+function vPerformance(){
+  const ids=[...new Set([...Object.keys(S.staff),...S.cases.map(c=>c.draftedBy).filter(Boolean),...S.cases.map(c=>c.reviewedBy).filter(Boolean)])];
+  const rows=ids.map(i=>{const drafted=S.cases.filter(c=>c.draftedBy===i); return {i,drafted:drafted.length,approved:drafted.filter(c=>c.approvedAt).length,returns:drafted.reduce((s,c)=>s+(c.returns||0),0),reviewed:S.cases.filter(c=>c.reviewedBy===i).length,open:S.cases.filter(c=>c.assignee===i&&!['closed','withdrawn'].includes(c.status)).length,avgCov:drafted.length?Math.round(drafted.reduce((s,c)=>s+(c.coverage||0),0)/drafted.length):0}});
+  const offers=S.cases.filter(c=>['offer','lmia','permit','closed'].includes(c.status)).length;
+  const fee=S.incidents.filter(x=>x.type==='fee').length, defect=S.incidents.filter(x=>x.type==='defect').length;
+  const m=(v,l)=>`<div><b style="font-size:20px;font-variant-numeric:tabular-nums">${v}</b><div class="note">${l}</div></div>`;
+  return `<h1>الأداء والامتثال</h1><p class="lead">يُقاس الفريق بصدق الملفات قبل سرعتها. مؤشرا الامتثال هدفهما صفر.</p>
+  <div class="grid g4"><div class="kpi"><b>${S.cases.length}</b><span>كل الملفات</span></div><div class="kpi"><b>${offers}</b><span>وصلت لعرض عمل أو بعده</span></div><div class="kpi"><b style="color:${fee?'var(--danger)':'inherit'}">${fee}</b><span>حوادث رسوم محظورة</span></div><div class="kpi"><b style="color:${defect?'var(--danger)':'inherit'}">${defect}</b><span>عيوب بعد التوقيع</span></div></div>
+  <h2>أداء الموظفين</h2>${rows.length?`<div class="cards">${rows.map(r=>`<div class="card"><div class="row"><span class="t">${esc(nameOf(r.i))}</span><span class="spacer"></span><span class="pill plain">${esc(DEPTS[(S.staff[r.i]||{}).dept]||'—')}</span></div>
+    <div class="grid g3" style="margin-top:10px">${m(r.drafted,'أعدّها')}${m(r.approved,'اعتُمدت')}${m(r.returns,'أُعيدت')}${m(r.reviewed,'راجعها')}${m(r.avgCov+'%','تغطية الأدلة')}${m(r.open,'مفتوحة')}</div></div>`).join('')}</div>`:'<div class="panel empty">لا توجد بيانات أداء بعد.</div>'}
+  <h2>سجل حوادث الامتثال</h2><div class="panel"><div class="grid g3"><div><label>النوع</label><select id="iType"><option value="fee">طلب رسوم توظيف من العميل</option><option value="defect">عيب اكتُشف بعد التوقيع</option><option value="privacy">حادثة بيانات</option><option value="other">أخرى</option></select></div><div style="grid-column:span 2"><label>الوصف</label><input type="text" id="iText"></div></div><div class="row" style="margin-top:8px"><button class="btn primary" id="iAdd">تسجيل الحادثة</button></div></div>
+  ${S.incidents.length?`<div class="cards">${S.incidents.slice().sort((a,b)=>(b.at||'').localeCompare(a.at||'')).map(x=>`<div class="card"><div class="row"><span class="pill ${x.type==='fee'||x.type==='defect'?'v-red':'plain'}">${esc({fee:'رسوم محظورة',defect:'عيب بعد التوقيع',privacy:'بيانات',other:'أخرى'}[x.type])}</span><span class="spacer"></span><span class="note">${fmtDate(x.at)}</span></div><p style="margin:8px 0 0">${esc(x.text)}</p><div class="meta">سجّلها ${esc(nameOf(x.by))}</div></div>`).join('')}</div>`:''}`;
+}
+function bindPerformance(){
+  const b=document.getElementById('iAdd'); if(b) b.onclick=async()=>{const t=document.getElementById('iText').value.trim(); if(!t){toast('اكتب وصف الحادثة');return} await put('incidents',uid(),{type:document.getElementById('iType').value,text:t,by:me(),at:new Date().toISOString()}); toast('سُجّلت الحادثة')};
+}
+
+/* ============ CV upload & extraction ============ */
+let sampleCap=null, dlCap=null;
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const hasArabic=s=>/[\u0600-\u06FF]/.test(s||'');
+async function readFileText(file){
+  const name=(file.name||'').toLowerCase();
+  if(name.endsWith('.txt')) return await file.text();
+  if(name.endsWith('.pdf')){
+    if(!window.pdfjsLib) throw new Error('pdf');
+    const doc=await window.pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false}).promise;
+    let out=[];
+    for(let p=1;p<=doc.numPages;p++){
+      const tc=await (await doc.getPage(p)).getTextContent(); let lastY=null, line=[];
+      tc.items.forEach(it=>{const y=Math.round(it.transform[5]); if(lastY!==null && Math.abs(y-lastY)>2){out.push(line.join(' '));line=[]} line.push(it.str); lastY=y});
+      out.push(line.join(' '));
+    }
+    return out.join('\n');
+  }
+  if(name.endsWith('.docx')){
+    if(!window.mammoth) throw new Error('docx');
+    const r=await window.mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()}); return r.value;
+  }
+  throw new Error('type');
+}
+const EXTRACT_PROMPT=`You extract facts from a resume. Return ONLY JSON with this exact shape:
+{"fullName":string|null,"email":string|null,"phone":string|null,"city":string|null,"country":string|null,
+"jobs":[{"title":string,"employer":string,"city":string|null,"country":string|null,"start":"YYYY-MM"|"YYYY"|null,"end":"YYYY-MM"|"YYYY"|"present"|null,"duties":[string]}],
+"education":[{"credential":string,"institution":string,"country":string|null,"years":string|null}],
+"certifications":[{"name":string,"issuer":string|null,"date":"YYYY-MM"|"YYYY"|null}],
+"languages":[{"language":string,"level":string|null}],
+"references":[{"name":string,"title":string|null,"employer":string|null,"phone":string|null}]}
+Rules: copy facts exactly as written. Never invent, infer, upgrade or improve anything. Use null when a fact is absent. Give a month only if the resume states it. Translate any Arabic in title, employer, city, country, credential and duties into plain English, keeping every number exact. Keep each duty as one short line in the past tense, as written. Ignore photos, date of birth, marital status and passport numbers.
+RESUME:
+`;
+async function extractCV(text){
+  if(sampleCap){
+    const d=await sampleCap.json(EXTRACT_PROMPT+text.slice(0,30000),{modelTier:'default'});
+    return normalizeExtract(d,'ai');
+  }
+  const email=(text.match(/[\w.+-]+@[\w-]+\.[\w.]+/)||[])[0]||null;
+  const phone=(text.match(/\+?\d[\d\s()-]{7,}\d/)||[])[0]||null;
+  const first=(text.split('\n').map(s=>s.trim()).find(Boolean))||null;
+  return normalizeExtract({fullName:first,email,phone,jobs:[],education:[],certifications:[],languages:[],references:[]},'basic');
+}
+function normDate(s){ if(!s) return {m:'',y:''}; s=String(s).trim(); if(/^present$/i.test(s)) return {present:true,m:'',y:''}; if(/^\d{4}-\d{2}$/.test(s)) return {m:s,y:s.slice(0,4)}; if(/^\d{4}$/.test(s)) return {m:'',y:s}; return {m:'',y:''} }
+function normalizeExtract(d,mode){
+  d=d||{}; const arr=v=>Array.isArray(v)?v:[];
+  const jobs=arr(d.jobs).filter(j=>j&&(j.employer||j.title)).map(j=>{const s=normDate(j.start), e=normDate(j.end);
+    return {...blankJob(),employer:j.employer||'',title:j.title||'',city:j.city||'',country:j.country||'',start:s.m,startY:s.y,end:e.m,endY:e.y,present:!!e.present,dutiesStated:arr(j.duties).filter(Boolean).join('\n'),fromCV:true}});
+  return {mode,fullName:d.fullName||'',email:d.email||'',phone:d.phone||'',city:d.city||'',country:d.country||'',jobs,
+    education:arr(d.education).map(e=>[e.credential,e.institution&&('– '+e.institution),e.country&&(', '+e.country),e.years&&(' | '+e.years)].filter(Boolean).join(' ').replace(/\s+,/g,',')).join('\n'),
+    certs:arr(d.certifications).filter(c=>c&&c.name).map(c=>({name:c.name,issuer:c.issuer||'',date:/^\d{4}-\d{2}$/.test(c.date||'')?c.date:'',evidence:'no'})),
+    languages:arr(d.languages), refs:arr(d.references).filter(r=>r&&r.name).map(r=>({name:r.name,title:r.title||'',employer:r.employer||'',country:'',phone:r.phone||'',consent:'no'}))};
+}
+function applyExtract(t,x){
+  const fill=(k,v)=>{if(v && !String(t[k]||'').trim()) t[k]=v};
+  fill('fullName',x.fullName); fill('email',x.email); fill('whatsapp',x.phone); fill('city',x.city); fill('country',x.country);
+  const key=j=>(j.employer||'').trim().toLowerCase()+'|'+(j.start||j.startY||'');
+  t.jobs=(t.jobs||[]).filter(j=>j.employer||j.title||j.dutiesDoc||j.dutiesStated);
+  const have=new Set(t.jobs.map(key)); let added=0;
+  x.jobs.forEach(j=>{ if(!have.has(key(j))){t.jobs.push(j);added++} });
+  if(!t.jobs.length) t.jobs=[blankJob()];
+  if(x.education && !String(t.education||'').trim()) t.education=x.education;
+  t.certs=(t.certs||[]).concat(x.certs.filter(c=>!(t.certs||[]).some(o=>(o.name||'').toLowerCase()===c.name.toLowerCase())));
+  t.refs=(t.refs||[]).concat(x.refs.filter(r=>!(t.refs||[]).some(o=>(o.name||'').toLowerCase()===r.name.toLowerCase())));
+  const en=x.languages.find(l=>/english/i.test(l.language||''));
+  if(en && en.level){const lv=en.level.toLowerCase(); t.english=/adv|fluent|proficient/.test(lv)?'advanced':/basic|begin|elementary/.test(lv)?'basic':'intermediate'}
+  t.docs=t.docs||{}; t.docs.cv='yes';
+  return added;
+}
+function vUploadBox(ctx){
+  const st=X&&X.ctx===ctx?X:null;
+  let res='';
+  if(st&&st.status==='busy') res=`<p class="note">جارٍ قراءة السيرة واستخراج البيانات…</p>`;
+  if(st&&st.status==='error') res=`<p class="tag bad">${esc(st.note)}</p>`;
+  if(st&&st.status==='done'){const x=st.data; res=`<div class="panel" style="margin-top:12px"><div class="row"><strong>ما استُخرج من «${esc(st.fileName)}»</strong>${x.mode==='basic'?'<span class="tag warn">استخراج أساسي</span>':'<span class="tag ok">استخراج ذكي</span>'}</div>
+    <div class="grid g3" style="margin-top:8px"><div><label>الاسم</label>${esc(x.fullName)||'—'}</div><div><label>البريد</label>${esc(x.email)||'—'}</div><div><label>الهاتف</label>${x.phone?'<bdi dir="ltr">'+esc(x.phone)+'</bdi>':'—'}</div></div>
+    <ul>${x.jobs.map(j=>`<li><strong>${esc(j.title)}</strong> — ${esc(j.employer)} (${esc(j.start||j.startY||'؟')} – ${j.present?'الآن':esc(j.end||j.endY||'؟')}) · ${j.dutiesStated?j.dutiesStated.split('\n').length:0} مهام</li>`).join('')||'<li>لم تُستخرج وظائف</li>'}</ul>
+    <p class="note">${x.certs.length} شهادات · ${x.refs.length} مراجع · ${x.education?x.education.split('\n').length:0} تعليم.${x.mode==='basic'?' الاستخراج الذكي غير متاح في هذا العرض، فاستُخرج البريد والهاتف والاسم فقط.':''} المهام المستخرجة تُسجَّل «بإفادة العميل» حتى تُثبت بمستند.</p>
+    <div class="row"><button class="btn primary" data-apply="${esc(ctx)}">${ctx==='intake'?'تعبئة النموذج بهذه البيانات':'دمج في ملف العميل'}</button></div></div>`}
+  return `<div><label class="drop"><input type="file" data-cvfile="${esc(ctx)}"><strong data-fname="${esc(ctx)}">اضغط لاختيار ملف السيرة</strong><span class="note">PDF أو DOCX أو TXT</span></label><p class="note">إن لم تفتح نافذة اختيار الملفات داخل تطبيق Claude على الهاتف، افتح الرابط في متصفح الهاتف، أو الصق نص السيرة.</p>
+    <label style="margin-top:10px">أو الصق نص السيرة</label><textarea data-cvtext="${esc(ctx)}" placeholder="الصق النص هنا"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn" data-extract="${esc(ctx)}">استخراج البيانات</button></div>${res}</div>`;
+}
+function bindUpload(ctx,caseObj){
+  const m=document.getElementById('main');
+  const btn=m.querySelector(`[data-extract="${ctx}"]`); if(!btn) return;
+  const fi=m.querySelector(`[data-cvfile="${ctx}"]`), fnm=m.querySelector(`[data-fname="${ctx}"]`); if(fi&&fnm) fi.addEventListener('change',()=>{if(fi.files[0]) fnm.textContent='✓ '+fi.files[0].name});
+  btn.onclick=async()=>{
+    const f=m.querySelector(`[data-cvfile="${ctx}"]`).files[0]; const pasted=m.querySelector(`[data-cvtext="${ctx}"]`).value.trim();
+    if(!f && !pasted){toast('اختر ملفًا أو الصق النص');return}
+    X={ctx,status:'busy'}; render();
+    try{
+      const text=f? await readFileText(f) : pasted;
+      if(!text || text.trim().length<40) throw new Error('empty');
+      const data=await extractCV(text);
+      X={ctx,status:'done',data,fileName:f?f.name:'نص ملصوق'}; render();
+    }catch(e){
+      const map={pdf:'تعذّر تحميل قارئ PDF؛ الصق نص السيرة بدلًا من ذلك',docx:'تعذّر تحميل قارئ DOCX؛ الصق نص السيرة بدلًا من ذلك',type:'صيغة غير مدعومة: PDF أو DOCX أو TXT',empty:'لم يُعثر على نص؛ قد تكون السيرة صورة ممسوحة. الصق النص يدويًا'};
+      X={ctx,status:'error',note:map[e&&e.message]||(e&&e.code==='not_granted'?'لم يُسمح بالاستخراج الذكي؛ استُخدم الإدخال اليدوي':'تعذّر الاستخراج؛ أعد المحاولة أو الصق النص')}; render();
+    }
+  };
+  const ap=m.querySelector(`[data-apply="${ctx}"]`); if(ap) ap.onclick=async()=>{
+    const x=X.data;
+    if(ctx==='intake'){const n=applyExtract(F,x); F.cvExtract={at:new Date().toISOString(),fileName:X.fileName,mode:x.mode}; X=null; step=1; toast(`عُبّئ النموذج، وأُضيفت ${n} وظائف`); render(); return}
+    const c=clone(caseObj); const n=applyExtract(c,x); c.cvExtract={at:new Date().toISOString(),fileName:X.fileName,mode:x.mode};
+    const ev=evaluate(c); c.verdict=ev.verdict; c.years=ev.years; c.coverage=ev.coverage; X=null;
+    await saveCase(c,`دمج بيانات السيرة (${n} وظائف جديدة)`); toast('دُمجت البيانات في الملف');
+  };
+}
+
+/* ============ Missing-items engine ============ */
+function gaps(c){
+  const G=[]; const add=(level,area,text,client)=>G.push({level,area,text,client:!!client});
+  const jobs=(c.jobs||[]).filter(j=>j.employer||j.title);
+  if(!(c.fullName||'').trim()) add('cv','البيانات','الاسم الكامل كما في الجواز',true);
+  if(!(c.email||'').trim()) add('cv','البيانات','البريد الإلكتروني',true);
+  if(!(c.whatsapp||'').trim()) add('cv','البيانات','رقم واتساب مع رمز الدولة',true);
+  if(!(c.city||'').trim()||!(c.country||'').trim()) add('cv','البيانات','مدينة ودولة الإقامة الحالية',true);
+  if(!jobs.length) add('cv','الخبرات','لا توجد أي وظيفة مسجلة',true);
+  jobs.forEach(j=>{
+    const n=j.employer||j.title||'وظيفة';
+    if(!j.title) add('cv',n,'المسمى الوظيفي',true);
+    if(!j.employer) add('cv',n,'اسم صاحب العمل القانوني',true);
+    if(!j.city||!j.country) add('cv',n,'المدينة والدولة',true);
+    if(!j.start) add('cv',n,j.startY?`شهر البداية (السنة معروفة: ${j.startY})`:'شهر وسنة البداية',true);
+    if(!j.present && !j.end) add('cv',n,j.endY?`شهر الانتهاء (السنة معروفة: ${j.endY})`:'شهر وسنة الانتهاء',true);
+    if(!(j.dutiesDoc||'').trim() && !(j.dutiesStated||'').trim()) add('cv',n,'المهام الفعلية',true);
+    if([j.title,j.employer,j.city,j.country,j.dutiesDoc,j.dutiesStated].some(hasArabic)) add('cv',n,'نص عربي في حقل يظهر في السيرة؛ يُكتب بالإنجليزية');
+    if(j.letter!=='yes') add('proof',n,'خطاب خبرة على ورق الشركة: التواريخ والمسمى والمهام وساعات العمل الأسبوعية',true);
+    if(j.secondary!=='yes') add('proof',n,'إثبات ثانوي: عقد أو كشف راتب أو تصريح عمل',true);
+    if(j.letter==='yes' && j.nameMatch==='no') add('proof',n,'خطاب بالاسم المطابق للجواز',true);
+    if(j.relative==='yes') add('proof',n,'إثبات مستقل يدعم خطاب الموقّع القريب',true);
+    if((j.dutiesStated||'').trim() && !(j.dutiesDoc||'').trim()) add('proof',n,'المهام كلها بإفادة العميل؛ يلزم مستند يذكرها');
+  });
+  if(!c.docs||c.docs.passport!=='yes') add('proof','المستندات','صورة صفحة بيانات الجواز الحالي',true);
+  if(!c.passportExpiry) add('proof','المستندات','تاريخ انتهاء الجواز',true);
+  (c.certs||[]).forEach(x=>{ if(x.evidence!=='yes') add('proof','الشهادات',`نسخة من شهادة «${x.name||'—'}»`,true); if(!x.date) add('cv','الشهادات',`تاريخ شهادة «${x.name||'—'}»`,true) });
+  (c.refs||[]).forEach(r=>{ if(r.consent!=='yes') add('proof','المراجع',`موافقة «${r.name||'—'}» على الاتصال به`,true); if(!r.phone) add('cv','المراجع',`هاتف «${r.name||'—'}»`,true) });
+  if((c.education||'') && hasArabic(c.education)) add('cv','التعليم','سطر التعليم يُكتب بالإنجليزية');
+  if(!c.langTest||c.langTest==='none') add('boost','اللغة','نتيجة IELTS General أو CELPIP',true);
+  if(!(c.refs||[]).some(r=>r.consent==='yes')) add('boost','المراجع','مرجع واحد على الأقل من خارج العائلة موافق على الاتصال',true);
+  if(!Object.values(c.sectors||{}).some(Boolean)) add('boost','الاستهداف','القطاعات المستهدفة');
+  if(c.id && !(c.approvedNOC||[]).length) add('boost','الاستهداف','اعتماد كود NOC قبل توليد السيرة');
+  return G;
+}
+const GAP_LEVELS={cv:['ناقص للسيرة','bad'],proof:['ناقص للإثبات','warn'],boost:['يقوّي الملف','']};
+function vGaps(c){
+  const G=gaps(c);
+  if(!G.length) return `<div class="panel"><span class="tag ok">لا توجد نواقص</span></div>`;
+  return `<div class="panel"><div class="row"><strong>النواقص (${G.length})</strong><span class="spacer"></span>${Object.entries(GAP_LEVELS).map(([k,[l,cls]])=>`<span class="tag ${cls}">${l}: ${G.filter(g=>g.level===k).length}</span>`).join(' ')}</div>
+  ${Object.entries(GAP_LEVELS).map(([k,[l,cls]])=>{const gs=G.filter(g=>g.level===k); return gs.length?`<h3>${l}</h3>${gs.map(g=>`<div class="finding"><span class="tag ${cls}">${esc(g.area)}</span><span>${esc(g.text)}</span></div>`).join('')}`:''}).join('')}
+  <div class="row" style="margin-top:12px"><button class="btn" data-gapcopy="1">نسخ رسالة النواقص للعميل</button></div><textarea id="gapMsg" readonly style="display:none;margin-top:8px"></textarea></div>`;
+}
+function gapMessage(c){
+  const G=gaps(c).filter(g=>g.client);
+  const lines=G.map((g,i)=>`${i+1}. ${g.area}: ${g.text}`);
+  return `مرحبًا ${c.fullName||''}،\nلإكمال ملفك نحتاج منك ما يلي:\n${lines.join('\n')}\nأرسلها على هذا الرقم، وسنحدّث ملفك فور وصولها.\nتنبيه: لا تدفع أي مبلغ لأي جهة مقابل وظيفة أو LMIA.`;
+}
+function bindGapCopy(c){
+  const b=document.querySelector('[data-gapcopy]'); if(!b) return;
+  b.onclick=async()=>{const t=gapMessage(c); const ta=document.getElementById('gapMsg'); ta.value=t; ta.style.display='block';
+    try{await navigator.clipboard.writeText(t); toast('نُسخت الرسالة')}catch(e){ta.focus();ta.select();toast('حدّد النص وانسخه يدويًا')}};
+}
+
+/* ============ Canadian CV builder ============ */
+const VARIANTS={farm:{label:'المزارع والألبان',nocs:['84120','85100','85101','85103','82030'],family:'Farm and dairy worker',open:'dairy, livestock and crop farms',opener:'on farms and with dairy cattle'},
+                food:{label:'المصانع وخطوط الإنتاج',nocs:['95106','94140','92012','95104','75101'],family:'Food processing and production line worker',open:'food and beverage processing, packaging and production lines',opener:'on food, beverage and production lines'}};
+const GROUP_LABEL={'84120':'Dairy and livestock','85100':'Livestock care','85101':'Crop farming','85103':'Greenhouse and nursery','82030':'Farm supervision','95106':'Food processing','94140':'Machine operation','92012':'Production supervision','95104':'Plastic manufacturing','75101':'Forklift and material handling'};
+const SPELL=[[/\blabor\b/gi,'labour'],[/\blaborer/gi,'labourer'],[/\bcenter\b/gi,'centre'],[/\bmold(s?)\b/gi,'mould$1'],[/\bcolor/gi,'colour'],[/\bfavor/gi,'favour'],[/\banalyze/gi,'analyse']];
+const canSpell=s=>SPELL.reduce((t,[r,v])=>t.replace(r,m=>m[0]===m[0].toUpperCase()?v[0].toUpperCase()+v.slice(1):v),s||'');
+function mon(s,y){ if(s && /^\d{4}-\d{2}$/.test(s)){const [yy,mm]=s.split('-');return MONTHS[+mm-1]+' '+yy} return y||'' }
+function dutiesOf(j){return [...(j.dutiesDoc||'').split('\n'),...(j.dutiesStated||'').split('\n')].map(s=>s.trim().replace(/\.$/,'')).filter(Boolean)}
+function buildCV(c,vk){
+  const v=VARIANTS[vk]; const ap=(c.approvedNOC||[]); const order=v.nocs.filter(k=>ap.includes(k)).concat(ap.filter(k=>!v.nocs.includes(k)));
+  const nocObjs=order.map(k=>NOC.find(n=>n.code===k)).filter(Boolean);
+  const headline=(c.targetTitles||'').trim()|| nocObjs.slice(0,3).map(n=>n.common.split(' / ')[0]).join(' | ');
+  const jobs=(c.jobs||[]).filter(j=>j.inCV!==false && (j.employer||j.title)).slice().sort((a,b)=>((b.start||b.startY||'')+'').localeCompare((a.start||a.startY||'')+''));
+  const years=jobs.map(j=>(j.start||j.startY||'').slice(0,4)).filter(Boolean).sort();
+  const countries=[...new Set(jobs.map(j=>j.country).filter(Boolean))];
+  const allDuties=jobs.flatMap(dutiesOf);
+  const hits=(n,d)=>n.groups.filter(g=>g.some(w=>d.toLowerCase().includes(w.toLowerCase()))).length;
+  const bucket={}; [...new Set(allDuties)].forEach(d=>{let best=null,bs=0; nocObjs.slice(0,5).forEach(n=>{const h=hits(n,d); if(h>bs){bs=h;best=n}}); if(best) (bucket[best.code]=bucket[best.code]||[]).push(d)});
+  const quals=nocObjs.slice(0,5).filter(n=>bucket[n.code]).map(n=>({label:GROUP_LABEL[n.code]||n.common,text:bucket[n.code].slice(0,4).map(s=>s.charAt(0).toLowerCase()+s.slice(1)).join('; ')}));
+  const summary=[`${v.family} with hands-on experience${years[0]?' since '+years[0]:''}${countries.length?' in '+countries.join(' and '):''}.`,(c.conditions||'').trim(),`Open to positions on ${v.open}.`].filter(Boolean).join(' ');
+  const langs=[(c.nativeLang||'Arabic')+' (native)','English ('+(c.langTest&&c.langTest!=='none'?c.langTest+' '+(c.langScore||''):({basic:'basic',intermediate:'intermediate',advanced:'advanced'}[c.english]||'intermediate'))+')'].join('; ');
+  const cv={name:(c.fullName||'').toUpperCase(),headline,proof:(c.proofLine||'').trim(),
+    contact:[[c.city,c.country].filter(Boolean).join(', '),c.whatsapp?c.whatsapp+' (WhatsApp)':'',c.email].filter(Boolean).join(' | '),
+    status:['Work status: requires an employer-supported work permit (LMIA)','Available for video interviews (WhatsApp / Zoom) and immediate relocation to Canada'],
+    summary,quals,
+    jobs:jobs.map(j=>({title:j.title,dates:`${mon(j.start,j.startY)||'?'} - ${j.present?'Present':(mon(j.end,j.endY)||'?')}`,org:[j.employer,j.city,j.country].filter(Boolean).join(', '),duties:dutiesOf(j)})),
+    edu:(c.education||'').split('\n').map(s=>s.trim()).filter(Boolean),
+    certs:(c.certs||[]).filter(x=>x.name).map(x=>[x.name,x.issuer].filter(Boolean).join(' - ')+(x.date?' | '+mon(x.date):'')),
+    langs,refs:(c.refs||[]).filter(r=>r.consent==='yes'&&r.name).map(r=>[r.name,r.title,r.employer,r.country].filter(Boolean).join(', ')+(r.phone?' | '+r.phone:''))};
+  const fix=o=>{for(const k in o){if(typeof o[k]==='string')o[k]=canSpell(o[k]);else if(o[k]&&typeof o[k]==='object')fix(o[k])}}; fix(cv);
+  return cv;
+}
+function cvChecks(c,cv){
+  const txt=JSON.stringify(cv); const K=[]; const add=(ok,t)=>K.push({ok,t});
+  add(!hasArabic(txt),'لا يوجد نص عربي في السيرة');
+  add(!!cv.headline,'سطر المسميات المستهدفة موجود (اعتمد NOC أو اكتبه يدويًا)');
+  add(cv.jobs.length>0,'وظيفة واحدة على الأقل');
+  add(!cv.jobs.some(j=>j.dates.includes('?')),'كل وظيفة لها تاريخ بداية ونهاية');
+  add(!cv.jobs.some(j=>!j.duties.length),'كل وظيفة لها مهام');
+  add(!/date of birth|marital|passport no|\bNOC\b|guarantee|verified/i.test(txt),'لا تاريخ ميلاد ولا حالة اجتماعية ولا رقم جواز ولا أكواد NOC ولا «Verified»');
+  add(!!c.email && !!c.whatsapp,'البريد والواتساب موجودان');
+  return K;
+}
+function cvPreview(cv){
+  const S2=t=>`<div style="font-weight:700;font-size:12px;border-bottom:1px solid #222;margin:12px 0 4px">${esc(t)}</div>`;
+  return `<div dir="ltr" lang="en" style="background:#fff;color:#111;font-family:Helvetica,Arial,sans-serif;font-size:11px;line-height:1.45;padding:28px 32px;border:1px solid var(--line);border-radius:6px;max-width:720px;text-align:left">
+  <div style="font-size:18px;font-weight:700">${esc(cv.name)}</div><div style="font-weight:700;font-size:12.5px">${esc(cv.headline)}</div>
+  ${cv.proof?`<div style="font-weight:700">${esc(cv.proof)}</div>`:''}<div>${esc(cv.contact)}</div>${cv.status.map(s=>`<div>${esc(s)}</div>`).join('')}
+  ${S2('SUMMARY')}<div>${esc(cv.summary)}</div>
+  ${cv.quals.length?S2('KEY QUALIFICATIONS')+cv.quals.map(q=>`<div>• <b>${esc(q.label)}:</b> ${esc(q.text)}</div>`).join(''):''}
+  ${S2('WORK EXPERIENCE')}${cv.jobs.map(j=>`<div style="display:flex;justify-content:space-between;font-weight:700;margin-top:6px"><span>${esc(j.title)}</span><span>${esc(j.dates)}</span></div><div>${esc(j.org)}</div>${j.duties.map(d=>`<div style="padding-left:12px">• ${esc(d)}.</div>`).join('')}`).join('')}
+  ${(cv.edu.length||cv.certs.length)?S2('EDUCATION, CERTIFICATION AND LANGUAGES')+cv.certs.map(x=>`<div>${esc(x)}</div>`).join('')+cv.edu.map(x=>`<div>${esc(x)}</div>`).join('')+`<div>Languages: ${esc(cv.langs)}</div>`:S2('LANGUAGES')+`<div>${esc(cv.langs)}</div>`}
+  ${cv.refs.length?S2('REFERENCES')+cv.refs.map(r=>`<div>${esc(r)}</div>`).join(''):''}</div>`;
+}
+const ascii=s=>String(s||'').replace(/[\u2013\u2014]/g,'-').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/\u2022/g,'-');
+function cvPdf(cv){
+  const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'pt',format:'a4'}); const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=54, TW=W-2*M; let y=M;
+  const need=h=>{if(y+h>H-M){doc.addPage();y=M}};
+  const text=(t,{size=10,bold=false,indent=0,gap=2}={})=>{doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(size);const lines=doc.splitTextToSize(ascii(t),TW-indent);lines.forEach(l=>{need(size*1.3);doc.text(l,M+indent,y+size);y+=size*1.3});y+=gap};
+  const head=t=>{need(30);y+=8;doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text(t,M,y+11);y+=15;doc.setLineWidth(0.7);doc.line(M,y,W-M,y);y+=6};
+  const bullet=(t,ind=12)=>{doc.setFont('helvetica','normal');doc.setFontSize(10);const lines=doc.splitTextToSize(ascii(t),TW-ind);need(13);doc.circle(M+ind-6,y+6.5,1.3,'F');lines.forEach(l=>{need(13);doc.text(l,M+ind,y+10);y+=13});y+=1};
+  text(cv.name,{size:17,bold:true,gap:1}); text(cv.headline,{size:11.5,bold:true,gap:1}); if(cv.proof) text(cv.proof,{size:9.5,bold:true,gap:1});
+  text(cv.contact,{size:9.5,gap:0}); cv.status.forEach(s=>text(s,{size:9.5,gap:0}));
+  head('SUMMARY'); text(cv.summary);
+  if(cv.quals.length){head('KEY QUALIFICATIONS'); cv.quals.forEach(q=>bullet(q.label+': '+q.text))}
+  head('WORK EXPERIENCE');
+  cv.jobs.forEach(j=>{need(40);y+=3;doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.text(ascii(j.title),M,y+10);doc.text(ascii(j.dates),W-M,y+10,{align:'right'});y+=14;text(j.org,{size:9.8,gap:1});j.duties.forEach(d=>bullet(d+'.'))});
+  if(cv.edu.length||cv.certs.length){head('EDUCATION, CERTIFICATION AND LANGUAGES');cv.certs.forEach(x=>text(x,{gap:0}));cv.edu.forEach(x=>text(x,{gap:0}));text('Languages: '+cv.langs)} else {head('LANGUAGES');text(cv.langs)}
+  if(cv.refs.length){head('REFERENCES');cv.refs.forEach(r=>text(r,{gap:0}))}
+  const n=doc.getNumberOfPages(); for(let p=1;p<=n;p++){doc.setPage(p);doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text(ascii(cv.name)+' - Resume',M,H-28);doc.text('Page '+p+' of '+n,W-M,H-28,{align:'right'})}
+  return doc.output('blob');
+}
+async function saveFile(filename,blob){
+  if(dlCap){try{await dlCap.save({filename,data:blob});return}catch(e){if(e&&e.code==='rejected')return;toast('تعذّر الحفظ');return}}
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+}
+
+/* ============ Cover letter builder ============ */
+const STOP=new Set('with from that this have will your their they into able must work worker workers other such include including duties tasks perform performing general'.split(' '));
+const toks=s=>(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>=4&&!STOP.has(w));
+function matchTask(task,duty,nocs){
+  const a=new Set(toks(task)), b=new Set(toks(duty)); let sc=0; a.forEach(w=>{if(b.has(w)||[...b].some(x=>x.startsWith(w.slice(0,5))))sc+=1});
+  NOC.filter(n=>nocs.includes(n.code)).forEach(n=>n.groups.forEach(g=>{const ta=g.some(w=>task.toLowerCase().includes(w.toLowerCase())), da=g.some(w=>duty.toLowerCase().includes(w.toLowerCase())); if(ta&&da) sc+=1.5}));
+  return sc;
+}
+function buildLetter(c,p,vk){
+  const jobs=(c.jobs||[]).filter(j=>j.inCV!==false&&j.employer);
+  const tasks=(p.tasks||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const v0=VARIANTS[vk]; const nocs=[...new Set([...(c.approvedNOC||[]),...v0.nocs])];
+  const byJob={}; const unmatched=[];
+  tasks.forEach(t=>{let best=null;jobs.forEach(j=>dutiesOf(j).forEach(d=>{const s=matchTask(t,d,nocs); if(s>=1.5&&(!best||s>best.s))best={s,j,d}})); if(best){const e=(byJob[best.j.employer]=byJob[best.j.employer]||{j:best.j,ds:[]}); if(!e.ds.includes(best.d)) e.ds.push(best.d)} else unmatched.push(t)});
+  if(!tasks.length){jobs.slice(0,2).forEach(j=>{byJob[j.employer]={j,ds:dutiesOf(j).slice(0,3)}})}
+  const lc=s=>s.charAt(0).toLowerCase()+s.slice(1);
+  const paras=Object.values(byJob).map(({j,ds})=>`At ${j.employer}${j.city?' in '+j.city:''}${j.country?', '+j.country:''} (${mon(j.start,j.startY)||'?'} - ${j.present?'present':(mon(j.end,j.endY)||'?')}), I ${ds.map(lc).join('; I ')}.`);
+  const years=jobs.map(j=>(j.start||j.startY||'').slice(0,4)).filter(Boolean).sort();
+  const v=VARIANTS[vk];
+  const L=[];
+  L.push(`Dear Hiring Manager,`);
+  L.push(`I am applying for the ${p.title||'[position]'} position at ${p.employer||'[employer]'}${p.city?' in '+p.city:''}${p.jobBankId?' (Job Bank #'+p.jobBankId+')':''}. I have worked ${v.opener}${years[0]?' since '+years[0]:''}, and most of the tasks in your posting are work I have done.`);
+  paras.forEach(x=>L.push(x));
+  if(unmatched.length){const u=unmatched.slice(0,3).map(s=>lc(s).replace(/\.$/,'')); L.push(`I am ready to learn your procedures for ${u.length>1?u.slice(0,-1).join(', ')+' and '+u[u.length-1]:u[0]}.`)}
+  let cond=(c.conditions||'I am used to long days, overtime and shift work').trim().replace(/\.$/,''); if(/^able\b/i.test(cond)) cond='I am a'+cond.slice(1);
+  L.push(`${cond}. I take direction well and need minimal training. I will need an employer-supported work permit (LMIA) and will complete every step promptly.`);
+  L.push(`I am available for a video interview by WhatsApp or Zoom${c.whatsapp?' at '+c.whatsapp:''}. References from my previous employers are available on request.`);
+  L.push(`Thank you for your consideration.`);
+  L.push(`Sincerely,\n${c.fullName||''}`);
+  return {text:canSpell(L.join('\n\n')),matched:tasks.length-unmatched.length,total:tasks.length,unmatched};
+}
+function letterPdf(c,p,text){
+  const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'pt',format:'a4'}); const W=doc.internal.pageSize.getWidth(),M=64,TW=W-2*M; let y=M;
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.text(ascii((c.fullName||'').toUpperCase()),M,y);y+=16;
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.text(ascii([[c.city,c.country].filter(Boolean).join(', '),c.whatsapp?c.whatsapp+' (WhatsApp)':'',c.email].filter(Boolean).join(' | ')),M,y);y+=8;doc.setLineWidth(.7);doc.line(M,y,W-M,y);y+=24;
+  doc.setFontSize(10.5);['Hiring Manager',p.employer,p.address].filter(Boolean).forEach(l=>{doc.text(ascii(l),M,y);y+=14});y+=8;
+  doc.setFont('helvetica','bold');doc.text(ascii('Re: '+(p.title||'')+(p.jobBankId?', Job Bank #'+p.jobBankId:'')),M,y);y+=22;doc.setFont('helvetica','normal');
+  text.split('\n').forEach(par=>{const lines=doc.splitTextToSize(ascii(par),TW); if(!par.trim()){y+=7;return} lines.forEach(l=>{if(y>800){doc.addPage();y=M} doc.text(l,M,y);y+=14.5})});
+  return doc.output('blob');
+}
+
+/* ============ Case tabs: gaps & documents ============ */
+let docVar='farm', LT={}; // LT: letter state per case
+function vDocsTab(c){
+  const cv=buildCV(c,docVar); const K=cvChecks(c,cv); const blocked=K.some(k=>!k.ok);
+  const lt=LT[c.id]||{p:{title:'',employer:'',city:'',jobBankId:'',address:'',tasks:''},text:'',info:null};
+  return `<div class="panel"><h3 style="margin-top:0">بيانات خاصة بالسيرة (بالإنجليزية)</h3><div class="grid g3">
+    <div style="grid-column:span 3"><label>سطر المسميات المستهدفة (اتركه فارغًا ليؤخذ من NOC المعتمد)</label><input type="text" dir="ltr" data-cvf="targetTitles" value="${esc(c.targetTitles||'')}"></div>
+    <div style="grid-column:span 3"><label>سطر الأرقام المثبتة (مثال: 13+ years hands-on | 100+ Holstein cows milked twice daily)</label><input type="text" dir="ltr" data-cvf="proofLine" value="${esc(c.proofLine||'')}"></div>
+    <div style="grid-column:span 3"><label>جملة ظروف العمل كما صرّح بها العميل</label><input type="text" dir="ltr" data-cvf="conditions" value="${esc(c.conditions||'')}" placeholder="Able to work long hours, overtime and shifts and to lift heavy loads."></div></div>
+    <div class="row" style="margin-top:8px"><button class="btn" id="saveCvf">حفظ</button></div></div>
+  <div class="panel"><div class="row"><h3 style="margin:0">السيرة الذاتية الكندية</h3><span class="spacer"></span>${Object.entries(VARIANTS).map(([k,v])=>`<label class="check" style="margin:0 6px"><input type="radio" name="var" value="${k}" ${docVar===k?'checked':''}> ${esc(v.label)}</label>`).join('')}</div>
+    <h3>فحص الجودة قبل التنزيل</h3>${K.map(k=>`<div class="finding">${k.ok?'<span class="tag ok">سليم</span>':'<span class="tag bad">يمنع التنزيل</span>'}<span>${esc(k.t)}</span></div>`).join('')}
+    <div class="row" style="margin:12px 0"><button class="btn primary" id="dlCV" ${blocked||!window.jspdf?'disabled':''}>تنزيل السيرة PDF</button>${!window.jspdf?'<span class="note">مولّد PDF لم يُحمَّل</span>':''}<span class="note">تُبنى من بيانات الملف؛ لتعديل محتواها عدّل الملف نفسه.</span></div>
+    <div style="overflow-x:auto">${cvPreview(cv)}</div></div>
+  <div class="panel"><h3 style="margin-top:0">خطاب الاهتمام لإعلان محدد</h3><div class="grid g3">
+    <div><label>المسمى في الإعلان</label><input type="text" dir="ltr" data-lp="title" value="${esc(lt.p.title)}"></div><div><label>صاحب العمل</label><input type="text" dir="ltr" data-lp="employer" value="${esc(lt.p.employer)}"></div><div><label>المدينة والمقاطعة</label><input type="text" dir="ltr" data-lp="city" value="${esc(lt.p.city)}"></div>
+    <div><label>رقم Job Bank</label><input type="text" dir="ltr" data-lp="jobBankId" value="${esc(lt.p.jobBankId)}"></div><div style="grid-column:span 2"><label>العنوان (اختياري)</label><input type="text" dir="ltr" data-lp="address" value="${esc(lt.p.address)}"></div>
+    <div style="grid-column:1/-1"><label>مهام الإعلان (الصقها كما هي، مهمة في كل سطر)</label><textarea dir="ltr" data-lp="tasks">${esc(lt.p.tasks)}</textarea></div></div>
+    <div class="row" style="margin-top:8px"><button class="btn primary" id="mkLetter">توليد الخطاب</button>${lt.text?`<button class="btn" id="aiPolish" ${sampleCap?'':'disabled'}>تحسين الصياغة دون إضافة وقائع</button><button class="btn" id="dlLetter" ${window.jspdf&&!hasArabic(lt.text)?'':'disabled'}>تنزيل الخطاب PDF</button><button class="btn" id="saveLP">حفظ الإعلان في المتابعة</button>`:''}</div>
+    ${lt.info?`<p class="note">طابقت ${lt.info.matched} من ${lt.info.total} مهام الإعلان مع مهام العميل.${lt.info.unmatched.length?' مهام بلا مقابل في الملف: '+esc(lt.info.unmatched.join('، ')):''}</p>`:''}
+    ${lt.text?`<label>نص الخطاب (قابل للتعديل، والمراجعة إلزامية قبل الإرسال)</label><textarea id="ltText" dir="ltr" style="min-height:320px;font-family:Helvetica,Arial,sans-serif">${esc(lt.text)}</textarea>`:''}</div>`;
+}
+function bindDocsTab(c){
+  const m=document.getElementById('main');
+  m.querySelectorAll('input[name=var]').forEach(r=>r.onchange=()=>{docVar=r.value;render()});
+  const sv=document.getElementById('saveCvf'); if(sv) sv.onclick=async()=>{const x=clone(c); m.querySelectorAll('[data-cvf]').forEach(el=>x[el.dataset.cvf]=el.value.trim()); await saveCase(x,'حدّث بيانات السيرة');toast('حُفظ')};
+  const d=document.getElementById('dlCV'); if(d) d.onclick=async()=>{const cv=buildCV(c,docVar); const fn=`${(c.fullName||'Client').replace(/[^A-Za-z]+/g,'_')}_Resume_${docVar==='farm'?'Farm_Dairy':'Food_Production'}.pdf`; await saveFile(fn,cvPdf(cv)); const x=clone(c); await saveCase(x,'نزّل السيرة: '+VARIANTS[docVar].label)};
+  const lt=LT[c.id]=LT[c.id]||{p:{title:'',employer:'',city:'',jobBankId:'',address:'',tasks:''},text:'',info:null};
+  m.querySelectorAll('[data-lp]').forEach(el=>el.addEventListener('input',()=>{lt.p[el.dataset.lp]=el.value}));
+  const tt=document.getElementById('ltText'); if(tt) tt.addEventListener('input',()=>{lt.text=tt.value});
+  const mk=document.getElementById('mkLetter'); if(mk) mk.onclick=()=>{const r=buildLetter(c,lt.p,docVar); lt.text=r.text; lt.info=r; render()};
+  const ai=document.getElementById('aiPolish'); if(ai) ai.onclick=async()=>{
+    ai.disabled=true; ai.textContent='جارٍ التحسين…';
+    const facts=JSON.stringify({jobs:(c.jobs||[]).map(j=>({employer:j.employer,title:j.title,city:j.city,country:j.country,start:j.start,end:j.present?'present':j.end,duties:dutiesOf(j)})),posting:lt.p});
+    try{const r=await sampleCap(`Improve the flow of this cover letter in plain Canadian English. Do not add any fact, number, employer, date, skill, certificate or claim that is not in the letter or the facts below. Do not remove the LMIA sentence. Keep it under 320 words. Return only the letter text.\n\nFACTS:\n${facts}\n\nLETTER:\n${lt.text}`,{modelTier:'default',cache:false}); lt.text=r.text.trim(); toast('حُسّنت الصياغة؛ راجعها قبل الإرسال')}catch(e){toast('تعذّر التحسين')}
+    render();
+  };
+  const dl=document.getElementById('dlLetter'); if(dl) dl.onclick=async()=>{const fn=`${(c.fullName||'Client').replace(/[^A-Za-z]+/g,'_')}_Cover_Letter_${(lt.p.employer||'Employer').replace(/[^A-Za-z0-9]+/g,'_')}.pdf`; await saveFile(fn,letterPdf(c,lt.p,lt.text)); const x=clone(c); await saveCase(x,'نزّل خطاب اهتمام: '+(lt.p.employer||''))};
+  const sp=document.getElementById('saveLP'); if(sp) sp.onclick=async()=>{const x=clone(c); x.postings=(x.postings||[]).concat([{title:lt.p.title,employer:lt.p.employer,jobBankId:lt.p.jobBankId,method:'',deadline:'',variant:VARIANTS[docVar].label,state:'to_apply',followUp:null,addedBy:me(),addedAt:today()}]); await saveCase(x,'أضاف إعلانًا من مولّد الخطاب: '+lt.p.employer); toast('أُضيف الإعلان؛ أكمل آخر موعد في تبويب المتابعة')};
+}
+function vGapsTab(c){
+  return `${vGaps(c)}<div class="panel"><h3 style="margin-top:0">رفع سيرة محدّثة ودمجها</h3>${vUploadBox('case:'+c.id)}<p class="note">الدمج يملأ الحقول الفارغة فقط ويضيف الوظائف الجديدة، ولا يستبدل ما أدخله الفريق.</p></div>`;
+}
+
+/* ---- Demo ---- */
+async function loadDemo(){
+  const f=blankForm();
+  Object.assign(f,{fullName:'Demo Client',nationality:'Yemeni',city:'Aden',country:'Yemen',whatsapp:'+967 700000000',email:'demo@example.com',passportLast4:'0000',passportExpiry:'2028-03-04',declaredYears:'6',sectors:{dairy:true,food:true},consent:{data:true,noAdvice:true,fees:true},docs:{passport:'yes',oldpass:'yes',cv:'yes',edu:'no',lang:'no'},
+    education:'High School Diploma - Demo Secondary School, Yemen',conditions:'Able to work long hours, overtime and shifts and to lift heavy loads.',
+    certs:[{name:'Food Handler Training Course',issuer:'Demo Training School',date:'2019-11',evidence:'yes'}],
+    refs:[{name:'Demo Reference',title:'Director',employer:'Demo Dairy Farm Sdn Bhd',country:'Malaysia',phone:'+60 11 0000 0000',consent:'yes'}]});
+  f.jobs=[
+    {...blankJob(),employer:'Demo Dairy Farm Sdn Bhd',title:'Dairy Farm Supervisor',city:'Pahang',country:'Malaysia',start:'2018-04',end:'2019-07',letter:'no',secondary:'no',dutiesStated:'Milked 100+ Holstein cows twice daily in a milking parlour and by hand\nCarried out artificial insemination and recorded breeding dates\nPrepared TMR feed with the feed mixer and fed the herd\nCleaned barns and stalls'},
+    {...blankJob(),employer:'Demo Juice and Dairy Sdn Bhd',title:'Production Supervisor',city:'Nilai',country:'Malaysia',start:'2019-07',end:'2023-04',letter:'yes',secondary:'yes',relative:'yes',dutiesDoc:'Supervised a production line team of 6\nOperated filling machines and packed milk and juice products\nApplied HACCP and GMP procedures\nMoved heavy pallets by forklift'},
+    {...blankJob(),employer:'Demo Crop Farm',title:'General Farm Worker',city:'Lahj',country:'Yemen',start:'2013-01',end:'2018-02',letter:'yes',secondary:'no',nameMatch:'no',dutiesDoc:'Planted and harvested vegetable and grain crops\nSupported irrigation and soil preparation'}
+  ];
+  F=f; step=LAST; await submitIntake();
+  if(RECEIPT){const id=RECEIPT.id; RECEIPT=null; location.hash='#case-'+id}
+}
+
+boot();
+</script>
+</body>
+</html>
