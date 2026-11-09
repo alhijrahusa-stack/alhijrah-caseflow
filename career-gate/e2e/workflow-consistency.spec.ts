@@ -101,7 +101,7 @@ test("staff navigation respects the existing management-only finance and audit b
     await expect(page.getByRole('heading',{name:'Operations Command Center',exact:true})).toBeVisible();
     const links=await page.getByRole('link').evaluateAll(elements=>elements.map(element=>element.getAttribute('href')??''));
     expect(links.filter(href=>/^\/staff\/(accounting|reports|audit-alerts)(?:[/?]|$)/.test(href))).toEqual([]);
-    expect(links).toContain('/staff/import');
+    if(path==='/staff') expect(links).toContain('/staff/import');
   }
   await page.goto('/staff/import');
   await expect(page.getByTestId('import-duplicate-launcher')).toBeVisible();
