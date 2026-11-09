@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { CLIENT_STAGES } from "../lib/client-lifecycle-filters";
+import { ACTIVE_WORKFLOW_GROUPS, WORKFLOW_DESTINATIONS } from "../lib/workflow-registry";
 import { db, intakeBody, RUN, selectChoice, signIn, submitIntake } from "./helpers";
 
 async function expectPhoneBounds(page: Page, width: number) {
@@ -32,7 +32,7 @@ async function expectPhoneBounds(page: Page, width: number) {
   for (const control of await bulkControls.all()) expect((await control.boundingBox())!.width).toBeGreaterThanOrEqual(150);
 }
 
-test("compact registry keeps eight real stage counts, pointer spotlight, filters and mobile controls usable", async ({ browser, request, baseURL }, testInfo) => {
+test("compact registry keeps five active groups, separate payment leaves, pointer spotlight, filters and mobile controls usable", async ({ browser, request, baseURL }, testInfo) => {
   const name = `TEST Compact Registry ${RUN}`;
   const intake = await submitIntake(request, intakeBody(name));
   expect(intake.res.status(), JSON.stringify(intake.json)).toBe(201);
@@ -45,14 +45,22 @@ test("compact registry keeps eight real stage counts, pointer spotlight, filters
     await page.goto(`/staff/clients?q=${intake.json.ref}`);
     const dock = page.getByTestId("client-stage-dock");
     const links = dock.locator("a[data-stage]");
-    await expect(links).toHaveCount(8);
-    const occupancy = await db()`select operational_location,count(*)::int total from clients group by operational_location`;
+    await expect(links).toHaveCount(5);
+    const occupancy = await db()`select operational_location,count(*)::int total from clients where deleted_at is null group by operational_location`;
     const counts = new Map(occupancy.map(row => [String(row.operational_location), Number(row.total)]));
-    for (const station of CLIENT_STAGES.filter(station => station.id !== "worksite_change")) {
-      const link = dock.locator(`a[data-stage="${station.id}"]`);
-      await expect(link).toHaveAttribute("href", station.href);
-      await expect(link.locator(".registry-stage-count")).toHaveText((counts.get(station.id) ?? 0).toLocaleString("en-US"));
+    for (const group of ACTIVE_WORKFLOW_GROUPS) {
+      const link = dock.locator(`a[data-stage="${group.id}"]`);
+      await expect(link).toHaveAttribute("href", group.href);
+      const total = group.destinations.reduce((sum, destination) => sum + (counts.get(destination) ?? 0), 0);
+      await expect(link.locator(".registry-stage-count")).toHaveText(total.toLocaleString("en-US"));
     }
+    for (const destination of WORKFLOW_DESTINATIONS.filter(item => item.groupId === "paperwork")) {
+      const leaf = dock.locator(`.registry-payment-leaves a[href="${destination.href}"]`);
+      await expect(leaf).toContainText(destination.label);
+      await expect(leaf.locator("span")).toHaveText(String(counts.get(destination.id) ?? 0));
+    }
+    await expect(dock.locator('a[href*="view=completed"],a[href*="stage=urgent"]')).toHaveCount(0);
+    await expect(page.locator('.royal-nav a[href="/staff/clients?view=completed"]')).toBeVisible();
     for (const width of [1440, 1920]) {
       await page.setViewportSize({ width, height: 1080 });
       const boxes = await links.evaluateAll(elements => elements.map(element => { const box = element.getBoundingClientRect(); return { y: box.y, height: box.height }; }));
@@ -84,16 +92,22 @@ test("compact registry keeps eight real stage counts, pointer spotlight, filters
     const deck = page.locator(".registry-command-deck");
     await expect(deck).toBeVisible();
     expect((await deck.boundingBox())!.height).toBeLessThanOrEqual(185);
-    await expect(page.getByRole("tablist", { name: "Client lifecycle views" })).toBeVisible();
+    await expect(deck).toContainText("Active clients");
+    await expect(page.locator('.staff-quick-search input[type="search"]:visible')).toHaveCount(1);
+    await expect(deck.locator('input[type="search"]')).toHaveCount(0);
+    await page.getByTestId("registry-actions").locator("summary").click();
     await expect(page.getByRole("link", { name: /Excel/ })).toHaveAttribute("href", new RegExp(`q=${intake.json.ref}.*format=xlsx`));
     await expect(page.getByRole("link", { name: /Print \/ Save PDF/ })).toHaveAttribute("href", new RegExp(`q=${intake.json.ref}.*format=print`));
+    await page.keyboard.press("Escape");
     await page.screenshot({ path: testInfo.outputPath("clients-compact-desktop.png"), fullPage: true, animations: "disabled" });
+    await page.getByTestId("registry-filters").locator("summary").click();
     await selectChoice(page.getByLabel("Status", { exact: true }), "new_intake");
     await expect(page).toHaveURL(/status=new_intake/);
     await selectChoice(page.getByLabel("Filter by specialist", { exact: true }), "none");
     await expect(page).toHaveURL(/assigned=none/);
     await expect(card).toBeVisible();
     await expect(page.getByTestId("client-total")).toHaveText("1 client · page 1 of 1");
+    await page.keyboard.press("Escape");
 
     for (const width of [390, 320]) {
       await expectPhoneBounds(page, width);

@@ -24,7 +24,11 @@ test("staff hands off a real client; manager reviews and routes the same file wi
     const dialog = staffPage.getByRole("dialog", { name: "Send for manager review" });
     await dialog.getByLabel("Review note (optional)").fill("Please prepare the account after review");
     await dialog.getByRole("button", { name: "Send review", exact: true }).click();
-    await expect(staffPage.getByRole("status").filter({ hasText: "Sent to the manager" })).toBeVisible();
+    const sentToast = staffPage.getByTestId("toast-success").filter({ hasText: "Sent to the manager" });
+    await expect(sentToast).toBeVisible();
+    await expect(staffPage.getByRole("button", { name: "Send to manager", exact: true })).toHaveCount(0);
+    await expect(staffPage.getByText("Awaiting manager review", { exact: true })).toBeVisible();
+    await expect(sentToast).toBeVisible();
 
     const managerPage = await managerContext.newPage();
     await managerPage.goto("/staff/manager-inbox");

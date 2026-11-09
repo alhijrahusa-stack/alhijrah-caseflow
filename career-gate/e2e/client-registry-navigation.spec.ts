@@ -50,13 +50,22 @@ for (const layout of [
     const clientLink = page.getByRole("link", { name: layout.table ? `Open client ${name}` : name, exact: true });
     await expect(clientLink).toBeVisible();
     await expect(clientLink).toHaveAttribute("href", `/staff/client/${client.id}`);
-    if (layout.table) await expect(page.locator("table")).toContainText(dateTime(createdAt));
+    if (layout.completed) {
+      const card = page.locator("article.cg-registry-card").filter({ has: clientLink });
+      await expect(card.getByTestId("employment-confirmation-status")).toHaveText("Actual start not confirmed");
+      await expect(card.getByTestId("actual-start-date")).toHaveText("Not confirmed");
+      await expect(card.getByTestId("completed-start-date")).toHaveText(dateOnly("2026-11-09"));
+      const details = card.locator("details.employment-record-secondary");
+      await details.locator("summary").click();
+      await expect(details).toContainText("Received");
+      await expect(details).toContainText(dateTime(createdAt));
+      expect((await db()`select count(*)::int total from employment_confirmations where client_id=${client.id}`)[0].total).toBe(0);
+    } else if (layout.table) await expect(page.locator("table")).toContainText(dateTime(createdAt));
     else {
-      await expect(page.locator("article time")).toHaveText(layout.completed ? dateOnly("2026-10-25") : dateTime(createdAt));
+      await expect(page.locator("article time")).toHaveText(dateTime(createdAt));
       await expect(page.locator("article time")).toHaveAttribute("datetime", createdAt);
     }
     expect(errors).toEqual([]);
-    if (layout.completed) await expect(page.getByTestId("completed-start-date")).toHaveText(dateOnly("2026-11-09"));
     expect(prefetches).toEqual([]);
     expect(drawerRequests).toEqual([]);
 

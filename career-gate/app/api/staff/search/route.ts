@@ -2,6 +2,7 @@ import { withStaff } from "@/lib/auth";
 import { ACCOUNT_NET_FEE } from "@/lib/accounting-schema";
 import { ok } from "@/lib/http";
 import { traceIdFrom } from "@/lib/obs";
+import { CURRENT_EMPLOYMENT_CONFIRMATION_SQL } from "@/lib/employment-registry-read";
 import { registrySearchPredicate } from "@/lib/registry-search";
 import { registryPhoneSearchDigits } from "@/lib/registry-filters";
 import { staffGuard } from "@/lib/staff-api";
@@ -19,7 +20,10 @@ export async function GET(req: Request) {
   const results = await withStaff(g.session, async (tx) => {
     await tx`select set_config('pg_trgm.word_similarity_threshold','0.45',true),set_config('statement_timeout','5000',true)`;
     return tx`
-    select c.id,c.ref,c.full_name,c.phone,c.email,c.current_status,c.pipeline_stage,c.next_step,
+    select c.id,c.ref,c.full_name,c.phone,c.email,c.current_status,c.pipeline_stage,c.next_step,c.operational_location,
+           (employment.id is not null) employment_confirmed,employment.actual_start_date::text actual_start_date,
+           employment.confirmed_at employment_confirmed_at,employment.confirmed_by_name employment_confirmed_by_name,
+           case when c.operational_location='completed' then case when employment.id is null then 'unconfirmed' else 'confirmed' end else null end registry_status,
            s.display_name as assigned_name,s.staff_code,
            p.site_code,p.shift_code,a.payment_status,${tx.unsafe(ACCOUNT_NET_FEE("a"))} fee_amount
     from clients c
@@ -31,6 +35,7 @@ export async function GET(req: Request) {
       limit 1
     ) p on true
     left join client_accounts a on a.client_id=c.id
+    left join lateral (${tx.unsafe(CURRENT_EMPLOYMENT_CONFIRMATION_SQL)}) employment on true
     where c.deleted_at is null and ${registrySearchPredicate(tx,q)}
     order by
       case when lower(c.ref)=lower(${q}) then 0

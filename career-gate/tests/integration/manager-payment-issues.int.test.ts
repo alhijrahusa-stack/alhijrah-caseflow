@@ -6,6 +6,7 @@ import { sql } from "@/lib/db";
 import { applyAccountDiscount } from "@/lib/accounting-ledger";
 import { ActionSchema, runAction } from "@/lib/actions";
 import type { ClientStageFilter } from "@/lib/client-lifecycle-filters";
+import { setClientUrgency } from "@/lib/client-priority";
 import { managerInbox, resolveManagerReview, submitManagerReview } from "@/lib/manager-inbox";
 import { moveWorkflowClient } from "@/lib/manual-workflow";
 import { ProfileSchema } from "@/lib/schemas";
@@ -206,7 +207,10 @@ describe("manager Payment Required uses payment-eligible review cases and actual
     const ordinary = await file(group);
     const ordinaryReview = await review(ordinary.id);
     const primary = await file(group);
-    const related = await file(group, "urgent");
+    const related = await file(group);
+    await withStaff(owner, tx => setClientUrgency(tx, owner, { client_id: related.id, urgent: true }, trace));
+    expect((await db`select operational_location,is_urgent from clients where id=${related.id}`)[0]).toMatchObject({ operational_location: "new_intake", is_urgent: true });
+    const priorityCount = (await managerInbox(manager)).summary.urgent;
     const urgentReview = await review(primary.id, related.id);
     const filtered = await managerInbox(manager, 1, { urgent: true, q: group });
     expect(filtered.total).toBe(1);
@@ -214,10 +218,11 @@ describe("manager Payment Required uses payment-eligible review cases and actual
     const ranked = await managerInbox(manager, 1, { sort: "priority", q: group });
     expect(ranked.items.map(item => item.id)).toEqual([urgentReview.id, ordinaryReview.id]);
     expect(ranked.items[1].is_urgent).toBe(false);
-    // Department occupancy remains exclusive: both originals are held at the
-    // manager, so this case never adds a copy to the operational Urgent count.
+    // The manager hold removes ordinary queue occupancy; the independent
+    // priority aggregate still references the same original once.
     const [state] = await db`select operational_location from clients where id=${related.id}`;
     expect(state.operational_location).toBe("manager");
+    expect(filtered.summary.urgent).toBe(priorityCount);
   });
 
   it("connects GET payments=1 to the financial filter and retains management-only authorization", async () => {

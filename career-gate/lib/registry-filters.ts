@@ -3,7 +3,7 @@ import { STATUSES } from "@/lib/domain";
 
 export const REGISTRY_PAGE_SIZE = 10;
 export const REGISTRY_EXPORT_LIMIT = 1000;
-export const REGISTRY_FILTER_KEYS = ["view", "stage", "status", "assigned", "attention", "completed_this_month", "q"] as const;
+export const REGISTRY_FILTER_KEYS = ["view", "stage", "group", "urgent", "year", "confirmation", "sort", "status", "assigned", "attention", "completed_this_month", "q"] as const;
 export type RegistryFilters = Partial<Record<(typeof REGISTRY_FILTER_KEYS)[number], string>>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -15,23 +15,31 @@ export function parseRegistryFilters(params: URLSearchParams, management: boolea
   const assigned = management && (assignedValue === "none" || UUID.test(assignedValue ?? "")) ? assignedValue! : undefined;
   const attention = params.get("attention") === "documents" ? "documents" as const : undefined;
   const stageValue = params.get("stage");
-  const stage = isClientStageFilter(stageValue) ? stageValue :
-    !requested && !status && !attention && !assigned ? "new_intake" : undefined;
-  const view = stage === "completed" ? "completed" : (stage || attention || assigned === "none") ? "active" :
-    requested === "all" || requested === "completed" ? requested : "active";
+  const urgent = params.get("urgent") === "1" || stageValue === "urgent";
+  const group = params.get("group") === "paperwork" ? "paperwork" as const : undefined;
+  const rawYear = params.get("year") ?? "";
+  const year = /^\d{4}$/.test(rawYear) && Number(rawYear) >= 1900 && Number(rawYear) <= 9999 ? Number(rawYear) : undefined;
+  const confirmation = params.get("confirmation") === "confirmed" || params.get("confirmation") === "unconfirmed" ? params.get("confirmation") as "confirmed" | "unconfirmed" : undefined;
+  const sort = params.get("sort") === "started_asc" || params.get("sort") === "started_desc" ? params.get("sort") as "started_asc" | "started_desc" : undefined;
+  // Historical stage=urgent links are priority views, never routing stages.
+  const stage = stageValue !== "urgent" && isClientStageFilter(stageValue) ? stageValue :
+    !requested && !status && !attention && !assigned && !urgent && !group && !year && !confirmation ? "new_intake" : undefined;
+  const view = stage === "completed" ? "completed" : (stage || group || urgent || attention) ? "active" :
+    requested === "all" || requested === "completed" ? requested : (year || confirmation) ? "completed" : "active";
   const rawPage = params.get("page") ?? "1";
-  // A stale positive page, even above JS's safe integer range, clamps to the
-  // last actual server page. Malformed, fractional and non-positive values reset.
+  // Positive stale pages clamp against the actual result count on the server.
   const numericPage = /^\d+$/.test(rawPage) ? Number(rawPage) : 0;
   const page = numericPage > 0 ? Math.min(numericPage, Number.MAX_SAFE_INTEGER) : 1;
   return { view, page, q: params.get("q")?.trim().slice(0, 100) || undefined, status,
-    stage: isClientStageFilter(stage) ? stage : undefined, assigned, attention,
+    stage: isClientStageFilter(stage) ? stage : undefined, assigned, attention, group, urgent, year, confirmation, sort,
     completedThisMonth: params.get("completed_this_month") === "1" } as const;
 }
 
 export function registryFilterValues(params: URLSearchParams, management: boolean): RegistryFilters {
   const parsed = parseRegistryFilters(params, management);
-  return Object.fromEntries(Object.entries({ view: parsed.view, stage: parsed.stage, status: parsed.status,
+  return Object.fromEntries(Object.entries({ view: parsed.view, stage: parsed.stage, group: parsed.group,
+    urgent: parsed.urgent ? "1" : undefined, year: parsed.year == null ? undefined : String(parsed.year),
+    confirmation: parsed.confirmation, sort: parsed.sort, status: parsed.status,
     assigned: parsed.assigned, attention: parsed.attention, completed_this_month: parsed.completedThisMonth ? "1" : undefined,
     q: parsed.q }).filter(([,value]) => value !== undefined));
 }

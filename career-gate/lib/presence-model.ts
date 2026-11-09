@@ -10,7 +10,7 @@ const STAFF_PATH = /^\/staff(?:\/[A-Za-z0-9_-]+)*\/?$/;
 const CLIENT_PATH = /^\/staff\/client\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i;
 
 export type StaffPresenceState = "active" | "idle";
-export type PresenceWorkspaceSection = ClientStageFilter | "all";
+export type PresenceWorkspaceSection = ClientStageFilter | "all" | "payment_paperwork";
 export type StaffPresencePacket = {
   tab_id: string;
   path: string;
@@ -43,20 +43,24 @@ export function clientIdForPresencePath(path: string): string | null {
   return CLIENT_PATH.exec(path)?.[1]?.toLowerCase() ?? null;
 }
 export function isPresenceWorkspaceSection(value: unknown): value is PresenceWorkspaceSection {
-  return value === "all" || isClientStageFilter(value);
+  return value === "all" || value === "payment_paperwork" || isClientStageFilter(value);
 }
 export function presenceWorkspaceSection(path: string, params: URLSearchParams): PresenceWorkspaceSection | null {
   if (path !== "/staff/clients") return null;
   const filters = parseRegistryFilters(params, true);
-  return filters.stage ?? (filters.view === "completed" ? "completed" : filters.view === "all" ? "all" : null);
+  return filters.urgent ? "urgent" : filters.group === "paperwork" ? "payment_paperwork" : filters.stage ?? (filters.view === "completed" ? "completed" : filters.view === "all" ? "all" : null);
 }
 export function presenceHref(path: string | null, workspaceSection?: PresenceWorkspaceSection | null): string | null {
   const safePath = safeStaffPresencePath(path);
   if (safePath !== "/staff/clients" || !workspaceSection || !isPresenceWorkspaceSection(workspaceSection)) return safePath;
+  if(workspaceSection === "urgent") return `${safePath}?urgent=1`;
+  if(workspaceSection === "payment_paperwork") return `${safePath}?group=paperwork`;
   return `${safePath}?${workspaceSection === "all" || workspaceSection === "completed" ? "view" : "stage"}=${workspaceSection}`;
 }
 export function presenceSection(path: string | null, workspaceSection?: PresenceWorkspaceSection | null): { en: string; ar: string } {
   if (path === "/staff/clients" && workspaceSection) {
+    if (workspaceSection === "urgent") return {en:"Urgent priority view",ar:"عرض ملفات الأولوية"};
+    if (workspaceSection === "payment_paperwork") return {en:"Payment & Paperwork",ar:"الدفع واستكمال الوثائق"};
     if (workspaceSection === "all") return { en: "All client records", ar: "جميع سجلات العملاء" };
     const stage = CLIENT_STAGES.find(candidate => candidate.id === workspaceSection);
     if (stage) return { en: `Clients · ${stage.label}`, ar: `العملاء · ${stage.labelAr}` };

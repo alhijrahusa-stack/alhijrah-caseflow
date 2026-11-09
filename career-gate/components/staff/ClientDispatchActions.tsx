@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { GlassReviewDialog } from "@/components/staff/smart/GlassReviewDialog";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import { useStaff } from "@/components/staff/StaffContext";
 import { useTargetedMutationBatch } from "@/components/staff/realtime/useTargetedMutation";
+import { useToast } from "@/components/ui/Toast";
+import "./client-priority.css";
 
 type Duplicate = { id: string; ref: string; full_name: string; phone: string; assigned_name: string | null };
 type DispatchRequest = { operation: "urgent"; client_id: string; urgent: boolean; operation_id: string; expected_updated_at?: string }
@@ -15,6 +17,7 @@ type Props = { clientId: string; isUrgent?: boolean; managerReviewId?: string | 
 export function ClientDispatchActions({ clientId, isUrgent = false, managerReviewId, updatedAt, operationalLocation, management = false, compact = false }: Props) {
   const { t } = useStaffLanguage();
   const { me } = useStaff();
+  const toast = useToast();
   const onMutated = useTargetedMutationBatch();
   const [optimisticUrgent, setOptimisticUrgent] = useState<boolean | null>(null);
   const urgent = optimisticUrgent ?? isUrgent;
@@ -34,7 +37,6 @@ export function ClientDispatchActions({ clientId, isUrgent = false, managerRevie
   const [activeOperation, setActiveOperation] = useState<DispatchRequest["operation"] | null>(null);
   const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const request = useRef<DispatchRequest | null>(null);
   const sending = useRef(false);
   const draftKey = `career-gate:duplicate-review:v1:${me.id}:${clientId}`;
@@ -56,20 +58,14 @@ export function ClientDispatchActions({ clientId, isUrgent = false, managerRevie
     if (body.operation === "duplicate_review") {
       setReviewHeld(true); setOpen(false); setNote("");
       try { sessionStorage.removeItem(draftKey); } catch { /* Draft storage is optional. */ }
-      setNotice(t("Both original files were sent to the manager center for comparison.", "نُقل الملفان الأصليان إلى مركز المدير للمقارنة."));
+      toast("success", t("Both original files were sent to the manager center for comparison.", "نُقل الملفان الأصليان إلى مركز المدير للمقارنة."));
     } else {
       setOptimisticUrgent(body.urgent);
-      setNotice(body.urgent ? t("Moved to Urgent", "نُقل إلى Urgent") : t("Returned to its workflow section", "أُعيد إلى قسمه في مسار العمل"));
+      toast("success", body.urgent ? t("Urgent priority enabled. Workflow unchanged.", "تم تفعيل الأولوية مع بقاء الملف في قسمه.") : t("Urgent priority removed.", "تم إلغاء الأولوية."));
     }
     setUncertain(false); setError("");
     onMutated("client_dispatch", body.operation === "duplicate_review" ? [clientId, body.related_client_id] : [clientId]);
   }
-
-  useEffect(() => {
-    if (!notice) return;
-    const timeout = setTimeout(() => setNotice(""), 6000);
-    return () => clearTimeout(timeout);
-  }, [notice]);
 
   async function send(next: DispatchRequest) {
     if (sending.current) return;
@@ -125,15 +121,14 @@ export function ClientDispatchActions({ clientId, isUrgent = false, managerRevie
   return <div className={`cg-dispatch-actions ${compact ? "text-xs" : "text-sm"}`}>
     <div className="flex flex-wrap items-center gap-2">
       {held ? management ? <Link href="/staff/manager-inbox" className="cg-command-button">{t("Awaiting manager review", "بانتظار مراجعة المدير")}</Link> : <span role="status" className="text-xs">{t("Awaiting manager review", "بانتظار مراجعة المدير")}</span> : <>
-        <button type="button" className="cg-command-button cg-urgent-action" aria-pressed={urgent} disabled={unavailable || pending || uncertain} onClick={() => void send({ operation: "urgent", client_id: clientId, urgent: !urgent, operation_id: crypto.randomUUID(), ...(updatedAt ? { expected_updated_at: updatedAt } : {}) })}>
-          <span aria-hidden="true">⚡</span> {pending && activeOperation === "urgent" ? t("Moving…", "جارٍ النقل…") : urgent ? t("Return from Urgent", "إعادة من Urgent") : t("Move to Urgent", "نقل إلى Urgent")}
+        <button type="button" data-testid="priority-toggle" className="cg-command-button cg-urgent-action" aria-pressed={urgent} disabled={held || operationalLocation === "deleted" || (unavailable && !urgent) || pending || uncertain} onClick={() => void send({ operation: "urgent", client_id: clientId, urgent: !urgent, operation_id: crypto.randomUUID(), ...(updatedAt ? { expected_updated_at: updatedAt } : {}) })}>
+          <span aria-hidden="true">⚡</span> {pending && activeOperation === "urgent" ? t("Saving…", "جارٍ الحفظ…") : urgent ? t("Remove Urgent", "إلغاء الأولوية") : t("Mark Urgent", "تفعيل الأولوية")}
         </button>
         <button type="button" className="cg-command-button" disabled={unavailable || pending || uncertain} onClick={() => void findDuplicates()}>{t("Review similar files", "مراجعة الملفات المتشابهة")}</button>
       </>}
       {uncertain && <button type="button" disabled={pending} className="cg-command-button" onClick={() => { if (request.current) void send(request.current); }}>{pending ? t("Verifying…", "جارٍ التحقق…") : t("Retry same request", "إعادة محاولة الطلب نفسه")}</button>}
     </div>
     {error && !open && <p role="alert" className="mt-2 text-xs text-red-300">{error}</p>}
-    {notice && <p role="status" className="mt-2 text-xs text-emerald-300">{notice}</p>}
     {open && <GlassReviewDialog title={t("Possible duplicate · manager review", "تشابه محتمل · مراجعة المدير")} onClose={() => { if (!pending) setOpen(false); }}>
       <div className="space-y-4 p-1">
         <p className="text-sm">{t("The same phone with an identical or shortened name suggests a review. Both originals will move to the manager center until a decision. Only the manager can keep or delete a record.", "تطابق الهاتف مع الاسم نفسه أو صيغة مختصرة منه يستدعي المراجعة. ينتقل الملفان الأصليان إلى مركز المدير حتى حسم القرار. المدير وحده يقرر إبقاء السجل أو حذفه.")}</p>

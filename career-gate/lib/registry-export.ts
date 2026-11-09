@@ -11,9 +11,9 @@ export function escapeRegistryXml(value: unknown) {
   return validXml.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
 }
 
-const HEADERS = ["Reference", "Client", "Phone", "Email", "City", "Current status", "Assigned specialist", "Site", "Shift", "Payment", "Start date", "Received", "Updated", "Operational section", "Urgent", "Reviewed by manager", "Review time", "Review pending"];
+const HEADERS = ["Reference", "Client", "Phone", "Email", "City", "Current status", "Assigned specialist", "Site", "Shift", "Payment", "Start date", "Received", "Updated", "Operational section", "Urgent", "Reviewed by manager", "Review time", "Review pending", "Actual employment start", "Employment confirmation", "Confirmed worksite", "Confirmed by", "Confirmation recorded"];
 export function registryExportValues(row: OperationalClientRow) {
-  return [row.ref,row.full_name,row.phone,row.email,row.city,row.current_status,row.assigned_name,row.site_name,row.shift_name,row.payment_status,dateOnly(row.start_date),dateTime(row.created_at),dateTime(row.updated_at),row.operational_location ?? "",row.is_urgent ? "Yes" : "No",row.review_stamp?.reviewed_by_name ?? "",row.review_stamp?.reviewed_at ? dateTime(row.review_stamp.reviewed_at) : "",row.manager_review_id || row.review_stamp?.review_pending ? "Yes" : "No"];
+  return [row.ref,row.full_name,row.phone,row.email,row.city,row.current_status,row.assigned_name,row.site_name,row.shift_name,row.payment_status,dateOnly(row.start_date),dateTime(row.created_at),dateTime(row.updated_at),row.operational_location ?? "",row.is_urgent ? "Yes" : "No",row.review_stamp?.reviewed_by_name ?? "",row.review_stamp?.reviewed_at ? dateTime(row.review_stamp.reviewed_at) : "",row.manager_review_id || row.review_stamp?.review_pending ? "Yes" : "No",row.employment_confirmation_id ? dateOnly(row.actual_start_date) : "",row.employment_confirmation_id ? "Actual start confirmed" : "Actual start not confirmed",row.employment_confirmation_id ? row.employment_site_name ?? "" : "",row.employment_confirmed_by_name ?? "",row.employment_confirmed_at ? dateTime(row.employment_confirmed_at) : ""];
 }
 function column(index:number) { let n=index+1,out="";while(n>0){const r=(n-1)%26;out=String.fromCharCode(65+r)+out;n=Math.floor((n-1)/26);}return out;}
 

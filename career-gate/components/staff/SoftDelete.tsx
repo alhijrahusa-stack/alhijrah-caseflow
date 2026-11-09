@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
 
 /** Management-only recoverable archive action. Records and documents are retained. */
-export function SoftDelete({ clientId, compact = false }: { clientId: string; compact?: boolean }) {
+export function SoftDelete({ clientId, compact = false, actionLabel = "Archive", stayInView = false }: { clientId: string; compact?: boolean; actionLabel?: string; stayInView?: boolean }) {
   const router = useRouter();
   const onMutated = useTargetedMutation();
   const [open, setOpen] = useState(false);
@@ -14,7 +14,7 @@ export function SoftDelete({ clientId, compact = false }: { clientId: string; co
   const [error, setError] = useState<string | null>(null);
 
   if (!open) {
-    return <button type="button" className={compact ? "archive-client-button" : "text-sm font-semibold text-red-300 hover:text-red-200"} onClick={() => setOpen(true)}>Archive</button>;
+    return <button type="button" className={compact ? "archive-client-button" : "text-sm font-semibold text-red-300 hover:text-red-200"} onClick={() => setOpen(true)}>{actionLabel}</button>;
   }
 
   async function archive() {
@@ -29,7 +29,7 @@ export function SoftDelete({ clientId, compact = false }: { clientId: string; co
       });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.ok) throw new Error(data?.error?.message ?? "Archive failed");
-      router.push("/staff/clients");
+      if (!stayInView) router.push("/staff/clients");
       onMutated("archive", clientId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Archive failed");

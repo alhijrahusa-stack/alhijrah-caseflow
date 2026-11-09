@@ -1,0 +1,10 @@
+.registry-stage-marker{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11px;color:#d9c381}
+.registry-stage-marker ol{display:flex;list-style:none;gap:5px;margin:0;padding:0}
+.registry-stage-marker li{height:3px;width:20px;border-radius:4px;background:#8292af35}
+.registry-stage-marker li[data-current=true]{background:#e4c978;box-shadow:0 0 7px #e4c97825}
+.registry-fluid-row>.registry-stage-marker{grid-column:1/-1;border-top:1px solid #d4af3720;padding-top:10px}
+body .royal-shell .registry-page .cg-registry-card.is-urgent{border-color:transparent!important;background:linear-gradient(115deg,#8e682323,#132849c7 60%)!important;box-shadow:0 8px 24px #02081720,inset 0 1px #f3df9d16;transform:none}
+body .royal-shell .registry-page .cg-registry-card.is-urgent::after{content:"";position:absolute;inset-block-start:12px;inset-inline-end:12px;width:6px;height:6px;border-radius:50%;background:#e9ce7d;box-shadow:0 0 8px #e9ce7d55;pointer-events:none;animation:registry-priority-arrival 1.8s ease-in-out 2}
+@keyframes registry-priority-arrival{0%,100%{opacity:.55}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){body .royal-shell .registry-page .cg-registry-card.is-urgent::after{animation:none}}
+@media(max-width:650px){.registry-stage-marker{font-size:10px;gap:8px}.registry-stage-marker li{width:16px}}

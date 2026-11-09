@@ -1,5 +1,6 @@
 import { canTransition, DEFAULT_NEXT_STEP, STATUSES, type Status } from "@/lib/domain";
 import type { ClientStageFilter } from "@/lib/client-lifecycle-filters";
+import { WORKFLOW_DESTINATIONS } from "@/lib/workflow-registry";
 
 export type RoutingEvidence = {
   current_status: string;
@@ -40,7 +41,7 @@ export function resolveLifecycleRoute(stage: ClientStageFilter, evidence: Routin
     throw new LifecycleRoutingError("closed_case", "Completed, cancelled, or invalid cases cannot be bulk-routed");
   }
 
-  if(stage === "urgent") return {status:current,pipelineStage:"",nextStep:""};
+  if(stage === "urgent") throw new LifecycleRoutingError("priority_not_destination", "Urgent is a priority flag, not a workflow destination");
   if(stage === "worksite_change") return {status:current,pipelineStage:"worksite_change",nextStep:"Confirm the requested worksite and new employment schedule."};
 
   let target: Status = current;
@@ -110,22 +111,13 @@ export function resolveLifecycleRoute(stage: ClientStageFilter, evidence: Routin
 }
 
 /** Manual routing selects a workspace without creating supporting evidence. */
-const OVERRIDE_ENTRY: Record<Exclude<ClientStageFilter,"urgent">, { status: Status; pipelineStage: string }> = {
-  new_intake: { status: "new_intake", pipelineStage: "portal_intake" },
-  account_setup: { status: "ready_to_apply", pipelineStage: "no_amazon_account" },
-  job_ready: { status: "shift_selected", pipelineStage: "amazon_account_waiting_job" },
-  appointments: { status: "appointment_scheduled", pipelineStage: "interview_scheduled" },
-  payment_required: { status: "pre_hire_completed", pipelineStage: "payment_required" },
-  paperwork_pending: { status: "screening_pending", pipelineStage: "post_interview_completion" },
-  completed: { status: "completed", pipelineStage: "completed_files" },
-  worksite_change: { status: "pre_hire_completed", pipelineStage: "worksite_change" },
-};
+const OVERRIDE_ENTRY = new Map(WORKFLOW_DESTINATIONS.map(destination => [destination.id, { status: destination.entryStatus, pipelineStage: destination.pipelineStage }] as const));
 
 export function resolveOverrideRoute(stage: ClientStageFilter, currentStatus: string): RoutingDecision {
   if (!(STATUSES as readonly string[]).includes(currentStatus)) {
     throw new LifecycleRoutingError("invalid_status", "The current workflow status is invalid");
   }
-  if(stage === "urgent") return {status:currentStatus as Status,pipelineStage:"",nextStep:""};
-  const entry = OVERRIDE_ENTRY[stage];
+  if(stage === "urgent") throw new LifecycleRoutingError("priority_not_destination", "Urgent is a priority flag, not a workflow destination");
+  const entry = OVERRIDE_ENTRY.get(stage)!;
   return { status: entry.status, pipelineStage: entry.pipelineStage, nextStep: stage === "worksite_change" ? "Confirm the requested worksite and new employment schedule." : DEFAULT_NEXT_STEP[entry.status] };
 }

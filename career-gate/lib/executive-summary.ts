@@ -7,7 +7,8 @@ import { systemHealth } from "@/lib/operational-dashboard";
 
 export type ExecutiveSummary = {
   generated_at:string;
-  stages:{id:string;label:string;labelAr:string;href:string;total:number;wait_hours:number|null}[];
+  stages:{id:string;label:string;labelAr:string;href:string;total:number;wait_hours:number|null;urgent_count?:number}[];
+  urgent_total?:number;worksite_total?:number;worksite_urgent?:number;manager_urgent?:number;
   revenue_pending:number; document_blockers:number; conversion_rate:number|null;
   queues:{overdue_tasks:number;overdue_followups:number;unassigned_clients:number;completed_this_month:number};
   paid_total:number; completed:number; payment_pending:number; audit_alerts:number;
@@ -23,19 +24,19 @@ export const executiveSummary=cache(async(session:StaffSession):Promise<Executiv
     withStaff(session,async tx=>{
       const [groups,[totals],priorities]=await Promise.all([
         tx`with stage_map as(select ${tx.json(STAGE_BY_STATUS)}::jsonb mapping), ages as(
-          select c.current_status,coalesce(last_entry.entered_at,
+          select c.current_status,c.operational_location,c.is_urgent,coalesce(last_entry.entered_at,
             case when c.current_status in('new_intake','needs_review') then c.created_at end) entered_at
           from clients c cross join stage_map m left join lateral (
             select max(l.created_at) entered_at from activity_log l where l.client_id=c.id
               and l.action in ('status_changed','status_overridden')
               and m.mapping->>(l.new_value->>'status')=m.mapping->>c.current_status
               and m.mapping->>(l.old_value->>'status') is distinct from m.mapping->>(l.new_value->>'status')
-          ) last_entry on true where c.operational_location not in ('manager','urgent','worksite_change','cancelled','deleted'))
-          select current_status status,count(*)::int total,count(entered_at)::int age_count,
+          ) last_entry on true where c.operational_location not in ('manager','worksite_change','cancelled','deleted'))
+          select operational_location location,count(*)::int total,count(*) filter(where is_urgent and current_status not in ('completed','cancelled'))::int urgent_count,count(entered_at)::int age_count,
             sum(extract(epoch from(now()-entered_at))/3600)::numeric age_hours
-          from ages group by current_status`,
+          from ages group by operational_location`,
         tx`with live as(select id,current_status,operational_location,assigned_staff from clients where deleted_at is null and current_status<>'cancelled'),
-          operational as(select * from live where operational_location not in ('manager','urgent','completed','cancelled','deleted')),
+          operational as(select * from live where operational_location not in ('manager','completed','cancelled','deleted','worksite_change')),
           financial as(select coalesce(sum(greatest(b.balance,0)),0)::numeric revenue_pending,
             coalesce(sum(b.amount_paid-b.refund_amount),0)::numeric paid_total
             from client_account_balances b join live c on c.id=b.client_id),
@@ -50,8 +51,12 @@ export const executiveSummary=cache(async(session:StaffSession):Promise<Executiv
                 and not exists(select 1 from documents n where n.client_id=d.client_id and n.doc_type=d.doc_type and (n.uploaded_at,n.id)>(d.uploaded_at,d.id))))::int document_blockers,
             (select round(100.0*count(*) filter(where decision='pass')/nullif(count(*) filter(where decision in('pass','fail')),0),1) from last_outcome) conversion_rate,
             (select count(*) from live where operational_location='completed')::int completed,
+            (select count(*) from clients where deleted_at is null and is_urgent and current_status not in ('completed','cancelled'))::int urgent_total,
+            (select count(*) from clients where deleted_at is null and operational_location='worksite_change')::int worksite_total,
+            (select count(*) from clients where deleted_at is null and is_urgent and current_status not in ('completed','cancelled') and operational_location='worksite_change')::int worksite_urgent,
+            (select count(*) from clients where deleted_at is null and is_urgent and current_status not in ('completed','cancelled') and operational_location='manager')::int manager_urgent,
             (select count(*) from audit_alerts where status='open')::int audit_alerts,
-            (select count(*) from tasks t left join clients c on c.id=t.client_id where (t.client_id is null or c.operational_location not in ('manager','urgent','completed','cancelled','deleted')) and t.status in ('pending','in_progress') and t.due_at<now())::int overdue_tasks,
+            (select count(*) from tasks t left join clients c on c.id=t.client_id where (t.client_id is null or c.operational_location not in ('manager','completed','cancelled','deleted','worksite_change')) and t.status in ('pending','in_progress') and t.due_at<now())::int overdue_tasks,
             (select count(*) from followups f join operational c on c.id=f.client_id where f.status='open' and f.due_date<(now() at time zone 'America/Detroit')::date)::int overdue_followups,
             (select count(*) from operational where assigned_staff is null)::int unassigned_clients,
             (select count(*) from live c where c.operational_location='completed' and exists(select 1 from activity_log l where l.client_id=c.id and l.action in('status_changed','status_overridden') and l.new_value->>'status'='completed' and l.created_at>=date_trunc('month',now())))::int completed_this_month`,
@@ -73,7 +78,7 @@ export const executiveSummary=cache(async(session:StaffSession):Promise<Executiv
                   and not exists(select 1 from appointment_outcomes o where o.appointment_id=a.id))
             union all
             select c.id,c.ref,c.full_name,'document_review',0,extract(epoch from(now()-c.updated_at))/86400,1
-              from clients c where c.operational_location not in('manager','urgent','completed','cancelled','deleted') and exists(
+              from clients c where c.operational_location not in('manager','completed','cancelled','deleted','worksite_change') and exists(
                 select 1 from documents d where d.client_id=c.id and d.status in('needs_review','needs_reupload','rejected')
                   and not exists(select 1 from documents n where n.client_id=d.client_id and n.doc_type=d.doc_type and (n.uploaded_at,n.id)>(d.uploaded_at,d.id)))
           ) select * from(select distinct on(id) id,ref,full_name,kind,amount,age_days,priority from candidates order by id,priority desc) deduplicated order by priority desc,age_days desc,id limit 5`,
@@ -87,11 +92,12 @@ export const executiveSummary=cache(async(session:StaffSession):Promise<Executiv
   const {totals}=operational;
   return {
     generated_at:new Date().toISOString(),
+    urgent_total:n(totals.urgent_total),worksite_total:n(totals.worksite_total),worksite_urgent:n(totals.worksite_urgent),manager_urgent:n(totals.manager_urgent),
     stages:G3_STAGES.map(stage=>{
-      const groups=operational.groups.filter(group=>(stage.statuses as readonly string[]).includes(String(group.status)));
+      const groups=operational.groups.filter(group=>(stage.destinations as readonly string[]).includes(String(group.location)));
       const total=groups.reduce((sum,group)=>sum+n(group.total),0);
       const timed=groups.reduce((sum,group)=>sum+n(group.age_count),0);
-      return {id:stage.id,label:stage.label,labelAr:stage.labelAr,href:stage.href,total,
+      return {id:stage.id,label:stage.label,labelAr:stage.labelAr,href:stage.href,total,urgent_count:groups.reduce((sum,group)=>sum+n(group.urgent_count),0),
         wait_hours:timed?groups.reduce((sum,group)=>sum+n(group.age_hours),0)/timed:null};
     }),
     queues:{overdue_tasks:n(totals.overdue_tasks),overdue_followups:n(totals.overdue_followups),unassigned_clients:n(totals.unassigned_clients),completed_this_month:n(totals.completed_this_month)},

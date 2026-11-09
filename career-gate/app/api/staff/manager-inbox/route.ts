@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CLIENT_STAGE_IDS } from "@/lib/client-lifecycle-filters";
+import { isWorkflowDestination } from "@/lib/client-lifecycle-filters";
 import { LifecycleRoutingError } from "@/lib/client-lifecycle-routing";
 import { dbErrorResponse, err, ok } from "@/lib/http";
 import { managerInbox, resolveManagerReview, submitManagerReview, type ResolveManagerReview } from "@/lib/manager-inbox";
@@ -15,7 +15,7 @@ const Submit = z.discriminatedUnion("kind", [
 ]);
 const Resolve = z.object({
   expected_related_client_version: z.string().min(10).max(100).optional(),
-  id: z.uuid(), destination: z.string().refine(value => value === "keep_current" || CLIENT_STAGE_IDS.includes(value)),
+  id: z.uuid(), destination: z.string().refine(value => value === "keep_current" || isWorkflowDestination(value)),
   operation_id: z.uuid().optional(), assigned_staff_id: z.uuid().nullable().optional(), action: z.enum(["approve","return","delete","not_duplicate"]).optional(), delete_client_id: z.uuid().optional(), delete_reason: z.string().trim().max(500).optional(),
   note: z.string().trim().max(2000).default(""), expected_client_version: z.string().min(10).max(100).nullable().optional(),
 });

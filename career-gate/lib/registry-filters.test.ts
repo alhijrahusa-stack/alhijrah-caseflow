@@ -8,10 +8,21 @@ describe("registry filter contract",()=>{
     expect(parseRegistryFilters(new URLSearchParams("assigned=none"),false)).toMatchObject({view:"active",stage:"new_intake",assigned:undefined});
     expect(parseRegistryFilters(new URLSearchParams("view=all&stage=account_setup"),true)).toMatchObject({view:"active",stage:"account_setup"});
   });
-  it("keeps Urgent exclusive through search, saved filters and export parameters",()=>{
-    const params = new URLSearchParams("view=all&stage=urgent&q=Ahmed&page=7&status=screening_pending");
-    expect(parseRegistryFilters(params,false)).toMatchObject({view:"active",stage:"urgent",q:"Ahmed",page:7,status:"screening_pending"});
-    expect(registryFilterValues(params,false)).toEqual({view:"active",stage:"urgent",q:"Ahmed",status:"screening_pending"});
+  it("maps historical Urgent destinations to a stage-independent priority filter",()=>{
+    const params=new URLSearchParams("view=all&stage=urgent&q=Ahmed&page=7&status=screening_pending");
+    expect(parseRegistryFilters(params,false)).toMatchObject({view:"active",stage:undefined,urgent:true,q:"Ahmed",page:7,status:"screening_pending"});
+    expect(registryFilterValues(params,false)).toEqual({view:"active",urgent:"1",q:"Ahmed",status:"screening_pending"});
+    expect(parseRegistryFilters(new URLSearchParams("stage=account_setup&urgent=1"),false)).toMatchObject({stage:"account_setup",urgent:true});
+  });
+  it("keeps legacy completed files visible by default and filters years only when explicitly selected",()=>{
+    expect(parseRegistryFilters(new URLSearchParams("view=completed"),true)).toMatchObject({view:"completed",year:undefined,confirmation:undefined});
+    expect(registryFilterValues(new URLSearchParams("view=completed&year=2026&confirmation=confirmed&sort=started_desc&q=Ali"),true)).toEqual({view:"completed",year:"2026",confirmation:"confirmed",sort:"started_desc",q:"Ali"});
+    expect(parseRegistryFilters(new URLSearchParams("view=completed&year=20x6&confirmation=anything&sort=sql"),true)).toMatchObject({view:"completed",year:undefined,confirmation:undefined,sort:undefined});
+    expect(parseRegistryFilters(new URLSearchParams("view=completed&assigned=none"),true)).toMatchObject({view:"completed",assigned:"none"});
+  });
+  it("groups payment and paperwork without inventing a new manual destination",()=>{
+    expect(registryFilterValues(new URLSearchParams("group=paperwork&q=Ali"),true)).toEqual({view:"active",group:"paperwork",q:"Ali"});
+    expect(parseRegistryFilters(new URLSearchParams("urgent=1"),false)).toMatchObject({view:"active",stage:undefined,urgent:true});
   });
   it("whitelists saved filter fields, validates owner IDs and removes pagination",()=>{
     expect(registryFilterValues(new URLSearchParams("view=all&assigned=anything&page=4&sql=drop&q=Ahmed&status=bogus"),true)).toEqual({view:"all",q:"Ahmed"});

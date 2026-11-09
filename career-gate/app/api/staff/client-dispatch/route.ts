@@ -7,6 +7,7 @@ import { traceIdFrom } from "@/lib/obs";
 import { ActionError } from "@/lib/service";
 import { staffGuard } from "@/lib/staff-api";
 import { staffOperation } from "@/lib/staff-operation";
+import { setClientUrgency } from "@/lib/client-priority";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -39,18 +40,10 @@ export async function POST(req:Request){
  const trace=traceIdFrom(req),guard=await staffGuard(req,trace,{mutation:true});if(guard.response)return response(guard.response);
  const parsed=Input.safeParse(await req.json().catch(()=>null));if(!parsed.success)return response(err('invalid_input','Invalid dispatch request',400,trace));
  try{const input=parsed.data;if(input.operation==='duplicate_review'&&!(await permissionAllows(guard.session,'add_task')))throw new ActionError('forbidden','Review task permission required',403);
+  if(input.operation==='urgent'&&!(await permissionAllows(guard.session,'update_client')))throw new ActionError('forbidden','Client update permission required',403);
   const result=await withStaff(guard.session,tx=>staffOperation(tx,guard.session,input.operation_id,'client_dispatch',input,async()=>{
    if(input.operation==='duplicate_review')return submitClientReview(tx,guard.session,{...input,request_key:input.operation_id},trace);
-   const [client]=await tx`select id,is_urgent,manager_review_id,operational_location,updated_at::text updated_at from clients where id=${input.client_id} and deleted_at is null for update`;
-   if(!client)throw new ActionError('not_found','Client unavailable or not assigned to you',404);
-   if(client.manager_review_id)throw new ActionError('manager_review_pending','This file is awaiting a manager decision',409);
-   if(['completed','cancelled'].includes(String(client.operational_location)))throw new ActionError('closed_case','Move the file to an active workflow section before marking it Urgent',409);
-   if(input.expected_updated_at&&input.expected_updated_at!==client.updated_at)throw new ActionError('client_changed','This file changed. Refresh before moving it.',409);
-   if(client.is_urgent!==input.urgent){await tx`update clients set is_urgent=${input.urgent} where id=${input.client_id}`;
-    await tx`insert into activity_log(client_id,action,staff_id,entity_type,entity_id,old_value,new_value,trace_id)
-     values(${input.client_id},'client_updated',${guard.session.staff.id},'client',${input.client_id},${tx.json({is_urgent:client.is_urgent,operational_location:client.operational_location})},${tx.json({operation:'client_dispatch',is_urgent:input.urgent})},${trace})`;}
-   const [next]=await tx`select id,is_urgent,manager_review_id,operational_location,updated_at::text updated_at from clients where id=${input.client_id}`;
-   return {client:next,changed:client.is_urgent!==input.urgent};
+   return setClientUrgency(tx,guard.session,input,trace);
   }));return response(ok(result,200,trace));
  }catch(e){return response(failure(e,trace));}
 }

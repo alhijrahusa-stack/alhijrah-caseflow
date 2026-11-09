@@ -2,63 +2,49 @@
 
 import Link from "next/link";
 import type { PointerEvent } from "react";
+import { useWorkspaceSearch } from "@/components/staff/WorkspaceSearchProvider";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
-import { CLIENT_STAGES, type ClientStageFilter } from "@/lib/client-lifecycle-filters";
+import { LiveWorkflowCount } from "@/components/staff/LiveWorkflowCount";
+import { ACTIVE_WORKFLOW_GROUPS, WORKFLOW_DESTINATIONS, type WorkflowGroupId } from "@/lib/workflow-registry";
 
-function StageIcon({ stage }: { stage: ClientStageFilter }) {
+function StageIcon({ group }: { group: WorkflowGroupId }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {stage === "new_intake" ? <><path d="M4 5h16v15H4zM4 12h5l2 3h2l2-3h5" /><path d="M9 8h6" /></> :
-      stage === "account_setup" ? <><circle cx="9" cy="8" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M19 8v6M16 11h6" /></> :
-      stage === "job_ready" ? <><rect x="3" y="7" width="18" height="14" rx="3" /><path d="M8 7V4h8v3M3 12l9 4 9-4M12 14v4" /></> :
-      stage === "urgent" ? <path d="m13 2-9 12h7l-1 8 10-13h-8l1-7Z" /> :
-      stage === "appointments" ? <><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M7 3v4M17 3v4M3 10h18M8 14h2M14 14h2M8 18h2" /></> :
-      stage === "payment_required" ? <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M3 10h18M7 15h3M15 15h2" /></> :
-      stage === "paperwork_pending" ? <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></> :
-      <><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></>}
+    {group === "intake" ? <><path d="M4 5h16v15H4zM4 12h5l2 3h2l2-3h5"/><path d="M9 8h6"/></> :
+      group === "account" ? <><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M19 8v6M16 11h6"/></> :
+      group === "job" ? <><rect x="3" y="7" width="18" height="14" rx="3"/><path d="M8 7V4h8v3M3 12l9 4 9-4M12 14v4"/></> :
+      group === "appointments" ? <><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4M17 3v4M3 10h18M8 14h2M14 14h2M8 18h2"/></> :
+      <><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h3M15 15h2"/></>}
   </svg>;
 }
-
-// Specialized desks remain available in navigation and every routing control;
-// this compact dock keeps the eight primary lifecycle stations.
-const dockStages = CLIENT_STAGES.filter(station => station.id !== "worksite_change");
-const descriptions: Record<Exclude<ClientStageFilter, "worksite_change">, readonly [string, string]> = {
-  new_intake: ["Review incoming files", "مراجعة الملفات الواردة"],
-  account_setup: ["Prepare client accounts", "تجهيز حسابات العملاء"],
-  job_ready: ["View job-ready files", "عرض الملفات الجاهزة للوظيفة"],
-  urgent: ["Open priority files", "فتح ملفات الأولوية"],
-  appointments: ["Manage interviews", "إدارة المقابلات"],
-  payment_required: ["Follow up payment", "متابعة الدفع"],
-  paperwork_pending: ["Complete final documents", "استكمال الوثائق النهائية"],
-  completed: ["Review completed files", "عرض الملفات المكتملة"],
-};
-
 function moveSpotlight(event: PointerEvent<HTMLAnchorElement>) {
   if (event.pointerType !== "mouse" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const element = event.currentTarget;
-  const bounds = element.getBoundingClientRect();
-  element.style.setProperty("--registry-spot-x", `${event.clientX - bounds.left}px`);
-  element.style.setProperty("--registry-spot-y", `${event.clientY - bounds.top}px`);
+  const bounds=event.currentTarget.getBoundingClientRect();
+  event.currentTarget.style.setProperty("--registry-spot-x",`${event.clientX-bounds.left}px`);
+  event.currentTarget.style.setProperty("--registry-spot-y",`${event.clientY-bounds.top}px`);
 }
-
 function resetSpotlight(event: PointerEvent<HTMLAnchorElement>) {
-  event.currentTarget.style.removeProperty("--registry-spot-x");
-  event.currentTarget.style.removeProperty("--registry-spot-y");
+  event.currentTarget.style.removeProperty("--registry-spot-x");event.currentTarget.style.removeProperty("--registry-spot-y");
 }
 
-export function ClientStageDock({ stage, counts }: { stage?: string; counts?: Record<string, number> }) {
+/** Only the five active groups live here. The final registry is sidebar-only. */
+export function ClientStageDock({ stage, group, counts, urgentCounts }: { stage?: string;group?:string;counts?:Record<string,number>;urgentCounts?:Record<string,number> }) {
   const { t } = useStaffLanguage();
-  return <nav aria-label={t("Operational client lifecycle stages", "أقسام مسار عمل العملاء")} className="registry-stage-dock" data-testid="client-stage-dock">
-    {dockStages.map(station => {
-      const count = counts?.[station.id];
-      const description = descriptions[station.id];
-      return <Link key={station.id} prefetch={false} href={station.href} aria-current={stage === station.id ? "page" : undefined}
-        className={`cg-stage-tab registry-stage-tab ${station.id === "urgent" ? "cg-urgent-tab" : ""}`}
-        data-stage={station.id} data-alert={station.id === "urgent" && count != null && count > 0}
-        onPointerMove={moveSpotlight} onPointerLeave={resetSpotlight}>
-        <span className="registry-stage-top"><span className="registry-stage-icon"><StageIcon stage={station.id}/></span><strong className="registry-stage-count">{count == null ? "—" : count.toLocaleString("en-US")}</strong></span>
-        <span className="registry-stage-label">{t(station.label, station.labelAr)}</span>
-        <span className="registry-stage-detail">{t(description[0], description[1])}</span>
-      </Link>;
+  const { prepareNavigation } = useWorkspaceSearch();
+  return <nav aria-label={t("Operational client lifecycle stages","أقسام مسار عمل العملاء")} className="registry-stage-dock registry-active-stage-dock" data-testid="client-stage-dock">
+    {ACTIVE_WORKFLOW_GROUPS.map(item=>{
+      const total=counts ? item.destinations.reduce((sum,id)=>sum+(counts[id]??0),0) : undefined;
+      const priority=item.destinations.reduce((sum,id)=>sum+(urgentCounts?.[id]??0),0);
+      const current=group===item.id || item.destinations.some(id=>id===stage);
+      return <div key={item.id} className="registry-stage-group">
+        <Link prefetch={false} href={item.href} onNavigate={()=>prepareNavigation(item.href)} aria-current={current?"page":undefined} className="cg-stage-tab registry-stage-tab" data-stage={item.id} onPointerMove={moveSpotlight} onPointerLeave={resetSpotlight}>
+          <span className="registry-stage-top"><span className="registry-stage-icon"><StageIcon group={item.id}/></span><strong className="registry-stage-count"><LiveWorkflowCount value={total}/></strong></span>
+          <span className="registry-stage-label">{t(item.label,item.labelAr)}</span>
+          {priority>0 && <span className="registry-stage-urgent" aria-label={t(`${priority} urgent in this section`,`${priority} ملفات عاجلة في هذا القسم`)}>✦ {priority}</span>}
+        </Link>
+        {item.id === "paperwork" && <div className="registry-payment-leaves" aria-label={t("Payment and paperwork sections","أقسام الدفع والوثائق")}>
+          {WORKFLOW_DESTINATIONS.filter(destination=>destination.groupId==="paperwork").map(destination=><Link prefetch={false} key={destination.id} href={destination.href} onNavigate={()=>prepareNavigation(destination.href)} aria-current={stage===destination.id?"page":undefined}>{t(destination.label,destination.labelAr)} <span>{counts?.[destination.id]??"—"}</span></Link>)}
+        </div>}
+      </div>;
     })}
   </nav>;
 }

@@ -92,10 +92,13 @@ describe("direct manual workflow routing", () => {
       ["completed", "completed_files"],
       ["pre_hire_completed", "worksite_change"],
     ];
-    for (const status of STATUSES) for (const [index, stage] of CLIENT_STAGES.filter(s=>s.id!=="urgent").entries()) {
+    for (const status of STATUSES) for (const [index, stage] of CLIENT_STAGES.entries()) {
       expect(resolveOverrideRoute(stage.id, status)).toMatchObject({ status: expected[index][0], pipelineStage: expected[index][1] });
-      expect(resolveOverrideRoute("urgent",status)).toMatchObject({status,pipelineStage:""});
+      expect(() => resolveOverrideRoute("urgent",status)).toThrow("priority flag");
     }
     expect(() => resolveOverrideRoute("job_ready", "unknown")).toThrow("invalid");
+  });
+  it("rejects priority as an evidence-based routing destination", () => {
+    expect(() => resolveLifecycleRoute("urgent", evidence)).toThrow("priority flag");
   });
 });

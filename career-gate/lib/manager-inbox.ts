@@ -1,7 +1,7 @@
 import "server-only";
 import { withStaff, type StaffSession, type Tx } from "@/lib/auth";
 import { permissionAllows } from "@/lib/authz";
-import { CLIENT_STAGES, type ClientStageFilter } from "@/lib/client-lifecycle-filters";
+import { CLIENT_STAGES, isWorkflowDestination, type ClientStageFilter } from "@/lib/client-lifecycle-filters";
 import { moveWorkflowClient } from "@/lib/manual-workflow";
 import { reportIntelligence, type ReportPeriod } from "@/lib/reports";
 import { ActionError } from "@/lib/service";
@@ -78,7 +78,7 @@ export async function managerInbox(s:StaffSession,requestedPage=1,filters:Manage
   const [summary]=await tx`select
     career_gate_private.active_smart_client_count() smart_client,
     (select count(*)::int from clients where operational_location in ('new_intake','account_setup','job_ready','appointments','payment_required','paperwork_pending')) clients,
-    (select count(*)::int from clients where operational_location='urgent') urgent,
+    (select count(*)::int from clients where deleted_at is null and is_urgent and current_status not in ('completed','cancelled')) urgent,
     (select count(*)::int from manager_inbox i where ${paymentRequired}) payment_issues,
     (select count(*)::int from manager_inbox where status='open') awaiting_review`;
   const senders=await tx`select distinct s.id,s.display_name from manager_inbox i join staff s on s.id=i.submitted_by order by s.display_name`;
@@ -126,6 +126,7 @@ export async function submitManagerReview(s:StaffSession,input:SubmitManagerRevi
 
 export async function resolveManagerReview(s:StaffSession,input:ResolveManagerReview,traceId:string){
  requireManagement(s);
+ if(input.destination!=="keep_current"&&!isWorkflowDestination(input.destination))throw new ActionError("invalid_destination","Choose a workflow destination; Urgent is a priority flag",400);
  return withStaff(s,tx=>staffOperation(tx,s,input.operation_id,'manager_review_resolve',input,async()=>{
   const [item]=await tx`select * from manager_inbox where id=${input.id} for update`;
   if(!item)throw new ActionError('not_found','Review request is unavailable',404);

@@ -6,9 +6,11 @@ import { CLIENT_STAGES } from "@/lib/client-lifecycle-filters";
 import { g3StageForStatus } from "@/lib/g3-stages";
 import { useTargetedMutationBatch } from "@/components/staff/realtime/useTargetedMutation";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
+import { useToast } from "@/components/ui/Toast";
 
 export function ClientWorkflowControl({ clientId, status, compact=false }: { clientId:string; status:string; compact?:boolean }) {
   const { t, dir, language } = useStaffLanguage();
+  const toast = useToast();
   const [open,setOpen]=useState(!compact);
   const [target,setTarget]=useState("");
   const [reason,setReason]=useState("");
@@ -25,7 +27,8 @@ export function ClientWorkflowControl({ clientId, status, compact=false }: { cli
       const data=await response.json().catch(()=>null);
       if (!response.ok || !data?.ok) throw new Error(data?.error?.message??t("Workflow update failed", "تعذر تحديث المسار"));
       const stage=CLIENT_STAGES.find(item=>item.id===target);
-      setMessage(data.changed?t(`Moved to ${stage?.label}`, `تم النقل إلى ${stage?.labelAr}`):t("Already in the selected stage", "الملف في المرحلة المختارة بالفعل"));
+      const notice=data.changed?t(`Moved to ${stage?.label}`, `تم النقل إلى ${stage?.labelAr}`):t("Already in the selected stage", "الملف في المرحلة المختارة بالفعل");
+      setMessage(notice);toast("success",notice);
       setReason("");changed("bulk_assign",[clientId]);
     } catch(error) {setFailed(true);setMessage(error instanceof Error?error.message:t("Connection failed", "تعذر الاتصال"));}
     finally {submitting.current=false;setBusy(false);}

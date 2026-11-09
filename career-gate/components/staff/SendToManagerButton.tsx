@@ -1,25 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { GlassReviewDialog } from "@/components/staff/smart/GlassReviewDialog";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
+import { useToast } from "@/components/ui/Toast";
 import { publishMutation } from "@/components/staff/realtime/update-bus";
 import styles from "@/components/staff/ManagerTaskCenter.module.css";
 import "@/components/staff/smart/royal-intake.css";
 
 export function SendToManagerButton({ clientId, reportPeriod }: { clientId?: string; reportPeriod?: 7 | 30 | 90 }) {
   const { t } = useStaffLanguage();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const requestKey = useRef("");
-  useEffect(() => {
-    if (!notice) return;
-    const timer = setTimeout(() => setNotice(""), 5500);
-    return () => clearTimeout(timer);
-  }, [notice]);
   async function send() {
     if (pending) return;
     setPending(true); setError("");
@@ -29,7 +25,7 @@ export function SendToManagerButton({ clientId, reportPeriod }: { clientId?: str
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error?.message ?? t("The review could not be sent", "تعذر إرسال المراجعة"));
       setOpen(false); setNote("");
-      setNotice(result.created ? t("Sent to the manager's inbox", "تم الإرسال إلى صندوق وارد المدير") : t("This item is already waiting for manager review", "هذا الملف موجود بالفعل في انتظار مراجعة المدير"));
+      toast("success",result.created ? t("Sent to the manager's inbox", "تم الإرسال إلى صندوق وارد المدير") : t("This item is already waiting for manager review", "هذا الملف موجود بالفعل في انتظار مراجعة المدير"));
       publishMutation("manager_review_requested", clientId ?? null);
     } catch (cause) { setError(cause instanceof Error ? cause.message : t("Connection failed. Retry when online.", "تعذر الاتصال. أعد المحاولة عند عودة الشبكة.")); }
     finally { setPending(false); }
@@ -47,6 +43,5 @@ export function SendToManagerButton({ clientId, reportPeriod }: { clientId?: str
           <button className="ops-primary-button" disabled={pending}>{pending ? t("Sending…", "جارٍ الإرسال…") : t("Send review", "إرسال المراجعة")}</button></div>
       </form>
     </GlassReviewDialog>}
-    {notice && <p className={styles.toast} role="status">{notice}</p>}
   </>;
 }
