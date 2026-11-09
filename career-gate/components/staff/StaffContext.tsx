@@ -22,7 +22,8 @@ export function StaffProvider({ me, staff, children }: { me: Me; staff: StaffMem
   // A different staff identity gets its own pending batch; no data or request
   // promise is shared across staff-provider lifetimes.
   const requests = useMemo(() => ({ staffId: me.id, read: createClientResourceReader() }), [me.id]);
-  return <Ctx.Provider value={{ me, staff, readClientResources: requests.read }}>{children}</Ctx.Provider>;
+  const value = useMemo(() => ({ me, staff, readClientResources: requests.read }), [me, staff, requests.read]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useStaff() {

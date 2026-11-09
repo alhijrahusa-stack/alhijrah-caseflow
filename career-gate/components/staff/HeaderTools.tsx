@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
-import { useWorkspaceSearch } from "@/components/staff/WorkspaceSearchProvider";
+import { useWorkspaceCommandOpen } from "@/components/staff/WorkspaceSearchProvider";
 
 const MENU = [
   { href: "/staff/import", en: "Smart Career Collect Client", ar: "الاستقبال الذكي", icon: "✧" },
@@ -21,7 +21,7 @@ const MENU = [
 export function HeaderTools() {
   const { t } = useStaffLanguage();
   const pathname = usePathname();
-  const { modalOpen } = useWorkspaceSearch();
+  const modalOpen = useWorkspaceCommandOpen();
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);

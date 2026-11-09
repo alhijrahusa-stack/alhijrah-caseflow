@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, useTransition, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { allRegistrySearchHref, currentRegistrySearchHref, prepareWorkspaceSearchNavigation, reconcileWorkspaceSearchNavigation, workspaceSearchNavigationKey, REGISTRY_QUERY_EVENT, type WorkspaceSearchDraft, type WorkspaceSearchScope } from "@/lib/workspace-search";
 
@@ -13,6 +13,9 @@ type SearchContextValue = {
   currentHref: string; allHref: string;
 };
 const SearchContext = createContext<SearchContextValue | null>(null);
+type WorkspaceActions = Pick<SearchContextValue, "setQuery" | "setScope" | "setModalOpen" | "prepareNavigation" | "navigate">;
+const ActionsContext = createContext<WorkspaceActions | null>(null);
+const CommandOpenContext = createContext(false);
 
 /** A single draft for the one header field and its keyboard command surface. */
 export function WorkspaceSearchProvider({ children }: { children: ReactNode }) {
@@ -57,17 +60,21 @@ export function WorkspaceSearchProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [registry, draft.scope, draft.value, draft.navigating, modalOpen, committed, params, router]);
 
-  const navigate = (href: string, options: NavigateOptions = {}) => {
+  const navigate = useCallback((href: string, options: NavigateOptions = {}) => {
     prepareNavigation(href);
     startTransition(() => options.replace ? router.replace(href, { scroll: options.scroll }) : router.push(href, { scroll: options.scroll }));
-  };
-  return <SearchContext value={{
+  }, [prepareNavigation, router, startTransition]);
+  const setQuery = useCallback((value: string) => setDraft(current => ({ ...current, value: value.slice(0, 100), navigating: false })), [setDraft]);
+  const setScope = useCallback((scope: WorkspaceSearchScope) => setDraft(current => ({ ...current, scope: registry ? scope : "all", navigating: false })), [registry, setDraft]);
+  // Navigation consumers do not subscribe the glass shell to keystrokes,
+  // result loading or the router's transition state.
+  const actions = useMemo(() => ({ setQuery, setScope, setModalOpen, prepareNavigation, navigate }), [setQuery, setScope, setModalOpen, prepareNavigation, navigate]);
+  const search = useMemo<SearchContextValue>(() => ({
     query: draft.value, scope: draft.scope, registry, modalOpen, pending,
-    setQuery: value => setDraft(current => ({ ...current, value: value.slice(0, 100), navigating: false })),
-    setScope: scope => setDraft(current => ({ ...current, scope: registry ? scope : "all", navigating: false })),
-    setModalOpen, prepareNavigation, navigate,
+    ...actions,
     currentHref: currentRegistrySearchHref(params, draft.value), allHref: allRegistrySearchHref(draft.value),
-  }}>{children}</SearchContext>;
+  }), [draft.value, draft.scope, registry, modalOpen, pending, actions, params]);
+  return <ActionsContext value={actions}><CommandOpenContext value={modalOpen}><SearchContext value={search}>{children}</SearchContext></CommandOpenContext></ActionsContext>;
 }
 
 export function useWorkspaceSearch() {
@@ -75,3 +82,11 @@ export function useWorkspaceSearch() {
   if (!value) throw new Error("Workspace search provider missing");
   return value;
 }
+
+export function useWorkspaceActions() {
+  const value = useContext(ActionsContext);
+  if (!value) throw new Error("Workspace search provider missing");
+  return value;
+}
+
+export function useWorkspaceCommandOpen() { return useContext(CommandOpenContext); }
