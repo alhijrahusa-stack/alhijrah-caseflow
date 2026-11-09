@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import { acquireModalLayer, isTopModalLayer, releaseModalLayer } from "@/lib/modal-layer";
@@ -14,6 +14,7 @@ export function GlassReviewDialog({ title, children, onClose, wide = false, draw
   const ref = useRef<HTMLElement>(null);
   const token = useRef(Symbol("review-dialog"));
   const titleId = useId();
+  const [entering, setEntering] = useState(true);
   const close = useRef(onClose);
   useEffect(() => { close.current = onClose; }, [onClose]);
   useEffect(() => {
@@ -21,7 +22,7 @@ export function GlassReviewDialog({ title, children, onClose, wide = false, draw
     acquireModalLayer(id);
     const prior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const panel = ref.current;
-    panel?.focus();
+    panel?.focus({ preventScroll: true });
     const keydown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || !isTopModalLayer(id)) return;
       if (event.key === "Escape") { event.preventDefault(); close.current(); }
@@ -37,12 +38,12 @@ export function GlassReviewDialog({ title, children, onClose, wide = false, draw
       const wasTop = isTopModalLayer(id);
       releaseModalLayer(id);
       document.removeEventListener("keydown", keydown);
-      if (wasTop && prior?.isConnected) prior.focus();
+      if (wasTop && prior?.isConnected) prior.focus({ preventScroll: true });
     };
   }, []);
   if (typeof document === "undefined") return null;
   return createPortal(<div className={`cg-glass-dialog-layer ${drawer ? "is-drawer" : ""}`} onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section ref={ref} className={`cg-glass-dialog ${wide ? "is-wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+    <section ref={ref} className={`cg-glass-dialog ${wide ? "is-wide" : ""}`} data-entering={entering} onAnimationEnd={event => { if (event.target === event.currentTarget) setEntering(false); }} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
       <header><div><span className="cg-dialog-kicker">CAREER GATE · REVIEW</span><h2 id={titleId}>{title}</h2></div><button type="button" className="cg-review-button" aria-label={closeLabel ?? `${t("Close","إغلاق")} ${title}`} onClick={onClose}>✕</button></header>
       <div className="cg-glass-dialog-body">{children}</div>
     </section>

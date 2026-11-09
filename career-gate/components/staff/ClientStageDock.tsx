@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { PointerEvent } from "react";
-import { useWorkspaceSearch } from "@/components/staff/WorkspaceSearchProvider";
+import { useWorkspaceActions } from "@/components/staff/WorkspaceSearchProvider";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
 import { LiveWorkflowCount } from "@/components/staff/LiveWorkflowCount";
 import { ACTIVE_WORKFLOW_GROUPS, WORKFLOW_DESTINATIONS, type WorkflowGroupId } from "@/lib/workflow-registry";
@@ -29,7 +29,7 @@ function resetSpotlight(event: PointerEvent<HTMLAnchorElement>) {
 /** Only the five active groups live here. The final registry is sidebar-only. */
 export function ClientStageDock({ stage, group, counts, urgentCounts }: { stage?: string;group?:string;counts?:Record<string,number>;urgentCounts?:Record<string,number> }) {
   const { t } = useStaffLanguage();
-  const { prepareNavigation } = useWorkspaceSearch();
+  const { prepareNavigation } = useWorkspaceActions();
   return <nav aria-label={t("Operational client lifecycle stages","أقسام مسار عمل العملاء")} className="registry-stage-dock registry-active-stage-dock" data-testid="client-stage-dock">
     {ACTIVE_WORKFLOW_GROUPS.map(item=>{
       const total=counts ? item.destinations.reduce((sum,id)=>sum+(counts[id]??0),0) : undefined;

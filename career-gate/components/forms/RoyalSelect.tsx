@@ -95,11 +95,12 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
     const spaceAbove = rect.top - padding - 6;
     const flip = spaceBelow < 200 && spaceAbove > spaceBelow;
     const maxHeight = Math.max(100, Math.min(340, flip ? spaceAbove : spaceBelow));
-    setPosition({
+    const next = {
       left: Math.max(padding, Math.min(rect.left, window.innerWidth - width - padding)),
       top: rect.bottom + 6, bottom: window.innerHeight - rect.top + 6, flip,
       width, maxHeight, direction: getComputedStyle(trigger.current).direction,
-    });
+    };
+    setPosition(current => Object.entries(next).every(([key, value]) => current[key as keyof typeof current] === value) ? current : next);
   }, []);
 
   const show = () => {
@@ -113,14 +114,21 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
 
   useEffect(() => {
     if (!open) return;
+    let frame: number | null = null;
     const outside = (event: PointerEvent) => {
       if (!trigger.current?.contains(event.target as Node) && !popup.current?.contains(event.target as Node)) setOpen(false);
     };
-    const onViewport = () => { if (!inlineOptions) measure(); };
+    const onViewport = (event: Event) => {
+      // Internal option scrolling leaves the anchor in place. Measure at most
+      // once per frame when the viewport or an ancestor actually moves.
+      if (inlineOptions || (event.target instanceof Node && popup.current?.contains(event.target)) || frame !== null) return;
+      frame = requestAnimationFrame(() => { frame = null; measure(); });
+    };
     document.addEventListener("pointerdown", outside);
     window.addEventListener("resize", onViewport);
     window.addEventListener("scroll", onViewport, true);
     return () => {
+      if (frame !== null) cancelAnimationFrame(frame);
       document.removeEventListener("pointerdown", outside);
       window.removeEventListener("resize", onViewport);
       window.removeEventListener("scroll", onViewport, true);
@@ -195,7 +203,7 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
     }
   };
 
-  const optionsPopup = <div ref={popup} className={`royal-select-popup${inlineOptions ? " royal-select-popup-inline" : ""}`} dir={inlineOptions ? undefined : position.direction}
+  const optionsPopup = open && !disabled ? <div ref={popup} className={`royal-select-popup${inlineOptions ? " royal-select-popup-inline" : ""}`} dir={inlineOptions ? undefined : position.direction}
       style={inlineOptions ? undefined : { left: position.left, top: position.flip ? undefined : position.top, bottom: position.flip ? position.bottom : undefined, width: position.width, maxHeight: position.maxHeight }}>
       {canSearch && <div className="royal-select-search"><input ref={optionSearch} type="search" placeholder={t("Search options…", "ابحث في الخيارات…")} aria-label={t("Search options", "البحث في الخيارات")}
         aria-controls={listId} aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
@@ -209,7 +217,7 @@ export const RoyalSelect = forwardRef<HTMLButtonElement, RoyalSelectProps>(funct
           <span>{option.label}</span><span className="royal-select-radio" aria-hidden="true"/>
         </div>) : <p className="royal-select-empty">{t("No matching options", "لا توجد خيارات مطابقة")}</p>}
       </div>
-    </div>;
+    </div> : null;
 
   // Strip select-only DOM attributes; data-* attributes and ARIA remain on the trigger.
   const { onInvalid: _onInvalid, ...triggerProps } = rest;

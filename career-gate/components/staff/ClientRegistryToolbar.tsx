@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { RoyalOption, RoyalSelect } from "@/components/forms/RoyalSelect";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
-import { useWorkspaceSearch } from "@/components/staff/WorkspaceSearchProvider";
+import { useWorkspaceActions } from "@/components/staff/WorkspaceSearchProvider";
 import { STATUS_LABELS, STATUSES } from "@/lib/domain";
 import { registryFilterValues, registryHighlightParts, type RegistryFilters } from "@/lib/registry-filters";
 
@@ -18,7 +18,7 @@ export function ClientSearchHighlight({value,query}:{value:string;query:string})
 
 export function ClientRegistryToolbar({management,staff,views,employmentYears=[]}:{management:boolean;staff:{id:string;display_name:string}[];views:{href:string;en:string;ar:string;active:boolean}[];employmentYears?:number[]}) {
   const { t } = useStaffLanguage();
-  const { navigate, prepareNavigation } = useWorkspaceSearch();
+  const { navigate, prepareNavigation } = useWorkspaceActions();
   const searchParams = useSearchParams();
   const params = searchParams.toString();
   const [search,setSearch] = useState({ value:searchParams.get("q") ?? "", base:params });
