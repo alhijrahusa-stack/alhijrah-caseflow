@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 
 import { useEffect, useState } from "react";
@@ -96,10 +98,10 @@ export function GateJobAssignDialog({ onDone, onClose }: { onDone: () => void; o
           if (value.trim().length < 2) setClients([]);
         }} />
       </label>
-      {clients.length > 0 && <div className="mt-2 max-h-44 overflow-auto rounded-xl border border-white/[.07] bg-black/20 p-1">{clients.map((client) => <button key={client.id} type="button" onClick={() => { setSelected(client); setClientSearch(`${client.full_name} · ${client.ref}`); setClients([]); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-white/[.04]"><span>{client.full_name}</span><span className="font-mono text-slate-500">{client.ref}</span></button>)}</div>}
+      {clients.length > 0 && <div className="mt-2 max-h-44 overflow-auto rounded-xl border border-white/[.07] bg-black/20 p-1">{clients.map((client) => <ActionButton key={client.id} type="button" onClick={() => { setSelected(client); setClientSearch(`${client.full_name} · ${client.ref}`); setClients([]); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-white/[.04]"><span>{client.full_name}</span><span className="font-mono text-slate-500">{client.ref}</span></ActionButton>)}</div>}
     </div>
     {selected && <div className="rounded-xl border border-cyan-300/15 bg-cyan-300/[.04] p-3"><p className="text-[9px] tracking-[.13em] text-cyan-300">EXACT CLIENT SELECTED</p><strong className="mt-1 block text-sm">{selected.full_name}</strong><span className="font-mono text-xs text-slate-500">{selected.ref} · {selected.id}</span></div>}
     {error && <p className="text-xs text-red-300" role="alert">{error}</p>}
-    <div className="flex justify-end gap-2"><button onClick={() => void cancel()} disabled={pending} className="rounded-xl border border-white/10 px-3 py-2 text-xs">CANCEL</button><button onClick={() => void confirm()} disabled={pending || !emailId || !selected} className="rounded-xl border border-amber-200/30 bg-gradient-to-r from-amber-500/90 to-yellow-300/85 px-4 py-2 text-xs font-bold text-[#171006] disabled:opacity-40">{pending ? "ASSIGNING…" : "CONFIRM ASSIGNMENT ✦"}</button></div>
+    <div className="flex justify-end gap-2"><ActionButton onClick={() => cancel()} disabled={pending} className="rounded-xl border border-white/10 px-3 py-2 text-xs">CANCEL</ActionButton><ActionButton onClick={() => confirm()} disabled={pending || !emailId || !selected} className="rounded-xl border border-amber-200/30 bg-gradient-to-r from-amber-500/90 to-yellow-300/85 px-4 py-2 text-xs font-bold text-[#171006] disabled:opacity-40">{pending ? "ASSIGNING…" : "CONFIRM ASSIGNMENT ✦"}</ActionButton></div>
   </div>;
 }

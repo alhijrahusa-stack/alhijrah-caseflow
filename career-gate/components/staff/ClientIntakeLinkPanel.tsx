@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useState } from "react";
 
 /**
@@ -100,33 +102,33 @@ export function ClientIntakeLinkPanel() {
       <label className="mt-3.5 grid max-w-lg gap-1.5 text-[12px] font-medium text-slate-200"><span>Existing Smart Import Case Number (optional)</span><input type="text" value={existingCase} onChange={(event) => setExistingCase(event.target.value.toUpperCase().slice(0,20))} placeholder="CG-2026-000001 · Leave blank for a new client" aria-label="Existing Smart Import Case Number" data-testid="link-existing-case-number" className="min-h-[48px] min-w-0 rounded-xl border border-[#c5a059]/40 bg-[#041122]/65 px-3 font-mono text-[14px] text-white placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-[#c5a059]"/></label>
       <p className="mt-1.5 text-[11px] text-slate-400">Enter the existing case to update that file without issuing a new Case Number. Leave blank only for a new client.</p>
       <div className="mt-3.5 flex flex-wrap gap-2">
-        <button
+        <ActionButton
           type="button"
-          onClick={() => void generate()}
+          onClick={() => generate()}
           disabled={busy}
           data-testid="generate-client-link"
           className="min-h-[40px] rounded-xl border border-[#e3c884]/35 bg-[#e3c884]/[.12] px-3.5 text-[12px] font-semibold text-[#f6e6b8] transition hover:bg-[#e3c884]/[.18] disabled:opacity-55"
         >
           {busy && !link ? "Generating…" : "GENERATE CLIENT LINK"}
-        </button>
-        <button
+        </ActionButton>
+        <ActionButton
           type="button"
-          onClick={() => void copy()}
+          onClick={() => copy()}
           disabled={!link || status === "REVOKED"}
           data-testid="copy-client-link"
           className="min-h-[40px] rounded-xl border border-white/[.09] bg-white/[.03] px-3.5 text-[12px] font-semibold text-slate-200 transition hover:bg-white/[.06] disabled:opacity-40"
         >
           {copied ? "COPIED" : "COPY LINK"}
-        </button>
-        <button
+        </ActionButton>
+        <ActionButton
           type="button"
-          onClick={() => void revoke()}
+          onClick={() => revoke()}
           disabled={!link || busy || status === "REVOKED"}
           data-testid="revoke-client-link"
           className="min-h-[40px] rounded-xl border border-white/[.09] bg-white/[.03] px-3.5 text-[12px] font-semibold text-slate-300 transition hover:border-red-300/30 hover:text-red-200 disabled:opacity-40"
         >
           REVOKE
-        </button>
+        </ActionButton>
       </div>
 
       {link && (

@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 
 
@@ -32,7 +34,7 @@ export function AvailabilitySettings({ windows, blocked }: { windows: R[]; block
                 <tr key={x.id} data-testid="availability-row">
                   <td>{resourceName(x.resource_key)}</td><td>{DAYS[x.weekday]}</td><td>{String(x.start_time).slice(0, 5)}–{String(x.end_time).slice(0, 5)}</td>
                   <td>{x.slot_minutes} min</td><td>{x.appointment_type ?? "Any"}</td>
-                  <td><button type="button" className="rounded border border-slate-300 px-2 py-0.5 text-xs" onClick={() => a.run({ action: "delete_availability", id: x.id })}>Remove</button></td>
+                  <td><ActionButton type="button" className="rounded border border-slate-300 px-2 py-0.5 text-xs" onClick={() => a.run({ action: "delete_availability", id: x.id })}>Remove</ActionButton></td>
                 </tr>
               ))}
             </tbody>
@@ -55,7 +57,7 @@ export function AvailabilitySettings({ windows, blocked }: { windows: R[]; block
             {blocked.map((x) => (
               <li key={x.id} className="flex items-center justify-between py-2">
                 <span>{resourceName(x.resource_key)} · {dateTime(x.starts_at)} – {dateTime(x.ends_at)} · {x.reason}</span>
-                <button type="button" className="rounded border border-slate-300 px-2 py-0.5 text-xs" onClick={() => a.run({ action: "remove_blocked_period", id: x.id })}>Remove</button>
+                <ActionButton type="button" className="rounded border border-slate-300 px-2 py-0.5 text-xs" onClick={() => a.run({ action: "remove_blocked_period", id: x.id })}>Remove</ActionButton>
               </li>
             ))}
           </ul>

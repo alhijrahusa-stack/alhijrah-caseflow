@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
 
 
@@ -259,9 +261,9 @@ export function ClientFile({
       {!c.deleted_at && <div className="flex flex-wrap items-start justify-between gap-3"><ClientDispatchActions clientId={String(c.id)} isUrgent={c.is_urgent === true} managerReviewId={c.manager_review_id} updatedAt={String(c.updated_at)} operationalLocation={c.operational_location} management={isManager}/>{!c.manager_review_id && <SendToManagerButton clientId={String(c.id)} />}</div>}
       <div className="cg-profile-tabs" aria-label={uiLabel("Client file sections")}>
         {tabs.map((item) => (
-          <button key={item.id} type="button" className="staff-tab cg-profile-tab whitespace-nowrap" data-active={selectedTab === item.id} aria-busy={selectedTab === item.id && tab !== item.id} onClick={() => replaceTab(item.id)}>
+          <ActionButton key={item.id} type="button" className="staff-tab cg-profile-tab whitespace-nowrap" data-active={selectedTab === item.id} aria-busy={selectedTab === item.id && tab !== item.id} onClick={() => replaceTab(item.id)}>
             {uiLabel(item.label)}{item.count != null && <span className="ml-1.5 font-mono text-[9px] text-slate-600">{item.count}</span>}
-          </button>
+          </ActionButton>
         ))}
       </div>
 
@@ -270,12 +272,12 @@ export function ClientFile({
           <span className="cg-command-context" aria-hidden="true"><StaffLabel en="COMMAND"/></span>
           <Link href={`/staff/client/${c.id}/edit`} aria-label={uiLabel("Edit Client")} className="cg-command-button cg-command-primary"><StaffLabel en="Correct Data"/></Link>
           {orderedQuick.filter(([, , allowed]) => allowed).map(([p, label], index) => (
-            <button key={p} type="button" disabled={!isMounted} onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
+            <ActionButton key={p} type="button" disabled={!isMounted} onClick={panel === p ? close : openPanel(p)} aria-expanded={panel === p}
               data-promoted={index < promoted.length}
               className={`cg-command-button ${panel === p ? "cg-command-active" : ""}`}>
               <span className="cg-command-signal" aria-hidden="true" />
               {uiLabel(label)}
-            </button>
+            </ActionButton>
           ))}
           <Link href={`/staff/client/${c.id}/status-preview`} className="cg-command-button" data-testid="open-status-page"><StaffLabel en="Open Status Page"/></Link>
         </div>

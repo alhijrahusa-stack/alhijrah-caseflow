@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
 
 
@@ -64,7 +66,7 @@ function Compensation({ staff }: { staff: S }) {
     <RoyalSelect className="input w-24 py-1" value={type} disabled={busy} onChange={(e) => setType(e.target.value as "fixed" | "percent")}><RoyalOption labelAr="ثابت" value="fixed">fixed</RoyalOption><RoyalOption labelAr="نسبة مئوية" value="percent">percent</RoyalOption></RoyalSelect>
     <input className="input w-24 py-1" inputMode="decimal" value={value} disabled={busy} onChange={(e) => setValue(e.target.value)} aria-label={`Commission for ${staff.display_name}`} />
     <label className="flex items-center gap-1.5 rounded-lg border border-white/[.07] px-2 py-1.5 text-[10px] text-slate-400"><input type="checkbox" checked={eligible} disabled={busy} onChange={(e) => setEligible(e.target.checked)} />{" "}<StaffLabel en="Round-robin"/></label>
-    <button type="button" className="rounded-lg border border-white/[.09] px-2.5 py-1.5 text-[10px] text-slate-300 hover:bg-white/[.05]" disabled={busy} onClick={() => void save()}>{busy ? uiLabel("Saving…") : uiLabel("Save")}</button>
+    <ActionButton type="button" className="rounded-lg border border-white/[.09] px-2.5 py-1.5 text-[10px] text-slate-300 hover:bg-white/[.05]" disabled={busy} onClick={() => save()}>{busy ? uiLabel("Saving…") : uiLabel("Save")}</ActionButton>
     {state === "saved" && <span className="text-[9px] text-emerald-400"><StaffLabel en="Saved"/></span>}{state === "error" && <span className="text-[9px] text-red-400"><StaffLabel en="Check value"/></span>}
   </div>;
 }
@@ -101,7 +103,7 @@ function PermissionEditor({ staff, registry }: { staff: S; registry: string[] })
       <RoyalSelect aria-label={`Permission mode for ${staff.display_name}`} className="input w-28 py-1" value={mode} disabled={busy} onChange={(e) => setMode(e.target.value as "full" | "custom")}>
         <RoyalOption labelAr="صلاحيات الموظف الكاملة" value="full">Full staff</RoyalOption><RoyalOption labelAr="مخصص" value="custom">Custom</RoyalOption>
       </RoyalSelect>
-      <button type="button" className="rounded-lg border border-amber-300/30 bg-amber-300/10 px-2.5 py-1.5 text-[10px] font-semibold text-amber-200" disabled={busy} onClick={() => void save()}>{busy ? uiLabel("Saving…") : uiLabel("Save permissions")}</button>
+      <ActionButton type="button" className="rounded-lg border border-amber-300/30 bg-amber-300/10 px-2.5 py-1.5 text-[10px] font-semibold text-amber-200" disabled={busy} onClick={() => save()}>{busy ? uiLabel("Saving…") : uiLabel("Save permissions")}</ActionButton>
       {message && <span role="status" className={message === "Saved" ? "text-[10px] text-emerald-300" : "text-[10px] text-red-300"}>{message}</span>}
     </div>
     {mode === "custom" && <div className="grid max-h-40 grid-cols-2 gap-1 overflow-auto rounded-xl border border-white/[.07] bg-slate-950/30 p-2">
@@ -129,7 +131,7 @@ export function TeamSettings({ staff, meId, canManageRoles, staffEligiblePermiss
           <td>{s.linked ? uiLabel("Linked") : uiLabel("Not linked")}</td><td>{s.active ? uiLabel("Active") : uiLabel("Disabled")}</td>
           <td><PermissionEditor staff={s} registry={staffEligiblePermissions} /></td>
           <td>{canManageRoles ? <Compensation staff={s} /> : <span className="text-xs text-slate-500"><StaffLabel en="Admin only"/></span>}</td>
-          <td className="space-x-1 whitespace-nowrap">{canManageRoles && <>{s.active ? <button type="button" className="rounded border border-white/[.1] px-2 py-0.5 text-xs" disabled={a.pending || s.id === meId} onClick={() => a.run({ action: "disable_staff", staff_id: s.id })}><StaffLabel en="Disable"/></button> : <button type="button" className="rounded border border-white/[.1] px-2 py-0.5 text-xs" disabled={a.pending} onClick={() => a.run({ action: "reactivate_staff", staff_id: s.id })}><StaffLabel en="Reactivate"/></button>}{!s.linked && s.email && <button type="button" className="rounded border border-white/[.1] px-2 py-0.5 text-xs" disabled={a.pending} onClick={() => a.run({ action: "invite_staff", staff_id: s.id })}><StaffLabel en="Invite"/></button>}</>}</td>
+          <td className="space-x-1 whitespace-nowrap">{canManageRoles && <>{s.active ? <ActionButton type="button" className="rounded border border-white/[.1] px-2 py-0.5 text-xs" disabled={a.pending || s.id === meId} onClick={() => a.run({ action: "disable_staff", staff_id: s.id })}><StaffLabel en="Disable"/></ActionButton> : <ActionButton type="button" className="rounded border border-white/[.1] px-2 py-0.5 text-xs" disabled={a.pending} onClick={() => a.run({ action: "reactivate_staff", staff_id: s.id })}><StaffLabel en="Reactivate"/></ActionButton>}{!s.linked && s.email && <ActionButton type="button" className="rounded border border-white/[.1] px-2 py-0.5 text-xs" disabled={a.pending} onClick={() => a.run({ action: "invite_staff", staff_id: s.id })}><StaffLabel en="Invite"/></ActionButton>}</>}</td>
         </tr>)}</tbody>
       </table>
     </div>

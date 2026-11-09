@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { publishMutation } from "@/components/staff/realtime/update-bus";
@@ -36,14 +38,14 @@ export function AlertActions({ id, clientId = null }: { id: string; clientId?: s
   return (
     <div className="space-y-1">
       <div className="flex gap-1">
-        <button type="button" disabled={pending} className="rounded border border-slate-300 px-2 py-0.5 text-xs" onClick={() => { setMode("resolve"); setText(""); }}>Resolve</button>
-        <button type="button" disabled={pending} className="rounded border border-slate-300 px-2 py-0.5 text-xs" onClick={() => { setMode("ignore"); setText(""); }}>Ignore</button>
+        <ActionButton type="button" disabled={pending} className="rounded border border-slate-300 px-2 py-0.5 text-xs" onClick={() => { setMode("resolve"); setText(""); }}>Resolve</ActionButton>
+        <ActionButton type="button" disabled={pending} className="rounded border border-slate-300 px-2 py-0.5 text-xs" onClick={() => { setMode("ignore"); setText(""); }}>Ignore</ActionButton>
       </div>
       {mode && (
         <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
           <input aria-label={mode === "ignore" ? "Ignore reason" : "Resolution note"} required={mode === "ignore"} disabled={pending} className="input py-1 text-xs"
             placeholder={mode === "ignore" ? "Reason (required)" : "Note (optional)"} value={text} onChange={(e) => setText(e.target.value)} />
-          <button className="rounded bg-brand-600 px-2 text-xs text-white" disabled={pending}>Save</button>
+          <ActionButton className="rounded bg-brand-600 px-2 text-xs text-white" disabled={pending}>Save</ActionButton>
         </form>
       )}
     </div>

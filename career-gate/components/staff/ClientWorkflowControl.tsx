@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useRef, useState } from "react";
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 import { CLIENT_STAGES } from "@/lib/client-lifecycle-filters";
@@ -34,11 +36,11 @@ export function ClientWorkflowControl({ clientId, status, compact=false }: { cli
     finally {submitting.current=false;setBusy(false);}
   }
   return <div className="cg-workflow-control" dir={dir}>
-    <button type="button" className="cg-command-button" aria-expanded={open} onClick={()=>setOpen(value=>!value)}>↗ {t("Workflow routing", "توجيه المسار")} <span className="text-xs text-cyan-200" dir="ltr">{g3StageForStatus(status)}</span></button>
+    <ActionButton type="button" className="cg-command-button" aria-expanded={open} onClick={()=>setOpen(value=>!value)}>↗ {t("Workflow routing", "توجيه المسار")} <span className="text-xs text-cyan-200" dir="ltr">{g3StageForStatus(status)}</span></ActionButton>
     {open&&<div className={compact?"mt-3 grid gap-3":"mt-3 grid gap-3 sm:grid-cols-[1fr_2fr_auto]"}>
       <label className="text-xs text-slate-300">{t("Destination", "الوجهة")}<RoyalSelect inlineOptions={compact} aria-label={t("Workflow destination", "وجهة المسار")} className="input mt-1 w-full" value={target} disabled={busy} onChange={event=>{setTarget(event.target.value);setMessage("");}}><RoyalOption value="" labelAr="اختر الوجهة">Choose destination</RoyalOption>{CLIENT_STAGES.map(stage=><RoyalOption key={stage.id} value={stage.id}>{language === "ar" ? stage.labelAr : stage.label}</RoyalOption>)}</RoyalSelect></label>
       <label className="text-xs text-slate-300">{t("Note (optional)", "ملاحظة (اختيارية)")}<input aria-label={t("Workflow note (optional)", "ملاحظة النقل (اختيارية)")} className="input mt-1 w-full" value={reason} disabled={busy} onChange={event=>setReason(event.target.value)} maxLength={500} dir="auto"/></label>
-      <button type="button" className="ops-primary-button self-end" onClick={submit} disabled={busy||!target}>{busy?t("Moving…", "جارٍ النقل…"):t("Move now ↗", "انقل الآن ↗")}</button>
+      <ActionButton type="button" className="ops-primary-button self-end" onClick={submit} disabled={busy||!target}>{busy?t("Moving…", "جارٍ النقل…"):t("Move now ↗", "انقل الآن ↗")}</ActionButton>
       <p className={compact?"text-xs text-slate-400":"text-xs text-slate-400 sm:col-span-3"}>{t("Choose any stage and move directly. Your action is recorded automatically.", "اختر أي مرحلة وانقل مباشرة. تُسجَّل العملية تلقائيًا.")}</p>
     </div>}
     {message&&<p role={failed?"alert":"status"} className={`mt-2 text-sm ${failed?"text-rose-300":"text-teal-200"}`}>{message}</p>}

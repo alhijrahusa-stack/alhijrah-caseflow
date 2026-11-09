@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { ActionSchema, directClientId, entityRef, runAction } from "@/lib/actions";
 import { intakeAgentFor } from "@/lib/agent-runs";
 import { runAudit } from "@/lib/audit";
+import { staffOperation } from "@/lib/staff-operation";
 import { withStaff } from "@/lib/auth";
 import { dbErrorResponse, err, ok } from "@/lib/http";
 import { processJobs } from "@/lib/jobs";
@@ -39,19 +40,21 @@ export async function POST(req: Request) {
     }
 
     const semantic: { source: "note" | "task" | "contact" | "followup"; id: string }[] = [];
+    let executed = false;
     try {
-      const result = await withStaff(session, async (tx) => {
+      const result = await withStaff(session, tx => staffOperation(tx, session, a.operation_id, `staff_action:${a.action}`, a, async () => {
+        executed = true;
         const r = await runAction({ tx, actor: { staffId: session.staff.id, traceId }, role: session.staff.role, semantic }, a);
         for (const s of semantic) await queueEmbedding(tx, s.source, s.id, traceId);
         return r;
-      });
+      }));
       const clientId = authz.clientId ?? (typeof result.client_id === "string" ? result.client_id : null);
       if (["schedule_appointment","book_slot","update_appointment","record_appointment_attendance","appointment_decision"].includes(a.action)) {
         revalidatePath("/staff/appointments");
         revalidatePath("/staff/clients");
         if (clientId) revalidatePath(`/staff/client/${clientId}`);
       }
-      after(async () => {
+      if (executed) after(async () => {
         if (clientId && result.identity_review_pending !== true) await runAudit(clientId, traceId).catch((e) => console.error(e));
         await processJobs(10).catch((e) => console.error(e));
       });

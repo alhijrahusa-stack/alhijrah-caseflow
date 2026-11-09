@@ -2,6 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Staff input feedback has no timer, network dependency or layout animation. */
+:where(.cg-action-control, .royal-shell a) { touch-action: manipulation; }
+.cg-action-control:active:not(:disabled) { outline: 1px solid rgb(232 180 160 / 65%); outline-offset: 1px; }
+.cg-action-control[data-action-pending="true"] { cursor: progress; outline: 1px solid rgb(94 234 212 / 55%); outline-offset: 2px; }
+.royal-nav-item { position: relative; }
+.cg-navigation-feedback { position: absolute; inset-block: 7px; inset-inline-start: 2px; width: 2px; border-radius: 3px; background: #6ee7d7; opacity: 0; pointer-events: none; }
+.cg-navigation-feedback[data-navigation-pending="true"] { opacity: 1; box-shadow: 0 0 9px rgb(110 231 215 / 45%); }
+.cg-review-opening { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 120px; scroll-margin-top: 100px; }
+.cg-review-opening h2 { color: #f2edef; font-size: 20px; margin-block: 7px; }
+.cg-review-opening p:last-child { color: #b5c3d6; font-size: 13px; }
+
+/* One backdrop plane per workspace: list rows reuse their glass parent's blur. */
+html:has(.royal-shell) .ops-glass-card :is(.ops-glass-card, .cg-import-line, .ops-metric) {
+  -webkit-backdrop-filter:none !important;backdrop-filter:none !important;
+}
+/* A modal's own backdrop supplies the blur while background panels are covered. */
+html:has(.royal-shell):has([aria-modal="true"]) .royal-shell :is(.ops-glass-card, .ops-hero, .report-glass-card, .registry-toolbar, .registry-stage-dock, .registry-pagination, .royal-header) {
+  -webkit-backdrop-filter:none !important;backdrop-filter:none !important;
+}
+html:has(.royal-shell) .cg-glass-dialog { isolation: isolate; }
+html:has(.royal-shell) .cg-glass-dialog[data-entering="true"] {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backdrop-filter:none !important;backdrop-filter:none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:has(.royal-shell) .cg-glass-dialog[data-entering="true"] { will-change: auto; }
+}
+
 :root {
   color-scheme: light;
   --cg-base: #08090D;
@@ -2806,7 +2835,7 @@ code, kbd, pre, .font-mono {
 .cg-public .cg-lux-action:disabled { cursor: not-allowed; opacity: .54; }
 .cg-public .cg-lux-numeral { font-variant-numeric: tabular-nums; letter-spacing: -.015em; }
 @media (max-width: 640px) {
-  .cg-public .cg-lux-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .cg-public .cg-lux-card { -webkit-backdrop-filter:none;backdrop-filter:none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cg-public .cg-lux-action { transition: none; }

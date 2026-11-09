@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, getToolName } from "ai";
@@ -115,8 +117,8 @@ function OperationalAssistantSession({ enabled, initialOpen }: { enabled: boolea
       <header className="operational-assistant-header">
         <div><p>CAREER GATE · INTELLIGENCE</p><h2 id="operational-assistant-title">{t("Operations assistant", "مساعد العمليات")}</h2><span>{t("Ask about payments, team load, documents or workflow capacity. Figures come from your live records.", "اسأل عن السداد وحمل الفريق والوثائق وطاقة المسار. الأرقام من سجلاتك الحية.")}</span></div>
         <div className="assistant-header-actions">
-          {messages.length > 0 && <button type="button" className="assistant-new" disabled={busy} onClick={() => { setMessages([]); clearError(); setStale(false); input.current?.focus(); }}>{t("New chat", "محادثة جديدة")}</button>}
-          <button type="button" className="assistant-icon" aria-label={t("Close assistant", "إغلاق المساعد")} onClick={() => setOpen(false)}>×</button>
+          {messages.length > 0 && <ActionButton type="button" className="assistant-new" disabled={busy} onClick={() => { setMessages([]); clearError(); setStale(false); input.current?.focus(); }}>{t("New chat", "محادثة جديدة")}</ActionButton>}
+          <ActionButton type="button" className="assistant-icon" aria-label={t("Close assistant", "إغلاق المساعد")} onClick={() => setOpen(false)}>×</ActionButton>
         </div>
       </header>
 
@@ -141,7 +143,7 @@ function OperationalAssistantSession({ enabled, initialOpen }: { enabled: boolea
               })}
             </div>)}
         {status === "submitted" && <p className="assistant-checking"><span aria-hidden="true" className="assistant-pulse" />{t("Thinking…", "جارٍ التفكير…")}</p>}
-        {error && <p className="assistant-error" role="alert">{errorText(error, t("The assistant could not answer right now.", "تعذر على المساعد الإجابة الآن."))} <button type="button" onClick={() => { clearError(); void regenerate(); }}>{t("Retry", "إعادة المحاولة")}</button></p>}
+        {error && <p className="assistant-error" role="alert">{errorText(error, t("The assistant could not answer right now.", "تعذر على المساعد الإجابة الآن."))} <ActionButton type="button" onClick={() => { clearError(); return regenerate(); }}>{t("Retry", "إعادة المحاولة")}</ActionButton></p>}
         {stale && messages.length > 0 && !busy && <p className="assistant-stale">{t("Records changed since the last answer. Ask again for current figures.", "تغيرت السجلات منذ آخر إجابة. اسأل مجدداً للحصول على الأرقام الحالية.")}</p>}
       </div>
 
@@ -151,8 +153,8 @@ function OperationalAssistantSession({ enabled, initialOpen }: { enabled: boolea
           placeholder={t("Ask in English or Arabic…", "اكتب سؤالك بالعربية أو الإنجليزية…")}
           onChange={(event) => { setDraft(event.target.value); grow(event.currentTarget); }} onKeyDown={onComposerKey} />
         {busy
-          ? <button type="button" className="assistant-ask is-stop" onClick={() => void stop()}>{t("Stop", "إيقاف")} ■</button>
-          : <button type="submit" className="assistant-ask" disabled={!draft.trim()}>{t("Send", "إرسال")} ↗</button>}
+          ? <ActionButton type="button" className="assistant-ask is-stop" onClick={() => stop()}>{t("Stop", "إيقاف")} ■</ActionButton>
+          : <ActionButton type="submit" className="assistant-ask" disabled={!draft.trim()}>{t("Send", "إرسال")} ↗</ActionButton>}
       </form>
     </section>
   </dialog>;

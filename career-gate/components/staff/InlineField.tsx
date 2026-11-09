@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 
 
@@ -73,12 +75,12 @@ export function InlineField({
 
   if (!editing) {
     return (
-      <button type="button" onClick={start} data-testid={`inline-${field}`}
+      <ActionButton type="button" onClick={start} data-testid={`inline-${field}`}
         className="group -mx-1 w-full rounded px-1 text-left transition-colors duration-200 hover:bg-brand-50 focus:bg-brand-50 focus:outline-none focus:ring-2 focus:ring-brand-100"
         aria-label={`${uiLabel("Edit")} ${uiLabel(label)}`}>
         <span className={value ? "" : "text-slate-400"}>{shown ?? display ?? (value || "—")}</span>
         <span className="ml-2 text-xs text-slate-400 opacity-0 group-hover:opacity-100">{uiLabel("Edit")}</span>
-      </button>
+      </ActionButton>
     );
   }
 
@@ -101,8 +103,8 @@ export function InlineField({
       ) : (
         <input {...common} type={type} onChange={(e) => setDraft(e.target.value)} />
       )}
-      <button type="button" onClick={save} disabled={pending} className="rounded bg-brand-600 px-2 py-1 text-xs text-white">{pending ? "…" : uiLabel("Save")}</button>
-      <button type="button" onClick={cancel} disabled={pending} className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100">{uiLabel("Esc")}</button>
+      <ActionButton type="button" onClick={save} disabled={pending} className="rounded bg-brand-600 px-2 py-1 text-xs text-white">{pending ? "…" : uiLabel("Save")}</ActionButton>
+      <ActionButton type="button" onClick={cancel} disabled={pending} className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100">{uiLabel("Esc")}</ActionButton>
     </div>
   );
 }

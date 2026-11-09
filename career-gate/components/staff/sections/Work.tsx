@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
 import { arabicStaffLabel } from "@/lib/staff-ui-labels";
 
@@ -324,10 +326,10 @@ function PostHireRow({ clientId, item, row, startDate, canEdit }: { clientId: st
       <div className="cg-workflow-pod-foot">
         <span>{row ? `${row.staff_name ?? "—"} · ${dateTime(row.updated_at)}` : "No update recorded"}</span>
         {canEdit && dirty && (
-          <button className="cg-workflow-save" type="button" disabled={a.pending} onClick={() => a.go({
+          <ActionButton className="cg-workflow-save" type="button" disabled={a.pending} onClick={() => a.go({
             action: "update_post_hire", client_id: clientId, item, status, note: note || null,
             ...(item === "start_date" ? { start_date: date || null } : {}),
-          })}>{a.pending ? uiLabel("Saving…") : uiLabel("Save")}</button>
+          })}>{a.pending ? uiLabel("Saving…") : uiLabel("Save")}</ActionButton>
         )}
       </div>
     </article>

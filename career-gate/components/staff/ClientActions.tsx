@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { formatBytes, MAX_EDGE, optimizeImageForUpload } from "@/lib/image-upload-optimizer";
 import { StaffLabel, useStaffLabel } from "@/components/staff/StaffLabel";
 import { arabicStaffLabel } from "@/lib/staff-ui-labels";
@@ -174,10 +176,10 @@ export function AppointmentForm({ clientId, clientName, onDone, presetOverrideRe
           {slots && slots.length === 0 && <p className="text-sm text-slate-300"><StaffLabel en="No office-calendar suggestions. Staff can choose an exact time below; other clients may share that time and resource."/></p>}
           <div className="flex flex-wrap gap-2">
             {slots?.map((s) => (
-              <button key={s.start} type="button" disabled={f.pending} data-testid="slot"
+              <ActionButton key={s.start} type="button" disabled={f.pending} data-testid="slot"
                 className="rounded-xl border border-amber-300/30 bg-[#163750] px-3 py-2 text-xs text-amber-100 hover:border-amber-300/70"
                 onClick={() => { setWhen(toLocalInput(s.start)); setResource(s.resource_key); }}><StaffLabel en="Select"/>{" "}{dateTime(s.start)}
-              </button>
+              </ActionButton>
             ))}
           </div>
         </div>

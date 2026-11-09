@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useTargetedMutation } from "@/components/staff/realtime/useTargetedMutation";
@@ -14,7 +16,7 @@ export function SoftDelete({ clientId, compact = false, actionLabel = "Archive",
   const [error, setError] = useState<string | null>(null);
 
   if (!open) {
-    return <button type="button" className={compact ? "archive-client-button" : "text-sm font-semibold text-red-300 hover:text-red-200"} onClick={() => setOpen(true)}>{actionLabel}</button>;
+    return <ActionButton type="button" className={compact ? "archive-client-button" : "text-sm font-semibold text-red-300 hover:text-red-200"} onClick={() => setOpen(true)}>{actionLabel}</ActionButton>;
   }
 
   async function archive() {
@@ -42,8 +44,8 @@ export function SoftDelete({ clientId, compact = false, actionLabel = "Archive",
     <form className="archive-delete-form" data-testid="form-soft-delete" onSubmit={(e) => { e.preventDefault(); void archive(); }}>
       <label className="text-xs font-semibold text-red-200" htmlFor={`del_reason_${clientId}`}>Archive reason</label>
       <input id={`del_reason_${clientId}`} required className="input min-w-56 py-1" value={reason} onChange={(e) => setReason(e.target.value)} />
-      <button className="archive-confirm-button" disabled={pending}>{pending ? "Archiving…" : "Confirm"}</button>
-      <button type="button" className="text-xs text-slate-400 hover:text-slate-200" onClick={() => setOpen(false)} disabled={pending}>Cancel</button>
+      <ActionButton className="archive-confirm-button" disabled={pending}>{pending ? "Archiving…" : "Confirm"}</ActionButton>
+      <ActionButton type="button" className="text-xs text-slate-400 hover:text-slate-200" onClick={() => setOpen(false)} disabled={pending}>Cancel</ActionButton>
       {error && <p className="w-full text-xs text-red-300" role="alert">{error}</p>}
       <p className="w-full text-xs text-slate-500">Recoverable: the client, documents, and audit history remain retained.</p>
     </form>

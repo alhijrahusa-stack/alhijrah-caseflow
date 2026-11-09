@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import Link from "next/link";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { SecureDocumentDrawer } from "@/components/staff/SecureDocumentDrawer";
@@ -165,8 +167,8 @@ export function Client360Content({ client }: { client: Client }) {
                       <p className="break-all text-sm font-semibold text-white">{doc.file_name ?? doc.doc_type ?? "Document"}</p>
                       <p className="mt-1 text-xs text-slate-400">{short(doc.status)} · {when(doc.uploaded_at)} · {short(extraction?.status)}</p>
                     </div>
-                    <button type="button" onClick={() => setSelectedDocument(doc)}
-                      className="rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-2.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-300/20 disabled:opacity-50">{t("Inspect original", "معاينة الأصل")}</button>
+                    <ActionButton type="button" onClick={() => setSelectedDocument(doc)}
+                      className="rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-2.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-300/20 disabled:opacity-50">{t("Inspect original", "معاينة الأصل")}</ActionButton>
                   </div>
                   {extraction && <div className="mt-4 border-t border-white/10 pt-3">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-200">{t("OCR extraction", "استخراج بيانات الوثيقة")} · {short(extraction.provider)} · {short(extraction.model)}</p>

@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useSearchParams } from "next/navigation";
@@ -122,7 +124,7 @@ export function ClientRegistryToolbar({management,staff,views,employmentYears=[]
         <details className="registry-actions" data-testid="registry-actions" onKeyDown={event=>{if(event.key==="Escape"){event.currentTarget.open=false;event.currentTarget.querySelector("summary")?.focus();}}}>
           <summary className="cg-command-button">{t("Actions","إجراءات")} ▾</summary>
           <div className="registry-actions-popover">
-            <button type="button" className="cg-command-button" onClick={event=>{setSaveOpen(value=>!value);event.currentTarget.closest("details")?.removeAttribute("open");}}><span aria-hidden="true">☆</span> {t("Save filter","حفظ الفلتر")}</button>
+            <ActionButton type="button" className="cg-command-button" onClick={event=>{setSaveOpen(value=>!value);event.currentTarget.closest("details")?.removeAttribute("open");}}><span aria-hidden="true">☆</span> {t("Save filter","حفظ الفلتر")}</ActionButton>
             <a className="cg-command-button" href={`/api/staff/clients/export?${exportParams}&format=xlsx`}>↓ Excel</a>
             <a className="cg-command-button" href={`/api/staff/clients/export?${exportParams}&format=print`} target="_blank" rel="noopener noreferrer">↗ {t("Print / Save PDF","طباعة / حفظ PDF")}</a>
             {management&&<Link href="/staff/archive" prefetch={false} className="cg-command-button">{t("Deleted records","المحذوفات")}</Link>}
@@ -131,8 +133,8 @@ export function ClientRegistryToolbar({management,staff,views,employmentYears=[]
       </div>
     </div>
     {searching&&<p className="registry-toolbar-meta" role="status">{t("Updating filtered results…","جارٍ تحديث النتائج…")}</p>}
-    {saveOpen&&<form className="registry-save-form" onSubmit={event=>{event.preventDefault();void saveFilter();}}><label><span>{t("Filter name","اسم الفلتر")}</span><input className="input" aria-label={t("Filter name","اسم الفلتر")} value={name} onChange={event=>setName(event.target.value)} maxLength={80} required placeholder={t("e.g. Unassigned intake files","مثلاً: ملفات استقبال غير معيّنة")}/></label><button type="submit" className="ops-primary-button" disabled={saving}>{saving?t("Saving…","جارٍ الحفظ…"):t("Save current filters","حفظ الفلاتر الحالية")}</button><button type="button" className="cg-command-button" onClick={()=>setSaveOpen(false)}>{t("Cancel","إلغاء")}</button></form>}
-    {!!saved.length&&<div className="registry-saved-filters" aria-label={t("Saved filters","الفلاتر المحفوظة")}>{saved.map(item=><span className="registry-saved-filter" key={item.id}><Link href={`/staff/clients?${new URLSearchParams(item.filters as Record<string,string>)}`} onNavigate={()=>{const href=`/staff/clients?${new URLSearchParams(item.filters as Record<string,string>)}`;setSearch({base:params,value:item.filters.q??""});prepareNavigation(href);}} prefetch={false}>☆ {item.name}</Link><button type="button" aria-label={`${t("Remove filter","حذف الفلتر")} ${item.name}`} onClick={()=>void removeFilter(item.id)}>×</button></span>)}</div>}
+    {saveOpen&&<form className="registry-save-form" onSubmit={event=>{event.preventDefault();void saveFilter();}}><label><span>{t("Filter name","اسم الفلتر")}</span><input className="input" aria-label={t("Filter name","اسم الفلتر")} value={name} onChange={event=>setName(event.target.value)} maxLength={80} required placeholder={t("e.g. Unassigned intake files","مثلاً: ملفات استقبال غير معيّنة")}/></label><ActionButton type="submit" className="ops-primary-button" disabled={saving}>{saving?t("Saving…","جارٍ الحفظ…"):t("Save current filters","حفظ الفلاتر الحالية")}</ActionButton><ActionButton type="button" className="cg-command-button" onClick={()=>setSaveOpen(false)}>{t("Cancel","إلغاء")}</ActionButton></form>}
+    {!!saved.length&&<div className="registry-saved-filters" aria-label={t("Saved filters","الفلاتر المحفوظة")}>{saved.map(item=><span className="registry-saved-filter" key={item.id}><Link href={`/staff/clients?${new URLSearchParams(item.filters as Record<string,string>)}`} onNavigate={()=>{const href=`/staff/clients?${new URLSearchParams(item.filters as Record<string,string>)}`;setSearch({base:params,value:item.filters.q??""});prepareNavigation(href);}} prefetch={false}>☆ {item.name}</Link><ActionButton type="button" aria-label={`${t("Remove filter","حذف الفلتر")} ${item.name}`} onClick={()=>removeFilter(item.id)}>×</ActionButton></span>)}</div>}
     {error&&<p role="alert" className="registry-error">{error}</p>}{notice&&<p role="status" className="royal-sync-toast">✓ {notice}</p>}
   </section>;
 }

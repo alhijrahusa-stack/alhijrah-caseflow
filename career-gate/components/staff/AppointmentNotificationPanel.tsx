@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 
 import { useEffect, useRef, useState } from "react";
@@ -30,7 +32,7 @@ export function AppointmentNotificationPanel({appointmentId}:{appointmentId:stri
    finally{setBusy(false);}
  }
  return <section className="relative w-full min-w-0 overflow-hidden rounded-2xl border border-amber-300/30 bg-gradient-to-br from-[#153552] via-[#0d2845] to-[#09192d] p-4 text-white shadow-xl sm:p-5" aria-label="Client appointment notification">
-  <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-bold tracking-[.18em] text-amber-300">CAREER GATE · بوابة التوظيف</p><h2 className="mt-1 text-lg font-bold text-white">Executive Smart Gate Pass</h2></div>{!expanded&&<button type="button" onClick={()=>setExpanded(true)} className="rounded-xl border border-amber-300/50 px-3 py-2 text-xs">فتح / Open</button>}</div>
+  <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-bold tracking-[.18em] text-amber-300">CAREER GATE · بوابة التوظيف</p><h2 className="mt-1 text-lg font-bold text-white">Executive Smart Gate Pass</h2></div>{!expanded&&<ActionButton type="button" onClick={()=>setExpanded(true)} className="rounded-xl border border-amber-300/50 px-3 py-2 text-xs">فتح / Open</ActionButton>}</div>
   {expanded&&<div className="mt-3 min-w-0">
   <p className="mt-1 text-xs text-slate-300">اختر اللغة والمستندات المطلوبة، ثم راجع البطاقة قبل إرسالها.</p>
   <label className="mt-3 block text-sm">Client language / لغة العميل</label>
@@ -44,8 +46,8 @@ export function AppointmentNotificationPanel({appointmentId}:{appointmentId:stri
     <span className="min-w-0 break-words">{language==="en"?d.en:d.ar}</span></label>)}</div>
   </fieldset>
   <div className="mt-4 flex flex-wrap gap-2">
-   <button disabled={busy} onClick={()=>request("preview")} className="rounded-xl border border-amber-300/60 px-4 py-2 text-sm text-amber-200 transition-all duration-300 hover:bg-amber-300/10 disabled:opacity-50">Preview / معاينة</button>
-   <button disabled={busy||!preview} onClick={()=>request("send")} className="rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-2 text-sm font-semibold text-slate-950 transition-all duration-300 hover:brightness-110 disabled:opacity-50">Send Email / إرسال</button>
+   <ActionButton disabled={busy} onClick={()=>request("preview")} className="rounded-xl border border-amber-300/60 px-4 py-2 text-sm text-amber-200 transition-all duration-300 hover:bg-amber-300/10 disabled:opacity-50">Preview / معاينة</ActionButton>
+   <ActionButton disabled={busy||!preview} onClick={()=>request("send")} className="rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-2 text-sm font-semibold text-slate-950 transition-all duration-300 hover:brightness-110 disabled:opacity-50">Send Email / إرسال</ActionButton>
   </div>
   {message&&<p role={error?"alert":"status"} className={"mt-3 rounded-xl border p-3 text-xs "+(error?"border-rose-400/50 bg-rose-400/10":"border-emerald-400/50 bg-emerald-400/10")}>{message}</p>}
   {preview&&<iframe title="Appointment card preview" sandbox="" srcDoc={preview} className="mt-4 h-[540px] w-full rounded-xl bg-white"/>}

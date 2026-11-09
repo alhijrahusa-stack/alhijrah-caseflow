@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { RoyalSelect, RoyalOption } from "@/components/forms/RoyalSelect";
 
 
@@ -60,7 +62,7 @@ function RequirementRow({ row, clientId }: { row: Row; clientId: string }) {
         </div>
         <RoyalSelect className="ops-select" aria-label={`${String(row.title)} status`} value={status} onChange={(e) => setStatus(e.target.value)}>{STATUSES.map((s) => <RoyalOption key={s} value={s}>{s.replace("_", " ")}</RoyalOption>)}</RoyalSelect>
         <QuickDate ariaLabel={`${String(row.title)} due date`} value={due} onChange={setDue} />
-        <button className="ops-primary-button" type="button" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button>
+        <ActionButton className="ops-primary-button" type="button" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</ActionButton>
       </div>
       {error && <p className="ops-inline-error mt-2" role="alert">{error}</p>}
     </div>
@@ -103,7 +105,7 @@ export function RequirementsPanel({ clientId, rows, readiness, postHire, startDa
       <div className="flex flex-wrap items-center gap-3">
         <div><p className="text-[10px] uppercase tracking-[.14em] text-slate-500">Unified Workflow</p><h2 className="text-base font-semibold">Readiness / Post-Hire</h2></div>
         <div className="ms-auto text-right"><strong className="text-2xl text-slate-100">{live.readiness?.readiness_percent == null ? "—" : `${live.readiness.readiness_percent}%`}</strong><p className="text-[10px] text-slate-500">{live.readiness ? `${live.readiness.completed_requirements}/${live.readiness.total_requirements} complete` : "No requirements generated"}</p></div>
-        {isManager && <button type="button" className="ops-secondary-button" onClick={() => setShowNew((v) => !v)}>{showNew ? "Cancel" : "Add requirement"}</button>}
+        {isManager && <ActionButton type="button" className="ops-secondary-button" onClick={() => setShowNew((v) => !v)}>{showNew ? "Cancel" : "Add requirement"}</ActionButton>}
       </div>
       {showNew && (
         <div className="mt-3 grid gap-2 rounded-xl border border-white/[.06] bg-white/[.02] p-3 md:grid-cols-2">
@@ -112,7 +114,7 @@ export function RequirementsPanel({ clientId, rows, readiness, postHire, startDa
           <input className="ops-input" aria-label="Requirement reason" value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why this is required" />
           <input className="ops-input" aria-label="Completion rule" value={rule} onChange={(e) => setRule(e.target.value)} placeholder="Completion rule" />
           <QuickDate ariaLabel="Requirement due date" value={due} onChange={setDue} />
-          <button type="button" className="ops-primary-button" disabled={busy || !key.trim() || !title.trim()} onClick={create}>{busy ? "Adding…" : "Add requirement"}</button>
+          <ActionButton type="button" className="ops-primary-button" disabled={busy || !key.trim() || !title.trim()} onClick={create}>{busy ? "Adding…" : "Add requirement"}</ActionButton>
           {error && <p className="ops-inline-error md:col-span-2" role="alert">{error}</p>}
         </div>
       )}

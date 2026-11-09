@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 export type StaffLanguage = "en" | "ar";
@@ -71,8 +73,8 @@ export function StaffText({ en, ar }: { en: string; ar: string }) {
 
 export function StaffLanguageToggle() {
   const { language, toggleLanguage, t } = useStaffLanguage();
-  return <button type="button" className="royal-language-toggle" data-testid="staff-language-toggle" onClick={toggleLanguage}
+  return <ActionButton type="button" className="royal-language-toggle" data-testid="staff-language-toggle" onClick={toggleLanguage}
     aria-label={t("Switch interface to Arabic", "تغيير لغة الواجهة إلى الإنجليزية")} title={t("العربية · Arabic", "English · الإنجليزية")}>
     <span aria-hidden="true">◎</span><span lang={language === "en" ? "ar" : "en"} dir="ltr">{language === "en" ? "AR" : "EN"}</span>
-  </button>;
+  </ActionButton>;
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { type RealtimeChannel } from "@supabase/supabase-js";
-import { createStaffRealtimeClient } from "@/lib/staff-realtime-client";
+import { useStaff } from "@/components/staff/StaffContext";
+import type { StaffRealtimeLease } from "@/lib/shared-staff-realtime";
 import { usePathname, useRouter } from "next/navigation";
 import { startTransition, useEffect, useRef, useState } from "react";
 import { publishPayload, RECOVERY_EVENT, requestRecovery, type RecoveryReason } from "@/components/staff/realtime/update-bus";
@@ -31,6 +32,7 @@ function publishRealtimeState(state: RealtimeState) {
 
 export function RealtimeRefresher({ clientId }: { clientId?: string }) {
   const router = useRouter();
+  const { realtime } = useStaff();
   const pathname = usePathname();
   const workspacePath = useRef(pathname);
   useEffect(() => { workspacePath.current = pathname; }, [pathname]);
@@ -40,6 +42,7 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
 
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
+    let lease: StaffRealtimeLease | null = null;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let tokenTimer: ReturnType<typeof setInterval> | null = null;
@@ -91,37 +94,21 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
     publishRealtimeState("connecting");
 
     (async () => {
-      const res = await fetch("/api/staff/realtime-token", { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) }).catch(() => null);
-      const data = await res?.json().catch(() => null);
+      await realtime.connect();
       if (cancelled) return;
-      if (!data?.ok) {
-        updateState(data?.error?.code === "NOT_CONFIGURED" ? "NOT_CONFIGURED" : "offline");
-        return;
-      }
-
-      const connection = createStaffRealtimeClient(data.url, data.anon_key, data.token);
-      const supabase = connection.client;
-      disposeRealtime = () => { void supabase.removeAllChannels(); };
-      await connection.setToken(data.token);
-      if (cancelled) return;
+      disposeRealtime = () => lease?.release();
       tokenTimer = setInterval(() => {
-        void (async () => {
-          const response = await fetch("/api/staff/realtime-token", { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
-          const refreshed = await response.json().catch(() => null);
-          if (cancelled) return;
-          if (!response.ok || !refreshed?.ok) { updateState("offline"); return; }
-          await connection.setToken(refreshed.token);
+        void realtime.connect().then(() => {
           if (!cancelled && channel?.state === "joined") updateState("live");
-        })().catch(() => { if (!cancelled) updateState("offline"); });
+        }).catch(() => { if (!cancelled) updateState("offline"); });
       }, 4 * 60_000);
-      if (cancelled) return;
-      channel = supabase.channel(`staff-${clientId ?? "operations"}`);
+      lease = realtime.lease(`staff-${clientId ?? "operations"}`);
+      channel = lease.channel;
       const tables = clientId ? CLIENT_REALTIME_ENTITIES : DASHBOARD_REALTIME_ENTITIES;
 
       for (const table of tables) {
         const filter = clientId ? (table === "clients" ? `id=eq.${clientId}` : `client_id=eq.${clientId}`) : undefined;
-        channel.on(
-          "postgres_changes",
+        lease.onDatabase(
           { event: "*", schema: "public", table, ...(filter ? { filter } : {}) },
           (payload) => {
             if (cancelled) return;
@@ -137,7 +124,7 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
         );
       }
 
-      channel.subscribe((status) => {
+      lease.subscribe((status) => {
         if (status === "SUBSCRIBED") {
           // Events during the gap were never delivered to any surface, so the
           // only correct recovery is a full refresh.
@@ -155,7 +142,7 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
         }
         updateState("connecting");
       });
-    })().catch(() => updateState("offline"));
+    })().catch((error: unknown) => updateState(error && typeof error === "object" && "code" in error && error.code === "NOT_CONFIGURED" ? "NOT_CONFIGURED" : "offline"));
 
     return () => {
       cancelled = true;
@@ -166,7 +153,7 @@ export function RealtimeRefresher({ clientId }: { clientId?: string }) {
       if (tokenTimer) clearInterval(tokenTimer);
       disposeRealtime?.();
     };
-  }, [clientId, router]);
+  }, [clientId, router, realtime]);
 
   return (
     <span className="text-xs text-slate-400" data-testid="realtime-state" data-state={state} data-recovery={recovery ?? ""} title="Live updates">

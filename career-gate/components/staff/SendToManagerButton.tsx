@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useRef, useState } from "react";
 import { GlassReviewDialog } from "@/components/staff/smart/GlassReviewDialog";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
@@ -31,16 +33,16 @@ export function SendToManagerButton({ clientId, reportPeriod }: { clientId?: str
     finally { setPending(false); }
   }
   return <>
-    <button type="button" className="ops-secondary-button" onClick={() => { requestKey.current = crypto.randomUUID(); setError(""); setOpen(true); }}>
+    <ActionButton type="button" className="ops-secondary-button" onClick={() => { requestKey.current = crypto.randomUUID(); setError(""); setOpen(true); }}>
       <span aria-hidden="true">↗</span> {t("Send to manager", "إرسال للمدير")}
-    </button>
+    </ActionButton>
     {open && <GlassReviewDialog title={t("Send for manager review", "إرسال لمراجعة المدير")} onClose={() => { if (!pending) setOpen(false); }}>
       <form className={styles.sendForm} onSubmit={event => { event.preventDefault(); void send(); }}>
         <p>{clientId ? t("The manager can review this client and route the existing file to its next eligible stage.", "يمكن للمدير مراجعة العميل وتوجيه ملفه الحالي إلى المرحلة التالية المسموحة.") : t("Send a snapshot of this report. The manager can approve it or create a follow-up for the selected workflow section.", "أرسل نسخة من هذا التقرير. يمكن للمدير اعتماده أو إنشاء متابعة للقسم المختار.")}</p>
         <label>{t("Review note (optional)", "ملاحظة المراجعة (اختياري)")}<textarea autoFocus className="input" value={note} onChange={event => setNote(event.target.value)} maxLength={4000} rows={5} dir="auto" /></label>
         {error && <p role="alert" className={styles.error}>{error}</p>}
-        <div className={styles.buttons}><button type="button" className="ops-secondary-button" disabled={pending} onClick={() => setOpen(false)}>{t("Cancel", "إلغاء")}</button>
-          <button className="ops-primary-button" disabled={pending}>{pending ? t("Sending…", "جارٍ الإرسال…") : t("Send review", "إرسال المراجعة")}</button></div>
+        <div className={styles.buttons}><ActionButton type="button" className="ops-secondary-button" disabled={pending} onClick={() => setOpen(false)}>{t("Cancel", "إلغاء")}</ActionButton>
+          <ActionButton className="ops-primary-button" disabled={pending}>{pending ? t("Sending…", "جارٍ الإرسال…") : t("Send review", "إرسال المراجعة")}</ActionButton></div>
       </form>
     </GlassReviewDialog>}
   </>;

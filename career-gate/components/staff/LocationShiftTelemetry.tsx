@@ -1,4 +1,6 @@
 "use client";
+
+import { ActionButton } from "@/components/ui/ActionButton";
 import { useMemo, useState } from "react";
 import type { PipelineClient } from "@/lib/operations";
 import { AMAZON_LOCATIONS } from "@/lib/location-shift-options";
@@ -34,7 +36,7 @@ export function LocationShiftTelemetry({clients, periodOf}:{clients:PipelineClie
        <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">{([["Morning",location.morning],["Evening",location.evening],["Night",location.night],["Review",location.needs_manual_review]] as const).map(([label,count])=><div key={label} className="flex items-center justify-between gap-2 rounded-lg border border-white/[.06] bg-black/20 px-2.5 py-2"><dt className="text-slate-300">{label}</dt><dd key={count} className="cg-telemetry-number font-bold tabular-nums text-white">{count}</dd></div>)}</dl>
     </article>)}
    </div>
-   {entries.length>6&&<button type="button" aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)} className="relative mt-4 rounded-xl border border-orange-300/30 px-4 py-2 text-sm font-semibold text-orange-200 transition hover:bg-orange-300/10">{expanded?"Show fewer locations":`View all ${entries.length} locations`}</button>}
+   {entries.length>6&&<ActionButton type="button" aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)} className="relative mt-4 rounded-xl border border-orange-300/30 px-4 py-2 text-sm font-semibold text-orange-200 transition hover:bg-orange-300/10">{expanded?"Show fewer locations":`View all ${entries.length} locations`}</ActionButton>}
    {!entries.length&&<p className="relative mt-4 text-sm text-slate-300">No active candidates to display.</p>}
  </section>;
 }

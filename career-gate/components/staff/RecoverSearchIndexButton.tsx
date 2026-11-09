@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
@@ -9,7 +11,7 @@ export function RecoverSearchIndexButton() {
   const toast = useToast();
   const [pending, setPending] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
-  return <button type="button" disabled={pending} className="ops-secondary-button disabled:opacity-50" onClick={async () => {
+  return <ActionButton type="button" disabled={pending} className="ops-secondary-button disabled:opacity-50" onClick={async () => {
     if (pending) return;
     setPending(true);
     try {
@@ -22,5 +24,5 @@ export function RecoverSearchIndexButton() {
     } catch (error) {
       toast("error", error instanceof Error ? error.message : "Search index recovery failed");
     } finally { setPending(false); }
-  }}>{pending ? "Repairing search index…" : remaining && remaining > 0 ? `Continue search repair · ${remaining} remaining` : "Repair search index"}</button>;
+  }}>{pending ? "Repairing search index…" : remaining && remaining > 0 ? `Continue search repair · ${remaining} remaining` : "Repair search index"}</ActionButton>;
 }

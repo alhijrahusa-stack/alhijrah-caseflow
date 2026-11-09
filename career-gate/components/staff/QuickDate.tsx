@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useMemo } from "react";
 import { dateOnly, dateTime, fromLocalInput, toLocalInput, todayInOffice } from "@/lib/format";
 
@@ -57,10 +59,10 @@ export function QuickDate({
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5" aria-label="Quick date shortcuts">
         {presets.map(([label, date]) => (
-          <button key={label} type="button" disabled={disabled || Boolean(min && date < min)} className={chip}
+          <ActionButton key={label} type="button" disabled={disabled || Boolean(min && date < min)} className={chip}
             onClick={() => onChange(date)}>
             {label}
-          </button>
+          </ActionButton>
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -111,9 +113,9 @@ export function QuickDateTime({
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5" aria-label="Quick date/time shortcuts">
         {presets.map(([label, resolve]) => (
-          <button key={label} type="button" disabled={disabled} className={chip} onClick={() => onChange(resolve())}>
+          <ActionButton key={label} type="button" disabled={disabled} className={chip} onClick={() => onChange(resolve())}>
             {label}
-          </button>
+          </ActionButton>
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-2">

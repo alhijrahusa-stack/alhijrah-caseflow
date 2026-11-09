@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -117,7 +119,7 @@ export function CommandPalette() {
   if (!open) return null;
   return createPortal(<div className={`royal-command-overlay unified-command-overlay fixed inset-0 z-[300] flex items-start justify-center bg-slate-950/70 px-4 pt-24 ${pathname === "/staff/manager-inbox" ? "cg-spatial-command-overlay" : ""}`} dir={dir} onMouseDown={() => setOpen(false)}>
     <div ref={dialog} role="dialog" aria-modal="true" aria-label={t("Command palette", "لوحة الأوامر")} data-testid="command-palette" className="unified-command-panel w-full max-w-xl overflow-hidden rounded-2xl border border-amber-300/30 bg-[#101f42]/95 text-slate-100 shadow-xl backdrop-blur-xl" onMouseDown={event => event.stopPropagation()}>
-      <div className="unified-command-heading"><span>{t("Search and commands", "البحث والأوامر")}</span>{registry && <RoyalSelect className="workspace-command-scope" aria-label={t("Search scope", "نطاق البحث")} value={scope} onChange={event => { setScope(event.target.value === "current" ? "current" : "all"); setClients([]); setActive(0); }}><RoyalOption value="current">{t("This view", "العرض الحالي")}</RoyalOption><RoyalOption value="all">{t("All permitted files", "جميع الملفات المسموح بها")}</RoyalOption></RoyalSelect>}<button type="button" className="min-h-9 min-w-9 rounded-lg border border-white/10 text-slate-300" aria-label={t("Close command palette", "إغلاق لوحة الأوامر")} onClick={() => setOpen(false)}>×</button></div>
+      <div className="unified-command-heading"><span>{t("Search and commands", "البحث والأوامر")}</span>{registry && <RoyalSelect className="workspace-command-scope" aria-label={t("Search scope", "نطاق البحث")} value={scope} onChange={event => { setScope(event.target.value === "current" ? "current" : "all"); setClients([]); setActive(0); }}><RoyalOption value="current">{t("This view", "العرض الحالي")}</RoyalOption><RoyalOption value="all">{t("All permitted files", "جميع الملفات المسموح بها")}</RoyalOption></RoyalSelect>}<ActionButton type="button" className="min-h-9 min-w-9 rounded-lg border border-white/10 text-slate-300" aria-label={t("Close command palette", "إغلاق لوحة الأوامر")} onClick={() => setOpen(false)}>×</ActionButton></div>
       <input ref={input} role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-activedescendant={items[active] ? `cmdk-${items[active].id}` : undefined} className="w-full border-b border-amber-300/15 bg-transparent px-4 py-4 text-sm text-slate-100 outline-none placeholder:text-slate-400" placeholder={t("Search clients or jump to a page…", "ابحث عن عميل أو انتقل إلى قسم…")} aria-label={t("Search commands and clients", "البحث في الأوامر والعملاء")} value={q} onChange={event => { setQuery(event.target.value); setActive(0); setClients([]); setSearching(scope === "all" && event.target.value.trim().length >= 2); setFailed(false); }} onKeyDown={event => {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setOpen(false); }
         if (event.key === "ArrowDown") { event.preventDefault(); setActive(value => Math.max(0, Math.min(value + 1, items.length - 1))); }

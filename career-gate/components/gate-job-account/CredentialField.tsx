@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useEffect, useRef, useState } from "react";
 
 type Props = {
@@ -68,14 +70,14 @@ export function CredentialField({ source, recordId, field, mask = field === "pas
       <code className="min-w-[7rem] max-w-[15rem] truncate rounded-lg border border-white/[.06] bg-black/20 px-2 py-1.5 text-xs text-slate-200" aria-live="polite">
         {pending === "reveal" ? "Loading…" : value ?? mask}
       </code>
-      <button type="button" onClick={value ? () => setValue(null) : reveal} disabled={pending !== null}
+      <ActionButton type="button" onClick={value ? () => setValue(null) : reveal} disabled={pending !== null}
         className="rounded-lg border border-amber-300/20 bg-amber-200/[.04] px-2 py-1.5 text-[10px] font-semibold text-amber-100 transition active:translate-y-px disabled:opacity-50">
         {value ? "Hide" : pending === "reveal" ? "…" : "Reveal"}
-      </button>
-      <button type="button" onClick={copy} disabled={pending !== null}
+      </ActionButton>
+      <ActionButton type="button" onClick={copy} disabled={pending !== null}
         className="rounded-lg border border-cyan-300/15 bg-cyan-300/[.04] px-2 py-1.5 text-[10px] font-semibold text-cyan-100 transition active:translate-y-px disabled:opacity-50">
         {pending === "copy" ? "…" : "Copy"}
-      </button>
+      </ActionButton>
       {message && <span className="max-w-[12rem] truncate text-[10px] text-cyan-300" role="status">{message}</span>}
     </div>
   );

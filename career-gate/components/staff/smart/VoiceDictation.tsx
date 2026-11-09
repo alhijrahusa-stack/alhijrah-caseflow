@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 /**
@@ -183,7 +185,7 @@ export function VoiceDictation({ disabled, onInsert }: { disabled: boolean; onIn
         <div className="flex flex-wrap items-center gap-1.5">
           <span role="group" aria-label="Dictation language" className="flex gap-1">
             {LANGUAGES.map((option) => (
-              <button
+              <ActionButton
                 key={option.code}
                 type="button"
                 aria-pressed={language === option.code}
@@ -192,15 +194,15 @@ export function VoiceDictation({ disabled, onInsert }: { disabled: boolean; onIn
                 className={`min-h-11 min-w-11 rounded-lg border px-2 font-mono text-[12px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e3c884] disabled:opacity-40 ${
                   language === option.code ? "border-[#d4b06a]/55 bg-[#b8934a]/[.14] text-[#f3dda4]" : "border-white/12 text-slate-400 hover:bg-white/[.05]"
                 }`}
-              >{option.label}</button>
+              >{option.label}</ActionButton>
             ))}
           </span>
-          <button
+          <ActionButton
             type="button"
             disabled={disabled}
             onClick={() => (listening ? stop() : start())}
             className="min-h-11 rounded-xl border border-cyan-300/35 bg-cyan-300/[.06] px-3 text-[13px] font-semibold tracking-[.06em] text-cyan-100 transition hover:bg-cyan-300/[.12] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200 active:translate-y-px active:scale-[.985] disabled:opacity-40"
-          >{listening ? "STOP DICTATION" : "START DICTATION"}</button>
+          >{listening ? "STOP DICTATION" : "START DICTATION"}</ActionButton>
         </div>
       </div>
 
@@ -215,17 +217,17 @@ export function VoiceDictation({ disabled, onInsert }: { disabled: boolean; onIn
             {interimText && <span className="text-slate-500"> {interimText}</span>}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <button
+            <ActionButton
               type="button"
               disabled={disabled || !finalText.trim()}
               onClick={insert}
               className="min-h-11 rounded-xl border border-[#d4b06a]/55 bg-[linear-gradient(180deg,rgba(184,147,74,.22),rgba(184,147,74,.1))] px-3 text-[13px] font-semibold tracking-[.08em] text-[#f3dda4] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e3c884] active:translate-y-px active:scale-[.985] disabled:opacity-40"
-            >INSERT INTO SOURCE</button>
-            <button
+            >INSERT INTO SOURCE</ActionButton>
+            <ActionButton
               type="button"
               onClick={discard}
               className="min-h-11 rounded-xl border border-white/12 px-3 text-[13px] font-semibold tracking-[.08em] text-slate-300 transition hover:bg-white/[.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 active:translate-y-px active:scale-[.985]"
-            >DISCARD</button>
+            >DISCARD</ActionButton>
           </div>
         </>
       )}

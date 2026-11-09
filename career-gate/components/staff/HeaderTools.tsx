@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -70,10 +72,10 @@ export function HeaderTools() {
         <span aria-hidden="true">＋</span><span className="royal-tool-label">{t("New Client", "إضافة عميل")}</span>
       </Link>
       <div className="royal-tool-menu" ref={menu}>
-        <button ref={trigger} type="button" className="royal-tool" aria-haspopup="true" aria-expanded={open} aria-controls="royal-tool-menu-list"
+        <ActionButton ref={trigger} type="button" className="royal-tool" aria-haspopup="true" aria-expanded={open} aria-controls="royal-tool-menu-list"
           data-active={menuActive || undefined} aria-label={t("Management tools", "أدوات الإدارة")} title={t("Management tools", "أدوات الإدارة")} onClick={() => setOpen(value => !value)}>
           <span aria-hidden="true">⌘</span><span className="royal-tool-label">{t("Management tools", "أدوات الإدارة")}</span><span aria-hidden="true" className="royal-tool-caret">▾</span>
-        </button>
+        </ActionButton>
         {open && (
           <div id="royal-tool-menu-list" className="royal-tool-popover">
             {MENU.map(item => (

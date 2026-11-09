@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
+import { createSharedStaffRealtime } from "@/lib/shared-staff-realtime";
 import { createClientResourceReader } from "@/components/staff/realtime/client-resource-reader";
 
 export type StaffMember = {
@@ -16,13 +17,29 @@ export type StaffMember = {
 };
 export type Me = { id: string; display_name: string; role: "admin" | "manager" | "staff"; canScheduleAppointment?: boolean };
 
-const Ctx = createContext<{ me: Me; staff: StaffMember[]; readClientResources: ReturnType<typeof createClientResourceReader> } | null>(null);
+const Ctx = createContext<{ me: Me; staff: StaffMember[]; readClientResources: ReturnType<typeof createClientResourceReader>; realtime: ReturnType<typeof createSharedStaffRealtime> } | null>(null);
 
 export function StaffProvider({ me, staff, children }: { me: Me; staff: StaffMember[]; children: React.ReactNode }) {
   // A different staff identity gets its own pending batch; no data or request
   // promise is shared across staff-provider lifetimes.
   const requests = useMemo(() => ({ staffId: me.id, read: createClientResourceReader() }), [me.id]);
-  const value = useMemo(() => ({ me, staff, readClientResources: requests.read }), [me, staff, requests.read]);
+  const realtime = useMemo(() => createSharedStaffRealtime(me.id), [me.id]);
+  const disposeTimer = useRef<{ owner: typeof realtime; timer: ReturnType<typeof setTimeout> } | null>(null);
+  useEffect(() => {
+    if (disposeTimer.current) {
+      clearTimeout(disposeTimer.current.timer);
+      if (disposeTimer.current.owner !== realtime) disposeTimer.current.owner.dispose();
+      disposeTimer.current = null;
+    }
+    realtime.resume();
+    const end = () => realtime.dispose();
+    window.addEventListener("career-gate:sign-out", end);
+    return () => {
+      window.removeEventListener("career-gate:sign-out", end);
+      disposeTimer.current = { owner: realtime, timer: setTimeout(end, 0) };
+    };
+  }, [realtime]);
+  const value = useMemo(() => ({ me, staff, readClientResources: requests.read, realtime }), [me, staff, requests.read, realtime]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

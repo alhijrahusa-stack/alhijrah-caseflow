@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import Link from "next/link";
 import { useState } from "react";
 import { STATUS_LABELS, type Status } from "@/lib/domain";
@@ -29,7 +31,7 @@ export function SemanticSearch({ configured }: { configured: boolean }) {
           setHits(data.results);
         }}>
           <input className="input" placeholder="e.g. clients mentioning agency status" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Semantic search query" />
-          <button className="rounded-md bg-slate-800 px-4 text-sm text-white" disabled={pending}>{pending ? "…" : "Search"}</button>
+          <ActionButton className="rounded-md bg-slate-800 px-4 text-sm text-white" disabled={pending}>{pending ? "…" : "Search"}</ActionButton>
         </form>
       )}
       {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}

@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionButton } from "@/components/ui/ActionButton";
+
 import { useEffect, useId, useRef, useState } from "react";
 import { RoyalOption, RoyalSelect } from "@/components/forms/RoyalSelect";
 import { useStaffLanguage } from "@/components/staff/StaffLanguage";
@@ -76,10 +78,10 @@ export function QuickClientSearch() {
       {registry && !modalOpen ? <RoyalSelect className="workspace-search-scope" aria-label={t("Search scope", "نطاق البحث")} value={scope} onChange={event => { setScope(event.target.value === "current" ? "current" : "all"); setOpen(false); setLoading(false); }}>
         <RoyalOption value="current">{t("This view", "العرض الحالي")}</RoyalOption><RoyalOption value="all">{t("All permitted files", "جميع الملفات المسموح بها")}</RoyalOption>
       </RoyalSelect> : <span className="workspace-search-scope-label">{t("All files", "كل الملفات")}</span>}
-      <button type="button" className="workspace-search-shortcut" aria-label={t("Open command palette", "فتح لوحة الأوامر")} title={t("Commands and global search · Ctrl / Cmd + K", "الأوامر والبحث الشامل · Ctrl / Cmd + K")} onClick={openCommands}><kbd>⌘ K</kbd></button>
+      <ActionButton type="button" className="workspace-search-shortcut" aria-label={t("Open command palette", "فتح لوحة الأوامر")} title={t("Commands and global search · Ctrl / Cmd + K", "الأوامر والبحث الشامل · Ctrl / Cmd + K")} onClick={openCommands}><kbd>⌘ K</kbd></ActionButton>
     </div>
     {visible && <div className="staff-search-results"><div id={listId} role="listbox" aria-label={t("Client search results", "نتائج البحث عن العملاء")}>
-      {results.map((result, index) => <button key={result.id} type="button" className="staff-search-result" role="option" id={`${listId}-${result.id}`} aria-selected={active === index} onMouseEnter={() => setActive(index)} onClick={() => { setOpen(false); navigate(`/staff/client/${result.id}`); }}>
+      {results.map((result, index) => <ActionButton key={result.id} type="button" className="staff-search-result" role="option" id={`${listId}-${result.id}`} aria-selected={active === index} onMouseEnter={() => setActive(index)} onClick={() => { setOpen(false); navigate(`/staff/client/${result.id}`); }}>
         <span className="staff-search-result-head"><span><strong dir="auto">{result.full_name}</strong><code dir="ltr">{result.ref}</code></span><span className="workspace-search-result-location">{result.operational_location === "completed" ? t("Confirmed Registry", "سجل التوظيف") : (() => { const destination = WORKFLOW_DESTINATIONS.find(item => item.id === result.operational_location); return destination ? t(destination.label, destination.labelAr) : result.operational_location === "manager" ? t("Manager review", "مراجعة المدير") : pretty(result.operational_location ?? result.pipeline_stage); })()}</span></span>
         <span className="staff-search-report workspace-search-report">
           <span><small>{t("Phone", "الهاتف")}</small><bdi dir="ltr">{result.phone}</bdi></span>
@@ -89,9 +91,9 @@ export function QuickClientSearch() {
         </span>
         {result.operational_location === "completed" && <span className="workspace-search-result-meta">{result.employment_confirmed && result.actual_start_date ? `${t("Actual start", "المباشرة الفعلية")}: ${dateOnly(result.actual_start_date)}` : t("Actual start not confirmed", "تأكيد المباشرة غير مسجل")}</span>}
         <span className="staff-search-next"><span>{t("Next", "التالي")}</span>{result.next_step}</span>
-      </button>)}</div>
+      </ActionButton>)}</div>
       {!results.length && !loading && <div className="staff-search-empty" role="status">{failed ? t("Search is unavailable. Try again.", "تعذر البحث. أعد المحاولة.") : t("No matching client.", "لا يوجد عميل مطابق.")}</div>}
-      <button type="button" className="workspace-search-all" onClick={() => { setOpen(false); navigate(allHref); }}>{t("Show all matching records · all years", "عرض جميع السجلات المطابقة · كل السنوات")} <span aria-hidden="true">↗</span></button>
+      <ActionButton type="button" className="workspace-search-all" onClick={() => { setOpen(false); navigate(allHref); }}>{t("Show all matching records · all years", "عرض جميع السجلات المطابقة · كل السنوات")} <span aria-hidden="true">↗</span></ActionButton>
     </div>}
   </div>;
 }

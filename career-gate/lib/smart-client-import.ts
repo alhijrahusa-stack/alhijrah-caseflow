@@ -615,21 +615,38 @@ export async function listImportQueue(session: StaffSession, args: { status?: st
   return { rows: visible, counters: counts, next_cursor: next ? encodeCursor(String(next.created_at), String(next.id)) : null };
 }
 
-export async function getImportCase(session: StaffSession, id: string) {
+export async function getImportCase(session: StaffSession, id: string, transaction?: Tx) {
   assertManager(session);
-  const [row] = await sql()`
+  const query = transaction ?? sql();
+  const record = query`
     select c.*,to_char(c.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as updated_at,
       s.display_name as reviewer_name,a.display_name as approved_by_name
     from client_import_cases c
     left join staff s on s.id=c.reviewer_id
     left join staff a on a.id=c.approved_by
     where c.id=${id}`;
-  if (!row) throw new ActionError("not_found", "Import case not found", 404);
-  if (row.archived_at && row.status !== "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
-  const docs = await sql()`
+  const documents = query`
     select id,original_filename,mime_type,size_bytes,detected_document_type,extraction_metadata,created_at
     from client_import_documents where import_case_id=${id} order by created_at,id`;
+  const [[row], docs] = await Promise.all([record, documents]);
+  if (!row) throw new ActionError("not_found", "Import case not found", 404);
+  if (row.archived_at && row.status !== "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
   return { case: row, documents: docs };
+}
+
+/** Claim an unowned pending import and return its authoritative snapshot in one request. */
+export async function openImportReview(session: StaffSession, id: string) {
+  assertManager(session);
+  return sql().begin(async tx => {
+    const [row] = await tx`select id,status,reviewer_id,archived_at,manager_review_id from client_import_cases where id=${id} for update`;
+    if (!row) throw new ActionError("not_found", "Import case not found", 404);
+    if (row.archived_at && row.status !== "APPROVED_FILE") throw new ActionError("archived", "Import case is archived", 409);
+    if (row.status === "PENDING" && !row.reviewer_id && !row.manager_review_id) {
+      await requireActiveReviewer(tx, session.staff.id);
+      await tx`update client_import_cases set reviewer_id=${session.staff.id},review_started_at=coalesce(review_started_at,now()),status='UNDER_REVIEW' where id=${id}`;
+    }
+    return getImportCase(session, id, tx);
+  });
 }
 
 function assertReviewOwnership(assignedReviewer: unknown, requestedReviewer: string) {
