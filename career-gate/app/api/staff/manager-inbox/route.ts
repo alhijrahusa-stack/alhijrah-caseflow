@@ -14,6 +14,7 @@ const Submit = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("report"), period: z.union([z.literal(7), z.literal(30), z.literal(90)]), note: z.string().trim().max(4000).default(""), request_key: z.uuid() }),
 ]);
 const Resolve = z.object({
+  delete_record_kind: z.enum(["client","import"]).optional(), delete_record_id: z.uuid().optional(),
   expected_related_client_version: z.string().min(10).max(100).optional(),
   id: z.uuid(), destination: z.string().refine(value => value === "keep_current" || isWorkflowDestination(value)),
   operation_id: z.uuid().optional(), assigned_staff_id: z.uuid().nullable().optional(), action: z.enum(["approve","return","delete","not_duplicate"]).optional(), delete_client_id: z.uuid().optional(), delete_reason: z.string().trim().max(500).optional(),

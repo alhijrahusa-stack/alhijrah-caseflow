@@ -46,7 +46,7 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
            (coalesce(jsonb_array_length(c.missing_fields),0)+coalesce(jsonb_array_length(c.conflicts),0))::int as issue_count
     from client_import_cases c
     left join staff s on s.id=c.reviewer_id
-    where c.archived_at is null and c.status <> 'APPROVED_FILE'
+    where c.archived_at is null and c.status <> 'APPROVED_FILE' and c.manager_review_id is null
       and (${status === "ALL"} or c.status=${status === "ALL" ? "PENDING" : status})
       and (${q === ""} or c.id::text ilike ${`%${q}%`}
            or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
@@ -61,11 +61,11 @@ export async function listActiveImportQueue(session: StaffSession, args: { statu
     return copy;
   }) as unknown as QueueRow[];
   const next = rows.length > limit ? rows[limit - 1] : null;
-  const counterRows = await sql()`select status,count(*)::int as count from client_import_cases where archived_at is null and status <> 'APPROVED_FILE' group by status`;
+  const counterRows = await sql()`select status,count(*)::int as count from client_import_cases where archived_at is null and status <> 'APPROVED_FILE' and manager_review_id is null group by status`;
   const counters = Object.fromEntries(IMPORT_STATUSES.map((key) => [key, 0])) as Record<ImportStatus, number>;
   for (const row of counterRows) if ((IMPORT_STATUSES as readonly string[]).includes(String(row.status))) counters[row.status as ImportStatus] = Number(row.count);
   const [matched] = await sql()`select count(*)::int as count from client_import_cases c
-    where c.archived_at is null and c.status <> 'APPROVED_FILE'
+    where c.archived_at is null and c.status <> 'APPROVED_FILE' and c.manager_review_id is null
       and (${status === "ALL"} or c.status=${status === "ALL" ? "PENDING" : status})
       and (${q === ""} or c.id::text ilike ${`%${q}%`}
         or coalesce(c.mapped_draft #>> '{profile,full_name}','') ilike ${`%${q}%`}
@@ -117,16 +117,18 @@ export async function listArchivedImportQueue(session: StaffSession, args: { q?:
 export async function archiveImportCase(session: StaffSession, id: string) {
   assertManager(session);
   return sql().begin(async (tx) => {
-    const [row] = await tx`select id,archived_at from client_import_cases where id=${id} for update`;
+    const [row] = await tx`select id,archived_at,manager_review_id from client_import_cases where id=${id} for update`;
     if (!row) throw new ActionError("not_found", "Import case not found", 404);
     if (row.archived_at) return { archived: true, idempotent: true };
+    if (row.manager_review_id) throw new ActionError("manager_review_pending", "This import is awaiting a manager decision", 409);
     await tx`update client_import_cases set archived_at=now(),archived_by=${session.staff.id} where id=${id}`;
     return { archived: true, idempotent: false };
   });
 }
 
 export async function assertImportNotArchived(id: string) {
-  const [row] = await sql()`select archived_at from client_import_cases where id=${id}`;
+  const [row] = await sql()`select archived_at,manager_review_id from client_import_cases where id=${id}`;
   if (!row) throw new ActionError("not_found", "Import case not found", 404);
   if (row.archived_at) throw new ActionError("archived", "Import case is archived", 409);
+  if (row.manager_review_id) throw new ActionError("manager_review_pending", "This import is awaiting a manager decision", 409);
 }

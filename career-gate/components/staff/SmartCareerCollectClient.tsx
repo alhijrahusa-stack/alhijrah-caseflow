@@ -1,5 +1,6 @@
 "use client";
 
+import { ImportDuplicateCenter } from "@/components/staff/ImportDuplicateCenter";
 import { useMinWidth } from "@/components/staff/smart/useMinWidth";
 import { optimizeFilesForUpload } from "@/lib/image-upload-optimizer";
 import Link from "next/link";
@@ -11,7 +12,7 @@ import "@/components/staff/smart/royal-intake.css";
 import { useVersionedReviewDraft } from "@/components/staff/useVersionedReviewDraft";
 import { sameReviewDraft } from "@/lib/review-draft-snapshot";
 import { reviewDraftKey, writeReviewDraft, type ReviewDraftPayload } from "@/lib/review-offline-drafts";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useStaff } from "@/components/staff/StaffContext";
 import { DigitalHandshake, useDigitalHandshake } from "@/components/staff/smart/DigitalHandshake";
 import {
@@ -79,6 +80,7 @@ type CaseDetail = {
     created_at: string;
     updated_at: string;
     created_client_id: string | null;
+    manager_review_id?: string | null;
   };
   documents: { id: string; original_filename: string; mime_type: string; size_bytes: number; detected_document_type: string | null; extraction_metadata: Record<string, unknown>; created_at: string }[];
 };
@@ -254,7 +256,7 @@ export function SmartCareerCollectClient() {
       if (!res.ok || !data?.ok) throw new Error(errMessage(data, "Unable to open import"));
       if (request !== caseRequest.current) return;
       const next = { case: data.case, documents: data.documents } as CaseDetail;
-      if (next.case.status === "PENDING" && !next.case.reviewer_id) {
+      if (next.case.status === "PENDING" && !next.case.reviewer_id && !next.case.manager_review_id) {
         const claimResponse = await fetch("/api/staff/smart-client-import", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "start_review", id, reviewer_id: me.id }),
@@ -293,6 +295,20 @@ export function SmartCareerCollectClient() {
     caseRequest.current += 1;
     setDetail(null); setDraft(null); setDraftDirty(false); setPendingFields([]); openFieldEditor.current = false; setEditingField(false); setReviewChanged(false);
   }
+
+  const linkedCaseOpened = useRef(false);
+  const openLinkedCase = useEffectEvent((id: string) => { void openCase(id); });
+  useEffect(() => {
+    if (linkedCaseOpened.current) return;
+    linkedCaseOpened.current = true;
+    const id = new URLSearchParams(window.location.search).get("case");
+    if (id && /^[a-f0-9-]{36}$/i.test(id)) openLinkedCase(id);
+  }, []);
+  const afterManagerHandoff = useCallback(() => {
+    caseRequest.current += 1;
+    setDetail(null); setDraft(null); setDraftDirty(false); setPendingFields([]); setEditingField(false);
+    openFieldEditor.current = false; setReviewChanged(false); setNotice(t("File sent to manager with its saved comparison.", "تم تحويل الملف للمدير مع المقارنة المحفوظة."));
+  }, [t]);
 
   async function previewSheet() {
     if (previewBusy || (!file && !sheetUrl.trim())) return;
@@ -577,6 +593,8 @@ export function SmartCareerCollectClient() {
       </div>
     </section>}
 
+    <ImportDuplicateCenter disabled={Boolean(actionBusy) || draftDirty || editingField || pendingFields.length > 0} onSubmitted={afterManagerHandoff} />
+
     <section className="ops-glass-card cg-import-queue space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold text-slate-100">{t("IMPORT QUEUE","قائمة انتظار الاستيراد")}</h2><p className="text-xs text-slate-500">{t("Live staged files · Approve now and complete follow-up details later.","الملفات قيد الإعداد · اعتمد الآن واستكمل بيانات المتابعة لاحقاً.")}</p></div><div className="flex flex-wrap gap-2">
           <button className={`ops-secondary-button ${!archiveView ? "ring-1 ring-cyan-300/30" : ""}`} type="button" onClick={() => { setArchiveView(false); setFilter("ALL"); setPage(1); }}>{t("ACTIVE QUEUE","قائمة الانتظار النشطة")}</button>
@@ -623,6 +641,7 @@ export function SmartCareerCollectClient() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span role="status" className={`inline-flex min-h-11 items-center rounded-xl border px-3 font-mono text-[13px] font-semibold ${detail.case.status === "APPROVED_FILE" ? "border-emerald-300/35 bg-emerald-300/[.10] text-emerald-200" : draftDirty ? "border-amber-300/35 bg-amber-300/[.10] text-amber-200" : "border-cyan-300/30 bg-cyan-300/[.08] text-cyan-200"}`}>{workflowState}</span>
+          {detail.case.status !== "APPROVED_FILE" && <ImportDuplicateCenter compact initialCaseId={detail.case.id} disabled={Boolean(actionBusy) || draftDirty || editingField || pendingFields.length > 0 || Boolean(detail.case.manager_review_id)} onSubmitted={afterManagerHandoff} />}
           <button className="ops-secondary-button min-h-11" type="button" disabled={Boolean(actionBusy)} onClick={closeReview}>{t("CLOSE","إغلاق")}</button>
         </div>
       </header>

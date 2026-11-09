@@ -26,7 +26,7 @@ function database(row: Record<string, unknown>) {
     if (text.startsWith("select id,original_filename")) return [sourceDocument];
     if (text.startsWith("select display_name from staff")) return [{ display_name: "Review Manager" }];
     if (text.startsWith("select d.id,")) return [{ ...sourceDocument, status: row.status, archived_at: row.archived_at }];
-    if (text.startsWith("select archived_at from client_import_cases")) return [{ archived_at: row.archived_at }];
+    if (text.startsWith("select archived_at,manager_review_id from client_import_cases")) return [{ archived_at: row.archived_at, manager_review_id: row.manager_review_id ?? null }];
     throw new Error(`Unexpected read query: ${text}`);
   });
   vi.mocked(sql).mockReturnValue(query as unknown as ReturnType<typeof sql>);

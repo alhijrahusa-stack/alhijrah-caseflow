@@ -166,6 +166,7 @@ export function ExecutiveShell({initial,management,header,children}:{initial:Exe
         {SPECIAL_WORKFLOW_DESTINATIONS.map(destination => nav(destination.label, destination.labelAr, destination.href, "⇄", data.worksite_total, data.worksite_urgent))}
         <p className="royal-group-label">{t("Operations", "العمليات")}</p>
         {nav("Staff", "حمل الفريق", "/staff/staff?tab=team", "♧")}
+        {nav("Import Queue", "قائمة انتظار الاستيراد", "/staff/import", "⇄")}
         {nav("Tasks", "المهام والمتابعات", "/staff/tasks", "☷")}
         {nav("Follow-Ups", "المتابعات", "/staff/follow-ups", "↻")}
         {nav("Gate Job Account", "إدارة الحسابات", "/staff/gate-job-account", "⌘")}

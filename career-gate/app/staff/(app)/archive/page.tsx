@@ -1,3 +1,4 @@
+import { ImportTrash } from "@/components/staff/ImportTrash";
 import { StaffText } from "@/components/staff/StaffLanguage";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -40,7 +41,8 @@ export default async function ArchivePage() {
       (select jsonb_build_object('review_id',i.id,'reviewed_by_name',coalesce(i.resolved_by_name_snapshot,reviewer.display_name),
           'reviewed_at',i.resolved_at,'review_pending',false)
         from manager_inbox i join staff reviewer on reviewer.id=i.resolved_by
-        where i.status='resolved' and (i.client_id=c.id or i.related_client_id=c.id)
+        where i.status='resolved' and (i.client_id=c.id or i.related_client_id=c.id
+          or (i.kind='import' and i.resolution_target->>'kind'='client' and i.resolution_target->>'id'=c.id::text))
         order by i.resolved_at desc,i.id desc limit 1) as review_stamp,
       count(d.id)::int as retained_documents
     from clients c
@@ -65,6 +67,8 @@ export default async function ArchivePage() {
           <div><span><StaffText en="Retained Documents" ar="الوثائق المحفوظة"/></span><strong>{retainedDocuments}</strong></div>
         </div>
       </header>
+
+      <ImportTrash />
 
       <section className="archive-section ops-glass-card p-0">
         <div className="archive-section-head">
