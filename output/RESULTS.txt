@@ -1,0 +1,74 @@
+repo HEAD: 09b955c (parents c812c1f, 44fd112); v2.2 base d81ab51
+environment: LOCAL Miniflare (Workers/D1/R2/DO/KV) + Chromium; NOT Cloudflare staging; no deploy
+
+== commands, exit codes, durations ==
+tsc exit=0 secs=5 cmd=npx tsc --noEmit -p .
+build exit=0 secs=18 cmd=npm run build
+unit exit=0 secs=2 cmd=node --experimental-strip-types --no-warnings --test tests/american-terms.test.mjs tests/assessment.test.mjs tests/assistance.test.mjs tests/case-workflow.test.mjs tests/crs-engine.test.mjs tests/crs-golden.test.mjs tests/csv.test.mjs tests/eligibility.test.mjs tests/entry-requirements.test.mjs tests/experience.test.mjs tests/gate2-units.test.mjs tests/inputs-hash.test.mjs tests/mi-2026-1.test.mjs tests/mi-consolidated.test.mjs tests/migrations-journal.test.mjs tests/mrz-repair.test.mjs tests/noc-teer.test.mjs tests/pathways.test.mjs tests/triage.test.mjs
+access.test.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/access.test.mjs
+automation.test.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/automation.test.mjs
+billing.test.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/billing.test.mjs
+chat.test.mjs exit=0 secs=33 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/chat.test.mjs
+database.test.mjs exit=0 secs=14 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/database.test.mjs
+engines.test.mjs exit=0 secs=11 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/engines.test.mjs
+outbox-cas.test.mjs exit=0 secs=1 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/outbox-cas.test.mjs
+portal.test.mjs exit=0 secs=8 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/portal.test.mjs
+registry-coexistence.test.mjs exit=0 secs=0 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/registry-coexistence.test.mjs
+restore.test.mjs exit=0 secs=16 cmd=env ROLLBACK_REF=44fd112 ROLLBACK_DIST=/tmp/claude-0/-home-user-alhijrah-caseflow/6a4112b7-566a-5359-8ce1-d51706829c53/scratchpad/rollback-44fd112/dist/server RESTORE_REPORT=/tmp/claude-0/-home-user-alhijrah-caseflow/6a4112b7-566a-5359-8ce1-d51706829c53/scratchpad/restore-report.json timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/restore.test.mjs
+security.test.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/security.test.mjs
+operations.e2e.spec.ts exit=0 secs=16 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/operations.e2e.spec.ts
+portal.e2e.spec.ts exit=0 secs=17 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/portal.e2e.spec.ts
+assistance-api.mjs exit=0 secs=4 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/assistance-api.mjs
+automation-api.mjs exit=0 secs=5 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/automation-api.mjs
+contact-log-api.mjs exit=0 secs=4 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/contact-log-api.mjs
+engine-api.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/engine-api.mjs
+engine-shadow-only-api.mjs exit=0 secs=4 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/engine-shadow-only-api.mjs
+enterprise-api.mjs exit=0 secs=5 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/enterprise-api.mjs
+experience-api.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/experience-api.mjs
+gate2-api.mjs exit=0 secs=5 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/gate2-api.mjs
+hardening-api.mjs exit=0 secs=7 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/hardening-api.mjs
+identity-trust-api.mjs exit=0 secs=8 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/identity-trust-api.mjs
+intake-api.mjs exit=0 secs=8 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/intake-api.mjs
+local-api.mjs exit=0 secs=5 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/local-api.mjs
+office-hub-api.mjs exit=0 secs=8 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/office-hub-api.mjs
+auth-isolation.mjs exit=0 secs=12 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/auth-isolation.mjs
+intake-identity.mjs exit=0 secs=7 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/intake-identity.mjs
+legal-authorization.mjs exit=0 secs=5 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/legal-authorization.mjs
+portal-security.mjs exit=0 secs=7 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/portal-security.mjs
+lint exit=1 secs=25 cmd=npx eslint . --ignore-pattern dist --ignore-pattern .next
+DONE
+
+== node:test counts ==
+access.test.mjs pass=8 fail=0
+automation.test.mjs pass=9 fail=0
+billing.test.mjs pass=8 fail=0
+chat.test.mjs pass=8 fail=0
+database.test.mjs pass=6 fail=0
+engines.test.mjs pass=17 fail=0
+operations.e2e.spec.ts pass=3 fail=0
+outbox-cas.test.mjs pass=4 fail=0
+portal.e2e.spec.ts pass=4 fail=0
+portal.test.mjs pass=9 fail=0
+registry-coexistence.test.mjs pass=3 fail=0
+restore.test.mjs pass=2 fail=0
+security.test.mjs pass=7 fail=0
+unit pass=129 fail=0
+
+== lint ==
+current: 56 errors / 100 warnings (exit 1). pre-v2.2 baseline d81ab51: 56 errors / 82 warnings (exit 1) — logs/lint-baseline-pre-v22-d81ab51.log. No new lint error introduced by v2.2.
+
+== AC-39 load (LOCAL Miniflare, 900 s, reports/load-report-900.json) ==
+commit p95 57 ms | fanout p95 72 ms | rapid enqueue p95 142 ms | rapid result max 206 ms | distribution {'client': 1120, 'staff': 3360, 'dbClientMessages': 1120, 'dbStaffMessages': 3360, 'ratioStaffPerClient': 3} | lost 0 | leaked 0 | targets {'commitP95le1000': True, 'fanoutP95le2000': True, 'rapidEnqueueP95le800': True, 'rapidResultMaxle5000': True, 'distribution1to3': True, 'zeroLost': True, 'zeroLeaked': True, 'noErrors': True}
+
+== mutations ==
+M1 outbox idempotency key: CAUGHT exit=1 ['not ok 1 - outbox: delivery with the event id as Idempotency-Key; limited tex
+M2 outbox lease CAS (forced interleaving): CAUGHT exit=1 ['not ok 2 - two dispatchers that observed the same PENDING row
+M3 chat media CLEAN gate: CAUGHT exit=1 ['not ok 4 - attachments and voice: quarantine pipeline, no playback before CLEA
+M4 payment replay: CAUGHT exit=1 ['not ok 4 - 4 · duplicates: same key replays, other payload 409; overpayment, case/cu
+M5 socket Origin check: CAUGHT exit=1 ['not ok 5 - WebSocket: commit-then-fan-out, SEND over WS acks with the committed 
+M6 client staff-identity mask: CAUGHT exit=1 ['not ok 7 - leakage: no stack/SQL in errors, staff identities hidden from 
+M7 legal hold check: CAUGHT exit=1 ['not ok 1 - privacy: MANAGER-only ledger; hold refuses erasure; access export; erasu
+restore build exit=0
+
+== deployment ==
+NOT EXECUTED: CLOUDFLARE_API_TOKEN missing in this environment (checked; api.cloudflare.com reachable, 401 without token).
