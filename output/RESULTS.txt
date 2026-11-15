@@ -149,3 +149,7 @@ HTTP: desk / 200; desk /staff/login 200 (HSTS, CSP, X-Frame-Options present); ca
 DB after deploy: admin credential 1; primary owner set; users MANAGER 1; v2.2 tables present; candidates 19 = backup 19.
 Observability (last 20 min): new version 17 fetch events all outcome ok, 0 error-level events.
 Not verified: authenticated 200 on /api/office (no staff session available to the agent); first */5 scheduled run (see below).
+Cron check: schedules registered (17 8 * * *; */5 * * * * modified 22:43:39Z). Telemetry to 22:54Z: 39 fetch events, all ok,
+  0 errors; no scheduled event observed yet (Cloudflare documents up to 15 min propagation for new cron triggers) -> NOT VERIFIED.
+RESULT: SUCCESS — v2.2 (09b955c) live as version 5697ec7c; rollback = time-travel restore to bookmark
+  000000fd-00000000-00005124-1a18354468323086685e500a42522b01 + `wrangler rollback 8db38519-b1a7-4218-9310-656156d6c311`.
