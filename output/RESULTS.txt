@@ -72,3 +72,20 @@ restore build exit=0
 
 == deployment ==
 NOT EXECUTED: CLOUDFLARE_API_TOKEN missing in this environment (checked; api.cloudflare.com reachable, 401 without token).
+
+==== PHASE 3 DEPLOY ATTEMPT — 2026-11-15 ====
+Account/D1 env vars present; values match the owner's message (CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID).
+Network secret "api.cloudflare.com" (header Authorization) listed on the environment.
+Token check: api.cloudflare.com rejected every request for ~4 min
+  /user/tokens/verify -> code 1000 "Invalid API Token"
+  /accounts/<id>/tokens/verify -> code 1000 "Invalid API Token"
+  /accounts/<id>/d1/database, /workers/scripts -> code 10000 "Authentication error" (9 polls x 20 s + final)
+  wrangler whoami -> "A request to the Cloudflare API (/accounts) failed."
+Result: BLOCKER — nothing executed against production (no export, no migration, no deploy).
+Pre-deploy live state (unchanged): workers.dev /staff/login 200; desk.careergate.us /staff/login 200;
+  canada.careergate.us/staff/login 302 -> desk.careergate.us; workers.dev /api/office 401 (unauthenticated).
+Prepared, token-independent:
+  build from HEAD 09b955c: exit 0
+  scripts/deploy-config.mjs + wrangler deploy --dry-run with real D1 id / alhijrah-canada-db / alhijrah-canada-docs: exit 0
+  bindings: CHAT_ROOMS (CaseChatRoom DO), DB (alhijrah-canada-db), BUCKET (alhijrah-canada-docs); upload 5256 KiB / gzip 1681 KiB
+  (dry-run used placeholder OFFICE_ADMIN_EMAIL/SHADOW_ONLY; the real values must be read from the live worker before deploy)
