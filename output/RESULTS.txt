@@ -118,3 +118,16 @@ Artifacts for an off-proxy deploy: output/DEPLOY_RUNBOOK.md,
   canada-desk-deploy-09b955c.tar.gz sha256 8987e3661360dbdecc9a153dd2d01b158e765b23d4482c0b132106cf050dd052
   canada-desk-09b955c.bundle        sha256 324b1c50334fd51c3428959a896be3c9b0e9b91ad57e8c1e9b45fc0408ff8a0d
 RESULT: FAILED — production unchanged (old code, old schema).
+
+==== PHASE 3 DEPLOY RETRY — 2026-11-15 22:30 UTC ====
+Token now from environment variable (account token, cfat_*); proxy no longer injects (verified).
+wrangler whoami: exit 0 (Account API Token, account d0fe7333…64cb).
+Preflight (no traffic impact): `wrangler versions upload` without DO/routes/crons: exit 0; 19 assets uploaded, 62 already present;
+  version 825d9d61-4902-4f9e-968b-806f8621fba8 created, NOT deployed. Asset-upload 401 is resolved.
+Permission probe with the new token: workers/scripts OK, r2/buckets OK, zones (careergate.us) OK,
+  d1/database and d1/database/<id> -> 10000 "Authentication error". wrangler d1 time-travel info / d1 export -> fail.
+RESULT: BLOCKER — token lacks D1 permission; backup, migrations and deploy NOT executed. Database untouched
+  (still 0000..0023, old code live: version 8db38519). Stopped before any production change.
+Containment: preview URLs disabled for alhijrah-canada-desk (previews_enabled=false; workers.dev stays enabled) so the
+  undeployed preflight version (new code, production D1/R2 bindings, old schema) is not reachable by a preview URL.
+Live: desk.careergate.us/staff/login 200; workers.dev/staff/login 200.
