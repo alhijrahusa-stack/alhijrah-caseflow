@@ -131,3 +131,21 @@ RESULT: BLOCKER — token lacks D1 permission; backup, migrations and deploy NOT
 Containment: preview URLs disabled for alhijrah-canada-desk (previews_enabled=false; workers.dev stays enabled) so the
   undeployed preflight version (new code, production D1/R2 bindings, old schema) is not reachable by a preview URL.
 Live: desk.careergate.us/staff/login 200; workers.dev/staff/login 200.
+
+==== PHASE 3 FINAL DEPLOY — 2026-11-15 ~22:40 UTC ====
+wrangler d1 list: alhijrah-canada-db beda84dd-472a-4dec-beb7-e52c81c74732 (PASS).
+Rollback point: time-travel bookmark 000000fd-00000000-00005124-1a18354468323086685e500a42522b01.
+Backup: d1 export --remote exit 0; 1,653,280 bytes; 1127 INSERT; sha256 aafd03b7e900bee3c834d144fa024530db45fc7cd635df5e45af7619b43c35d1
+  (session scratchpad only; contains client data; container is ephemeral).
+Pending before apply: exactly 0024..0031. Rehearsal on this backup: all OK, quick_check ok, foreign_key_check 0.
+Dry-run deploy: exit 0 (CHAT_ROOMS/CaseChatRoom, DB, BUCKET, OFFICE_ADMIN_EMAIL, SHADOW_ONLY=false).
+Migrations apply --remote: exit 0; 0024..0031 ✅. d1_migrations now 32 (last 0031_v22_privacy.sql).
+Deploy: exit 0; version 5697ec7c-d48e-4de0-8364-809ad1b9ac04 at 100% ("v2.2 Gate 6 09b955c");
+  custom domains desk.careergate.us, canada.careergate.us; workers.dev; crons 17 8 * * * and */5 * * * *.
+Live bindings (API): APP_SECRET (secret, unchanged), BUCKET, CHAT_ROOMS durable_object_namespace (CaseChatRoom), DB,
+  OFFICE_ADMIN_EMAIL (21 chars), SHADOW_ONLY=false.
+HTTP: desk / 200; desk /staff/login 200 (HSTS, CSP, X-Frame-Options present); canada /staff/login 302 -> desk;
+  workers.dev /staff/login 200; /api/office 401, /api/candidates/x/privacy 401, /api/client/chat 401 without a session.
+DB after deploy: admin credential 1; primary owner set; users MANAGER 1; v2.2 tables present; candidates 19 = backup 19.
+Observability (last 20 min): new version 17 fetch events all outcome ok, 0 error-level events.
+Not verified: authenticated 200 on /api/office (no staff session available to the agent); first */5 scheduled run (see below).
