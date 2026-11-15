@@ -89,3 +89,32 @@ Prepared, token-independent:
   scripts/deploy-config.mjs + wrangler deploy --dry-run with real D1 id / alhijrah-canada-db / alhijrah-canada-docs: exit 0
   bindings: CHAT_ROOMS (CaseChatRoom DO), DB (alhijrah-canada-db), BUCKET (alhijrah-canada-docs); upload 5256 KiB / gzip 1681 KiB
   (dry-run used placeholder OFFICE_ADMIN_EMAIL/SHADOW_ONLY; the real values must be read from the live worker before deploy)
+
+==== PHASE 3 DEPLOY RUN — 2026-11-15 22:00–22:30 UTC ====
+Token: valid (proxy-injected; /user/tokens/verify active, expires 2027-11-16).
+Live worker before: version 8db38519 ("gate 2 d81ab51 SHADOW_ONLY"); bindings DB=alhijrah-canada-db, BUCKET=alhijrah-canada-docs;
+  vars OFFICE_ADMIN_EMAIL (21 chars), SHADOW_ONLY (4 chars); secret APP_SECRET; custom domains desk/canada.careergate.us; cron 17 8 * * *.
+Production checks: d1_migrations 24 rows (0000..0023); pending list exactly 0024..0031.
+  office_settings: mail_from=notifications@careergate.us, Resend key present, primary owner set.
+  login_credentials: administrator password already exists (staff:alhijrahusa@gmail.com) -> /api/staff/setup returns 409.
+Rollback point: time-travel bookmark 000000f9-00000000-00005124-e6b596a6bac823432865b161b40b4e67.
+Backup: wrangler d1 export --remote: exit 0; 1,651,988 bytes; 1122 INSERT; sha256 5a90ef023b43c0ecec6f2fdb22c95897a62a664828b863248787c36426e19e51
+  (kept only in the session scratchpad; not committed — contains client data; the container is ephemeral).
+Rehearsal: backup loaded locally + 0024..0031 applied: all OK; quick_check ok; foreign_key_check 0.
+Migrations apply --remote: exit 0; 0024..0031 all ✅.
+Deploy: exit 1 — POST /workers/assets/upload -> 401 (x9). Cause verified: the proxy replaces any Authorization header to
+  api.cloudflare.com (a fabricated JWT and "Bearer zzzz" both verified as the saved token), so the assets-upload JWT never arrives.
+  No new version created (versions list unchanged; live version still 8db38519).
+Impact found: live old code (d81ab51) on the migrated schema; new triggers block old write paths (case_facts frozen 0029,
+  assessment_history insert guard 0025, documents guards 0030).
+Rollback executed: time-travel restore to the bookmark above: exit 0.
+  Rows written after the backup and before restore (one staff sign-in: auth_security_log 1, operation_logs 1, staff_sessions 1)
+  re-inserted; rate_limits (3 ephemeral rows) not restored.
+  Post-restore: every table count equals backup except those 3 re-inserted rows; d1_migrations 24 (0023); v2.2 tables absent.
+  Live: desk.careergate.us/staff/login 200; /api/office 401 unauthenticated; workers.dev /staff/login 200.
+Not done: ADMIN_SETUP_TOKEN not set (deploy failed; administrator password already exists -> setup endpoint 409);
+  mail sender unchanged (already notifications@careergate.us); OFFICE_NOTIFICATION_EMAIL not set (no code reads it).
+Artifacts for an off-proxy deploy: output/DEPLOY_RUNBOOK.md,
+  canada-desk-deploy-09b955c.tar.gz sha256 8987e3661360dbdecc9a153dd2d01b158e765b23d4482c0b132106cf050dd052
+  canada-desk-09b955c.bundle        sha256 324b1c50334fd51c3428959a896be3c9b0e9b91ad57e8c1e9b45fc0408ff8a0d
+RESULT: FAILED — production unchanged (old code, old schema).
