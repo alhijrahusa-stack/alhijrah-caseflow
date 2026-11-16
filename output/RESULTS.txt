@@ -197,3 +197,52 @@ Deploy: no migrations pending; wrangler deploy exit 0; version a0bb649a-b0b1-459
 Live: / 200, /staff/login 200, /?view=classic 200, /apply 200, /api/office 401 (no session), POST workflow close_session 401 (no session).
 Bindings: APP_SECRET, BUCKET, CHAT_ROOMS, DB, OFFICE_ADMIN_EMAIL, OPENAI_API_KEY (secret, present on worker), SHADOW_ONLY=false.
 Telemetry: new version fetch ok; */5 scheduled event observed (previous version 5697ec7c, outcome ok) -> cron VERIFIED.
+
+==== ALHIJRAH DECISION-SUPPORT ENGINE (OpenAI) — 2026-11-16 ====
+Model verification (real API, project key from OPENAI_API_KEY): GET /v1/models 200, gpt-6.1-sol listed (96 models); GET /v1/models/gpt-6.1-sol 200;
+  POST /v1/responses model=gpt-6.1-sol -> 200, response model gpt-6.1-sol, text ALHIJRAH-OK; web_search (allowed_domains canada.ca) -> 200 with canada.ca citation.
+Commit 5fd72d5. Patch output/alhijrah-engine-5fd72d5.patch (sha256 b047662dd570b731bb80908301754432d1ce3dcdf17a833abaf0b23d3b027f12).
+Live E2E (tests/ai-live.mjs, built Worker + real OpenAI, synthetic case): PASSED with gpt-6.1-sol
+  calls: /v1/models 200; /v1/responses 200 x4 all model gpt-6.1-sol (ai-check 1.2s; compare AR 66s; compare EN 55s; assistant 7.4s)
+  compare AR: 16 requirements, 8 verified against official URLs, 8 unverified (flagged); compare EN: 18 requirements, 12 verified, 6 unverified; checkedOn 2026-11-15; sourcePageDate 2026-11-09 (canada.ca RCIP pages)
+  assistant: webSearch=true, official citation only (canada.ca RCIP language-test page); case version/status unchanged.
+Regression (final code): 35/35 exit 0 —
+  1 exit=0 pass=129 fail=0 secs=1
+  2 exit=0 pass= fail= secs=4
+  3 exit=0 pass=8 fail=0 secs=6
+  4 exit=0 pass=9 fail=0 secs=7
+  5 exit=0 pass=8 fail=0 secs=6
+  6 exit=0 pass=8 fail=0 secs=33
+  7 exit=0 pass=6 fail=0 secs=14
+  8 exit=0 pass=17 fail=0 secs=11
+  9 exit=0 pass=4 fail=0 secs=17
+  10 exit=0 pass=4 fail=0 secs=1
+  11 exit=0 pass=4 fail=0 secs=19
+  12 exit=0 pass=9 fail=0 secs=8
+  13 exit=0 pass=3 fail=0 secs=1
+  14 exit=0 pass=7 fail=0 secs=5
+  15 exit=0 pass= fail= secs=6
+  16 exit=0 pass= fail= secs=12
+  17 exit=0 pass= fail= secs=5
+  18 exit=0 pass= fail= secs=4
+  19 exit=0 pass= fail= secs=6
+  20 exit=0 pass= fail= secs=5
+  21 exit=0 pass= fail= secs=6
+  22 exit=0 pass= fail= secs=6
+  23 exit=0 pass= fail= secs=5
+  24 exit=0 pass= fail= secs=8
+  25 exit=0 pass= fail= secs=8
+  26 exit=0 pass= fail= secs=8
+  27 exit=0 pass= fail= secs=7
+  28 exit=0 pass= fail= secs=6
+  29 exit=0 pass= fail= secs=5
+  30 exit=0 pass= fail= secs=8
+  31 exit=0 pass= fail= secs=6
+  32 exit=0 pass=2 fail=0 secs=17
+  33 exit=0 pass=3 fail=0 secs=4
+  34 exit=0 pass=6 fail=0 secs=6
+  lint-ratchet exit=0 lint ratchet ok:
+  new: tests/v22/decision-support.test.mjs 6/6 (mocked OpenAI); updated: office-hub-api, experience-api (Groq expectations replaced).
+Deploy: no migrations; wrangler deploy exit 0 version 1d5e38df (OPENAI_MODEL=gpt-6.1-sol); secret OPENAI_API_KEY uploaded (value from environment, never printed) -> live version 6ec5482f-3571-41aa-879a-c70f42be2a93.
+Live checks: / 200, /staff/login 200; /api/office, /api/dashboard/priorities, /api/office/ai-check, /api/candidates/:id/decision-support -> 401 without session.
+Not verified on production: an authenticated engine call (no staff session available to the agent). Rollback: wrangler rollback a0bb649a-b0b1-459e-88b9-e715c19da1ac.
