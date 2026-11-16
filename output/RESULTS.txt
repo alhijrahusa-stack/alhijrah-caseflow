@@ -306,3 +306,8 @@ LIVE official rounds via Worker runtime: 200, 742096 B, Last-Modified 2026-10-28
 LIVE model check: listed + ai-check gpt-6.1-sol — output/r3-ai-live.log
 Mocked: engine-intake 8/8, engine 10/10. Report, requirement map, blockers, backup/migration/rollback: output/RELEASE_R3.md
 Production: migration 0032 applied and Worker f31ab7eb deployed on 2026-11-16 after explicit approval (see RELEASE_R3.md §7).
+
+== Analysis tab redesign (ccr-engine-gate @ 0eb0940) — NOT deployed (pending approval) ==
+Five-section glass workspace; hybrid manual field edit; fixes: unstyled gold actions in case tabs, tab reset after save.
+Regression 37/37 (output/ui-r4/regression-summary.txt); operations E2E 7/7; lint ratchet 55 (baseline 56).
+Screenshots 1440/390 for every section + before/after: output/ui-r4/. Patch: output/analysis-ui-0eb0940.patch
