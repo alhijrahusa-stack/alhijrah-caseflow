@@ -252,3 +252,49 @@ Commit 4e4e6d2: components/client/privacy.tsx — section «معالجة الم�
 Unchanged: authorization text, legal terms, LEGAL_VERSION and stored authorization snapshots.
 Regression: 35 commands — 34 exit 0 first run; portal.e2e.spec.ts journey timed out once on the path-card fade (unrelated), then 2/2 reruns exit 0 (4/4).
 Deploy exit 0, version f619a74c-f60a-4bbd-9069-b1f2e08bcf30. Live /privacy: approved intro + 6 headings present; removed phrases absent (incl. Anthropic). No horizontal overflow at 1280 and 390 (screenshots output/privacy-desktop.png, privacy-phone.png).
+
+==== ASSESSMENT ENGINE + PROVIDER-NAME REMOVAL — branch ccr-engine-gate, commit 0eb0eef (NOT deployed) ====
+Patch output/engine-0eb0eef.patch sha256 04aab0a29710b4f260ea647ba6878c6480d5e32790a7ef1d2d7ab147a132e311
+Regression 37/37 exit 0:
+  1 exit=0 pass=129 fail=0
+  2 exit=0 pass= fail=
+  3 exit=0 pass=8 fail=0
+  4 exit=0 pass=9 fail=0
+  5 exit=0 pass=8 fail=0
+  6 exit=0 pass=8 fail=0
+  7 exit=0 pass=6 fail=0
+  8 exit=0 pass=17 fail=0
+  9 exit=0 pass=5 fail=0
+  10 exit=0 pass=4 fail=0
+  11 exit=0 pass=4 fail=0
+  12 exit=0 pass=9 fail=0
+  13 exit=0 pass=3 fail=0
+  14 exit=0 pass=7 fail=0
+  15 exit=0 pass= fail=
+  16 exit=0 pass= fail=
+  17 exit=0 pass= fail=
+  18 exit=0 pass= fail=
+  19 exit=0 pass= fail=
+  20 exit=0 pass= fail=
+  21 exit=0 pass= fail=
+  22 exit=0 pass= fail=
+  23 exit=0 pass= fail=
+  24 exit=0 pass= fail=
+  25 exit=0 pass= fail=
+  26 exit=0 pass= fail=
+  27 exit=0 pass= fail=
+  28 exit=0 pass= fail=
+  29 exit=0 pass= fail=
+  30 exit=0 pass= fail=
+  31 exit=0 pass= fail=
+  32 exit=0 pass=2 fail=0
+  33 exit=0 pass=3 fail=0
+  34 exit=0 pass=6 fail=0
+  35 exit=0 pass=9 fail=0
+  36 exit=0 pass=10 fail=0
+  lint-ratchet exit=0 lint ratchet
+New: engine-core 9/9, v22/engine 10/10, operations E2E engine journey 1/1 (screenshots engine-panel-1440.png, client-published-390.png).
+Fixes found by tests: package refresh made non-fatal for the assessment job; 'unassessed' rules ref for cases without an assessment.
+Test fixtures changed by design: consent version v4->v5 in 12 suites; 0032 in database fixture list; job settling loop in engine test.
+Not verified: live IRCC rounds JSON (www.canada.ca unreachable from this sandbox: HTTP/2 stream error); parser tested on synthetic data only.
+Pending approval: production migration 0032 + deploy.
