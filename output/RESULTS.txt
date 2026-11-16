@@ -305,4 +305,4 @@ LIVE gpt-6.1-sol flow (synthetic PDF + scanned PNG, isolated D1 0000-0032, scann
 LIVE official rounds via Worker runtime: 200, 742096 B, Last-Modified 2026-10-28T13:37:19Z, 454 rounds, UNCHANGED on rerun — output/r3-radar-live.json
 LIVE model check: listed + ai-check gpt-6.1-sol — output/r3-ai-live.log
 Mocked: engine-intake 8/8, engine 10/10. Report, requirement map, blockers, backup/migration/rollback: output/RELEASE_R3.md
-Pending explicit approval: production deploy and production migration 0032.
+Production: migration 0032 applied and Worker f31ab7eb deployed on 2026-11-16 after explicit approval (see RELEASE_R3.md §7).
