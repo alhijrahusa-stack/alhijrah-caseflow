@@ -317,3 +317,8 @@ Analysis workspace redesign; central AI gate for all office calls (usage/quota/b
 draw radar retry + MANAGER upload of the official rounds file. Regression 37/37 (09 re-run: first run transient overflow).
 Live: readiness brief 200 after one correction (first response failed on 'questions'). Logs: output/r5/.
 Open: edge fetch of canada.ca from Cloudflare unverified since 520 at 08:17 UTC; check with «فحص السحوبات الرسمية الآن» or upload the file.
+
+== Production 2026-11-16: Worker e567aefd (commits d9f372a + a41d5ef), no migration; rollback: wrangler rollback ca64df58-cc16-4915-a9c1-eec39e094386 ==
+Client entry gold/green look restored inside the hero card (luxury pass). Verified 360/768/1440, RTL + EN (LTR), keyboard focus,
+reduced motion; live production page checked. Tests: portal E2E 4/4, portal 9/9, operations E2E 7/7, access 8/8, security 7/7,
+legal-authorization, intake-identity, portal-security, intake-api, auth-isolation, experience-api PASS. Screens: output/client-ui/.
