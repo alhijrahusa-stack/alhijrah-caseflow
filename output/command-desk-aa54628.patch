@@ -1,0 +1,887 @@
+From aa54628d87bc90d75e85d12ddaf70f1378a58af2 Mon Sep 17 00:00:00 2001
+From: ALHIJRAH Canada Desk <noreply@careergate.us>
+Date: Mon, 16 Nov 2026 00:20:18 +0000
+Subject: [PATCH] Staff command desk (owner design) on real D1 APIs;
+ work-session follow-up gate; Toronto-dated billing default
+
+- components/operations/command-desk.tsx: new dashboard layout; cases, documents, CRS, AI review, employers/vacancies,
+  client notices and follow-ups from existing routes; no sample data; classic layout kept at /?view=classic
+- POST /api/candidates/[id]/workflow {action:'close_session'}: 400 FOLLOW_UP_REQUIRED without a follow-up from today on
+- billing payment date default/max use the Toronto office date (was UTC: rejected every evening in Toronto)
+- tests: tests/v22/desk.test.mjs, operations E2E desk journey + 390px
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01RQZ57XDCVxFYqkyqLENrNp
+---
+ app/api/candidates/[id]/workflow/route.ts |  21 +-
+ app/command-desk.css                      |   6 +
+ app/desk.tsx                              |   2 +-
+ app/layout.tsx                            |   1 +
+ app/page.tsx                              |  11 +-
+ components/operations/billing.tsx         |   6 +-
+ components/operations/command-desk.tsx    | 559 ++++++++++++++++++++++
+ tests/v22/desk.test.mjs                   |  87 ++++
+ tests/v22/operations.e2e.spec.ts          |  39 +-
+ 9 files changed, 720 insertions(+), 12 deletions(-)
+ create mode 100644 app/command-desk.css
+ create mode 100644 components/operations/command-desk.tsx
+ create mode 100644 tests/v22/desk.test.mjs
+
+diff --git a/app/api/candidates/[id]/workflow/route.ts b/app/api/candidates/[id]/workflow/route.ts
+index cffdd41..feb32e8 100644
+--- a/app/api/candidates/[id]/workflow/route.ts
++++ b/app/api/candidates/[id]/workflow/route.ts
+@@ -1,7 +1,9 @@
+ import { getDb } from '@/db';
+-import { clientCases,documents,tasks,aiCaseReviews,eligibilityRuns,caseCrs } from '@/db/schema';
+-import { eq,and,ne } from 'drizzle-orm';
+-import { owner,candidateOwned,owned,errorResponse } from '@/lib/server';
++import { clientCases,documents,tasks,aiCaseReviews,eligibilityRuns,caseCrs,events } from '@/db/schema';
++import { eq,and,ne,gte } from 'drizzle-orm';
++import { owner,candidateOwned,owned,errorResponse,sameOrigin,readJson } from '@/lib/server';
++import { z } from 'zod';
++import { torontoDate } from '@/lib/v22-core';
+ import { detailsSchema } from '@/lib/intake';
+ import { screenIntake } from '@/lib/screening';
+ import { pathwayById,pathwayReadiness } from '@/lib/pathways';
+@@ -28,3 +30,16 @@ export async function GET(_r:Request,ctx:Context){try{
+  const wf=caseWorkflow({profile,officeJobsMissing:!client&&!!officeJobsError(profileSchema.parse({...profile,consent:true}).jobs),status:c.status,assignedTo:c.assignedTo,isClient:!!client,pathway:readiness&&pw?{label:pw.ar,missing:readiness.missing.map(m=>m.ar)}:null,inbox:client?.inbox,requestedDocuments:requested,followUpDate:client?.followUpDate||'',documents:docs,hasAiReview:!!ai,hasEligibility:!!elig,hasCrs:!!crs,openTasks:open,today:new Date().toISOString().slice(0,10)});
+  return Response.json({...wf,missingKeys:readiness?readiness.missing.map(m=>m.key):[],missingDocumentKeys:screen?screen.documents.filter(d=>d.state==='missing').map(d=>d.category):[],clientVersion:client?.version??null},{headers:{'Cache-Control':'private, no-store'}});
+ }catch(e){return errorResponse(e);}}
++// Work-session gate: a staff member closes a case session only when a next follow-up is scheduled (an open task due today
++// or later, or the client follow-up date). Otherwise 400 FOLLOW_UP_REQUIRED and nothing is written.
++const closeSchema=z.object({action:z.literal('close_session')}).strict();
++export async function POST(request:Request,ctx:Context){try{
++ sameOrigin(request);const o=await owner(),{id}=await ctx.params,c=await candidateOwned(id,o),db=getDb();await readJson(request,closeSchema);
++ const today=torontoDate(Date.now());
++ const [[task],[client]]=await Promise.all([db.select({dueDate:tasks.dueDate}).from(tasks).where(and(eq(tasks.candidateId,id),owned(tasks.ownerId,o),eq(tasks.status,'open'),gte(tasks.dueDate,today))).orderBy(tasks.dueDate).limit(1),
++  db.select({followUpDate:clientCases.followUpDate}).from(clientCases).where(eq(clientCases.candidateId,id)).limit(1)]);
++ const dates=[task?.dueDate||'',client?.followUpDate&&client.followUpDate>=today?client.followUpDate:''].filter(Boolean).sort();
++ if(!dates.length)return Response.json({error:'حدّد موعد المتابعة التالي قبل إغلاق جلسة العمل على الملف.',code:'FOLLOW_UP_REQUIRED'},{status:400,headers:{'Cache-Control':'private, no-store'}});
++ await db.insert(events).values({id:crypto.randomUUID(),ownerId:c.ownerId,candidateId:id,action:'أُغلقت جلسة العمل',note:'المتابعة التالية: '+dates[0],createdAt:new Date().toISOString()});
++ return Response.json({ok:true,nextFollowUp:dates[0]},{headers:{'Cache-Control':'private, no-store'}});
++}catch(e){return errorResponse(e);}}
+diff --git a/app/command-desk.css b/app/command-desk.css
+new file mode 100644
+index 0000000..1900765
+--- /dev/null
++++ b/app/command-desk.css
+@@ -0,0 +1,6 @@
++/* Command desk: the global element resets (button{background:none;border:0}, input styles) are unlayered and would
++   override the Tailwind utilities this layout uses. Inside the desk shell — not inside embedded legacy panels — each
++   control falls back to the layered (Tailwind) value. */
++.command-desk :is(button,input,select,textarea,a):not(.legacy-panels *){background:revert-layer;border:revert-layer;border-radius:revert-layer;padding:revert-layer;color:revert-layer;min-height:revert-layer;box-shadow:revert-layer;font-size:revert-layer;width:revert-layer}
++.command-desk{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif}
++.command-desk input[type=date]{color-scheme:dark}
+diff --git a/app/desk.tsx b/app/desk.tsx
+index 7c774a7..e0da394 100644
+--- a/app/desk.tsx
++++ b/app/desk.tsx
+@@ -90,7 +90,7 @@ export default function Desk({userName,userEmail='',signInUrl,initialIntake=fals
+  <StaffAssistant enabled={!!userName} openCandidate={id=>void open(id)} notify={setToast}/><footer className="page-footer"><span>ALHIJRAH SERVICES CANADA</span><span><i className="live-dot"/>مساحة مستقلة · مراجعة بشرية للنتائج</span></footer></div></main><nav className="mobile-nav" aria-label="التنقل للجوال">{nav.slice(0,4).map(n=><button key={n.id} className={view===n.id?'active':''} onClick={()=>{setMoreOpen(false);go(n.id);}}><n.icon size={19}/><span>{labels[n.id]}</span></button>)}<button className={moreOpen||nav.slice(4).some(n=>n.id===view)?'active':''} aria-expanded={moreOpen} aria-controls="mobile-more" onClick={()=>setMoreOpen(o=>!o)}><MoreHorizontal size={21}/><span>المزيد</span></button></nav>{moreOpen&&<div className="mobile-more-backdrop" onClick={()=>setMoreOpen(false)}><div id="mobile-more" className="mobile-more" role="menu" onClick={e=>e.stopPropagation()}><button disabled={!userName} className="mobile-more-primary" onClick={()=>{setMoreOpen(false);go('intake');}}><Plus size={19}/><span>متقدم جديد</span></button>{nav.slice(4).map(n=><button key={n.id} role="menuitem" className={view===n.id?'active':''} onClick={()=>{setMoreOpen(false);go(n.id);}}><n.icon size={19}/><span>{labels[n.id]}</span></button>)}</div></div>}{toast&&<div className="toast" role="status"><CheckCircle2 size={18}/>{toast}<button onClick={()=>setToast('')} aria-label="إغلاق الإشعار"><X size={15}/></button></div>}{(selected||detailLoading)&&<div className="drawer-overlay" onClick={close}><section className="drawer" role="dialog" aria-modal="true" aria-label="ملف المتقدم" onClick={e=>e.stopPropagation()}>{!selected&&detailLoading?<div className="loading-state"><LoaderCircle className="spin"/>جارٍ فتح الملف…</div>:selected&&<Detail key={selected.id} role={role} me={userName||userEmail} initialTab={requestedTab} c={selected} busy={busy} close={close} edit={()=>{setEditing(selected);close();setView('intake');}} update={update} refresh={()=>refreshDetail(selected.id)} notify={setToast}/>}</section></div>}</div>;
+ }
+ function Field({label,hint,children}:{label:string;hint?:string;children:React.ReactNode}){return <label className="field"><span>{label}</span>{children}{hint&&<small>{hint}</small>}</label>;}
+-function Intake({initial,saving,cancel,save,clientFile=false}:{initial?:Profile;saving:boolean;cancel:()=>void;save:(p:Profile)=>Promise<void>;clientFile?:boolean}){
++export function Intake({initial,saving,cancel,save,clientFile=false}:{initial?:Profile;saving:boolean;cancel:()=>void;save:(p:Profile)=>Promise<void>;clientFile?:boolean}){
+  const [p,setP]=useState<Profile>(initial??{...blankProfile}),[step,setStep]=useState(1),[error,setError]=useState(''),[consent,setConsent]=useState(!!initial);
+  function set<K extends keyof Profile>(k:K,v:Profile[K]){setP(old=>({...old,[k]:v}));}
+  const input=(key:keyof Profile,label:string,type='text',hint?:string,max?:number)=><Field label={label} hint={hint}><input type={type} value={p[key]===null?'':String(p[key])} maxLength={type==='text'?150:undefined} min={type==='number'?0:undefined} max={max} onChange={e=>set(key,(type==='number'?(e.target.value===''?null:Number(e.target.value)):e.target.value) as never)} placeholder="غير متحقق"/></Field>;
+diff --git a/app/layout.tsx b/app/layout.tsx
+index 6520b61..ff5546f 100644
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -14,6 +14,7 @@ import "./refinement.css";
+ import "./experience.css";
+ import "./upgrade.css";
+ import "./premium.css";
++import "./command-desk.css";
+ 
+ export const metadata: Metadata = {
+   manifest: "/manifest.webmanifest",
+diff --git a/app/page.tsx b/app/page.tsx
+index 0e2ab48..e3caecb 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -1,5 +1,14 @@
+ import Desk from './desk';
++import CommandDesk from '@/components/operations/command-desk';
+ import { staff } from '@/lib/server';
+ import StaffEntry from '@/components/staff-entry';
+ export const dynamic='force-dynamic';
+-export default async function Page({searchParams}:{searchParams:Promise<{view?:string}>}){const params=await searchParams;try{const s=await staff();return <Desk role={s.role} userName={s.user.displayName} userEmail={s.user.email} signInUrl="/"/>;}catch(e){return <StaffEntry returnTo={params.view==='settings'?'/?view=settings':'/'} message={e instanceof Error&&e.message.includes('غير مخوّل')?e.message:undefined}/>;}}
++// The command desk is the staff dashboard; ?view=classic keeps the previous layout reachable (same APIs, same data).
++export default async function Page({searchParams}:{searchParams:Promise<{view?:string;candidate?:string}>}){
++ const params=await searchParams;
++ let s:Awaited<ReturnType<typeof staff>>|null=null,message:string|undefined;
++ try{s=await staff();}catch(e){message=e instanceof Error&&e.message.includes('غير مخوّل')?e.message:undefined;}
++ if(!s)return <StaffEntry returnTo={params.view==='settings'?'/?view=settings':'/'} message={message}/>;
++ if(params.view==='classic')return <Desk role={s.role} userName={s.user.displayName} userEmail={s.user.email} signInUrl="/"/>;
++ return <CommandDesk role={s.role} userName={s.user.displayName} initialView={params.view||''} initialCandidate={typeof params.candidate==='string'?params.candidate:''}/>;
++}
+diff --git a/components/operations/billing.tsx b/components/operations/billing.tsx
+index cb06438..d04e7c5 100644
+--- a/components/operations/billing.tsx
++++ b/components/operations/billing.tsx
+@@ -6,7 +6,7 @@
+ import { useCallback,useEffect,useState } from 'react';
+ import { Receipt,Plus,Trash2,LoaderCircle,FileDown,Send,ShieldCheck,BadgeCheck,Wallet,Settings2 } from 'lucide-react';
+ import { api,makeRequestId } from '@/lib/client';
+-import { parseCents } from '@/lib/v22-core';
++import { parseCents,torontoDate } from '@/lib/v22-core';
+ 
+ type Status='DRAFT'|'PENDING_APPROVAL'|'PARTIAL'|'PAID'|'OVERDUE';
+ type Summary={invoiceId:string;caseId:string;currency:string;status:Status;subtotalCents:number;discountCents:number;totalCents:number;paidCents:number;remainingCents:number;deadline:string|null;version:number;updatedAt:string;reference?:string};
+@@ -55,7 +55,7 @@ function InvoiceForm({candidateId,currency,catalog,done,notify}:{candidateId:str
+  </form>;
+ }
+ function InvoiceCard({summary,role,expanded,toggle,changed,notify}:{summary:Summary;role:'MANAGER'|'STAFF';expanded:boolean;toggle:()=>void;changed:()=>Promise<void>;notify:(m:string)=>void}){
+- const [d,setD]=useState<Detail|null>(null),[busy,setBusy]=useState(''),[pay,setPay]=useState({amount:'',method:'CASH',date:new Date().toISOString().slice(0,10),notes:'',notify:false}),[receipt,setReceipt]=useState<File|null>(null),[discount,setDiscount]=useState('');
++ const [d,setD]=useState<Detail|null>(null),[busy,setBusy]=useState(''),[today]=useState(()=>torontoDate(Date.now())),[pay,setPay]=useState(()=>({amount:'',method:'CASH',date:torontoDate(Date.now()),notes:'',notify:false})),[receipt,setReceipt]=useState<File|null>(null),[discount,setDiscount]=useState('');
+  const reload=useCallback(async()=>{setD(await api<Detail>('/api/invoices/'+summary.invoiceId));},[summary.invoiceId]);
+  useEffect(()=>{if(!expanded)return;let live=true;api<Detail>('/api/invoices/'+summary.invoiceId).then(r=>{if(live)setD(r);}).catch(e=>notify((e as Error).message));return()=>{live=false;};},[expanded,summary.invoiceId,summary.version,notify]);
+  const i=d??summary,locked=i.status==='PENDING_APPROVAL';
+@@ -75,7 +75,7 @@ function InvoiceCard({summary,role,expanded,toggle,changed,notify}:{summary:Summ
+     {locked&&role==='MANAGER'&&<button className="button gold small-button" disabled={!!busy} onClick={()=>void run('approve',()=>api(`/api/invoices/${d.invoiceId}/approval`,{method:'POST',body:JSON.stringify({action:'approve',expectedVersion:d.version,requestKey:makeRequestId()})}),'اعتُمدت الفاتورة.')}><BadgeCheck size={14}/>اعتماد</button>}
+    </div>
+    {locked?<p className="notice">الفاتورة مقفلة حتى يعتمدها المدير؛ لا تُقبل تعديلات أو دفعات.</p>:<>
+-    {d.remainingCents>0&&<form className="payment-form" onSubmit={e=>{e.preventDefault();void recordPayment();}}><label className="field"><span>المبلغ ({d.currency})</span><input required inputMode="decimal" dir="ltr" value={pay.amount} onChange={e=>setPay({...pay,amount:e.target.value})} placeholder={money(d.remainingCents)}/></label><label className="field"><span>الطريقة</span><select value={pay.method} onChange={e=>setPay({...pay,method:e.target.value})}>{METHODS.map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label><label className="field"><span>تاريخ الدفع</span><input type="date" max={new Date().toISOString().slice(0,10)} value={pay.date} onChange={e=>setPay({...pay,date:e.target.value})}/></label><label className="field"><span>سند (PDF/JPG/PNG)</span><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setReceipt(e.target.files?.[0]??null)}/></label><label className="field wide"><span>ملاحظات</span><input maxLength={4000} value={pay.notes} onChange={e=>setPay({...pay,notes:e.target.value})}/></label><label className="check-inline"><input type="checkbox" checked={pay.notify} onChange={e=>setPay({...pay,notify:e.target.checked})}/>إخطار العميل بالبريد</label><button className="button emerald small-button" disabled={!!busy}>{busy==='pay'?<LoaderCircle className="spin" size={14}/>:<Wallet size={14}/>}تسجيل الدفعة</button></form>}
++    {d.remainingCents>0&&<form className="payment-form" onSubmit={e=>{e.preventDefault();void recordPayment();}}><label className="field"><span>المبلغ ({d.currency})</span><input required inputMode="decimal" dir="ltr" value={pay.amount} onChange={e=>setPay({...pay,amount:e.target.value})} placeholder={money(d.remainingCents)}/></label><label className="field"><span>الطريقة</span><select value={pay.method} onChange={e=>setPay({...pay,method:e.target.value})}>{METHODS.map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label><label className="field"><span>تاريخ الدفع</span><input type="date" max={today} value={pay.date} onChange={e=>setPay({...pay,date:e.target.value})}/></label><label className="field"><span>سند (PDF/JPG/PNG)</span><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setReceipt(e.target.files?.[0]??null)}/></label><label className="field wide"><span>ملاحظات</span><input maxLength={4000} value={pay.notes} onChange={e=>setPay({...pay,notes:e.target.value})}/></label><label className="check-inline"><input type="checkbox" checked={pay.notify} onChange={e=>setPay({...pay,notify:e.target.checked})}/>إخطار العميل بالبريد</label><button className="button emerald small-button" disabled={!!busy}>{busy==='pay'?<LoaderCircle className="spin" size={14}/>:<Wallet size={14}/>}تسجيل الدفعة</button></form>}
+     <form className="discount-form" onSubmit={e=>{e.preventDefault();const v=cents(discount);if(v===null){notify('خصم غير صالح.');return;}void run('discount',()=>api('/api/invoices/'+d.invoiceId,{method:'PATCH',body:JSON.stringify({action:'discount',expectedVersion:d.version,discountCents:v,requestKey:makeRequestId()})}),'عُدّل الخصم.');}}><label className="field"><span>تعديل الخصم</span><input inputMode="decimal" dir="ltr" value={discount} onChange={e=>setDiscount(e.target.value)} placeholder={money(d.discountCents)}/></label><button className="button subtle small-button" disabled={!!busy||!discount}>حفظ الخصم</button></form>
+    </>}
+   </div>}
+diff --git a/components/operations/command-desk.tsx b/components/operations/command-desk.tsx
+new file mode 100644
+index 0000000..001337e
+--- /dev/null
++++ b/components/operations/command-desk.tsx
+@@ -0,0 +1,559 @@
++'use client';
++// Staff dashboard (owner-supplied design). Every value shown comes from the existing D1-backed APIs:
++// cases /api/candidates, documents /api/candidates/:id/documents + /api/documents/:id, CRS /api/candidates/:id/crs,
++// AI review /api/candidates/:id/ai-review (AiCaseReview), employers /api/office/employers?case=, client notices
++// /api/candidates/:id/messages, follow-ups /api/tasks, work-session gate /api/candidates/:id/workflow (close_session).
++// No sample applicants, employers, cutoffs, scores or client links are embedded here.
++import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
++import Link from 'next/link';
++import {
++  Users, FileText, AlertTriangle, Clock, Sparkles, Search, Plus, Menu, X, Send, ShieldCheck, Calendar, CreditCard,
++  MessageSquare, Briefcase, LayoutDashboard, ArrowUpRight, RefreshCw, FileCheck, Upload, Building, ExternalLink,
++  Inbox, ClipboardList, FileUp, BarChart3, FolderOpen, Route, BookOpen, Settings, LoaderCircle, LogOut, ChevronLeft,
++} from 'lucide-react';
++import { api, makeRequestId } from '@/lib/client';
++import { torontoDate } from '@/lib/v22-core';
++import { statusLabels, documentLabels, pathwayLabels } from '@/lib/model';
++import type { CandidateRecord, DocumentRecord, Profile } from '@/lib/model';
++import { PORTAL_ORIGIN } from '@/lib/branding';
++import { AiCaseReview } from '@/components/operations/ai-review';
++import { CaseIntelligence, EmployersBoard } from '@/components/operations/intelligence';
++import { StaffEligibility } from '@/components/operations/eligibility';
++import { StaffCrs } from '@/components/operations/crs';
++import { ClientReview, ClientMessaging, NewClients, OfficeSettings } from '@/components/operations/clients';
++import { StaffCaseChat, CaseChatInbox } from '@/components/operations/case-chat';
++import { CaseBilling, OfficeBilling } from '@/components/operations/billing';
++import { CandidateTasks, WorkQueue } from '@/components/operations/tasks';
++import { CandidateSettings, DocumentChecklist } from '@/components/operations/profile';
++import { CaseTeamReview, TeamReview } from '@/components/operations/review';
++import { ImportPanel } from '@/components/operations/import';
++import { AnalyticsPanel } from '@/components/operations/analytics';
++import { OperationsArchive } from '@/components/operations/archive';
++import { PathwayHub } from '@/components/operations/pathways';
++import { RulesPanel } from '@/components/operations/rules';
++import { BroadcastPanel } from '@/components/operations/broadcast';
++import { FaqGuide } from '@/components/client/faq';
++import { StaffAssistant } from '@/components/operations/assistant';
++import { NotificationCenter } from '@/components/operations/notifications';
++import { StaffSignOut } from '@/components/auth/sign-out';
++import { Intake } from '@/app/desk';
++
++type Role = 'MANAGER' | 'STAFF';
++type Page = { items: CandidateRecord[]; stats: Record<string, number>; total: number };
++type Nav = 'overview' | 'applicants' | 'active_case' | 'employers' | 'chats' | 'billing' | 'newclients' | 'tasks' | 'teamreview'
++  | 'import' | 'analytics' | 'archive' | 'pathways' | 'knowledge' | 'rules' | 'settings' | 'intake';
++type CaseTab = 'docs' | 'ai' | 'employers' | 'comms' | 'chat' | 'billing' | 'client' | 'review' | 'workflow';
++type CrsView = { v22?: { crs?: { status?: string; total?: number | null } | null } | null; result?: { total?: number } | null; stale?: boolean };
++type Board = {
++  employers: { employerId: string; name: string; sourceUrl: string; sourceCheckedOn: string }[];
++  vacancies: { vacancyId: string; employerId: string; title: string; noc: string | null; sourceUrl: string; postedOn: string; validUntil: string | null; status: string }[];
++  applications: { caseId: string; vacancyId: string; stage: string }[];
++};
++type Dispatch = { subject: string; body: string; docs: string[] };
++
++const STEPS = ['new', 'reviewing', 'documents', 'shortlisted', 'referred'] as const;
++const MAIN_NAV: { id: Nav; label: string; icon: typeof Users }[] = [
++  { id: 'overview', label: 'نظرة عامة والسجل', icon: LayoutDashboard },
++  { id: 'applicants', label: 'بطاقات المتقدمين', icon: Users },
++  { id: 'active_case', label: 'ملف المتقدم النشط', icon: FileCheck },
++  { id: 'employers', label: 'جهات العمل والشواغر', icon: Briefcase },
++  { id: 'chats', label: 'محادثات العملاء', icon: MessageSquare },
++  { id: 'billing', label: 'الفوترة', icon: CreditCard },
++];
++const MORE_NAV: { id: Nav; label: string; icon: typeof Users }[] = [
++  { id: 'newclients', label: 'طلبات جديدة', icon: Inbox },
++  { id: 'tasks', label: 'المهام والمتابعة', icon: ClipboardList },
++  { id: 'teamreview', label: 'مراجعة الفريق', icon: ShieldCheck },
++  { id: 'import', label: 'استيراد الملفات', icon: FileUp },
++  { id: 'analytics', label: 'التحليلات والتدقيق', icon: BarChart3 },
++  { id: 'archive', label: 'الأرشيف والتشغيل', icon: FolderOpen },
++  { id: 'pathways', label: 'مسارات كندا', icon: Route },
++  { id: 'knowledge', label: 'دليل إجابات العملاء', icon: BookOpen },
++  { id: 'rules', label: 'القواعد والمصادر', icon: BookOpen },
++  { id: 'settings', label: 'إعدادات المكتب', icon: Settings },
++];
++const TITLES: Partial<Record<Nav, string>> = Object.fromEntries([...MAIN_NAV, ...MORE_NAV].map(n => [n.id, n.label]));
++const CASE_TABS: { id: CaseTab; label: string; icon: typeof Users }[] = [
++  { id: 'docs', label: 'المستندات', icon: FileText },
++  { id: 'ai', label: 'التحليل والمسارات', icon: Sparkles },
++  { id: 'employers', label: 'جهات العمل', icon: Briefcase },
++  { id: 'comms', label: 'السجل والتواصل', icon: MessageSquare },
++  { id: 'chat', label: 'محادثة الملف', icon: MessageSquare },
++  { id: 'billing', label: 'الفوترة', icon: CreditCard },
++  { id: 'client', label: 'طلب العميل', icon: Inbox },
++  { id: 'review', label: 'مراجعة الفريق', icon: ShieldCheck },
++  { id: 'workflow', label: 'المتابعة والإعدادات', icon: ClipboardList },
++];
++const card = 'rounded-2xl border border-amber-500/25 bg-[#0b1120]/90 backdrop-blur-xl';
++const goldBtn = 'inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-l from-amber-400 to-amber-500 px-3 py-2 text-xs font-bold text-[#090E1A] disabled:opacity-50';
++const ghostBtn = 'inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-500/30 bg-[#090E1A] px-3 py-2 text-xs font-bold text-amber-300 disabled:opacity-50';
++const day = (s: string) => new Date(s).toLocaleString('ar', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
++
++export default function CommandDesk({ role, userName, initialView = '', initialCandidate = '' }: { role: Role; userName: string | null; initialView?: string; initialCandidate?: string }) {
++  // Phone: off-canvas menu (sidebarOpen). Desktop: visible unless collapsed with the menu button.
++  const [sidebarOpen, setSidebarOpen] = useState(false), [collapsed, setCollapsed] = useState(false);
++  const [nav, setNav] = useState<Nav>(initialCandidate ? 'active_case' : initialView === 'settings' ? 'settings' : 'overview');
++  const [page, setPage] = useState<Page>({ items: [], stats: {}, total: 0 });
++  const [pageNo, setPageNo] = useState(1);
++  const [q, setQ] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('');
++  const [loadedKey, setLoadedKey] = useState(''), [error, setError] = useState('');
++  const [selected, setSelected] = useState<CandidateRecord | null>(null), [opening, setOpening] = useState(!!initialCandidate);
++  const [toast, setToast] = useState(''), [revision, setRevision] = useState(0), [busy, setBusy] = useState(false);
++  const [chatTarget, setChatTarget] = useState('');
++  const detailId = useRef(0);
++
++  const listKey = `${query}|${status}|${pageNo}|${revision}`, loading = loadedKey !== listKey;
++  useEffect(() => {
++    let live = true;
++    api<Page>(`/api/candidates?q=${encodeURIComponent(query)}&status=${status}&page=${pageNo}`)
++      .then(r => { if (live) { setPage(r); setError(''); } })
++      .catch(e => { if (live) setError((e as Error).message); })
++      .finally(() => { if (live) setLoadedKey(listKey); });
++    return () => { live = false; };
++  }, [query, status, pageNo, revision, listKey]);
++  useEffect(() => { const t = setTimeout(() => { setQuery(q); setPageNo(1); }, 250); return () => clearTimeout(t); }, [q]);
++  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 4000); return () => clearTimeout(t); }, [toast]);
++
++  // fetchCase sets state only after the request settles (safe to start from an effect); open() is the user action.
++  const fetchCase = useCallback(async (id: string) => {
++    const n = ++detailId.current;
++    try { const c = await api<CandidateRecord>(`/api/candidates/${id}`); if (n === detailId.current) setSelected(c); }
++    catch (e) { setToast((e as Error).message); }
++    finally { if (n === detailId.current) setOpening(false); }
++  }, []);
++  const open = useCallback(async (id: string) => { setOpening(true); setNav('active_case'); await fetchCase(id); }, [fetchCase]);
++  useEffect(() => {
++    if (!initialCandidate) return;
++    let live = true;
++    api<CandidateRecord>(`/api/candidates/${initialCandidate}`).then(c => { if (live) setSelected(c); })
++      .catch(e => { if (live) setToast((e as Error).message); }).finally(() => { if (live) setOpening(false); });
++    return () => { live = false; };
++  }, [initialCandidate]);
++
++  async function refreshDetail() { if (selected) await open(selected.id); setRevision(r => r + 1); }
++  async function update(payload: Record<string, unknown>) {
++    if (!selected) return;
++    setBusy(true);
++    try {
++      await api(`/api/candidates/${selected.id}`, { method: 'PATCH', body: JSON.stringify({ version: selected.version, ...payload }) });
++      await refreshDetail(); setToast('تم حفظ التحديث');
++    } catch (e) { setToast((e as Error).message); throw e; } finally { setBusy(false); }
++  }
++  async function saveIntake(profile: Profile) {
++    setBusy(true);
++    try {
++      const c = await api<CandidateRecord>('/api/candidates', { method: 'POST', body: JSON.stringify(profile) });
++      setRevision(r => r + 1); await open(c.id); setToast('تم حفظ الملف وإجراء الفرز الأولي');
++    } finally { setBusy(false); }
++  }
++  function go(id: Nav) { setNav(id); setSidebarOpen(false); }
++  function toggleMenu() { if (window.innerWidth >= 1024) setCollapsed(v => !v); else setSidebarOpen(o => !o); }
++
++  const s = page.stats;
++  const active = Object.entries(s).filter(([k]) => k !== 'archived').reduce((a, [, v]) => a + v, 0);
++  const kpis = [
++    { label: 'الملفات النشطة', value: active, accent: 'text-amber-400', icon: Users, filter: '' },
++    { label: 'قيد المراجعة', value: (s.new || 0) + (s.reviewing || 0), accent: 'text-sky-400', icon: Clock, filter: 'reviewing' },
++    { label: 'استكمال مستندات', value: s.documents || 0, accent: 'text-amber-300', icon: AlertTriangle, filter: 'documents' },
++    { label: 'مرشحون أولياً', value: s.shortlisted || 0, accent: 'text-emerald-400', icon: ShieldCheck, filter: 'shortlisted' },
++  ];
++  const heading = nav === 'active_case' ? (selected ? `ملف: ${selected.profile.fullName}` : 'ملف المتقدم النشط') : nav === 'intake' ? 'متقدم جديد' : (TITLES[nav] || 'مركز القيادة');
++
++  return (
++    <div dir="rtl" className="command-desk flex min-h-screen overflow-x-hidden bg-[#090E1A] text-slate-100" data-testid="command-desk">
++      {toast && <div role="status" className="fixed bottom-4 left-4 right-4 z-50 flex items-center gap-3 rounded-xl border border-amber-400/60 bg-[#0B1120] px-4 py-3 shadow-2xl sm:right-auto sm:max-w-md"><Sparkles className="h-5 w-5 shrink-0 text-amber-400" /><span className="text-xs font-semibold sm:text-sm">{toast}</span><button aria-label="إغلاق الإشعار" onClick={() => setToast('')} className="mr-auto text-slate-400"><X className="h-4 w-4" /></button></div>}
++      {sidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-30 bg-black/70 lg:hidden" />}
++
++      <aside className={`fixed inset-y-0 right-0 z-40 flex w-64 shrink-0 flex-col justify-between border-l border-amber-500/25 bg-[#0B1120] transition-transform duration-300 lg:static lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'} ${collapsed ? 'lg:hidden' : ''}`}>
++        <div className="overflow-y-auto">
++          <div className="flex h-16 items-center justify-between border-b border-amber-500/15 px-4">
++            <Link href="/" className="flex items-center gap-2.5 overflow-hidden">
++              <img src="/brand/alhijrah-services.jpg" width={36} height={36} alt="ALHIJRAH Services" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
++              <div className="truncate leading-tight"><div className="text-sm font-bold tracking-wide text-amber-400">ALHIJRAH</div><div className="truncate text-[11px] text-slate-400">SERVICES CANADA</div></div>
++            </Link>
++            <button aria-label="إغلاق القائمة" onClick={() => { setSidebarOpen(false); setCollapsed(true); }} className="rounded-lg p-2 text-slate-400 hover:text-amber-400"><X className="h-5 w-5" /></button>
++          </div>
++          <nav className="space-y-1.5 p-3" aria-label="التنقل الرئيسي">
++            {MAIN_NAV.map(item => <NavButton key={item.id} item={item} active={nav === item.id} badge={item.id === 'applicants' ? active : undefined} onClick={() => go(item.id)} />)}
++            <div className="px-3 pb-1 pt-4 text-[11px] font-semibold text-slate-500">أدوات المكتب</div>
++            {MORE_NAV.map(item => <NavButton key={item.id} item={item} active={nav === item.id} onClick={() => go(item.id)} />)}
++          </nav>
++          <div className="mx-3 mb-3 rounded-xl border border-amber-500/20 bg-[#090E1A] p-3 text-xs text-slate-400">
++            <div className="flex items-center gap-1.5 font-bold text-amber-300"><ShieldCheck className="h-4 w-4" />بوابة العميل</div>
++            <p className="mt-1">رابط تقديم مستقل، وطلبات تصل إلى New Clients.</p>
++            <a href="/apply" target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-amber-300 underline">فتح التقديم <ExternalLink className="h-3 w-3" /></a>
++          </div>
++        </div>
++        <div className="flex items-center gap-2 border-t border-amber-500/15 p-3 text-xs">
++          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/20 font-bold text-amber-300">A</span>
++          <div className="min-w-0 flex-1"><div className="truncate font-bold">{role === 'MANAGER' ? 'إدارة ALHIJRAH' : 'فريق ALHIJRAH'}</div><div className="truncate text-slate-400">{role === 'MANAGER' ? 'حساب مدير المكتب' : 'حساب موظف'}</div></div>
++          <span className="legacy-panels"><StaffSignOut /></span>
++        </div>
++      </aside>
++
++      <div className="flex w-full min-w-0 flex-1 flex-col">
++        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/25 bg-[#0B1120]/95 px-3.5 py-3 backdrop-blur-xl sm:px-6">
++          <div className="flex min-w-0 items-center gap-3">
++            <button aria-label="القائمة" onClick={toggleMenu} className="rounded-xl border border-amber-500/30 bg-[#090E1A] p-2 text-amber-400"><Menu className="h-5 w-5" /></button>
++            <div className="min-w-0">
++              <div className="truncate text-[10px] font-semibold uppercase text-amber-400/90 sm:text-[11px]">ALHIJRAH • CANADA OPERATIONS</div>
++              <h1 className="mt-0.5 truncate text-base font-bold text-white sm:text-lg">{heading}</h1>
++            </div>
++          </div>
++          <div className="flex items-center gap-2">
++            <span className="legacy-panels"><NotificationCenter enabled={!!userName} openCandidate={id => void open(id)} openChat={id => { setChatTarget(id); go('chats'); }} notify={setToast} /></span>
++            <button aria-label="تحديث" onClick={() => setRevision(r => r + 1)} className={ghostBtn}><RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /></button>
++            <button onClick={() => go('intake')} className={goldBtn}><Plus className="h-4 w-4" /><span>متقدم جديد</span></button>
++          </div>
++        </header>
++
++        <main className="mx-auto w-full max-w-[1600px] flex-1 p-3.5 sm:p-6">
++          {error && <div role="alert" className="mb-4 flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200"><AlertTriangle className="h-4 w-4" />{error}<button className="mr-auto underline" onClick={() => setRevision(r => r + 1)}>إعادة المحاولة</button></div>}
++
++          {(nav === 'overview' || nav === 'applicants') && (
++            <div className="space-y-5">
++              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
++                {kpis.map(k => (
++                  <button key={k.label} onClick={() => { setStatus(k.filter); setPageNo(1); }} className={`${card} flex items-start justify-between p-4 text-right`}>
++                    <div><span className="text-xs text-slate-400">{k.label}</span><div className={`mt-1 text-2xl font-bold ${k.accent}`}>{loading && !page.total ? '…' : k.value}</div></div>
++                    <k.icon className={`h-5 w-5 ${k.accent}`} />
++                  </button>
++                ))}
++              </div>
++              {nav === 'overview' && <><NewClients open={id => void open(id)} revision={revision} compact showAll={() => go('newclients')} /><WorkQueue enabled={!!userName} revision={revision} openCandidate={id => void open(id)} compact /></>}
++              <div className={`${card} flex flex-wrap items-center gap-2 p-3`}>
++                <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-xl border border-amber-500/25 bg-[#090E1A] px-3 py-2"><Search className="h-4 w-4 text-slate-400" /><input aria-label="بحث في المتقدمين" value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم، الهاتف، المهنة أو رقم الملف…" className="w-full bg-transparent text-xs text-white outline-none" /></div>
++                <select aria-label="تصفية حسب الحالة" value={status} onChange={e => { setStatus(e.target.value); setPageNo(1); }} className="rounded-xl border border-amber-500/25 bg-[#090E1A] px-3 py-2 text-xs text-white">
++                  <option value="">كل الحالات</option>{Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
++                </select>
++                <span className="text-xs text-slate-400">{page.total} ملفًا</span>
++              </div>
++              {loading && !page.items.length ? <div className="flex items-center justify-center gap-2 p-10 text-xs text-slate-400"><LoaderCircle className="h-5 w-5 animate-spin" />جارٍ تحميل الملفات…</div>
++                : page.items.length ? (
++                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
++                    {page.items.map(c => (
++                      <article key={c.id} className={`${card} flex flex-col justify-between gap-4 p-5 transition hover:border-amber-400/60`}>
++                        <div className="flex items-start justify-between gap-3">
++                          <div className="min-w-0">
++                            <span className="text-xs text-amber-400" dir="ltr">{c.reference}</span>
++                            <h3 className="mt-0.5 truncate text-lg font-bold text-white">{c.profile.fullName}</h3>
++                            <p className="truncate text-xs text-slate-400">{c.profile.occupation || 'المهنة غير محددة'}{c.profile.noc ? ` · NOC ${c.profile.noc}` : ''}</p>
++                          </div>
++                          <button onClick={() => void open(c.id)} className={goldBtn}><span>فتح الملف</span><ArrowUpRight className="h-3.5 w-3.5" /></button>
++                        </div>
++                        <div className="flex flex-wrap gap-2 text-[11px]">
++                          <span className="rounded-full border border-amber-400/40 bg-amber-500/15 px-2.5 py-0.5 font-bold text-amber-300">{statusLabels[c.status] || c.status}</span>
++                          {c.pathway && <span className="rounded-full border border-white/10 px-2.5 py-0.5 text-slate-300">{pathwayLabels[c.pathway] || c.pathway}</span>}
++                          {c.assignedTo && <span className="rounded-full border border-white/10 px-2.5 py-0.5 text-slate-300">{c.assignedTo}</span>}
++                        </div>
++                        <div>
++                          <div className="mb-1 flex justify-between text-[11px] text-slate-400"><span>اكتمال البيانات</span><span>{c.assessment.completeness}%</span></div>
++                          <div className="h-1.5 rounded-full bg-slate-800"><div className="h-1.5 rounded-full bg-amber-400" style={{ width: `${c.assessment.completeness}%` }} /></div>
++                          <p className="mt-2 text-xs text-slate-300"><span className="text-slate-500">الإجراء التالي: </span>{c.assessment.nextAction}</p>
++                        </div>
++                      </article>
++                    ))}
++                  </div>
++                ) : <div className={`${card} p-10 text-center text-xs text-slate-400`}>{q || status ? 'لا توجد ملفات مطابقة.' : 'لا توجد ملفات بعد. أضف أول متقدم.'}</div>}
++              {page.total > 30 && <div className="flex items-center justify-between text-xs text-slate-400"><span>الصفحة {pageNo} من {Math.ceil(page.total / 30)}</span><div className="flex gap-2"><button className={ghostBtn} disabled={pageNo === 1} onClick={() => setPageNo(p => p - 1)}>السابق</button><button className={ghostBtn} disabled={pageNo * 30 >= page.total} onClick={() => setPageNo(p => p + 1)}>التالي</button></div></div>}
++            </div>
++          )}
++
++          {nav === 'active_case' && (opening && !selected ? <div className="flex items-center justify-center gap-2 p-10 text-xs text-slate-400"><LoaderCircle className="h-5 w-5 animate-spin" />جارٍ فتح الملف…</div>
++            : selected ? <CaseView key={selected.id + ':' + selected.version} c={selected} role={role} busy={busy} update={update} refresh={refreshDetail} notify={setToast} closed={() => { setSelected(null); setNav('overview'); setRevision(r => r + 1); }} />
++            : <div className={`${card} p-10 text-center text-xs text-slate-400`}>اختر ملفًا من <button className="font-bold text-amber-400" onClick={() => go('applicants')}>بطاقات المتقدمين</button> لفتحه هنا.</div>)}
++
++          <div className="legacy-panels">
++            {nav === 'intake' && <Intake saving={busy} cancel={() => go('overview')} save={saveIntake} />}
++            {nav === 'employers' && <EmployersBoard notify={setToast} />}
++            {nav === 'chats' && <CaseChatInbox openCandidate={id => void open(id)} notify={setToast} initial={chatTarget} />}
++            {nav === 'billing' && <OfficeBilling role={role} notify={setToast} openCandidate={id => void open(id)} />}
++            {nav === 'newclients' && <NewClients open={id => void open(id)} revision={revision} />}
++            {nav === 'tasks' && <WorkQueue enabled={!!userName} revision={revision} openCandidate={id => void open(id)} />}
++            {nav === 'teamreview' && <TeamReview open={id => void open(id)} revision={revision} />}
++            {nav === 'import' && <ImportPanel enabled={!!userName} finished={() => { go('applicants'); setRevision(r => r + 1); }} />}
++            {nav === 'analytics' && <AnalyticsPanel openCandidate={id => void open(id)} />}
++            {nav === 'archive' && <OperationsArchive />}
++            {nav === 'pathways' && <PathwayHub enabled={!!userName} openCandidate={id => void open(id)} notify={setToast} />}
++            {nav === 'knowledge' && <>{userName && <BroadcastPanel />}<section className="panel staff-knowledge"><FaqGuide staff /></section></>}
++            {nav === 'rules' && <RulesPanel role={role} />}
++            {nav === 'settings' && <OfficeSettings />}
++          </div>
++        </main>
++        <Link href="/?view=classic" className="px-6 pb-4 text-[11px] text-slate-500 underline">الواجهة السابقة</Link>
++      </div>
++      <div className="legacy-panels"><StaffAssistant enabled={!!userName} openCandidate={id => void open(id)} notify={setToast} /></div>
++    </div>
++  );
++}
++
++function NavButton({ item, active, badge, onClick }: { item: { id: Nav; label: string; icon: typeof Users }; active: boolean; badge?: number; onClick: () => void }) {
++  const Icon = item.icon;
++  return (
++    <button onClick={onClick} aria-current={active ? 'page' : undefined} className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${active ? 'border border-amber-500/35 bg-gradient-to-l from-amber-500/20 to-amber-500/5 text-amber-300' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'}`}>
++      <span className="flex items-center gap-3 truncate"><Icon className={`h-4 w-4 shrink-0 ${active ? 'text-amber-400' : 'text-slate-400'}`} /><span className="truncate">{item.label}</span></span>
++      {badge !== undefined && <span className="rounded-full bg-amber-500/20 px-2 text-[11px] text-amber-300">{badge}</span>}
++    </button>
++  );
++}
++
++function CaseView({ c, role, busy, update, refresh, notify, closed }: { c: CandidateRecord; role: Role; busy: boolean; update: (p: Record<string, unknown>) => Promise<void>; refresh: () => Promise<void>; notify: (m: string) => void; closed: () => void }) {
++  const [tab, setTab] = useState<CaseTab>('docs');
++  const [crs, setCrs] = useState<CrsView | null>(null), [crsError, setCrsError] = useState('');
++  const [followUp, setFollowUp] = useState(''), [nextDate, setNextDate] = useState<string | null>(null), [savingFollowUp, setSavingFollowUp] = useState(false);
++  const [closing, setClosing] = useState(false), [gateError, setGateError] = useState('');
++  const [today] = useState(() => torontoDate(Date.now())); // office calendar date (the server validates against Toronto)
++
++  const [sideRev, setSideRev] = useState(0);
++  const loadSide = useCallback(() => setSideRev(r => r + 1), []);
++  useEffect(() => {
++    let live = true;
++    api<CrsView>(`/api/candidates/${c.id}/crs`).then(r => { if (live) { setCrs(r); setCrsError(''); } }).catch(e => { if (live) setCrsError((e as Error).message); });
++    api<{ items: { dueDate: string }[] }>(`/api/tasks?candidateId=${c.id}&today=${today}`)
++      .then(t => { if (live) setNextDate(t.items.map(i => i.dueDate).filter(d => d && d >= today).sort()[0] || null); })
++      .catch(() => { if (live) setNextDate(null); });
++    return () => { live = false; };
++  }, [c.id, today, sideRev]);
++
++  const crsTotal = crs?.v22?.crs?.total ?? crs?.result?.total ?? null;
++  const stepIndex = STEPS.indexOf(c.status as typeof STEPS[number]);
++
++  async function scheduleFollowUp(e: React.FormEvent) {
++    e.preventDefault();
++    if (!followUp) return;
++    setSavingFollowUp(true);
++    try {
++      await api('/api/tasks', { method: 'POST', body: JSON.stringify({ mode: 'manual', candidateId: c.id, title: 'متابعة الملف', dueDate: followUp }) });
++      setFollowUp(''); setGateError(''); loadSide(); notify('تمت جدولة موعد المتابعة');
++    } catch (err) { notify((err as Error).message); } finally { setSavingFollowUp(false); }
++  }
++  async function closeSession() {
++    setClosing(true); setGateError('');
++    try {
++      const r = await api<{ nextFollowUp: string }>(`/api/candidates/${c.id}/workflow`, { method: 'POST', body: JSON.stringify({ action: 'close_session' }) });
++      notify(`أُغلقت جلسة العمل · المتابعة التالية ${r.nextFollowUp}`); closed();
++    } catch (err) { setGateError((err as Error).message); } finally { setClosing(false); }
++  }
++
++  return (
++    <div className="space-y-4">
++      <div className={`${card} flex flex-col items-center justify-between gap-4 p-4 sm:flex-row`}>
++        <div className="flex w-full items-center gap-3 sm:w-auto">
++          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
++            <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36" aria-hidden>
++              <path className="text-slate-800" strokeWidth="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
++              <path className="text-amber-400" strokeDasharray={`${c.assessment.completeness}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
++            </svg>
++            <span className="absolute text-xs font-extrabold text-amber-300">{c.assessment.completeness}%</span>
++          </div>
++          <div><div className="text-[11px] font-semibold text-amber-400">اكتمال بيانات الملف</div><div className="text-sm font-bold text-white">{c.profile.fullName} <span className="text-xs font-normal text-slate-400" dir="ltr">{c.reference}</span></div></div>
++        </div>
++        <ol className="flex flex-wrap items-center gap-1.5" aria-label="مراحل الملف">
++          {STEPS.map((st, i) => (
++            <li key={st}><button disabled={busy || c.status === st} onClick={() => void update({ status: st }).catch(() => {})} aria-current={c.status === st ? 'step' : undefined}
++              className={`rounded-full border px-3 py-1 text-[11px] font-bold ${c.status === st ? 'border-amber-400/60 bg-amber-500/20 text-amber-300' : stepIndex > i ? 'border-emerald-500/40 text-emerald-300' : 'border-white/10 text-slate-400'}`}>{statusLabels[st]}</button></li>
++          ))}
++          {!STEPS.includes(c.status as typeof STEPS[number]) && <li className="rounded-full border border-amber-400/40 px-3 py-1 text-[11px] text-amber-300">{statusLabels[c.status] || c.status}</li>}
++        </ol>
++      </div>
++
++      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
++        <div className="min-w-0 space-y-4 lg:col-span-8">
++          <div className={`${card} grid grid-cols-2 gap-1 p-1.5 sm:grid-cols-3 xl:grid-cols-5`} role="tablist">
++            {CASE_TABS.map(t => (
++              <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`flex items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-xs font-bold transition-all ${tab === t.id ? 'border border-amber-400/40 bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-white'}`}>
++                <t.icon className="h-3.5 w-3.5" /><span className="truncate">{t.label}</span>
++              </button>
++            ))}
++          </div>
++          <div className="legacy-panels">
++            {tab === 'docs' && <DocsTab c={c} refresh={refresh} notify={notify} />}
++            {tab === 'ai' && <><AiCaseReview candidateId={c.id} notify={notify} /><CaseIntelligence candidate={c} openSection={s => setTab(s === 'documents' ? 'docs' : s === 'messages' ? 'comms' : s === 'client' ? 'client' : 'workflow')} /><StaffEligibility candidateId={c.id} /><StaffCrs candidateId={c.id} /></>}
++            {tab === 'employers' && <EmployersTab c={c} />}
++            {tab === 'comms' && <CommsTab c={c} busy={busy} update={update} notify={notify} />}
++            {tab === 'chat' && <StaffCaseChat candidateId={c.id} notify={notify} />}
++            {tab === 'billing' && <CaseBilling candidateId={c.id} role={role} notify={notify} />}
++            {tab === 'client' && <ClientReview candidate={c} refresh={refresh} notify={notify} />}
++            {tab === 'review' && <CaseTeamReview candidate={c} refresh={refresh} notify={notify} />}
++            {tab === 'workflow' && <><CandidateSettings candidate={c} busy={busy} update={update} /><CandidateTasks candidate={c} refresh={async () => { await refresh(); loadSide(); }} notify={notify} /></>}
++          </div>
++        </div>
++
++        <aside className="space-y-4 lg:col-span-4" aria-label="بطاقة الحوكمة والقرار">
++          <div className={`${card} space-y-4 p-5`}>
++            <div className="border-b border-amber-500/15 pb-3">
++              <span className="text-[11px] font-semibold text-amber-400">بطاقة الحوكمة والقرار</span>
++              <h3 className="mt-0.5 text-base font-bold text-white">{c.profile.fullName}</h3>
++              <p className="text-xs text-slate-400">{c.profile.occupation || 'المهنة غير محددة'}{c.profile.noc ? ` · NOC ${c.profile.noc}` : ''}</p>
++            </div>
++            <dl className="space-y-2 text-xs">
++              <Row label="نقاط CRS (المحرك)" value={crsError ? 'غير متاح لصلاحيتك' : crsTotal === null ? 'غير محسوبة بعد' : `${crsTotal} نقطة${crs?.stale ? ' · تحتاج إعادة حساب' : ''}`} strong={crsTotal !== null} />
++              <Row label="المسار" value={pathwayLabels[c.pathway] || 'غير محدد'} />
++              <Row label="المسؤول" value={c.assignedTo || 'غير معيّن'} />
++              <Row label="الإجراء التالي" value={c.assessment.nextAction} />
++            </dl>
++            <button onClick={() => setTab('ai')} className={`${goldBtn} w-full py-2.5`}><Sparkles className="h-4 w-4" />التقييم والتحليل الذكي</button>
++            <button onClick={() => setTab('employers')} className={`${ghostBtn} w-full py-2.5`}><Briefcase className="h-4 w-4" />جهات العمل والشواغر المطابقة</button>
++          </div>
++
++          <div className={`${card} space-y-3 p-5`}>
++            <div className="flex items-center gap-2 text-sm font-bold text-white"><Calendar className="h-4 w-4 text-amber-400" />موعد المتابعة</div>
++            <p className="text-xs text-slate-300">{nextDate ? <>المتابعة التالية: <strong className="text-emerald-300" dir="ltr">{nextDate}</strong></> : <span className="text-amber-300">لا يوجد موعد متابعة مجدول.</span>}</p>
++            <form onSubmit={scheduleFollowUp} className="flex gap-2">
++              <input type="date" aria-label="موعد المتابعة التالي" min={today} value={followUp} onChange={e => setFollowUp(e.target.value)} required className="flex-1 rounded-xl border border-amber-500/25 bg-[#090E1A] px-3 py-2 text-xs text-white" />
++              <button className={goldBtn} disabled={!followUp || savingFollowUp}>{savingFollowUp ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : 'جدولة'}</button>
++            </form>
++            {gateError && <p role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-xs text-red-200">{gateError}</p>}
++            <button onClick={() => void closeSession()} disabled={closing} className={`${ghostBtn} w-full py-2.5`}>{closing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}إنهاء جلسة العمل على الملف</button>
++            <a className="flex items-center justify-center gap-1 text-[11px] text-slate-400 underline" href={`/candidates/${c.id}/report`} target="_blank" rel="noreferrer">ملخص للطباعة <ExternalLink className="h-3 w-3" /></a>
++          </div>
++        </aside>
++      </div>
++    </div>
++  );
++}
++
++function Row({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
++  return <div className="flex justify-between gap-3 border-b border-white/5 py-1"><dt className="shrink-0 text-slate-400">{label}:</dt><dd className={`text-left ${strong ? 'font-bold text-emerald-400' : 'text-amber-200'}`}>{value}</dd></div>;
++}
++
++function DocsTab({ c, refresh, notify }: { c: CandidateRecord; refresh: () => Promise<void>; notify: (m: string) => void }) {
++  const [category, setCategory] = useState('resume'), [uploading, setUploading] = useState(false), [docBusy, setDocBusy] = useState<string | null>(null);
++  const [dispatch, setDispatch] = useState<Dispatch | null>(null), [sending, setSending] = useState(false);
++  const file = useRef<HTMLInputElement>(null);
++  const docs = c.documents || [];
++  const missing = (c.assessment.missingDocuments || []) as string[];
++
++  async function upload(f: File) {
++    if (f.size > 20 * 1024 * 1024) { notify('الحد الأقصى 20 ميجابايت للملف'); return; }
++    setUploading(true);
++    try { const data = new FormData(); data.append('file', f); data.append('category', category); await api(`/api/candidates/${c.id}/documents`, { method: 'POST', body: data }); await refresh(); notify('تم رفع المستند؛ يحتاج مراجعة الموظف'); }
++    catch (e) { notify((e as Error).message); } finally { setUploading(false); if (file.current) file.current.value = ''; }
++  }
++  async function review(d: DocumentRecord) {
++    setDocBusy(d.id);
++    try { await api(`/api/documents/${d.id}`, { method: 'PATCH', body: JSON.stringify({ verified: !d.verified }) }); await refresh(); notify(d.verified ? 'أُلغيت مراجعة المستند' : 'سُجّلت مراجعة الموظف للمستند'); }
++    catch (e) { notify((e as Error).message); } finally { setDocBusy(null); }
++  }
++  function openDispatch() {
++    const names = missing.map(k => documentLabels[k] || k);
++    setDispatch({
++      docs: names,
++      subject: `مستندات مطلوبة لملفك ${c.reference} | ALHIJRAH`,
++      body: `مرحباً ${c.profile.fullName}،\nمعك مكتب ALHIJRAH SERVICES – كندا.\nلاستكمال ملفك (${c.reference}) يرجى رفع المستندات التالية من بوابة العميل:\n\n${names.map((n, i) => `${i + 1}. ${n}`).join('\n')}\n\nبوابة العميل: ${PORTAL_ORIGIN}/client`,
++    });
++  }
++  async function confirmDispatch() {
++    if (!dispatch) return;
++    setSending(true);
++    try {
++      const r = await api<{ state: string; needsConfiguration?: boolean }>(`/api/candidates/${c.id}/messages`, { method: 'POST', body: JSON.stringify({ requestKey: makeRequestId(), subject: dispatch.subject, body: dispatch.body }) });
++      setDispatch(null);
++      notify(r.needsConfiguration ? 'حُفظ الإشعار؛ البريد الصادر غير مضبوط في إعدادات المكتب' : r.state === 'sent' ? 'أُرسلت المطالبة إلى بريد العميل' : 'حُفظ الإشعار؛ حالة الإرسال: ' + r.state);
++      await refresh();
++    } catch (e) { notify((e as Error).message); } finally { setSending(false); }
++  }
++
++  return (
++    <div className={`${card} space-y-4 p-5`}>
++      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/15 pb-3">
++        <h3 className="text-base font-bold text-white">المستندات والنواقص الحالية</h3>
++        <button className={goldBtn} disabled={!missing.length} onClick={openDispatch}><Send className="h-3.5 w-3.5" />إرسال مطالبة بالنواقص ({missing.length})</button>
++      </div>
++      {missing.length > 0 && <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">ناقص بحسب التقييم المحفوظ: {missing.map(k => documentLabels[k] || k).join('، ')}</div>}
++      <div className="space-y-2.5">
++        {docs.length ? docs.map(d => (
++          <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-[#090E1A] p-3.5">
++            <div className="min-w-0">
++              <a className="block truncate text-sm font-bold text-white hover:text-amber-300" href={`/api/documents/${d.id}?preview=1`} target="_blank" rel="noreferrer">{d.name}</a>
++              <div className="text-xs text-slate-400">{documentLabels[d.category] || d.category} · {(d.size / 1024 / 1024).toFixed(2)} MB · <span className={d.verified ? 'text-emerald-300' : ''}>{d.verified ? 'تمت مراجعة الموظف' : 'مرفوع · لم تتم المراجعة'}</span></div>
++            </div>
++            <button onClick={() => void review(d)} disabled={docBusy === d.id} aria-label={(d.verified ? 'إلغاء مراجعة ' : 'اعتماد مراجعة ') + d.name}
++              className={`shrink-0 rounded-lg border px-3 py-1.5 text-xs font-bold ${d.verified ? 'border-white/15 text-slate-300' : 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300'}`}>
++              {docBusy === d.id ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : d.verified ? 'إلغاء المراجعة' : 'اعتماد المراجعة'}
++            </button>
++          </div>
++        )) : <div className="p-4 text-center text-xs text-slate-400">لا توجد مستندات مرفوعة بعد.</div>}
++      </div>
++      <div className="legacy-panels"><DocumentChecklist documents={docs} pick={k => { setCategory(k); file.current?.click(); }} /></div>
++      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-amber-500/30 p-3">
++        <Upload className="h-4 w-4 text-amber-400" />
++        <select aria-label="نوع المستند" value={category} onChange={e => setCategory(e.target.value)} className="rounded-lg border border-amber-500/25 bg-[#090E1A] px-2 py-1.5 text-xs text-white">{Object.entries(documentLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
++        <button className={goldBtn} disabled={uploading} onClick={() => file.current?.click()}>{uploading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}{uploading ? 'جارٍ الرفع' : 'رفع مستند'}</button>
++        <input ref={file} hidden type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.mp4" onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
++        <span className="text-[11px] text-slate-500">PDF، صور، أو MP4 · حتى 20 MB</span>
++      </div>
++      <p className="flex items-center gap-1.5 text-[11px] text-slate-500"><ShieldCheck className="h-3.5 w-3.5" />المراجعة تسجل عمل الموظف ولا تمثل مصادقة حكومية على الوثيقة، ولا يعتمد النظام المستندات آليًا.</p>
++
++      {dispatch && (
++        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-label="إرسال مطالبة بالنواقص">
++          <div className={`${card} w-full max-w-lg space-y-3 p-5`}>
++            <div className="flex items-center justify-between border-b border-amber-500/20 pb-3"><h3 className="text-base font-bold text-amber-300">مطالبة بالنواقص إلى بريد العميل</h3><button aria-label="إغلاق" onClick={() => setDispatch(null)} className="text-slate-400"><X className="h-4 w-4" /></button></div>
++            <label className="block text-xs text-slate-300">الموضوع<input value={dispatch.subject} maxLength={180} onChange={e => setDispatch({ ...dispatch, subject: e.target.value })} className="mt-1 w-full rounded-xl border border-amber-500/30 bg-[#090E1A] px-3 py-2 text-white" /></label>
++            <label className="block text-xs text-slate-300">نص الرسالة<textarea value={dispatch.body} maxLength={5000} rows={9} onChange={e => setDispatch({ ...dispatch, body: e.target.value })} className="mt-1 w-full rounded-xl border border-amber-500/30 bg-[#090E1A] px-3 py-2 text-white" /></label>
++            <p className="text-[11px] text-slate-500">يُرسل إلى البريد المسجل في الملف عبر مزود البريد المضبوط، ويُحفظ في إشعارات العميل.</p>
++            <div className="flex justify-end gap-2"><button className={ghostBtn} onClick={() => setDispatch(null)}>إلغاء</button><button className={goldBtn} disabled={sending} onClick={() => void confirmDispatch()}>{sending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}إرسال</button></div>
++          </div>
++        </div>
++      )}
++    </div>
++  );
++}
++
++function EmployersTab({ c }: { c: CandidateRecord }) {
++  const [board, setBoard] = useState<Board | null>(null), [error, setError] = useState('');
++  useEffect(() => { api<Board>(`/api/office/employers?case=${encodeURIComponent(c.id)}`).then(setBoard).catch(e => setError((e as Error).message)); }, [c.id]);
++  const noc = c.profile.noc || '';
++  const rows = useMemo(() => {
++    if (!board) return [];
++    const byId = new Map(board.employers.map(e => [e.employerId, e]));
++    const stage = new Map(board.applications.filter(a => a.caseId === c.id).map(a => [a.vacancyId, a.stage]));
++    return board.vacancies.filter(v => v.status === 'OPEN' && (!noc || v.noc === noc)).map(v => ({ v, e: byId.get(v.employerId), stage: stage.get(v.vacancyId) }));
++  }, [board, noc, c.id]);
++  return (
++    <div className={`${card} space-y-4 p-5`}>
++      <h3 className="border-b border-amber-500/15 pb-3 text-base font-bold text-white">جهات العمل والشواغر المسجلة بمصادرها</h3>
++      <p className="text-xs text-slate-400">{noc ? `الشواغر المفتوحة المطابقة لرمز NOC ${noc} من سجل جهات العمل في النظام.` : 'لا يوجد رمز NOC في الملف؛ تُعرض كل الشواغر المفتوحة. أضف NOC لتضييق المطابقة.'} لا يصنّف النظام جهات العمل ولا يدّعي اعتمادها؛ راجع المصدر وتاريخ التحقق.</p>
++      {error ? <p role="alert" className="text-xs text-red-200">{error}</p> : !board ? <div className="flex items-center gap-2 text-xs text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin" />جارٍ التحميل…</div>
++        : rows.length ? <div className="space-y-3">{rows.map(({ v, e, stage }) => (
++          <div key={v.vacancyId} className="space-y-2 rounded-xl border border-amber-500/30 bg-[#090E1A] p-4">
++            <div className="flex items-start justify-between gap-2">
++              <div className="flex items-center gap-2"><Building className="h-4 w-4 text-amber-400" /><span className="text-sm font-bold text-white">{e?.name || 'جهة عمل'}</span></div>
++              {stage && <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-300">{stage}</span>}
++            </div>
++            <div className="text-xs text-slate-300">{v.title}{v.noc ? ` · NOC ${v.noc}` : ''} · نُشر {v.postedOn}{v.validUntil ? ` · حتى ${v.validUntil}` : ''}</div>
++            <div className="flex flex-wrap gap-3 text-[11px]">
++              <a href={v.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-amber-300 underline">مصدر الشاغر <ExternalLink className="h-3 w-3" /></a>
++              {e && <a href={e.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-amber-300 underline">مصدر جهة العمل (تحقق {e.sourceCheckedOn}) <ExternalLink className="h-3 w-3" /></a>}
++            </div>
++          </div>))}</div>
++        : <div className="p-4 text-center text-xs text-slate-400">لا توجد شواغر مفتوحة مسجلة{noc ? ` لرمز NOC ${noc}` : ''}. أضفها بمصادرها من «جهات العمل والشواغر».</div>}
++    </div>
++  );
++}
++
++function CommsTab({ c, busy, update, notify }: { c: CandidateRecord; busy: boolean; update: (p: Record<string, unknown>) => Promise<void>; notify: (m: string) => void }) {
++  const [note, setNote] = useState('');
++  return (
++    <div className="space-y-4">
++      <div className={`${card} space-y-4 p-5`}>
++        <h3 className="border-b border-amber-500/15 pb-3 text-base font-bold text-white">السجل والملاحظات الداخلية</h3>
++        <form onSubmit={async e => { e.preventDefault(); if (!note.trim()) return; try { await update({ note: note.trim() }); setNote(''); } catch { /* toast shown by update */ } }} className="flex gap-2">
++          <input aria-label="ملاحظة داخلية" value={note} maxLength={2000} onChange={e => setNote(e.target.value)} placeholder="أضف ملاحظة داخلية…" className="flex-1 rounded-xl border border-amber-500/25 bg-[#090E1A] px-3 py-2 text-xs text-white outline-none" />
++          <button className={goldBtn} disabled={busy || !note.trim()}>حفظ</button>
++        </form>
++        <div className="max-h-72 space-y-2 overflow-y-auto">
++          {(c.events || []).map(e => (
++            <div key={e.id} className="flex justify-between gap-3 rounded-lg bg-[#090E1A] p-2.5 text-xs text-slate-300">
++              <span><strong className="text-slate-100">{e.action}</strong>{e.note ? ` — ${statusLabels[e.note] ?? e.note}` : ''}</span>
++              <span className="shrink-0 text-slate-500">{day(e.createdAt)}</span>
++            </div>
++          ))}
++          {!c.events?.length && <p className="text-center text-xs text-slate-500">لا يوجد سجل بعد.</p>}
++        </div>
++      </div>
++      <div className="legacy-panels"><ClientMessaging candidate={c} notify={notify} settings={() => { window.location.href = '/?view=settings'; }} /></div>
++      <p className="flex items-center gap-1 text-[11px] text-slate-500"><ChevronLeft className="h-3 w-3" />إشعارات العميل تُرسل عبر البريد المضبوط وتظهر حالتها أعلاه.</p>
++    </div>
++  );
++}
+diff --git a/tests/v22/desk.test.mjs b/tests/v22/desk.test.mjs
+new file mode 100644
+index 0000000..668e54e
+--- /dev/null
++++ b/tests/v22/desk.test.mjs
+@@ -0,0 +1,87 @@
++// Staff command desk on the built Worker: the dashboard renders for staff (classic layout kept at ?view=classic), every
++// API the desk calls answers from D1, and the work-session gate refuses to close a case without a next follow-up (400).
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { createRequire } from 'node:module';
++import { readFile, readdir } from 'node:fs/promises';
++import path from 'node:path';
++import { seedOfficeManager } from './office-fixture.mjs';
++import { torontoDate } from '../../lib/v22-core.ts';
++
++const require = createRequire(import.meta.url);
++const { Miniflare } = createRequire(require.resolve('wrangler/package.json'))('miniflare');
++const base = 'http://canada-desk.test';
++const id = (uid, email) => ({ 'oai-authenticated-user-id': uid, 'oai-authenticated-user-email': email });
++const admin = id('admin-1', 'admin@example.test');
++let mf, db, send, caseId;
++const json = async (r, status = 200) => { const t = await r.text(); assert.equal(r.status, status, t); return t ? JSON.parse(t) : null; };
++const today = torontoDate(Date.now());
++const plusDays = n => new Date(Date.parse(today + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
++const profile = { fullName: 'QA Desk Applicant', phone: '+15553339001', email: 'qa-desk@example.test', consent: true, jobs: [{ title: 'QA role', employer: 'QA employer', country: 'Yemen', start: '2024-01', end: '2024-12', weekly_hours: 40 }], occupation: 'Synthetic test', noc: '72401', teer: 2, experience3: 12, experience10: 24, englishMin: 5, englishDate: '2026-10-01' };
++
++test.before(async () => {
++  const files = await readdir('dist/server', { recursive: true });
++  mf = new Miniflare({
++    modules: ['index.js', ...files.filter(f => f !== 'index.js' && f.endsWith('.js'))].map(f => ({ type: 'ESModule', path: path.resolve('dist/server', f) })),
++    modulesRoot: path.resolve('dist/server'), compatibilityDate: '2026-05-15', compatibilityFlags: ['nodejs_compat'],
++    d1Databases: { DB: 'desk-db' }, r2Buckets: ['BUCKET'], kvNamespaces: { PERMISSIONS_KV: 'desk-kv' },
++    durableObjects: { CHAT_ROOMS: 'CaseChatRoom' },
++    bindings: { TRUST_SITES_IDENTITY_HEADERS: '1', OFFICE_ADMIN_EMAIL: 'admin@example.test', APP_SECRET: 'd'.repeat(64), PERMISSIONS_KV_NAMESPACE: 'test' },
++    outboundService: async () => new Response('blocked', { status: 599 }),
++  });
++  send = (p, method = 'GET', body, headers = {}) => mf.dispatchFetch(base + p, { method, headers: { ...(body ? { 'content-type': 'application/json' } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined });
++  db = await mf.getD1Database('DB');
++  for (const f of (await readdir('drizzle')).filter(f => f.endsWith('.sql')).sort())
++    for (const s of (await readFile('drizzle/' + f, 'utf8')).split('--> statement-breakpoint').map(s => s.trim()).filter(Boolean)) await db.prepare(s).run();
++  await seedOfficeManager(db, 'admin-1');
++  await json(await send('/api/office', 'GET', undefined, admin));
++  caseId = (await json(await send('/api/candidates', 'POST', profile, admin), 201)).id;
++});
++test.after(async () => { await mf?.dispose(); });
++
++test('staff dashboard is the command desk; classic layout stays reachable; anonymous gets the sign-in entry', async () => {
++  const desk = await (await send('/', 'GET', undefined, admin)).text();
++  assert.match(desk, /data-testid="command-desk"/);
++  assert.doesNotMatch(desk, /INITIAL_APPLICANTS|CANADIAN_EMPLOYERS_DB|Stanton Farms|portal\.careergate\.us\/u\//);
++  const classic = await (await send('/?view=classic', 'GET', undefined, admin)).text();
++  assert.doesNotMatch(classic, /data-testid="command-desk"/);
++  assert.match(classic, /app-shell/);
++  const anon = await (await send('/')).text();
++  assert.doesNotMatch(anon, /data-testid="command-desk"/);
++});
++
++test('desk data sources answer from D1 (cases, case detail, CRS, follow-ups, employers, notices)', async () => {
++  const list = await json(await send('/api/candidates?q=&status=&page=1', 'GET', undefined, admin));
++  assert.ok(list.items.some(c => c.id === caseId) && typeof list.total === 'number' && list.stats);
++  const c = await json(await send(`/api/candidates/${caseId}`, 'GET', undefined, admin));
++  assert.equal(c.profile.fullName, profile.fullName);
++  assert.ok(Array.isArray(c.assessment.missingDocuments));
++  const crs = await json(await send(`/api/candidates/${caseId}/crs`, 'GET', undefined, admin));
++  assert.ok('result' in crs && 'v22' in crs);
++  const tasks = await json(await send(`/api/tasks?candidateId=${caseId}&today=${today}`, 'GET', undefined, admin));
++  assert.ok(Array.isArray(tasks.items) && tasks.items.every(t => !t.dueDate), 'the new case has no scheduled follow-up yet (initial review task is undated)');
++  const board = await json(await send(`/api/office/employers?case=${caseId}`, 'GET', undefined, admin));
++  assert.ok(Array.isArray(board.employers) && Array.isArray(board.vacancies) && Array.isArray(board.applications));
++  // Mail is not configured here: the notice is stored and reported as needing configuration (never faked as sent).
++  const sent = await json(await send(`/api/candidates/${caseId}/messages`, 'POST', { requestKey: crypto.randomUUID(), subject: 'مستندات مطلوبة', body: 'يرجى رفع المستندات الناقصة.' }, admin));
++  assert.equal(sent.needsConfiguration, true);
++  assert.equal((await db.prepare('SELECT count(*) n FROM client_messages WHERE candidate_id=?').bind(caseId).first()).n, 1);
++});
++
++test('work-session gate: 400 FOLLOW_UP_REQUIRED without a follow-up from today on; closes once one is scheduled', async () => {
++  const close = () => send(`/api/candidates/${caseId}/workflow`, 'POST', { action: 'close_session' }, admin);
++  const events = async () => (await db.prepare("SELECT count(*) n FROM events WHERE candidate_id=? AND action='أُغلقت جلسة العمل'").bind(caseId).first()).n;
++  let r = await json(await close(), 400);
++  assert.equal(r.code, 'FOLLOW_UP_REQUIRED');
++  assert.equal(await events(), 0);
++  await json(await send('/api/tasks', 'POST', { mode: 'manual', candidateId: caseId, title: 'متابعة قديمة', dueDate: plusDays(-2) }, admin), 201);
++  await json(await send('/api/tasks', 'POST', { mode: 'manual', candidateId: caseId, title: 'بلا موعد' }, admin), 201);
++  r = await json(await close(), 400);
++  assert.equal(r.code, 'FOLLOW_UP_REQUIRED', 'past-dated and undated tasks are not a next follow-up');
++  await json(await send('/api/candidates/' + caseId + '/workflow', 'POST', { action: 'other' }, admin), 400);
++  await json(await send('/api/tasks', 'POST', { mode: 'manual', candidateId: caseId, title: 'متابعة الملف', dueDate: plusDays(3) }, admin), 201);
++  r = await json(await close());
++  assert.equal(r.nextFollowUp, plusDays(3));
++  assert.equal(await events(), 1);
++  await json(await send(`/api/candidates/${caseId}/workflow`, 'POST', { action: 'close_session' }), 401);
++});
+diff --git a/tests/v22/operations.e2e.spec.ts b/tests/v22/operations.e2e.spec.ts
+index f1a07f2..45a2aea 100644
+--- a/tests/v22/operations.e2e.spec.ts
++++ b/tests/v22/operations.e2e.spec.ts
+@@ -75,7 +75,7 @@ test('MANAGER billing: explicit currency and catalog, invoice from the case draw
+   const c = await ctx({ viewport: { width: 1440, height: 900 }, extraHTTPHeaders: admin }), page = await c.newPage();
+   page.on('dialog', (d: { accept: () => void }) => d.accept()); page.on('pageerror', (e: Error) => console.log('PAGEERROR', e.message));
+   await page.goto(url + '/');
+-  await page.locator('.nav-item', { hasText: 'الفوترة' }).click();
++  await page.locator('nav[aria-label="التنقل الرئيسي"] button', { hasText: 'الفوترة' }).click();
+   await page.getByText('لا تُنشأ فواتير قبل تحديدها').waitFor();
+   await page.getByLabel('عملة المكتب (ISO)').fill('CAD'); await page.getByRole('button', { name: 'حفظ العملة' }).click();
+   await page.getByText('الحالية: CAD').waitFor();
+@@ -86,7 +86,7 @@ test('MANAGER billing: explicit currency and catalog, invoice from the case draw
+   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'office-billing-1440.png') });
+   // Case drawer → billing tab → invoice → payment.
+   await page.goto(url + '/?candidate=' + st.client.id);
+-  await page.locator('.detail-tabs button', { hasText: 'الفوترة' }).click();
++  await page.locator('[role="tab"]', { hasText: 'الفوترة' }).click();
+   await page.getByRole('button', { name: 'فاتورة جديدة' }).click();
+   await page.locator('.invoice-form select').first().selectOption('profile-prep');
+   await page.locator('.invoice-terms input').first().fill('50.00');
+@@ -100,7 +100,7 @@ test('MANAGER billing: explicit currency and catalog, invoice from the case draw
+   assert.deepEqual([inv.t, inv.p, inv.r, inv.s], [20000, 7525, 12475, 'PARTIAL'], 'server figures match the UI');
+   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'case-billing-1440.png') });
+   await page.goto(url + '/');
+-  await page.locator('.nav-item', { hasText: 'الفوترة' }).click();
++  await page.locator('nav[aria-label="التنقل الرئيسي"] button', { hasText: 'الفوترة' }).click();
+   await page.locator('.billing-kpis', { hasText: '75.25 CAD' }).waitFor();
+   await c.close();
+ });
+@@ -126,7 +126,7 @@ test('client portal: invoice card and case chat ↔ staff inbox (claim + reply)
+       // Staff: inbox shows the waiting conversation; claim; reply. The client sees it (WebSocket push or replay).
+       const s = await ctx({ viewport: { width: 1440, height: 900 }, extraHTTPHeaders: staffA }), sp = await s.newPage();
+       await sp.goto(url + '/');
+-      await sp.locator('.nav-item', { hasText: 'محادثات العملاء' }).click();
++      await sp.locator('nav[aria-label="التنقل الرئيسي"] button', { hasText: 'محادثات العملاء' }).click();
+       await sp.locator('.support-row', { hasText: 'QA E2E Client' }).click();
+       await sp.getByRole('button', { name: 'استلام' }).click();
+       await sp.locator('.chat-state', { hasText: 'مع موظف' }).first().waitFor();
+@@ -169,3 +169,34 @@ test('client chat in LTR, keyboard-only send, reduced motion, and a send while o
+   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'no overflow at 768 LTR');
+   await c.close();
+ });
++test('command desk: real case data, follow-up gate in the browser (400 shown, then closes after scheduling), phone width without overflow', async () => {
++  const c = await ctx({ viewport: { width: 1440, height: 900 }, extraHTTPHeaders: admin }), page = await c.newPage();
++  page.on('pageerror', (e: Error) => console.log('PAGEERROR', e.message));
++  await page.goto(url + '/');
++  await page.locator('[data-testid="command-desk"]').waitFor();
++  await page.locator('article', { hasText: 'QA E2E Client' }).first().waitFor();
++  await page.goto(url + '/?candidate=' + st.client.id);
++  await page.locator('aside[aria-label="بطاقة الحوكمة والقرار"]').waitFor();
++  await page.getByText('لا يوجد موعد متابعة مجدول.').waitFor();
++  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'command-desk-case-1440.png') });
++  await page.getByRole('button', { name: 'إنهاء جلسة العمل على الملف' }).click();
++  await page.locator('aside[aria-label="بطاقة الحوكمة والقرار"] [role="alert"]', { hasText: 'حدّد موعد المتابعة التالي' }).waitFor();
++  const due = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
++  await page.getByLabel('موعد المتابعة التالي').fill(due);
++  await page.getByRole('button', { name: 'جدولة' }).click();
++  await page.getByText('المتابعة التالية: ' + due).waitFor();
++  await page.getByRole('button', { name: 'إنهاء جلسة العمل على الملف' }).click();
++  await page.locator('[role="status"]', { hasText: 'أُغلقت جلسة العمل' }).waitFor();
++  await c.close();
++  const m = await ctx({ viewport: { width: 390, height: 844 }, extraHTTPHeaders: admin }), phone = await m.newPage();
++  await phone.goto(url + '/');
++  await phone.locator('article', { hasText: 'QA E2E Client' }).first().waitFor();
++  assert.ok(await noOverflow(phone), 'no horizontal overflow at 390');
++  await phone.getByRole('button', { name: 'القائمة', exact: true }).click();
++  await phone.locator('nav[aria-label="التنقل الرئيسي"] button', { hasText: 'بطاقات المتقدمين' }).click();
++  assert.ok(await noOverflow(phone), 'no horizontal overflow after navigation at 390');
++  assert.match(await phone.locator('aside').first().getAttribute('class') || '', /translate-x-full/, 'menu closes after navigating on a phone');
++  await phone.waitForTimeout(450);
++  if (SHOTS) await phone.screenshot({ path: path.join(SHOTS, 'command-desk-390.png'), fullPage: true });
++  await m.close();
++});
+-- 
+2.43.0
+

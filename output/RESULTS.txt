@@ -153,3 +153,47 @@ Cron check: schedules registered (17 8 * * *; */5 * * * * modified 22:43:39Z). T
   0 errors; no scheduled event observed yet (Cloudflare documents up to 15 min propagation for new cron triggers) -> NOT VERIFIED.
 RESULT: SUCCESS — v2.2 (09b955c) live as version 5697ec7c; rollback = time-travel restore to bookmark
   000000fd-00000000-00005124-1a18354468323086685e500a42522b01 + `wrangler rollback 8db38519-b1a7-4218-9310-656156d6c311`.
+
+==== STAFF COMMAND DESK — 2026-11-16 ~00:30 UTC ====
+Commit aa54628 (alhijrah-canada-desk). Patch: output/command-desk-aa54628.patch (sha256 8748ec0de965d618267b4bfc57f46e9a540d553cc8c1fdc17086c1bf8c37d412).
+Regression (final code): 34/34 exit 0 —
+  1 exit=0 pass=129 fail=0 secs=2
+  2 exit=0 pass= fail= secs=3
+  3 exit=0 pass=8 fail=0 secs=6
+  4 exit=0 pass=9 fail=0 secs=7
+  5 exit=0 pass=8 fail=0 secs=6
+  6 exit=0 pass=8 fail=0 secs=33
+  7 exit=0 pass=6 fail=0 secs=14
+  8 exit=0 pass=17 fail=0 secs=12
+  9 exit=0 pass=4 fail=0 secs=17
+  10 exit=0 pass=4 fail=0 secs=0
+  11 exit=0 pass=4 fail=0 secs=18
+  12 exit=0 pass=9 fail=0 secs=9
+  13 exit=0 pass=3 fail=0 secs=0
+  14 exit=0 pass=7 fail=0 secs=6
+  15 exit=0 pass= fail= secs=6
+  16 exit=0 pass= fail= secs=12
+  17 exit=0 pass= fail= secs=6
+  18 exit=0 pass= fail= secs=4
+  19 exit=0 pass= fail= secs=6
+  20 exit=0 pass= fail= secs=5
+  21 exit=0 pass= fail= secs=5
+  22 exit=0 pass= fail= secs=5
+  23 exit=0 pass= fail= secs=5
+  24 exit=0 pass= fail= secs=7
+  25 exit=0 pass= fail= secs=9
+  26 exit=0 pass= fail= secs=7
+  27 exit=0 pass= fail= secs=7
+  28 exit=0 pass= fail= secs=5
+  29 exit=0 pass= fail= secs=6
+  30 exit=0 pass= fail= secs=8
+  31 exit=0 pass= fail= secs=6
+  32 exit=0 pass=2 fail=0 secs=15
+  33 exit=0 pass=3 fail=0 secs=5
+  lint-ratchet exit=0 lint ratchet ok:
+  (34 = lint ratchet: 55 errors, baseline 56, no file worse). New: tests/v22/desk.test.mjs 3/3; operations E2E 4/4 incl. desk journey + 390px.
+Bug fixed during regression: billing payment date default/max used the UTC date -> server (Toronto) rejected payments every evening 19:00-24:00 Toronto. Now torontoDate().
+Deploy: no migrations pending; wrangler deploy exit 0; version a0bb649a-b0b1-459e-88b9-e715c19da1ac at 100% ("command desk aa54628"); rollback: wrangler rollback 5697ec7c-d48e-4de0-8364-809ad1b9ac04.
+Live: / 200, /staff/login 200, /?view=classic 200, /apply 200, /api/office 401 (no session), POST workflow close_session 401 (no session).
+Bindings: APP_SECRET, BUCKET, CHAT_ROOMS, DB, OFFICE_ADMIN_EMAIL, OPENAI_API_KEY (secret, present on worker), SHADOW_ONLY=false.
+Telemetry: new version fetch ok; */5 scheduled event observed (previous version 5697ec7c, outcome ok) -> cron VERIFIED.
