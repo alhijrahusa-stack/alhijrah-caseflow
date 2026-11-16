@@ -322,3 +322,7 @@ Open: edge fetch of canada.ca from Cloudflare unverified since 520 at 08:17 UTC;
 Client entry gold/green look restored inside the hero card (luxury pass). Verified 360/768/1440, RTL + EN (LTR), keyboard focus,
 reduced motion; live production page checked. Tests: portal E2E 4/4, portal 9/9, operations E2E 7/7, access 8/8, security 7/7,
 legal-authorization, intake-identity, portal-security, intake-api, auth-isolation, experience-api PASS. Screens: output/client-ui/.
+
+== Production 2026-11-16: Worker 245d45d9 (commit radar batch inserts), no migration ==
+Manual upload of the official rounds file succeeded at 16:20 UTC (454 rounds, audited) but took 53 s (one insert per round);
+a concurrent page load hit Error 1102. Inserts are now batched (50 per D1 round trip). Rollback: wrangler rollback e567aefd-e833-47c5-b118-5ccb402eb2a6
