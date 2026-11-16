@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: outbox: delivery with the event id as Idempotency-Key; limited text (remaining/currency/deadline only)
+ok 1 - outbox: delivery with the event id as Idempotency-Key; limited text (remaining/currency/deadline only)
+  ---
+  duration_ms: 3977.302256
+  type: 'test'
+  ...
+# Subtest: outbox: 5xx → RETRY with backoff; lost response → AMBIGUOUS, re-sent only with the same key; 400 → DEAD_LETTER
+ok 2 - outbox: 5xx → RETRY with backoff; lost response → AMBIGUOUS, re-sent only with the same key; 400 → DEAD_LETTER
+  ---
+  duration_ms: 277.499256
+  type: 'test'
+  ...
+# Subtest: outbox: an expired lease becomes AMBIGUOUS (same key); concurrent dispatchers send once
+ok 3 - outbox: an expired lease becomes AMBIGUOUS (same key); concurrent dispatchers send once
+  ---
+  duration_ms: 455.237822
+  type: 'test'
+  ...
+# Subtest: outbox: consent is re-checked at dispatch; a revoked CHAT/EXPIRY consent cancels the notice
+ok 4 - outbox: consent is re-checked at dispatch; a revoked CHAT/EXPIRY consent cancels the notice
+  ---
+  duration_ms: 3558.054744
+  type: 'test'
+  ...
+# Subtest: expiry: dedup per milestone, expired language test → 0-day task; no consent → no client notice
+ok 5 - expiry: dedup per milestone, expired language test → 0-day task; no consent → no client notice
+  ---
+  duration_ms: 12292.162042
+  type: 'test'
+  ...
+# Subtest: jobs: an expired RUNNING lease returns to RETRY and completes; an exhausted one is dead-lettered
+ok 6 - jobs: an expired RUNNING lease returns to RETRY and completes; an exhausted one is dead-lettered
+  ---
+  duration_ms: 92.358367
+  type: 'test'
+  ...
+# Subtest: ingestion: upload → QUARANTINED + INGESTION job in one batch → scanner CLEAN / INFECTED → REJECTED / outage → retry
+ok 7 - ingestion: upload → QUARANTINED + INGESTION job in one batch → scanner CLEAN / INFECTED → REJECTED / outage → retry
+  ---
+  duration_ms: 331.022869
+  type: 'test'
+  ...
+# Subtest: services: only an explicit client request creates the CRM event and task (idempotent, version-checked)
+ok 8 - services: only an explicit client request creates the CRM event and task (idempotent, version-checked)
+  ---
+  duration_ms: 137.788427
+  type: 'test'
+  ...
+# Subtest: employers/ATS: https source and real dates required, CAS stages, ranking unavailable, edit_case enforced
+ok 9 - employers/ATS: https source and real dates required, CAS stages, ranking unavailable, edit_case enforced
+  ---
+  duration_ms: 206.949523
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 21673.774325

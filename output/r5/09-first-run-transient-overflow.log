@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: MANAGER billing: explicit currency and catalog, invoice from the case drawer, partial cash payment, office totals
+ok 1 - MANAGER billing: explicit currency and catalog, invoice from the case drawer, partial cash payment, office totals
+  ---
+  duration_ms: 6828.279098
+  type: 'test'
+  ...
+# Subtest: client portal: invoice card and case chat ↔ staff inbox (claim + reply) with privacy toggles; 360 px fits
+ok 2 - client portal: invoice card and case chat ↔ staff inbox (claim + reply) with privacy toggles; 360 px fits
+  ---
+  duration_ms: 6351.70355
+  type: 'test'
+  ...
+# Subtest: client chat in LTR, keyboard-only send, reduced motion, and a send while offline: nothing committed, the user retry commits exactly one message (lost-ACK same-id replay is covered in chat.test)
+ok 3 - client chat in LTR, keyboard-only send, reduced motion, and a send while offline: nothing committed, the user retry commits exactly one message (lost-ACK same-id replay is covered in chat.test)
+  ---
+  duration_ms: 1436.276462
+  type: 'test'
+  ...
+# Subtest: command desk: real case data, follow-up gate in the browser (400 shown, then closes after scheduling), phone width without overflow
+ok 4 - command desk: real case data, follow-up gate in the browser (400 shown, then closes after scheduling), phone width without overflow
+  ---
+  duration_ms: 2716.891111
+  type: 'test'
+  ...
+# Subtest: engine E2E: staff opens the case → glass pathway cards and evidence → publish → the client portal shows only the published version (RTL, phone)
+ok 5 - engine E2E: staff opens the case → glass pathway cards and evidence → publish → the client portal shows only the published version (RTL, phone)
+  ---
+  duration_ms: 2736.080889
+  type: 'test'
+  ...
+# Subtest: engine round 3 visuals: analysis status strip, tiers, per-pathway eligibility/objective/unresolved overlay (SEEDED synthetic analysis record — no provider in this E2E), «إعادة التقييم» runs directly and keeps the last valid analysis on failure; client checklist at 1440 and 390
+ok 6 - engine round 3 visuals: analysis status strip, tiers, per-pathway eligibility/objective/unresolved overlay (SEEDED synthetic analysis record — no provider in this E2E), «إعادة التقييم» runs directly and keeps the last valid analysis on failure; client checklist at 1440 and 390
+  ---
+  duration_ms: 4817.164678
+  type: 'test'
+  ...
+# Subtest: analysis workspace: five sections keep every module (engine overview/evidence, comparison + review, rules + CRS, readiness); hybrid manual edit saves through the case API and refreshes the evidence chips; gold actions keep their styling; 390 px fits
+not ok 7 - analysis workspace: five sections keep every module (engine overview/evidence, comparison + review, rules + CRS, readiness); hybrid manual edit saves through the case API and refreshes the evidence chips; gold actions keep their styling; 390 px fits
+  ---
+  duration_ms: 832.353293
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-alhijrah-caseflow/6a4112b7-566a-5359-8ce1-d51706829c53/scratchpad/repo/alhijrah-canada-desk/tests/v22/operations.e2e.spec.ts:265:1'
+  failureType: 'testCodeFailure'
+  error: 'no horizontal overflow on «الخلاصة والمسارات» at 1440'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///tmp/claude-0/-home-user-alhijrah-caseflow/6a4112b7-566a-5359-8ce1-d51706829c53/scratchpad/repo/alhijrah-canada-desk/tests/v22/operations.e2e.spec.ts:278:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 26300.204895

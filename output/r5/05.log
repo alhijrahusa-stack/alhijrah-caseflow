@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: 1 · create: explicit office currency, catalog + custom + free items and discount, server totals and audit
+ok 1 - 1 · create: explicit office currency, catalog + custom + free items and discount, server totals and audit
+  ---
+  duration_ms: 4105.031855
+  type: 'test'
+  ...
+# Subtest: 2 · CASH partial payment → PARTIAL, immutable ledger row, audited version bump
+ok 2 - 2 · CASH partial payment → PARTIAL, immutable ledger row, audited version bump
+  ---
+  duration_ms: 41.491189
+  type: 'test'
+  ...
+# Subtest: 3 · ZELLE full payment with a private R2 receipt → PAID; receipt only for view_financials
+ok 3 - 3 · ZELLE full payment with a private R2 receipt → PAID; receipt only for view_financials
+  ---
+  duration_ms: 74.298255
+  type: 'test'
+  ...
+# Subtest: 4 · duplicates: same key replays, other payload 409; overpayment, case/currency mix and a failing batch leave nothing
+ok 4 - 4 · duplicates: same key replays, other payload 409; overpayment, case/currency mix and a failing batch leave nothing
+  ---
+  duration_ms: 261.754277
+  type: 'test'
+  ...
+# Subtest: 5 · referral locks the invoice (PENDING_APPROVAL) until one MANAGER approves
+ok 5 - 5 · referral locks the invoice (PENDING_APPROVAL) until one MANAGER approves
+  ---
+  duration_ms: 118.800436
+  type: 'test'
+  ...
+# Subtest: 6 · payment notice through the outbox (EMAIL only, limited payload) and AR/EN PDF from server data
+ok 6 - 6 · payment notice through the outbox (EMAIL only, limited payload) and AR/EN PDF from server data
+  ---
+  duration_ms: 265.704357
+  type: 'test'
+  ...
+# Subtest: 7 · 403 and hidden money without view_financials; discount bypass through EDIT is refused (route and trigger)
+ok 7 - 7 · 403 and hidden money without view_financials; discount bypass through EDIT is refused (route and trigger)
+  ---
+  duration_ms: 247.442701
+  type: 'test'
+  ...
+# Subtest: 8 · SYSTEM overdue refresh (scheduled): unpaid past-deadline invoice → OVERDUE through an audited operation
+ok 8 - 8 · SYSTEM overdue refresh (scheduled): unpaid past-deadline invoice → OVERDUE through an audited operation
+  ---
+  duration_ms: 6210.60216
+  type: 'test'
+  ...
+# Subtest: 9 · payment date is an office calendar day (Toronto): any hour of today is accepted, tomorrow is refused
+ok 9 - 9 · payment date is an office calendar day (Toronto): any hour of today is accepted, tomorrow is refused
+  ---
+  duration_ms: 71.913633
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11681.970109

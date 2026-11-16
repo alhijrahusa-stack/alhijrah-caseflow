@@ -311,3 +311,9 @@ Production: migration 0032 applied and Worker f31ab7eb deployed on 2026-11-16 af
 Five-section glass workspace; hybrid manual field edit; fixes: unstyled gold actions in case tabs, tab reset after save.
 Regression 37/37 (output/ui-r4/regression-summary.txt); operations E2E 7/7; lint ratchet 55 (baseline 56).
 Screenshots 1440/390 for every section + before/after: output/ui-r4/. Patch: output/analysis-ui-0eb0940.patch
+
+== Production 2026-11-16: Worker ca64df58 (commits 0eb0940 + 859b4e6), no migration; rollback: wrangler rollback f31ab7eb-8a12-4723-adfd-0bbfae479338 ==
+Analysis workspace redesign; central AI gate for all office calls (usage/quota/breaker, rejection reasons, one correction round);
+draw radar retry + MANAGER upload of the official rounds file. Regression 37/37 (09 re-run: first run transient overflow).
+Live: readiness brief 200 after one correction (first response failed on 'questions'). Logs: output/r5/.
+Open: edge fetch of canada.ca from Cloudflare unverified since 520 at 08:17 UTC; check with «فحص السحوبات الرسمية الآن» or upload the file.

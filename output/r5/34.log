@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: coverage is met/evaluated with a stated method (not a probability); readiness follows the rule states
+ok 1 - coverage is met/evaluated with a stated method (not a probability); readiness follows the rule states
+  ---
+  duration_ms: 1.71425
+  type: 'test'
+  ...
+# Subtest: ranking: ready first, then coverage; blocked never padded in; exclusions reported; pins honoured
+ok 2 - ranking: ready first, then coverage; blocked never padded in; exclusions reported; pins honoured
+  ---
+  duration_ms: 0.591408
+  type: 'test'
+  ...
+# Subtest: explanation trace carries facts, rule version, official sources with dates, met/missing/blockers and assumptions
+ok 3 - explanation trace carries facts, rule version, official sources with dates, met/missing/blockers and assumptions
+  ---
+  duration_ms: 0.547294
+  type: 'test'
+  ...
+# Subtest: roadmap: client steps from missing items/documents, office steps depend on them, expiries flagged, no fixed durations
+ok 4 - roadmap: client steps from missing items/documents, office steps depend on them, expiries flagged, no fixed durations
+  ---
+  duration_ms: 0.440957
+  type: 'test'
+  ...
+# Subtest: draw stats: same-category window, trend and conservative/median/optimistic cut-offs; descriptive gap only
+ok 5 - draw stats: same-category window, trend and conservative/median/optimistic cut-offs; descriptive gap only
+  ---
+  duration_ms: 8.938579
+  type: 'test'
+  ...
+# Subtest: scenario delta reports CRS change and only the pathways whose readiness/coverage changed
+ok 6 - scenario delta reports CRS change and only the pathways whose readiness/coverage changed
+  ---
+  duration_ms: 0.405017
+  type: 'test'
+  ...
+# Subtest: client snapshot excludes internal notes, excluded employers, traces and confidence; diff lists real changes
+ok 7 - client snapshot excludes internal notes, excluded employers, traces and confidence; diff lists real changes
+  ---
+  duration_ms: 0.667269
+  type: 'test'
+  ...
+# Subtest: hash chain is deterministic, order-independent in keys and sensitive to any change
+ok 8 - hash chain is deterministic, order-independent in keys and sensitive to any change
+  ---
+  duration_ms: 9.332099
+  type: 'test'
+  ...
+# Subtest: rounds parser keeps valid published rows only (commas, ranges, dates)
+ok 9 - rounds parser keeps valid published rows only (commas, ranges, dates)
+  ---
+  duration_ms: 0.776088
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 127.198975

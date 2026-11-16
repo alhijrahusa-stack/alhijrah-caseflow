@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: pipeline: upload → scan → extraction (authorization first) → empty fields filled, existing value kept as a conflict → package
+ok 1 - pipeline: upload → scan → extraction (authorization first) → empty fields filled, existing value kept as a conflict → package
+  ---
+  duration_ms: 4518.751129
+  type: 'test'
+  ...
+# Subtest: hybrid input: staff correction survives re-extraction; decisions are recorded, rejected values are not re-applied
+ok 2 - hybrid input: staff correction survives re-extraction; decisions are recorded, rejected values are not re-applied
+  ---
+  duration_ms: 532.488149
+  type: 'test'
+  ...
+# Subtest: prompt-injection/extra fields in the model output are rejected (strict schema); the job retries without writing facts
+ok 3 - prompt-injection/extra fields in the model output are rejected (strict schema); the job retries without writing facts
+  ---
+  duration_ms: 304.75539
+  type: 'test'
+  ...
+# Subtest: visibility gate: drafts are staff-only; publish freezes a client-safe numbered snapshot; data changes do not alter it; withdraw is manager-only
+ok 4 - visibility gate: drafts are staff-only; publish freezes a client-safe numbered snapshot; data changes do not alter it; withdraw is manager-only
+  ---
+  duration_ms: 658.229259
+  type: 'test'
+  ...
+# Subtest: sockets: staff receive draft-update signals; client sockets never receive draft frames (only a publication signal without content)
+ok 5 - sockets: staff receive draft-update signals; client sockets never receive draft frames (only a publication signal without content)
+  ---
+  duration_ms: 992.160745
+  type: 'test'
+  ...
+# Subtest: concurrency: duplicate events → one package; stale publish and concurrent edits → 409; audit chain verifies and refuses tampering
+ok 6 - concurrency: duplicate events → one package; stale publish and concurrent edits → 409; audit chain verifies and refuses tampering
+  ---
+  duration_ms: 352.81715
+  type: 'test'
+  ...
+# Subtest: What-If: deterministic CRS/pathway impact without touching the case; saved scenario can be included in a publication
+ok 7 - What-If: deterministic CRS/pathway impact without touching the case; saved scenario can be included in a publication
+  ---
+  duration_ms: 98.760158
+  type: 'test'
+  ...
+# Subtest: draw radar: validated official rounds stored once, affected cases refreshed and alerted (staff only); unchanged/invalid/failed runs recorded
+ok 8 - draw radar: validated official rounds stored once, affected cases refreshed and alerted (staff only); unchanged/invalid/failed runs recorded
+  ---
+  duration_ms: 3168.02678
+  type: 'test'
+  ...
+# Subtest: provider failure: errors are logged, the circuit opens after repeated failures and calls are skipped (retry later); recovery closes it
+ok 9 - provider failure: errors are logged, the circuit opens after repeated failures and calls are skipped (retry later); recovery closes it
+  ---
+  duration_ms: 209.48593
+  type: 'test'
+  ...
+# Subtest: client surfaces name no processing provider and carry only the approved institutional wording
+ok 10 - client surfaces name no processing provider and carry only the approved institutional wording
+  ---
+  duration_ms: 93.632218
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11193.390064

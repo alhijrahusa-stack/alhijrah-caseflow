@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: entries: START_NEW needs a name, creates one profile after proof, never redirects to an old file; concurrent verify does not duplicate
+ok 1 - entries: START_NEW needs a name, creates one profile after proof, never redirects to an old file; concurrent verify does not duplicate
+  ---
+  duration_ms: 3937.057955
+  type: 'test'
+  ...
+# Subtest: drafts: idempotent create, two tabs conflict, lost ACK replays, reused mutation id 409, owner isolation, email forced
+ok 2 - drafts: idempotent create, two tabs conflict, lost ACK replays, reused mutation id 409, owner isolation, email forced
+  ---
+  duration_ms: 129.441885
+  type: 'test'
+  ...
+# Subtest: signature: real ink required, bound to the original snapshot, survives later edits, explicit clear only
+ok 3 - signature: real ink required, bound to the original snapshot, survives later edits, explicit clear only
+  ---
+  duration_ms: 226.642269
+  type: 'test'
+  ...
+# Subtest: submission: signature required and verified server-side, atomic binding, concurrent/replayed/forged submits create nothing partial
+ok 4 - submission: signature required and verified server-side, atomic binding, concurrent/replayed/forged submits create nothing partial
+  ---
+  duration_ms: 327.88675
+  type: 'test'
+  ...
+# Subtest: legacy: a record without a signature stays unsigned (no back-fill) and still renders its PDF
+ok 5 - legacy: a record without a signature stays unsigned (no back-fill) and still renders its PDF
+  ---
+  duration_ms: 110.411431
+  type: 'test'
+  ...
+# Subtest: passwords: account password needs a fresh email OTP; email+password opens the account; a legacy case password opens only its case
+ok 6 - passwords: account password needs a fresh email OTP; email+password opens the account; a legacy case password opens only its case
+  ---
+  duration_ms: 1568.86049
+  type: 'test'
+  ...
+# Subtest: session indicator: account or full case session only; never the limited lookup token
+ok 7 - session indicator: account or full case session only; never the limited lookup token
+  ---
+  duration_ms: 20.772367
+  type: 'test'
+  ...
+# Subtest: status lookup: identical 202 for matched/unmatched/failed delivery, purpose-bound codes, 5-minute case_status token with a minimal answer
+ok 8 - status lookup: identical 202 for matched/unmatched/failed delivery, purpose-bound codes, 5-minute case_status token with a minimal answer
+  ---
+  duration_ms: 227.552616
+  type: 'test'
+  ...
+# Subtest: integrated journey (AC-29): signed submission → chat → handoff → rapid assessment → invoice → payments → PDF → notice → status lookup
+ok 9 - integrated journey (AC-29): signed submission → chat → handoff → rapid assessment → invoice → payments → PDF → notice → status lookup
+  ---
+  duration_ms: 782.842785
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7605.348076

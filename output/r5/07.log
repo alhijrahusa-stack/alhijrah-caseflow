@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: static: no duplicate CREATE TABLE, no REAL/JSONB, no tenancy, every *_cents INTEGER with an integer CHECK
+ok 1 - static: no duplicate CREATE TABLE, no REAL/JSONB, no tenancy, every *_cents INTEGER with an integer CHECK
+  ---
+  duration_ms: 18.660677
+  type: 'test'
+  ...
+# Subtest: fresh install 0000–0031: integrity, four roles only, seeded singletons, ORM == SQL
+ok 2 - fresh install 0000–0031: integrity, four roles only, seeded singletons, ORM == SQL
+  ---
+  duration_ms: 4219.011947
+  type: 'test'
+  ...
+# Subtest: upgrade 0023 -> 0031 on legacy data (incl. facts cutover): counts and fingerprints unchanged, trusted mapping, append-only, money, JSON, atomicity
+ok 3 - upgrade 0023 -> 0031 on legacy data (incl. facts cutover): counts and fingerprints unchanged, trusted mapping, append-only, money, JSON, atomicity
+  ---
+  duration_ms: 5411.271779
+  type: 'test'
+  ...
+# Subtest: v22-core controls: integer cents, totals, status, permissions, Toronto day
+ok 4 - v22-core controls: integer cents, totals, status, permissions, Toronto day
+  ---
+  duration_ms: 1.570168
+  type: 'test'
+  ...
+# Subtest: negative: assessment pointers cannot cross cases or purposes; fact heads cannot cross subject or key
+ok 5 - negative: assessment pointers cannot cross cases or purposes; fact heads cannot cross subject or key
+  ---
+  duration_ms: 3317.983326
+  type: 'test'
+  ...
+# Subtest: static: no dual-write — after the Gate 3 cutover only lib/facts.ts reads or writes facts, and only the canonical tables
+ok 6 - static: no dual-write — after the Gate 3 cutover only lib/facts.ts reads or writes facts, and only the canonical tables
+  ---
+  duration_ms: 57.905711
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13633.072384
