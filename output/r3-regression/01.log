@@ -1,0 +1,784 @@
+TAP version 13
+# Subtest: American immigration terms match whole words only
+ok 1 - American immigration terms match whole words only
+  ---
+  duration_ms: 2.515187
+  type: 'test'
+  ...
+# Subtest: Missing data remains unknown, with no eligible verdict
+ok 2 - Missing data remains unknown, with no eligible verdict
+  ---
+  duration_ms: 1.630073
+  type: 'test'
+  ...
+# Subtest: TEER 4 needs CLB 4 in RCIP, and remains outside FSW skill scope
+ok 3 - TEER 4 needs CLB 4 in RCIP, and remains outside FSW skill scope
+  ---
+  duration_ms: 0.365647
+  type: 'test'
+  ...
+# Subtest: TEER 0 needs CLB 6, not CLB 5, in RCIP
+ok 4 - TEER 0 needs CLB 6, not CLB 5, in RCIP
+  ---
+  duration_ms: 0.141024
+  type: 'test'
+  ...
+# Subtest: An absent alternate language does not prove failure of the language requirement
+ok 5 - An absent alternate language does not prove failure of the language requirement
+  ---
+  duration_ms: 0.167485
+  type: 'test'
+  ...
+# Subtest: A language test is invalid at the two-year boundary
+ok 6 - A language test is invalid at the two-year boundary
+  ---
+  duration_ms: 0.128543
+  type: 'test'
+  ...
+# Subtest: French NCLC 7 needs a valid test date
+ok 7 - French NCLC 7 needs a valid test date
+  ---
+  duration_ms: 0.124331
+  type: 'test'
+  ...
+# Subtest: Future and nonexistent test dates cannot pass
+ok 8 - Future and nonexistent test dates cannot pass
+  ---
+  duration_ms: 0.352705
+  type: 'test'
+  ...
+# Subtest: Sufficient French can independently satisfy RCIP language
+ok 9 - Sufficient French can independently satisfy RCIP language
+  ---
+  duration_ms: 0.140118
+  type: 'test'
+  ...
+# Subtest: Uploaded but unreviewed documents are not counted as verified
+ok 10 - Uploaded but unreviewed documents are not counted as verified
+  ---
+  duration_ms: 0.262035
+  type: 'test'
+  ...
+# Subtest: Having money alone does not automatically approve settlement funds
+ok 11 - Having money alone does not automatically approve settlement funds
+  ---
+  duration_ms: 0.33931
+  type: 'test'
+  ...
+# Subtest: The 12-month recent experience boundary is exact
+ok 12 - The 12-month recent experience boundary is exact
+  ---
+  duration_ms: 0.187584
+  type: 'test'
+  ...
+# Subtest: Every displayed condition has an official source and no acceptance probability
+ok 13 - Every displayed condition has an official source and no acceptance probability
+  ---
+  duration_ms: 0.127335
+  type: 'test'
+  ...
+# Subtest: Staff review of a funds document does not establish financial eligibility
+ok 14 - Staff review of a funds document does not establish financial eligibility
+  ---
+  duration_ms: 0.078303
+  type: 'test'
+  ...
+# Subtest: RCIP language follows the offered job TEER, not the current occupation TEER
+ok 15 - RCIP language follows the offered job TEER, not the current occupation TEER
+  ---
+  duration_ms: 0.126485
+  type: 'test'
+  ...
+# Subtest: A positive LMIA and job offer do not become work permit approval
+ok 16 - A positive LMIA and job offer do not become work permit approval
+  ---
+  duration_ms: 0.08689
+  type: 'test'
+  ...
+# Subtest: Completeness does not count the default household size as client data
+ok 17 - Completeness does not count the default household size as client data
+  ---
+  duration_ms: 0.086326
+  type: 'test'
+  ...
+# Subtest: all ten FAQ sections, seventeen supplied questions, exact schema correspondence, Arabic search
+ok 18 - all ten FAQ sections, seventeen supplied questions, exact schema correspondence, Arabic search
+  ---
+  duration_ms: 3.212904
+  type: 'test'
+  ...
+# Subtest: MRZ requires passport, birth, expiry, and composite check digits
+ok 19 - MRZ requires passport, birth, expiry, and composite check digits
+  ---
+  duration_ms: 166.839037
+  type: 'test'
+  ...
+# Subtest: CRS base ranking and transferability use verified complete factors
+ok 20 - CRS base ranking and transferability use verified complete factors
+  ---
+  duration_ms: 4.146522
+  type: 'test'
+  ...
+# Subtest: spouse factors and additional French points are bounded
+ok 21 - spouse factors and additional French points are bounded
+  ---
+  duration_ms: 0.58743
+  type: 'test'
+  ...
+# Subtest: confirmation email is escaped, bilingual, functional, and excludes access credentials
+ok 22 - confirmation email is escaped, bilingual, functional, and excludes access credentials
+  ---
+  duration_ms: 5.030358
+  type: 'test'
+  ...
+# Subtest: first unfinished step is current; each step names its exact gaps and one action
+ok 23 - first unfinished step is current; each step names its exact gaps and one action
+  ---
+  duration_ms: 1.482383
+  type: 'test'
+  ...
+# Subtest: progress follows stored facts only; a request already sent waits for the client
+ok 24 - progress follows stored facts only; a request already sent waits for the client
+  ---
+  duration_ms: 0.289668
+  type: 'test'
+  ...
+# Subtest: overdue tasks keep follow-up open; staff-created files check core fields
+ok 25 - overdue tasks keep follow-up open; staff-created files check core fields
+  ---
+  duration_ms: 0.221316
+  type: 'test'
+  ...
+# Subtest: P1 every complete profile evaluates COMPLETE
+ok 26 - P1 every complete profile evaluates COMPLETE
+  ---
+  duration_ms: 1.468431
+  type: 'test'
+  ...
+# Subtest: P2 total <= 1270 and breakdown sums to total
+ok 27 - P2 total <= 1270 and breakdown sums to total
+  ---
+  duration_ms: 0.290749
+  type: 'test'
+  ...
+# Subtest: P3 base core <= 420/390 and core <= 570/530 by spouse configuration (getCoreTable)
+ok 28 - P3 base core <= 420/390 and core <= 570/530 by spouse configuration (getCoreTable)
+  ---
+  duration_ms: 0.322201
+  type: 'test'
+  ...
+# Subtest: P4 LMIF = max(experience path, offer path), never their sum, <= 150/140
+ok 29 - P4 LMIF = max(experience path, offer path), never their sum, <= 150/140
+  ---
+  duration_ms: 0.293219
+  type: 'test'
+  ...
+# Subtest: P5 all points are non-negative integers
+ok 30 - P5 all points are non-negative integers
+  ---
+  duration_ms: 0.877979
+  type: 'test'
+  ...
+# Subtest: P6 deterministic: the same facts give the identical result
+ok 31 - P6 deterministic: the same facts give the identical result
+  ---
+  duration_ms: 4.119557
+  type: 'test'
+  ...
+# Subtest: P7 single applicants: spouse facts are NOT_APPLICABLE (unknown spouse facts keep the result COMPLETE and equal)
+ok 32 - P7 single applicants: spouse facts are NOT_APPLICABLE (unknown spouse facts keep the result COMPLETE and equal)
+  ---
+  duration_ms: 4.627874
+  type: 'test'
+  ...
+# Subtest: P8 an unknown that changes the score gives INCOMPLETE naming it, with a range that contains the true value
+ok 33 - P8 an unknown that changes the score gives INCOMPLETE naming it, with a range that contains the true value
+  ---
+  duration_ms: 13.640575
+  type: 'test'
+  ...
+# Subtest: P9 an unknown that cannot change the score keeps COMPLETE (foreign experience with no qualifying language or CWE)
+ok 34 - P9 an unknown that cannot change the score keeps COMPLETE (foreign experience with no qualifying language or CWE)
+  ---
+  duration_ms: 0.557795
+  type: 'test'
+  ...
+# Subtest: P10 unknown is never zero: unknown first language is INCOMPLETE, not scored as 0
+ok 35 - P10 unknown is never zero: unknown first language is INCOMPLETE, not scored as 0
+  ---
+  duration_ms: 0.350484
+  type: 'test'
+  ...
+# Subtest: P11 adding a nomination never lowers the score (monotone)
+ok 36 - P11 adding a nomination never lowers the score (monotone)
+  ---
+  duration_ms: 11.71947
+  type: 'test'
+  ...
+# Subtest: P12 an expired language test is INVALID_INPUT, not a lower score
+ok 37 - P12 an expired language test is INVALID_INPUT, not a lower score
+  ---
+  duration_ms: 0.255193
+  type: 'test'
+  ...
+# Subtest: getCoreTable: 420/390 base, 150/140 LMIF, 570/530 core
+ok 38 - getCoreTable: 420/390 base, 150/140 LMIF, 570/530 core
+  ---
+  duration_ms: 0.153363
+  type: 'test'
+  ...
+# Subtest: assertCrsInvariants throws on overflow and on a summed LMIF (no clamping)
+ok 39 - assertCrsInvariants throws on overflow and on a summed LMIF (no clamping)
+  ---
+  duration_ms: 0.468007
+  type: 'test'
+  ...
+# Subtest: registry: every rule is source-linked and the hashes match the stored source files
+ok 40 - registry: every rule is source-linked and the hashes match the stored source files
+  ---
+  duration_ms: 1.126958
+  type: 'test'
+  ...
+# Subtest: getRulesVersion: before, on and after 2026-11-03
+ok 41 - getRulesVersion: before, on and after 2026-11-03
+  ---
+  duration_ms: 3.107991
+  type: 'test'
+  ...
+# Subtest: getRulesVersion: the high-wage list follows the invitation date, not the evaluation date
+ok 42 - getRulesVersion: the high-wage list follows the invitation date, not the evaluation date
+  ---
+  duration_ms: 0.093198
+  type: 'test'
+  ...
+# Subtest: getRulesVersion: unverified secondary sources resolve to RULE_UNAVAILABLE
+ok 43 - getRulesVersion: unverified secondary sources resolve to RULE_UNAVAILABLE
+  ---
+  duration_ms: 0.13946
+  type: 'test'
+  ...
+# Subtest: validateRegistry rejects overlapping versions and unexplained gaps
+ok 44 - validateRegistry rejects overlapping versions and unexplained gaps
+  ---
+  duration_ms: 1.08722
+  type: 'test'
+  ...
+# Subtest: ten fixtures, valid JSON, required evidence fields
+ok 45 - ten fixtures, valid JSON, required evidence fields
+  ---
+  duration_ms: 3.367712
+  type: 'test'
+  ...
+# Subtest: GM01 engine equals the independent oracle
+ok 46 - GM01 engine equals the independent oracle
+  ---
+  duration_ms: 2.884088
+  type: 'test'
+  ...
+# Subtest: GM02 engine equals the independent oracle
+ok 47 - GM02 engine equals the independent oracle
+  ---
+  duration_ms: 0.847772
+  type: 'test'
+  ...
+# Subtest: GM03 engine equals the independent oracle
+ok 48 - GM03 engine equals the independent oracle
+  ---
+  duration_ms: 0.542417
+  type: 'test'
+  ...
+# Subtest: GM04 engine equals the independent oracle
+ok 49 - GM04 engine equals the independent oracle
+  ---
+  duration_ms: 0.392499
+  type: 'test'
+  ...
+# Subtest: GM05 engine equals the independent oracle
+ok 50 - GM05 engine equals the independent oracle
+  ---
+  duration_ms: 0.531422
+  type: 'test'
+  ...
+# Subtest: GM06 engine equals the independent oracle
+ok 51 - GM06 engine equals the independent oracle
+  ---
+  duration_ms: 0.364197
+  type: 'test'
+  ...
+# Subtest: GM07 engine equals the independent oracle
+ok 52 - GM07 engine equals the independent oracle
+  ---
+  duration_ms: 0.28751
+  type: 'test'
+  ...
+# Subtest: GM08 engine equals the independent oracle
+ok 53 - GM08 engine equals the independent oracle
+  ---
+  duration_ms: 0.479415
+  type: 'test'
+  ...
+# Subtest: GM09 engine equals the independent oracle
+ok 54 - GM09 engine equals the independent oracle
+  ---
+  duration_ms: 0.719871
+  type: 'test'
+  ...
+# Subtest: GM10 engine equals the independent oracle
+ok 55 - GM10 engine equals the independent oracle
+  ---
+  duration_ms: 0.455639
+  type: 'test'
+  ...
+# Subtest: BOM, CRLF, quoted commas, escaped quotes and multiline fields parse
+ok 56 - BOM, CRLF, quoted commas, escaped quotes and multiline fields parse
+  ---
+  duration_ms: 2.06557
+  type: 'test'
+  ...
+# Subtest: Unclosed quotes and trailing data are rejected
+ok 57 - Unclosed quotes and trailing data are rejected
+  ---
+  duration_ms: 0.501482
+  type: 'test'
+  ...
+# Subtest: CSV exports guard spreadsheet formulas including leading whitespace
+ok 58 - CSV exports guard spreadsheet formulas including leading whitespace
+  ---
+  duration_ms: 0.287757
+  type: 'test'
+  ...
+# Subtest: Arabic and quoted data survive CSV export and parsing
+ok 59 - Arabic and quoted data survive CSV export and parsing
+  ---
+  duration_ms: 0.458546
+  type: 'test'
+  ...
+# Subtest: Import row cap is enforced
+ok 60 - Import row cap is enforced
+  ---
+  duration_ms: 0.439498
+  type: 'test'
+  ...
+# Subtest: IELTS individual abilities map to CLB; invalid scores are rejected
+ok 61 - IELTS individual abilities map to CLB; invalid scores are rejected
+  ---
+  duration_ms: 1.551416
+  type: 'test'
+  ...
+# Subtest: FSW six factors and unknowns, continuous work and threshold
+ok 62 - FSW six factors and unknowns, continuous work and threshold
+  ---
+  duration_ms: 3.733109
+  type: 'test'
+  ...
+# Subtest: CEC TEER-specific language and student/self-employment exclusions
+ok 63 - CEC TEER-specific language and student/self-employment exclusions
+  ---
+  duration_ms: 1.808904
+  type: 'test'
+  ...
+# Subtest: FST trade groups, exceptions, language and offer/certificate
+ok 64 - FST trade groups, exceptions, language and offer/certificate
+  ---
+  duration_ms: 1.013956
+  type: 'test'
+  ...
+# Subtest: visa-required citizenships need a visitor visa by any travel mode
+ok 65 - visa-required citizenships need a visitor visa by any travel mode
+  ---
+  duration_ms: 15.201579
+  type: 'test'
+  ...
+# Subtest: eTA-required citizenships: eTA by air, passport only by land or sea, arrival mode needed otherwise
+ok 66 - eTA-required citizenships: eTA by air, passport only by land or sea, arrival mode needed otherwise
+  ---
+  duration_ms: 0.253924
+  type: 'test'
+  ...
+# Subtest: the 17 eligible visa-required countries: eTA possible by air only
+ok 67 - the 17 eligible visa-required countries: eTA possible by air only
+  ---
+  duration_ms: 0.134454
+  type: 'test'
+  ...
+# Subtest: passport-type cases, US, Canada, unknown and missing
+ok 68 - passport-type cases, US, Canada, unknown and missing
+  ---
+  duration_ms: 0.127652
+  type: 'test'
+  ...
+# Subtest: every result carries the IRCC source and its page date
+ok 69 - every result carries the IRCC source and its page date
+  ---
+  duration_ms: 0.102345
+  type: 'test'
+  ...
+# Subtest: visit readiness: eTA requested by a visa-required citizen is redirected; missing arrival is listed
+ok 70 - visit readiness: eTA requested by a visa-required citizen is redirected; missing arrival is listed
+  ---
+  duration_ms: 0.549259
+  type: 'test'
+  ...
+# Subtest: full-time year at 30 h/week = 12 months (1,560 hours); more than 30 h/week counts as 30
+ok 71 - full-time year at 30 h/week = 12 months (1,560 hours); more than 30 h/week counts as 30
+  ---
+  duration_ms: 1.371848
+  type: 'test'
+  ...
+# Subtest: part time accrues proportionally; concurrent jobs share the 30-hour weekly cap
+ok 72 - part time accrues proportionally; concurrent jobs share the 30-hour weekly cap
+  ---
+  duration_ms: 0.367123
+  type: 'test'
+  ...
+# Subtest: windows: 36 and 120 months ending with the evaluation month; a job without an end is current
+ok 73 - windows: 36 and 120 months ending with the evaluation month; a job without an end is current
+  ---
+  duration_ms: 0.348951
+  type: 'test'
+  ...
+# Subtest: missing weekly hours inside a window makes it unknown; outside the window it is ignored
+ok 74 - missing weekly hours inside a window makes it unknown; outside the window it is ignored
+  ---
+  duration_ms: 2.029265
+  type: 'test'
+  ...
+# Subtest: Canadian months count jobs whose country is Canada; an unknown country makes them unknown
+ok 75 - Canadian months count jobs whose country is Canada; an unknown country makes them unknown
+  ---
+  duration_ms: 0.349988
+  type: 'test'
+  ...
+# Subtest: NOC: no official catalog -> MATCH_UNAVAILABLE (no model, no guess)
+ok 76 - NOC: no official catalog -> MATCH_UNAVAILABLE (no model, no guess)
+  ---
+  duration_ms: 1.547166
+  type: 'test'
+  ...
+# Subtest: NOC: duties are matched against the lead statement and main duties; result is PROVISIONAL with no confidence score
+ok 77 - NOC: duties are matched against the lead statement and main duties; result is PROVISIONAL with no confidence score
+  ---
+  duration_ms: 0.50287
+  type: 'test'
+  ...
+# Subtest: NOC: a job title alone does not produce a match
+ok 78 - NOC: a job title alone does not produce a match
+  ---
+  duration_ms: 0.143112
+  type: 'test'
+  ...
+# Subtest: Top-3: at most three, never padded, ineligible and rule-unavailable programs excluded, eligible first
+ok 79 - Top-3: at most three, never padded, ineligible and rule-unavailable programs excluded, eligible first
+  ---
+  duration_ms: 0.285179
+  type: 'test'
+  ...
+# Subtest: Employer hard rules: designated != vacancy, LMIA history != designation, posting != eligibility, NOC must fit
+ok 80 - Employer hard rules: designated != vacancy, LMIA history != designation, posting != eligibility, NOC must fit
+  ---
+  duration_ms: 0.130132
+  type: 'test'
+  ...
+# Subtest: Action plan follows dependencies and rejects cycles
+ok 81 - Action plan follows dependencies and rejects cycles
+  ---
+  duration_ms: 0.458006
+  type: 'test'
+  ...
+# Subtest: Preliminary: no eligibility run -> EE programs PENDING_VERIFICATION with pivot wording; RCIP/AIP RULE_UNAVAILABLE and not offered
+ok 82 - Preliminary: no eligibility run -> EE programs PENDING_VERIFICATION with pivot wording; RCIP/AIP RULE_UNAVAILABLE and not offered
+  ---
+  duration_ms: 0.998714
+  type: 'test'
+  ...
+# Subtest: Preliminary: CRS from the file alone is INCOMPLETE and lists what is missing (no zero defaults)
+ok 83 - Preliminary: CRS from the file alone is INCOMPLETE and lists what is missing (no zero defaults)
+  ---
+  duration_ms: 0.342946
+  type: 'test'
+  ...
+# Subtest: Preliminary: before 2026-11-03 the CRS rule is unavailable (no earlier version held)
+ok 84 - Preliminary: before 2026-11-03 the CRS rule is unavailable (no earlier version held)
+  ---
+  duration_ms: 0.362729
+  type: 'test'
+  ...
+# Subtest: Preliminary: staff eligibility run drives program status (CEC ELIGIBLE first, INELIGIBLE excluded)
+ok 85 - Preliminary: staff eligibility run drives program status (CEC ELIGIBLE first, INELIGIBLE excluded)
+  ---
+  duration_ms: 0.540184
+  type: 'test'
+  ...
+# Subtest: Preliminary: REPORTED and VERIFIED facts are kept apart; deterministic output
+ok 86 - Preliminary: REPORTED and VERIFIED facts are kept apart; deterministic output
+  ---
+  duration_ms: 0.621313
+  type: 'test'
+  ...
+# Subtest: canonical serialization: key order never changes the hash; any value or rules version change does
+ok 87 - canonical serialization: key order never changes the hash; any value or rules version change does
+  ---
+  duration_ms: 10.778385
+  type: 'test'
+  ...
+# Subtest: hash equals SHA-256 of the canonical JSON string defined in the contract
+ok 88 - hash equals SHA-256 of the canonical JSON string defined in the contract
+  ---
+  duration_ms: 1.613929
+  type: 'test'
+  ...
+# Subtest: duration points s.15.1(7) for 0..5 years, both spouse columns
+ok 89 - duration points s.15.1(7) for 0..5 years, both spouse columns
+  ---
+  duration_ms: 5.092369
+  type: 'test'
+  ...
+# Subtest: high-wage experience s.15.1(8) and offer s.15.2(1) points
+ok 90 - high-wage experience s.15.1(8) and offer s.15.2(1) points
+  ---
+  duration_ms: 0.590604
+  type: 'test'
+  ...
+# Subtest: LMIF = greater of the two paths, never their sum, within s.15(2) max
+ok 91 - LMIF = greater of the two paths, never their sum, within s.15(2) max
+  ---
+  duration_ms: 12.174478
+  type: 'test'
+  ...
+# Subtest: core <= s.8(2)(a) max and total <= 1270, breakdown sums to total, at the maximum profile
+ok 92 - core <= s.8(2)(a) max and total <= 1270, breakdown sums to total, at the maximum profile
+  ---
+  duration_ms: 0.3271
+  type: 'test'
+  ...
+# Subtest: high-wage experience bonus requires at least one year of CWE (s.15.1(8))
+ok 93 - high-wage experience bonus requires at least one year of CWE (s.15.1(8))
+  ---
+  duration_ms: 0.890769
+  type: 'test'
+  ...
+# Subtest: s.10 age (20 rows each column)
+ok 94 - s.10 age (20 rows each column)
+  ---
+  duration_ms: 8.500225
+  type: 'test'
+  ...
+# Subtest: s.11 level of education (8 rows each column)
+ok 95 - s.11 level of education (8 rows each column)
+  ---
+  duration_ms: 1.009421
+  type: 'test'
+  ...
+# Subtest: s.13 first official language per ability (4 abilities)
+ok 96 - s.13 first official language per ability (4 abilities)
+  ---
+  duration_ms: 2.69021
+  type: 'test'
+  ...
+# Subtest: s.14 second official language
+ok 97 - s.14 second official language
+  ---
+  duration_ms: 3.823244
+  type: 'test'
+  ...
+# Subtest: s.15.1(7) Canadian experience by duration
+ok 98 - s.15.1(7) Canadian experience by duration
+  ---
+  duration_ms: 0.884351
+  type: 'test'
+  ...
+# Subtest: s.17/18/19 spouse factors
+ok 99 - s.17/18/19 spouse factors
+  ---
+  duration_ms: 1.686899
+  type: 'test'
+  ...
+# Subtest: s.21-27 skill transferability (cases taken from the paragraphs)
+ok 100 - s.21-27 skill transferability (cases taken from the paragraphs)
+  ---
+  duration_ms: 1.050087
+  type: 'test'
+  ...
+# Subtest: s.28/30/31/32 additional factors
+ok 101 - s.28/30/31/32 additional factors
+  ---
+  duration_ms: 0.512658
+  type: 'test'
+  ...
+# Subtest: migration journal lists every SQL migration in order without gaps
+ok 102 - migration journal lists every SQL migration in order without gaps
+  ---
+  duration_ms: 7.464273
+  type: 'test'
+  ...
+# Subtest: clean specimen parses
+ok 103 - clean specimen parses
+  ---
+  duration_ms: 2.498391
+  type: 'test'
+  ...
+# Subtest: miscounted filler run is repaired and still check-digit verified
+ok 104 - miscounted filler run is repaired and still check-digit verified
+  ---
+  duration_ms: 0.56619
+  type: 'test'
+  ...
+# Subtest: fillers read as K or C are normalised
+ok 105 - fillers read as K or C are normalised
+  ---
+  duration_ms: 0.258802
+  type: 'test'
+  ...
+# Subtest: spaces and noise lines are ignored
+ok 106 - spaces and noise lines are ignored
+  ---
+  duration_ms: 0.250602
+  type: 'test'
+  ...
+# Subtest: a wrong digit is still rejected after repair
+ok 107 - a wrong digit is still rejected after repair
+  ---
+  duration_ms: 193.227011
+  type: 'test'
+  ...
+# Subtest: lines far from 44 characters are not forced
+ok 108 - lines far from 44 characters are not forced
+  ---
+  duration_ms: 0.290455
+  type: 'test'
+  ...
+# Subtest: real OCR misreads from synthetic renders: O read as 0, one stray character
+ok 109 - real OCR misreads from synthetic renders: O read as 0, one stray character
+  ---
+  duration_ms: 3.715513
+  type: 'test'
+  ...
+# Subtest: one missing filler in the optional field is restored
+ok 110 - one missing filler in the optional field is restored
+  ---
+  duration_ms: 0.442674
+  type: 'test'
+  ...
+# Subtest: look-alikes in non-output fields are resolved by check digits (from synthetic photo/upside OCR)
+ok 111 - look-alikes in non-output fields are resolved by check digits (from synthetic photo/upside OCR)
+  ---
+  duration_ms: 3.163517
+  type: 'test'
+  ...
+# Subtest: a wrong expiry digit is rejected, not guessed, even when other fields need look-alike fixes
+ok 112 - a wrong expiry digit is rejected, not guessed, even when other fields need look-alike fixes
+  ---
+  duration_ms: 331.906039
+  type: 'test'
+  ...
+# Subtest: Z read as 7 in the optional field, and a dropped first document-number character (synthetic OCR)
+ok 113 - Z read as 7 in the optional field, and a dropped first document-number character (synthetic OCR)
+  ---
+  duration_ms: 1.635016
+  type: 'test'
+  ...
+# Subtest: dropped first character plus stray character (synthetic noisy JPEG OCR)
+ok 114 - dropped first character plus stray character (synthetic noisy JPEG OCR)
+  ---
+  duration_ms: 0.741674
+  type: 'test'
+  ...
+# Subtest: parsing time stays small on a hopeless line
+ok 115 - parsing time stays small on a hopeless line
+  ---
+  duration_ms: 22.072408
+  type: 'test'
+  ...
+# Subtest: filler look-alike runs after the given names are dropped
+ok 116 - filler look-alike runs after the given names are dropped
+  ---
+  duration_ms: 0.234468
+  type: 'test'
+  ...
+# Subtest: single trailing filler look-alike dropped
+ok 117 - single trailing filler look-alike dropped
+  ---
+  duration_ms: 0.116348
+  type: 'test'
+  ...
+# Subtest: all ICAO fields extracted from the specimen
+ok 118 - all ICAO fields extracted from the specimen
+  ---
+  duration_ms: 0.102164
+  type: 'test'
+  ...
+# Subtest: TEER is the 2nd digit of a NOC 2021 code (21231 -> 1, 85100 -> 5)
+ok 119 - TEER is the 2nd digit of a NOC 2021 code (21231 -> 1, 85100 -> 5)
+  ---
+  duration_ms: 5.166959
+  type: 'test'
+  ...
+# Subtest: TEER is derived from the NOC code only; the rule module receives it as a derived fact
+ok 120 - TEER is derived from the NOC code only; the rule module receives it as a derived fact
+  ---
+  duration_ms: 0.780941
+  type: 'test'
+  ...
+# Subtest: registry: 5 categories with the specified sub-pathways, each with a target form and a verified official source
+ok 121 - registry: 5 categories with the specified sub-pathways, each with a target form and a verified official source
+  ---
+  duration_ms: 1.669244
+  type: 'test'
+  ...
+# Subtest: FSTP shares the Express Entry engine; RCIP and FCIP are separate programs with their own rules
+ok 122 - FSTP shares the Express Entry engine; RCIP and FCIP are separate programs with their own rules
+  ---
+  duration_ms: 0.489043
+  type: 'test'
+  ...
+# Subtest: job matching is not a work permit application; Agri-Food Pilot is not offered as an open intake
+ok 123 - job matching is not a work permit application; Agri-Food Pilot is not offered as an open intake
+  ---
+  duration_ms: 0.307154
+  type: 'test'
+  ...
+# Subtest: PGWP, visitor visa and eTA validate independently
+ok 124 - PGWP, visitor visa and eTA validate independently
+  ---
+  duration_ms: 0.206657
+  type: 'test'
+  ...
+# Subtest: missing data yields INCOMPLETE_DATA with the missing items and never a score
+ok 125 - missing data yields INCOMPLETE_DATA with the missing items and never a score
+  ---
+  duration_ms: 0.311753
+  type: 'test'
+  ...
+# Subtest: not sure: guide completes and fixed rules suggest pathways
+ok 126 - not sure: guide completes and fixed rules suggest pathways
+  ---
+  duration_ms: 0.474989
+  type: 'test'
+  ...
+# Subtest: a pathway must belong to its category
+ok 127 - a pathway must belong to its category
+  ---
+  duration_ms: 0.143446
+  type: 'test'
+  ...
+# Subtest: critical conflicts are triaged first and never carry pathway advice
+ok 128 - critical conflicts are triaged first and never carry pathway advice
+  ---
+  duration_ms: 2.494551
+  type: 'test'
+  ...
+# Subtest: complete cases are ready for staff review; incomplete ones list what is missing
+ok 129 - complete cases are ready for staff review; incomplete ones list what is missing
+  ---
+  duration_ms: 0.215282
+  type: 'test'
+  ...
+1..129
+# tests 129
+# suites 0
+# pass 129
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1425.462672

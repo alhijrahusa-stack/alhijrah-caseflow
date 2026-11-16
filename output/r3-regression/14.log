@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: CSRF/Origin: foreign Origin or cross-site fetch is refused on every state-changing route family
+ok 1 - CSRF/Origin: foreign Origin or cross-site fetch is refused on every state-changing route family
+  ---
+  duration_ms: 4738.522423
+  type: 'test'
+  ...
+# Subtest: IDOR: a client cannot read another case’s evidence, chat or invoices; status-only tokens and forged cookies open nothing
+ok 2 - IDOR: a client cannot read another case’s evidence, chat or invoices; status-only tokens and forged cookies open nothing
+  ---
+  duration_ms: 224.854326
+  type: 'test'
+  ...
+# Subtest: role/actor forgery: extra authority fields are rejected; STAFF cannot use MANAGER actions; deactivation and revocation apply at once
+ok 3 - role/actor forgery: extra authority fields are rejected; STAFF cannot use MANAGER actions; deactivation and revocation apply at once
+  ---
+  duration_ms: 202.493018
+  type: 'test'
+  ...
+# Subtest: SSRF: user-supplied URLs are never fetched by the server; rule sources are allowlisted official hosts
+ok 4 - SSRF: user-supplied URLs are never fetched by the server; rule sources are allowlisted official hosts
+  ---
+  duration_ms: 97.180657
+  type: 'test'
+  ...
+# Subtest: model injection: untrusted chat text and model output never change state, roles or facts; identifiers are masked before the provider
+ok 5 - model injection: untrusted chat text and model output never change state, roles or facts; identifiers are masked before the provider
+  ---
+  duration_ms: 293.139706
+  type: 'test'
+  ...
+# Subtest: malicious/mislabelled files: content signatures, size limits, HTML/SVG/script refused, voice and receipt types enforced
+ok 6 - malicious/mislabelled files: content signatures, size limits, HTML/SVG/script refused, voice and receipt types enforced
+  ---
+  duration_ms: 338.972626
+  type: 'test'
+  ...
+# Subtest: leakage: no stack/SQL in errors, staff identities hidden from clients, private headers on files, PDF and logs free of client contacts
+ok 7 - leakage: no stack/SQL in errors, staff identities hidden from clients, private headers on files, PDF and logs free of client contacts
+  ---
+  duration_ms: 437.47834
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6684.236593

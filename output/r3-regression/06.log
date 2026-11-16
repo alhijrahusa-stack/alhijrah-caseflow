@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: HTTP: without assistant consent the message goes to staff; retries replay; same id + other text = 409; concurrent sends get contiguous sequences
+ok 1 - HTTP: without assistant consent the message goes to staff; retries replay; same id + other text = 409; concurrent sends get contiguous sequences
+  ---
+  duration_ms: 4615.568006
+  type: 'test'
+  ...
+# Subtest: claim race: two staff members, one winner; the other cannot write; release/close/reopen are CAS transitions
+ok 2 - claim race: two staff members, one winner; the other cannot write; release/close/reopen are CAS transitions
+  ---
+  duration_ms: 457.959264
+  type: 'test'
+  ...
+# Subtest: assistant: consent + configured provider → fenced reply; a handoff while the model is running discards the late output
+ok 3 - assistant: consent + configured provider → fenced reply; a handoff while the model is running discards the late output
+  ---
+  duration_ms: 381.098853
+  type: 'test'
+  ...
+# Subtest: attachments and voice: quarantine pipeline, no playback before CLEAN, no scanner → stays processing; transcription consent
+ok 4 - attachments and voice: quarantine pipeline, no playback before CLEAN, no scanner → stays processing; transcription consent
+  ---
+  duration_ms: 490.683389
+  type: 'test'
+  ...
+# Subtest: WebSocket: commit-then-fan-out, SEND over WS acks with the committed sequence, reconnect replays the gap, revocation closes the socket
+ok 5 - WebSocket: commit-then-fan-out, SEND over WS acks with the committed sequence, reconnect replays the gap, revocation closes the socket
+  ---
+  duration_ms: 454.085462
+  type: 'test'
+  ...
+# Subtest: AC-32: an idle socket whose session is revoked is closed by the room alarm within 30 s (no inbound frame needed)
+ok 6 - AC-32: an idle socket whose session is revoked is closed by the room alarm within 30 s (no inbound frame needed)
+  ---
+  duration_ms: 25069.408969
+  type: 'test'
+  ...
+# Subtest: Rapid Assessment: same engine and release, RAPID_SCREENING only, verified pointer untouched; no active release → RULE_UNAVAILABLE
+ok 7 - Rapid Assessment: same engine and release, RAPID_SCREENING only, verified pointer untouched; no active release → RULE_UNAVAILABLE
+  ---
+  duration_ms: 488.067518
+  type: 'test'
+  ...
+# Subtest: legacy support endpoints write to the canonical chat and keep old history readable
+ok 8 - legacy support endpoints write to the canonical chat and keep old history readable
+  ---
+  duration_ms: 288.494155
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 32585.640388

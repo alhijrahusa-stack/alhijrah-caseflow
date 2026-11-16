@@ -1,0 +1,68 @@
+{
+  "mode": "LIVE www.canada.ca through the Worker runtime (Miniflare); everything else blocked",
+  "first": {
+    "result": {
+      "status": "UPDATED",
+      "roundsAdded": 454,
+      "affected": 1,
+      "sourceUpdatedAt": "2026-10-28T13:37:19.000Z",
+      "rounds": 454
+    },
+    "run": {
+      "status": "UPDATED",
+      "h": 200,
+      "u": "2026-10-28T13:37:19.000Z",
+      "bytes": 742096,
+      "n": 454,
+      "a": 1,
+      "sha": "ce62c797c9a203e940741f44e1f41b78df79b39c4a0248f2b03c2226063ea54f"
+    }
+  },
+  "latestStored": [
+    {
+      "category": "Transport Occupations, 2026-Version 2",
+      "d": "2026-10-28",
+      "c": 477,
+      "i": 150
+    },
+    {
+      "category": "French-Language proficiency 2026-Version 2",
+      "d": "2026-10-27",
+      "c": 407,
+      "i": 5000
+    },
+    {
+      "category": "Provincial Nominee Program",
+      "d": "2026-10-26",
+      "c": 761,
+      "i": 792
+    }
+  ],
+  "storedRounds": 454,
+  "snapshot": {
+    "k": "sources/ee-rounds/ce62c797c9a203e940741f44e1f41b78df79b39c4a0248f2b03c2226063ea54f.json",
+    "s": "ce62c797c9a203e940741f44e1f41b78df79b39c4a0248f2b03c2226063ea54f"
+  },
+  "kvVersion": "2",
+  "alerts": 7,
+  "second": {
+    "status": "UNCHANGED",
+    "roundsAdded": 0,
+    "affected": 0
+  },
+  "fetched": [
+    {
+      "url": "https://www.canada.ca/content/dam/ircc/documents/json/ee_rounds_123_en.json",
+      "status": 200,
+      "ms": 454,
+      "userAgent": "ALHIJRAH-rule-watch/1.0 (+office case management)"
+    },
+    {
+      "url": "https://www.canada.ca/content/dam/ircc/documents/json/ee_rounds_123_en.json",
+      "status": 200,
+      "ms": 91,
+      "userAgent": "ALHIJRAH-rule-watch/1.0 (+office case management)"
+    }
+  ],
+  "passed": true
+}

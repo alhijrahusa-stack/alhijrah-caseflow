@@ -298,3 +298,11 @@ Fixes found by tests: package refresh made non-fatal for the assessment job; 'un
 Test fixtures changed by design: consent version v4->v5 in 12 suites; 0032 in database fixture list; job settling loop in engine test.
 Not verified: live IRCC rounds JSON (www.canada.ca unreachable from this sandbox: HTTP/2 stream error); parser tested on synthetic data only.
 Pending approval: production migration 0032 + deploy.
+
+== Round 3 (engine branch ccr-engine-gate @ 20a05d5; production untouched: f619a74c, migrations ≤0031) ==
+Regression: 37/37 PASS (output/r3-summary.txt, logs in output/r3-regression/). tsc clean; lint ratchet 55 (baseline 56).
+LIVE gpt-6.1-sol flow (synthetic PDF + scanned PNG, isolated D1 0000-0032, scanner MOCKED): PASS — output/r3-live-flow.json
+LIVE official rounds via Worker runtime: 200, 742096 B, Last-Modified 2026-10-28T13:37:19Z, 454 rounds, UNCHANGED on rerun — output/r3-radar-live.json
+LIVE model check: listed + ai-check gpt-6.1-sol — output/r3-ai-live.log
+Mocked: engine-intake 8/8, engine 10/10. Report, requirement map, blockers, backup/migration/rollback: output/RELEASE_R3.md
+Pending explicit approval: production deploy and production migration 0032.
