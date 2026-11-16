@@ -1,0 +1,6 @@
+MediaPipe Tasks Vision 0.10.21 (npm @mediapipe/tasks-vision) — Apache License 2.0.
+Models (Google MediaPipe, Apache License 2.0), downloaded 2026-11-16 from https://storage.googleapis.com/mediapipe-models/:
+- face_landmarker/face_landmarker/float16/1/face_landmarker.task   sha256 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
+- image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite   sha256 191ac9529ae506ee0beefa6b2c945a172dab9d07d1e802a290a4e4038226658b
+- image_segmenter/hair_segmenter/float32/latest/hair_segmenter.tflite   sha256 2628cf3ce5f695f604cbea2841e00befcaa3624bf80caf3664bef2656d59bf84
+Used on the client's own device for photo checks; images are not sent to any model provider.
