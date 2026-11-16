@@ -246,3 +246,9 @@ Regression (final code): 35/35 exit 0 —
 Deploy: no migrations; wrangler deploy exit 0 version 1d5e38df (OPENAI_MODEL=gpt-6.1-sol); secret OPENAI_API_KEY uploaded (value from environment, never printed) -> live version 6ec5482f-3571-41aa-879a-c70f42be2a93.
 Live checks: / 200, /staff/login 200; /api/office, /api/dashboard/priorities, /api/office/ai-check, /api/candidates/:id/decision-support -> 401 without session.
 Not verified on production: an authenticated engine call (no staff session available to the agent). Rollback: wrangler rollback a0bb649a-b0b1-459e-88b9-e715c19da1ac.
+
+==== PRIVACY PAGE POLICY — 2026-11-16 ====
+Commit 4e4e6d2: components/client/privacy.tsx — section «معالجة المستندات والخدمات الرقمية» (3 paragraphs) removed; owner-approved data policy added verbatim from lib/legal.ts (DATA_POLICY_INTRO + 6 items) as cards; app/experience.css card styles; tests/intake-api.mjs asserts approved text present and removed text absent.
+Unchanged: authorization text, legal terms, LEGAL_VERSION and stored authorization snapshots.
+Regression: 35 commands — 34 exit 0 first run; portal.e2e.spec.ts journey timed out once on the path-card fade (unrelated), then 2/2 reruns exit 0 (4/4).
+Deploy exit 0, version f619a74c-f60a-4bbd-9069-b1f2e08bcf30. Live /privacy: approved intro + 6 headings present; removed phrases absent (incl. Anthropic). No horizontal overflow at 1280 and 390 (screenshots output/privacy-desktop.png, privacy-phone.png).
