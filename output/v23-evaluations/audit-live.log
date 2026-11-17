@@ -1,0 +1,63 @@
+READING {"documents":1,"pages":2,"read":1,"unreadable":[2],"complete":false,"reasons":["صفحات غير مقروءة"],"calls":["/v1/responses 200 gpt-6.1-sol 3372ms"]}
+{
+  "initialMs": 69,
+  "engine": {
+    "model": "gpt-6.1-sol",
+    "configured": true,
+    "tools": [
+      "get_case_dossier",
+      "read_case_attachments",
+      "calculate_crs_points",
+      "lookup_reference_catalog",
+      "get_audit_answers",
+      "save_audit_answers",
+      "get_action_status",
+      "compare_evaluations",
+      "save_evaluation_version"
+    ],
+    "promptChars": 744
+  },
+  "reading": {
+    "documents": 1,
+    "pages": 2,
+    "read": 1,
+    "unreadable": [
+      2
+    ],
+    "complete": false
+  },
+  "refine": {
+    "model": "gpt-6.1-sol",
+    "toolCalls": 14,
+    "tokens": {
+      "input": 17075,
+      "output": 4118
+    },
+    "versionNo": 3,
+    "source": "AI",
+    "deduped": false
+  },
+  "run": {
+    "status": "SUCCEEDED",
+    "model": "gpt-6.1-sol",
+    "tool_calls": 14,
+    "retries": 2,
+    "error_code": null
+  },
+  "cards": {
+    "pathways": 4,
+    "occupations": 1,
+    "gaps": 8,
+    "questions": 5,
+    "crs": null
+  },
+  "openaiCalls": [
+    "/v1/responses 200 gpt-6.1-sol 3372ms",
+    "/v1/responses 200 gpt-6.1-sol 2076ms → get_case_dossier,get_audit_answers,get_action_status,compare_evaluations,calculate_crs_points",
+    "/v1/responses 200 gpt-6.1-sol 2383ms → read_case_attachments,lookup_reference_catalog,lookup_reference_catalog,lookup_reference_catalog,lookup_reference_catalog,lookup_reference_catalog,lookup_reference_catalog",
+    "/v1/responses 200 gpt-6.1-sol 30074ms → save_evaluation_version",
+    "/v1/responses 200 gpt-6.1-sol 5390ms",
+    "/v1/responses 200 gpt-6.1-sol 17273ms → save_evaluation_version"
+  ]
+}
+audit-live PASS
