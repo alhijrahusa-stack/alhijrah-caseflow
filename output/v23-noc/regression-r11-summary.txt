@@ -1,0 +1,49 @@
+build exit 0 (built just before)
+1 rc=0 # pass 129 # fail 0 :: node --experimental-strip-types --no-warnings --test tests/american-terms.test.mjs tests/assessment.test.mjs tests/assistance.test.mjs tests/case-workflow.test.
+2 rc=0   :: npx tsc --noEmit -p .
+3 rc=0 # pass 8 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/access.test.mjs
+4 rc=0 # pass 9 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/automation.test.mjs
+5 rc=0 # pass 9 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/billing.test.mjs
+6 rc=0 # pass 8 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/chat.test.mjs
+7 rc=1 # pass 5 # fail 1 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/database.test.mjs
+8 rc=0 # pass 17 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/engines.test.mjs
+9 rc=0 # pass 7 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/operations.e2e.spec.ts
+10 rc=0 # pass 4 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/outbox-cas.test.mjs
+11 rc=0 # pass 4 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/portal.e2e.spec.ts
+12 rc=0 # pass 9 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/portal.test.mjs
+13 rc=0 # pass 3 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/registry-coexistence.test.mjs
+14 rc=0 # pass 7 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/security.test.mjs
+15 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/assistance-api.mjs
+16 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/auth-isolation.mjs
+17 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/automation-api.mjs
+18 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/contact-log-api.mjs
+19 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/engine-api.mjs
+20 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/engine-shadow-only-api.mjs
+21 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/enterprise-api.mjs
+22 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/experience-api.mjs
+23 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/gate2-api.mjs
+24 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/hardening-api.mjs
+25 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/identity-trust-api.mjs
+26 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/intake-api.mjs
+27 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/intake-identity.mjs
+28 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/legal-authorization.mjs
+29 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/local-api.mjs
+30 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/office-hub-api.mjs
+31 rc=0   :: timeout 900 node --experimental-strip-types --no-warnings tests/portal-security.mjs
+32 rc=0 # pass 3 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/desk.test.mjs
+33 rc=0 # pass 6 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/decision-support.test.mjs
+34 rc=0 # pass 9 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/engine-core.test.mjs
+35 rc=0 # pass 10 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/engine.test.mjs
+36 rc=0 # pass 10 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/engine-intake.test.mjs
+37 rc=1 # pass 1 # fail 1 :: env ROLLBACK_REF=44fd112 ROLLBACK_DIST=/tmp/claude-0/-home-user-alhijrah-caseflow/6a4112b7-566a-5359-8ce1-d51706829c53/scratchpad/rollback-44fd112/dist/server R
+38 rc=0 # pass 3 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/photo-measure.test.mjs
+39 rc=0 # pass 7 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/signin-recovery.test.mjs
+40 rc=0 # pass 8 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/photo.test.mjs
+41 rc=0 # pass 4 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/photo.e2e.spec.ts
+42 rc=0 # pass 7 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --import ./tests/support/ts-resolve.mjs --test tests/photo-standard.test.mjs
+43 rc=1 # pass 8 # fail 1 :: timeout 900 node --test tests/v22/evaluations.test.mjs
+44 rc=0 # pass 1 # fail 0 :: timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/evaluations.e2e.spec.ts
+45 rc=0 # pass 5 # fail 0 :: timeout 1800 node --test tests/v22/noc-catalog.test.mjs
+  14:316  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+✖ 170 problems (55 errors, 115 warnings)
+DONE

@@ -1,0 +1,41 @@
+TAP version 13
+# Canada Desk request failed Error
+# Subtest: import: chunk digests are enforced, counts and parentage verified, one snapshot activated (admin only)
+ok 1 - import: chunk digests are enforced, counts and parentage verified, one snapshot activated (admin only)
+  ---
+  duration_ms: 21778.571665
+  type: 'test'
+  ...
+# Subtest: codes and published text: 00010 is a unit, 0001 is not a job code, numeric coercion is rejected, duty lead-ins are marked
+ok 2 - codes and published text: 00010 is a unit, 0001 is not a job code, numeric coercion is rejected, duty lead-ins are marked
+  ---
+  duration_ms: 87.365751
+  type: 'test'
+  ...
+# Subtest: occupation gate: FSTP trade set, AIP TEER 2/3 both directions, TEER 5 fails, healthcare exception; other programs are not verified
+ok 3 - occupation gate: FSTP trade set, AIP TEER 2/3 both directions, TEER 5 fails, healthcare exception; other programs are not verified
+  ---
+  duration_ms: 398.597894
+  type: 'test'
+  ...
+# Subtest: retrieval: documented duties surface the right units with their source records, and the rank never becomes a decision
+ok 4 - retrieval: documented duties surface the right units with their source records, and the rank never becomes a decision
+  ---
+  duration_ms: 51.313956
+  type: 'test'
+  ...
+# Subtest: snapshot rows are immutable; evaluation cards use the published reference once the catalog is active
+ok 5 - snapshot rows are immutable; evaluation cards use the published reference once the catalog is active
+  ---
+  duration_ms: 122.807514
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 22751.093007

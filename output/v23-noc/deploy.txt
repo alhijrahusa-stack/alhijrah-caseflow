@@ -1,0 +1,2 @@
+Deployed alhijrah-canada-desk triggers (1.89 sec)
+Current Version ID: f40d9ebc-cb19-43db-a551-0160defade45
