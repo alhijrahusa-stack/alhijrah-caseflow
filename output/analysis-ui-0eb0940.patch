@@ -1,0 +1,634 @@
+diff --git a/app/command-desk.css b/app/command-desk.css
+index 1900765..7e473bb 100644
+--- a/app/command-desk.css
++++ b/app/command-desk.css
+@@ -2,5 +2,7 @@
+    override the Tailwind utilities this layout uses. Inside the desk shell — not inside embedded legacy panels — each
+    control falls back to the layered (Tailwind) value. */
+ .command-desk :is(button,input,select,textarea,a):not(.legacy-panels *){background:revert-layer;border:revert-layer;border-radius:revert-layer;padding:revert-layer;color:revert-layer;min-height:revert-layer;box-shadow:revert-layer;font-size:revert-layer;width:revert-layer}
++/* Tailwind-built components embedded inside a legacy wrapper (case tabs) opt back in with .tw-scope. */
++.command-desk .tw-scope :is(button,input,select,textarea,a){background:revert-layer;border:revert-layer;border-radius:revert-layer;padding:revert-layer;color:revert-layer;min-height:revert-layer;box-shadow:revert-layer;font-size:revert-layer;width:revert-layer}
+ .command-desk{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif}
+ .command-desk input[type=date]{color-scheme:dark}
+diff --git a/app/experience.css b/app/experience.css
+index 89f62a1..58e848a 100644
+--- a/app/experience.css
++++ b/app/experience.css
+@@ -35,3 +35,30 @@
+ /* Client: published assessment cards */
+ .published-assessment{display:grid;gap:12px}.pa-cards{display:grid;gap:10px}@media(min-width:900px){.pa-cards{grid-template-columns:1fr 1fr}.pa-card.first{grid-column:1/-1}}.pa-card{border:1px solid rgba(212,175,55,.22);border-radius:14px;padding:14px;background:rgba(11,17,32,.6);display:grid;gap:8px}.pa-card.first{border-color:rgba(212,175,55,.45)}.pa-head{display:flex;gap:10px;align-items:center}.pa-head h3{margin:0;font-size:15px}.pa-rank{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(212,175,55,.5);color:#d6b66e;font-weight:700}.pa-state{margin-inline-start:auto;font-size:12px;color:#7dd3c8}.pa-sources a{margin-inline-end:10px;font-size:12px;text-decoration:underline}.pa-block ul,.pa-block ol,.pa-card ul{margin:4px 0;padding-inline-start:18px}
+ .pa-analysis{display:grid;gap:8px}.pa-analysis-item{border-top:1px solid rgba(212,175,55,.15);padding-top:8px}.pa-analysis-item small{color:#9fb0c8}.pa-checklist{list-style:none;padding-inline-start:0!important}.pa-checklist li{margin:3px 0}
++/* Case analysis workspace (.analysis-suite): one glass language for every module in the «التحليل والمسارات» tab —
++   #0B1120 translucent cards, backdrop blur, thin gold borders, #D4AF37 accents, turquoise for positive states, no green. */
++.analysis-suite{--suite-card:rgba(11,17,32,.85);--suite-border:rgba(212,175,55,.2);--suite-gold:#D4AF37;--suite-gold-soft:#F1D27A;--suite-turq:#67E8F9}
++.analysis-suite .career-panel,.analysis-suite .staff-crs,.analysis-suite .ai-review,.analysis-suite .case-intelligence{margin:0;padding:18px;border-radius:16px;border:1px solid var(--suite-border);background:var(--suite-card);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);box-shadow:0 8px 32px -12px rgba(212,175,55,.15)}
++.analysis-suite .career-panel:hover{border-color:rgba(212,175,55,.35);box-shadow:0 8px 32px -12px rgba(212,175,55,.22)}
++.analysis-suite .career-panel h2,.analysis-suite .staff-crs h3,.analysis-suite .ai-review h3,.analysis-suite .case-intelligence h3{font-size:15px;font-weight:700;color:#fff;margin:0 0 8px;display:flex;align-items:center;gap:8px}
++.analysis-suite .staff-crs h3 svg,.analysis-suite .case-intelligence h3 svg{color:var(--suite-gold)}
++.analysis-suite .career-panel>p,.analysis-suite .staff-crs>p,.analysis-suite .career-panel p{font-size:12px;line-height:1.8;color:#b8c3d4}
++.analysis-suite :is(.career-panel,.staff-crs,.ai-review,.case-intelligence) details{border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(9,14,26,.55);padding:10px 12px}
++.analysis-suite :is(.career-panel,.staff-crs,.ai-review,.case-intelligence) details>summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--suite-gold-soft)}
++.analysis-suite :is(.career-panel,.staff-crs,.ai-review,.case-intelligence) :is(input:not([type=checkbox]):not([type=radio]),select,textarea){background:#090E1A!important;border:1px solid rgba(212,175,55,.25)!important;border-radius:10px!important;color:#fff!important;font-size:12px}
++.analysis-suite :is(.career-panel,.staff-crs,.ai-review,.case-intelligence) :is(input,select,textarea):focus{border-color:rgba(212,175,55,.6)!important;outline:none;box-shadow:0 0 0 1px rgba(212,175,55,.3)}
++.analysis-suite .button.suite-gold{background:var(--suite-gold)!important;color:#090E1A!important;border:0!important;font-weight:700;box-shadow:0 6px 18px -6px rgba(212,175,55,.5)!important}
++.analysis-suite .button.suite-gold:hover:not(:disabled){background:#e2c25a!important}
++.analysis-suite .button.subtle{background:#090E1A;border:1px solid rgba(212,175,55,.25);color:var(--suite-gold-soft)}
++.analysis-suite .prefill-note{background:rgba(212,175,55,.06);border-color:rgba(212,175,55,.25)}
++.analysis-suite .ai-fit.strong{background:rgba(103,232,249,.12);color:var(--suite-turq)}
++.analysis-suite .ai-path.strong{border-top-color:var(--suite-gold)}
++.analysis-suite .ai-box.good b{color:var(--suite-turq)}
++.analysis-suite .ai-client-msg{background:rgba(103,232,249,.05);border-color:rgba(103,232,249,.25)}
++.analysis-suite .ai-path,.analysis-suite .ai-layer,.analysis-suite .ai-box{background:rgba(9,14,26,.6)}
++.analysis-suite .intelligence-summary article{background:rgba(9,14,26,.6);border-color:rgba(212,175,55,.2)}
++.analysis-suite .intelligence-summary strong{color:var(--suite-gold-soft)}
++.analysis-suite .pathway-review-card{background:rgba(9,14,26,.6);border-color:rgba(212,175,55,.2)}
++.analysis-suite .pathway-review-card.potential{border-color:rgba(103,232,249,.35)}
++.analysis-suite .intelligence-gaps{background:rgba(212,175,55,.04);border-color:rgba(212,175,55,.2)}
++@media(max-width:768px){.analysis-suite .career-panel,.analysis-suite .staff-crs,.analysis-suite .ai-review,.analysis-suite .case-intelligence{padding:14px;background:#0B1120}}
+diff --git a/components/operations/ai-review.tsx b/components/operations/ai-review.tsx
+index a359a99..5fa8d55 100644
+--- a/components/operations/ai-review.tsx
++++ b/components/operations/ai-review.tsx
+@@ -16,7 +16,7 @@ export function AiCaseReview({candidateId,notify}:{candidateId:string;notify:(m:
+  const r=latest?.review;
+  return <section className="ai-review" aria-label="المراجعة الشاملة">
+   <header className="ai-review-head"><span className="hub-icon"><Sparkles size={20}/></span><div><h3>المراجعة الشاملة · أقوى 3 مسارات</h3><small>{latest?`${new Date(latest.createdAt).toLocaleString('ar')} · ${latest.model} · ${latest.createdBy==='system'?'تلقائي عند الاستلام':latest.createdBy}`:'تحليل محرك ALHIJRAH لبيانات الملف دون الاسم أو التواصل أو أرقام الوثائق'}</small></div>
+-   <button type="button" className="button emerald small-button" disabled={busy||!available} onClick={()=>void run()}>{busy?<LoaderCircle size={15} className="spin"/>:<RefreshCw size={15}/>}{busy?'جارٍ التحليل… (حتى دقيقة)':latest?'تحديث المراجعة':'تشغيل المراجعة'}</button></header>
++   <button type="button" className="button suite-gold small-button" disabled={busy||!available} onClick={()=>void run()}>{busy?<LoaderCircle size={15} className="spin"/>:<RefreshCw size={15}/>}{busy?'جارٍ التحليل… (حتى دقيقة)':latest?'تحديث المراجعة':'تشغيل المراجعة'}</button></header>
+   {!available&&<p className="cc-empty">يلزم تفعيل محرك ALHIJRAH على الخادم لتشغيل المراجعة.</p>}
+   {stale&&latest&&<div className="ai-review-stale"><AlertTriangle size={14}/>تغيّرت بيانات الملف بعد آخر مراجعة. حدّثها.</div>}
+   {error&&<div className="error-banner" role="alert">{error}</div>}
+@@ -34,7 +34,7 @@ export function AiCaseReview({candidateId,notify}:{candidateId:string;notify:(m:
+     {r.questions_for_client.length>0&&<div className="ai-box"><b><HelpCircle size={14}/>أسئلة للعميل</b><ul>{r.questions_for_client.map(x=><li key={x}>{x}</li>)}</ul></div>}
+     {r.documents_to_request.length>0&&<div className="ai-box"><b><FileText size={14}/>مستندات تُطلب</b><ul>{r.documents_to_request.map(x=><li key={x}>{x}</li>)}</ul></div>}
+    </div>
+-   {r.client_message_ar&&<div className="ai-client-msg"><b>رسالة جاهزة للعميل</b><p>{r.client_message_ar}</p><div className="inline-actions"><button type="button" className="button emerald small-button" onClick={()=>void copyMessage()}>{copied?<Check size={14}/>:<MessageCircle size={14}/>}نسخ للواتساب</button>{r.documents_to_request.length>0&&<button type="button" className="button subtle small-button" disabled={taskBusy||taskDone} onClick={()=>void requestTask()}>{taskDone?<Check size={14}/>:taskBusy?<LoaderCircle size={14} className="spin"/>:<ListPlus size={14}/>}{taskDone?'أُنشئت المهمة':'مهمة متابعة المستندات'}</button>}</div></div>}
++   {r.client_message_ar&&<div className="ai-client-msg"><b>رسالة جاهزة للعميل</b><p>{r.client_message_ar}</p><div className="inline-actions"><button type="button" className="button suite-gold small-button" onClick={()=>void copyMessage()}>{copied?<Check size={14}/>:<MessageCircle size={14}/>}نسخ للواتساب</button>{r.documents_to_request.length>0&&<button type="button" className="button subtle small-button" disabled={taskBusy||taskDone} onClick={()=>void requestTask()}>{taskDone?<Check size={14}/>:taskBusy?<LoaderCircle size={14} className="spin"/>:<ListPlus size={14}/>}{taskDone?'أُنشئت المهمة':'مهمة متابعة المستندات'}</button>}</div></div>}
+    {r.caveats.length>0&&<small className="ai-caveats">{r.caveats.join(' · ')}</small>}
+   </>}
+  </section>;
+diff --git a/components/operations/analysis-suite.tsx b/components/operations/analysis-suite.tsx
+new file mode 100644
+index 0000000..445f6df
+--- /dev/null
++++ b/components/operations/analysis-suite.tsx
+@@ -0,0 +1,62 @@
++'use client';
++// Case «التحليل والمسارات» tab: one glass workspace with five sections instead of six stacked modules. Every module and
++// action is kept; only the arrangement changes. The engine panel stays mounted across its two sections (overview and
++// evidence) so its live socket, language and draft state survive switching; the other modules load when opened.
++import { useState } from 'react';
++import { LayoutDashboard, FileSearch, Scale, Calculator, ClipboardCheck } from 'lucide-react';
++import type { CandidateRecord, Profile } from '@/lib/model';
++import { EnginePanel } from './engine-panel';
++import { DecisionSupport } from './decision-support';
++import { AiCaseReview } from './ai-review';
++import { CaseIntelligence } from './intelligence';
++import { StaffEligibility } from './eligibility';
++import { StaffCrs } from './crs';
++
++type View = 'overview' | 'evidence' | 'reviews' | 'rules' | 'readiness';
++const VIEWS: { id: View; label: string; hint: string; icon: typeof LayoutDashboard }[] = [
++  { id: 'overview', label: 'الخلاصة والمسارات', hint: 'النقاط والأدلة والمسارات المرتبة', icon: LayoutDashboard },
++  { id: 'evidence', label: 'الأدلة والخطة', hint: 'المعالجة والاستخراج والمحاكاة والخطة والنشر', icon: FileSearch },
++  { id: 'reviews', label: 'المقارنة والتقارير', hint: 'مقارنة المسارات والمراجعة الشاملة', icon: Scale },
++  { id: 'rules', label: 'القواعد وCRS', hint: 'محرك قواعد الأهلية وحاسبة CRS', icon: Calculator },
++  { id: 'readiness', label: 'جاهزية الملف', hint: 'البيانات والمستندات ومعايير الفحص', icon: ClipboardCheck },
++];
++
++// The case view remounts after each saved version; the open section is kept per case for the session.
++const lastView = new Map<string, View>();
++
++export function AnalysisSuite({ c, role, notify, saveProfile, openSection }: {
++  c: CandidateRecord; role: 'MANAGER' | 'STAFF'; notify: (m: string) => void;
++  saveProfile: (profile: Profile) => Promise<void>;
++  openSection: (s: 'documents' | 'client' | 'messages' | 'workflow') => void;
++}) {
++  const [view, setViewState] = useState<View>(() => lastView.get(c.id) || 'overview'), [aiRev, setAiRev] = useState(0);
++  const setView = (x: View) => { lastView.set(c.id, x); setViewState(x); };
++  const engineView = view === 'evidence' ? 'evidence' : 'overview';
++  return (
++    <div className="analysis-suite space-y-4">
++      <nav role="tablist" aria-label="أقسام التحليل" className="tw-scope flex flex-wrap gap-1.5 rounded-2xl border border-[#D4AF37]/20 bg-[#0B1120]/90 p-1.5 backdrop-blur-2xl">
++        {VIEWS.map(v => {
++          const on = view === v.id, Icon = v.icon;
++          return <button key={v.id} type="button" role="tab" id={'analysis-tab-' + v.id} aria-selected={on} aria-controls={'analysis-view-' + v.id} title={v.hint} onClick={() => setView(v.id)}
++            className={`flex flex-1 basis-[calc(50%-0.375rem)] items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 sm:flex-none sm:basis-auto text-xs font-bold transition-colors ${on ? 'border border-[#D4AF37]/45 bg-[#D4AF37]/12 text-[#F1D27A] shadow-[0_0_18px_-6px_rgba(212,175,55,0.45)]' : 'border border-transparent text-slate-400 hover:text-slate-200'}`}>
++            <Icon className="h-3.5 w-3.5" />{v.label}</button>;
++        })}
++      </nav>
++      <div id={'analysis-view-' + engineView} role="tabpanel" aria-labelledby={'analysis-tab-' + engineView} hidden={view !== 'overview' && view !== 'evidence'}>
++        <EnginePanel candidateId={c.id} role={role} notify={notify} section={engineView} onSection={setView}
++          profile={c.profile} saveProfile={saveProfile} />
++      </div>
++      {view === 'reviews' && <div id="analysis-view-reviews" role="tabpanel" aria-labelledby="analysis-tab-reviews" className="space-y-4">
++        <DecisionSupport candidateId={c.id} notify={notify} onReviewSaved={() => setAiRev(r => r + 1)} />
++        <AiCaseReview key={aiRev} candidateId={c.id} notify={notify} />
++      </div>}
++      {view === 'rules' && <div id="analysis-view-rules" role="tabpanel" aria-labelledby="analysis-tab-rules" className="space-y-4">
++        <StaffEligibility candidateId={c.id} />
++        <StaffCrs candidateId={c.id} />
++      </div>}
++      {view === 'readiness' && <div id="analysis-view-readiness" role="tabpanel" aria-labelledby="analysis-tab-readiness">
++        <CaseIntelligence candidate={c} openSection={openSection} />
++      </div>}
++    </div>
++  );
++}
+diff --git a/components/operations/command-desk.tsx b/components/operations/command-desk.tsx
+index e5431bf..695fdc6 100644
+--- a/components/operations/command-desk.tsx
++++ b/components/operations/command-desk.tsx
+@@ -16,13 +16,10 @@ import { torontoDate } from '@/lib/v22-core';
+ import { statusLabels, documentLabels, pathwayLabels } from '@/lib/model';
+ import type { CandidateRecord, DocumentRecord, Profile } from '@/lib/model';
+ import { PORTAL_ORIGIN } from '@/lib/branding';
+-import { AiCaseReview } from '@/components/operations/ai-review';
+-import { DecisionSupport, PriorityQueue } from '@/components/operations/decision-support';
+-import { EnginePanel } from '@/components/operations/engine-panel';
++import { PriorityQueue } from '@/components/operations/decision-support';
++import { AnalysisSuite } from '@/components/operations/analysis-suite';
+ import { EngineHealth } from '@/components/operations/engine-health';
+-import { CaseIntelligence, EmployersBoard } from '@/components/operations/intelligence';
+-import { StaffEligibility } from '@/components/operations/eligibility';
+-import { StaffCrs } from '@/components/operations/crs';
++import { EmployersBoard } from '@/components/operations/intelligence';
+ import { ClientReview, ClientMessaging, NewClients, OfficeSettings } from '@/components/operations/clients';
+ import { StaffCaseChat, CaseChatInbox } from '@/components/operations/case-chat';
+ import { CaseBilling, OfficeBilling } from '@/components/operations/billing';
+@@ -300,8 +297,11 @@ function NavButton({ item, active, badge, onClick }: { item: { id: Nav; label: s
+   );
+ }
+ 
++// CaseView remounts on every saved version (key = id:version); the open tab is kept per case for the session.
++const lastCaseTab = new Map<string, CaseTab>();
+ function CaseView({ c, role, busy, update, refresh, notify, closed }: { c: CandidateRecord; role: Role; busy: boolean; update: (p: Record<string, unknown>) => Promise<void>; refresh: () => Promise<void>; notify: (m: string) => void; closed: () => void }) {
+-  const [tab, setTab] = useState<CaseTab>('docs'), [aiRev, setAiRev] = useState(0);
++  const [tab, setTabState] = useState<CaseTab>(() => lastCaseTab.get(c.id) || 'docs');
++  const setTab = (t: CaseTab) => { lastCaseTab.set(c.id, t); setTabState(t); };
+   const [crs, setCrs] = useState<CrsView | null>(null), [crsError, setCrsError] = useState('');
+   const [followUp, setFollowUp] = useState(''), [nextDate, setNextDate] = useState<string | null>(null), [savingFollowUp, setSavingFollowUp] = useState(false);
+   const [closing, setClosing] = useState(false), [gateError, setGateError] = useState('');
+@@ -371,7 +371,7 @@ function CaseView({ c, role, busy, update, refresh, notify, closed }: { c: Candi
+           </div>
+           <div className="legacy-panels">
+             {tab === 'docs' && <DocsTab c={c} refresh={refresh} notify={notify} />}
+-            {tab === 'ai' && <><EnginePanel candidateId={c.id} role={role} notify={notify} /><DecisionSupport candidateId={c.id} notify={notify} onReviewSaved={() => setAiRev(r => r + 1)} /><AiCaseReview key={aiRev} candidateId={c.id} notify={notify} /><CaseIntelligence candidate={c} openSection={s => setTab(s === 'documents' ? 'docs' : s === 'messages' ? 'comms' : s === 'client' ? 'client' : 'workflow')} /><StaffEligibility candidateId={c.id} /><StaffCrs candidateId={c.id} /></>}
++            {tab === 'ai' && <AnalysisSuite c={c} role={role} notify={notify} saveProfile={profile => update({ profile })} openSection={s => setTab(s === 'documents' ? 'docs' : s === 'messages' ? 'comms' : s === 'client' ? 'client' : 'workflow')} />}
+             {tab === 'employers' && <EmployersTab c={c} />}
+             {tab === 'comms' && <CommsTab c={c} busy={busy} update={update} notify={notify} />}
+             {tab === 'chat' && <StaffCaseChat candidateId={c.id} notify={notify} />}
+diff --git a/components/operations/decision-support.tsx b/components/operations/decision-support.tsx
+index 5106f2b..accdfc0 100644
+--- a/components/operations/decision-support.tsx
++++ b/components/operations/decision-support.tsx
+@@ -13,9 +13,9 @@ type Docs = { summary: string; documents: { documentId: string; observedType: st
+ type Report = { reportId: string; kind: 'compare' | 'documents'; locale: 'ar' | 'en'; model: string; createdAt: string; createdBy: string; checkedOn: string; disclaimer: string; result: Compare | Docs };
+ type State = { engine: { configured: boolean; model: string; reason: string }; maxPathways: number; pathways: { id: string; ar: string; en: string }[]; reports: Report[] };
+ 
+-const box = 'rounded-2xl border border-amber-500/25 bg-[#0b1120]/90 p-5 space-y-4';
++const box = 'tw-scope rounded-2xl border border-[#D4AF37]/20 bg-[#0B1120]/85 p-5 space-y-4 backdrop-blur-2xl shadow-[0_8px_32px_-12px_rgba(212,175,55,0.15)]';
+ const statusText = { met: 'مستوفى بحسب الملف', not_met: 'غير مستوفى بحسب الملف', unknown: 'غير معروف من الملف' };
+-const statusColor = { met: 'text-emerald-300', not_met: 'text-red-300', unknown: 'text-amber-200' };
++const statusColor = { met: 'text-cyan-200', not_met: 'text-red-300', unknown: 'text-amber-200' };
+ const addDays = (n: number) => new Date(Date.parse(torontoDate(Date.now()) + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+ 
+ export function DecisionSupport({ candidateId, notify, onReviewSaved }: { candidateId: string; notify: (m: string) => void; onReviewSaved?: () => void }) {
+@@ -44,7 +44,7 @@ export function DecisionSupport({ candidateId, notify, onReviewSaved }: { candid
+     <section className={box} aria-label="محرك ALHIJRAH لدعم القرار">
+       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/15 pb-3">
+         <h3 className="flex items-center gap-2 text-base font-bold text-white"><Sparkles className="h-4 w-4 text-amber-400" />محرك ALHIJRAH للتقييم ودعم القرار</h3>
+-        <span className={`rounded-full border px-2.5 py-0.5 text-[11px] ${off ? 'border-red-500/40 text-red-200' : 'border-emerald-500/40 text-emerald-300'}`}>{off ? 'غير مفعّل' : 'مفعّل'}</span>
++        <span className={`rounded-full border px-2.5 py-0.5 text-[11px] ${off ? 'border-red-500/40 text-red-200' : 'border-cyan-400/40 text-cyan-200'}`}>{off ? 'غير مفعّل' : 'مفعّل'}</span>
+       </div>
+       {off && <p role="alert" className="text-xs text-red-200">{state.engine.reason}</p>}
+       <div className="space-y-2">
+@@ -91,7 +91,7 @@ function ReportView({ report, candidateId, notify }: { report: Report; candidate
+ function CompareView({ r }: { r: Compare }) {
+   return <>
+     <div className="flex flex-wrap gap-2 text-[11px]">
+-      <span className="rounded-full border border-emerald-500/40 px-2 py-0.5 text-emerald-300">متطلبات بمصدر رسمي متحقق: {r.verifiedRequirements}</span>
++      <span className="rounded-full border border-cyan-400/40 px-2 py-0.5 text-cyan-200">متطلبات بمصدر رسمي متحقق: {r.verifiedRequirements}</span>
+       <span className="rounded-full border border-amber-500/40 px-2 py-0.5 text-amber-200">غير متحقق: {r.unverifiedRequirements}</span>
+       <span className="rounded-full border border-white/10 px-2 py-0.5 text-slate-300">CRS: {r.engineCrs?.value ?? 'غير محسوب في المحرك'}{r.engineCrs?.value != null ? ' (قيمة المحرك المحفوظة)' : ''}</span>
+     </div>
+@@ -143,7 +143,7 @@ function TaskProposals({ tasks, candidateId, notify, reportId }: { tasks: Task[]
+       {tasks.map((t, i) => (
+         <div key={i} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 p-2">
+           <span className="text-slate-200">{t.title} <span className="text-[11px] text-slate-500">· {addDays(t.dueInDays)} · {t.priority === 'urgent' ? 'عاجلة' : t.priority === 'high' ? 'عالية' : 'عادية'}</span></span>
+-          <button type="button" disabled={done.includes(i) || busy === i} onClick={() => void approve(t, i)} className="shrink-0 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-300 disabled:opacity-60">{done.includes(i) ? <span className="inline-flex items-center gap-1"><Check className="h-3 w-3" />أُنشئت</span> : busy === i ? <LoaderCircle className="h-3 w-3 animate-spin" /> : 'اعتماد'}</button>
++          <button type="button" disabled={done.includes(i) || busy === i} onClick={() => void approve(t, i)} className="shrink-0 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-bold text-cyan-200 disabled:opacity-60">{done.includes(i) ? <span className="inline-flex items-center gap-1"><Check className="h-3 w-3" />أُنشئت</span> : busy === i ? <LoaderCircle className="h-3 w-3 animate-spin" /> : 'اعتماد'}</button>
+         </div>))}
+     </div>
+   );
+diff --git a/components/operations/engine-panel.tsx b/components/operations/engine-panel.tsx
+index 4a4cdf4..3d0cc1b 100644
+--- a/components/operations/engine-panel.tsx
++++ b/components/operations/engine-panel.tsx
+@@ -4,8 +4,10 @@
+ // visibility gate (preview → publish a numbered version; withdraw by manager). Live updates via the staff case socket
+ // (no draft content travels on the socket; it only signals a refetch), with a polling fallback.
+ import { useCallback, useEffect, useRef, useState } from 'react';
+-import { Sparkles, LoaderCircle, Pin, PinOff, Ban, HelpCircle, Send, Eye, Upload, Radar, Route, FlaskConical, ShieldCheck, AlertTriangle, Building, ExternalLink, Check, X, Wifi, WifiOff, FileText } from 'lucide-react';
++import { Sparkles, LoaderCircle, Pin, PinOff, Ban, HelpCircle, Send, Eye, Upload, Radar, Route, FlaskConical, ShieldCheck, AlertTriangle, Building, ExternalLink, Check, X, Wifi, WifiOff, FileText, PencilLine } from 'lucide-react';
+ import { api, makeRequestId } from '@/lib/client';
++import { educationLabels } from '@/lib/model';
++import type { Profile, Tri } from '@/lib/model';
+ 
+ type Trace = { facts: { key: string; label: string; value: string | number | null; state: string; source: string }[]; rule: { ruleVersion: string; engineVersion: string; checks: { label: string; state: string; source: string }[] }; officialSources: { url: string; checkedOn: string; basis: string }[]; met: string[]; missing: string[]; blockers: string[]; rankingReason: string; assumptions: string[] };
+ type Employer = { vacancyId: string; name: string; address: string | null; title: string; noc: string | null; evidenceKind: string; sourceUrl: string; checkedOn: string; validUntil: string | null; matchReason: string };
+@@ -35,17 +37,22 @@ type Scenario = { current: { crs: number | null }; impact: { crs: { from: number
+ 
+ const glass = 'rounded-2xl border border-[#D4AF37]/20 bg-[#0B1120]/80 backdrop-blur-2xl shadow-[0_8px_32px_-12px_rgba(212,175,55,0.15)]';
+ const readinessText = { READY_FOR_REVIEW: 'جاهز لمراجعة المختص', NEEDS_COMPLETION: 'يحتاج استكمالًا', BLOCKED: 'شرط مخالف' };
+-const readinessTone = { READY_FOR_REVIEW: 'border-teal-400/50 text-teal-200', NEEDS_COMPLETION: 'border-amber-400/50 text-amber-200', BLOCKED: 'border-rose-400/50 text-rose-200' };
+-const stateTone: Record<string, string> = { REVIEWED: 'text-teal-200 border-teal-400/40', EXTRACTED: 'text-sky-200 border-sky-400/40', REPORTED: 'text-slate-200 border-white/15', MISSING: 'text-amber-200 border-amber-400/40', CONFLICTED: 'text-rose-200 border-rose-400/40', EXPIRED: 'text-rose-200 border-rose-400/40' };
++const readinessTone = { READY_FOR_REVIEW: 'border-cyan-400/50 text-cyan-200', NEEDS_COMPLETION: 'border-amber-400/50 text-amber-200', BLOCKED: 'border-rose-400/50 text-rose-200' };
++const stateTone: Record<string, string> = { REVIEWED: 'text-cyan-200 border-cyan-400/40', EXTRACTED: 'text-sky-200 border-sky-400/40', REPORTED: 'text-slate-200 border-white/15', MISSING: 'text-amber-200 border-amber-400/40', CONFLICTED: 'text-rose-200 border-rose-400/40', EXPIRED: 'text-rose-200 border-rose-400/40' };
+ const stateText: Record<string, string> = { REVIEWED: 'مراجَع', EXTRACTED: 'مستخرج', REPORTED: 'مُبلَّغ', MISSING: 'ناقص', CONFLICTED: 'متعارض', EXPIRED: 'منتهي' };
+ const evidenceText: Record<string, string> = { LMIA_HISTORICAL: 'سجل LMIA إيجابي سابق', PROGRAM_DESIGNATION: 'اعتماد ضمن برنامج', CURRENT_VACANCY: 'شاغر حالي', CLIENT_OFFER: 'عرض عمل فعلي للعميل' };
+ const btn = 'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold disabled:opacity-50';
+ const gold = btn + ' bg-[#D4AF37] text-[#090E1A] hover:bg-[#e2c25a]';
+-const ghost = btn + ' border border-amber-500/25 bg-[#090E1A] text-amber-200';
++const ghost = btn + ' border border-[#D4AF37]/25 bg-[#090E1A] text-[#F1D27A] hover:border-[#D4AF37]/50';
++const field = 'mt-1 w-full rounded-xl border border-[#D4AF37]/25 bg-[#090E1A] px-3 py-2 text-xs text-white outline-none focus:border-[#D4AF37]/60 focus:ring-1 focus:ring-[#D4AF37]/30';
+ 
+-export function EnginePanel({ candidateId, role, notify }: { candidateId: string; role: 'MANAGER' | 'STAFF'; notify: (m: string) => void }) {
++export function EnginePanel({ candidateId, role, notify, section = 'overview', onSection, profile, saveProfile }: {
++  candidateId: string; role: 'MANAGER' | 'STAFF'; notify: (m: string) => void;
++  section?: 'overview' | 'evidence'; onSection?: (s: 'overview' | 'evidence') => void;
++  profile?: Profile; saveProfile?: (p: Profile) => Promise<void>;
++}) {
+   const [v, setV] = useState<View | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(''), [rev, setRev] = useState(0), [live, setLive] = useState(false);
+-  const [preview, setPreview] = useState(false), [dispatch, setDispatch] = useState<{ subject: string; body: string } | null>(null), [lang, setLang] = useState<'ar' | 'en'>('ar');
++  const [preview, setPreview] = useState(false), [dispatch, setDispatch] = useState<{ subject: string; body: string } | null>(null), [lang, setLang] = useState<'ar' | 'en'>('ar'), [editing, setEditing] = useState(false);
+   const t = (ar: string, en: string) => (lang === 'ar' ? ar : en);
+   const reload = useCallback(() => setRev(r => r + 1), []);
+   useEffect(() => { let on = true; api<View>(`/api/candidates/${candidateId}/engine`).then(x => { if (on) { setV(x); setError(''); } }).catch(e => { if (on) setError((e as Error).message); }); return () => { on = false; }; }, [candidateId, rev]);
+@@ -70,7 +77,7 @@ export function EnginePanel({ candidateId, role, notify }: { candidateId: string
+     setBusy(label); try { const r = await api<Record<string, unknown>>(`/api/candidates/${candidateId}/engine`, { method: 'POST', body: JSON.stringify(body), timeoutMs: 150000 }); if (ok) notify(ok); reload(); return r; } catch (e) { notify((e as Error).message); return null; } finally { setBusy(''); }
+   }
+   const edit = (edits: Record<string, unknown>, ok: string) => v && act('edit', { action: 'edits', expectedVersion: v.editsVersion, edits }, ok);
+-  if (!v) return <div className={glass + ' p-5 text-xs text-slate-300'}>{error ? <span role="alert" className="text-rose-200">{error}</span> : <span className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />جارٍ تجهيز تقييم الملف…</span>}</div>;
++  if (!v) return <div className={glass + ' tw-scope p-5 text-xs text-slate-300'}>{error ? <span role="alert" className="text-rose-200">{error}</span> : <span className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />جارٍ تجهيز تقييم الملف…</span>}</div>;
+   const pinned = new Set(v.edits.pinned || []), crs = v.view.crs;
+   function prepareCompletion(card?: Card) {
+     const items = [...new Set([...(card?.missing || []), ...v!.view.missingDocuments])];
+@@ -79,107 +86,182 @@ export function EnginePanel({ candidateId, role, notify }: { candidateId: string
+   const an = v.analysis.valid?.result || null, anOf = (id: string) => an?.pathways.find(p => p.pathwayId === id);
+   const reassessing = busy === 'reassess';
+   async function reassess() { const r = await act('reassess', { action: 'reassess', locale: lang }) as { analysis?: { status?: string; error?: string } } | null; if (r?.analysis?.status === 'ENGINE_NOT_CONFIGURED') notify(t('حُدّث التقييم الحتمي؛ التحليل الذكي غير مفعّل على الخادم.', 'Deterministic assessment updated; AI analysis is not configured on the server.')); else if (r?.analysis?.status === 'STALE_DISCARDED') notify(t('تغيّرت بيانات الملف أثناء التحليل؛ أُهملت النتيجة وسيُعاد التحليل.', 'Case data changed during analysis; the result was discarded and will be re-run.')); else if (r?.analysis?.status === 'FAILED') notify(t('حُدّث التقييم الحتمي؛ تعذّر التحليل الذكي: ', 'Deterministic assessment updated; analysis failed: ') + (r.analysis.error || '')); else if (r) notify(t('اكتملت إعادة التقييم', 'Re-assessment completed')); }
++  const publish = () => { if (window.confirm('نشر هذه النسخة للعميل؟ تبقى المسودة داخلية وتُحفظ النسخة المنشورة برقمها.')) void act('publish', { action: 'publish', packageVersion: v.package.version, editsVersion: v.editsVersion }, 'نُشرت النسخة للعميل'); };
++  const openScenarios = () => { onSection?.('evidence'); window.setTimeout(() => document.getElementById('engine-scenarios')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80); };
++  const tier = 'flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-[#D4AF37] before:h-px before:w-6 before:bg-[#D4AF37]/50';
+   return (
+-    <section className="space-y-4" aria-label="محرك ALHIJRAH للتقييم" dir={lang === 'ar' ? 'rtl' : 'ltr'} lang={lang}>
+-      <header className={glass + ' flex flex-wrap items-center justify-between gap-2 p-4'}>
+-        <div><h3 className="flex items-center gap-2 text-base font-bold text-white"><Sparkles className="h-4 w-4 text-[#D4AF37]" />محرك ALHIJRAH للتقييم الاستباقي</h3>
+-          <p className="text-[11px] text-slate-400">مسودة داخلية #{v.package.version} · مراجعة البيانات {v.package.dataRevision} · القواعد {v.package.ruleVersion} · {new Date(v.package.createdAt).toLocaleString('ar')}</p></div>
+-        <div className="flex flex-wrap items-center gap-2 text-[11px]"><button type="button" className={gold} disabled={!!busy} onClick={() => void reassess()} aria-busy={reassessing}>{reassessing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}{reassessing ? t('جارٍ إعادة التقييم…', 'Re-assessing…') : t('إعادة التقييم', 'Re-assess')}</button>
+-          <button type="button" className={ghost} onClick={() => setLang(l => l === 'ar' ? 'en' : 'ar')} aria-label="language">{lang === 'ar' ? 'EN' : 'ع'}</button>{live ? <span className="flex items-center gap-1 text-teal-200"><Wifi className="h-3.5 w-3.5" />تحديث لحظي</span> : <span className="flex items-center gap-1 text-slate-400"><WifiOff className="h-3.5 w-3.5" />تحديث دوري</span>}
+-          <span className={`rounded-full border px-2 py-0.5 ${v.published ? 'border-teal-400/40 text-teal-200' : 'border-white/15 text-slate-300'}`}>{v.published ? `منشور للعميل: نسخة ${v.published.version}` : 'غير منشور للعميل'}</span></div>
++    <section className="tw-scope space-y-4" aria-label="محرك ALHIJRAH للتقييم" dir={lang === 'ar' ? 'rtl' : 'ltr'} lang={lang}>
++      <header className={glass + ' space-y-3 p-4'}>
++        <div className="flex flex-wrap items-start justify-between gap-3">
++          <div className="min-w-0"><h3 className="flex items-center gap-2 text-base font-bold text-white"><Sparkles className="h-4 w-4 text-[#D4AF37]" />محرك ALHIJRAH للتقييم الاستباقي</h3>
++            <p className="mt-0.5 text-[11px] text-slate-400">مسودة داخلية #{v.package.version} · مراجعة البيانات {v.package.dataRevision} · القواعد {v.package.ruleVersion} · {new Date(v.package.createdAt).toLocaleString('ar')}</p></div>
++          <div className="flex flex-wrap items-center gap-2 text-[11px]">
++            <button type="button" className={gold} disabled={!!busy} onClick={() => void reassess()} aria-busy={reassessing}>{reassessing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}{reassessing ? t('جارٍ إعادة التقييم…', 'Re-assessing…') : t('إعادة التقييم', 'Re-assess')}</button>
++            <button type="button" className={ghost} onClick={() => setLang(l => l === 'ar' ? 'en' : 'ar')} aria-label="language">{lang === 'ar' ? 'EN' : 'ع'}</button>
++            {live ? <span className="flex items-center gap-1 text-cyan-200"><Wifi className="h-3.5 w-3.5" />تحديث لحظي</span> : <span className="flex items-center gap-1 text-slate-400"><WifiOff className="h-3.5 w-3.5" />تحديث دوري</span>}
++          </div>
++        </div>
++        <div className="grid gap-2 border-t border-[#D4AF37]/10 pt-3 text-[11px] text-slate-300 sm:grid-cols-3" aria-label={t('حالة المعالجة', 'Processing status')}>
++          <div><strong className="text-slate-100">{t('آخر تحليل', 'Last analysis')}:</strong> {v.analysis.last ? `${v.analysis.last.status} · ${new Date(v.analysis.last.startedAt).toLocaleString(lang)}${v.analysis.last.errorCode ? ' · ' + v.analysis.last.errorCode : ''}` : t('لم يُشغَّل بعد', 'not run yet')}</div>
++          <div><strong className="text-slate-100">{t('آخر تحليل صالح', 'Last valid analysis')}:</strong> {v.analysis.valid ? `${new Date(v.analysis.valid.finishedAt || '').toLocaleString(lang)} · ${t('رموز', 'tokens')} ${v.analysis.valid.tokens.input + v.analysis.valid.tokens.output} · ${t('أدوات', 'tools')} ${v.analysis.valid.toolCalls}` : '—'}{v.freshness.analysisStale && <span className="ms-1 rounded border border-rose-400/40 px-1 text-rose-200">{t('قديم: تغيّرت البيانات', 'stale: data changed')}</span>}</div>
++          <div><strong className="text-slate-100">{t('حداثة القواعد', 'Rule freshness')}:</strong> {v.freshness.ruleReviewDate} ({v.freshness.ruleAgeDays} {t('يومًا', 'days')}){v.freshness.ruleAgeDays > v.freshness.maxAgeDays && <span className="ms-1 rounded border border-rose-400/40 px-1 text-rose-200">{t('تحتاج تحققًا', 'needs re-check')}</span>}</div>
++        </div>
++        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#D4AF37]/15 bg-[#090E1A]/70 px-3 py-2 text-[11px]">
++          <span className="flex flex-wrap items-center gap-2 text-slate-300"><ShieldCheck className="h-4 w-4 text-[#D4AF37]" />
++            <span className={`rounded-full border px-2 py-0.5 ${v.published ? 'border-cyan-400/40 text-cyan-200' : 'border-white/15 text-slate-300'}`}>{v.published ? `منشور للعميل: نسخة ${v.published.version}` : 'غير منشور للعميل'}</span>
++            {v.published && v.diff.length > 0 && <span className="text-amber-200">{v.diff.length} {v.diff.length === 1 ? 'تغيير' : 'تغييرات'} منذ آخر نشر</span>}</span>
++          <span className="flex flex-wrap gap-2">
++            <button className={ghost} onClick={() => setPreview(true)}><Eye className="h-3.5 w-3.5" />معاينة نسخة العميل</button>
++            <button className={gold} disabled={!!busy || (v.diff.length === 0 && !!v.published)} onClick={publish}><Upload className="h-3.5 w-3.5" />نشر للعميل</button>
++          </span>
++        </div>
+       </header>
+ 
+-      <div className={glass + ' grid gap-2 p-3 text-[11px] text-slate-300 sm:grid-cols-3'} aria-label={t('حالة المعالجة', 'Processing status')}>
+-        <div><strong className="text-slate-100">{t('آخر تحليل', 'Last analysis')}:</strong> {v.analysis.last ? `${v.analysis.last.status} · ${new Date(v.analysis.last.startedAt).toLocaleString(lang)}${v.analysis.last.errorCode ? ' · ' + v.analysis.last.errorCode : ''}` : t('لم يُشغَّل بعد', 'not run yet')}</div>
+-        <div><strong className="text-slate-100">{t('آخر تحليل صالح', 'Last valid analysis')}:</strong> {v.analysis.valid ? `${new Date(v.analysis.valid.finishedAt || '').toLocaleString(lang)} · ${t('رموز', 'tokens')} ${v.analysis.valid.tokens.input + v.analysis.valid.tokens.output} · ${t('أدوات', 'tools')} ${v.analysis.valid.toolCalls}` : '—'}{v.freshness.analysisStale && <span className="mr-1 rounded border border-rose-400/40 px-1 text-rose-200">{t('قديم: تغيّرت البيانات', 'stale: data changed')}</span>}</div>
+-        <div><strong className="text-slate-100">{t('حداثة القواعد', 'Rule freshness')}:</strong> {v.freshness.ruleReviewDate} ({v.freshness.ruleAgeDays} {t('يومًا', 'days')}){v.freshness.ruleAgeDays > v.freshness.maxAgeDays && <span className="mr-1 rounded border border-rose-400/40 px-1 text-rose-200">{t('تحتاج تحققًا', 'needs re-check')}</span>}</div>
+-      </div>
+-      {an && <div className={glass + ' p-4 text-xs'}><div className="mb-1 text-[11px] text-[#D4AF37]">{t('خلاصة التحليل (تقييم النظام، وليس قرارًا حكوميًا)', 'Analysis summary (system assessment, not a government decision)')}</div><p dir="auto" className="leading-relaxed text-slate-200">{an.summary}</p></div>}
+-      {v.alerts.length > 0 && <div className={glass + ' space-y-1.5 p-3 text-xs'}>
+-        {v.alerts.map(a => <div key={a.alertId} className="flex items-start justify-between gap-2"><span className="flex items-start gap-1.5 text-amber-100"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />{alertText(a)}</span></div>)}
+-        <button className={ghost} onClick={() => void act('ack', { action: 'ack_alerts', alertIds: v.alerts.map(a => a.alertId) }, 'سُجّل الاطلاع على التنبيهات')}>تم الاطلاع</button></div>}
++      {section === 'overview' && <>
++        {an && <div className={glass + ' p-4 text-xs'}><div className="mb-1 text-[11px] text-[#D4AF37]">{t('خلاصة التحليل (تقييم النظام، وليس قرارًا حكوميًا)', 'Analysis summary (system assessment, not a government decision)')}</div><p dir="auto" className="leading-relaxed text-slate-200">{an.summary}</p></div>}
++        {v.alerts.length > 0 && <div className={glass + ' space-y-1.5 border-amber-400/30 p-3 text-xs'}>
++          {v.alerts.map(a => <div key={a.alertId} className="flex items-start gap-1.5 text-amber-100"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />{alertText(a)}</div>)}
++          <button className={ghost} onClick={() => void act('ack', { action: 'ack_alerts', alertIds: v.alerts.map(a => a.alertId) }, 'سُجّل الاطلاع على التنبيهات')}>تم الاطلاع</button></div>}
+ 
+-      <h4 className="text-[11px] font-bold uppercase tracking-wide text-[#D4AF37]">{t('المستوى 1 · الخلاصة والنقاط', 'Tier 1 · Summary & CRS')}</h4>
+-      <div className="grid gap-3 lg:grid-cols-3">
+-        <div className={glass + ' p-4 text-xs lg:col-span-1'}>
+-          <div className="text-[11px] text-slate-400">نقاط CRS (حساب حتمي منفصل عن الملاءمة)</div>
+-          <div className="mt-1 text-3xl font-bold text-amber-300">{crs.value ?? '—'}</div>
+-          <div className="text-[11px] text-slate-400">{crs.value !== null ? crs.source : `مدخلات ناقصة: ${crs.missingInputs.join('، ')}`}</div>
+-        </div>
+-        <div className={glass + ' p-4 text-xs lg:col-span-2'}>
+-          <div className="mb-2 text-[11px] text-slate-400">حالة الأدلة للحقول المؤثرة</div>
+-          <div className="flex flex-wrap gap-1.5">{v.fields.map(f => <span key={f.key} title={`${f.source}${f.confidence ? ' · ثقة القراءة: ' + f.confidence : ''}`} className={`rounded-full border px-2 py-0.5 text-[11px] ${stateTone[f.state] || ''} ${f.impactful && (f.confidence === 'LOW' || f.state === 'CONFLICTED') ? 'ring-1 ring-rose-400/60' : ''}`}>{f.label}: {f.value ?? '—'} · {stateText[f.state] || f.state}</span>)}</div>
+-          <p className="mt-2 text-[10px] text-slate-500">قراءة المستند لا تثبت أصالته. «ثقة القراءة» وصف من المحرك وليست نسبة إحصائية، ولا تعني توثيقًا.</p>
++        <h4 className={tier}>{t('المستوى 1 · الخلاصة والنقاط', 'Tier 1 · Summary & CRS')}</h4>
++        <div className="grid gap-3 lg:grid-cols-3">
++          <div className={glass + ' flex flex-col justify-between gap-2 p-4 text-xs'}>
++            <div className="text-[11px] text-slate-400">نقاط CRS (حساب حتمي منفصل عن الملاءمة)</div>
++            <div className="text-4xl font-bold tracking-tight text-[#F1D27A]" dir="ltr">{crs.value ?? '—'}</div>
++            <div className="text-[11px] text-slate-400">{crs.value !== null ? crs.source : `مدخلات ناقصة: ${crs.missingInputs.join('، ')}`}</div>
++          </div>
++          <div className={glass + ' p-4 text-xs lg:col-span-2'}>
++            <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><span className="text-[11px] text-slate-400">حالة الأدلة للحقول المؤثرة</span>
++              {profile && saveProfile && <button type="button" className={ghost} onClick={() => setEditing(true)}><PencilLine className="h-3.5 w-3.5" />تعديل يدوي</button>}</div>
++            <div className="flex flex-wrap gap-1.5">{v.fields.map(f => <span key={f.key} title={`${f.source}${f.confidence ? ' · ثقة القراءة: ' + f.confidence : ''}`} className={`rounded-full border px-2 py-0.5 text-[11px] ${stateTone[f.state] || ''} ${f.impactful && (f.confidence === 'LOW' || f.state === 'CONFLICTED') ? 'ring-1 ring-rose-400/60' : ''}`}>{f.label}: {f.value ?? '—'} · {stateText[f.state] || f.state}</span>)}</div>
++            <p className="mt-2 text-[10px] text-slate-500">قراءة المستند لا تثبت أصالته. «ثقة القراءة» وصف من المحرك وليست نسبة إحصائية، ولا تعني توثيقًا.</p>
++          </div>
+         </div>
+-      </div>
+ 
+-      <h4 className="text-[11px] font-bold uppercase tracking-wide text-[#D4AF37]">{t('المستوى 2 · المسارات المرتبة', 'Tier 2 · Ranked pathways')}</h4>
+-      <div className="grid auto-rows-auto gap-3 lg:grid-cols-2" aria-label="المسارات المرتبة">
+-        {v.view.pathways.length === 0 && <div className={glass + ' p-5 text-xs text-slate-300 lg:col-span-2'}>لا يوجد مسار مدعوم ببيانات الملف حاليًا دون شروط مخالفة؛ لم يُختلق مسار لإكمال العدد.</div>}
+-        {v.view.pathways.map(c => (
+-          <article key={c.pathwayId} className={`${glass} space-y-3 p-4 text-xs ${c.rank === 1 ? 'lg:col-span-2 border-amber-400/35' : ''}`}>
+-            <div className="flex flex-wrap items-start justify-between gap-2">
+-              <div className="flex items-center gap-2"><span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${c.rank === 1 ? 'bg-amber-400 text-[#090E1A]' : 'border border-amber-400/40 text-amber-200'}`}>#{c.rank}</span>
+-                <div><h4 className="text-sm font-bold text-white">{c.name}</h4><p className="text-[11px] text-slate-400">{c.region} · {c.rank === 1 ? 'المسار الأقوى' : 'مسار بديل'}</p></div></div>
+-              <div className="flex items-center gap-2"><span className={`rounded-full border px-2 py-0.5 text-[11px] ${readinessTone[c.readiness]}`}>{readinessText[c.readiness]}</span>
+-                <span className="rounded-full border border-teal-400/40 px-2 py-0.5 text-[11px] text-teal-200" title={c.indicator.method}>الشروط المستوفاة {c.indicator.met}/{c.indicator.evaluated} ({c.indicator.percent}%)</span></div>
+-            </div>
+-            {anOf(c.pathwayId) && <div className="flex flex-wrap items-center gap-2 text-[11px]"><span className={`rounded-full border px-2 py-0.5 ${anOf(c.pathwayId)!.eligibility === 'ELIGIBLE_PENDING_REVIEW' ? 'border-teal-400/50 text-teal-200' : anOf(c.pathwayId)!.eligibility === 'NOT_ELIGIBLE' ? 'border-rose-400/50 text-rose-200' : 'border-amber-400/50 text-amber-200'}`}>{eligText[anOf(c.pathwayId)!.eligibility][lang === 'ar' ? 0 : 1]}</span><span className="rounded-full border border-white/15 px-2 py-0.5 text-slate-300">{(objText[anOf(c.pathwayId)!.objective] || ['', ''])[lang === 'ar' ? 0 : 1]}</span></div>}
+-            <p dir="auto" className="text-slate-200">{anOf(c.pathwayId)?.rankingReason || c.reason}</p>
+-            {anOf(c.pathwayId) && anOf(c.pathwayId)!.unresolved.length > 0 && <List title={t('شروط غير محسومة', 'Unresolved conditions')} items={anOf(c.pathwayId)!.unresolved} tone="text-amber-200" />}
+-            {anOf(c.pathwayId) && anOf(c.pathwayId)!.officialSources.length > 0 && <div className="flex flex-wrap gap-2 text-[10px] text-slate-400">{anOf(c.pathwayId)!.officialSources.slice(0, 3).map(u => <a key={u} href={u} target="_blank" rel="noreferrer" className="underline">{t('مصدر رسمي متحقق', 'Verified official source')} · {anOf(c.pathwayId)!.checkedOn}</a>)}</div>}
+-            <div className="grid gap-2 sm:grid-cols-2">
+-              <List title="متحقق بحسب الملف" items={c.met} tone="text-teal-200" /><List title="ناقص" items={[...c.missing, ...c.blockers.map(b => 'مخالف: ' + b)]} tone="text-amber-200" />
+-            </div>
+-            {c.employers.length > 0 && <div className="space-y-1.5">{c.employers.slice(0, 2).map(e => (
+-              <div key={e.vacancyId} className="rounded-xl border border-white/10 p-2"><div className="flex items-center gap-1.5 font-bold text-white"><Building className="h-3.5 w-3.5 text-amber-300" />{e.name}{e.address ? ` · ${e.address}` : ''}</div>
+-                <div className="text-[11px] text-slate-300">{e.title}{e.noc ? ` · NOC ${e.noc}` : ''} · {evidenceText[e.evidenceKind] || e.evidenceKind} · تحقق {e.checkedOn}</div><div className="text-[11px] text-slate-400">{e.matchReason}</div>
+-                <div className="flex gap-2"><a className="text-[11px] text-amber-300 underline" href={e.sourceUrl} target="_blank" rel="noreferrer">المصدر</a><button className="text-[11px] text-rose-200 underline" onClick={() => void edit({ excludedEmployers: [...(v.edits.excludedEmployers || []), e.vacancyId] }, 'استُبعدت جهة العمل من هذا الملف')}>استبعاد</button></div></div>))}</div>}
+-            {c.employers.length === 0 && <p className="text-[11px] text-slate-500">لا توجد مطابقة موثقة لجهة عمل في السجل لهذا الملف.</p>}
+-            <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-2 text-amber-100"><strong>الإجراء الفوري:</strong> {c.nextAction}</div>
+-            <div className="flex flex-wrap gap-1 text-[10px] text-slate-400">{c.trace.officialSources.slice(0, 3).map(s => <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline"><ExternalLink className="h-3 w-3" />{s.basis === 'LIVE_VERIFICATION' ? 'تحقق حي' : 'مرجع القاعدة'} · {s.checkedOn}</a>)}</div>
+-            <details className="rounded-xl border border-white/10 p-2"><summary className="flex cursor-pointer items-center gap-1 font-bold text-amber-200"><HelpCircle className="h-3.5 w-3.5" />لماذا هذا الخيار؟</summary><TraceView t={c.trace} /></details>
+-            <div className="flex flex-wrap gap-1.5">
+-              <button className={ghost} disabled={!!busy} onClick={() => void edit({ pinned: pinned.has(c.pathwayId) ? [...pinned].filter(x => x !== c.pathwayId) : [...pinned, c.pathwayId].slice(0, 3) }, pinned.has(c.pathwayId) ? 'أُلغي تثبيت المسار' : 'ثُبّت المسار')}>{pinned.has(c.pathwayId) ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}{pinned.has(c.pathwayId) ? 'إلغاء التثبيت' : 'تثبيت'}</button>
+-              <button className={ghost} disabled={!!busy} onClick={() => { const reason = window.prompt('سبب الاستبعاد'); if (reason && reason.trim().length >= 3) void edit({ excluded: [...(v.edits.excluded || []), { pathwayId: c.pathwayId, reason: reason.trim() }] }, 'استُبعد المسار'); }}><Ban className="h-3.5 w-3.5" />استبعاد</button>
+-              <a className={ghost} href="#engine-scenarios"><FlaskConical className="h-3.5 w-3.5" />المحاكاة</a>
+-              <button className={ghost} onClick={() => prepareCompletion(c)}><Send className="h-3.5 w-3.5" />تجهيز مطالبة استكمال</button>
+-            </div>
+-          </article>))}
+-      </div>
+-      {v.view.notRanked.length > 0 && <details className={glass + ' p-3 text-xs'}><summary className="cursor-pointer text-slate-300">مسارات غير مرتبة ({v.view.notRanked.length})</summary><ul className="mt-2 space-y-1">{v.view.notRanked.map(n => <li key={n.pathwayId} className="text-slate-400"><strong className="text-slate-200">{n.name}</strong> — {n.reason}{(v.edits.excluded || []).some(e => e.pathwayId === n.pathwayId) && <button className="mr-2 text-amber-300 underline" onClick={() => void edit({ excluded: (v.edits.excluded || []).filter(e => e.pathwayId !== n.pathwayId) }, 'أعيد المسار للترتيب')}>إلغاء الاستبعاد</button>}</li>)}</ul></details>}
+-
+-      <h4 className="text-[11px] font-bold uppercase tracking-wide text-[#D4AF37]">{t('المستوى 3 · الأدلة والنواقص والسيناريوهات والخطة', 'Tier 3 · Evidence, missing items, scenarios, roadmap')}</h4>
+-      <Processing items={v.processing} />
+-      <Extraction v={v} busy={busy} act={act} />
+-      <Scenarios v={v} busy={busy} act={act} />
+-      <Draws draws={v.draws} crs={crs.value} />
+-      <Roadmap steps={v.view.roadmap} />
+-      <Notes v={v} busy={busy} save={edit} />
++        <h4 className={tier}>{t('المستوى 2 · المسارات المرتبة', 'Tier 2 · Ranked pathways')}</h4>
++        <div className="grid auto-rows-auto gap-3 lg:grid-cols-2" aria-label="المسارات المرتبة">
++          {v.view.pathways.length === 0 && <div className={glass + ' p-5 text-xs text-slate-300 lg:col-span-2'}>لا يوجد مسار مدعوم ببيانات الملف حاليًا دون شروط مخالفة؛ لم يُختلق مسار لإكمال العدد.</div>}
++          {v.view.pathways.map(c => { const a = anOf(c.pathwayId), first = c.rank === 1; return (
++            <article key={c.pathwayId} className={`${glass} flex flex-col gap-3 p-4 text-xs ${first ? 'border-[#D4AF37]/40 lg:col-span-2' : ''}`}>
++              <div className="flex flex-wrap items-start justify-between gap-2">
++                <div className="flex items-center gap-2.5"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${first ? 'bg-[#D4AF37] text-[#090E1A] shadow-[0_0_20px_-4px_rgba(212,175,55,0.6)]' : 'border border-[#D4AF37]/40 text-[#F1D27A]'}`}>#{c.rank}</span>
++                  <div><h4 className="text-sm font-bold text-white">{c.name}</h4><p className="text-[11px] text-slate-400">{c.region} · {first ? 'المسار الأقوى' : 'مسار بديل'}</p></div></div>
++                <div className="flex flex-wrap items-center gap-1.5"><span className={`rounded-full border px-2 py-0.5 text-[11px] ${readinessTone[c.readiness]}`}>{readinessText[c.readiness]}</span>
++                  {a && <span className={`rounded-full border px-2 py-0.5 text-[11px] ${a.eligibility === 'ELIGIBLE_PENDING_REVIEW' ? 'border-cyan-400/50 text-cyan-200' : a.eligibility === 'NOT_ELIGIBLE' ? 'border-rose-400/50 text-rose-200' : 'border-amber-400/50 text-amber-200'}`}>{eligText[a.eligibility][lang === 'ar' ? 0 : 1]}</span>}
++                  {a && <span className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-slate-300">{(objText[a.objective] || ['', ''])[lang === 'ar' ? 0 : 1]}</span>}</div>
++              </div>
++              <Meter met={c.indicator.met} evaluated={c.indicator.evaluated} percent={c.indicator.percent} method={c.indicator.method} strong={first} />
++              <div className={`grid gap-3 ${first ? 'lg:grid-cols-[1.35fr_1fr]' : ''}`}>
++                <div className="space-y-3">
++                  <p dir="auto" className="leading-relaxed text-slate-200">{a?.rankingReason || c.reason}</p>
++                  <div className="grid gap-2 sm:grid-cols-2"><List title="متحقق بحسب الملف" items={c.met} tone="text-cyan-200" /><List title="ناقص" items={[...c.missing, ...c.blockers.map(b => 'مخالف: ' + b)]} tone="text-amber-200" /></div>
++                  {a && a.unresolved.length > 0 && <List title={t('شروط غير محسومة', 'Unresolved conditions')} items={a.unresolved} tone="text-amber-200" />}
++                </div>
++                <div className="space-y-2.5">
++                  <div className="rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/5 p-2.5 text-amber-100"><strong>الإجراء الفوري:</strong> {c.nextAction}</div>
++                  {c.employers.length > 0 ? <div className="space-y-1.5">{c.employers.slice(0, 2).map(e => (
++                    <div key={e.vacancyId} className="rounded-xl border border-white/10 bg-[#090E1A]/50 p-2"><div className="flex items-center gap-1.5 font-bold text-white"><Building className="h-3.5 w-3.5 text-[#D4AF37]" />{e.name}{e.address ? ` · ${e.address}` : ''}</div>
++                      <div className="text-[11px] text-slate-300">{e.title}{e.noc ? ` · NOC ${e.noc}` : ''} · {evidenceText[e.evidenceKind] || e.evidenceKind} · تحقق {e.checkedOn}</div><div className="text-[11px] text-slate-400">{e.matchReason}</div>
++                      <div className="flex gap-2"><a className="text-[11px] text-[#F1D27A] underline" href={e.sourceUrl} target="_blank" rel="noreferrer">المصدر</a><button className="text-[11px] text-rose-200 underline" onClick={() => void edit({ excludedEmployers: [...(v.edits.excludedEmployers || []), e.vacancyId] }, 'استُبعدت جهة العمل من هذا الملف')}>استبعاد</button></div></div>))}</div>
++                    : <p className="text-[11px] text-slate-500">لا توجد مطابقة موثقة لجهة عمل في السجل لهذا الملف.</p>}
++                  {a && a.officialSources.length > 0 && <div className="flex flex-wrap gap-2 text-[10px] text-slate-400">{a.officialSources.slice(0, 3).map(u => <a key={u} href={u} target="_blank" rel="noreferrer" className="underline">{t('مصدر رسمي متحقق', 'Verified official source')} · {a.checkedOn}</a>)}</div>}
++                  <div className="flex flex-wrap gap-2 text-[10px] text-slate-400">{c.trace.officialSources.slice(0, 3).map(s => <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline"><ExternalLink className="h-3 w-3" />{s.basis === 'LIVE_VERIFICATION' ? 'تحقق حي' : 'مرجع القاعدة'} · {s.checkedOn}</a>)}</div>
++                </div>
++              </div>
++              <details className="rounded-xl border border-white/10 bg-[#090E1A]/40 p-2"><summary className="flex cursor-pointer items-center gap-1 font-bold text-[#F1D27A]"><HelpCircle className="h-3.5 w-3.5" />لماذا هذا الخيار؟</summary><TraceView t={c.trace} /></details>
++              <div className="mt-auto flex flex-wrap gap-1.5 border-t border-white/5 pt-3">
++                <button className={ghost} disabled={!!busy} onClick={() => void edit({ pinned: pinned.has(c.pathwayId) ? [...pinned].filter(x => x !== c.pathwayId) : [...pinned, c.pathwayId].slice(0, 3) }, pinned.has(c.pathwayId) ? 'أُلغي تثبيت المسار' : 'ثُبّت المسار')}>{pinned.has(c.pathwayId) ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}{pinned.has(c.pathwayId) ? 'إلغاء التثبيت' : 'تثبيت'}</button>
++                <button className={ghost} disabled={!!busy} onClick={() => { const reason = window.prompt('سبب الاستبعاد'); if (reason && reason.trim().length >= 3) void edit({ excluded: [...(v.edits.excluded || []), { pathwayId: c.pathwayId, reason: reason.trim() }] }, 'استُبعد المسار'); }}><Ban className="h-3.5 w-3.5" />استبعاد</button>
++                <button className={ghost} onClick={openScenarios}><FlaskConical className="h-3.5 w-3.5" />المحاكاة</button>
++                <button className={ghost} onClick={() => prepareCompletion(c)}><Send className="h-3.5 w-3.5" />تجهيز مطالبة استكمال</button>
++              </div>
++            </article>); })}
++        </div>
++        {v.view.notRanked.length > 0 && <details className={glass + ' p-3 text-xs'}><summary className="cursor-pointer text-slate-300">مسارات غير مرتبة ({v.view.notRanked.length})</summary><ul className="mt-2 space-y-1">{v.view.notRanked.map(n => <li key={n.pathwayId} className="text-slate-400"><strong className="text-slate-200">{n.name}</strong> — {n.reason}{(v.edits.excluded || []).some(e => e.pathwayId === n.pathwayId) && <button className="ms-2 text-[#F1D27A] underline" onClick={() => void edit({ excluded: (v.edits.excluded || []).filter(e => e.pathwayId !== n.pathwayId) }, 'أعيد المسار للترتيب')}>إلغاء الاستبعاد</button>}</li>)}</ul></details>}
++        <button type="button" onClick={() => onSection?.('evidence')} className={glass + ' flex w-full items-center justify-between gap-2 p-3 text-xs text-slate-300 hover:border-[#D4AF37]/40'}>
++          <span>{t('المستوى 3 · الأدلة والنواقص والسيناريوهات والخطة', 'Tier 3 · Evidence, missing items, scenarios, roadmap')}</span><span className="text-[#F1D27A]">{t('فتح «الأدلة والخطة»', 'Open evidence & plan')}</span></button>
++      </>}
+ 
+-      <div className={glass + ' space-y-3 p-4 text-xs'}>
+-        <h4 className="flex items-center gap-2 text-sm font-bold text-white"><ShieldCheck className="h-4 w-4 text-[#D4AF37]" />بوابة الإظهار للعميل</h4>
+-        <ul className="space-y-1 text-slate-300">{v.diff.map((d, i) => <li key={i}>• {d.change}</li>)}</ul>
+-        <div className="flex flex-wrap gap-2">
+-          <button className={ghost} onClick={() => setPreview(true)}><Eye className="h-3.5 w-3.5" />معاينة نسخة العميل</button>
+-          <button className={gold} disabled={!!busy || (v.diff.length === 0 && !!v.published)} onClick={() => { if (window.confirm('نشر هذه النسخة للعميل؟ تبقى المسودة داخلية وتُحفظ النسخة المنشورة برقمها.')) void act('publish', { action: 'publish', packageVersion: v.package.version, editsVersion: v.editsVersion }, 'نُشرت النسخة للعميل'); }}><Upload className="h-3.5 w-3.5" />نشر للعميل</button>
++      {section === 'evidence' && <>
++        <h4 className={tier}>{t('المستوى 3 · الأدلة والنواقص والسيناريوهات والخطة', 'Tier 3 · Evidence, missing items, scenarios, roadmap')}</h4>
++        <div className="grid gap-3 lg:grid-cols-2"><Processing items={v.processing} /><Draws draws={v.draws} crs={crs.value} /></div>
++        <Extraction v={v} busy={busy} act={act} />
++        <Scenarios v={v} busy={busy} act={act} />
++        <Roadmap steps={v.view.roadmap} />
++        <Notes v={v} busy={busy} save={edit} />
++        <div className={glass + ' space-y-3 p-4 text-xs'}>
++          <h4 className="flex items-center gap-2 text-sm font-bold text-white"><ShieldCheck className="h-4 w-4 text-[#D4AF37]" />بوابة الإظهار للعميل · الفروق والسجل</h4>
++          {v.diff.length ? <ul className="space-y-1 text-slate-300">{v.diff.map((d, i) => <li key={i}>• {d.change}</li>)}</ul> : <p className="text-slate-500">لا فروق بين المسودة وآخر نسخة منشورة.</p>}
++          <p className="text-[11px] text-slate-400">النشر والمعاينة من شريط النشر أعلى المحرك.</p>
++          {v.history.length > 0 && <ul className="space-y-1">{v.history.map(h => <li key={h.publicationId} className="flex flex-wrap items-center gap-2 text-slate-400">نسخة {h.version} · {new Date(h.publishedAt).toLocaleString('ar')} · {h.publishedBy}{h.withdrawnAt ? ' · مسحوبة' : ''}{!h.withdrawnAt && role === 'MANAGER' && <button className="text-rose-200 underline" onClick={() => { if (window.confirm('سحب إتاحة هذه النسخة من العميل؟ يبقى سجلها.')) void act('withdraw', { action: 'withdraw', publicationId: h.publicationId }, 'سُحبت إتاحة النسخة'); }}>سحب الإتاحة</button>}</li>)}</ul>}
+         </div>
+-        {v.history.length > 0 && <ul className="space-y-1">{v.history.map(h => <li key={h.publicationId} className="flex flex-wrap items-center gap-2 text-slate-400">نسخة {h.version} · {new Date(h.publishedAt).toLocaleString('ar')} · {h.publishedBy}{h.withdrawnAt ? ' · مسحوبة' : ''}{!h.withdrawnAt && role === 'MANAGER' && <button className="text-rose-200 underline" onClick={() => { if (window.confirm('سحب إتاحة هذه النسخة من العميل؟ يبقى سجلها.')) void act('withdraw', { action: 'withdraw', publicationId: h.publicationId }, 'سُحبت إتاحة النسخة'); }}>سحب الإتاحة</button>}</li>)}</ul>}
+-      </div>
++      </>}
++
++      {editing && profile && saveProfile && <Modal title="تعديل يدوي للحقول المؤثرة" close={() => setEditing(false)}><FieldEditor profile={profile} close={() => setEditing(false)} save={async p => { await saveProfile(p); reload(); }} /></Modal>}
+       {preview && <Modal title="معاينة ما سيراه العميل" close={() => setPreview(false)}><pre dir="auto" className="max-h-[60vh] overflow-auto whitespace-pre-wrap text-[11px] text-slate-200">{JSON.stringify(v.draftSnapshot, null, 2)}</pre></Modal>}
+       {dispatch && <Modal title="مطالبة استكمال (تُرسل بعد تأكيدك)" close={() => setDispatch(null)}>
+-        <label className="block text-xs text-slate-300">الموضوع<input value={dispatch.subject} maxLength={180} onChange={e => setDispatch({ ...dispatch, subject: e.target.value })} className="mt-1 w-full rounded-xl border border-amber-500/30 bg-[#090E1A] px-3 py-2 text-white" /></label>
+-        <label className="mt-2 block text-xs text-slate-300">النص<textarea rows={8} value={dispatch.body} maxLength={5000} onChange={e => setDispatch({ ...dispatch, body: e.target.value })} className="mt-1 w-full rounded-xl border border-amber-500/30 bg-[#090E1A] px-3 py-2 text-white" /></label>
++        <label className="block text-xs text-slate-300">الموضوع<input value={dispatch.subject} maxLength={180} onChange={e => setDispatch({ ...dispatch, subject: e.target.value })} className={field} /></label>
++        <label className="mt-2 block text-xs text-slate-300">النص<textarea rows={8} value={dispatch.body} maxLength={5000} onChange={e => setDispatch({ ...dispatch, body: e.target.value })} className={field} /></label>
+         <div className="mt-3 flex justify-end gap-2"><button className={ghost} onClick={() => setDispatch(null)}>إلغاء</button><button className={gold} disabled={busy === 'send'} onClick={async () => { setBusy('send'); try { const r = await api<{ state: string; needsConfiguration?: boolean }>(`/api/candidates/${candidateId}/messages`, { method: 'POST', body: JSON.stringify({ requestKey: makeRequestId(), subject: dispatch.subject, body: dispatch.body }) }); setDispatch(null); notify(r.needsConfiguration ? 'حُفظ الإشعار؛ البريد الصادر غير مضبوط' : 'أُرسلت المطالبة'); } catch (e) { notify((e as Error).message); } finally { setBusy(''); } }}><Send className="h-3.5 w-3.5" />تأكيد الإرسال</button></div>
+       </Modal>}
+     </section>
+   );
+ }
+ 
++// Condition-count indicator (met / evaluated rule checks). Not an approval probability; the method is in the tooltip.
++function Meter({ met, evaluated, percent, method, strong }: { met: number; evaluated: number; percent: number; method: string; strong: boolean }) {
++  return <div className="space-y-1" title={method}>
++    <div className="flex items-center justify-between text-[11px]"><span className="text-slate-400">الشروط المستوفاة بحسب الملف</span><span className="font-bold text-[#F1D27A]"><bdi>{met} / {evaluated}</bdi> · <bdi>{percent}%</bdi></span></div>
++    <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label={`الشروط المستوفاة ${met} من ${evaluated}`}>
++      <div className={`h-full rounded-full ${strong ? 'bg-gradient-to-l from-[#F1D27A] to-[#D4AF37]' : 'bg-gradient-to-l from-[#67E8F9] to-[#22D3EE]'}`} style={{ width: `${Math.max(0, Math.min(100, percent))}%` }} /></div>
++    <p className="text-[10px] text-slate-500">مؤشر عدّ للشروط الموثقة، وليس احتمال قبول.</p>
++  </div>;
++}
++
++// Hybrid input: staff override of the impactful profile fields. Writes the full profile through PATCH /api/candidates/:id
++// (optimistic version check and validation on the server); extraction never replaces a non-empty value, and the case is
++// re-assessed after the save.
++const TRI: [Tri, string][] = [['unknown', 'غير معروف'], ['yes', 'نعم'], ['no', 'لا']];
++function FieldEditor({ profile, close, save }: { profile: Profile; close: () => void; save: (p: Profile) => Promise<void> }) {
++  const str = (n: number | null) => n === null ? '' : String(n);
++  const [f, setF] = useState({ occupation: profile.occupation, noc: profile.noc, education: profile.education, englishMin: str(profile.englishMin), englishDate: profile.englishDate, frenchMin: str(profile.frenchMin), eca: profile.eca, jobOffer: profile.jobOffer, funds: str(profile.funds), country: profile.country, nationality: profile.nationality });
++  const [busy, setBusy] = useState(false), [error, setError] = useState('');
++  const num = (x: string) => x.trim() === '' ? null : Number(x);
++  async function submit() {
++    if (!/^\d{5}$|^$/.test(f.noc)) { setError('رمز NOC خمس خانات أو يُترك فارغًا.'); return; }
++    const en = num(f.englishMin), fr = num(f.frenchMin), funds = num(f.funds);
++    for (const [n, label] of [[en, 'CLB الإنجليزية'], [fr, 'NCLC الفرنسية']] as const) if (n !== null && (!Number.isInteger(n) || n < 0 || n > 12)) { setError(`${label}: عدد صحيح من 0 إلى 12.`); return; }
++    if (funds !== null && (!Number.isFinite(funds) || funds < 0 || funds > 10000000)) { setError('أموال الاستقرار: رقم من 0 إلى 10,000,000.'); return; }
++    setBusy(true); setError('');
++    try { await save({ ...profile, occupation: f.occupation.trim(), noc: f.noc, education: f.education, englishMin: en, englishDate: f.englishDate, frenchMin: fr, eca: f.eca, jobOffer: f.jobOffer, funds, country: f.country.trim(), nationality: f.nationality.trim() }); close(); }
++    catch (e) { setError((e as Error).message); } finally { setBusy(false); }
++  }
++  const text = (k: 'occupation' | 'country' | 'nationality', label: string, max: number) => <label className="text-[11px] text-slate-300">{label}<input value={f[k]} maxLength={max} onChange={e => setF({ ...f, [k]: e.target.value })} className={field} /></label>;
++  const tri = (k: 'eca' | 'jobOffer', label: string) => <label className="text-[11px] text-slate-300">{label}<select value={f[k]} onChange={e => setF({ ...f, [k]: e.target.value as Tri })} className={field}>{TRI.map(([x, l]) => <option key={x} value={x}>{l}</option>)}</select></label>;
++  return <form className="space-y-3 text-xs" onSubmit={e => { e.preventDefault(); void submit(); }}>
++    <p className="text-[11px] text-slate-400">القيم التي يدخلها الموظف لا تستبدلها قيم الاستخراج التلقائي، ويُعاد احتساب التقييم بعد الحفظ.</p>
++    <div className="grid gap-2 sm:grid-cols-2">
++      {text('occupation', 'المهنة', 150)}
++      <label className="text-[11px] text-slate-300">رمز NOC<input value={f.noc} inputMode="numeric" dir="ltr" maxLength={5} onChange={e => setF({ ...f, noc: e.target.value.replace(/\D/g, '') })} className={field} /></label>
++      <label className="text-[11px] text-slate-300">المؤهل<select value={f.education} onChange={e => setF({ ...f, education: e.target.value as Profile['education'] })} className={field}>{Object.entries(educationLabels).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
++      {tri('eca', 'معادلة المؤهل ECA')}
++      <label className="text-[11px] text-slate-300">الإنجليزية (أدنى CLB)<input type="number" min={0} max={12} step={1} value={f.englishMin} onChange={e => setF({ ...f, englishMin: e.target.value })} className={field} /></label>
++      <label className="text-[11px] text-slate-300">تاريخ اختبار الإنجليزية<input type="date" value={f.englishDate} onChange={e => setF({ ...f, englishDate: e.target.value })} className={field} /></label>
++      <label className="text-[11px] text-slate-300">الفرنسية (أدنى NCLC)<input type="number" min={0} max={12} step={1} value={f.frenchMin} onChange={e => setF({ ...f, frenchMin: e.target.value })} className={field} /></label>
++      {tri('jobOffer', 'عرض العمل')}
++      <label className="text-[11px] text-slate-300">أموال الاستقرار (CAD)<input type="number" min={0} max={10000000} value={f.funds} onChange={e => setF({ ...f, funds: e.target.value })} className={field} /></label>
++      {text('country', 'بلد الإقامة', 80)}
++      {text('nationality', 'الجنسية', 80)}
++    </div>
++    {error && <p role="alert" className="rounded-lg border border-rose-400/40 bg-rose-500/10 p-2 text-rose-200">{error}</p>}
++    <div className="flex justify-end gap-2"><button type="button" className={ghost} onClick={close}>إلغاء</button><button type="submit" className={gold} disabled={busy}>{busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}حفظ التعديل</button></div>
++  </form>;
++}
++
+ function alertText(a: { kind: string; payload: Record<string, unknown> }) {
+   const p = a.payload;
+   if (a.kind === 'DRAW_CHANGE') return `سحب ${p.category} بتاريخ ${p.drawDate}: الحد ${p.cutoff} ونقاط الملف المحفوظة ${p.caseCrs}. ${p.note}`;
+-  if (a.kind === 'EXTRACTION_CONFLICT') return `تعارض بين قيم مستخرجة وبيانات الملف: ${(p.fields as string[] || []).join('، ')}. راجعها أدناه.`;
++  if (a.kind === 'EXTRACTION_CONFLICT') return `تعارض بين قيم مستخرجة وبيانات الملف: ${(p.fields as string[] || []).join('، ')}. راجعها في «الأدلة والخطة».`;
+   if (a.kind === 'ASSESSMENT_CHANGED') return `تغيّرت المسودة بعد آخر نشر (النسخة الداخلية ${p.packageVersion}). راجع الفرق قبل إعادة النشر.`;
+   return a.kind;
+ }
+@@ -203,7 +285,7 @@ function Extraction({ v, busy, act }: { v: View; busy: string; act: (l: string,
+       <span className="text-slate-200"><strong>{x.fieldKey}</strong>: {fmt(x.value)}{x.state === 'CONFLICTED' ? <span className="text-rose-200"> · الحالي: {fmt(x.current)}</span> : ''} <span className="text-slate-500">· {x.location} · ثقة القراءة {x.confidence}</span></span>
+       {['occupation', 'education', 'country', 'nationality', 'englishDate'].includes(x.fieldKey) && <span className="flex gap-1"><button className={ghost} disabled={!!busy} onClick={() => void act('decide', { action: 'extraction_decision', extractionId: x.extractionId, decision: 'accept' }, 'اعتُمدت القيمة')}><Check className="h-3 w-3" />اعتماد</button><button className={ghost} disabled={!!busy} onClick={() => void act('decide', { action: 'extraction_decision', extractionId: x.extractionId, decision: 'reject' }, 'رُفضت القيمة')}><X className="h-3 w-3" />رفض</button></span>}
+     </li>)}</ul> : <p className="text-slate-500">لا توجد قيم مستخرجة بانتظار المراجعة.</p>}
+-    <div className="space-y-2"><textarea rows={3} value={text} onChange={e => setText(e.target.value)} placeholder="الصق نص السيرة أو رسالة غير منظمة (عربي/إنجليزي)…" className="w-full rounded-xl border border-amber-500/25 bg-[#090E1A] px-3 py-2 text-white" />
++    <div className="space-y-2"><textarea rows={3} value={text} onChange={e => setText(e.target.value)} placeholder="الصق نص السيرة أو رسالة غير منظمة (عربي/إنجليزي)…" className={field} />
+       <button className={gold} disabled={!!busy || text.trim().length < 20} onClick={async () => { const r = await act('extract', { action: 'extract_text', text }) as { status?: string } | null; if (r?.status === 'AUTHORIZATION_REQUIRED') window.alert('يلزم تسجيل تفويض العميل قبل الاستخراج.'); else if (r) setText(''); }}>{busy === 'extract' ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}استخراج وتعبئة الحقول الفارغة</button></div>
+   </div>;
+ }
+@@ -220,18 +302,18 @@ const fmt = (x: unknown) => typeof x === 'object' ? JSON.stringify(x) : String(x
+ function Scenarios({ v, busy, act }: { v: View; busy: string; act: (l: string, b: Record<string, unknown>, ok?: string) => Promise<unknown> }) {
+   const [ch, setCh] = useState<Record<string, string>>({}), [res, setRes] = useState<Scenario | null>(null), [name, setName] = useState('');
+   const changes = Object.fromEntries(Object.entries(ch).filter(([, x]) => x !== '').map(([k, x]) => [k, ['englishClb', 'frenchClb', 'canadianYears', 'foreignYears'].includes(k) ? Number(x) : x]));
+-  const input = (k: string, label: string, max: number) => <label className="text-[11px] text-slate-300">{label}<input type="number" min={0} max={max} value={ch[k] || ''} onChange={e => setCh({ ...ch, [k]: e.target.value })} className="mt-1 w-full rounded-lg border border-amber-500/25 bg-[#090E1A] px-2 py-1 text-white" /></label>;
++  const input = (k: string, label: string, max: number) => <label className="text-[11px] text-slate-300">{label}<input type="number" min={0} max={max} value={ch[k] || ''} onChange={e => setCh({ ...ch, [k]: e.target.value })} className={field} /></label>;
+   return <div id="engine-scenarios" className={glass + ' space-y-3 p-4 text-xs'}>
+     <h4 className="flex items-center gap-2 text-sm font-bold text-white"><FlaskConical className="h-4 w-4 text-[#D4AF37]" />محاكاة What-If</h4>
+     <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">{input('englishClb', 'CLB إنجليزي', 12)}{input('frenchClb', 'NCLC فرنسي', 12)}{input('canadianYears', 'خبرة كندية (سنوات)', 5)}{input('foreignYears', 'خبرة أجنبية (سنوات)', 3)}
+-      <label className="text-[11px] text-slate-300">ECA<select value={ch.eca || ''} onChange={e => setCh({ ...ch, eca: e.target.value })} className="mt-1 w-full rounded-lg border border-amber-500/25 bg-[#090E1A] px-2 py-1 text-white"><option value="">بلا تغيير</option><option value="yes">مستكملة</option><option value="no">غير مستكملة</option></select></label></div>
++      <label className="text-[11px] text-slate-300">ECA<select value={ch.eca || ''} onChange={e => setCh({ ...ch, eca: e.target.value })} className={field}><option value="">بلا تغيير</option><option value="yes">مستكملة</option><option value="no">غير مستكملة</option></select></label></div>
+     <button className={gold} disabled={!!busy || !Object.keys(changes).length} onClick={async () => { const r = await act('scn', { action: 'scenario_run', changes }) as Scenario | null; if (r) setRes(r); }}>{busy === 'scn' ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}احسب الأثر</button>
+     {res && <div className="space-y-1.5 rounded-xl border border-white/10 p-3">
+       <div>الواقع الحالي: CRS {res.impact.crs.from ?? '—'} ← بعد التغيير: <strong className="text-amber-200">{res.impact.crs.to ?? '—'}</strong>{res.impact.crs.delta !== null ? ` (${res.impact.crs.delta >= 0 ? '+' : ''}${res.impact.crs.delta})` : ''}{res.crsNote ? ` · ${res.crsNote}` : ''}</div>
+       <ul>{res.impact.affected.map(a => <li key={a.id}>• {a.name}: {readinessText[a.from.readiness as keyof typeof readinessText] || a.from.readiness} {a.from.percent}% ← {readinessText[a.to.readiness as keyof typeof readinessText] || a.to.readiness} {a.to.percent}%</li>)}{!res.impact.affected.length && <li className="text-slate-500">لا يتغير وضع أي مسار.</li>}</ul>
+       {res.requirements.length > 0 && <div className="text-slate-400">المتطلبات التنفيذية: {res.requirements.slice(0, 6).join(' · ')}</div>}
+       <p className="text-[10px] text-slate-500">{res.assumption}</p>
+-      <div className="flex flex-wrap gap-2"><input value={name} onChange={e => setName(e.target.value)} placeholder="اسم السيناريو" className="rounded-lg border border-amber-500/25 bg-[#090E1A] px-2 py-1 text-white" /><button className={ghost} disabled={!!busy || name.trim().length < 2} onClick={() => void act('scn-save', { action: 'scenario_save', name: name.trim(), changes, include: false }, 'حُفظ السيناريو')}>حفظ السيناريو</button></div>
++      <div className="flex flex-wrap gap-2"><input value={name} onChange={e => setName(e.target.value)} placeholder="اسم السيناريو" className={field.replace('mt-1 w-full ', '')} /><button className={ghost} disabled={!!busy || name.trim().length < 2} onClick={() => void act('scn-save', { action: 'scenario_save', name: name.trim(), changes, include: false }, 'حُفظ السيناريو')}>حفظ السيناريو</button></div>
+     </div>}
+     {v.scenarios.length > 0 && <ul className="space-y-1">{v.scenarios.map(s => <li key={s.scenarioId} className="flex flex-wrap items-center gap-2 text-slate-300">{s.name} · CRS {s.result.impact.crs.from ?? '—'} ← {s.result.impact.crs.to ?? '—'}<label className="flex items-center gap-1 text-[11px]"><input type="checkbox" checked={s.includeInPublication} onChange={e => void act('scn-inc', { action: 'scenario_include', scenarioId: s.scenarioId, include: e.target.checked })} />إدراج في النسخة المنشورة</label></li>)}</ul>}
+   </div>;
+@@ -241,7 +323,7 @@ function Draws({ draws, crs }: { draws: Draw[]; crs: number | null }) {
+     <h4 className="flex items-center gap-2 text-sm font-bold text-white"><Radar className="h-4 w-4 text-[#D4AF37]" />رادار السحوبات (مقارنة وصفية)</h4>
+     {!draws.length ? <p className="text-slate-500">لا توجد سحوبات مسجلة بعد من المصدر الرسمي.</p> : <div className="grid gap-2 sm:grid-cols-2">{draws.map(d => <div key={d.category} className="rounded-xl border border-white/10 p-3">
+       <div className="font-bold text-white">{d.category}</div><div className="text-[11px] text-slate-400">{d.count} سحوبات · {d.period.from} → {d.period.to} · الاتجاه: {d.trend === 'RISING' ? 'صاعد' : d.trend === 'FALLING' ? 'هابط' : 'مستقر'}</div>
+-      <div className="mt-1 grid grid-cols-3 gap-1 text-center">{(['conservative', 'median', 'optimistic'] as const).map(k => <div key={k} className="rounded-lg border border-amber-500/20 p-1"><div className="text-[10px] text-slate-400">{k === 'conservative' ? 'متحفظ' : k === 'median' ? 'متوسط' : 'متفائل'}</div><div className="font-bold text-amber-200">{d.scenarios[k]}</div>{d.gap && crs !== null && <div className={`text-[10px] ${d.gap[k] >= 0 ? 'text-teal-200' : 'text-rose-200'}`}>{d.gap[k] >= 0 ? '+' : ''}{d.gap[k]}</div>}</div>)}</div>
++      <div className="mt-1 grid grid-cols-3 gap-1 text-center">{(['conservative', 'median', 'optimistic'] as const).map(k => <div key={k} className="rounded-lg border border-amber-500/20 p-1"><div className="text-[10px] text-slate-400">{k === 'conservative' ? 'متحفظ' : k === 'median' ? 'متوسط' : 'متفائل'}</div><div className="font-bold text-amber-200">{d.scenarios[k]}</div>{d.gap && crs !== null && <div className={`text-[10px] ${d.gap[k] >= 0 ? 'text-cyan-200' : 'text-rose-200'}`}>{d.gap[k] >= 0 ? '+' : ''}{d.gap[k]}</div>}</div>)}</div>
+       <p className="mt-1 text-[10px] text-slate-500">{d.limits}</p></div>)}</div>}
+   </div>;
+ }
+@@ -255,9 +337,9 @@ function Roadmap({ steps }: { steps: View['view']['roadmap'] }) {
+ function Notes({ v, busy, save }: { v: View; busy: string; save: (e: Record<string, unknown>, ok: string) => unknown }) {
+   const [internal, setInternal] = useState(v.edits.internalNotes || ''), [pub, setPub] = useState(v.edits.publicNotes || ''), [guide, setGuide] = useState((v.edits.publicGuidance || []).join('\n'));
+   return <div className={glass + ' grid gap-3 p-4 text-xs sm:grid-cols-2'}>
+-    <label className="text-slate-300">ملاحظات داخلية (لا تُنشر)<textarea rows={4} value={internal} onChange={e => setInternal(e.target.value)} className="mt-1 w-full rounded-xl border border-white/15 bg-[#090E1A] px-3 py-2 text-white" /></label>
+-    <div className="space-y-2"><label className="block text-slate-300">ملاحظة للعميل (تُنشر)<textarea rows={2} value={pub} onChange={e => setPub(e.target.value)} className="mt-1 w-full rounded-xl border border-amber-500/25 bg-[#090E1A] px-3 py-2 text-white" /></label>
+-      <label className="block text-slate-300">توجيهات للعميل (سطر لكل توجيه)<textarea rows={2} value={guide} onChange={e => setGuide(e.target.value)} className="mt-1 w-full rounded-xl border border-amber-500/25 bg-[#090E1A] px-3 py-2 text-white" /></label></div>
++    <label className="text-slate-300">ملاحظات داخلية (لا تُنشر)<textarea rows={4} value={internal} onChange={e => setInternal(e.target.value)} className={field} /></label>
++    <div className="space-y-2"><label className="block text-slate-300">ملاحظة للعميل (تُنشر)<textarea rows={2} value={pub} onChange={e => setPub(e.target.value)} className={field} /></label>
++      <label className="block text-slate-300">توجيهات للعميل (سطر لكل توجيه)<textarea rows={2} value={guide} onChange={e => setGuide(e.target.value)} className={field} /></label></div>
+     <button className={gold + ' sm:col-span-2 justify-center'} disabled={!!busy} onClick={() => void save({ internalNotes: internal, publicNotes: pub, publicGuidance: guide.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 10) }, 'حُفظت الملاحظات')}>حفظ الملاحظات</button>
+   </div>;
+ }
+diff --git a/tests/v22/operations.e2e.spec.ts b/tests/v22/operations.e2e.spec.ts
+index 0e14476..4cdfa4e 100644
+--- a/tests/v22/operations.e2e.spec.ts
++++ b/tests/v22/operations.e2e.spec.ts
+@@ -262,3 +262,35 @@ test('engine round 3 visuals: analysis status strip, tiers, per-pathway eligibil
+   }
+ });
+ 
++test('analysis workspace: five sections keep every module (engine overview/evidence, comparison + review, rules + CRS, readiness); hybrid manual edit saves through the case API and refreshes the evidence chips; gold actions keep their styling; 390 px fits', async () => {
++  for (const [w, h] of [[1440, 900], [390, 844]] as const) {
++    const c = await ctx({ viewport: { width: w, height: h }, extraHTTPHeaders: admin }), page = await c.newPage();
++    page.on('pageerror', (e: Error) => console.log('PAGEERROR', e.message));
++    await page.goto(url + '/?candidate=' + st.client.id);
++    await page.locator('[role="tab"]', { hasText: 'التحليل والمسارات' }).click();
++    const nav = page.locator('nav[aria-label="أقسام التحليل"]'); await nav.waitFor();
++    const reassess = page.getByRole('button', { name: 'إعادة التقييم' });
++    assert.notEqual(await reassess.evaluate((b: Element) => getComputedStyle(b).backgroundColor), 'rgba(0, 0, 0, 0)', 'gold action keeps its background (Tailwind not overridden by the global reset)');
++    const expect: [string, string][] = [['الأدلة والخطة', 'مراحل معالجة المستندات'], ['المقارنة والتقارير', 'المراجعة الشاملة · أقوى 3 مسارات'], ['القواعد وCRS', 'حساب CRS الداخلي'], ['جاهزية الملف', 'التقييم وخطة المراجعة'], ['الخلاصة والمسارات', 'المستوى 2 · المسارات المرتبة']];
++    for (const [tab, marker] of expect) {
++      await nav.locator('[role="tab"]', { hasText: tab }).click();
++      await page.getByText(marker).first().waitFor();
++      assert.ok(await noOverflow(page), `no horizontal overflow on «${tab}» at ${w}`);
++    }
++    if (w === 1440) {
++      // Office file (no client request): the profile, jobs included, is edited from the office side (one source per fact).
++      const office = await api('/api/candidates', 'POST', { fullName: 'QA Office Edit', phone: '+15558880077', email: 'office-edit@example.test', consent: true, jobs: [{ title: 'QA role', employer: 'QA employer', country: 'Yemen', start: '2023-01', end: '2024-12', weekly_hours: 40 }], occupation: 'Synthetic test', noc: '72401', teer: 2, englishMin: 6, englishDate: '2026-10-01' });
++      await page.goto(url + '/?candidate=' + office.id);
++      await page.locator('[role="tab"]', { hasText: 'التحليل والمسارات' }).click();
++      await page.getByRole('button', { name: 'تعديل يدوي' }).click();
++      const dialog = page.locator('[role="dialog"][aria-label="تعديل يدوي للحقول المؤثرة"]'); await dialog.waitFor();
++      await dialog.getByLabel('بلد الإقامة').fill('Jordan');
++      await dialog.getByRole('button', { name: 'حفظ التعديل' }).click();
++      await dialog.waitFor({ state: 'detached' });
++      await page.locator('section[aria-label="محرك ALHIJRAH للتقييم"]').getByText('بلد الإقامة: Jordan').waitFor();
++      const p = JSON.parse((await db.prepare('SELECT profile FROM candidates WHERE id=?').bind(office.id).first()).profile as string);
++      assert.equal(p.country, 'Jordan', 'saved through PATCH /api/candidates/:id'); assert.equal(p.jobs.length, 1, 'jobs untouched by the field editor');
++    }
++    await c.close();
++  }
++});

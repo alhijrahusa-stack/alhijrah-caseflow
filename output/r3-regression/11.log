@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: entry: two intents only, one lookup button, no horizontal overflow at 360/768/1440, RTL then LTR
+ok 1 - entry: two intents only, one lookup button, no horizontal overflow at 360/768/1440, RTL then LTR
+  ---
+  duration_ms: 7093.10455
+  type: 'test'
+  ...
+# Subtest: lookup dialog: keyboard opens it, focus stays inside, Escape closes and returns focus
+ok 2 - lookup dialog: keyboard opens it, focus stays inside, Escape closes and returns focus
+  ---
+  duration_ms: 660.779041
+  type: 'test'
+  ...
+# Subtest: journey: START_NEW + OTP paste auto-verify, welcome, path focus/back, autosave+reload, offline, two tabs, signature, submit
+ok 3 - journey: START_NEW + OTP paste auto-verify, welcome, path focus/back, autosave+reload, offline, two tabs, signature, submit
+  ---
+  duration_ms: 9972.944968
+  type: 'test'
+  ...
+# Subtest: reduced motion: no entry transitions or welcome animation
+ok 4 - reduced motion: no entry transitions or welcome animation
+  ---
+  duration_ms: 692.484078
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 19075.352421

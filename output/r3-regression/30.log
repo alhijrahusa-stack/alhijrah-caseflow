@@ -1,0 +1,1 @@
+Office hub API passed: staff-only broadcast publish/switch/delete with tone/duration validation and expiry, public live feed without staff identity, staff-only FAQ notes, notification feed, pathway dispatch summary and assignment, staff assistant grounded on the office reference with identifiers masked, precise Groq error reporting without the key. Mocked Groq calls: 0.

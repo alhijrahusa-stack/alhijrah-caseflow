@@ -1,0 +1,76 @@
+(node:948) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:948) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{
+  "modelListed": true,
+  "aiCheck": "gpt-6.1-sol",
+  "compare_ar": {
+    "model": "gpt-6.1-sol",
+    "pathways": [
+      "rcip",
+      "express_entry"
+    ],
+    "verified": 17,
+    "unverified": 2,
+    "sources": [
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/education-assessment.html"
+    ],
+    "checkedOn": "2026-11-16",
+    "sample": {
+      "requirement": "مراعاة إغلاق النسخة التجريبية اعتبارًا من 2027-01-01؛ التوصية المؤرخة في 2026-12-31 أو قبله تستلزم تقديم طلب الإقامة قبل انتهاء صلاحيتها.",
+      "caseStatus": "unknown",
+      "caseEvidence": "وجود توصية المجتمع وتاريخها وصلاحيتها غير معروف؛ يلزم تحديد النسخة المقصودة قبل متابعة التحضير.",
+      "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility.html",
+      "sourcePageDate": "2026-11-09",
+      "sourceTitle": "Rural Community Immigration Pilots: Who can apply - Canada.ca",
+      "checkedOn": "2026-11-16",
+      "verified": true
+    }
+  },
+  "compare_en": {
+    "model": "gpt-6.1-sol",
+    "pathways": [
+      "rcip",
+      "express_entry"
+    ],
+    "verified": 11,
+    "unverified": 6,
+    "sources": [
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/who-can-apply/federal-skilled-workers.html"
+    ],
+    "checkedOn": "2026-11-16",
+    "sample": {
+      "requirement": "Pilot transition: IRCC announces closure on January 1, 2027. A pilot recommendation must be dated December 31, 2026 or earlier, and the permanent residence application must be submitted before the recommendation expires.",
+      "caseStatus": "unknown",
+      "caseEvidence": "Community recommendation is unknown; no certificate or intended application date is supplied. Confirm whether the requested RCIP is the pilot or permanent-program successor.",
+      "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility.html",
+      "sourcePageDate": "2026-11-09",
+      "sourceTitle": "Rural Community Immigration Pilots: Who can apply - Canada.ca",
+      "checkedOn": "2026-11-16",
+      "verified": true
+    }
+  },
+  "assistant": {
+    "model": "gpt-6.1-sol",
+    "webSearch": true,
+    "sources": [
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html"
+    ],
+    "answer": "For **RCIP job offers in TEER 0 or 1**, the minimum is **CLB 6 in English or NCLC 6 in French in each of the four abilities**: listening, speaking, reading and writing—not an overall average. ([canada.ca](https://www.canada.ca/en/immigratio"
+  },
+  "openaiCalls": [
+    "/v1/models 200  1072ms",
+    "/v1/responses 200 gpt-6.1-sol 1956ms",
+    "/v1/responses 200 gpt-6.1-sol 71551ms",
+    "/v1/responses 200 gpt-6.1-sol 62193ms",
+    "/v1/responses 200 gpt-6.1-sol 7013ms"
+  ]
+}
+ai-live PASSED with gpt-6.1-sol

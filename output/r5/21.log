@@ -1,0 +1,1 @@
+Enterprise API passed: schema-constrained OpenAI + Anthropic requests (mock transports), consent isolation and provider change, idempotency, encrypted private PDF storage, integrity-checked downloads, staff/admin review separation, client approval and revocation, privacy-safe verification, feedback validation and audit logs. No live provider calls.

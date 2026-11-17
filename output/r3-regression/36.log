@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: documents: scanned image read via vision (ocr=1, classified), duplicate skipped, encrypted/corrupted/unsupported get explicit states and recovery actions
+ok 1 - documents: scanned image read via vision (ocr=1, classified), duplicate skipped, encrypted/corrupted/unsupported get explicit states and recovery actions
+  ---
+  duration_ms: 13835.294722
+  type: 'test'
+  ...
+# Subtest: agent: tools bound to the case (case id argument ignored), invalid save rejected then corrected, sources/evidence/CRS validated, run recorded, internal tasks deduplicated
+ok 2 - agent: tools bound to the case (case id argument ignored), invalid save rejected then corrected, sources/evidence/CRS validated, run recorded, internal tasks deduplicated
+  ---
+  duration_ms: 353.063702
+  type: 'test'
+  ...
+# Subtest: stale results never replace newer ones: a revision change during analysis discards the run; the last valid assessment keeps its timestamp
+ok 3 - stale results never replace newer ones: a revision change during analysis discards the run; the last valid assessment keeps its timestamp
+  ---
+  duration_ms: 1491.438195
+  type: 'test'
+  ...
+# Subtest: triggers: data change queues a revision-keyed analysis; an obsolete revision is skipped without AI; intake submission queues analysis atomically
+ok 4 - triggers: data change queues a revision-keyed analysis; an obsolete revision is skipped without AI; intake submission queues analysis atomically
+  ---
+  duration_ms: 2609.892416
+  type: 'test'
+  ...
+# Subtest: quota: above the daily token budget the provider is not called and the reason is explicit; the deterministic refresh still runs
+ok 5 - quota: above the daily token budget the provider is not called and the reason is explicit; the deterministic refresh still runs
+  ---
+  duration_ms: 459.01632
+  type: 'test'
+  ...
+# Subtest: isolation: a client session reaches only its own case across APIs, downloads, assessment and sockets; staff/engine APIs refuse clients
+ok 6 - isolation: a client session reaches only its own case across APIs, downloads, assessment and sockets; staff/engine APIs refuse clients
+  ---
+  duration_ms: 1019.377728
+  type: 'test'
+  ...
+# Subtest: official rounds: the captured live IRCC payload is validated, stored once with its update date, cached in KV and invalidated on update
+ok 7 - official rounds: the captured live IRCC payload is validated, stored once with its update date, cached in KV and invalidated on update
+  ---
+  duration_ms: 6144.93506
+  type: 'test'
+  ...
+# Subtest: erasure: a privacy erasure deletes the case's engine records (immutable otherwise); the audit chain stays valid
+ok 8 - erasure: a privacy erasure deletes the case's engine records (immutable otherwise); the audit chain stays valid
+  ---
+  duration_ms: 1198.972803
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 27472.723351

@@ -1,0 +1,1 @@
+Gate 2 API passed: 6 source-linked rules seeded idempotently; Skills Card -> REPORTED -> verified document (staff only) -> VERIFIED -> recompute -> preliminary updated; idempotent saves (no duplicate facts or evaluations); empty card creates nothing; RCIP/AIP RULE_UNAVAILABLE; NOC MATCH_UNAVAILABLE; candidates.assessment byte-identical under SHADOW_ONLY.

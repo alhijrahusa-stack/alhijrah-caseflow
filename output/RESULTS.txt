@@ -1,0 +1,328 @@
+repo HEAD: 09b955c (parents c812c1f, 44fd112); v2.2 base d81ab51
+environment: LOCAL Miniflare (Workers/D1/R2/DO/KV) + Chromium; NOT Cloudflare staging; no deploy
+
+== commands, exit codes, durations ==
+tsc exit=0 secs=5 cmd=npx tsc --noEmit -p .
+build exit=0 secs=18 cmd=npm run build
+unit exit=0 secs=2 cmd=node --experimental-strip-types --no-warnings --test tests/american-terms.test.mjs tests/assessment.test.mjs tests/assistance.test.mjs tests/case-workflow.test.mjs tests/crs-engine.test.mjs tests/crs-golden.test.mjs tests/csv.test.mjs tests/eligibility.test.mjs tests/entry-requirements.test.mjs tests/experience.test.mjs tests/gate2-units.test.mjs tests/inputs-hash.test.mjs tests/mi-2026-1.test.mjs tests/mi-consolidated.test.mjs tests/migrations-journal.test.mjs tests/mrz-repair.test.mjs tests/noc-teer.test.mjs tests/pathways.test.mjs tests/triage.test.mjs
+access.test.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/access.test.mjs
+automation.test.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/automation.test.mjs
+billing.test.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/billing.test.mjs
+chat.test.mjs exit=0 secs=33 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/chat.test.mjs
+database.test.mjs exit=0 secs=14 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/database.test.mjs
+engines.test.mjs exit=0 secs=11 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/engines.test.mjs
+outbox-cas.test.mjs exit=0 secs=1 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/outbox-cas.test.mjs
+portal.test.mjs exit=0 secs=8 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/portal.test.mjs
+registry-coexistence.test.mjs exit=0 secs=0 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/registry-coexistence.test.mjs
+restore.test.mjs exit=0 secs=16 cmd=env ROLLBACK_REF=44fd112 ROLLBACK_DIST=/tmp/claude-0/-home-user-alhijrah-caseflow/6a4112b7-566a-5359-8ce1-d51706829c53/scratchpad/rollback-44fd112/dist/server RESTORE_REPORT=/tmp/claude-0/-home-user-alhijrah-caseflow/6a4112b7-566a-5359-8ce1-d51706829c53/scratchpad/restore-report.json timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/restore.test.mjs
+security.test.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/security.test.mjs
+operations.e2e.spec.ts exit=0 secs=16 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/operations.e2e.spec.ts
+portal.e2e.spec.ts exit=0 secs=17 cmd=timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/portal.e2e.spec.ts
+assistance-api.mjs exit=0 secs=4 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/assistance-api.mjs
+automation-api.mjs exit=0 secs=5 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/automation-api.mjs
+contact-log-api.mjs exit=0 secs=4 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/contact-log-api.mjs
+engine-api.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/engine-api.mjs
+engine-shadow-only-api.mjs exit=0 secs=4 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/engine-shadow-only-api.mjs
+enterprise-api.mjs exit=0 secs=5 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/enterprise-api.mjs
+experience-api.mjs exit=0 secs=6 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/experience-api.mjs
+gate2-api.mjs exit=0 secs=5 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/gate2-api.mjs
+hardening-api.mjs exit=0 secs=7 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/hardening-api.mjs
+identity-trust-api.mjs exit=0 secs=8 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/identity-trust-api.mjs
+intake-api.mjs exit=0 secs=8 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/intake-api.mjs
+local-api.mjs exit=0 secs=5 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/local-api.mjs
+office-hub-api.mjs exit=0 secs=8 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/office-hub-api.mjs
+auth-isolation.mjs exit=0 secs=12 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/auth-isolation.mjs
+intake-identity.mjs exit=0 secs=7 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/intake-identity.mjs
+legal-authorization.mjs exit=0 secs=5 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/legal-authorization.mjs
+portal-security.mjs exit=0 secs=7 cmd=timeout 900 node --experimental-strip-types --no-warnings tests/portal-security.mjs
+lint exit=1 secs=25 cmd=npx eslint . --ignore-pattern dist --ignore-pattern .next
+DONE
+
+== node:test counts ==
+access.test.mjs pass=8 fail=0
+automation.test.mjs pass=9 fail=0
+billing.test.mjs pass=8 fail=0
+chat.test.mjs pass=8 fail=0
+database.test.mjs pass=6 fail=0
+engines.test.mjs pass=17 fail=0
+operations.e2e.spec.ts pass=3 fail=0
+outbox-cas.test.mjs pass=4 fail=0
+portal.e2e.spec.ts pass=4 fail=0
+portal.test.mjs pass=9 fail=0
+registry-coexistence.test.mjs pass=3 fail=0
+restore.test.mjs pass=2 fail=0
+security.test.mjs pass=7 fail=0
+unit pass=129 fail=0
+
+== lint ==
+current: 56 errors / 100 warnings (exit 1). pre-v2.2 baseline d81ab51: 56 errors / 82 warnings (exit 1) — logs/lint-baseline-pre-v22-d81ab51.log. No new lint error introduced by v2.2.
+
+== AC-39 load (LOCAL Miniflare, 900 s, reports/load-report-900.json) ==
+commit p95 57 ms | fanout p95 72 ms | rapid enqueue p95 142 ms | rapid result max 206 ms | distribution {'client': 1120, 'staff': 3360, 'dbClientMessages': 1120, 'dbStaffMessages': 3360, 'ratioStaffPerClient': 3} | lost 0 | leaked 0 | targets {'commitP95le1000': True, 'fanoutP95le2000': True, 'rapidEnqueueP95le800': True, 'rapidResultMaxle5000': True, 'distribution1to3': True, 'zeroLost': True, 'zeroLeaked': True, 'noErrors': True}
+
+== mutations ==
+M1 outbox idempotency key: CAUGHT exit=1 ['not ok 1 - outbox: delivery with the event id as Idempotency-Key; limited tex
+M2 outbox lease CAS (forced interleaving): CAUGHT exit=1 ['not ok 2 - two dispatchers that observed the same PENDING row
+M3 chat media CLEAN gate: CAUGHT exit=1 ['not ok 4 - attachments and voice: quarantine pipeline, no playback before CLEA
+M4 payment replay: CAUGHT exit=1 ['not ok 4 - 4 · duplicates: same key replays, other payload 409; overpayment, case/cu
+M5 socket Origin check: CAUGHT exit=1 ['not ok 5 - WebSocket: commit-then-fan-out, SEND over WS acks with the committed 
+M6 client staff-identity mask: CAUGHT exit=1 ['not ok 7 - leakage: no stack/SQL in errors, staff identities hidden from 
+M7 legal hold check: CAUGHT exit=1 ['not ok 1 - privacy: MANAGER-only ledger; hold refuses erasure; access export; erasu
+restore build exit=0
+
+== deployment ==
+NOT EXECUTED: CLOUDFLARE_API_TOKEN missing in this environment (checked; api.cloudflare.com reachable, 401 without token).
+
+==== PHASE 3 DEPLOY ATTEMPT — 2026-11-15 ====
+Account/D1 env vars present; values match the owner's message (CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID).
+Network secret "api.cloudflare.com" (header Authorization) listed on the environment.
+Token check: api.cloudflare.com rejected every request for ~4 min
+  /user/tokens/verify -> code 1000 "Invalid API Token"
+  /accounts/<id>/tokens/verify -> code 1000 "Invalid API Token"
+  /accounts/<id>/d1/database, /workers/scripts -> code 10000 "Authentication error" (9 polls x 20 s + final)
+  wrangler whoami -> "A request to the Cloudflare API (/accounts) failed."
+Result: BLOCKER — nothing executed against production (no export, no migration, no deploy).
+Pre-deploy live state (unchanged): workers.dev /staff/login 200; desk.careergate.us /staff/login 200;
+  canada.careergate.us/staff/login 302 -> desk.careergate.us; workers.dev /api/office 401 (unauthenticated).
+Prepared, token-independent:
+  build from HEAD 09b955c: exit 0
+  scripts/deploy-config.mjs + wrangler deploy --dry-run with real D1 id / alhijrah-canada-db / alhijrah-canada-docs: exit 0
+  bindings: CHAT_ROOMS (CaseChatRoom DO), DB (alhijrah-canada-db), BUCKET (alhijrah-canada-docs); upload 5256 KiB / gzip 1681 KiB
+  (dry-run used placeholder OFFICE_ADMIN_EMAIL/SHADOW_ONLY; the real values must be read from the live worker before deploy)
+
+==== PHASE 3 DEPLOY RUN — 2026-11-15 22:00–22:30 UTC ====
+Token: valid (proxy-injected; /user/tokens/verify active, expires 2027-11-16).
+Live worker before: version 8db38519 ("gate 2 d81ab51 SHADOW_ONLY"); bindings DB=alhijrah-canada-db, BUCKET=alhijrah-canada-docs;
+  vars OFFICE_ADMIN_EMAIL (21 chars), SHADOW_ONLY (4 chars); secret APP_SECRET; custom domains desk/canada.careergate.us; cron 17 8 * * *.
+Production checks: d1_migrations 24 rows (0000..0023); pending list exactly 0024..0031.
+  office_settings: mail_from=notifications@careergate.us, Resend key present, primary owner set.
+  login_credentials: administrator password already exists (staff:alhijrahusa@gmail.com) -> /api/staff/setup returns 409.
+Rollback point: time-travel bookmark 000000f9-00000000-00005124-e6b596a6bac823432865b161b40b4e67.
+Backup: wrangler d1 export --remote: exit 0; 1,651,988 bytes; 1122 INSERT; sha256 5a90ef023b43c0ecec6f2fdb22c95897a62a664828b863248787c36426e19e51
+  (kept only in the session scratchpad; not committed — contains client data; the container is ephemeral).
+Rehearsal: backup loaded locally + 0024..0031 applied: all OK; quick_check ok; foreign_key_check 0.
+Migrations apply --remote: exit 0; 0024..0031 all ✅.
+Deploy: exit 1 — POST /workers/assets/upload -> 401 (x9). Cause verified: the proxy replaces any Authorization header to
+  api.cloudflare.com (a fabricated JWT and "Bearer zzzz" both verified as the saved token), so the assets-upload JWT never arrives.
+  No new version created (versions list unchanged; live version still 8db38519).
+Impact found: live old code (d81ab51) on the migrated schema; new triggers block old write paths (case_facts frozen 0029,
+  assessment_history insert guard 0025, documents guards 0030).
+Rollback executed: time-travel restore to the bookmark above: exit 0.
+  Rows written after the backup and before restore (one staff sign-in: auth_security_log 1, operation_logs 1, staff_sessions 1)
+  re-inserted; rate_limits (3 ephemeral rows) not restored.
+  Post-restore: every table count equals backup except those 3 re-inserted rows; d1_migrations 24 (0023); v2.2 tables absent.
+  Live: desk.careergate.us/staff/login 200; /api/office 401 unauthenticated; workers.dev /staff/login 200.
+Not done: ADMIN_SETUP_TOKEN not set (deploy failed; administrator password already exists -> setup endpoint 409);
+  mail sender unchanged (already notifications@careergate.us); OFFICE_NOTIFICATION_EMAIL not set (no code reads it).
+Artifacts for an off-proxy deploy: output/DEPLOY_RUNBOOK.md,
+  canada-desk-deploy-09b955c.tar.gz sha256 8987e3661360dbdecc9a153dd2d01b158e765b23d4482c0b132106cf050dd052
+  canada-desk-09b955c.bundle        sha256 324b1c50334fd51c3428959a896be3c9b0e9b91ad57e8c1e9b45fc0408ff8a0d
+RESULT: FAILED — production unchanged (old code, old schema).
+
+==== PHASE 3 DEPLOY RETRY — 2026-11-15 22:30 UTC ====
+Token now from environment variable (account token, cfat_*); proxy no longer injects (verified).
+wrangler whoami: exit 0 (Account API Token, account d0fe7333…64cb).
+Preflight (no traffic impact): `wrangler versions upload` without DO/routes/crons: exit 0; 19 assets uploaded, 62 already present;
+  version 825d9d61-4902-4f9e-968b-806f8621fba8 created, NOT deployed. Asset-upload 401 is resolved.
+Permission probe with the new token: workers/scripts OK, r2/buckets OK, zones (careergate.us) OK,
+  d1/database and d1/database/<id> -> 10000 "Authentication error". wrangler d1 time-travel info / d1 export -> fail.
+RESULT: BLOCKER — token lacks D1 permission; backup, migrations and deploy NOT executed. Database untouched
+  (still 0000..0023, old code live: version 8db38519). Stopped before any production change.
+Containment: preview URLs disabled for alhijrah-canada-desk (previews_enabled=false; workers.dev stays enabled) so the
+  undeployed preflight version (new code, production D1/R2 bindings, old schema) is not reachable by a preview URL.
+Live: desk.careergate.us/staff/login 200; workers.dev/staff/login 200.
+
+==== PHASE 3 FINAL DEPLOY — 2026-11-15 ~22:40 UTC ====
+wrangler d1 list: alhijrah-canada-db beda84dd-472a-4dec-beb7-e52c81c74732 (PASS).
+Rollback point: time-travel bookmark 000000fd-00000000-00005124-1a18354468323086685e500a42522b01.
+Backup: d1 export --remote exit 0; 1,653,280 bytes; 1127 INSERT; sha256 aafd03b7e900bee3c834d144fa024530db45fc7cd635df5e45af7619b43c35d1
+  (session scratchpad only; contains client data; container is ephemeral).
+Pending before apply: exactly 0024..0031. Rehearsal on this backup: all OK, quick_check ok, foreign_key_check 0.
+Dry-run deploy: exit 0 (CHAT_ROOMS/CaseChatRoom, DB, BUCKET, OFFICE_ADMIN_EMAIL, SHADOW_ONLY=false).
+Migrations apply --remote: exit 0; 0024..0031 ✅. d1_migrations now 32 (last 0031_v22_privacy.sql).
+Deploy: exit 0; version 5697ec7c-d48e-4de0-8364-809ad1b9ac04 at 100% ("v2.2 Gate 6 09b955c");
+  custom domains desk.careergate.us, canada.careergate.us; workers.dev; crons 17 8 * * * and */5 * * * *.
+Live bindings (API): APP_SECRET (secret, unchanged), BUCKET, CHAT_ROOMS durable_object_namespace (CaseChatRoom), DB,
+  OFFICE_ADMIN_EMAIL (21 chars), SHADOW_ONLY=false.
+HTTP: desk / 200; desk /staff/login 200 (HSTS, CSP, X-Frame-Options present); canada /staff/login 302 -> desk;
+  workers.dev /staff/login 200; /api/office 401, /api/candidates/x/privacy 401, /api/client/chat 401 without a session.
+DB after deploy: admin credential 1; primary owner set; users MANAGER 1; v2.2 tables present; candidates 19 = backup 19.
+Observability (last 20 min): new version 17 fetch events all outcome ok, 0 error-level events.
+Not verified: authenticated 200 on /api/office (no staff session available to the agent); first */5 scheduled run (see below).
+Cron check: schedules registered (17 8 * * *; */5 * * * * modified 22:43:39Z). Telemetry to 22:54Z: 39 fetch events, all ok,
+  0 errors; no scheduled event observed yet (Cloudflare documents up to 15 min propagation for new cron triggers) -> NOT VERIFIED.
+RESULT: SUCCESS — v2.2 (09b955c) live as version 5697ec7c; rollback = time-travel restore to bookmark
+  000000fd-00000000-00005124-1a18354468323086685e500a42522b01 + `wrangler rollback 8db38519-b1a7-4218-9310-656156d6c311`.
+
+==== STAFF COMMAND DESK — 2026-11-16 ~00:30 UTC ====
+Commit aa54628 (alhijrah-canada-desk). Patch: output/command-desk-aa54628.patch (sha256 8748ec0de965d618267b4bfc57f46e9a540d553cc8c1fdc17086c1bf8c37d412).
+Regression (final code): 34/34 exit 0 —
+  1 exit=0 pass=129 fail=0 secs=2
+  2 exit=0 pass= fail= secs=3
+  3 exit=0 pass=8 fail=0 secs=6
+  4 exit=0 pass=9 fail=0 secs=7
+  5 exit=0 pass=8 fail=0 secs=6
+  6 exit=0 pass=8 fail=0 secs=33
+  7 exit=0 pass=6 fail=0 secs=14
+  8 exit=0 pass=17 fail=0 secs=12
+  9 exit=0 pass=4 fail=0 secs=17
+  10 exit=0 pass=4 fail=0 secs=0
+  11 exit=0 pass=4 fail=0 secs=18
+  12 exit=0 pass=9 fail=0 secs=9
+  13 exit=0 pass=3 fail=0 secs=0
+  14 exit=0 pass=7 fail=0 secs=6
+  15 exit=0 pass= fail= secs=6
+  16 exit=0 pass= fail= secs=12
+  17 exit=0 pass= fail= secs=6
+  18 exit=0 pass= fail= secs=4
+  19 exit=0 pass= fail= secs=6
+  20 exit=0 pass= fail= secs=5
+  21 exit=0 pass= fail= secs=5
+  22 exit=0 pass= fail= secs=5
+  23 exit=0 pass= fail= secs=5
+  24 exit=0 pass= fail= secs=7
+  25 exit=0 pass= fail= secs=9
+  26 exit=0 pass= fail= secs=7
+  27 exit=0 pass= fail= secs=7
+  28 exit=0 pass= fail= secs=5
+  29 exit=0 pass= fail= secs=6
+  30 exit=0 pass= fail= secs=8
+  31 exit=0 pass= fail= secs=6
+  32 exit=0 pass=2 fail=0 secs=15
+  33 exit=0 pass=3 fail=0 secs=5
+  lint-ratchet exit=0 lint ratchet ok:
+  (34 = lint ratchet: 55 errors, baseline 56, no file worse). New: tests/v22/desk.test.mjs 3/3; operations E2E 4/4 incl. desk journey + 390px.
+Bug fixed during regression: billing payment date default/max used the UTC date -> server (Toronto) rejected payments every evening 19:00-24:00 Toronto. Now torontoDate().
+Deploy: no migrations pending; wrangler deploy exit 0; version a0bb649a-b0b1-459e-88b9-e715c19da1ac at 100% ("command desk aa54628"); rollback: wrangler rollback 5697ec7c-d48e-4de0-8364-809ad1b9ac04.
+Live: / 200, /staff/login 200, /?view=classic 200, /apply 200, /api/office 401 (no session), POST workflow close_session 401 (no session).
+Bindings: APP_SECRET, BUCKET, CHAT_ROOMS, DB, OFFICE_ADMIN_EMAIL, OPENAI_API_KEY (secret, present on worker), SHADOW_ONLY=false.
+Telemetry: new version fetch ok; */5 scheduled event observed (previous version 5697ec7c, outcome ok) -> cron VERIFIED.
+
+==== ALHIJRAH DECISION-SUPPORT ENGINE (OpenAI) — 2026-11-16 ====
+Model verification (real API, project key from OPENAI_API_KEY): GET /v1/models 200, gpt-6.1-sol listed (96 models); GET /v1/models/gpt-6.1-sol 200;
+  POST /v1/responses model=gpt-6.1-sol -> 200, response model gpt-6.1-sol, text ALHIJRAH-OK; web_search (allowed_domains canada.ca) -> 200 with canada.ca citation.
+Commit 5fd72d5. Patch output/alhijrah-engine-5fd72d5.patch (sha256 b047662dd570b731bb80908301754432d1ce3dcdf17a833abaf0b23d3b027f12).
+Live E2E (tests/ai-live.mjs, built Worker + real OpenAI, synthetic case): PASSED with gpt-6.1-sol
+  calls: /v1/models 200; /v1/responses 200 x4 all model gpt-6.1-sol (ai-check 1.2s; compare AR 66s; compare EN 55s; assistant 7.4s)
+  compare AR: 16 requirements, 8 verified against official URLs, 8 unverified (flagged); compare EN: 18 requirements, 12 verified, 6 unverified; checkedOn 2026-11-15; sourcePageDate 2026-11-09 (canada.ca RCIP pages)
+  assistant: webSearch=true, official citation only (canada.ca RCIP language-test page); case version/status unchanged.
+Regression (final code): 35/35 exit 0 —
+  1 exit=0 pass=129 fail=0 secs=1
+  2 exit=0 pass= fail= secs=4
+  3 exit=0 pass=8 fail=0 secs=6
+  4 exit=0 pass=9 fail=0 secs=7
+  5 exit=0 pass=8 fail=0 secs=6
+  6 exit=0 pass=8 fail=0 secs=33
+  7 exit=0 pass=6 fail=0 secs=14
+  8 exit=0 pass=17 fail=0 secs=11
+  9 exit=0 pass=4 fail=0 secs=17
+  10 exit=0 pass=4 fail=0 secs=1
+  11 exit=0 pass=4 fail=0 secs=19
+  12 exit=0 pass=9 fail=0 secs=8
+  13 exit=0 pass=3 fail=0 secs=1
+  14 exit=0 pass=7 fail=0 secs=5
+  15 exit=0 pass= fail= secs=6
+  16 exit=0 pass= fail= secs=12
+  17 exit=0 pass= fail= secs=5
+  18 exit=0 pass= fail= secs=4
+  19 exit=0 pass= fail= secs=6
+  20 exit=0 pass= fail= secs=5
+  21 exit=0 pass= fail= secs=6
+  22 exit=0 pass= fail= secs=6
+  23 exit=0 pass= fail= secs=5
+  24 exit=0 pass= fail= secs=8
+  25 exit=0 pass= fail= secs=8
+  26 exit=0 pass= fail= secs=8
+  27 exit=0 pass= fail= secs=7
+  28 exit=0 pass= fail= secs=6
+  29 exit=0 pass= fail= secs=5
+  30 exit=0 pass= fail= secs=8
+  31 exit=0 pass= fail= secs=6
+  32 exit=0 pass=2 fail=0 secs=17
+  33 exit=0 pass=3 fail=0 secs=4
+  34 exit=0 pass=6 fail=0 secs=6
+  lint-ratchet exit=0 lint ratchet ok:
+  new: tests/v22/decision-support.test.mjs 6/6 (mocked OpenAI); updated: office-hub-api, experience-api (Groq expectations replaced).
+Deploy: no migrations; wrangler deploy exit 0 version 1d5e38df (OPENAI_MODEL=gpt-6.1-sol); secret OPENAI_API_KEY uploaded (value from environment, never printed) -> live version 6ec5482f-3571-41aa-879a-c70f42be2a93.
+Live checks: / 200, /staff/login 200; /api/office, /api/dashboard/priorities, /api/office/ai-check, /api/candidates/:id/decision-support -> 401 without session.
+Not verified on production: an authenticated engine call (no staff session available to the agent). Rollback: wrangler rollback a0bb649a-b0b1-459e-88b9-e715c19da1ac.
+
+==== PRIVACY PAGE POLICY — 2026-11-16 ====
+Commit 4e4e6d2: components/client/privacy.tsx — section «معالجة المستندات والخدمات الرقمية» (3 paragraphs) removed; owner-approved data policy added verbatim from lib/legal.ts (DATA_POLICY_INTRO + 6 items) as cards; app/experience.css card styles; tests/intake-api.mjs asserts approved text present and removed text absent.
+Unchanged: authorization text, legal terms, LEGAL_VERSION and stored authorization snapshots.
+Regression: 35 commands — 34 exit 0 first run; portal.e2e.spec.ts journey timed out once on the path-card fade (unrelated), then 2/2 reruns exit 0 (4/4).
+Deploy exit 0, version f619a74c-f60a-4bbd-9069-b1f2e08bcf30. Live /privacy: approved intro + 6 headings present; removed phrases absent (incl. Anthropic). No horizontal overflow at 1280 and 390 (screenshots output/privacy-desktop.png, privacy-phone.png).
+
+==== ASSESSMENT ENGINE + PROVIDER-NAME REMOVAL — branch ccr-engine-gate, commit 0eb0eef (NOT deployed) ====
+Patch output/engine-0eb0eef.patch sha256 04aab0a29710b4f260ea647ba6878c6480d5e32790a7ef1d2d7ab147a132e311
+Regression 37/37 exit 0:
+  1 exit=0 pass=129 fail=0
+  2 exit=0 pass= fail=
+  3 exit=0 pass=8 fail=0
+  4 exit=0 pass=9 fail=0
+  5 exit=0 pass=8 fail=0
+  6 exit=0 pass=8 fail=0
+  7 exit=0 pass=6 fail=0
+  8 exit=0 pass=17 fail=0
+  9 exit=0 pass=5 fail=0
+  10 exit=0 pass=4 fail=0
+  11 exit=0 pass=4 fail=0
+  12 exit=0 pass=9 fail=0
+  13 exit=0 pass=3 fail=0
+  14 exit=0 pass=7 fail=0
+  15 exit=0 pass= fail=
+  16 exit=0 pass= fail=
+  17 exit=0 pass= fail=
+  18 exit=0 pass= fail=
+  19 exit=0 pass= fail=
+  20 exit=0 pass= fail=
+  21 exit=0 pass= fail=
+  22 exit=0 pass= fail=
+  23 exit=0 pass= fail=
+  24 exit=0 pass= fail=
+  25 exit=0 pass= fail=
+  26 exit=0 pass= fail=
+  27 exit=0 pass= fail=
+  28 exit=0 pass= fail=
+  29 exit=0 pass= fail=
+  30 exit=0 pass= fail=
+  31 exit=0 pass= fail=
+  32 exit=0 pass=2 fail=0
+  33 exit=0 pass=3 fail=0
+  34 exit=0 pass=6 fail=0
+  35 exit=0 pass=9 fail=0
+  36 exit=0 pass=10 fail=0
+  lint-ratchet exit=0 lint ratchet
+New: engine-core 9/9, v22/engine 10/10, operations E2E engine journey 1/1 (screenshots engine-panel-1440.png, client-published-390.png).
+Fixes found by tests: package refresh made non-fatal for the assessment job; 'unassessed' rules ref for cases without an assessment.
+Test fixtures changed by design: consent version v4->v5 in 12 suites; 0032 in database fixture list; job settling loop in engine test.
+Not verified: live IRCC rounds JSON (www.canada.ca unreachable from this sandbox: HTTP/2 stream error); parser tested on synthetic data only.
+Pending approval: production migration 0032 + deploy.
+
+== Round 3 (engine branch ccr-engine-gate @ 20a05d5; production untouched: f619a74c, migrations ≤0031) ==
+Regression: 37/37 PASS (output/r3-summary.txt, logs in output/r3-regression/). tsc clean; lint ratchet 55 (baseline 56).
+LIVE gpt-6.1-sol flow (synthetic PDF + scanned PNG, isolated D1 0000-0032, scanner MOCKED): PASS — output/r3-live-flow.json
+LIVE official rounds via Worker runtime: 200, 742096 B, Last-Modified 2026-10-28T13:37:19Z, 454 rounds, UNCHANGED on rerun — output/r3-radar-live.json
+LIVE model check: listed + ai-check gpt-6.1-sol — output/r3-ai-live.log
+Mocked: engine-intake 8/8, engine 10/10. Report, requirement map, blockers, backup/migration/rollback: output/RELEASE_R3.md
+Production: migration 0032 applied and Worker f31ab7eb deployed on 2026-11-16 after explicit approval (see RELEASE_R3.md §7).
+
+== Analysis tab redesign (ccr-engine-gate @ 0eb0940) — NOT deployed (pending approval) ==
+Five-section glass workspace; hybrid manual field edit; fixes: unstyled gold actions in case tabs, tab reset after save.
+Regression 37/37 (output/ui-r4/regression-summary.txt); operations E2E 7/7; lint ratchet 55 (baseline 56).
+Screenshots 1440/390 for every section + before/after: output/ui-r4/. Patch: output/analysis-ui-0eb0940.patch
+
+== Production 2026-11-16: Worker ca64df58 (commits 0eb0940 + 859b4e6), no migration; rollback: wrangler rollback f31ab7eb-8a12-4723-adfd-0bbfae479338 ==
+Analysis workspace redesign; central AI gate for all office calls (usage/quota/breaker, rejection reasons, one correction round);
+draw radar retry + MANAGER upload of the official rounds file. Regression 37/37 (09 re-run: first run transient overflow).
+Live: readiness brief 200 after one correction (first response failed on 'questions'). Logs: output/r5/.
+Open: edge fetch of canada.ca from Cloudflare unverified since 520 at 08:17 UTC; check with «فحص السحوبات الرسمية الآن» or upload the file.
+
+== Production 2026-11-16: Worker e567aefd (commits d9f372a + a41d5ef), no migration; rollback: wrangler rollback ca64df58-cc16-4915-a9c1-eec39e094386 ==
+Client entry gold/green look restored inside the hero card (luxury pass). Verified 360/768/1440, RTL + EN (LTR), keyboard focus,
+reduced motion; live production page checked. Tests: portal E2E 4/4, portal 9/9, operations E2E 7/7, access 8/8, security 7/7,
+legal-authorization, intake-identity, portal-security, intake-api, auth-isolation, experience-api PASS. Screens: output/client-ui/.
+
+== Production 2026-11-16: Worker 245d45d9 (commit radar batch inserts), no migration ==
+Manual upload of the official rounds file succeeded at 16:20 UTC (454 rounds, audited) but took 53 s (one insert per round);
+a concurrent page load hit Error 1102. Inserts are now batched (50 per D1 round trip). Rollback: wrangler rollback e567aefd-e833-47c5-b118-5ccb402eb2a6

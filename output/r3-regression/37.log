@@ -1,0 +1,23 @@
+TAP version 13
+# Subtest: privacy: MANAGER-only ledger; hold refuses erasure; access export; erasure removes deletable personal data and reports retained records
+ok 1 - privacy: MANAGER-only ledger; hold refuses erasure; access export; erasure removes deletable personal data and reports retained records
+  ---
+  duration_ms: 19542.846509
+  type: 'test'
+  ...
+# RESTORE_REPORT {"takenAtMs":1794811569244,"backupDurationMs":1540,"backupSha256":"55a3983597d05f32d10c50d547c55e0e588b918af2ee2df06067673444eab5b1","failureAtMs":1794811570861,"rpoMs":1617,"restoreDurationMs":10832,"rtoMs":14209,"tables":91,"rows":77,"r2Objects":2,"postRestore":{"outboxMarkedAmbiguous":2,"jobsReturnedToRetry":0},"reErasure":{"reapplied":2,"entries":2},"rollback":"PASS (previous build at 44fd112)","environment":"Miniflare (local, isolated); not Cloudflare staging"}
+# Subtest: restore drill: backup → more writes + erasure → isolated restore, verification, RPO/RTO, re-erasure, no unconfirmed resend, capability disable, rollback
+ok 2 - restore drill: backup → more writes + erasure → isolated restore, verification, RPO/RTO, re-erasure, no unconfirmed resend, capability disable, rollback
+  ---
+  duration_ms: 24746.512987
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 44692.108316

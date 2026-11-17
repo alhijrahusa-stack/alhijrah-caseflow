@@ -1,0 +1,38 @@
+PASS 01 node --experimental-strip-types --no-warnings --test tests/american-terms.test.mjs tests/assessment.test.mjs tests/assistance.test.mjs tests/case-workflow.test.mjs tests/crs-engine.test.mjs tests/crs-golden.test.mjs tests/csv.test.mjs tests/eligibility.test.mjs tests/entry-requirements.test.mjs tests/experience.test.mjs tests/gate2-units.test.mjs tests/inputs-hash.test.mjs tests/mi-2026-1.test.mjs tests/mi-consolidated.test.mjs tests/migrations-journal.test.mjs tests/mrz-repair.test.mjs tests/noc-teer.test.mjs tests/pathways.test.mjs tests/triage.test.mjs
+PASS 02 npx tsc --noEmit -p .
+PASS 03 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/access.test.mjs
+PASS 04 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/automation.test.mjs
+PASS 05 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/billing.test.mjs
+PASS 06 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/chat.test.mjs
+PASS 07 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/database.test.mjs
+PASS 08 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/engines.test.mjs
+PASS 09 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/operations.e2e.spec.ts
+PASS 10 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/outbox-cas.test.mjs
+PASS 11 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/portal.e2e.spec.ts
+PASS 12 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/portal.test.mjs
+PASS 13 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/registry-coexistence.test.mjs
+PASS 14 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/security.test.mjs
+PASS 15 timeout 900 node --experimental-strip-types --no-warnings tests/assistance-api.mjs
+PASS 16 timeout 900 node --experimental-strip-types --no-warnings tests/auth-isolation.mjs
+PASS 17 timeout 900 node --experimental-strip-types --no-warnings tests/automation-api.mjs
+PASS 18 timeout 900 node --experimental-strip-types --no-warnings tests/contact-log-api.mjs
+PASS 19 timeout 900 node --experimental-strip-types --no-warnings tests/engine-api.mjs
+PASS 20 timeout 900 node --experimental-strip-types --no-warnings tests/engine-shadow-only-api.mjs
+PASS 21 timeout 900 node --experimental-strip-types --no-warnings tests/enterprise-api.mjs
+PASS 22 timeout 900 node --experimental-strip-types --no-warnings tests/experience-api.mjs
+PASS 23 timeout 900 node --experimental-strip-types --no-warnings tests/gate2-api.mjs
+PASS 24 timeout 900 node --experimental-strip-types --no-warnings tests/hardening-api.mjs
+PASS 25 timeout 900 node --experimental-strip-types --no-warnings tests/identity-trust-api.mjs
+PASS 26 timeout 900 node --experimental-strip-types --no-warnings tests/intake-api.mjs
+PASS 27 timeout 900 node --experimental-strip-types --no-warnings tests/intake-identity.mjs
+PASS 28 timeout 900 node --experimental-strip-types --no-warnings tests/legal-authorization.mjs
+PASS 29 timeout 900 node --experimental-strip-types --no-warnings tests/local-api.mjs
+PASS 30 timeout 900 node --experimental-strip-types --no-warnings tests/office-hub-api.mjs
+PASS 31 timeout 900 node --experimental-strip-types --no-warnings tests/portal-security.mjs
+PASS 32 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/desk.test.mjs
+PASS 33 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/decision-support.test.mjs
+PASS 34 timeout 900 node --experimental-strip-types --no-warnings --test tests/engine-core.test.mjs
+PASS 35 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/engine.test.mjs
+PASS 36 timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/engine-intake.test.mjs
+PASS 37 env ROLLBACK_REF=44fd112 ROLLBACK_DIST=/tmp/claude-0/-home-user-alhijrah-caseflow/6a4112b7-566a-5359-8ce1-d51706829c53/scratchpad/rollback-44fd112/dist/server RESTORE_REPORT=/tmp/claude-0/-home-user-alhijrah-caseflow/6a4112b7-566a-5359-8ce1-d51706829c53/scratchpad/restore-report.json timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/restore.test.mjs
+TOTAL pass=37 fail=0

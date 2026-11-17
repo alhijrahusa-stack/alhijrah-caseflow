@@ -1,0 +1,22 @@
+Uploaded 12 of 12 assets
+✨ Success! Uploaded 12 files (81 already uploaded) (2.20 sec)
+
+Total Upload: 5579.09 KiB / gzip: 1767.31 KiB
+Worker Startup Time: 29 ms
+Your Worker has access to the following bindings:
+Binding                                               Resource                  
+env.CHAT_ROOMS (CaseChatRoom)                         Durable Object            
+env.DB (alhijrah-canada-db)                           D1 Database               
+env.BUCKET (alhijrah-canada-docs)                     R2 Bucket                 
+env.OFFICE_ADMIN_EMAIL ("Alhijrahusa@gmail.com")      Environment Variable      
+env.OPENAI_MODEL ("gpt-6.1-sol")                      Environment Variable      
+env.SHADOW_ONLY ("false")                             Environment Variable      
+
+Uploaded alhijrah-canada-desk (7.81 sec)
+Deployed alhijrah-canada-desk triggers (2.29 sec)
+  https://alhijrah-canada-desk.alhijrahusa.workers.dev
+  desk.careergate.us (custom domain)
+  canada.careergate.us (custom domain)
+  schedule: 17 8 * * *
+  schedule: */5 * * * *
+Current Version ID: ca64df58-cc16-4915-a9c1-eec39e094386

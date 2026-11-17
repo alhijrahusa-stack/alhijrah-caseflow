@@ -1,0 +1,1 @@
+Local API checks passed: persistence, authentication, ownership, concurrency, document tasks, consent, referrals, dates, duplicate protection, filtering, 50-row CSV import, pagination, health and reports.

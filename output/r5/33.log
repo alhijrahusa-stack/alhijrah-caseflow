@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: server-side OpenAI configuration: model from OPENAI_MODEL, live availability check, no key exposure, no Groq traffic
+ok 1 - server-side OpenAI configuration: model from OPENAI_MODEL, live availability check, no key exposure, no Groq traffic
+  ---
+  duration_ms: 3939.850235
+  type: 'test'
+  ...
+# Subtest: provider errors are reported exactly; the configured model is never swapped
+ok 2 - provider errors are reported exactly; the configured model is never swapped
+  ---
+  duration_ms: 48.57786
+  type: 'test'
+  ...
+# Subtest: pathway comparison: ≤3 pathways, official-source citations only, dated, de-identified, read-only, saved as a draft report
+ok 3 - pathway comparison: ≤3 pathways, official-source citations only, dated, de-identified, read-only, saved as a draft report
+  ---
+  duration_ms: 184.146356
+  type: 'test'
+  ...
+# Subtest: document check requires the client AI authorization, sends only clean/legacy files, and never marks documents reviewed
+ok 4 - document check requires the client AI authorization, sends only clean/legacy files, and never marks documents reviewed
+  ---
+  duration_ms: 113.811025
+  type: 'test'
+  ...
+# Subtest: assistant: review/CV requests come back as proposals; search limited to official sources; non-official citations dropped
+ok 5 - assistant: review/CV requests come back as proposals; search limited to official sources; non-official citations dropped
+  ---
+  duration_ms: 90.548977
+  type: 'test'
+  ...
+# Subtest: work priorities: overdue tasks, then today, then waiting client requests, then inactive cases
+ok 6 - work priorities: overdue tasks, then today, then waiting client requests, then inactive cases
+  ---
+  duration_ms: 162.072641
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4870.674008

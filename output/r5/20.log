@@ -1,0 +1,1 @@
+Engine SHADOW_ONLY passed: new file assessed on insert; PATCH records history but leaves candidates.assessment byte-identical; write recompute refused (409); scheduled shadow once on its own cron with before/after SHA-256 integrity; daily jobs only on the daily cron.

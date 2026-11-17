@@ -1,0 +1,530 @@
+{
+  "mode": "LIVE OpenAI; MOCKED scanner binding; isolated in-memory D1 (migrations 0000-0032)",
+  "model": "gpt-6.1-sol",
+  "steps": {
+    "upload": {
+      "ms": 4277,
+      "documents": [
+        {
+          "kind": "text PDF",
+          "bytes": 4383
+        },
+        {
+          "kind": "scanned PNG",
+          "bytes": 57335
+        }
+      ]
+    },
+    "scan": {
+      "ms": 17721,
+      "integrity": [
+        "CLEAN",
+        "CLEAN"
+      ]
+    },
+    "extraction": {
+      "ms": 17839,
+      "results": {
+        "pdf": {
+          "job": "SUCCEEDED",
+          "result": "APPLIED",
+          "error": null,
+          "processing": {
+            "state": "EXTRACTED",
+            "ocr": 0,
+            "t": "Curriculum vitae (synthetic QA sample)",
+            "m": "MATCH",
+            "l": "en",
+            "attempts": 2
+          }
+        },
+        "png": {
+          "job": "SUCCEEDED",
+          "result": "APPLIED",
+          "error": null,
+          "processing": {
+            "state": "EXTRACTED",
+            "ocr": 1,
+            "t": "English Language Test Report Form — SYNTHETIC QA SAMPLE - NOT A REAL CERTIFICATE",
+            "m": "MATCH",
+            "l": "en",
+            "attempts": 2
+          }
+        }
+      }
+    },
+    "fill": {
+      "ms": 17864,
+      "filled": {
+        "occupation": "Industrial Electrician",
+        "education": "bachelor",
+        "country": "Yemen",
+        "englishMin": 0,
+        "englishDate": "2026-08-14",
+        "jobs": 1,
+        "facts": [
+          "country:APPLIED:HIGH",
+          "education:APPLIED:HIGH",
+          "englishDate:APPLIED:HIGH",
+          "english_test:EXTRACTED:HIGH",
+          "occupation:APPLIED:HIGH",
+          "work_history:EXTRACTED:MEDIUM"
+        ]
+      },
+      "extractionRuns": [
+        {
+          "kind": "EXTRACTION",
+          "status": "SUCCEEDED",
+          "model": "gpt-6.1-sol",
+          "i": 1352,
+          "o": 318,
+          "d": 4005,
+          "p": "extract-2026-11-16.2"
+        },
+        {
+          "kind": "EXTRACTION",
+          "status": "SUCCEEDED",
+          "model": "gpt-6.1-sol",
+          "i": 791,
+          "o": 530,
+          "d": 9074,
+          "p": "extract-2026-11-16.2"
+        }
+      ]
+    },
+    "crs": {
+      "ms": 17987,
+      "crs": 345
+    },
+    "analysis": {
+      "ms": 78534,
+      "run": {
+        "run_id": "f208af36-be1f-4180-ab76-e987ee0e8936",
+        "status": "SUCCEEDED",
+        "model": "gpt-6.1-sol",
+        "i": 51393,
+        "o": 3857,
+        "t": 6,
+        "r": 2,
+        "d": 60403,
+        "e": "",
+        "rev": 5,
+        "rv": "2026-11-15.v4",
+        "pv": "analysis-2026-11-16.1"
+      },
+      "result": {
+        "summary": "تقييم أولي غير محسوم للمسارين الأعلى ترتيبًا. نتيجة CRS المعادة من أداة الحساب 345 دون تقدير إضافي؛ يلزم مصالحة مدخلاتها مع النواقص الظاهرة. نتائج اللغة والخبرة مستخرجة وغير معتمدة من الموظف. التحقق الرسمي للمسار الفيدرالي غير مكتمل، ولا يجوز اعتبار هذا تقييمًا نهائيًا للمتطلبات الحالية. الرأي النهائي للمختص المرخص وليس قرارًا حكوميًا.",
+        "crsQuoted": 345,
+        "pathways": [
+          {
+            "id": "fsw",
+            "objective": "PERMANENT_RESIDENCE",
+            "eligibility": "UNRESOLVED",
+            "unresolved": [
+              "تصنيف الخبرة ضمن TEER المؤهل",
+              "إثبات سنة خبرة مؤهلة خلال آخر عشر سنوات",
+              "إثبات سنة متصلة في المهنة الأساسية"
+            ],
+            "sources": [],
+            "office": 3,
+            "client": 1
+          },
+          {
+            "id": "rcip",
+            "objective": "PERMANENT_RESIDENCE",
+            "eligibility": "UNRESOLVED",
+            "unresolved": [
+              "سنة خبرة مؤهلة خلال آخر ثلاث سنوات أو إعفاء منطبق",
+              "إثبات خبرة مدفوعة لدى جهة عمل وليست عملًا حرًا",
+              "الحد اللغوي المطلوب باختبار ساري في المهارات الأربع"
+            ],
+            "sources": [
+              "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility.html",
+              "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html",
+              "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html"
+            ],
+            "office": 2,
+            "client": 2
+          }
+        ],
+        "searched": [
+          "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility.html",
+          "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html",
+          "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration-program/eligibility/language-test.html",
+          "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration.html",
+          "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/job-offer.html",
+          "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/settle.html"
+        ]
+      },
+      "tasks": 5
+    },
+    "publish": {
+      "ms": 78675,
+      "version": 1
+    },
+    "clientView": {
+      "ms": 78690,
+      "keys": [
+        "version",
+        "publishedAt",
+        "assessment"
+      ]
+    }
+  },
+  "migrationsApplied": 33,
+  "clientView": {
+    "version": 1,
+    "publishedAt": "2026-11-16T06:49:23.122Z",
+    "assessment": {
+      "packageVersion": 3,
+      "ruleVersion": "2026-11-15.v4",
+      "generatedAt": "2026-11-16T06:48:22.396Z",
+      "crs": {
+        "value": 345
+      },
+      "pathways": [
+        {
+          "rank": 1,
+          "name": "العامل الماهر الفيدرالي",
+          "region": "Express Entry · FSW",
+          "readiness": "NEEDS_COMPLETION",
+          "coverage": {
+            "met": 1,
+            "evaluated": 6
+          },
+          "met": [
+            "مؤهل يعادل الثانوية الكندية على الأقل"
+          ],
+          "missing": [
+            "خبرة في TEER 0 أو 1 أو 2 أو 3",
+            "12 شهرًا من الخبرة خلال آخر 10 سنوات",
+            "سنة خبرة مؤهلة متصلة في المهنة الأساسية",
+            "CLB/NCLC 7 على الأقل باختبار ساري",
+            "ECA ساري أو مؤهل كندي مؤهل"
+          ],
+          "nextAction": "استكمال: خبرة في TEER 0 أو 1 أو 2 أو 3",
+          "employers": [],
+          "sources": [
+            {
+              "url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/who-can-apply/federal-skilled-workers.html",
+              "checkedOn": "2026-11-15"
+            }
+          ]
+        },
+        {
+          "rank": 2,
+          "name": "المجتمعات الريفية",
+          "region": "RCIP",
+          "readiness": "NEEDS_COMPLETION",
+          "coverage": {
+            "met": 1,
+            "evaluated": 9
+          },
+          "met": [
+            "مؤهل يعادل الثانوية الكندية على الأقل"
+          ],
+          "missing": [
+            "12 شهرًا من الخبرة خلال آخر 3 سنوات؛ تُراجع مطابقة المهنة وإعفاءات الخريجين",
+            "خبرة مدفوعة لدى جهة عمل؛ ليست عملًا حرًا",
+            "الحد اللغوي المطلوب باختبار ساري في المهارات الأربع",
+            "تقييم ECA ساري أو مؤهل كندي مؤهل",
+            "عرض عمل من صاحب عمل معتمد داخل مجتمع مشارك",
+            "عرض غير موسمي، بلا نهاية محددة، و30 ساعة مدفوعة أسبوعيًا على الأقل",
+            "توصية المجتمع المحلي",
+            "مراجعة أموال الاستقرار أو إثبات الإعفاء"
+          ],
+          "nextAction": "استكمال: 12 شهرًا من الخبرة خلال آخر 3 سنوات؛ تُراجع مطابقة المهنة وإعفاءات الخريجين",
+          "employers": [],
+          "sources": [
+            {
+              "url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html",
+              "checkedOn": "2026-11-15"
+            },
+            {
+              "url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html",
+              "checkedOn": "2026-11-15"
+            },
+            {
+              "url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility.html",
+              "checkedOn": "2026-11-15"
+            },
+            {
+              "url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/proof-funds.html",
+              "checkedOn": "2026-11-15"
+            }
+          ]
+        },
+        {
+          "rank": 3,
+          "name": "أولوية اللغة الفرنسية",
+          "region": "Express Entry · French",
+          "readiness": "NEEDS_COMPLETION",
+          "coverage": {
+            "met": 0,
+            "evaluated": 1
+          },
+          "met": [],
+          "missing": [
+            "NCLC 7 على الأقل في المهارات الأربع باختبار ساري"
+          ],
+          "nextAction": "استكمال: NCLC 7 على الأقل في المهارات الأربع باختبار ساري",
+          "employers": [],
+          "sources": [
+            {
+              "url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/rounds-invitations/category-based-selection.html",
+              "checkedOn": "2026-11-15"
+            }
+          ]
+        }
+      ],
+      "missingDocuments": [
+        "السيرة الذاتية",
+        "اختبار اللغة",
+        "المؤهل الدراسي",
+        "إثبات الخبرة"
+      ],
+      "roadmap": [
+        {
+          "owner": "CLIENT",
+          "title": "رفع المستندات الناقصة أو المنتهية",
+          "documents": [
+            {
+              "label": "السيرة الذاتية",
+              "validUntil": null,
+              "expired": false
+            },
+            {
+              "label": "اختبار اللغة",
+              "validUntil": null,
+              "expired": false
+            },
+            {
+              "label": "المؤهل الدراسي",
+              "validUntil": null,
+              "expired": false
+            },
+            {
+              "label": "إثبات الخبرة",
+              "validUntil": null,
+              "expired": false
+            }
+          ],
+          "estimate": "غير محدد"
+        },
+        {
+          "owner": "CLIENT",
+          "title": "استكمال: خبرة في TEER 0 أو 1 أو 2 أو 3",
+          "documents": [],
+          "estimate": "غير محدد"
+        },
+        {
+          "owner": "CLIENT",
+          "title": "استكمال: 12 شهرًا من الخبرة خلال آخر 10 سنوات",
+          "documents": [],
+          "estimate": "غير محدد"
+        },
+        {
+          "owner": "CLIENT",
+          "title": "استكمال: سنة خبرة مؤهلة متصلة في المهنة الأساسية",
+          "documents": [],
+          "estimate": "غير محدد"
+        },
+        {
+          "owner": "CLIENT",
+          "title": "استكمال: CLB/NCLC 7 على الأقل باختبار ساري",
+          "documents": [],
+          "estimate": "غير محدد"
+        },
+        {
+          "owner": "CLIENT",
+          "title": "استكمال: ECA ساري أو مؤهل كندي مؤهل",
+          "documents": [],
+          "estimate": "غير محدد"
+        },
+        {
+          "owner": "OFFICE",
+          "title": "مراجعة الملف مقابل متطلبات العامل الماهر الفيدرالي",
+          "documents": [],
+          "estimate": "غير محدد"
+        },
+        {
+          "owner": "OFFICE",
+          "title": "تجهيز الطلب للمختص المرخّص واعتماده",
+          "documents": [],
+          "estimate": "غير محدد"
+        }
+      ],
+      "notes": "",
+      "guidance": [],
+      "scenarios": [],
+      "analysis": {
+        "summary": "تقييم أولي غير محسوم للمسارين الأعلى ترتيبًا. نتيجة CRS المعادة من أداة الحساب 345 دون تقدير إضافي؛ يلزم مصالحة مدخلاتها مع النواقص الظاهرة. نتائج اللغة والخبرة مستخرجة وغير معتمدة من الموظف. التحقق الرسمي للمسار الفيدرالي غير مكتمل، ولا يجوز اعتبار هذا تقييمًا نهائيًا للمتطلبات الحالية. الرأي النهائي للمختص المرخص وليس قرارًا حكوميًا.",
+        "pathways": [
+          {
+            "pathwayId": "fsw",
+            "objective": "PERMANENT_RESIDENCE",
+            "eligibility": "UNRESOLVED",
+            "unresolved": [
+              "تصنيف الخبرة ضمن TEER المؤهل",
+              "إثبات سنة خبرة مؤهلة خلال آخر عشر سنوات",
+              "إثبات سنة متصلة في المهنة الأساسية",
+              "اعتماد اختبار ساري يثبت الحد اللغوي المطلوب",
+              "ECA ساري أو مؤهل كندي مؤهل",
+              "استكمال مراجعة المتطلبات الرسمية الحالية وعوامل الاختيار والأموال والمقبولية"
+            ],
+            "clientActions": [
+              "تقديم تقرير اللغة الأصلي وخطابات الخبرة والشهادة وكشف الدرجات وECA."
+            ]
+          },
+          {
+            "pathwayId": "rcip",
+            "objective": "PERMANENT_RESIDENCE",
+            "eligibility": "UNRESOLVED",
+            "unresolved": [
+              "سنة خبرة مؤهلة خلال آخر ثلاث سنوات أو إعفاء منطبق",
+              "إثبات خبرة مدفوعة لدى جهة عمل وليست عملًا حرًا",
+              "الحد اللغوي المطلوب باختبار ساري في المهارات الأربع",
+              "ECA ساري أو مؤهل كندي مؤهل",
+              "عرض من صاحب عمل معتمد في مجتمع مشارك",
+              "عرض غير موسمي بلا نهاية محددة وبحد أدنى 30 ساعة مدفوعة أسبوعيًا",
+              "توصية المجتمع المحلي",
+              "أموال الاستقرار أو الإعفاء",
+              "إعادة مراجعة وضع البرنامج ومتطلباته الحالية قبل التقديم"
+            ],
+            "clientActions": [
+              "تقديم العرض وتفاصيل صاحب العمل والمجتمع والتوصية إن وجدت وإثبات الأموال.",
+              "استكمال أدلة الخبرة والتعليم وتقرير اللغة الأصلي."
+            ]
+          }
+        ],
+        "assessedOn": "2026-11-16T06:49:22.927Z"
+      }
+    }
+  },
+  "openaiCalls": [
+    {
+      "path": "/v1/responses",
+      "op": "case_extraction",
+      "status": 200,
+      "model": "gpt-6.1-sol",
+      "ms": 9030,
+      "in": 791,
+      "out": 530,
+      "items": [
+        "reasoning",
+        "message"
+      ],
+      "searches": [],
+      "rejectedSoFar": []
+    },
+    {
+      "path": "/v1/responses",
+      "op": "case_extraction",
+      "status": 200,
+      "model": "gpt-6.1-sol",
+      "ms": 3969,
+      "in": 1352,
+      "out": 318,
+      "items": [
+        "message"
+      ],
+      "searches": [],
+      "rejectedSoFar": []
+    },
+    {
+      "path": "/v1/responses",
+      "op": "agent",
+      "status": 200,
+      "model": "gpt-6.1-sol",
+      "ms": 2540,
+      "in": 5219,
+      "out": 72,
+      "items": [
+        "fn:get_case",
+        "fn:get_ranked_pathways",
+        "fn:get_extracted_evidence",
+        "fn:calculate_crs"
+      ],
+      "searches": [],
+      "rejectedSoFar": []
+    },
+    {
+      "path": "/v1/responses",
+      "op": "agent",
+      "status": 200,
+      "model": "gpt-6.1-sol",
+      "ms": 34683,
+      "in": 24831,
+      "out": 2149,
+      "items": [
+        "web_search_call",
+        "reasoning",
+        "web_search_call",
+        "fn:save_assessment"
+      ],
+      "searches": [
+        {
+          "action": "open_page",
+          "sources": []
+        },
+        {
+          "action": "search",
+          "query": "site:canada.ca Rural Community Immigration Pilot language CLB TEER 2026",
+          "sources": [
+            "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility.html",
+            "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html",
+            "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration-program/eligibility/language-test.html",
+            "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration.html",
+            "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/job-offer.html",
+            "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/settle.html",
+            "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-northern-immigration-pilot/language-testing.html",
+            "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html"
+          ]
+        }
+      ],
+      "rejectedSoFar": []
+    },
+    {
+      "path": "/v1/responses",
+      "op": "agent",
+      "status": 200,
+      "model": "gpt-6.1-sol",
+      "ms": 8414,
+      "in": 10455,
+      "out": 421,
+      "items": [
+        "reasoning",
+        "message"
+      ],
+      "searches": [],
+      "rejectedSoFar": [
+        "source not retrieved: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/who-can-apply/federal-. Cite only pages retrieved in this run: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration-program/eligibility/language-test.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/job-offer.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/settle.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-northern-immigration-pilot/language-testing.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html"
+      ]
+    },
+    {
+      "path": "/v1/responses",
+      "op": "agent",
+      "status": 200,
+      "model": "gpt-6.1-sol",
+      "ms": 14679,
+      "in": 10888,
+      "out": 1215,
+      "items": [
+        "fn:save_assessment"
+      ],
+      "searches": [],
+      "rejectedSoFar": [
+        "source not retrieved: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/who-can-apply/federal-. Cite only pages retrieved in this run: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration-program/eligibility/language-test.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/job-offer.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/settle.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-northern-immigration-pilot/language-testing.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html"
+      ]
+    }
+  ],
+  "totals": {
+    "calls": 6,
+    "inputTokens": 53536,
+    "outputTokens": 4705,
+    "models": [
+      "gpt-6.1-sol"
+    ]
+  },
+  "passed": true
+}

@@ -1,0 +1,363 @@
+{
+ "mode": "LIVE OpenAI; MOCKED scanner binding; isolated in-memory D1 (migrations 0000-0032)",
+ "model": "gpt-6.1-sol",
+ "steps": {
+  "upload": {
+   "ms": 4053,
+   "documents": [
+    {
+     "kind": "text PDF",
+     "bytes": 4383
+    },
+    {
+     "kind": "scanned PNG",
+     "bytes": 57335
+    }
+   ]
+  },
+  "scan": {
+   "ms": 21079,
+   "integrity": [
+    "CLEAN",
+    "CLEAN"
+   ]
+  },
+  "extraction": {
+   "ms": 21179,
+   "results": {
+    "pdf": {
+     "job": "SUCCEEDED",
+     "result": "APPLIED",
+     "error": null,
+     "processing": {
+      "state": "EXTRACTED",
+      "ocr": 0,
+      "t": "Curriculum vitae",
+      "m": "MATCH",
+      "l": "en",
+      "attempts": 2
+     }
+    },
+    "png": {
+     "job": "SUCCEEDED",
+     "result": "APPLIED",
+     "error": null,
+     "processing": {
+      "state": "EXTRACTED",
+      "ocr": 1,
+      "t": "English Language Test Report Form — synthetic QA sample, not a real certificate",
+      "m": "MATCH",
+      "l": "en",
+      "attempts": 2
+     }
+    }
+   }
+  },
+  "fill": {
+   "ms": 21198,
+   "filled": {
+    "occupation": "Industrial Electrician",
+    "education": "bachelor",
+    "country": "Yemen",
+    "englishMin": 0,
+    "englishDate": "2026-08-14",
+    "jobs": 1,
+    "facts": [
+     "country:APPLIED:HIGH",
+     "education:APPLIED:HIGH",
+     "englishDate:APPLIED:HIGH",
+     "english_test:EXTRACTED:HIGH",
+     "occupation:APPLIED:HIGH",
+     "work_history:EXTRACTED:MEDIUM"
+    ]
+   },
+   "extractionRuns": [
+    {
+     "kind": "EXTRACTION",
+     "status": "SUCCEEDED",
+     "model": "gpt-6.1-sol",
+     "i": 791,
+     "o": 486,
+     "d": 10752,
+     "p": "extract-2026-11-16.2"
+    },
+    {
+     "kind": "EXTRACTION",
+     "status": "SUCCEEDED",
+     "model": "gpt-6.1-sol",
+     "i": 1352,
+     "o": 333,
+     "d": 5994,
+     "p": "extract-2026-11-16.2"
+    }
+   ]
+  },
+  "crs": {
+   "ms": 21333,
+   "crs": 345
+  },
+  "analysis": {
+   "ms": 88875,
+   "run": {
+    "run_id": "6bdc1ba5-425e-47d5-929f-11097633083d",
+    "status": "SUCCEEDED",
+    "model": "gpt-6.1-sol",
+    "i": 50461,
+    "o": 4190,
+    "t": 6,
+    "r": 2,
+    "d": 67393,
+    "e": "",
+    "rev": 5,
+    "rv": "2026-11-15.v4",
+    "pv": "analysis-2026-11-16.1"
+   },
+   "result": {
+    "summary": "التقييم الأولي: أهلية المسارات الثلاثة الأعلى ترتيبًا غير محسومة؛ لا يوجد فحص فاشل مثبت ولا استيفاء كامل. مستند اللغة نموذج تجريبي وليس شهادة حقيقية، والخبرة المستخرجة غير معتمدة. أعادت حاسبة CRS مجموع 345 دون نواقص، لكن يلزم تدقيق المدخلات مقابل نقص البيانات ومستند اللغة التجريبي قبل الاعتماد عليه. التحقق الرسمي لمسار FSW غير مكتمل. المشورة النهائية للمختص المرخص، وهذا ليس قرارًا حكوميًا.",
+    "crsQuoted": 345,
+    "pathways": [
+     {
+      "id": "fsw",
+      "objective": "PERMANENT_RESIDENCE",
+      "eligibility": "UNRESOLVED",
+      "unresolved": [
+       "مطابقة الخبرة مع TEER 0 أو 1 أو 2 أو 3",
+       "اثنا عشر شهرًا من الخبرة المؤهلة خلال آخر عشر سنوات",
+       "سنة خبرة مؤهلة متصلة في المهنة الأساسية"
+      ],
+      "sources": [],
+      "office": 1,
+      "client": 1
+     },
+     {
+      "id": "rcip",
+      "objective": "PERMANENT_RESIDENCE",
+      "eligibility": "UNRESOLVED",
+      "unresolved": [
+       "اثنا عشر شهرًا من الخبرة خلال آخر ثلاث سنوات أو إعفاء مؤهل",
+       "خبرة مدفوعة لدى جهة عمل وليست عملًا حرًا",
+       "الحد اللغوي المناسب باختبار حقيقي ساري في المهارات الأربع"
+      ],
+      "sources": [
+       "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html",
+       "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html",
+       "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration-program/job-offer.html"
+      ],
+      "office": 1,
+      "client": 1
+     },
+     {
+      "id": "lmia",
+      "objective": "WORK",
+      "eligibility": "UNRESOLVED",
+      "unresolved": [
+       "عرض عمل كندي مكتوب",
+       "قرار LMIA إيجابي عند اللزوم",
+       "مطابقة اسم العامل والمهنة وصلاحية القرار وشروط العرض"
+      ],
+      "sources": [
+       "https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/employer-specific.html"
+      ],
+      "office": 1,
+      "client": 1
+     }
+    ],
+    "searched": [
+     "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html",
+     "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html",
+     "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration-program/job-offer.html",
+     "https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/employer-specific.html",
+     "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/hire/candidate.html",
+     "https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm5984.html"
+    ]
+   },
+   "tasks": 3
+  },
+  "publish": {
+   "ms": 88984,
+   "version": 1
+  },
+  "clientView": {
+   "ms": 88993,
+   "keys": [
+    "version",
+    "publishedAt",
+    "assessment"
+   ]
+  },
+  "readinessBrief": {
+   "status": 200,
+   "error": null,
+   "usage": [
+    {
+     "status": "OK",
+     "error_code": "",
+     "input_tokens": 2070,
+     "output_tokens": 1308
+    },
+    {
+     "status": "ERROR",
+     "error_code": "SCHEMA_INVALID:questions",
+     "input_tokens": 0,
+     "output_tokens": 0
+    }
+   ]
+  }
+ },
+ "migrationsApplied": 33,
+ "openaiCalls": [
+  {
+   "path": "/v1/responses",
+   "op": "case_extraction",
+   "status": 200,
+   "model": "gpt-6.1-sol",
+   "ms": 5963,
+   "in": 1352,
+   "out": 333,
+   "items": [
+    "message"
+   ],
+   "searches": [],
+   "rejectedSoFar": []
+  },
+  {
+   "path": "/v1/responses",
+   "op": "case_extraction",
+   "status": 200,
+   "model": "gpt-6.1-sol",
+   "ms": 10714,
+   "in": 791,
+   "out": 486,
+   "items": [
+    "reasoning",
+    "message"
+   ],
+   "searches": [],
+   "rejectedSoFar": []
+  },
+  {
+   "path": "/v1/responses",
+   "op": "agent",
+   "status": 200,
+   "model": "gpt-6.1-sol",
+   "ms": 1988,
+   "in": 5219,
+   "out": 72,
+   "items": [
+    "fn:get_case",
+    "fn:get_ranked_pathways",
+    "fn:get_extracted_evidence",
+    "fn:calculate_crs"
+   ],
+   "searches": [],
+   "rejectedSoFar": []
+  },
+  {
+   "path": "/v1/responses",
+   "op": "agent",
+   "status": 200,
+   "model": "gpt-6.1-sol",
+   "ms": 34769,
+   "in": 24007,
+   "out": 1973,
+   "items": [
+    "web_search_call",
+    "web_search_call",
+    "fn:save_assessment"
+   ],
+   "searches": [
+    {
+     "action": "search",
+     "query": "site.canada.ca federal skilled worker program minimum requirements 67 points",
+     "sources": [
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration-program/job-offer.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/employer-specific.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/hire/candidate.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm5984.html",
+      "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/11/overview-of-the-rural-community-immigration-program.html",
+      "https://gazette.gc.ca/rp-pr/p2/2026/2026-11-04/html/sor-dors217-eng.html"
+     ]
+    },
+    {
+     "action": "open_page",
+     "sources": []
+    }
+   ],
+   "rejectedSoFar": []
+  },
+  {
+   "path": "/v1/responses",
+   "op": "agent",
+   "status": 200,
+   "model": "gpt-6.1-sol",
+   "ms": 10444,
+   "in": 10352,
+   "out": 519,
+   "items": [
+    "reasoning",
+    "message"
+   ],
+   "searches": [],
+   "rejectedSoFar": [
+    "source not retrieved: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigratio. Cite only pages retrieved in this run: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration-program/job-offer.html https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/employer-specific.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/hire/candidate.html https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm5984.html https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/11/overview-of-the-rural-community-immigration-program.html https://gazette.gc.ca/rp-pr/p2/2026/2026-11-04/html/sor-dors217-eng.html"
+   ]
+  },
+  {
+   "path": "/v1/responses",
+   "op": "agent",
+   "status": 200,
+   "model": "gpt-6.1-sol",
+   "ms": 20111,
+   "in": 10883,
+   "out": 1626,
+   "items": [
+    "reasoning",
+    "fn:save_assessment"
+   ],
+   "searches": [],
+   "rejectedSoFar": [
+    "source not retrieved: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigratio. Cite only pages retrieved in this run: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/work-experience.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration/eligibility/language-test.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/rural-immigration-program/job-offer.html https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/employer-specific.html https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-franco-pilots/hire/candidate.html https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm5984.html https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/11/overview-of-the-rural-community-immigration-program.html https://gazette.gc.ca/rp-pr/p2/2026/2026-11-04/html/sor-dors217-eng.html"
+   ]
+  },
+  {
+   "path": "/v1/responses",
+   "op": "",
+   "status": 200,
+   "model": "gpt-6.1-sol",
+   "ms": 28026,
+   "in": 2070,
+   "out": 1308,
+   "items": [
+    "reasoning",
+    "message"
+   ],
+   "searches": [],
+   "rejectedSoFar": []
+  },
+  {
+   "path": "/v1/responses",
+   "op": "",
+   "status": 200,
+   "model": "gpt-6.1-sol",
+   "ms": 9540,
+   "in": 3245,
+   "out": 1201,
+   "items": [
+    "message"
+   ],
+   "searches": [],
+   "rejectedSoFar": []
+  }
+ ],
+ "totals": {
+  "calls": 8,
+  "inputTokens": 57919,
+  "outputTokens": 7518,
+  "models": [
+   "gpt-6.1-sol"
+  ]
+ },
+ "passed": true
+}

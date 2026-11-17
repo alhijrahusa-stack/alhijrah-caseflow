@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: office visibility: every active STAFF member sees all cases, sub-resources, tasks and client-portal cases at once
+ok 1 - office visibility: every active STAFF member sees all cases, sub-resources, tasks and client-portal cases at once
+  ---
+  duration_ms: 4292.177798
+  type: 'test'
+  ...
+# Subtest: assignment by name or email by any staff member; ambiguous names ask for the email
+ok 2 - assignment by name or email by any staff member; ambiguous names ask for the email
+  ---
+  duration_ms: 355.578242
+  type: 'test'
+  ...
+# Subtest: forgery: role, session, scope and permission payloads fail
+ok 3 - forgery: role, session, scope and permission payloads fail
+  ---
+  duration_ms: 110.209119
+  type: 'test'
+  ...
+# Subtest: Toggles: audit + value + epoch atomically; stale KV cannot restore a revoked permission; deactivation is immediate
+ok 4 - Toggles: audit + value + epoch atomically; stale KV cannot restore a revoked permission; deactivation is immediate
+  ---
+  duration_ms: 168.918974
+  type: 'test'
+  ...
+# Subtest: concurrent toggles with the same expected version: one wins, the other conflicts, no partial audit
+ok 5 - concurrent toggles with the same expected version: one wins, the other conflicts, no partial audit
+  ---
+  duration_ms: 66.24095
+  type: 'test'
+  ...
+# Subtest: STAFF open switch: ends at Toronto midnight, grants no MANAGER authority, expiry holds with a stopped cron, AUTO_KILL is deduplicated
+ok 6 - STAFF open switch: ends at Toronto midnight, grants no MANAGER authority, expiry holds with a stopped cron, AUTO_KILL is deduplicated
+  ---
+  duration_ms: 6268.845053
+  type: 'test'
+  ...
+# Subtest: a financial transaction authorized by an expired open switch or expired authz rolls back completely
+ok 7 - a financial transaction authorized by an expired open switch or expired authz rolls back completely
+  ---
+  duration_ms: 216.193715
+  type: 'test'
+  ...
+# Subtest: Toronto day boundaries: DST 23/25-hour days, new year, no carry-over to the next day
+ok 8 - Toronto day boundaries: DST 23/25-hour days, new year, no carry-over to the next day
+  ---
+  duration_ms: 1.101522
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11765.736307

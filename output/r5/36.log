@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: documents: scanned image read via vision (ocr=1, classified), duplicate skipped, encrypted/corrupted/unsupported get explicit states and recovery actions
+ok 1 - documents: scanned image read via vision (ocr=1, classified), duplicate skipped, encrypted/corrupted/unsupported get explicit states and recovery actions
+  ---
+  duration_ms: 4758.77678
+  type: 'test'
+  ...
+# Subtest: agent: tools bound to the case (case id argument ignored), invalid save rejected then corrected, sources/evidence/CRS validated, run recorded, internal tasks deduplicated
+ok 2 - agent: tools bound to the case (case id argument ignored), invalid save rejected then corrected, sources/evidence/CRS validated, run recorded, internal tasks deduplicated
+  ---
+  duration_ms: 283.080958
+  type: 'test'
+  ...
+# Subtest: stale results never replace newer ones: a revision change during analysis discards the run; the last valid assessment keeps its timestamp
+ok 3 - stale results never replace newer ones: a revision change during analysis discards the run; the last valid assessment keeps its timestamp
+  ---
+  duration_ms: 191.922878
+  type: 'test'
+  ...
+# Subtest: triggers: data change queues a revision-keyed analysis; an obsolete revision is skipped without AI; intake submission queues analysis atomically
+ok 4 - triggers: data change queues a revision-keyed analysis; an obsolete revision is skipped without AI; intake submission queues analysis atomically
+  ---
+  duration_ms: 846.449343
+  type: 'test'
+  ...
+# Subtest: quota: above the daily token budget the provider is not called and the reason is explicit; the deterministic refresh still runs
+ok 5 - quota: above the daily token budget the provider is not called and the reason is explicit; the deterministic refresh still runs
+  ---
+  duration_ms: 97.660115
+  type: 'test'
+  ...
+# Subtest: isolation: a client session reaches only its own case across APIs, downloads, assessment and sockets; staff/engine APIs refuse clients
+ok 6 - isolation: a client session reaches only its own case across APIs, downloads, assessment and sockets; staff/engine APIs refuse clients
+  ---
+  duration_ms: 762.22495
+  type: 'test'
+  ...
+# Subtest: official rounds: the captured live IRCC payload is validated, stored once with its update date, cached in KV and invalidated on update
+ok 7 - official rounds: the captured live IRCC payload is validated, stored once with its update date, cached in KV and invalidated on update
+  ---
+  duration_ms: 718.077345
+  type: 'test'
+  ...
+# Subtest: erasure: a privacy erasure deletes the case's engine records (immutable otherwise); the audit chain stays valid
+ok 8 - erasure: a privacy erasure deletes the case's engine records (immutable otherwise); the audit chain stays valid
+  ---
+  duration_ms: 131.730032
+  type: 'test'
+  ...
+# Subtest: official rounds fallback: an edge 520 is retried once and recorded; a MANAGER uploads the official file (validated, snapshotted, audited with the uploader); STAFF is refused; an invalid file stores nothing
+ok 9 - official rounds fallback: an edge 520 is retried once and recorded; a MANAGER uploads the official file (validated, snapshotted, audited with the uploader); STAFF is refused; an invalid file stores nothing
+  ---
+  duration_ms: 3787.884021
+  type: 'test'
+  ...
+# Subtest: central integration: office documents (case readiness brief) and directly built requests (case review) are logged in ai_usage; a schema-invalid office document records SCHEMA_INVALID instead of a bare 502
+ok 10 - central integration: office documents (case readiness brief) and directly built requests (case review) are logged in ai_usage; a schema-invalid office document records SCHEMA_INVALID instead of a bare 502
+  ---
+  duration_ms: 134.667207
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12050.797157

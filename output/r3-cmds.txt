@@ -1,0 +1,37 @@
+node --experimental-strip-types --no-warnings --test tests/american-terms.test.mjs tests/assessment.test.mjs tests/assistance.test.mjs tests/case-workflow.test.mjs tests/crs-engine.test.mjs tests/crs-golden.test.mjs tests/csv.test.mjs tests/eligibility.test.mjs tests/entry-requirements.test.mjs tests/experience.test.mjs tests/gate2-units.test.mjs tests/inputs-hash.test.mjs tests/mi-2026-1.test.mjs tests/mi-consolidated.test.mjs tests/migrations-journal.test.mjs tests/mrz-repair.test.mjs tests/noc-teer.test.mjs tests/pathways.test.mjs tests/triage.test.mjs
+npx tsc --noEmit -p .
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/access.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/automation.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/billing.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/chat.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/database.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/engines.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/operations.e2e.spec.ts
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/outbox-cas.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/portal.e2e.spec.ts
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/portal.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/registry-coexistence.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/security.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/assistance-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/auth-isolation.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/automation-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/contact-log-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/engine-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/engine-shadow-only-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/enterprise-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/experience-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/gate2-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/hardening-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/identity-trust-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/intake-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/intake-identity.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/legal-authorization.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/local-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/office-hub-api.mjs
+timeout 900 node --experimental-strip-types --no-warnings tests/portal-security.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/desk.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/decision-support.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/engine-core.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/engine.test.mjs
+timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/engine-intake.test.mjs
+env ROLLBACK_REF=44fd112 ROLLBACK_DIST=/tmp/claude-0/-home-user-alhijrah-caseflow/6a4112b7-566a-5359-8ce1-d51706829c53/scratchpad/rollback-44fd112/dist/server RESTORE_REPORT=/tmp/claude-0/-home-user-alhijrah-caseflow/6a4112b7-566a-5359-8ce1-d51706829c53/scratchpad/restore-report.json timeout 900 node --experimental-strip-types --no-warnings --test tests/v22/restore.test.mjs

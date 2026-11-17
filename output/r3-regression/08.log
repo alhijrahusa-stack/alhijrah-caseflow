@@ -1,0 +1,112 @@
+TAP version 13
+# Subtest: JCS: member order by code units, nested arrays, non-finite numbers rejected; hash is over UTF-8 bytes
+ok 1 - JCS: member order by code units, nested arrays, non-finite numbers rejected; hash is over UTF-8 bytes
+  ---
+  duration_ms: 4508.082479
+  type: 'test'
+  ...
+# Subtest: import: complete payload accepted; missing source, altered bytes, hash, manifest, cycle, path, table and engine defects rejected
+ok 2 - import: complete payload accepted; missing source, altered bytes, hash, manifest, cycle, path, table and engine defects rejected
+  ---
+  duration_ms: 74.784418
+  type: 'test'
+  ...
+# Subtest: release: overlap, RCIP range overlap and identity mismatch block sealing; manifest is order-independent
+ok 3 - release: overlap, RCIP range overlap and identity mismatch block sealing; manifest is order-independent
+  ---
+  duration_ms: 6.849852
+  type: 'test'
+  ...
+# Subtest: resolver: one interval per date, [from,to) boundaries, missing date => CONTEXT_INCOMPLETE, tampered bytes => RULE_UNAVAILABLE, historic replay
+ok 4 - resolver: one interval per date, [from,to) boundaries, missing date => CONTEXT_INCOMPLETE, tampered bytes => RULE_UNAVAILABLE, historic replay
+  ---
+  duration_ms: 2.262276
+  type: 'test'
+  ...
+# Subtest: RCIP: approval timestamp converted to Toronto first; 2026 pilot, 2027 permanent rejecting a 2026 recommendation; no transition state
+ok 5 - RCIP: approval timestamp converted to Toronto first; 2026 pilot, 2027 permanent rejecting a 2026 recommendation; no transition state
+  ---
+  duration_ms: 0.924775
+  type: 'test'
+  ...
+# Subtest: obligations: ALL/ANY, UNKNOWN never FAIL, unverified facts in VERIFIED_SCREENING, citations on every predicate, removed branch cannot PASS
+ok 6 - obligations: ALL/ANY, UNKNOWN never FAIL, unverified facts in VERIFIED_SCREENING, citations on every predicate, removed branch cannot PASS
+  ---
+  duration_ms: 2.42868
+  type: 'test'
+  ...
+# Subtest: CRS from the sealed payload: differential against lib/crs.ts over 600 seeded profiles (components, MAX, caps, total)
+ok 7 - CRS from the sealed payload: differential against lib/crs.ts over 600 seeded profiles (components, MAX, caps, total)
+  ---
+  duration_ms: 241.510723
+  type: 'test'
+  ...
+# Subtest: CRS failure modes: unknown => INCOMPLETE with no number, unverified => INCOMPLETE, corrupt/missing data => RULE_UNAVAILABLE, LMIF cap from payload
+ok 8 - CRS failure modes: unknown => INCOMPLETE with no number, unverified => INCOMPLETE, corrupt/missing data => RULE_UNAVAILABLE, LMIF cap from payload
+  ---
+  duration_ms: 8.393004
+  type: 'test'
+  ...
+# Subtest: normalization: a submitted high-wage tier is not proof; the tier comes only from the sealed wage dataset
+ok 9 - normalization: a submitted high-wage tier is not proof; the tier comes only from the sealed wage dataset
+  ---
+  duration_ms: 0.786435
+  type: 'test'
+  ...
+# Subtest: assembly: deterministic canonical hash, purpose/mode change the hash, no release => BLOCKED_RULES, ranking unavailable
+ok 10 - assembly: deterministic canonical hash, purpose/mode change the hash, no release => BLOCKED_RULES, ranking unavailable
+  ---
+  duration_ms: 14.428409
+  type: 'test'
+  ...
+# Subtest: NOC adapter contract: no consent field, forged code/duty/quote rejected as a whole
+ok 11 - NOC adapter contract: no consent field, forged code/duty/quote rejected as a whole
+  ---
+  duration_ms: 0.837796
+  type: 'test'
+  ...
+# Subtest: Worker seal: MANAGER-only import, server hashes, INSERT SEALED refused, overlap/missing source/stale generation block, one manager creates and seals, atomic
+ok 12 - Worker seal: MANAGER-only import, server hashes, INSERT SEALED refused, overlap/missing source/stale generation block, one manager creates and seals, atomic
+  ---
+  duration_ms: 799.555148
+  type: 'test'
+  ...
+# Subtest: Worker assessment: same engine and history, canonical dedup under 100 concurrent requests, idempotency key, CAS, SHADOW, RAPID, atomic rollback
+ok 13 - Worker assessment: same engine and history, canonical dedup under 100 concurrent requests, idempotency key, CAS, SHADOW, RAPID, atomic rollback
+  ---
+  duration_ms: 4103.447056
+  type: 'test'
+  ...
+# Subtest: Worker RCIP: server-recorded approval in Toronto selects pilot/permanent; 2026 recommendation fails in permanent; browser timestamp ignored
+ok 14 - Worker RCIP: server-recorded approval in Toronto selects pilot/permanent; 2026 recommendation fails in permanent; browser timestamp ignored
+  ---
+  duration_ms: 320.495908
+  type: 'test'
+  ...
+# Subtest: Worker auto-recompute: a profile change republishes through the same engine as SYSTEM
+ok 15 - Worker auto-recompute: a profile change republishes through the same engine as SYSTEM
+  ---
+  duration_ms: 418.921804
+  type: 'test'
+  ...
+# Subtest: Worker NOC adapter: works without any consent record; provider, RBAC, scope, catalog and citations still enforced; other consents unchanged
+ok 16 - Worker NOC adapter: works without any consent record; provider, RBAC, scope, catalog and citations still enforced; other consents unchanged
+  ---
+  duration_ms: 472.665274
+  type: 'test'
+  ...
+# Subtest: Worker deactivation: no active release => BLOCKED_RULES and RULE_UNAVAILABLE; historic assessments keep their rules
+ok 17 - Worker deactivation: no active release => BLOCKED_RULES and RULE_UNAVAILABLE; historic assessments keep their rules
+  ---
+  duration_ms: 107.924795
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11519.144999
